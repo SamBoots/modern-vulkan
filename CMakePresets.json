@@ -1,0 +1,49 @@
+﻿{
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "version": 3,
+
+  "configurePresets": [
+    {
+      "hidden": true,
+      "name": "default-win",
+      "description": "default build with options for vulkan or DX12. Not for x86.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      }
+    },
+    {
+      "name": "vulkan-Debug",
+      "inherits": "default-win",
+      "cacheVariables": {
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+        "CMAKE_BUILD_TYPE": "Debug",
+        "GRAPHICS_API": "Vulkan"
+      }
+    },
+    {
+      "name": "vulkan-Release-with-debug",
+      "inherits": "default-win",
+      "cacheVariables": {
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "GRAPHICS_API": "Vulkan"
+      }
+    },
+    {
+      "name": "vulkan-Release",
+      "inherits": "default-win",
+      "cacheVariables": {
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+        "CMAKE_BUILD_TYPE": "Release",
+        "GRAPHICS_API": "Vulkan"
+      }
+    }
+  ]
+}
