@@ -94,6 +94,7 @@ int main(int argc, char** argv)
 	constexpr const float MILLITIMEDIVIDE = 1 / 1000.f;
 
 	{ //8 threads
+		OSCreateDirectory("thread8");
 		auto t_Timer = std::chrono::high_resolution_clock::now();
 		constexpr uint32_t THREAD_COUNT = 8;
 		uintptr_t stack_pos = allocator.GetPosition();
@@ -130,6 +131,7 @@ int main(int argc, char** argv)
 	}
 
 	{ //4 threads
+		OSCreateDirectory("thread4");
 		auto t_Timer = std::chrono::high_resolution_clock::now();
 		constexpr uint32_t THREAD_COUNT = 4;
 		uintptr_t stack_pos = allocator.GetPosition();
@@ -166,6 +168,7 @@ int main(int argc, char** argv)
 	}
 
 	{ //2 threads
+		OSCreateDirectory("thread2");
 		auto t_Timer = std::chrono::high_resolution_clock::now();
 		constexpr uint32_t THREAD_COUNT = 2;
 		uintptr_t stack_pos = allocator.GetPosition();
@@ -202,6 +205,7 @@ int main(int argc, char** argv)
 	}
 
 	{ //1 threads
+		OSCreateDirectory("single_thread");
 		auto t_Timer = std::chrono::high_resolution_clock::now();
 		constexpr uint32_t THREAD_COUNT = 1;
 		uintptr_t stack_pos = allocator.GetPosition();

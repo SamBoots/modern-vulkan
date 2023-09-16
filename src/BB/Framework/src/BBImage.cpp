@@ -145,7 +145,7 @@ void FilterImagePart(void* a_param)
 {
 	const process_image_part_params& params = *reinterpret_cast<process_image_part_params*>(a_param);
 
-	if (false) //SIMD
+	if (true) //SIMD
 	{
 		const __m128 simd_factor = _mm_set_ps1(params.factor);
 		const __m128 simd_bias = _mm_set_ps1(params.bias);
@@ -174,7 +174,7 @@ void FilterImagePart(void* a_param)
 						simd_rgba = _mm_add_ps(simd_rgba, _mm_mul_ps(rgba_mod, simd_filter));
 					}
 				simd_rgba = _mm_mul_ps(simd_factor, simd_rgba);
-				_mm_min_ps(_mm_max_ps(_mm_add_ps(simd_rgba, simd_bias), simd_rgba_min), simd_rgba_max);
+				simd_rgba = _mm_min_ps(_mm_max_ps(_mm_add_ps(simd_rgba, simd_bias), simd_rgba_min), simd_rgba_max);
 
 				const uint32_t packed = PACK_RGBA(
 					static_cast<uint32_t>(simd_rgba.m128_f32[0]),
@@ -299,7 +299,7 @@ void BBImage::FilterImage(Allocator a_temp_allocator, const float* a_filter, con
 						simd_rgba = _mm_add_ps(simd_rgba, _mm_mul_ps(rgba_mod, simd_filter));
 					}
 					simd_rgba = _mm_mul_ps(simd_factor, simd_rgba);
-					_mm_min_ps(_mm_max_ps(_mm_add_ps(simd_rgba, simd_bias), simd_rgba_min), simd_rgba_max);
+					simd_rgba = _mm_min_ps(_mm_max_ps(_mm_add_ps(simd_rgba, simd_bias), simd_rgba_min), simd_rgba_max);
 
 					const uint32_t packed = PACK_RGBA(
 						static_cast<uint32_t>(simd_rgba.m128_f32[0]),
@@ -368,7 +368,7 @@ void BBImage::SharpenImage(Allocator a_temp_allocator, const float a_intensity, 
 
 void BBImage::WriteAsBMP(const char* a_file_path)
 {
-	OSFileHandle write_bmp = CreateOSFile(a_file_path);
+	const OSFileHandle write_bmp = CreateOSFile(a_file_path);
 
 	BMP::File file = {};
 	file.file_type = BMP::BMP_IMAGE_FILE_TYPE;
@@ -425,19 +425,6 @@ void BBImage::LoadBMP(Allocator a_allocator, const char* a_file_path)
 	}
 
 	current_data = Pointer::Add(load_image.data, file.offset_data);
-
-	////some editors add extra info on the image file. Adjust for that.
-	//if (file_header.bit_count == 32)
-	//{
-	//	file_header.size = sizeof(BMP::Header) + sizeof(BMP::ColorHeader);
-	//	file.offset_data = sizeof(BMP::File) + sizeof(BMP::Header) + sizeof(BMP::ColorHeader);
-	//}
-	//else
-	//{
-	//	file_header.size = sizeof(BMP::Header);
-	//	file.offset_data = sizeof(BMP::File) + sizeof(BMP::Header);
-	//}
-	//file.file_size = file.offset_data;
 
 	BB_ASSERT(file_header.height > 0, "currently not supporting negative height BMP's.");
 

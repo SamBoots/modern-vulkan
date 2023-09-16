@@ -296,9 +296,21 @@ void BB::WriteToConsole(const wchar_t* a_String, uint32_t a_StrLength)
 	}
 }
 
+void BB::OSCreateDirectory(const char* a_path_name)
+{
+	const BOOL result = CreateDirectoryA(a_path_name, NULL);
+#ifdef _DEBUG
+	if (result == ERROR_PATH_NOT_FOUND)
+	{
+		LatestOSError();
+		BB_ASSERT(false, "OS, failed to a directory file! This can be severe.");
+	}
+#endif //_DEBUG
+}
+
 OSFileHandle BB::CreateOSFile(const char* a_FileName)
 {
-	HANDLE t_CreatedFile = CreateFileA(a_FileName,
+	const HANDLE t_CreatedFile = CreateFileA(a_FileName,
 		GENERIC_WRITE | GENERIC_READ,
 		0,
 		NULL,
@@ -319,7 +331,7 @@ OSFileHandle BB::CreateOSFile(const char* a_FileName)
 
 OSFileHandle BB::CreateOSFile(const wchar* a_FileName)
 {
-	HANDLE t_CreatedFile = CreateFileW(a_FileName,
+	const HANDLE t_CreatedFile = CreateFileW(a_FileName,
 		GENERIC_WRITE | GENERIC_READ,
 		0,
 		NULL,
@@ -340,7 +352,7 @@ OSFileHandle BB::CreateOSFile(const wchar* a_FileName)
 
 OSFileHandle BB::LoadOSFile(const char* a_FileName)
 {
-	HANDLE t_LoadedFile = CreateFileA(a_FileName,
+	const HANDLE t_LoadedFile = CreateFileA(a_FileName,
 		GENERIC_WRITE | GENERIC_READ,
 		0,
 		NULL,
@@ -357,7 +369,7 @@ OSFileHandle BB::LoadOSFile(const char* a_FileName)
 //char replaced with string view later on.
 OSFileHandle BB::LoadOSFile(const wchar* a_FileName)
 {
-	HANDLE t_LoadedFile = CreateFileW(a_FileName,
+	const HANDLE t_LoadedFile = CreateFileW(a_FileName,
 		GENERIC_WRITE | GENERIC_READ,
 		0,
 		NULL,

@@ -69,6 +69,8 @@ namespace BB
 	//Write to the standard C++ console if it's available.
 	void WriteToConsole(const wchar_t* a_String, uint32_t a_StrLength);
 
+	void OSCreateDirectory(const char* a_path_name);
+
 	//char replaced with string view later on.
 	//handle is 0 if it failed to create the file, it will assert on failure.
 	OSFileHandle CreateOSFile(const char* a_FileName);
