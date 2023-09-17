@@ -90,6 +90,7 @@ int main(int argc, char** argv)
 	BBImage image{ allocator, "resources/bmpimage.bmp" };
 	const BBImage image_backup{ allocator, image };
 	image.WriteAsBMP("WriteNormal.bmp");
+	image.WriteAsTARGA("WriteNormal.tga");
 
 	using ms = std::chrono::duration<float, std::milli>;
 	constexpr const float MILLITIMEDIVIDE = 1 / 1000.f;

@@ -81,16 +81,22 @@ namespace TARGA
 	{
 		int8_t  id_field_length;
 		int8_t  color_map_type;
-		int8_t  data_type_code;
-		int16_t color_map_origin;
-		int16_t color_map_length;
-		int8_t  color_map_depth;
-		int16_t x_origin;
-		int16_t y_origin;
-		int16_t width;
-		int16_t height;
-		int8_t  bits_per_pixel;
-		int8_t  image_descriptor;
+		int8_t  image_type;
+		struct ColorMap
+		{
+			int16_t color_map_origin;
+			int16_t color_map_length;
+			int8_t  color_map_depth;
+		} color_map;
+		struct Image
+		{
+			int16_t x_origin;
+			int16_t y_origin;
+			int16_t width;
+			int16_t height;
+			int8_t  bits_per_pixel;
+			int8_t  image_descriptor;
+		} image;
 	};
 #pragma pack(pop)
 }
@@ -108,10 +114,6 @@ BBImage::BBImage(Allocator a_allocator, const BBImage& a_image)
 {
 	m_width = a_image.m_width;
 	m_height = a_image.m_height;
-	m_red_mask = a_image.m_red_mask;
-	m_green_mask = a_image.m_green_mask;
-	m_blue_mask = a_image.m_blue_mask;
-	m_alpha_mask = a_image.m_alpha_mask;
 
 	const uint32_t pixel_count = m_width * m_height;
 	m_pixels = BBnewArr(a_allocator, pixel_count, RGBA_Pixel);
@@ -123,10 +125,6 @@ BBImage& BBImage::operator=(const BBImage& a_rhs)
 	BB_ASSERT(m_width == a_rhs.m_width && m_height == a_rhs.m_height, "trying to do a copy operation on a image that is not the same width and height!");
 	m_width = a_rhs.m_width;
 	m_height = a_rhs.m_height;
-	m_red_mask = a_rhs.m_red_mask;
-	m_green_mask = a_rhs.m_green_mask;
-	m_blue_mask = a_rhs.m_blue_mask;
-	m_alpha_mask = a_rhs.m_alpha_mask;
 
 	const uint32_t pixel_count = m_width * m_height;
 	Memory::Copy(m_pixels, a_rhs.m_pixels, pixel_count);
@@ -144,11 +142,6 @@ struct process_image_part_params
 	uint32_t img_height_end;
 	uint32_t img_width;
 	uint32_t img_height;
-
-	uint32_t red_mask;
-	uint32_t green_mask;
-	uint32_t blue_mask;
-	uint32_t alpha_mask;
 
 	const float* filter;
 	uint32_t filter_width; 
@@ -182,10 +175,10 @@ void FilterImagePart(void* a_param)
 
 						const __m128 simd_filter = _mm_set_ps1(params.filter[filterY * params.filter_width + filterX]);
 						const __m128 rgba_mod = _mm_set_ps(
-							(pixel & params.blue_mask) >> 0,
-							(pixel & params.green_mask) >> 8,
-							(pixel & params.red_mask) >> 16,
-							(pixel & params.alpha_mask) >> 24);
+							(pixel & 0x000000ff) >> 0,
+							(pixel & 0x0000ff00) >> 8,
+							(pixel & 0x00ff0000) >> 16,
+							(pixel & 0xff000000) >> 24);
 
 						simd_rgba = _mm_add_ps(simd_rgba, _mm_mul_ps(rgba_mod, simd_filter));
 					}
@@ -216,10 +209,10 @@ void FilterImagePart(void* a_param)
 						const int imageY = (y - params.filter_height / 2 + filterY + params.img_height) % params.img_height;
 						const uint32_t pixel = reinterpret_cast<const uint32_t*>(params.img_start_old_pixel)[imageY * params.img_width + imageX];
 						const float filter = params.filter[filterY * params.filter_width + filterX];
-						a += ((pixel & params.alpha_mask) >> 24) * filter;
-						r += ((pixel & params.red_mask) >> 16) * filter;
-						g += ((pixel & params.green_mask) >> 8) * filter;
-						b += ((pixel & params.blue_mask) >> 0) * filter;
+						a += ((pixel & 0x000000ff) >> 24) * filter;
+						r += ((pixel & 0x0000ff00) >> 16) * filter;
+						g += ((pixel & 0x00ff0000) >> 8) * filter;
+						b += ((pixel & 0xff000000) >> 0) * filter;
 					}
 
 				a = Clampf(params.factor * a + params.bias, 0, 255);
@@ -256,11 +249,6 @@ void BBImage::FilterImage(Allocator a_temp_allocator, const float* a_filter, con
 		params[0].img_start_old_pixel = reinterpret_cast<const uint32_t*>(old_data);
 		params[0].img_width = m_width;
 		params[0].img_height = m_height;
-
-		params[0].alpha_mask = m_alpha_mask;
-		params[0].red_mask = m_red_mask;
-		params[0].green_mask = m_green_mask;
-		params[0].blue_mask = m_blue_mask;
 
 		params[0].filter = a_filter;
 		params[0].filter_width = a_filter_width;
@@ -306,10 +294,10 @@ void BBImage::FilterImage(Allocator a_temp_allocator, const float* a_filter, con
 
 						const __m128 simd_filter = _mm_set_ps1(a_filter[filterY * a_filter_width + filterX]);
 						const __m128 rgba_mod = _mm_set_ps(
-							(pixel & m_blue_mask) >> 0,
-							(pixel & m_green_mask) >> 8,
-							(pixel & m_red_mask) >> 16,
-							(pixel & m_alpha_mask) >> 24);
+							(pixel & 0x000000ff) >> 0,
+							(pixel & 0x0000ff00) >> 8,
+							(pixel & 0x00ff0000) >> 16,
+							(pixel & 0xff000000) >> 24);
 
 						simd_rgba = _mm_add_ps(simd_rgba, _mm_mul_ps(rgba_mod, simd_filter));
 					}
@@ -342,10 +330,10 @@ void BBImage::FilterImage(Allocator a_temp_allocator, const float* a_filter, con
 						const uint32_t pixel = reinterpret_cast<uint32_t*>(old_data)[imageY * m_width + imageX];
 						const float filter = a_filter[filterY * a_filter_width + filterX];
 
-						b += ((pixel & m_blue_mask) >> 0) * filter;
-						g += ((pixel & m_green_mask) >> 8) * filter;
-						r += ((pixel & m_red_mask) >> 16) * filter;
-						a += ((pixel & m_alpha_mask) >> 24) * filter;
+						b += ((pixel & 0x000000ff) >> 0) * filter;
+						g += ((pixel & 0x0000ff00) >> 8) * filter;
+						r += ((pixel & 0x00ff0000) >> 16) * filter;
+						a += ((pixel & 0xff000000) >> 24) * filter;
 					}
 
 				r = Clampf(a_factor * r + a_bias, 0, 255);
@@ -389,10 +377,10 @@ void BBImage::WriteAsBMP(const char* a_file_path)
 	file_header.bit_count = m_bit_count;
 
 	BMP::ColorHeader color_header = {};
-	color_header.red_mask = m_red_mask;
-	color_header.green_mask = m_green_mask;
-	color_header.blue_mask = m_blue_mask;
-	color_header.alpha_mask = m_alpha_mask;
+	color_header.red_mask = 0x00ff0000;
+	color_header.green_mask = 0x0000ff00;
+	color_header.blue_mask = 0x000000ff;
+	color_header.alpha_mask = 0xff000000;
 	color_header.color_space_type = BMP::BMP_RGBA_COLOR_SPACE;
 
 	WriteToOSFile(write_bmp, &file, sizeof(BMP::File));
@@ -405,7 +393,24 @@ void BBImage::WriteAsBMP(const char* a_file_path)
 
 void BBImage::WriteAsTARGA(const char* a_file_path)
 {
+	const uint32_t data_size = static_cast<size_t>(m_width) * static_cast<size_t>(m_height) * sizeof(RGBA_Pixel);
+	const OSFileHandle write_targa = CreateOSFile(a_file_path);
 
+	TARGA::File file = {};
+	file.color_map_type = 0;
+	file.image_type = 2;
+	file.color_map.color_map_origin = 0;
+	file.image.x_origin = 0;
+	file.image.y_origin = 0;
+	file.image.width = m_width;
+	file.image.height = m_height;
+	file.image.bits_per_pixel = m_bit_count;
+	file.image.image_descriptor = 0;
+
+	WriteToOSFile(write_targa, &file, sizeof(TARGA::File));
+	WriteToOSFile(write_targa, m_pixels, data_size);
+
+	CloseOSFile(write_targa);
 }
 
 void BBImage::LoadBMP(Allocator a_allocator, const char* a_file_path)
@@ -414,29 +419,14 @@ void BBImage::LoadBMP(Allocator a_allocator, const char* a_file_path)
 	void* current_data = load_image.data;
 
 	BMP::File file;
-	BMP::Header file_header;
-	BMP::ColorHeader color_header;
-
 	Memory::Copy(&file, current_data, 1);
 	current_data = Pointer::Add(current_data, sizeof(BMP::File));
 
 	BB_ASSERT(file.file_type == 0x4D42, "tried to load a file that is not a BMP image!");
 
+	BMP::Header file_header;
 	Memory::Copy(&file_header, current_data, 1);
 	current_data = Pointer::Add(current_data, sizeof(BMP::Header));
-
-	if (file_header.size >= (sizeof(BMP::Header) + sizeof(BMP::ColorHeader)))
-	{
-		Memory::Copy(&color_header, current_data, 1);
-		BB_ASSERT(BMP::isRGBA(color_header), "not supporting non-RGBA bitmaps yet");
-
-		m_red_mask = 0x00ff0000;
-		m_green_mask = 0x0000ff00;
-		m_blue_mask = 0x000000ff;
-		m_alpha_mask = 0xff000000;
-	}
-
-	current_data = Pointer::Add(load_image.data, file.offset_data);
 
 	BB_ASSERT(file_header.height > 0, "currently not supporting negative height BMP's.");
 
@@ -445,32 +435,52 @@ void BBImage::LoadBMP(Allocator a_allocator, const char* a_file_path)
 	const uint32_t pixel_count = m_width * m_height;
 	m_pixels = BBnewArr(a_allocator, pixel_count, RGBA_Pixel);
 
+	uint32_t red_mask = 0x00ff0000;
+	uint32_t green_mask = 0x0000ff00;
+	uint32_t blue_mask = 0x000000ff;
+	uint32_t alpha_mask = 0xff000000;
+	const bool has_color_header = file_header.size >= (sizeof(BMP::Header) + sizeof(BMP::ColorHeader));
+	bool is_rgba = false;
+	if (has_color_header)
+	{
+		BMP::ColorHeader color_header;
+		Memory::Copy(&color_header, current_data, 1);
+		BB_WARNING(is_rgba = BMP::isRGBA(color_header), "non-RGBA bitmaps, still in testing", WarningType::MEDIUM);
+
+		red_mask = color_header.red_mask;
+		green_mask = color_header.green_mask;
+		blue_mask = color_header.blue_mask;
+		alpha_mask = color_header.alpha_mask;
+	}
+
+	current_data = Pointer::Add(load_image.data, file.offset_data);
+
 	//check to account for padding
 	if (file_header.bit_count == 32)
 	{
-		const uint32_t data_size = static_cast<size_t>(pixel_count) * file_header.bit_count / 8;
-		memcpy(m_pixels, current_data, data_size);
+		Memory::Copy(m_pixels, current_data, pixel_count);
 	}
 	else if (file_header.bit_count == 24)
 	{
-		RGB24ToRGBA32(m_pixels, current_data, pixel_count);
+#pragma pack(push, 1)
+		struct bit24pixel
+		{
+			uint8_t r;
+			uint8_t g;
+			uint8_t b;
+		};
+#pragma pack(pop)
+		const bit24pixel* source_pixel = reinterpret_cast<const bit24pixel*>(current_data);
+		for (uint32_t i = 0; i < pixel_count; i++)
+		{
+			m_pixels[i].r = source_pixel[i].r;
+			m_pixels[i].g = source_pixel[i].g;
+			m_pixels[i].b = source_pixel[i].b;
+			m_pixels[i].a = 255;
+		}
 	}
 	else
 	{
 		BB_ASSERT(false, "unsupported bitmap bit count");
-	}
-}
-
-void BBImage::RGB24ToRGBA32(RGBA_Pixel* a_pixels, const void* a_source, const uint32_t a_pixel_count)
-{
-	const uint8_t* source_pixel = reinterpret_cast<const uint8_t*>(a_source);
-
-	for (uint32_t i = 0; i < a_pixel_count; i++)
-	{
-		a_pixels[i].r = source_pixel[0];
-		a_pixels[i].g = source_pixel[1];
-		a_pixels[i].b = source_pixel[2];
-		a_pixels[i].a = 255;
-		source_pixel += 3;
 	}
 }

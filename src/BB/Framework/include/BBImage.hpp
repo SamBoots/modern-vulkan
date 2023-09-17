@@ -24,11 +24,6 @@ namespace BB
 		uint32_t m_width;
 		uint32_t m_height;
 
-		uint32_t m_red_mask;
-		uint32_t m_green_mask;
-		uint32_t m_blue_mask;
-		uint32_t m_alpha_mask;
-
 		union RGBA_Pixel
 		{
 			uint32_t rgba;
@@ -40,7 +35,5 @@ namespace BB
 		RGBA_Pixel* m_pixels;
 
 		void LoadBMP(Allocator a_allocator, const char* a_file_path);
-
-		void RGB24ToRGBA32(RGBA_Pixel* a_pixels, const void* a_source, const uint32_t a_pixel_count);
 	};
 }
