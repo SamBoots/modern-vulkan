@@ -17,22 +17,30 @@ namespace BB
 		void SharpenImage(Allocator a_temp_allocator, const float a_intensity, const uint32_t a_thread_count);
 
 		void WriteAsBMP(const char* a_file_path);
+		void WriteAsTARGA(const char* a_file_path);
 
 	private:
+		static const uint32_t m_bit_count = 32;
 		uint32_t m_width;
 		uint32_t m_height;
-		uint16_t m_row_stride;
-		uint16_t m_bit_count;
 
 		uint32_t m_red_mask;
 		uint32_t m_green_mask;
 		uint32_t m_blue_mask;
 		uint32_t m_alpha_mask;
 
-		uint32_t m_data_size;
-		void* m_data;
+		union RGBA_Pixel
+		{
+			uint32_t rgba;
+			struct
+			{
+				uint8_t r, g, b, a;
+			};
+		};
+		RGBA_Pixel* m_pixels;
 
 		void LoadBMP(Allocator a_allocator, const char* a_file_path);
 
+		void RGB24ToRGBA32(RGBA_Pixel* a_pixels, const void* a_source, const uint32_t a_pixel_count);
 	};
 }
