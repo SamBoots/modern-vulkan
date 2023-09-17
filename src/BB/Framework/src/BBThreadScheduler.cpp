@@ -16,6 +16,8 @@ struct ThreadInfo
 	void* functionParameter;
 	THREAD_STATUS threadStatus;
 	//debug value for the ThreadHandle extraIndex;
+	BBRWLock lock;
+	BBConditionalVariable variable;
 	uint32_t generation;
 };
 

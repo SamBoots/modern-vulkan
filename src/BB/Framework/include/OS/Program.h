@@ -108,6 +108,16 @@ namespace BB
 	void OSSignalSemaphore(const BBSemaphore a_semaphore, const uint32_t a_signal_count);
 	void OSDestroySemaphore(const BBSemaphore a_Semaphore);
 
+	BBRWLock OSCreateRWLock();
+	void OSAcquireSRWLockRead(const BBRWLock a_lock);
+	void OSAcquireSRWLockWrite(const BBRWLock a_lock);
+	void OSReleaseSRWLockRead(const BBRWLock a_lock);
+	void OSReleaseSRWLockWrite(const BBRWLock a_lock);
+
+	BBConditionalVariable OSCreateConditionalVariable();
+	void OSWaitConditionalVariableShared(const BBConditionalVariable a_condition, const BBRWLock a_lock);
+	void OSWaitConditionalVariableExclusive(const BBConditionalVariable a_condition, const BBRWLock a_lock);
+
 	WindowHandle CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, const int a_Y, const int a_Width, const int a_Height, const wchar* a_WindowName);
 	//Get the OS window handle (hwnd for windows as en example. Reinterpret_cast the void* to the hwnd).
 	void* GetOSWindowHandle(const WindowHandle a_Handle);

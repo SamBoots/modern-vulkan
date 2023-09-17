@@ -46,7 +46,8 @@ namespace BB
 	using OSFileHandle = FrameworkHandle<struct OSFileHandleTag>;
 	using BBMutex = FrameworkHandle<struct BBMutexTag>;
 	using BBSemaphore = FrameworkHandle<struct BBSemaphoreTag>;
-	using BBBarrier = FrameworkHandle<struct BBBarrierTag>;
+	using BBRWLock = FrameworkHandle<struct RWLockTag>;
+	using BBConditionalVariable = FrameworkHandle<struct BBConditionalVariableTag>;
 	using ThreadTask = FrameworkHandle<struct ThreadTasktag>;
 
 	using wchar = wchar_t;

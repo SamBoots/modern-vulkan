@@ -557,6 +557,59 @@ void BB::OSDestroySemaphore(const BBSemaphore a_semaphore)
 	CloseHandle((HANDLE)a_semaphore.handle);
 }
 
+BBRWLock BB::OSCreateRWLock()
+{
+	SRWLOCK lock;
+	InitializeSRWLock(&lock);
+	return BBRWLock((uintptr_t)lock.Ptr);
+}
+
+void BB::OSAcquireSRWLockRead(const BBRWLock a_lock)
+{
+	SRWLOCK lock{ a_lock.ptrHandle };
+	AcquireSRWLockShared(&lock);
+}
+
+void BB::OSAcquireSRWLockWrite(const BBRWLock a_lock)
+{
+	SRWLOCK lock{ a_lock.ptrHandle };
+	AcquireSRWLockExclusive(&lock);
+}
+
+void BB::OSReleaseSRWLockRead(const BBRWLock a_lock)
+{
+	SRWLOCK lock{ a_lock.ptrHandle };
+	ReleaseSRWLockShared(&lock);
+}
+
+void BB::OSReleaseSRWLockWrite(const BBRWLock a_lock)
+{
+	SRWLOCK lock{ a_lock.ptrHandle };
+	ReleaseSRWLockExclusive(&lock);
+}
+
+BBConditionalVariable BB::OSCreateConditionalVariable()
+{
+	CONDITION_VARIABLE cv;
+	InitializeConditionVariable(&cv);
+	return BBConditionalVariable((uintptr_t)cv.Ptr);
+}
+
+void BB::OSWaitConditionalVariableShared(const BBConditionalVariable a_condition, const BBRWLock a_lock)
+{
+	SRWLOCK lock{ a_lock.ptrHandle };
+	CONDITION_VARIABLE cv{ a_condition.ptrHandle };
+	SleepConditionVariableSRW(&cv, &lock, INFINITE, CONDITION_VARIABLE_LOCKMODE_SHARED);
+	
+}
+
+void BB::OSWaitConditionalVariableExclusive(const BBConditionalVariable a_condition, const BBRWLock a_lock)
+{
+	SRWLOCK lock{ a_lock.ptrHandle };
+	CONDITION_VARIABLE cv{ a_condition.ptrHandle };
+	SleepConditionVariableSRW(&cv, &lock, INFINITE, 0);
+}
+
 WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, const int a_Y, const int a_Width, const int a_Height, const wchar* a_WindowName)
 {
 	HWND t_Window;
