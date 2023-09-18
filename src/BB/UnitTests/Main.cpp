@@ -7,22 +7,6 @@
 #include <gtest/gtest.h>
 #pragma warning(pop)
 
-//Suppress the stack warning, is safe since this code is only used for the unit testing here.
-//not sure if this really destroys anything but for the purposes of testing it seems to work.
-#pragma warning(disable:6262)
-#include "Framework/Allocators_UTEST.h"
-#include "Framework/Array_UTEST.h"
-#include "Framework/Pool_UTEST.h"
-#include "Framework/Hashmap_UTEST.h"
-#include "Framework/MemoryArena_UTEST.h"
-#include "Framework/BBjson_UTEST.hpp"
-#include "Framework/MemoryOperations_UTEST.h"
-#include "Framework/Slice_UTEST.h"
-#include "Framework/Slotmap_UTEST.h"
-#include "Framework/String_UTEST.h"
-#include "Framework/FileReadWrite_UTEST.h"
-#pragma warning(default:6262)
-
 #include "BBMain.h"
 #include "OS/Program.h"
 #include "OS/HID.h"
@@ -90,3 +74,19 @@ int main(int argc, char** argv)
 
 	return 0;
 }
+
+//Suppress the stack warning, is safe since this code is only used for the unit testing here.
+//not sure if this really destroys anything but for the purposes of testing it seems to work.
+#pragma warning(disable:6262)
+#include "Framework/Allocators_UTEST.h"
+#include "Framework/Array_UTEST.h"
+#include "Framework/Pool_UTEST.h"
+#include "Framework/Hashmap_UTEST.h"
+#include "Framework/MemoryArena_UTEST.h"
+#include "Framework/BBjson_UTEST.hpp"
+#include "Framework/MemoryOperations_UTEST.h"
+#include "Framework/Slice_UTEST.h"
+#include "Framework/Slotmap_UTEST.h"
+#include "Framework/String_UTEST.h"
+#include "Framework/FileReadWrite_UTEST.h"
+#pragma warning(default:6262)

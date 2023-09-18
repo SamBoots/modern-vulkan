@@ -59,6 +59,25 @@ namespace BB
 	};
 
 
+#ifdef _DEBUG
+#define BB_MEMORY_DEBUG const char* a_File, int a_Line,
+#define BB_MEMORY_DEBUG_ARGS __FILE__, __LINE__,
+#define BB_MEMORY_DEBUG_SEND a_File, a_Line,
+#define BB_MEMORY_DEBUG_FREE nullptr, 0,
+#else //No debug
+#define BB_MEMORY_DEBUG 
+#define BB_MEMORY_DEBUG_ARGS
+#define BB_MEMORY_DEBUG_SEND
+#define BB_MEMORY_DEBUG_FREE
+#endif //_DEBUG
+	typedef void* (*AllocateFunc)(BB_MEMORY_DEBUG void* a_Allocator, size_t a_Size, const size_t a_Alignment, void* a_OldPtr);
+	struct Allocator
+	{
+		AllocateFunc func;
+		void* allocator;
+	};
+
+
 	union float2
 	{
 		float e[2];

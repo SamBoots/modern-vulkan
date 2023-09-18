@@ -6,9 +6,11 @@
 
 #include "BackingAllocator.h"
 #include "OS/Program.h"
+#include "BBGlobal.h"
 
 using namespace BB;
 using namespace BB::allocators;
+
 #pragma region DEBUG_LOG
 #ifdef _DEBUG
 constexpr const uintptr_t MEMORY_BOUNDRY_CHECK_VALUE = 0xDEADBEEFDEADBEEF;
@@ -532,7 +534,7 @@ BB::allocators::POW_FreelistAllocator::POW_FreelistAllocator(const size_t, const
 	for (size_t i = 0; i < m_FreeBlocksAmount; i++)
 	{
 		//Roundup the freelist with the virtual memory page size for the most optimal allocation. 
-		size_t t_UsedMemory = Math::RoundUp(VirtualMemoryPageSize(), t_Freelist_Buffer_Size);
+		size_t t_UsedMemory = Math::RoundUp(OSPageSize(), t_Freelist_Buffer_Size);
 		m_FreeLists[i].allocSize = t_Freelist_Buffer_Size;
 		m_FreeLists[i].fullSize = t_UsedMemory;
 		//reserve half since we are splitting up the block, otherwise we might use a lot of virtual space.

@@ -32,5 +32,4 @@ target_include_directories(BBFramework PUBLIC
 "include/Allocators/BackingAllocator"
 "include/Storage"
 "include/Utils"
-"include/OS"
-)
+"include/OS")

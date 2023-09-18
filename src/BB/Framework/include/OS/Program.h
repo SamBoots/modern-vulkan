@@ -44,11 +44,16 @@ namespace BB
 	//Hide this in the future so that users cannot access it.
 	void InitProgram();
 
-	//The size of a virtual memory page on the OS.
-	const size_t VirtualMemoryPageSize();
-	//The minimum virtual allocation size you can do. 
-	//TODO: Get the linux variant of this.
-	const size_t VirtualMemoryMinimumAllocation();
+	struct SystemInfo
+	{
+		uint32_t processor_num;
+		uint32_t page_size;
+		uint32_t allocation_granularity;
+	};
+
+	void OSSystemInfo(SystemInfo& a_system_info);
+	uint32_t OSPageSize();
+	uint32_t OSAllocationGranularity();
 
 	void* ReserveVirtualMemory(const size_t a_Size);
 	bool CommitVirtualMemory(void* a_Ptr, const size_t a_Size);

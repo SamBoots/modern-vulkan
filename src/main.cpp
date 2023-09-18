@@ -5,7 +5,7 @@
 
 #include "BBImage.hpp"
 
-
+#include "Storage/BBString.h"
 #include <chrono>
 #include <iostream>
 
@@ -66,8 +66,10 @@ int main(int argc, char** argv)
 	bb_init.exePath = argv[0];
 	bb_init.programName = L"Modern Vulkan";
 	InitBB(bb_init);
-	
-	Threads::InitThreads(16);
+
+	SystemInfo sys_info;
+	OSSystemInfo(sys_info);
+	Threads::InitThreads(sys_info.processor_num);
 
 	StackAllocator_t allocator{ mbSize * 6 };
 	
@@ -95,144 +97,57 @@ int main(int argc, char** argv)
 	using ms = std::chrono::duration<float, std::milli>;
 	constexpr const float MILLITIMEDIVIDE = 1 / 1000.f;
 
-	BBStackAllocatorScope(allocator)
-	{ //8 threads
-		OSCreateDirectory("thread8");
-		auto t_Timer = std::chrono::high_resolution_clock::now();
-		constexpr uint32_t THREAD_COUNT = 8;
-		image.FilterImage(allocator, gaussian3x3_filter, 3, 3, gaussian3x3_factor, gaussian3x3_bias, THREAD_COUNT);
-		image.WriteAsBMP("thread8/writegaussian3x3.bmp");
+	const uint32_t max_thread_count = sys_info.processor_num;
+	for (uint32_t thread_count = max_thread_count; thread_count > 0; --thread_count)
+	{
+		StackString<128> directory_names{"thread_count"};
+		char thread_count_str[4]{};
+		sprintf_s(thread_count_str, 3, "%u", thread_count);
+		directory_names.append(thread_count_str);
+		OSCreateDirectory(directory_names.c_str());
+		directory_names.append("/");
 
-		image = image_backup;
-		image.FilterImage(allocator, gaussian5x5_filter, 5, 5, gaussian5x5_factor, gaussian5x5_bias, THREAD_COUNT);
-		image.WriteAsBMP("thread8/writegaussian5x5.bmp");
+		BBStackAllocatorScope(allocator)
+		{
+			auto t_Timer = std::chrono::high_resolution_clock::now();
+			image.FilterImage(allocator, gaussian3x3_filter, 3, 3, gaussian3x3_factor, gaussian3x3_bias, thread_count);
+			uint32_t cur_string_size = directory_names.size();
+			directory_names.append("writegaussian3x3.bmp");
+			image.WriteAsBMP(directory_names.c_str());
+			directory_names.pop_back(directory_names.size() - cur_string_size);
 
-		image = image_backup;
-		image.FilterImage(allocator, blur5x5_filter, 5, 5, blur5x5_factor, blur5x5_bias, THREAD_COUNT);
-		image.WriteAsBMP("thread8/writeblur5x5.bmp");
+			image = image_backup;
+			image.FilterImage(allocator, gaussian5x5_filter, 5, 5, gaussian5x5_factor, gaussian5x5_bias, thread_count);
+			cur_string_size = directory_names.size();
+			directory_names.append("writegaussian5x5.bmp");
+			image.WriteAsBMP(directory_names.c_str());
+			directory_names.pop_back(directory_names.size() - cur_string_size);
 
-		image = image_backup;
-		image.FilterImage(allocator, motion_blur_filter, 9, 9, motion_blur_factor, motion_blur_bias, THREAD_COUNT);
-		image.WriteAsBMP("thread8/writemotion_blur.bmp");
+			image = image_backup;
+			image.FilterImage(allocator, blur5x5_filter, 5, 5, blur5x5_factor, blur5x5_bias, thread_count);
+			cur_string_size = directory_names.size();
+			directory_names.append("writeblur5x5.bmp");
+			image.WriteAsBMP(directory_names.c_str());
+			directory_names.pop_back(directory_names.size() - cur_string_size);
 
-		image = image_backup;
-		image.SharpenImage(allocator, 1, THREAD_COUNT);
-		image.WriteAsBMP("thread8/writesharpen.bmp");
+			image = image_backup;
+			image.FilterImage(allocator, motion_blur_filter, 9, 9, motion_blur_factor, motion_blur_bias, thread_count);
+			cur_string_size = directory_names.size();
+			directory_names.append("writemotion_blur.bmp");
+			image.WriteAsBMP(directory_names.c_str());
+			directory_names.pop_back(directory_names.size() - cur_string_size);
 
-		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
-		std::cout << "8 threads image processing " << t_Speed << "\n";
-	}
+			image = image_backup;
+			image.SharpenImage(allocator, 1, thread_count);
+			cur_string_size = directory_names.size();
+			directory_names.append("writesharpen.bmp");
+			image.WriteAsBMP(directory_names.c_str());
+			directory_names.pop_back(directory_names.size() - cur_string_size);
 
-	BBStackAllocatorScope(allocator)
-	{ //4 threads
-		OSCreateDirectory("thread4");
-		auto t_Timer = std::chrono::high_resolution_clock::now();
-		constexpr uint32_t THREAD_COUNT = 4;
-		image.FilterImage(allocator, gaussian3x3_filter, 3, 3, gaussian3x3_factor, gaussian3x3_bias, THREAD_COUNT);
-		image.WriteAsBMP("thread4/writegaussian3x3.bmp");
-
-		image = image_backup;
-		image.FilterImage(allocator, gaussian5x5_filter, 5, 5, gaussian5x5_factor, gaussian5x5_bias, THREAD_COUNT);
-		image.WriteAsBMP("thread4/writegaussian5x5.bmp");
-
-		image = image_backup;
-		image.FilterImage(allocator, blur5x5_filter, 5, 5, blur5x5_factor, blur5x5_bias, THREAD_COUNT);
-		image.WriteAsBMP("thread4/writeblur5x5.bmp");
-
-		image = image_backup;
-		image.FilterImage(allocator, motion_blur_filter, 9, 9, motion_blur_factor, motion_blur_bias, THREAD_COUNT);
-		image.WriteAsBMP("thread4/writemotion_blur.bmp");
-
-		image = image_backup;
-		image.SharpenImage(allocator, 1, THREAD_COUNT);
-		image.WriteAsBMP("thread4/writesharpen.bmp");
-
-		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
-		std::cout << "4 threads image processing " << t_Speed << "\n";
-	}
-
-	BBStackAllocatorScope(allocator)
-	{ //2 threads
-		OSCreateDirectory("thread2");
-		auto t_Timer = std::chrono::high_resolution_clock::now();
-		constexpr uint32_t THREAD_COUNT = 2;
-		image.FilterImage(allocator, gaussian3x3_filter, 3, 3, gaussian3x3_factor, gaussian3x3_bias, THREAD_COUNT);
-		image.WriteAsBMP("thread2/writegaussian3x3.bmp");
-
-		image = image_backup;
-	
-		image.FilterImage(allocator, gaussian5x5_filter, 5, 5, gaussian5x5_factor, gaussian5x5_bias, THREAD_COUNT);
-		image.WriteAsBMP("thread2/writegaussian5x5.bmp");
-
-		image = image_backup;
-		image.FilterImage(allocator, blur5x5_filter, 5, 5, blur5x5_factor, blur5x5_bias, THREAD_COUNT);
-		image.WriteAsBMP("thread2/writeblur5x5.bmp");
-
-		image = image_backup;
-		image.FilterImage(allocator, motion_blur_filter, 9, 9, motion_blur_factor, motion_blur_bias, THREAD_COUNT);
-		image.WriteAsBMP("thread2/writemotion_blur.bmp");
-
-		image = image_backup;
-		image.SharpenImage(allocator, 1, THREAD_COUNT);
-		image.WriteAsBMP("thread2/writesharpen.bmp");
-
-		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
-		std::cout << "2 threads image processing " << t_Speed << "\n";
-	}
-
-	BBStackAllocatorScope(allocator)
-	{ //1 threads
-		OSCreateDirectory("single_thread");
-		auto t_Timer = std::chrono::high_resolution_clock::now();
-		constexpr uint32_t THREAD_COUNT = 1;
-		image.FilterImage(allocator, gaussian3x3_filter, 3, 3, gaussian3x3_factor, gaussian3x3_bias, THREAD_COUNT);
-		image.WriteAsBMP("single_thread/writegaussian3x3.bmp");
-
-		image = image_backup;
-		image.FilterImage(allocator, gaussian5x5_filter, 5, 5, gaussian5x5_factor, gaussian5x5_bias, THREAD_COUNT);
-		image.WriteAsBMP("single_thread/writegaussian5x5.bmp");
-
-		image = image_backup;
-		image.FilterImage(allocator, blur5x5_filter, 5, 5, blur5x5_factor, blur5x5_bias, THREAD_COUNT);
-		image.WriteAsBMP("single_thread/writeblur5x5.bmp");
-
-		image = image_backup;
-		image.FilterImage(allocator, motion_blur_filter, 9, 9, motion_blur_factor, motion_blur_bias, THREAD_COUNT);
-		image.WriteAsBMP("single_thread/writemotion_blur.bmp");
-
-		image = image_backup;
-		image.SharpenImage(allocator, 1, THREAD_COUNT);
-		image.WriteAsBMP("single_thread/writesharpen.bmp");
-
-		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
-		std::cout << "single thread image processing " << t_Speed << "\n";
-	}
-
-	BBStackAllocatorScope(allocator)
-	{ //non SIMD
-		auto t_Timer = std::chrono::high_resolution_clock::now();
-		constexpr uint32_t THREAD_COUNT = 1;
-		image.FilterImage(allocator, gaussian3x3_filter, 3, 3, gaussian3x3_factor, gaussian3x3_bias, THREAD_COUNT);
-		image.WriteAsBMP("single_thread/writegaussian3x3.bmp");
-
-		image = image_backup;
-		image.FilterImage(allocator, gaussian5x5_filter, 5, 5, gaussian5x5_factor, gaussian5x5_bias, THREAD_COUNT);
-		image.WriteAsBMP("single_thread/writegaussian5x5.bmp");
-
-		image = image_backup;
-		image.FilterImage(allocator, blur5x5_filter, 5, 5, blur5x5_factor, blur5x5_bias, THREAD_COUNT);
-		image.WriteAsBMP("single_thread/writeblur5x5.bmp");
-
-		image = image_backup;
-		image.FilterImage(allocator, motion_blur_filter, 9, 9, motion_blur_factor, motion_blur_bias, THREAD_COUNT);
-		image.WriteAsBMP("single_thread/writemotion_blur.bmp");
-
-		image = image_backup;
-		image.SharpenImage(allocator, 1, THREAD_COUNT);
-		image.WriteAsBMP("single_thread/writesharpen.bmp");
-
-		auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
-		std::cout << "single thread non-SIMD image processing " << t_Speed << "\n";
+			directory_names.pop_back(1);
+			auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
+			std::cout << directory_names.c_str() << " image processing " << t_Speed << "\n";
+		}
 	}
 
 	allocator.Clear();

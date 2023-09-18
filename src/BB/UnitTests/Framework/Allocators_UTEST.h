@@ -148,7 +148,7 @@ TEST(MemoryAllocators, STACK_ALLOCATOR)
 	BB::StackAllocator_t stack_allocator(ALLOCATOR_SIZE);
 
 	size32Bytes* size32Array = BBnewArr(stack_allocator, sample_32_bytes, size32Bytes);
-	const uintptr_t stack_position_before_256 = stack_allocator.GetPosition();
+	const auto stack_position_before_256 = stack_allocator.GetMarker();
 	size256Bytes* size256Array = BBnewArr(stack_allocator, sample_256_bytes, size256Bytes);
 	size2593bytes* size2593Array = BBnewArr(stack_allocator, sample_2593_bytes, size2593bytes);
 
@@ -180,7 +180,7 @@ TEST(MemoryAllocators, STACK_ALLOCATOR)
 		ASSERT_EQ(size2593Array[i].value, random_values[sample_32_bytes + sample_256_bytes + i]) << "2593 bytes, Value is different in the linear allocator.";
 	}
 
-	stack_allocator.SetPosition(stack_position_before_256);
+	stack_allocator.SetMarker(stack_position_before_256);
 	size2593Array = BBnewArr(stack_allocator, sample_2593_bytes, size2593bytes);
 	for (size_t i = 0; i < sample_2593_bytes; i++)
 	{

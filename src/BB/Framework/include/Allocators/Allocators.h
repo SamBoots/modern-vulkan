@@ -1,30 +1,10 @@
 #pragma once
-#include <cstdlib>
-#include <cstdint>
+#include "Common.h"
 
 namespace BB
 {	
-#ifdef _DEBUG
-#define BB_MEMORY_DEBUG const char* a_File, int a_Line,
-#define BB_MEMORY_DEBUG_ARGS __FILE__, __LINE__,
-#define BB_MEMORY_DEBUG_SEND a_File, a_Line,
-#define BB_MEMORY_DEBUG_FREE nullptr, 0,
-#else //No debug
-#define BB_MEMORY_DEBUG 
-#define BB_MEMORY_DEBUG_ARGS
-#define BB_MEMORY_DEBUG_SEND
-#define BB_MEMORY_DEBUG_FREE
-#endif //_DEBUG
-
 	constexpr const size_t MEMORY_BOUNDRY_FRONT = sizeof(size_t);
 	constexpr const size_t MEMORY_BOUNDRY_BACK = sizeof(size_t);
-	
-	typedef void* (*AllocateFunc)(BB_MEMORY_DEBUG void* a_Allocator, size_t a_Size, const size_t a_Alignment, void* a_OldPtr);
-	struct Allocator
-	{
-		AllocateFunc func;
-		void* allocator;
-	};
 
 	namespace allocators
 	{

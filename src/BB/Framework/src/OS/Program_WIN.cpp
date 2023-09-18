@@ -40,9 +40,6 @@ static GlobalProgramInfo s_ProgramInfo{};
 static InputBuffer s_InputBuffer{};
 static std::mutex s_InputMutex{};
 
-static size_t s_OSRingAllocatorSize = 0; //This will be changed to the OS granulary minimum..
-static LocalRingAllocator s_OSRingAllocator{ s_OSRingAllocatorSize };
-
 void PushInput(const InputEvent& a_Input)
 {
 	s_InputMutex.lock();
@@ -178,19 +175,29 @@ LRESULT CALLBACK WindowProc(HWND a_Hwnd, UINT a_Msg, WPARAM a_WParam, LPARAM a_L
 	return DefWindowProcW(a_Hwnd, a_Msg, a_WParam, a_LParam);
 }
 
-const size_t BB::VirtualMemoryPageSize()
+void BB::OSSystemInfo(SystemInfo& a_system_info)
 {
-	SYSTEM_INFO t_Info;
-	GetSystemInfo(&t_Info);
-	return t_Info.dwPageSize;
+	SYSTEM_INFO sys_info;
+	GetSystemInfo(&sys_info);
+
+	a_system_info.processor_num = sys_info.dwNumberOfProcessors;
+	a_system_info.page_size = sys_info.dwPageSize;
+	a_system_info.allocation_granularity = sys_info.dwAllocationGranularity;
 }
 
-const size_t BB::VirtualMemoryMinimumAllocation()
+uint32_t BB::OSPageSize()
 {
-	SYSTEM_INFO t_Info;
-	GetSystemInfo(&t_Info);
-	return t_Info.dwAllocationGranularity;
+	SYSTEM_INFO sys_info;
+	GetSystemInfo(&sys_info);
+	return sys_info.dwPageSize;
 }
+uint32_t BB::OSAllocationGranularity()
+{
+	SYSTEM_INFO sys_info;
+	GetSystemInfo(&sys_info);
+	return sys_info.dwAllocationGranularity;
+}
+
 
 void* BB::ReserveVirtualMemory(const size_t a_Size)
 {
@@ -692,8 +699,7 @@ WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, co
 	BB_ASSERT(t_ErrCheck != -1, "Failed to get the size of raw input devices!");
 	BB_ASSERT(t_NumConnectedDevices > 0, "Failed to get the size of raw input devices!");
 
-	RAWINPUTDEVICELIST* t_ConnectedDevices = BBnewArr(
-		s_OSRingAllocator,
+	RAWINPUTDEVICELIST* t_ConnectedDevices = BBstackAlloc(
 		t_NumConnectedDevices,
 		RAWINPUTDEVICELIST);
 
@@ -701,8 +707,7 @@ WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, co
 	BB_ASSERT(t_ErrCheck != -1, "Failed to get the raw input devices!");
 	
 	constexpr size_t MAX_HID_STRING_LENGTH = 126;
-	wchar_t* t_ProductNameString = BBnewArr(
-		s_OSRingAllocator,
+	wchar_t* t_ProductNameString = BBstackAlloc(
 		MAX_HID_STRING_LENGTH,
 		wchar_t);
 
