@@ -22,16 +22,19 @@ namespace BB
 	using POW_FreelistAllocator_t = allocators::POW_FreelistAllocator;
 
 //_alloca wrapper, does not require a free call.
-#define BBstackAlloc(a_Count, a_Type) (a_Type*)_alloca(a_Count * sizeof(a_Type))
+#define BBstackAlloc(a_count, a_type) reinterpret_cast<MacroType<a_type*>::type>(_alloca(a_count * sizeof(a_type)))
 
-#define BBalloc(a_Allocator, a_Size) BB::BBalloc_f(BB_MEMORY_DEBUG_ARGS a_Allocator, a_Size, 1)
-#define BBnew(a_Allocator, a_Type) new (BB::BBalloc_f(BB_MEMORY_DEBUG_ARGS a_Allocator, sizeof(a_Type), __alignof(a_Type))) a_Type
-#define BBnewArr(a_Allocator, a_Length, a_Type) (BB::BBnewArr_f<MacroType<a_Type>::type>(BB_MEMORY_DEBUG_ARGS a_Allocator, a_Length))
+#define BBalloc(a_allocator, a_size) BB::BBalloc_f(BB_MEMORY_DEBUG_ARGS a_allocator, a_size, 1)
+#define BBnew(a_allocator, a_type) new (BB::BBalloc_f(BB_MEMORY_DEBUG_ARGS a_allocator, sizeof(a_type), __alignof(a_type))) a_type
+#define BBnewArr(a_allocator, a_length, a_type) (BB::BBnewArr_f<MacroType<a_type>::type>(BB_MEMORY_DEBUG_ARGS a_allocator, a_length))
 
-#define BBfree(a_Allocator, a_Ptr) BBfree_f(a_Allocator, a_Ptr)
-#define BBfreeArr(a_Allocator, a_Ptr) BBfreeArr_f(a_Allocator, a_Ptr)
+#define BBfree(a_allocator, a_ptr) BBfree_f(a_allocator, a_ptr)
+#define BBfreeArr(a_allocator, a_ptr) BBfreeArr_f(a_allocator, a_ptr)
 
-#define BBmemZero(a_Ptr, a_Size) memset(a_Ptr, 0, a_Size)
+#define BBmemZero(a_ptr, a_size) memset(a_ptr, 0, a_size)
+
+#define BBStackAllocatorScope(a_stack_allocator) \
+	for (auto stack_marker = a_stack_allocator.GetMarker(); stack_marker; a_stack_allocator.SetMarker(stack_marker), stack_marker = 0)
 
 #pragma region AllocationFunctions
 	//Use the BBnew or BBalloc function instead of this.

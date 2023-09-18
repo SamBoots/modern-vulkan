@@ -324,26 +324,26 @@ void StackAllocator::Clear()
 	m_buffer = m_start;
 }
 
-void StackAllocator::SetPosition(const uintptr_t a_pos)
+void StackAllocator::SetMarker(const StackMarker a_marker)
 {
-	BB_ASSERT(reinterpret_cast<uintptr_t>(m_start) <= a_pos && a_pos < m_end, "stack position is not within this allocator's memory space");
+	BB_ASSERT(reinterpret_cast<uintptr_t>(m_start) <= a_marker && a_marker < m_end, "stack position is not within this allocator's memory space");
 #ifdef _DEBUG
 	//jank, but remove logs that are after a_pos;
 	AllocationLog* cur_list = frontLog;
 	AllocationLog* prev_list = nullptr;
 	uintptr_t front = reinterpret_cast<uintptr_t>(cur_list->front);
-	while (front > a_pos)
+	while (front > a_marker)
 	{
 		prev_list = cur_list;
 		cur_list = prev_list->prev;
 		front = reinterpret_cast<uintptr_t>(cur_list->front);
 	}
-	BB_ASSERT(a_pos == front, "SetPosition points to a invalid address that holds no allocation");
+	BB_ASSERT(a_marker == front, "SetPosition points to a invalid address that holds no allocation");
 	frontLog = cur_list->prev;
 #endif
 
 
-	m_buffer = reinterpret_cast<void*>(a_pos);
+	m_buffer = reinterpret_cast<void*>(a_marker);
 }
 
 void* FreelistRealloc(BB_MEMORY_DEBUG void* a_Allocator, size_t a_Size, const size_t a_Alignment, void* a_Ptr)

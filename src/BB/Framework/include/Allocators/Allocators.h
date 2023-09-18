@@ -111,6 +111,8 @@ namespace BB
 #endif //_DEBUG
 		};
 
+		using StackMarker = uintptr_t;
+
 		struct StackAllocator : public BaseAllocator
 		{
 			StackAllocator(const size_t a_size, const char* a_name = "unnamed");
@@ -128,10 +130,10 @@ namespace BB
 			void Free(void*) override;
 			void Clear() override;
 
-			void SetPosition(const uintptr_t a_pos);
-			uintptr_t GetPosition()
+			void SetMarker(const StackMarker a_pos);
+			StackMarker GetMarker()
 			{
-				return reinterpret_cast<uintptr_t>(m_buffer);
+				return reinterpret_cast<StackMarker>(m_buffer);
 			}
 
 		private:

@@ -35,9 +35,9 @@ namespace BB
 		CURRENT = 1,
 		END = 2
 #elif _LINUX //Need to test for linux
-		BEGIN = 0,
-		CURRENT = 1,
-		END = 2
+		//BEGIN = 0,
+		//CURRENT = 1,
+		//END = 2
 #endif
 	};
 

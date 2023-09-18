@@ -559,9 +559,7 @@ void BB::OSDestroySemaphore(const BBSemaphore a_semaphore)
 
 BBRWLock BB::OSCreateRWLock()
 {
-	SRWLOCK lock{ SRWLOCK_INIT };
-	//InitializeSRWLock(&lock);
-	return BBRWLock((uintptr_t)lock.Ptr);
+	return BBRWLock(SRWLOCK_INIT);
 }
 
 void BB::OSAcquireSRWLockRead(BBRWLock* a_lock)
@@ -586,9 +584,7 @@ void BB::OSReleaseSRWLockWrite(BBRWLock* a_lock)
 
 BBConditionalVariable BB::OSCreateConditionalVariable()
 {
-	CONDITION_VARIABLE cv{ CONDITION_VARIABLE_INIT };
-	//InitializeConditionVariable(&cv);
-	return BBConditionalVariable((uintptr_t)cv.Ptr);
+	return BBConditionalVariable(CONDITION_VARIABLE_INIT);
 }
 
 void BB::OSWaitConditionalVariableShared(BBConditionalVariable* a_condition, BBRWLock* a_lock)
@@ -619,7 +615,7 @@ void BB::OSWaitConditionalVariableExclusive(BBConditionalVariable* a_condition, 
 
 void BB::OSWakeConditionVariable(BBConditionalVariable* a_condition)
 {
-	WakeAllConditionVariable(reinterpret_cast<CONDITION_VARIABLE*>(a_condition));
+	WakeConditionVariable(reinterpret_cast<CONDITION_VARIABLE*>(a_condition));
 }
 
 WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, const int a_Y, const int a_Width, const int a_Height, const wchar* a_WindowName)
