@@ -559,55 +559,67 @@ void BB::OSDestroySemaphore(const BBSemaphore a_semaphore)
 
 BBRWLock BB::OSCreateRWLock()
 {
-	SRWLOCK lock;
-	InitializeSRWLock(&lock);
+	SRWLOCK lock{ SRWLOCK_INIT };
+	//InitializeSRWLock(&lock);
 	return BBRWLock((uintptr_t)lock.Ptr);
 }
 
-void BB::OSAcquireSRWLockRead(const BBRWLock a_lock)
+void BB::OSAcquireSRWLockRead(BBRWLock* a_lock)
 {
-	SRWLOCK lock{ a_lock.ptrHandle };
-	AcquireSRWLockShared(&lock);
+	AcquireSRWLockShared(reinterpret_cast<SRWLOCK*>(a_lock));
 }
 
-void BB::OSAcquireSRWLockWrite(const BBRWLock a_lock)
+void BB::OSAcquireSRWLockWrite(BBRWLock* a_lock)
 {
-	SRWLOCK lock{ a_lock.ptrHandle };
-	AcquireSRWLockExclusive(&lock);
+	AcquireSRWLockExclusive(reinterpret_cast<SRWLOCK*>(a_lock));
 }
 
-void BB::OSReleaseSRWLockRead(const BBRWLock a_lock)
+void BB::OSReleaseSRWLockRead(BBRWLock* a_lock)
 {
-	SRWLOCK lock{ a_lock.ptrHandle };
-	ReleaseSRWLockShared(&lock);
+	ReleaseSRWLockShared(reinterpret_cast<SRWLOCK*>(a_lock));
 }
 
-void BB::OSReleaseSRWLockWrite(const BBRWLock a_lock)
+void BB::OSReleaseSRWLockWrite(BBRWLock* a_lock)
 {
-	SRWLOCK lock{ a_lock.ptrHandle };
-	ReleaseSRWLockExclusive(&lock);
+	ReleaseSRWLockExclusive(reinterpret_cast<SRWLOCK*>(a_lock));
 }
 
 BBConditionalVariable BB::OSCreateConditionalVariable()
 {
-	CONDITION_VARIABLE cv;
-	InitializeConditionVariable(&cv);
+	CONDITION_VARIABLE cv{ CONDITION_VARIABLE_INIT };
+	//InitializeConditionVariable(&cv);
 	return BBConditionalVariable((uintptr_t)cv.Ptr);
 }
 
-void BB::OSWaitConditionalVariableShared(const BBConditionalVariable a_condition, const BBRWLock a_lock)
+void BB::OSWaitConditionalVariableShared(BBConditionalVariable* a_condition, BBRWLock* a_lock)
 {
-	SRWLOCK lock{ a_lock.ptrHandle };
-	CONDITION_VARIABLE cv{ a_condition.ptrHandle };
-	SleepConditionVariableSRW(&cv, &lock, INFINITE, CONDITION_VARIABLE_LOCKMODE_SHARED);
-	
+	const BOOL result = SleepConditionVariableSRW(reinterpret_cast<CONDITION_VARIABLE*>(a_condition),
+		reinterpret_cast<SRWLOCK*>(a_lock), INFINITE, CONDITION_VARIABLE_LOCKMODE_SHARED);
+#ifdef _DEBUG
+	if (!result)
+	{
+		LatestOSError();
+		BB_ASSERT(false, "failed to wait on condition variable, extended info above");
+	}
+#endif _DEBUG
 }
 
-void BB::OSWaitConditionalVariableExclusive(const BBConditionalVariable a_condition, const BBRWLock a_lock)
+void BB::OSWaitConditionalVariableExclusive(BBConditionalVariable* a_condition, BBRWLock* a_lock)
 {
-	SRWLOCK lock{ a_lock.ptrHandle };
-	CONDITION_VARIABLE cv{ a_condition.ptrHandle };
-	SleepConditionVariableSRW(&cv, &lock, INFINITE, 0);
+	const BOOL result = SleepConditionVariableSRW(reinterpret_cast<CONDITION_VARIABLE*>(a_condition),
+		reinterpret_cast<SRWLOCK*>(a_lock), INFINITE, 0);
+#ifdef _DEBUG
+	if (!result)
+	{
+		LatestOSError();
+		BB_ASSERT(false, "failed to wait on condition variable, extended info above");
+	}
+#endif _DEBUG
+}
+
+void BB::OSWakeConditionVariable(BBConditionalVariable* a_condition)
+{
+	WakeAllConditionVariable(reinterpret_cast<CONDITION_VARIABLE*>(a_condition));
 }
 
 WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, const int a_Y, const int a_Width, const int a_Height, const wchar* a_WindowName)

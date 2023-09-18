@@ -16,28 +16,28 @@ struct ThreadInfo
 	void* functionParameter;
 	THREAD_STATUS threadStatus;
 	//debug value for the ThreadHandle extraIndex;
-	BBRWLock lock;
-	BBConditionalVariable variable;
+	BBConditionalVariable condition;
 	uint32_t generation;
 };
 
 #pragma optimize( "", off ) 
 static void ThreadStartFunc(void* a_Args)
 {
-	ThreadInfo* t_ThreadInfo = reinterpret_cast<ThreadInfo*>(a_Args);
-	while (t_ThreadInfo->threadStatus != THREAD_STATUS::DESTROY)
+	ThreadInfo* thread_info = reinterpret_cast<ThreadInfo*>(a_Args);
+	BBRWLock lock = OSCreateRWLock();
+	OSAcquireSRWLockWrite(&lock);
+
+	while (thread_info->threadStatus != THREAD_STATUS::DESTROY)
 	{
-		if (t_ThreadInfo->threadStatus == THREAD_STATUS::BUSY)
-		{
-			t_ThreadInfo->function(t_ThreadInfo->functionParameter);
-			++t_ThreadInfo->generation;
-			t_ThreadInfo->function = nullptr;
-			t_ThreadInfo->functionParameter = nullptr;
-			t_ThreadInfo->threadStatus = THREAD_STATUS::IDLE;
-		}
+		OSWaitConditionalVariableExclusive(&thread_info->condition, &lock);
+		thread_info->function(thread_info->functionParameter);
+		++thread_info->generation;
+		thread_info->function = nullptr;
+		thread_info->functionParameter = nullptr;
+		thread_info->threadStatus = THREAD_STATUS::IDLE;
 	}
 }
-#pragma optimize( "", on ) 
+#pragma optimize( "", on )
 
 struct Thread
 {
@@ -88,6 +88,7 @@ void BB::Threads::InitThreads(const uint32_t a_ThreadCount)
 		s_ThreadScheduler.threads[i].threadInfo.functionParameter = nullptr;
 		s_ThreadScheduler.threads[i].threadInfo.threadStatus = THREAD_STATUS::IDLE;
 		s_ThreadScheduler.threads[i].threadInfo.generation = 0;
+		s_ThreadScheduler.threads[i].threadInfo.condition = OSCreateConditionalVariable();
 		s_ThreadScheduler.threads[i].osThreadHandle = OSCreateThread(ThreadStartFunc,
 			0,
 			&s_ThreadScheduler.threads[i].threadInfo);
@@ -111,6 +112,7 @@ ThreadTask BB::Threads::StartTaskThread(void(*a_Function)(void*), void* a_FuncPa
 			s_ThreadScheduler.threads[i].threadInfo.function = a_Function;
 			s_ThreadScheduler.threads[i].threadInfo.functionParameter = a_FuncParameter;
 			s_ThreadScheduler.threads[i].threadInfo.threadStatus = THREAD_STATUS::BUSY;
+			OSWakeConditionVariable(&s_ThreadScheduler.threads[i].threadInfo.condition);
 			return ThreadTask(i, s_ThreadScheduler.threads[i].threadInfo.generation + 1);
 		}
 	}
@@ -120,10 +122,7 @@ ThreadTask BB::Threads::StartTaskThread(void(*a_Function)(void*), void* a_FuncPa
 
 void BB::Threads::WaitForTask(const ThreadTask a_Handle)
 {
-	while (s_ThreadScheduler.threads[a_Handle.index].threadInfo.generation < a_Handle.extraIndex) 
-	{
-
-	}
+	while (s_ThreadScheduler.threads[a_Handle.index].threadInfo.generation < a_Handle.extraIndex) {};
 }
 
 bool BB::Threads::TaskFinished(const ThreadTask a_Handle)
