@@ -4,7 +4,7 @@
 
 #include "BBThreadScheduler.hpp"
 #include "Allocators.h"
-#include "BBString.h"
+#include "Storage/BBString.h"
 #include <stdarg.h>
 
 using namespace BB;
@@ -145,9 +145,10 @@ static void Log_to_Console(const char* a_FileName, int a_Line, const char* a_War
 				const size_t t_CharSize = wcslen(t_wChar);
 				//check to see if we do not go over bounds, largly to deal with non-null-terminated wchar strings.
 				BB_ASSERT(t_CharSize < t_String.capacity() - t_String.size(), "error log string size exceeds 1024 characters!");
-				char* t_Char = BBstackAlloc(t_CharSize, char);
+				char* t_Char = BBstackAlloc_s(t_CharSize, char);
 				wcstombs(t_Char, t_wChar, t_CharSize);
 				t_String.append(t_Char);
+				BBstackFree_s(t_Char);
 			}
 				break;
 			default:

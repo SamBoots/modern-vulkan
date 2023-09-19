@@ -2,7 +2,7 @@
 #include "Utils/Utils.h"
 #include "Utils/Logger.h"
 
-#include "BBString.h"
+#include "Storage/BBString.h"
 
 #include "BackingAllocator.h"
 #include "OS/Program.h"

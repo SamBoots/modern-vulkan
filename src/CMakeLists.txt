@@ -4,19 +4,20 @@
 cmake_minimum_required (VERSION 3.8)
 
 add_subdirectory ("BB")
-#add_subdirectory ("Render")
+add_subdirectory ("Render")
 
+add_executable(image_filter_test
+"image_test_main.cpp")
 
-add_executable(app 
-"main.cpp")
-
-#Include library
-target_include_directories(app PUBLIC
-"BB"
+target_link_libraries(image_filter_test
+	BBFramework 
 )
 
+add_executable(app 
+  "main.cpp")
+
 target_link_libraries(app
-	BBFramework 
+	Renderer 
 )
 
 add_subdirectory ("resources")

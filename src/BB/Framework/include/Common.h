@@ -3,6 +3,24 @@
 
 namespace BB
 {
+	namespace allocators
+	{
+		struct LinearAllocator;
+		struct FixedLinearAllocator;
+		struct StackAllocator;
+		struct FreelistAllocator;
+		struct POW_FreelistAllocator;
+	}
+
+	//legacy code still used this, so we will just remain using this.
+	using LinearAllocator_t = allocators::LinearAllocator;
+	using FixedLinearAllocator_t = allocators::FixedLinearAllocator;
+	using StackAllocator_t = allocators::StackAllocator;
+	using FreelistAllocator_t = allocators::FreelistAllocator;
+	using POW_FreelistAllocator_t = allocators::POW_FreelistAllocator;
+
+	class BBImage;
+
 #define BB_CONCAT(a, b) a##b
 #define BB_PAD(n) unsigned char BB_CONCAT(_padding_, __LINE__)[n]
 

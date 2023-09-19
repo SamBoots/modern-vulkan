@@ -38,6 +38,7 @@ x64/
 .vs/
 out/
 googletest/
-Lib/
 GLM/
 AgilitySDK/
+stb/
+VMA/

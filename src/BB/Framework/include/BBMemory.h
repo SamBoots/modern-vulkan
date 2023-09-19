@@ -14,15 +14,11 @@ namespace BB
 	constexpr const size_t mbSize = kbSize * 1024;
 	constexpr const size_t gbSize = mbSize * 1024;
 
-	//legacy code still used this, so we will just remain using this.
-	using LinearAllocator_t = allocators::LinearAllocator;
-	using FixedLinearAllocator_t = allocators::FixedLinearAllocator;
-	using StackAllocator_t = allocators::StackAllocator;
-	using FreelistAllocator_t = allocators::FreelistAllocator;
-	using POW_FreelistAllocator_t = allocators::POW_FreelistAllocator;
-
 //_alloca wrapper, does not require a free call.
 #define BBstackAlloc(a_count, a_type) reinterpret_cast<MacroType<a_type*>::type>(_alloca(a_count * sizeof(a_type)))
+//_malloca wrapper, be sure to call BBstackFree_s
+#define BBstackAlloc_s(a_count, a_type) reinterpret_cast<MacroType<a_type*>::type>(_malloca(a_count * sizeof(a_type)))
+#define BBstackFree_s(a_ptr) _freea(a_ptr)
 
 #define BBalloc(a_allocator, a_size) BB::BBalloc_f(BB_MEMORY_DEBUG_ARGS a_allocator, a_size, 1)
 #define BBnew(a_allocator, a_type) new (BB::BBalloc_f(BB_MEMORY_DEBUG_ARGS a_allocator, sizeof(a_type), __alignof(a_type))) a_type

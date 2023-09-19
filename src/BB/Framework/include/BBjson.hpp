@@ -1,8 +1,8 @@
 #pragma once
 #include "Common.h"
 #include "BBMemory.h"
-#include "Hashmap.h"
-#include "BBString.h"
+#include "Storage/Hashmap.h"
+#include "Storage/BBString.h"
 
 //tutorial/guide used: https://kishoreganesh.com/post/writing-a-json-parser-in-cplusplus/
 namespace BB
@@ -25,11 +25,11 @@ namespace BB
 
 	struct JsonNode //16 bytes
 	{
-		JSON_TYPE type = JSON_TYPE::NULL_TYPE; //4 bytes
+		JSON_TYPE type = JSON_TYPE::NULL_TYPE; //4
 		union //biggest type JsonList 12 bytes
 		{
 			struct JsonObject* object;
-			JsonList list;
+			JsonList list; //16
 			char* string;
 			float number;
 			bool boolean;

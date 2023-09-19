@@ -11,7 +11,7 @@
 #include <cstdint>
 #include "Common.h"
 #include "BBMemory.h"
-#include "BBString.h"
+#include "Storage/BBString.h"
 
 namespace BB
 {
