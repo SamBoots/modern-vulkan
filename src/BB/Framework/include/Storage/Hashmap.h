@@ -704,7 +704,7 @@ namespace BB
 			size_t t_ModifiedCapacity = m_Capacity * 2;
 
 			if (a_MinCapacity > t_ModifiedCapacity)
-				t_ModifiedCapacity = Math::RoundUp(a_MinCapacity, Hashmap_Specs::multipleValue);
+				t_ModifiedCapacity = RoundUp(a_MinCapacity, Hashmap_Specs::multipleValue);
 
 			reallocate(t_ModifiedCapacity);
 		}

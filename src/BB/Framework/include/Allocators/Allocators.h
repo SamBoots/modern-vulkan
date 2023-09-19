@@ -45,7 +45,7 @@ namespace BB
 
 		struct LinearAllocator : public BaseAllocator
 		{
-			LinearAllocator(const size_t a_Size, const char* a_Name = "unnamed");
+			LinearAllocator(const size_t a_size, const char* a_name = "unnamed");
 			~LinearAllocator();
 
 			operator Allocator() override;
@@ -56,14 +56,14 @@ namespace BB
 			LinearAllocator& operator =(const LinearAllocator&) = delete;
 			LinearAllocator& operator =(LinearAllocator&&) = delete;
 
-			void* Alloc(size_t a_Size, size_t a_Alignment) override;
+			void* Alloc(size_t a_size, size_t a_alignment) override;
 			void Free(void*) override;
 			void Clear() override;
 
 		private:
-			void* m_Start;
-			void* m_Buffer;
-			uintptr_t m_End;
+			void* m_start;
+			void* m_buffer;
+			uintptr_t m_end;
 		};
 
 		struct FixedLinearAllocator : public BaseAllocator

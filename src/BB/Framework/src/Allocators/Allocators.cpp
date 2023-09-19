@@ -169,20 +169,20 @@ void* LinearRealloc(BB_MEMORY_DEBUG void* a_Allocator, size_t a_Size, const size
 	return t_AllocatedPtr;
 };
 
-LinearAllocator::LinearAllocator(const size_t a_Size, const char* a_Name)
-	: BaseAllocator(a_Name)
+LinearAllocator::LinearAllocator(const size_t a_size, const char* a_name)
+	: BaseAllocator(a_name)
 {
-	BB_ASSERT(a_Size != 0, "linear allocator is created with a size of 0!");
-	size_t t_Size = a_Size;
-	m_Start = mallocVirtual(nullptr, t_Size);
-	m_Buffer = m_Start;
-	m_End = reinterpret_cast<uintptr_t>(m_Start) + t_Size;
+	BB_ASSERT(a_size != 0, "linear allocator is created with a size of 0!");
+	size_t size = a_size;
+	m_start = mallocVirtual(nullptr, size);
+	m_buffer = m_start;
+	m_end = reinterpret_cast<uintptr_t>(m_start) + a_size;
 }
 
 LinearAllocator::~LinearAllocator()
 {
 	Validate();
-	freeVirtual(reinterpret_cast<void*>(m_Start));
+	freeVirtual(reinterpret_cast<void*>(m_start));
 }
 
 LinearAllocator::operator Allocator()
@@ -193,18 +193,18 @@ LinearAllocator::operator Allocator()
 	return t_AllocatorInterface;
 }
 
-void* LinearAllocator::Alloc(size_t a_Size, size_t a_Alignment)
+void* LinearAllocator::Alloc(size_t a_size, size_t a_alignment)
 {
-	size_t t_Adjustment = Pointer::AlignForwardAdjustment(m_Buffer, a_Alignment);
+	size_t t_Adjustment = Pointer::AlignForwardAdjustment(m_buffer, a_alignment);
 
-	uintptr_t t_Address = reinterpret_cast<uintptr_t>(Pointer::Add(m_Buffer, t_Adjustment));
-	m_Buffer = reinterpret_cast<void*>(t_Address + a_Size);
+	uintptr_t t_Address = reinterpret_cast<uintptr_t>(Pointer::Add(m_buffer, t_Adjustment));
+	m_buffer = reinterpret_cast<void*>(t_Address + a_size);
 
-	if (t_Address + a_Size > m_End)
+	if (t_Address + a_size > m_end)
 	{
-		size_t t_Increase = m_End - reinterpret_cast<uintptr_t>(m_Start);
-		mallocVirtual(m_Start, t_Increase);
-		m_End += t_Increase;
+		size_t increase = Max(a_size, (m_end - reinterpret_cast<uintptr_t>(m_start)));
+		mallocVirtual(m_start, increase);
+		m_end += increase;
 	}
 
 	return reinterpret_cast<void*>(t_Address);
@@ -218,7 +218,7 @@ void LinearAllocator::Free(void*)
 void LinearAllocator::Clear()
 {
 	BaseAllocator::Clear();
-	m_Buffer = m_Start;
+	m_buffer = m_start;
 }
 
 FixedLinearAllocator::FixedLinearAllocator(const size_t a_Size, const char* a_Name)
@@ -307,7 +307,7 @@ void* StackAllocator::Alloc(size_t a_size, size_t a_alignment)
 
 	if (address + a_size > m_end)
 	{
-		size_t increase = m_end - reinterpret_cast<uintptr_t>(m_start);
+		size_t increase = Max(a_size, (m_end - reinterpret_cast<uintptr_t>(m_start)));
 		mallocVirtual(m_start, increase);
 		m_end += increase;
 	}
@@ -534,7 +534,7 @@ BB::allocators::POW_FreelistAllocator::POW_FreelistAllocator(const size_t, const
 	for (size_t i = 0; i < m_FreeBlocksAmount; i++)
 	{
 		//Roundup the freelist with the virtual memory page size for the most optimal allocation. 
-		size_t t_UsedMemory = Math::RoundUp(OSPageSize(), t_Freelist_Buffer_Size);
+		size_t t_UsedMemory = RoundUp(OSPageSize(), t_Freelist_Buffer_Size);
 		m_FreeLists[i].allocSize = t_Freelist_Buffer_Size;
 		m_FreeLists[i].fullSize = t_UsedMemory;
 		//reserve half since we are splitting up the block, otherwise we might use a lot of virtual space.

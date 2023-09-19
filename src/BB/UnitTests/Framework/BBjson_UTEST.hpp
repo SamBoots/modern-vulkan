@@ -74,3 +74,13 @@ TEST(BBjson, Big_Disk_JSON)
 	t_JsonString.~Basic_String();
 	t_Allocator.Clear();
 }
+
+TEST(BBjson, Write_Json)
+{
+	using namespace BB;
+	JsonWriter writer;
+
+	StackAllocator_t allocator{ mbSize * 4 };
+
+
+}

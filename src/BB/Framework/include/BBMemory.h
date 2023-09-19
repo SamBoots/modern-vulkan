@@ -125,7 +125,7 @@ namespace BB
 		//not the same allocator tho, so bad usage of this will still bite you in the ass.
 		const uintptr_t back = reinterpret_cast<uintptr_t>(t_Log->back) + MEMORY_BOUNDRY_FRONT;
 		const uintptr_t front = reinterpret_cast<uintptr_t>(t_Log->front);
-		BB_ASSERT(back - front == t_Log->allocSize, "BBTagAlloc is not tagging a memory space allocated by a BB allocator");
+		BB_ASSERT((back - front) == t_Log->allocSize, "BBTagAlloc is not tagging a memory space allocated by a BB allocator");
 
 		t_Log->tagName = a_TagName;
 	}

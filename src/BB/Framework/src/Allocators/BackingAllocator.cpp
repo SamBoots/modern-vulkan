@@ -25,7 +25,7 @@ struct VirtualHeader
 void* BB::mallocVirtual(void* a_Start, size_t& a_Size, const size_t a_ReserveSize)
 {
 	//Adjust the requested bytes by the page size and the minimum virtual allocaion size.
-	const size_t t_PageAdjustedSize = Max(Math::RoundUp(a_Size + sizeof(VirtualHeader), OSPageSize()), OSAllocationGranularity());
+	const size_t t_PageAdjustedSize = Max(RoundUp(a_Size + sizeof(VirtualHeader), OSPageSize()), OSAllocationGranularity());
 
 	//Set the reference of a_Size so that the allocator has enough memory until the end of the page.
 	a_Size = t_PageAdjustedSize - sizeof(VirtualHeader);

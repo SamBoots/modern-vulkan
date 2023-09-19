@@ -161,16 +161,16 @@ void FilterImagePart(void* a_param)
 		const __m128 simd_rgba_min = _mm_setzero_ps();
 		const __m128 simd_rgba_max = _mm_set_ps1(255.f);
 
-		for (int y = params.img_height_start; y < params.img_height_end; y++)
-			for (int x = 0; x < params.img_width; x++)
+		for (uint32_t y = params.img_height_start; y < params.img_height_end; y++)
+			for (uint32_t x = 0; x < params.img_width; x++)
 			{
 				__m128 simd_rgba = _mm_setzero_ps();
 
-				for (int filterY = 0; filterY < params.filter_height; filterY++)
-					for (int filterX = 0; filterX < params.filter_width; filterX++)
+				for (uint32_t filterY = 0; filterY < params.filter_height; filterY++)
+					for (uint32_t filterX = 0; filterX < params.filter_width; filterX++)
 					{
-						const int imageX = (x - params.filter_width / 2 + filterX + params.img_width) % params.img_width;
-						const int imageY = (y - params.filter_height / 2 + filterY + params.img_height) % params.img_height;
+						const uint32_t imageX = (x - params.filter_width / 2 + filterX + params.img_width) % params.img_width;
+						const uint32_t imageY = (y - params.filter_height / 2 + filterY + params.img_height) % params.img_height;
 						const uint32_t pixel = reinterpret_cast<const uint32_t*>(params.img_start_old_pixel)[imageY * params.img_width + imageX];
 
 						const __m128 simd_filter = _mm_set_ps1(params.filter[filterY * params.filter_width + filterX]);
@@ -195,18 +195,18 @@ void FilterImagePart(void* a_param)
 	}
 	else //non-SIMD
 	{
-		for (int y = params.img_height_start; y < params.img_height_end; y++)
-			for (int x = 0; x < params.img_width; x++)
+		for (uint32_t y = params.img_height_start; y < params.img_height_end; y++)
+			for (uint32_t x = 0; x < params.img_width; x++)
 			{
 				float a = 0.f;
 				float r = 0.f;
 				float g = 0.f;
 				float b = 0.f;
-				for (int filterY = 0; filterY < params.filter_height; filterY++)
-					for (int filterX = 0; filterX < params.filter_width; filterX++)
+				for (uint32_t filterY = 0; filterY < params.filter_height; filterY++)
+					for (uint32_t filterX = 0; filterX < params.filter_width; filterX++)
 					{
-						const int imageX = (x - params.filter_width / 2 + filterX + params.img_width) % params.img_width;
-						const int imageY = (y - params.filter_height / 2 + filterY + params.img_height) % params.img_height;
+						const uint32_t imageX = (x - params.filter_width / 2 + filterX + params.img_width) % params.img_width;
+						const uint32_t imageY = (y - params.filter_height / 2 + filterY + params.img_height) % params.img_height;
 						const uint32_t pixel = reinterpret_cast<const uint32_t*>(params.img_start_old_pixel)[imageY * params.img_width + imageX];
 						const float filter = params.filter[filterY * params.filter_width + filterX];
 						a += ((pixel & 0x000000ff) >> 24) * filter;
@@ -280,16 +280,16 @@ void BBImage::FilterImage(Allocator a_temp_allocator, const float* a_filter, con
 		const __m128 simd_rgba_min = _mm_setzero_ps();
 		const __m128 simd_rgba_max = _mm_set_ps1(255.f);
 
-		for (int y = 0; y < m_height; y++)
-			for (int x = 0; x < m_width; x++)
+		for (uint32_t y = 0; y < m_height; y++)
+			for (uint32_t x = 0; x < m_width; x++)
 			{
 				__m128 simd_rgba = _mm_setzero_ps();
 
-				for (int filterY = 0; filterY < a_filter_height; filterY++)
-					for (int filterX = 0; filterX < a_filter_width; filterX++)
+				for (uint32_t filterY = 0; filterY < a_filter_height; filterY++)
+					for (uint32_t filterX = 0; filterX < a_filter_width; filterX++)
 					{
-						const int imageX = (x - a_filter_width / 2 + filterX + m_width) % m_width;
-						const int imageY = (y - a_filter_height / 2 + filterY + m_height) % m_height;
+						const uint32_t imageX = (x - a_filter_width / 2 + filterX + m_width) % m_width;
+						const uint32_t imageY = (y - a_filter_height / 2 + filterY + m_height) % m_height;
 						const uint32_t pixel = reinterpret_cast<uint32_t*>(old_data)[imageY * m_width + imageX];
 
 						const __m128 simd_filter = _mm_set_ps1(a_filter[filterY * a_filter_width + filterX]);
@@ -314,19 +314,19 @@ void BBImage::FilterImage(Allocator a_temp_allocator, const float* a_filter, con
 	}
 	else //non SIMD
 	{
-		for (int y = 0; y < m_height; y++)
-			for (int x = 0; x < m_width; x++)
+		for (uint32_t y = 0; y < m_height; y++)
+			for (uint32_t x = 0; x < m_width; x++)
 			{
 				float r = 0.f;
 				float g = 0.f;
 				float b = 0.f;
 				float a = 0.f;
 
-				for (int filterY = 0; filterY < a_filter_height; filterY++)
-					for (int filterX = 0; filterX < a_filter_width; filterX++)
+				for (uint32_t filterY = 0; filterY < a_filter_height; filterY++)
+					for (uint32_t filterX = 0; filterX < a_filter_width; filterX++)
 					{
-						const int imageX = (x - a_filter_width / 2 + filterX + m_width) % m_width;
-						const int imageY = (y - a_filter_height / 2 + filterY + m_height) % m_height;
+						const uint32_t imageX = (x - a_filter_width / 2 + filterX + m_width) % m_width;
+						const uint32_t imageY = (y - a_filter_height / 2 + filterY + m_height) % m_height;
 						const uint32_t pixel = reinterpret_cast<uint32_t*>(old_data)[imageY * m_width + imageX];
 						const float filter = a_filter[filterY * a_filter_width + filterX];
 

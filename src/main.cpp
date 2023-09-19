@@ -9,6 +9,8 @@
 #include <chrono>
 #include <iostream>
 
+#include "Utils.h"
+
 
 using namespace BB;
 
@@ -97,7 +99,7 @@ int main(int argc, char** argv)
 	using ms = std::chrono::duration<float, std::milli>;
 	constexpr const float MILLITIMEDIVIDE = 1 / 1000.f;
 
-	const uint32_t max_thread_count = sys_info.processor_num;
+	const uint32_t max_thread_count = sys_info.processor_num / 2;
 	for (uint32_t thread_count = max_thread_count; thread_count > 0; --thread_count)
 	{
 		StackString<128> directory_names{"thread_count"};
@@ -151,5 +153,6 @@ int main(int argc, char** argv)
 	}
 
 	allocator.Clear();
+
 	return 0;
 }

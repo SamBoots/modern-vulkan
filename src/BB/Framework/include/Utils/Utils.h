@@ -6,15 +6,17 @@
 
 #include <cwchar>
 
+#include <immintrin.h>
+
 namespace BB
 {
-	namespace Memory	
+	namespace Memory
 	{
 
 		void MemCpy(void* __restrict  a_Destination, const void* __restrict  a_Source, size_t a_Size);
 		void MemCpySIMD128(void* __restrict  a_Destination, const void* __restrict  a_Source, size_t a_Size);
 		void MemCpySIMD256(void* __restrict  a_Destination, const void* __restrict  a_Source, size_t a_Size);
-		
+
 		void MemSet(void* __restrict  a_Destination, const int32_t a_Value, size_t a_Size);
 		void MemSetSIMD128(void* __restrict a_Destination, const int32_t a_Value, size_t a_Size);
 		void MemSetSIMD256(void* __restrict  a_Destination, const int32_t a_Value, size_t a_Size);
@@ -49,7 +51,7 @@ namespace BB
 		template<typename T>
 		inline static void Copy(void* __restrict a_Destination, const T* __restrict a_Source, const size_t a_ElementCount)
 		{
-			Memory::Copy(reinterpret_cast<T* __restrict>(a_Destination), a_Source, a_ElementCount);
+			Memory::Copy(reinterpret_cast<T * __restrict>(a_Destination), a_Source, a_ElementCount);
 		}
 
 		/// <summary>
@@ -156,12 +158,68 @@ namespace BB
 		}
 	}
 
-	namespace Math
+	inline static size_t RoundUp(const size_t a_NumToRound, const size_t a_Multiple)
 	{
-		inline static size_t RoundUp(const size_t a_NumToRound, const size_t a_Multiple)
-		{
-			return ((a_NumToRound + a_Multiple - 1) / a_Multiple) * a_Multiple;
-		}
+		return ((a_NumToRound + a_Multiple - 1) / a_Multiple) * a_Multiple;
+	}
+
+	inline static size_t Max(const size_t a_A, const size_t a_B)
+	{
+		if (a_A > a_B)
+			return a_A;
+		return a_B;
+	}
+
+	inline static size_t Min(const size_t a_A, const size_t a_B)
+	{
+		if (a_A < a_B)
+			return a_A;
+		return a_B;
+	}
+
+	inline static int Max(const int a_A, const int a_B)
+	{
+		if (a_A > a_B)
+			return a_A;
+		return a_B;
+	}
+
+	inline static int Min(const int a_A, const int a_B)
+	{
+		if (a_A < a_B)
+			return a_A;
+		return a_B;
+	}
+
+	inline static float Maxf(const float a_A, const float a_B)
+	{
+		if (a_A > a_B)
+			return a_A;
+		return a_B;
+	}
+
+	inline static float Minf(const float a_A, const float a_B)
+	{
+		if (a_A < a_B)
+			return a_A;
+		return a_B;
+	}
+
+	inline static float Lerp(const float a_A, const float a_B, const float a_T)
+	{
+		return a_A + a_T * (a_B - a_A);
+	}
+
+	inline static int Clamp(const int a_value, const int a_min, const int a_max)
+	{
+		const int i = a_value < a_min ? a_max : a_value;
+		return i > a_max ? a_max : i;
+	}
+
+	inline static float Clampf(const float a_value, const float a_min, const float a_max)
+	{
+		const float f = a_value < a_min ? a_max : a_value;
+		return f > a_max ? a_max : f;
 	}
 
 	namespace Random

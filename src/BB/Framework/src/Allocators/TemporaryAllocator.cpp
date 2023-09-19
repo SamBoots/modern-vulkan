@@ -66,7 +66,7 @@ namespace BB
 		//If the allocation is bigger then the new block resize the new block for the allocation.
 		//Round up to the new block size for ease of use and correct alignment.
 		if (t_AlignedSize > t_NewBlockSize)
-			t_NewBlockSize = Math::RoundUp(t_AlignedSize, t_NewBlockSize);
+			t_NewBlockSize = RoundUp(t_AlignedSize, t_NewBlockSize);
 
 		TemporaryFreeBlock* t_Previous = m_FreeBlock;
 		m_FreeBlock = reinterpret_cast<TemporaryFreeBlock*>(BBalloc(m_BackingAllocator, t_NewBlockSize));

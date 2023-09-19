@@ -85,7 +85,7 @@ namespace BB
 		BB_STATIC_ASSERT(is_char, "String is not a char or wchar");
 
 		m_Allocator = a_Allocator;
-		m_Capacity = Math::RoundUp(a_Size, String_Specs::multipleValue);
+		m_Capacity = RoundUp(a_Size, String_Specs::multipleValue);
 
 		m_String = reinterpret_cast<CharT*>(BBalloc(m_Allocator, m_Capacity * sizeof(CharT)));
 		Memory::Set(m_String, NULL, m_Capacity);
@@ -350,7 +350,7 @@ namespace BB
 		size_t t_ModifiedCapacity = m_Capacity * 2;
 
 		if (a_MinCapacity > t_ModifiedCapacity)
-			t_ModifiedCapacity = Math::RoundUp(a_MinCapacity, String_Specs::multipleValue);
+			t_ModifiedCapacity = RoundUp(a_MinCapacity, String_Specs::multipleValue);
 
 		reallocate(t_ModifiedCapacity);
 	}
@@ -437,6 +437,12 @@ namespace BB
 		void append(const CharT* a_String)
 		{
 			append(a_String, Memory::StrLength(a_String));
+		};
+		void append(const CharT a_char, size_t a_count = 1)
+		{
+			BB_ASSERT(m_Size + a_count < sizeof(m_String), "Stack string overflow");
+			for (size_t i = 0; i < a_count; i++)
+				m_String[m_Size++] = a_char;
 		};
 		void append(const CharT* a_String, size_t a_Size)
 		{

@@ -11,53 +11,9 @@ namespace BB
 		return degrees * 0.01745329252f;
 	}
 
-	inline static size_t RoundUp(const size_t a_NumToRound, const size_t a_Multiple)
-	{
-		return ((a_NumToRound + a_Multiple - 1) / a_Multiple) * a_Multiple;
-	}
-
-	inline static size_t Max(const size_t a_A, const size_t a_B)
-	{
-		if (a_A > a_B)
-			return a_A;
-		return a_B;
-	}
-
-	inline static size_t Min(const size_t a_A, const size_t a_B)
-	{
-		if (a_A < a_B)
-			return a_A;
-		return a_B;
-	}
-
-	inline static float Maxf(const float a_A, const float a_B)
-	{
-		if (a_A > a_B)
-			return a_A;
-		return a_B;
-	}
-	
-	inline static float Minf(const float a_A, const float a_B)
-	{
-		if (a_A < a_B)
-			return a_A;
-		return a_B;
-	}
-
-	inline static float Lerp(const float a_A, const float a_B, const float a_T)
-	{
-		return a_A + a_T * (a_B - a_A);
-	}
-
-	inline static int Clamp(const int a_Value, const int a_Min, const int a_Max)
-	{
-		return Min(Max(a_Value, a_Min), a_Max);
-	}
-
-	inline static float Clampf(const float a_Value, const float a_Min, const float a_Max)
-	{
-		return Minf(Maxf(a_Value, a_Min), a_Max);
-	}
+	// UTILITY
+	//--------------------------------------------------------
+	// FLOAT2
 
 	static inline float2 operator+(const float2 a_Lhs, const float2 a_Rhs)
 	{
