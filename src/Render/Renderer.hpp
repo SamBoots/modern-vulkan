@@ -25,6 +25,10 @@ namespace BB
 
 		void InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererCreateInfo& a_render_create_info);
 
+		void StartFrame();
+		void EndFrame();
+
+
 		MeshHandle CreateMesh(const CreateMeshInfo& a_create_info);
 		void FreeMesh(const MeshHandle a_mesh);
 

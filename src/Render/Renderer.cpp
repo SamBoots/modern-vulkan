@@ -23,6 +23,9 @@ struct RenderInterface_inst
 	uint32_t swapchain_height;
 	bool debug;
 
+	uint32_t backbuffer_count;
+	uint32_t backbuffer_pos;
+
 	struct VertexBuffer
 	{
 		RBuffer buffer;
@@ -74,10 +77,13 @@ BufferView AllocateFromIndexBuffer(const size_t a_size_in_bytes)
 
 void Render::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererCreateInfo& a_render_create_info)
 {
-	InitializeVulkan(a_stack_allocator, a_render_create_info.app_name, a_render_create_info.engine_name, a_render_create_info.debug);
-	CreateSwapchain(a_stack_allocator, a_render_create_info.window_handle, a_render_create_info.swapchain_width, a_render_create_info.swapchain_height, 3);
 
 	s_render_inst = BBnew(a_stack_allocator, RenderInterface_inst);
+	InitializeVulkan(a_stack_allocator, a_render_create_info.app_name, a_render_create_info.engine_name, a_render_create_info.debug);
+	s_render_inst->backbuffer_count = 3;
+	s_render_inst->backbuffer_pos = 0;
+	CreateSwapchain(a_stack_allocator, a_render_create_info.window_handle, a_render_create_info.swapchain_width, a_render_create_info.swapchain_height, s_render_inst->backbuffer_count);
+
 	s_render_inst->swapchain_window = a_render_create_info.window_handle;
 	s_render_inst->swapchain_width = a_render_create_info.swapchain_width;
 	s_render_inst->swapchain_height = a_render_create_info.swapchain_height;
@@ -107,6 +113,23 @@ void Render::InitializeRenderer(StackAllocator_t& a_stack_allocator, const Rende
 		s_render_inst->index_buffer.size = index_buffer.size;
 		s_render_inst->index_buffer.used = 0;
 	}
+}
+
+void  Render::StartFrame()
+{
+	//setup rendering
+}
+
+void  Render::EndFrame()
+{
+	//render
+
+	//present
+
+
+	//swap images
+	s_render_inst->backbuffer_pos = (s_render_inst->backbuffer_pos + 1) % s_render_inst->backbuffer_count;
+	s_render_inst->backbuffer_pos;
 }
 
 MeshHandle Render::CreateMesh(const CreateMeshInfo& a_create_info)
