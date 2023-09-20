@@ -5,6 +5,10 @@
 #include "BBThreadScheduler.hpp"
 #include "HID.h"
 
+
+#include "Renderer.hpp"
+#include "Math.inl"
+
 int main(int argc, char** argv)
 {
 	using namespace BB;
@@ -18,21 +22,47 @@ int main(int argc, char** argv)
 	OSSystemInfo(sys_info);
 	Threads::InitThreads(sys_info.processor_num);
 
-	StackAllocator_t main_allocator{ mbSize * 6 };
+	StackAllocator_t main_allocator{ mbSize * 32 };
 
 	int window_width = 1280;
 	int window_height = 720;
-	WindowHandle window = BB::CreateOSWindow(
+	const WindowHandle window = CreateOSWindow(
 		BB::OS_WINDOW_STYLE::MAIN,
 		250,
 		200,
 		window_width,
 		window_height,
-		L"CrossRenderer");
+		L"Modern Vulkan");
+
+	Render::RendererCreateInfo render_create_info;
+	render_create_info.app_name = "modern vulkan";
+	render_create_info.engine_name = "Building Block Engine";
+	render_create_info.window_handle = window;
+	render_create_info.swapchain_width = static_cast<uint32_t>(window_width);
+	render_create_info.swapchain_height = static_cast<uint32_t>(window_height);
+	render_create_info.debug = true;
+	Render::InitializeRenderer(main_allocator, render_create_info);
+
+	Render::MeshHandle quad_mesh;
+	BBStackAllocatorScope(main_allocator)
+	{
+		//Do some simpel model loading and drawing.
+		Render::Vertex vertices[4];
+		vertices[0] = { {-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 0.0f, 0.0f} };
+		vertices[1] = { {0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 1.0f, 0.0f} };
+		vertices[2] = { {0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 1.0f} };
+		vertices[3] = { {-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}, {1.0f, 1.0f, 1.0f} };
+
+		const uint32_t indices[] = { 0, 1, 2, 2, 3, 0 };
+
+		Render::CreateMeshInfo quad_create_info{};
+		quad_create_info.vertices = Slice(vertices, _countof(vertices));
+		quad_create_info.indices = Slice(indices, _countof(indices));
+		quad_mesh = Render::CreateMesh(quad_create_info);
+	}
 
 	InputEvent input_events[INPUT_EVENT_BUFFER_MAX];
 	size_t input_event_count = 0;
-
 	bool quit_app = false;
 	while (!quit_app)
 	{
@@ -52,7 +82,16 @@ int main(int argc, char** argv)
 				const MouseInfo& mi = ip.mouseInfo;
 			}
 		}
+
+		
+		BBStackAllocatorScope(main_allocator)
+		{
+			//draw stuff here!
+			Render::DrawMesh(quad_mesh, Mat4x4Identity());
+		}
 	}
+
+	DirectDestroyOSWindow(window);
 
 	return 0;
 }

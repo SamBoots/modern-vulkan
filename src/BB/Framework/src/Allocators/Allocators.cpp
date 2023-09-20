@@ -330,6 +330,8 @@ void StackAllocator::SetMarker(const StackMarker a_marker)
 {
 	BB_ASSERT(reinterpret_cast<uintptr_t>(m_start) <= a_marker && a_marker < m_end, "stack position is not within this allocator's memory space");
 #ifdef _DEBUG
+	if (a_marker == reinterpret_cast<uintptr_t>(m_buffer))
+		return;
 	//jank, but remove logs that are after a_pos;
 	AllocationLog* cur_list = frontLog;
 	AllocationLog* prev_list = nullptr;

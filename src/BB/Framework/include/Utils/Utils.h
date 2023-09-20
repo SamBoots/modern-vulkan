@@ -216,6 +216,12 @@ namespace BB
 		return i > a_max ? a_max : i;
 	}
 
+	inline static uint32_t Clamp(const uint32_t a_value, const uint32_t a_min, const uint32_t a_max)
+	{
+		const uint32_t i = a_value < a_min ? a_max : a_value;
+		return i > a_max ? a_max : i;
+	}
+
 	inline static float Clampf(const float a_value, const float a_min, const float a_max)
 	{
 		const float f = a_value < a_min ? a_max : a_value;

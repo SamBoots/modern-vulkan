@@ -6,6 +6,7 @@ project ("Modern Vulkan")
 set (CMAKE_CXX_STANDARD 17)
 
 add_definitions(-DUNICODE -D_UNICODE -UNICODE)
+set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
 #find the CPU architecture type.
 if (${CMAKE_SYSTEM_PROCESSOR} STREQUAL "X86")
@@ -67,6 +68,7 @@ else()
 message(FATAL_ERROR "UNKNOWN BUILD TYPE")
 endif(CMAKE_BUILD_TYPE MATCHES Debug)
 
+add_subdirectory ("lib")
 add_subdirectory ("src")
 
 message(STATUS "Building binaries at")

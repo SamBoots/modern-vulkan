@@ -10,4 +10,5 @@ add_custom_target(copy_resources ALL
     ${CMAKE_CURRENT_BINARY_DIR}
     COMMENT "Copying unit test resources")
 
-add_dependencies(app copy_resources)
+add_dependencies(Renderer copy_resources)
+add_dependencies(image_filter_test copy_resources)
