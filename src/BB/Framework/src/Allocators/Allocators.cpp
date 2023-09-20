@@ -345,8 +345,6 @@ void StackAllocator::SetMarker(const StackMarker a_marker)
 	BB_ASSERT(a_marker == front, "SetPosition points to a invalid address that holds no allocation");
 	frontLog = cur_list->prev;
 #endif
-
-
 	m_buffer = reinterpret_cast<void*>(a_marker);
 }
 
