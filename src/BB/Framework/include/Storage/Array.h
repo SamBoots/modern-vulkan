@@ -110,7 +110,7 @@ namespace BB
 		: m_Allocator(a_Allocator)
 	{
 		BB_ASSERT(a_Size != 0, "Dynamic_array size is specified to be 0");
-		m_Capacity = Math::RoundUp(a_Size, Array_Specs::multipleValue);
+		m_Capacity = RoundUp(a_Size, Array_Specs::multipleValue);
 
 		m_Arr = reinterpret_cast<T*>(BBalloc(m_Allocator, m_Capacity * sizeof(T)));
 	}
@@ -267,7 +267,7 @@ namespace BB
 	{
 		if (a_Size > m_Capacity)
 		{
-			size_t t_ModifiedCapacity = Math::RoundUp(a_Size, Array_Specs::multipleValue);
+			size_t t_ModifiedCapacity = RoundUp(a_Size, Array_Specs::multipleValue);
 
 			reallocate(t_ModifiedCapacity);
 			return;
@@ -317,7 +317,7 @@ namespace BB
 		size_t t_ModifiedCapacity = m_Capacity * 2;
 
 		if (a_MinCapacity > t_ModifiedCapacity)
-			t_ModifiedCapacity = Math::RoundUp(a_MinCapacity, Array_Specs::multipleValue);
+			t_ModifiedCapacity = RoundUp(a_MinCapacity, Array_Specs::multipleValue);
 
 		reallocate(t_ModifiedCapacity);
 	}

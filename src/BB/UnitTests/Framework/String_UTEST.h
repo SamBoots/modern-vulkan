@@ -147,7 +147,7 @@ TEST(String_DataStructure, reserve_shrink)
 
 	t_String.reserve(128);
 	const size_t t_StringCapacity = t_String.capacity();
-	const size_t t_ModifiedC_StringSize = BB::Math::RoundUp(strlen(t_AppendString) + 1, BB::String_Specs::multipleValue);
+	const size_t t_ModifiedC_StringSize = BB::RoundUp(strlen(t_AppendString) + 1, BB::String_Specs::multipleValue);
 
 	ASSERT_LT(t_ModifiedC_StringSize, t_StringCapacity) << "Modified string size is bigger then the string capacity, test is unaccurate.";
 
@@ -306,7 +306,7 @@ TEST(WideString_DataStructure, reserve_shrink)
 
 	t_String.reserve(128);
 	const size_t t_StringCapacity = t_String.capacity();
-	const size_t t_ModifiedC_StringSize = BB::Math::RoundUp(strlen(t_AppendString) + 1, BB::String_Specs::multipleValue);
+	const size_t t_ModifiedC_StringSize = BB::RoundUp(strlen(t_AppendString) + 1, BB::String_Specs::multipleValue);
 
 	ASSERT_LT(t_ModifiedC_StringSize, t_StringCapacity) << "Modified string size is bigger then the string capacity, test is unaccurate.";
 

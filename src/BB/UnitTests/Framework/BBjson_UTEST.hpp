@@ -2,7 +2,7 @@
 #include "../TestValues.h"
 #include "BBJson.hpp"
 #include "BBMain.h"
-#include "BBString.h"
+#include "Storage/BBString.h"
 
 TEST(BBjson, Small_Local_Memory_JSON)
 {
@@ -73,14 +73,4 @@ TEST(BBjson, Big_Disk_JSON)
 	//call the destructor as I want to clear the allocator.
 	t_JsonString.~Basic_String();
 	t_Allocator.Clear();
-}
-
-TEST(BBjson, Write_Json)
-{
-	using namespace BB;
-	JsonWriter writer;
-
-	StackAllocator_t allocator{ mbSize * 4 };
-
-
 }

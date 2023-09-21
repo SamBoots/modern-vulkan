@@ -733,7 +733,7 @@ bool Render::CreateSwapchain(StackAllocator_t& a_stack_allocator, const WindowHa
 		image_view_create_info.subresourceRange.baseArrayLayer = 0;
 		image_view_create_info.subresourceRange.layerCount = 1;
 
-		VkSemaphoreCreateInfo t_SemInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
+		VkSemaphoreCreateInfo sem_info{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
 
 		for (uint32_t i = 0; i < s_vulkan_swapchain->frame_count; i++)
 		{
@@ -747,15 +747,46 @@ bool Render::CreateSwapchain(StackAllocator_t& a_stack_allocator, const WindowHa
 				"Vulkan: Failed to create swapchain image views.");
 
 			vkCreateSemaphore(s_vulkan_inst->device,
-				&t_SemInfo,
+				&sem_info,
 				nullptr,
 				&s_vulkan_swapchain->frames[i].image_available_semaphore);
 			vkCreateSemaphore(s_vulkan_inst->device,
-				&t_SemInfo,
+				&sem_info,
 				nullptr,
 				&s_vulkan_swapchain->frames[i].present_finished_semaphore);
 		}
 	}
+}
+
+bool Render::VulkanStartFrame(const uint32_t a_backbuffer)
+{
+	uint32_t image_index;
+	VKASSERT(vkAcquireNextImageKHR(s_vulkan_inst->device,
+		s_vulkan_swapchain->swapchain,
+		UINT64_MAX,
+		s_vulkan_swapchain->frames[a_backbuffer].image_available_semaphore,
+		VK_NULL_HANDLE,
+		&image_index),
+		"Vulkan: failed to get next image.");
+
+	return true;
+}
+
+bool Render::VulkanEndFrame(const uint32_t a_backbuffer)
+{
+	VkPresentInfoKHR present_info{};
+	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	present_info.waitSemaphoreCount = 1;
+	present_info.pWaitSemaphores = &s_vulkan_swapchain->frames[a_backbuffer].present_finished_semaphore;
+	present_info.swapchainCount = 1; //Swapchain will always be 1
+	present_info.pSwapchains = &s_vulkan_swapchain->swapchain;
+	present_info.pImageIndices = &a_backbuffer; //THIS MAY BE WRONG
+	present_info.pResults = nullptr;
+
+	VKASSERT(vkQueuePresentKHR(s_vulkan_inst->present_queue, &present_info),
+		"Vulkan: Failed to queuepresentKHR.");
+
+	return true;
 }
 
 const RBuffer Render::CreateBuffer(const BufferCreateInfo& a_create_info)

@@ -108,7 +108,7 @@ static void WriteLoggerToFile(void*)
 
 static void Log_to_Console(const char* a_FileName, int a_Line, const char* a_WarningLevel, const char* a_Formats, va_list a_Args)
 {
-	constexpr const char LOG_MESSAGE_ERROR_LEVEL_0[]{ "Error Level: " };
+	constexpr const char LOG_MESSAGE_ERROR_LEVEL_0[]{ "Severity: " };
 	constexpr const char LOG_MESSAGE_FILE_0[]{ "\nFile: " };
 	constexpr const char LOG_MESSAGE_LINE_NUMBER_1[]{ "\nLine Number: " };
 	constexpr const char LOG_MESSAGE_MESSAGE_TXT_2[]{ "\nThe Message: " };

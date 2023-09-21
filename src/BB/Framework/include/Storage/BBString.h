@@ -103,7 +103,7 @@ namespace BB
 		BB_STATIC_ASSERT(is_char, "String is not a char or wchar");
 
 		m_Allocator = a_Allocator;
-		m_Capacity = Math::RoundUp(a_Size + 1, String_Specs::multipleValue);
+		m_Capacity = RoundUp(a_Size + 1, String_Specs::multipleValue);
 		m_Size = a_Size;
 
 		m_String = reinterpret_cast<CharT*>(BBalloc(m_Allocator, m_Capacity * sizeof(CharT)));
@@ -328,7 +328,7 @@ namespace BB
 	{
 		if (a_Size > m_Capacity)
 		{
-			size_t t_ModifiedCapacity = Math::RoundUp(a_Size + 1, String_Specs::multipleValue);
+			size_t t_ModifiedCapacity = RoundUp(a_Size + 1, String_Specs::multipleValue);
 
 			reallocate(t_ModifiedCapacity);
 		}
@@ -337,7 +337,7 @@ namespace BB
 	template<typename CharT>
 	inline void BB::Basic_String<CharT>::shrink_to_fit()
 	{
-		size_t t_ModifiedCapacity = Math::RoundUp(m_Size + 1, String_Specs::multipleValue);
+		size_t t_ModifiedCapacity = RoundUp(m_Size + 1, String_Specs::multipleValue);
 		if (t_ModifiedCapacity < m_Capacity)
 		{
 			reallocate(t_ModifiedCapacity);
