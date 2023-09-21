@@ -13,17 +13,17 @@ namespace BB
 	namespace Memory
 	{
 
-		void MemCpy(void* __restrict  a_Destination, const void* __restrict  a_Source, size_t a_Size);
-		void MemCpySIMD128(void* __restrict  a_Destination, const void* __restrict  a_Source, size_t a_Size);
-		void MemCpySIMD256(void* __restrict  a_Destination, const void* __restrict  a_Source, size_t a_Size);
+		void MemCpy(void* __restrict  a_Destination, const void* __restrict  a_Source, size_t a_size);
+		void MemCpySIMD128(void* __restrict  a_Destination, const void* __restrict  a_Source, size_t a_size);
+		void MemCpySIMD256(void* __restrict  a_Destination, const void* __restrict  a_Source, size_t a_size);
 
-		void MemSet(void* __restrict  a_Destination, const int32_t a_Value, size_t a_Size);
-		void MemSetSIMD128(void* __restrict a_Destination, const int32_t a_Value, size_t a_Size);
-		void MemSetSIMD256(void* __restrict  a_Destination, const int32_t a_Value, size_t a_Size);
+		void MemSet(void* __restrict  a_Destination, const int32_t a_Value, size_t a_size);
+		void MemSetSIMD128(void* __restrict a_Destination, const int32_t a_Value, size_t a_size);
+		void MemSetSIMD256(void* __restrict  a_Destination, const int32_t a_Value, size_t a_size);
 
-		bool MemCmp(const void* __restrict  a_Left, const void* __restrict  a_Right, size_t a_Size);
-		bool MemCmpSIMD128(const void* __restrict  a_Left, const void* __restrict  a_Right, size_t a_Size);
-		bool MemCmpSIMD256(const void* __restrict  a_Left, const void* __restrict  a_Right, size_t a_Size);
+		bool MemCmp(const void* __restrict  a_Left, const void* __restrict  a_Right, size_t a_size);
+		bool MemCmpSIMD128(const void* __restrict  a_Left, const void* __restrict  a_Right, size_t a_size);
+		bool MemCmpSIMD256(const void* __restrict  a_Left, const void* __restrict  a_Right, size_t a_size);
 
 
 		/// <summary>
@@ -308,16 +308,16 @@ namespace BB
 		}
 
 		/// <summary>
-		/// Returns a aligned size from a_Size based on the a_Alignment size given.
+		/// Returns a aligned size from a_size based on the a_Alignment size given.
 		/// </summary>
-		/// <param name="a_Size:"> Size of the origional buffer </param>
+		/// <param name="a_size:"> Size of the origional buffer </param>
 		/// <param name="a_Alignment:"> Alignment the returned size needs to be based off. </param>
-		/// <returns> an aligned size based of a_Size and a_Alignment. </returns>
-		inline static size_t AlignPad(const size_t a_Size, const size_t a_Alignment)
+		/// <returns> an aligned size based of a_size and a_Alignment. </returns>
+		inline static size_t AlignPad(const size_t a_size, const size_t a_Alignment)
 		{
-			size_t t_AlignedSize = a_Size;
+			size_t t_AlignedSize = a_size;
 			if (a_Alignment > 0) {
-				t_AlignedSize = (a_Size + a_Alignment - 1) & ~(a_Alignment - 1);
+				t_AlignedSize = (a_size + a_Alignment - 1) & ~(a_Alignment - 1);
 			}
 			return t_AlignedSize;
 		}

@@ -15,43 +15,43 @@ namespace BB
 	//--------------------------------------------------------
 	// FLOAT2
 
-	static inline float2 operator+(const float2 a_Lhs, const float2 a_Rhs)
+	static inline float2 operator+(const float2 a_Lhs, const float2 a_rhs)
 	{
-		return float2{ a_Lhs.x + a_Rhs.x, a_Lhs.y + a_Rhs.y };
+		return float2{ a_Lhs.x + a_rhs.x, a_Lhs.y + a_rhs.y };
 	}
 
-	static inline float2 operator-(const float2 a_Lhs, const float2 a_Rhs)
+	static inline float2 operator-(const float2 a_Lhs, const float2 a_rhs)
 	{
-		return float2{ a_Lhs.x - a_Rhs.x, a_Lhs.y - a_Rhs.y };
+		return float2{ a_Lhs.x - a_rhs.x, a_Lhs.y - a_rhs.y };
 	}
 
-	static inline float2 operator*(const float2 a_Lhs, const float2 a_Rhs)
+	static inline float2 operator*(const float2 a_Lhs, const float2 a_rhs)
 	{
-		return float2{ a_Lhs.x * a_Rhs.x, a_Lhs.y * a_Rhs.y };
+		return float2{ a_Lhs.x * a_rhs.x, a_Lhs.y * a_rhs.y };
 	}
 
-	static inline float2 operator*(const float2 a_Lhs, const float a_Rhs)
+	static inline float2 operator*(const float2 a_Lhs, const float a_rhs)
 	{
-		return float2{ a_Lhs.x * a_Rhs, a_Lhs.y * a_Rhs };
+		return float2{ a_Lhs.x * a_rhs, a_Lhs.y * a_rhs };
 	}
 
-	static inline float2 operator/(const float2 a_Lhs, const float2 a_Rhs)
+	static inline float2 operator/(const float2 a_Lhs, const float2 a_rhs)
 	{
-		return float2{ a_Lhs.x / a_Rhs.x, a_Lhs.y / a_Rhs.y };
+		return float2{ a_Lhs.x / a_rhs.x, a_Lhs.y / a_rhs.y };
 	}
 
 	// FLOAT2
 	//--------------------------------------------------------
 	// FLOAT3
 
-	static inline float3 operator+(const float3 a_Lhs, const float3 a_Rhs)
+	static inline float3 operator+(const float3 a_Lhs, const float3 a_rhs)
 	{
-		return float3{ a_Lhs.x + a_Rhs.x, a_Lhs.y + a_Rhs.y, a_Lhs.z + a_Rhs.z };
+		return float3{ a_Lhs.x + a_rhs.x, a_Lhs.y + a_rhs.y, a_Lhs.z + a_rhs.z };
 	}
 
-	static inline float3 operator-(const float3 a_Lhs, const float3 a_Rhs)
+	static inline float3 operator-(const float3 a_Lhs, const float3 a_rhs)
 	{
-		return float3{ a_Lhs.x - a_Rhs.x, a_Lhs.y - a_Rhs.y, a_Lhs.z - a_Rhs.z };
+		return float3{ a_Lhs.x - a_rhs.x, a_Lhs.y - a_rhs.y, a_Lhs.z - a_rhs.z };
 	}
 
 	static inline float3 operator*(const float3 a_Lhs, const float a_Float)
@@ -59,14 +59,14 @@ namespace BB
 		return float3{ a_Lhs.x * a_Float, a_Lhs.y * a_Float, a_Lhs.z * a_Float };
 	}
 
-	static inline float3 operator*(const float3 a_Lhs, const float3 a_Rhs)
+	static inline float3 operator*(const float3 a_Lhs, const float3 a_rhs)
 	{
-		return float3{ a_Lhs.x * a_Rhs.x, a_Lhs.y * a_Rhs.y, a_Lhs.z * a_Rhs.z };
+		return float3{ a_Lhs.x * a_rhs.x, a_Lhs.y * a_rhs.y, a_Lhs.z * a_rhs.z };
 	}
 
-	static inline float3 operator/(const float3 a_Lhs, const float3 a_Rhs)
+	static inline float3 operator/(const float3 a_Lhs, const float3 a_rhs)
 	{
-		return float3{ a_Lhs.x / a_Rhs.x, a_Lhs.y / a_Rhs.y, a_Lhs.z / a_Rhs.z };
+		return float3{ a_Lhs.x / a_rhs.x, a_Lhs.y / a_rhs.y, a_Lhs.z / a_rhs.z };
 	}
 
 	static inline float3 Float3Cross(const float3 a, const float3 b)
@@ -104,14 +104,14 @@ namespace BB
 	//--------------------------------------------------------
 	// FLOAT4
 
-	static inline float4 operator+(const float4 a_Lhs, const float4 a_Rhs)
+	static inline float4 operator+(const float4 a_Lhs, const float4 a_rhs)
 	{
-		return float4{ a_Lhs.x + a_Rhs.x, a_Lhs.y + a_Rhs.y, a_Lhs.z + a_Rhs.z, a_Lhs.w + a_Rhs.w };
+		return float4{ a_Lhs.x + a_rhs.x, a_Lhs.y + a_rhs.y, a_Lhs.z + a_rhs.z, a_Lhs.w + a_rhs.w };
 	}
 
-	static inline float4 operator-(const float4 a_Lhs, const float4 a_Rhs)
+	static inline float4 operator-(const float4 a_Lhs, const float4 a_rhs)
 	{
-		return float4{ a_Lhs.x - a_Rhs.x, a_Lhs.y - a_Rhs.y, a_Lhs.z - a_Rhs.z, a_Lhs.w - a_Rhs.w };
+		return float4{ a_Lhs.x - a_rhs.x, a_Lhs.y - a_rhs.y, a_Lhs.z - a_rhs.z, a_Lhs.w - a_rhs.w };
 	}
 
 	static inline float4 operator*(const float4 a_Lhs, const float a_Float)
@@ -119,14 +119,14 @@ namespace BB
 		return float4{ a_Lhs.x * a_Float, a_Lhs.y * a_Float, a_Lhs.z * a_Float, a_Lhs.w * a_Float };
 	}
 
-	static inline float4 operator*(const float4 a_Lhs, const float4 a_Rhs)
+	static inline float4 operator*(const float4 a_Lhs, const float4 a_rhs)
 	{
-		return float4{ a_Lhs.x * a_Rhs.x, a_Lhs.y * a_Rhs.y, a_Lhs.z * a_Rhs.z, a_Lhs.w * a_Rhs.w };
+		return float4{ a_Lhs.x * a_rhs.x, a_Lhs.y * a_rhs.y, a_Lhs.z * a_rhs.z, a_Lhs.w * a_rhs.w };
 	}
 
-	static inline float4 operator/(const float4 a_Lhs, const float4 a_Rhs)
+	static inline float4 operator/(const float4 a_Lhs, const float4 a_rhs)
 	{
-		return float4{ a_Lhs.x / a_Rhs.x, a_Lhs.y / a_Rhs.y, a_Lhs.z / a_Rhs.z, a_Lhs.w / a_Rhs.w };
+		return float4{ a_Lhs.x / a_rhs.x, a_Lhs.y / a_rhs.y, a_Lhs.z / a_rhs.z, a_Lhs.w / a_rhs.w };
 	}
 
 	static inline float Float4Dot(const float4 a, const float4 b)
@@ -179,13 +179,13 @@ namespace BB
 		return mat;
 	}
 
-	static inline Mat4x4 operator*(const Mat4x4 a_Lhs, const Mat4x4 a_Rhs)
+	static inline Mat4x4 operator*(const Mat4x4 a_Lhs, const Mat4x4 a_rhs)
 	{
 		Mat4x4 mat;
-		mat.r0 = a_Lhs.r0 * a_Rhs.r0.x + a_Lhs.r1 * a_Rhs.r0.y + a_Lhs.r2 * a_Rhs.r0.z + a_Lhs.r3 * a_Rhs.r0.w;
-		mat.r1 = a_Lhs.r0 * a_Rhs.r1.x + a_Lhs.r1 * a_Rhs.r1.y + a_Lhs.r2 * a_Rhs.r1.z + a_Lhs.r3 * a_Rhs.r1.w;
-		mat.r2 = a_Lhs.r0 * a_Rhs.r2.x + a_Lhs.r1 * a_Rhs.r2.y + a_Lhs.r2 * a_Rhs.r2.z + a_Lhs.r3 * a_Rhs.r2.w;
-		mat.r3 = a_Lhs.r0 * a_Rhs.r3.x + a_Lhs.r1 * a_Rhs.r3.y + a_Lhs.r2 * a_Rhs.r3.z + a_Lhs.r3 * a_Rhs.r3.w;
+		mat.r0 = a_Lhs.r0 * a_rhs.r0.x + a_Lhs.r1 * a_rhs.r0.y + a_Lhs.r2 * a_rhs.r0.z + a_Lhs.r3 * a_rhs.r0.w;
+		mat.r1 = a_Lhs.r0 * a_rhs.r1.x + a_Lhs.r1 * a_rhs.r1.y + a_Lhs.r2 * a_rhs.r1.z + a_Lhs.r3 * a_rhs.r1.w;
+		mat.r2 = a_Lhs.r0 * a_rhs.r2.x + a_Lhs.r1 * a_rhs.r2.y + a_Lhs.r2 * a_rhs.r2.z + a_Lhs.r3 * a_rhs.r2.w;
+		mat.r3 = a_Lhs.r0 * a_rhs.r3.x + a_Lhs.r1 * a_rhs.r3.y + a_Lhs.r2 * a_rhs.r3.z + a_Lhs.r3 * a_rhs.r3.w;
 		return mat;
 	}
 
@@ -322,9 +322,9 @@ namespace BB
 	//--------------------------------------------------------
 	// QUAT
 
-	static inline Quat operator*(const Quat a_Lhs, const Quat a_Rhs)
+	static inline Quat operator*(const Quat a_Lhs, const Quat a_rhs)
 	{
-		return Quat{ a_Lhs.x * a_Rhs.x, a_Lhs.y * a_Rhs.y, a_Lhs.z * a_Rhs.z, a_Lhs.w * a_Rhs.w };
+		return Quat{ a_Lhs.x * a_rhs.x, a_Lhs.y * a_rhs.y, a_Lhs.z * a_rhs.z, a_Lhs.w * a_rhs.w };
 	}
 
 	static inline Quat IdentityQuat()

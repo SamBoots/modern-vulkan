@@ -120,14 +120,14 @@ ThreadTask BB::Threads::StartTaskThread(void(*a_Function)(void*), void* a_FuncPa
 	return 0;
 }
 
-void BB::Threads::WaitForTask(const ThreadTask a_Handle)
+void BB::Threads::WaitForTask(const ThreadTask a_handle)
 {
-	while (s_ThreadScheduler.threads[a_Handle.index].threadInfo.generation < a_Handle.extraIndex) {};
+	while (s_ThreadScheduler.threads[a_handle.index].threadInfo.generation < a_handle.extraIndex) {};
 }
 
-bool BB::Threads::TaskFinished(const ThreadTask a_Handle)
+bool BB::Threads::TaskFinished(const ThreadTask a_handle)
 {
-	if (s_ThreadScheduler.threads[a_Handle.index].threadInfo.generation <= a_Handle.extraIndex)
+	if (s_ThreadScheduler.threads[a_handle.index].threadInfo.generation <= a_handle.extraIndex)
 		return true;
 
 	return false;

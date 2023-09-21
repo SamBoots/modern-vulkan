@@ -22,13 +22,13 @@ struct VirtualHeader
 	size_t bytesReserved;
 };
 
-void* BB::mallocVirtual(void* a_Start, size_t& a_Size, const size_t a_ReserveSize)
+void* BB::mallocVirtual(void* a_Start, size_t& a_size, const size_t a_ReserveSize)
 {
 	//Adjust the requested bytes by the page size and the minimum virtual allocaion size.
-	const size_t t_PageAdjustedSize = Max(RoundUp(a_Size + sizeof(VirtualHeader), OSPageSize()), OSAllocationGranularity());
+	const size_t t_PageAdjustedSize = Max(RoundUp(a_size + sizeof(VirtualHeader), OSPageSize()), OSAllocationGranularity());
 
-	//Set the reference of a_Size so that the allocator has enough memory until the end of the page.
-	a_Size = t_PageAdjustedSize - sizeof(VirtualHeader);
+	//Set the reference of a_size so that the allocator has enough memory until the end of the page.
+	a_size = t_PageAdjustedSize - sizeof(VirtualHeader);
 
 	//Check the pageHeader
 	if (a_Start != nullptr)
@@ -83,12 +83,12 @@ void BB::freeVirtual(void* a_Ptr)
 //
 //struct MockAllocator
 //{
-//	MockAllocator(size_t a_Size)
+//	MockAllocator(size_t a_size)
 //	{
-//		start = reinterpret_cast<uint8_t*>(mallocVirtual(start, a_Size));
-//		maxSize = a_Size;
+//		start = reinterpret_cast<uint8_t*>(mallocVirtual(start, a_size));
+//		maxSize = a_size;
 //		//using memset because the memory is NOT commited to ram unless it's accessed.
-//		memset(start, 5215, a_Size);
+//		memset(start, 5215, a_size);
 //		buffer = start;
 //	}
 //
@@ -97,25 +97,25 @@ void BB::freeVirtual(void* a_Ptr)
 //		freeVirtual(start);
 //	}
 //
-//	void* Alloc(size_t a_Size)
+//	void* Alloc(size_t a_size)
 //	{
 //		void* t_Address = buffer;
-//		currentSize += a_Size;
+//		currentSize += a_size;
 //
 //		if (currentSize > maxSize)
 //		{
 //			size_t t_BufferIncrease{};
-//			if (maxSize > a_Size)
-//				t_BufferIncrease = Math::RoundUp(a_Size, maxSize);
+//			if (maxSize > a_size)
+//				t_BufferIncrease = Math::RoundUp(a_size, maxSize);
 //			else
-//				t_BufferIncrease = a_Size;
+//				t_BufferIncrease = a_size;
 //
 //			mallocVirtual(start, t_BufferIncrease);
 //			//using memset because the memory is NOT commited to ram unless it's accessed.
 //			maxSize += t_BufferIncrease;
 //		}
-//		memset(buffer, 16, a_Size);
-//		buffer = Pointer::Add(buffer, a_Size);
+//		memset(buffer, 16, a_size);
+//		buffer = Pointer::Add(buffer, a_size);
 //		return t_Address;
 //	};
 //
@@ -124,7 +124,7 @@ void BB::freeVirtual(void* a_Ptr)
 //		return maxSize - currentSize;
 //	}
 //	//Not supporting free yet.
-//	//void free(size_t a_Size);
+//	//void free(size_t a_size);
 //
 //	size_t maxSize;
 //	size_t currentSize = 0;

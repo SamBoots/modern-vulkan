@@ -27,10 +27,10 @@ namespace BB
 
 		//We do moving however
 		Pool(Pool&& a_Pool);
-		Pool& operator =(Pool&& a_Rhs);
+		Pool& operator =(Pool&& a_rhs);
 
-		void CreatePool(Allocator a_Allocator, const size_t a_Size);
-		void DestroyPool(Allocator a_Allocator);
+		void CreatePool(Allocator a_allocator, const size_t a_size);
+		void DestroyPool(Allocator a_allocator);
 
 		/// <summary>
 		/// Get an object from the pool, returns nullptr if the pool is empty.
@@ -46,10 +46,10 @@ namespace BB
 	private:
 #ifdef _DEBUG
 		//Debug we can check it's current size.
-		size_t m_Size;
- 		size_t m_Capacity;
+		size_t m_size;
+ 		size_t m_capacity;
 		//Check if we use the same allocator for removal.
-		Allocator m_Allocator{};
+		Allocator m_allocator{};
 #endif // _DEBUG
 
 		void* m_Start = nullptr;
@@ -73,55 +73,55 @@ namespace BB
 		m_Pool = nullptr;
 
 #ifdef _DEBUG
-		m_Size = a_Pool.m_Size;
-		m_Capacity = a_Pool.m_Capacity;
-		m_Allocator = a_Pool.m_Allocator;
-		a_Pool.m_Size = 0;
-		a_Pool.m_Capacity = 0;
-		a_Pool.m_Allocator.allocator = nullptr;
-		a_Pool.m_Allocator.func = nullptr;
+		m_size = a_Pool.m_size;
+		m_capacity = a_Pool.m_capacity;
+		m_allocator = a_Pool.m_allocator;
+		a_Pool.m_size = 0;
+		a_Pool.m_capacity = 0;
+		a_Pool.m_allocator.allocator = nullptr;
+		a_Pool.m_allocator.func = nullptr;
 #endif // _DEBUG
 	}
 
 	template<typename T>
-	inline Pool<T>& Pool<T>::operator=(Pool&& a_Rhs)
+	inline Pool<T>& Pool<T>::operator=(Pool&& a_rhs)
 	{
-		m_Start = a_Rhs.m_Start;
-		m_Pool = a_Rhs.m_Pool;
-		a_Rhs.m_Start = nullptr;
-		a_Rhs.m_Pool = nullptr;
+		m_Start = a_rhs.m_Start;
+		m_Pool = a_rhs.m_Pool;
+		a_rhs.m_Start = nullptr;
+		a_rhs.m_Pool = nullptr;
 
 #ifdef _DEBUG
-		m_Size = a_Rhs.m_Size;
-		m_Capacity = a_Rhs.m_Capacity;
-		m_Allocator = a_Rhs.m_Allocator;
-		a_Rhs.m_Size = 0;
-		a_Rhs.m_Capacity = 0;
-		a_Rhs.m_Allocator.allocator = nullptr;
-		a_Rhs.m_Allocator.func = nullptr;
+		m_size = a_rhs.m_size;
+		m_capacity = a_rhs.m_capacity;
+		m_allocator = a_rhs.m_allocator;
+		a_rhs.m_size = 0;
+		a_rhs.m_capacity = 0;
+		a_rhs.m_allocator.allocator = nullptr;
+		a_rhs.m_allocator.func = nullptr;
 #endif // _DEBUG
 
 		return *this;
 	}
 
 	template<typename T>
-	inline void Pool<T>::CreatePool(Allocator a_Allocator, const size_t a_Size)
+	inline void Pool<T>::CreatePool(Allocator a_allocator, const size_t a_size)
 	{
 		BB_STATIC_ASSERT(sizeof(T) >= sizeof(void*), "Pool object is smaller then the size of a pointer.");
 		BB_ASSERT(m_Start == nullptr, "Trying to create a pool while one already exists!");
 
 #ifdef _DEBUG
-		m_Size = 0;
-		m_Capacity = a_Size;
-		m_Allocator = a_Allocator;
+		m_size = 0;
+		m_capacity = a_size;
+		m_allocator = a_allocator;
 #endif //_DEBUG
 
-		m_Start = BBalloc(a_Allocator, a_Size * sizeof(T));
+		m_Start = BBalloc(a_allocator, a_size * sizeof(T));
 		m_Pool = reinterpret_cast<T**>(m_Start);
 
 		T** t_Pool = m_Pool;
 
-		for (size_t i = 0; i < a_Size - 1; i++)
+		for (size_t i = 0; i < a_size - 1; i++)
 		{
 			*t_Pool = (reinterpret_cast<T*>(t_Pool)) + 1;
 			t_Pool = reinterpret_cast<T**>(*t_Pool);
@@ -130,12 +130,12 @@ namespace BB
 	}
 
 	template<typename T>
-	inline void Pool<T>::DestroyPool(Allocator a_Allocator)
+	inline void Pool<T>::DestroyPool(Allocator a_allocator)
 	{
 #ifdef _DEBUG
-		BB_ASSERT(m_Allocator.allocator == a_Allocator.allocator, "Trying to delete a pool with an allocator that wasn't used in it's CreatePool function.");
+		BB_ASSERT(m_allocator.allocator == a_allocator.allocator, "Trying to delete a pool with an allocator that wasn't used in it's CreatePool function.");
 #endif //_DEBUG
-		BBfree(a_Allocator, m_Start);
+		BBfree(a_allocator, m_Start);
 #ifdef _DEBUG
 		//Set everything to 0 in debug to indicate it was destroyed.
 		memset(this, 0, sizeof(BB::Pool<T>));
@@ -158,7 +158,7 @@ namespace BB
 		m_Pool = reinterpret_cast<T**>(*m_Pool);
 
 #ifdef _DEBUG
-		++m_Size;
+		++m_size;
 #endif //_DEBUG
 
 		return t_Ptr;
@@ -168,8 +168,8 @@ namespace BB
 	inline void BB::Pool<T>::Free(T* a_Ptr)
 	{
 #ifdef _DEBUG
-		BB_ASSERT((a_Ptr >= m_Start && a_Ptr < Pointer::Add(m_Start,  m_Capacity * sizeof(T))), "Trying to free an pool object that is not part of this pool!");
-		--m_Size;
+		BB_ASSERT((a_Ptr >= m_Start && a_Ptr < Pointer::Add(m_Start,  m_capacity * sizeof(T))), "Trying to free an pool object that is not part of this pool!");
+		--m_size;
 #endif // _DEBUG
 
 		//Set the previous free list to the new head.

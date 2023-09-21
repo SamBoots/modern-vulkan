@@ -28,10 +28,10 @@ namespace BB
 		GrowPool& operator =(GrowPool&&) = delete;
 
 		/// <summary>
-		/// Create a pool that can hold members equal to a_Size.
+		/// Create a pool that can hold members equal to a_size.
 		/// Will likely over allocate more due to how virtual memory paging works.
 		/// </summary>
-		void CreatePool(const size_t a_Size);
+		void CreatePool(const size_t a_size);
 		void DestroyPool();
 
 		/// <summary>
@@ -46,8 +46,8 @@ namespace BB
 	private:
 #ifdef _DEBUG
 		//Debug we can check it's current size.
-		size_t m_Size = 0;
-		size_t m_Capacity = 0;
+		size_t m_size = 0;
+		size_t m_capacity = 0;
 #endif // _DEBUG
 
 		void* m_Start = nullptr;
@@ -63,19 +63,19 @@ namespace BB
 #endif _DEBUG
 
 	template<typename T>
-	inline void GrowPool<T>::CreatePool(const size_t a_Size)
+	inline void GrowPool<T>::CreatePool(const size_t a_size)
 	{
 		BB_STATIC_ASSERT(sizeof(T) >= sizeof(void*), "Pool object is smaller then the size of a pointer.");
 		BB_ASSERT(m_Start == nullptr, "Trying to create a pool while one already exists!");
 
-		size_t t_AllocSize = a_Size * sizeof(T);
+		size_t t_AllocSize = a_size * sizeof(T);
 		m_Start = mallocVirtual(m_Start, t_AllocSize);
 		m_Pool = reinterpret_cast<T**>(m_Start);
 		const size_t t_SpaceForElements = t_AllocSize / sizeof(T);
 
 #ifdef _DEBUG
-		m_Size = 0;
-		m_Capacity = t_SpaceForElements;
+		m_size = 0;
+		m_capacity = t_SpaceForElements;
 #endif //_DEBUG
 
 		T** t_Pool = m_Pool;
@@ -111,7 +111,7 @@ namespace BB
 			const size_t t_SpaceForElements = t_AllocSize / sizeof(T);
 
 #ifdef _DEBUG
-			m_Capacity += t_SpaceForElements;
+			m_capacity += t_SpaceForElements;
 #endif //_DEBUG
 
 			T** t_Pool = m_Pool;
@@ -130,7 +130,7 @@ namespace BB
 		m_Pool = reinterpret_cast<T**>(*m_Pool);
 
 #ifdef _DEBUG
-		++m_Size;
+		++m_size;
 #endif //_DEBUG
 
 		return t_Ptr;
@@ -140,8 +140,8 @@ namespace BB
 	inline void GrowPool<T>::Free(T* a_Ptr)
 	{
 #ifdef _DEBUG
-		BB_ASSERT((a_Ptr >= m_Start && a_Ptr < Pointer::Add(m_Start, m_Capacity * sizeof(T))), "Trying to free an pool object that is not part of this pool!");
-		--m_Size;
+		BB_ASSERT((a_Ptr >= m_Start && a_Ptr < Pointer::Add(m_Start, m_capacity * sizeof(T))), "Trying to free an pool object that is not part of this pool!");
+		--m_size;
 #endif // _DEBUG
 
 		//Set the previous free list to the new head.

@@ -10,7 +10,7 @@ namespace BB
 	public:
 		operator Allocator();
 
-		RingAllocator(const Allocator a_BackingAllocator, const size_t a_Size);
+		RingAllocator(const Allocator a_BackingAllocator, const size_t a_size);
 		~RingAllocator();
 
 		//just delete these for safety, copies might cause errors.
@@ -19,13 +19,13 @@ namespace BB
 		RingAllocator& operator =(const RingAllocator&) = delete;
 		RingAllocator& operator =(RingAllocator&&) = delete;
 
-		void* Alloc(size_t a_Size, size_t a_Alignment);
+		void* Alloc(size_t a_size, size_t a_Alignment);
 
 	private:
 		//use uint32_t so that the class size becomes 32 bytes. 
 		//The ring buffer won't get over UINT32_MAX anyway. Else you fucking up!
 		void* m_BufferPos;
-		const uint32_t m_Size;
+		const uint32_t m_size;
 		uint32_t m_Used;
 
 		//Remember out backing allocator so that we automatically free our memory.
@@ -40,8 +40,8 @@ namespace BB
 		operator Allocator();
 
 		//Just giving it a size will use virtual_alloc
-		//a_Size must be a value above 0, but it will return the actual page aligned size of the allocator.
-		LocalRingAllocator(size_t& a_Size);
+		//a_size must be a value above 0, but it will return the actual page aligned size of the allocator.
+		LocalRingAllocator(size_t& a_size);
 		~LocalRingAllocator();
 
 		//just delete these for safety, copies might cause errors.
@@ -50,11 +50,11 @@ namespace BB
 		LocalRingAllocator& operator =(const LocalRingAllocator&) = delete;
 		LocalRingAllocator& operator =(LocalRingAllocator&&) = delete;
 
-		void* Alloc(size_t a_Size, size_t a_Alignment);
+		void* Alloc(size_t a_size, size_t a_Alignment);
 
 	private:
 		void* m_BufferPos;
-		size_t m_Size;
+		size_t m_size;
 		size_t m_Used;
 	};
 }

@@ -3,12 +3,12 @@
 
 using namespace BB;
 
-void* ReallocRing(BB_MEMORY_DEBUG void* a_Allocator, size_t a_Size, size_t a_Alignment, void*)
+void* ReallocRing(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, size_t a_Alignment, void*)
 {
-	if (a_Size == 0)
+	if (a_size == 0)
 		return nullptr;
 
-	return reinterpret_cast<RingAllocator*>(a_Allocator)->Alloc(a_Size, a_Alignment);
+	return reinterpret_cast<RingAllocator*>(a_allocator)->Alloc(a_size, a_Alignment);
 }
 
 RingAllocator::operator BB::Allocator()
@@ -19,13 +19,13 @@ RingAllocator::operator BB::Allocator()
 	return t_AllocatorInterface;
 }
 
-RingAllocator::RingAllocator(const Allocator a_BackingAllocator, const size_t a_Size)
-	:	m_Size(static_cast<uint32_t>(a_Size)), m_BackingAllocator(a_BackingAllocator)
+RingAllocator::RingAllocator(const Allocator a_BackingAllocator, const size_t a_size)
+	:	m_size(static_cast<uint32_t>(a_size)), m_BackingAllocator(a_BackingAllocator)
 {
-	BB_ASSERT(m_Size < UINT32_MAX, 
+	BB_ASSERT(m_size < UINT32_MAX, 
 		"Ring allocator's size is larger then UINT32_MAX. This will not work as the counters inside are 32 bit intergers.!");
 	
-	m_BufferPos = BBalloc(m_BackingAllocator, a_Size);
+	m_BufferPos = BBalloc(m_BackingAllocator, a_size);
 	m_Used = 0;
 }
 
@@ -35,19 +35,19 @@ RingAllocator::~RingAllocator()
 	BBfree(m_BackingAllocator, m_BufferPos);
 }
 
-void* RingAllocator::Alloc(size_t a_Size, size_t a_Alignment)
+void* RingAllocator::Alloc(size_t a_size, size_t a_Alignment)
 {
 	size_t t_Adjustment = Pointer::AlignForwardAdjustment(m_BufferPos, a_Alignment);
-	size_t t_AdjustedSize = a_Size + a_Alignment;
+	size_t t_AdjustedSize = a_size + a_Alignment;
 	//Go back to the buffer start if we cannot fill this allocation.
-	if (m_Used + t_AdjustedSize > m_Size)
+	if (m_Used + t_AdjustedSize > m_size)
 	{
-		BB_ASSERT(m_Size > t_AdjustedSize,
+		BB_ASSERT(m_size > t_AdjustedSize,
 			"Ring allocator tries to allocate something bigger then it's allocator size!");
 
 		m_BufferPos = Pointer::Subtract(m_BufferPos, m_Used);
 		m_Used = 0;
-		return Alloc(a_Size, a_Alignment);
+		return Alloc(a_size, a_Alignment);
 	}
 
 	void* t_ReturnPtr = Pointer::Add(m_BufferPos, t_Adjustment);
@@ -60,12 +60,12 @@ void* RingAllocator::Alloc(size_t a_Size, size_t a_Alignment)
 
 
 
-void* ReallocLocalRing(BB_MEMORY_DEBUG void* a_Allocator, size_t a_Size, size_t a_Alignment, void*)
+void* ReallocLocalRing(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, size_t a_Alignment, void*)
 {
-	if (a_Size == 0)
+	if (a_size == 0)
 		return nullptr;
 
-	return reinterpret_cast<LocalRingAllocator*>(a_Allocator)->Alloc(a_Size, a_Alignment);
+	return reinterpret_cast<LocalRingAllocator*>(a_allocator)->Alloc(a_size, a_Alignment);
 }
 
 LocalRingAllocator::operator BB::Allocator()
@@ -76,11 +76,11 @@ LocalRingAllocator::operator BB::Allocator()
 	return t_AllocatorInterface;
 }
 
-LocalRingAllocator::LocalRingAllocator(size_t& a_Size)
+LocalRingAllocator::LocalRingAllocator(size_t& a_size)
 {
-	m_BufferPos = mallocVirtual(nullptr, a_Size, VIRTUAL_RESERVE_NONE);
+	m_BufferPos = mallocVirtual(nullptr, a_size, VIRTUAL_RESERVE_NONE);
 
-	m_Size = a_Size;
+	m_size = a_size;
 	m_Used = 0;
 }
 
@@ -90,19 +90,19 @@ LocalRingAllocator::~LocalRingAllocator()
 	freeVirtual(m_BufferPos);
 }
 
-void* LocalRingAllocator::Alloc(size_t a_Size, size_t a_Alignment)
+void* LocalRingAllocator::Alloc(size_t a_size, size_t a_Alignment)
 {
 	size_t t_Adjustment = Pointer::AlignForwardAdjustment(m_BufferPos, a_Alignment);
-	size_t t_AdjustedSize = a_Size + a_Alignment;
+	size_t t_AdjustedSize = a_size + a_Alignment;
 	//Go back to the buffer start if we cannot fill this allocation.
-	if (m_Used + t_AdjustedSize > m_Size)
+	if (m_Used + t_AdjustedSize > m_size)
 	{
-		BB_ASSERT(m_Size > t_AdjustedSize,
+		BB_ASSERT(m_size > t_AdjustedSize,
 			"Ring allocator tries to allocate something bigger then it's allocator size!");
 
 		m_BufferPos = Pointer::Subtract(m_BufferPos, m_Used);
 		m_Used = 0;
-		return Alloc(a_Size, a_Alignment);
+		return Alloc(a_size, a_Alignment);
 	}
 
 	void* t_ReturnPtr = Pointer::Add(m_BufferPos, t_Adjustment);

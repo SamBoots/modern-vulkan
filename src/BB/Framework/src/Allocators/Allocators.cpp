@@ -58,25 +58,25 @@ const BOUNDRY_ERROR Memory_CheckBoundries(void* a_Front, void* a_Back)
 	return BOUNDRY_ERROR::NONE;
 }
 
-void* AllocDebug(BB_MEMORY_DEBUG BaseAllocator* a_Allocator, const size_t a_Size, void* a_AllocatedPtr)
+void* AllocDebug(BB_MEMORY_DEBUG BaseAllocator* a_allocator, const size_t a_size, void* a_AllocatedPtr)
 {
 	//Get the space for the allocation log, but keep enough space for the boundry check.
 	BaseAllocator::AllocationLog* t_AllocLog = reinterpret_cast<BaseAllocator::AllocationLog*>(
 		Pointer::Add(a_AllocatedPtr, MEMORY_BOUNDRY_FRONT));
 
-	t_AllocLog->prev = a_Allocator->frontLog;
+	t_AllocLog->prev = a_allocator->frontLog;
 	t_AllocLog->front = a_AllocatedPtr;
-	t_AllocLog->back = Memory_AddBoundries(a_AllocatedPtr, a_Size);
-	t_AllocLog->allocSize = static_cast<uint32_t>(a_Size);
+	t_AllocLog->back = Memory_AddBoundries(a_AllocatedPtr, a_size);
+	t_AllocLog->allocSize = static_cast<uint32_t>(a_size);
 	t_AllocLog->file = a_File;
 	t_AllocLog->line = a_Line;
 	t_AllocLog->tagName = "";
 	//set the new front log.
-	a_Allocator->frontLog = t_AllocLog;
+	a_allocator->frontLog = t_AllocLog;
 	return Pointer::Add(a_AllocatedPtr, MEMORY_BOUNDRY_FRONT + sizeof(BaseAllocator::AllocationLog));
 }
 
-void* FreeDebug(BaseAllocator* a_Allocator, void* a_Ptr)
+void* FreeDebug(BaseAllocator* a_allocator, void* a_Ptr)
 {
 	const BaseAllocator::AllocationLog* t_AllocLog = reinterpret_cast<BaseAllocator::AllocationLog*>(
 		Pointer::Subtract(a_Ptr, sizeof(BaseAllocator::AllocationLog)));
@@ -100,12 +100,12 @@ void* FreeDebug(BaseAllocator* a_Allocator, void* a_Ptr)
 
 	a_Ptr = Pointer::Subtract(a_Ptr, MEMORY_BOUNDRY_FRONT + sizeof(BaseAllocator::AllocationLog));
 
-	BaseAllocator::AllocationLog* t_FrontLog = a_Allocator->frontLog;
+	BaseAllocator::AllocationLog* t_FrontLog = a_allocator->frontLog;
 
-	if (t_AllocLog != a_Allocator->frontLog)
+	if (t_AllocLog != a_allocator->frontLog)
 		DeleteEntry(t_FrontLog, t_AllocLog);
 	else
-		a_Allocator->frontLog = t_FrontLog->prev;
+		a_allocator->frontLog = t_FrontLog->prev;
 
 	return a_Ptr;
 }
@@ -155,16 +155,16 @@ void BB::allocators::BaseAllocator::Clear()
 #endif //_DEBUG
 }
 
-void* LinearRealloc(BB_MEMORY_DEBUG void* a_Allocator, size_t a_Size, const size_t a_Alignment, void* a_Ptr)
+void* LinearRealloc(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, const size_t a_Alignment, void* a_Ptr)
 {
-	LinearAllocator* t_Linear = reinterpret_cast<LinearAllocator*>(a_Allocator);
+	LinearAllocator* t_Linear = reinterpret_cast<LinearAllocator*>(a_allocator);
 	BB_ASSERT(a_Ptr == nullptr, "Trying to free a pointer on a linear allocator!");
 #ifdef _DEBUG
-	a_Size += MEMORY_BOUNDRY_FRONT + MEMORY_BOUNDRY_BACK + sizeof(BaseAllocator::AllocationLog);
+	a_size += MEMORY_BOUNDRY_FRONT + MEMORY_BOUNDRY_BACK + sizeof(BaseAllocator::AllocationLog);
 #endif //_DEBUG
-	void* t_AllocatedPtr = t_Linear->Alloc(a_Size, a_Alignment);
+	void* t_AllocatedPtr = t_Linear->Alloc(a_size, a_Alignment);
 #ifdef _DEBUG
-	t_AllocatedPtr = AllocDebug(a_File, a_Line, t_Linear, a_Size, t_AllocatedPtr);
+	t_AllocatedPtr = AllocDebug(a_File, a_Line, t_Linear, a_size, t_AllocatedPtr);
 #endif //_DEBUG
 	return t_AllocatedPtr;
 };
@@ -221,11 +221,11 @@ void LinearAllocator::Clear()
 	m_buffer = m_start;
 }
 
-FixedLinearAllocator::FixedLinearAllocator(const size_t a_Size, const char* a_Name)
+FixedLinearAllocator::FixedLinearAllocator(const size_t a_size, const char* a_Name)
 	: BaseAllocator(a_Name)
 {
-	BB_ASSERT(a_Size != 0, "Fixed linear allocator is created with a size of 0!");
-	size_t t_Size = a_Size;
+	BB_ASSERT(a_size != 0, "Fixed linear allocator is created with a size of 0!");
+	size_t t_Size = a_size;
 	m_Start = mallocVirtual(nullptr, t_Size, VIRTUAL_RESERVE_NONE);
 	m_Buffer = m_Start;
 #ifdef _DEBUG
@@ -247,15 +247,15 @@ FixedLinearAllocator::operator Allocator()
 	return t_AllocatorInterface;
 }
 
-void* FixedLinearAllocator::Alloc(size_t a_Size, size_t a_Alignment)
+void* FixedLinearAllocator::Alloc(size_t a_size, size_t a_Alignment)
 {
 	size_t t_Adjustment = Pointer::AlignForwardAdjustment(m_Buffer, a_Alignment);
 
 	uintptr_t t_Address = reinterpret_cast<uintptr_t>(Pointer::Add(m_Buffer, t_Adjustment));
-	m_Buffer = reinterpret_cast<void*>(t_Address + a_Size);
+	m_Buffer = reinterpret_cast<void*>(t_Address + a_size);
 
 #ifdef _DEBUG
-	if (t_Address + a_Size > m_End)
+	if (t_Address + a_size > m_End)
 	{
 		BB_ASSERT(false, "Failed to allocate more memory from a fixed linear allocator");
 	}
@@ -348,17 +348,17 @@ void StackAllocator::SetMarker(const StackMarker a_marker)
 	m_buffer = reinterpret_cast<void*>(a_marker);
 }
 
-void* FreelistRealloc(BB_MEMORY_DEBUG void* a_Allocator, size_t a_Size, const size_t a_Alignment, void* a_Ptr)
+void* FreelistRealloc(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, const size_t a_Alignment, void* a_Ptr)
 {
-	FreelistAllocator* t_Freelist = reinterpret_cast<FreelistAllocator*>(a_Allocator);
-	if (a_Size > 0)
+	FreelistAllocator* t_Freelist = reinterpret_cast<FreelistAllocator*>(a_allocator);
+	if (a_size > 0)
 	{
 #ifdef _DEBUG
-		a_Size += MEMORY_BOUNDRY_FRONT + MEMORY_BOUNDRY_BACK + sizeof(BaseAllocator::AllocationLog);
+		a_size += MEMORY_BOUNDRY_FRONT + MEMORY_BOUNDRY_BACK + sizeof(BaseAllocator::AllocationLog);
 #endif //_DEBUG
-		void* t_AllocatedPtr = t_Freelist->Alloc(a_Size, a_Alignment);
+		void* t_AllocatedPtr = t_Freelist->Alloc(a_size, a_Alignment);
 #ifdef _DEBUG
-		t_AllocatedPtr = AllocDebug(a_File, a_Line, t_Freelist, a_Size, t_AllocatedPtr);
+		t_AllocatedPtr = AllocDebug(a_File, a_Line, t_Freelist, a_size, t_AllocatedPtr);
 #endif //_DEBUG
 		return t_AllocatedPtr;
 	}
@@ -372,12 +372,12 @@ void* FreelistRealloc(BB_MEMORY_DEBUG void* a_Allocator, size_t a_Size, const si
 	}
 };
 
-FreelistAllocator::FreelistAllocator(const size_t a_Size, const char* a_Name)
+FreelistAllocator::FreelistAllocator(const size_t a_size, const char* a_Name)
 	: BaseAllocator(a_Name)
 {
-	BB_ASSERT(a_Size != 0, "Freelist allocator is created with a size of 0!");
-	BB_WARNING(a_Size > 10240, "Freelist allocator is smaller then 10 kb, you generally want a bigger freelist.", WarningType::OPTIMALIZATION);
-	m_TotalAllocSize = a_Size;
+	BB_ASSERT(a_size != 0, "Freelist allocator is created with a size of 0!");
+	BB_WARNING(a_size > 10240, "Freelist allocator is smaller then 10 kb, you generally want a bigger freelist.", WarningType::OPTIMALIZATION);
+	m_TotalAllocSize = a_size;
 	m_Start = reinterpret_cast<uint8_t*>(mallocVirtual(nullptr, m_TotalAllocSize));
 	m_FreeBlocks = reinterpret_cast<FreeBlock*>(m_Start);
 	m_FreeBlocks->size = m_TotalAllocSize;
@@ -398,7 +398,7 @@ FreelistAllocator::operator Allocator()
 	return t_AllocatorInterface;
 }
 
-void* FreelistAllocator::Alloc(size_t a_Size, size_t a_Alignment)
+void* FreelistAllocator::Alloc(size_t a_size, size_t a_Alignment)
 {
 	FreeBlock* t_PreviousFreeBlock = nullptr;
 	FreeBlock* t_FreeBlock = m_FreeBlocks;
@@ -406,7 +406,7 @@ void* FreelistAllocator::Alloc(size_t a_Size, size_t a_Alignment)
 	while (t_FreeBlock != nullptr)
 	{
 		size_t t_Adjustment = Pointer::AlignForwardAdjustmentHeader(t_FreeBlock, a_Alignment, sizeof(AllocHeader));
-		size_t t_TotalSize = a_Size + t_Adjustment;
+		size_t t_TotalSize = a_size + t_Adjustment;
 
 		if (t_FreeBlock->size < t_TotalSize)
 		{
@@ -456,7 +456,7 @@ void* FreelistAllocator::Alloc(size_t a_Size, size_t a_Alignment)
 	//Set the new block as the main block.
 	m_FreeBlocks = t_NewAllocBlock;
 
-	return this->Alloc(a_Size, a_Alignment);
+	return this->Alloc(a_size, a_Alignment);
 }
 
 void FreelistAllocator::Free(void* a_Ptr)
@@ -568,10 +568,10 @@ POW_FreelistAllocator::operator Allocator()
 	return t_AllocatorInterface;
 }
 
-void* BB::allocators::POW_FreelistAllocator::Alloc(size_t a_Size, size_t)
+void* BB::allocators::POW_FreelistAllocator::Alloc(size_t a_size, size_t)
 {
 	FreeList* t_FreeList = m_FreeLists;
-	const size_t t_TotalAlloc = a_Size + sizeof(AllocHeader);
+	const size_t t_TotalAlloc = a_size + sizeof(AllocHeader);
 	//Get the right freelist for the allocation
 	while (t_TotalAlloc >= t_FreeList->allocSize)
 	{
@@ -641,14 +641,14 @@ void BB::allocators::POW_FreelistAllocator::Clear()
 	}
 }
 
-//BB::allocators::PoolAllocator::PoolAllocator(const size_t a_ObjectSize, const size_t a_ObjectCount, const size_t a_Alignment)
+//BB::allocators::PoolAllocator::PoolAllocator(const size_t a_objectSize, const size_t a_objectCount, const size_t a_Alignment)
 //{
-//	BB_ASSERT(a_ObjectSize != 0, "Pool allocator is created with an object size of 0!");
-//	BB_ASSERT(a_ObjectCount != 0, "Pool allocator is created with an object count of 0!");
-//	//BB_WARNING(a_ObjectSize * a_ObjectCount > 10240, "Pool allocator is smaller then 10 kb, might be too small.");
+//	BB_ASSERT(a_objectSize != 0, "Pool allocator is created with an object size of 0!");
+//	BB_ASSERT(a_objectCount != 0, "Pool allocator is created with an object count of 0!");
+//	//BB_WARNING(a_objectSize * a_objectCount > 10240, "Pool allocator is smaller then 10 kb, might be too small.");
 //
-//	size_t t_PoolAllocSize = a_ObjectSize * a_ObjectCount;
-//	m_ObjectCount = a_ObjectCount;
+//	size_t t_PoolAllocSize = a_objectSize * a_objectCount;
+//	m_ObjectCount = a_objectCount;
 //	m_Start = reinterpret_cast<void**>(mallocVirtual(m_Start, t_PoolAllocSize));
 //	m_Alignment = pointerutils::alignForwardAdjustment(m_Start, a_Alignment);
 //	m_Start = reinterpret_cast<void**>(pointerutils::Add(m_Start, m_Alignment));
@@ -658,7 +658,7 @@ void BB::allocators::POW_FreelistAllocator::Clear()
 //
 //	for (size_t i = 0; i < m_ObjectCount - 1; i++)
 //	{
-//		*t_Pool = pointerutils::Add(t_Pool, a_ObjectSize);
+//		*t_Pool = pointerutils::Add(t_Pool, a_objectSize);
 //		t_Pool = reinterpret_cast<void**>(*t_Pool);
 //	}
 //	*t_Pool = nullptr;
@@ -669,7 +669,7 @@ void BB::allocators::POW_FreelistAllocator::Clear()
 //	freeVirtual(m_Start);
 //}
 //
-//void* BB::allocators::PoolAllocator::Alloc(size_t a_Size, size_t)
+//void* BB::allocators::PoolAllocator::Alloc(size_t a_size, size_t)
 //{
 //	void* t_Item = m_Pool;
 //
@@ -677,20 +677,20 @@ void BB::allocators::POW_FreelistAllocator::Clear()
 //	if (t_Item == nullptr)
 //	{
 //		size_t t_Increase = m_ObjectCount;
-//		size_t t_ByteIncrease = m_ObjectCount * a_Size;
+//		size_t t_ByteIncrease = m_ObjectCount * a_size;
 //		mallocVirtual(m_Start, t_ByteIncrease);
-//		void** t_Pool = reinterpret_cast<void**>(pointerutils::Add(m_Start, m_ObjectCount * a_Size + m_Alignment));
+//		void** t_Pool = reinterpret_cast<void**>(pointerutils::Add(m_Start, m_ObjectCount * a_size + m_Alignment));
 //		m_Pool = t_Pool;
 //		m_ObjectCount += m_ObjectCount;
 //		
 //		for (size_t i = 0; i < t_Increase - 1; i++)
 //		{
-//			*t_Pool = pointerutils::Add(t_Pool, a_Size);
+//			*t_Pool = pointerutils::Add(t_Pool, a_size);
 //			t_Pool = reinterpret_cast<void**>(*t_Pool);
 //		}
 //
 //		t_Pool = nullptr;
-//		return Alloc(a_Size, 0);
+//		return Alloc(a_size, 0);
 //	}
 //	m_Pool = reinterpret_cast<void**>(*m_Pool);
 //	return t_Item;

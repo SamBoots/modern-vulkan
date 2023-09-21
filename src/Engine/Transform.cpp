@@ -135,20 +135,20 @@ TransformHandle TransformPool::CreateTransform(const float3 a_Position, const fl
 	return TransformHandle(t_TransformIndex, t_Node->generation);
 }
 
-void TransformPool::FreeTransform(const TransformHandle a_Handle)
+void TransformPool::FreeTransform(const TransformHandle a_handle)
 {
-	BB_ASSERT(a_Handle.extraIndex == inst->transforms[a_Handle.index].generation, "Transform likely freed twice.")
+	BB_ASSERT(a_handle.extraIndex == inst->transforms[a_handle.index].generation, "Transform likely freed twice.")
 
 	//mark transform as free.
-	inst->transforms[a_Handle.index].next = inst->transforms->next;
-	++inst->transforms[a_Handle.index].generation;
-	inst->transforms->next = a_Handle.index;
+	inst->transforms[a_handle.index].next = inst->transforms->next;
+	++inst->transforms[a_handle.index].generation;
+	inst->transforms->next = a_handle.index;
 }
 
-Transform& TransformPool::GetTransform(const TransformHandle a_Handle) const
+Transform& TransformPool::GetTransform(const TransformHandle a_handle) const
 {
-	BB_ASSERT(a_Handle.extraIndex == inst->transforms[a_Handle.index].generation, "Transform likely freed twice.")
-	return inst->transforms[a_Handle.index].transform;
+	BB_ASSERT(a_handle.extraIndex == inst->transforms[a_handle.index].generation, "Transform likely freed twice.")
+	return inst->transforms[a_handle.index].transform;
 }
 
 const uint32_t TransformPool::PoolSize() const

@@ -263,20 +263,20 @@ TEST(ArrayDataStructure, Array_Object_Test)
 	struct size2593bytesObj
 	{
 		size2593bytesObj() { value = 0; };
-		size2593bytesObj(const size2593bytesObj& a_Rhs)
+		size2593bytesObj(const size2593bytesObj& a_rhs)
 		{
-			value = a_Rhs.value;
-			memcpy(data, a_Rhs.data, sizeof(data));
+			value = a_rhs.value;
+			memcpy(data, a_rhs.data, sizeof(data));
 		};
-		size2593bytesObj(size2593bytesObj& a_Rhs)
+		size2593bytesObj(size2593bytesObj& a_rhs)
 		{
-			value = a_Rhs.value;
-			memcpy(data, a_Rhs.data, sizeof(data));
+			value = a_rhs.value;
+			memcpy(data, a_rhs.data, sizeof(data));
 		};
-		size2593bytesObj& operator=(const size2593bytesObj& a_Rhs)
+		size2593bytesObj& operator=(const size2593bytesObj& a_rhs)
 		{
-			value = a_Rhs.value;
-			memcpy(data, a_Rhs.data, sizeof(data));
+			value = a_rhs.value;
+			memcpy(data, a_rhs.data, sizeof(data));
 
 			return *this;
 		};

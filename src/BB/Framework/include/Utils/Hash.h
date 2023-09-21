@@ -11,7 +11,7 @@ struct Hash
 	uint64_t hash = 0;
 
 	operator const uint64_t() const { return hash; }
-	void operator=(const uint64_t a_Rhs) { hash = a_Rhs; }
+	void operator=(const uint64_t a_rhs) { hash = a_rhs; }
 	Hash operator++(int) { return hash++; }
 	void operator*=(size_t a_Multi) { hash *= a_Multi; }
 

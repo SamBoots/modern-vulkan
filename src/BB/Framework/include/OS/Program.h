@@ -55,8 +55,8 @@ namespace BB
 	uint32_t OSPageSize();
 	uint32_t OSAllocationGranularity();
 
-	void* ReserveVirtualMemory(const size_t a_Size);
-	bool CommitVirtualMemory(void* a_Ptr, const size_t a_Size);
+	void* ReserveVirtualMemory(const size_t a_size);
+	bool CommitVirtualMemory(void* a_Ptr, const size_t a_size);
 	bool ReleaseVirtualMemory(void* a_Ptr);
 
 	//Prints the latest OS error and returns the error code, if it has no error code it returns 0.
@@ -65,9 +65,9 @@ namespace BB
 	//Load a dynamic library
 	LibHandle LoadLib(const wchar* a_LibName);
 	//Unload a dynamic library
-	void UnloadLib(const LibHandle a_Handle);
+	void UnloadLib(const LibHandle a_handle);
 	//Load dynamic library function
-	LibFuncPtr LibLoadFunc(const LibHandle a_Handle, const char* a_FuncName);
+	LibFuncPtr LibLoadFunc(const LibHandle a_handle, const char* a_FuncName);
 
 	//Write to the standard C++ console if it's available.
 	void WriteToConsole(const char* a_String, uint32_t a_StrLength);
@@ -126,10 +126,10 @@ namespace BB
 
 	WindowHandle CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, const int a_Y, const int a_Width, const int a_Height, const wchar* a_WindowName);
 	//Get the OS window handle (hwnd for windows as en example. Reinterpret_cast the void* to the hwnd).
-	void* GetOSWindowHandle(const WindowHandle a_Handle);
-	void GetWindowSize(const WindowHandle a_Handle, int& a_X, int& a_Y);
-	void DirectDestroyOSWindow(const WindowHandle a_Handle);
-	void FreezeMouseOnWindow(const WindowHandle a_Handle);
+	void* GetOSWindowHandle(const WindowHandle a_handle);
+	void GetWindowSize(const WindowHandle a_handle, int& a_X, int& a_Y);
+	void DirectDestroyOSWindow(const WindowHandle a_handle);
+	void FreezeMouseOnWindow(const WindowHandle a_handle);
 	void UnfreezeMouseOnWindow();
 
 	//The function that will be called when a window is closed.

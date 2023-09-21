@@ -34,9 +34,9 @@ namespace BB
 	union FrameworkHandle
 	{
 		FrameworkHandle() {};
-		FrameworkHandle(uint64_t a_Handle)
+		FrameworkHandle(uint64_t a_handle)
 		{
-			handle = a_Handle;
+			handle = a_handle;
 		};
 		FrameworkHandle(uint32_t a_Index, uint32_t a_ExtraIndex)
 		{
@@ -54,8 +54,8 @@ namespace BB
 		void* ptrHandle;
 		uint64_t handle{};
 
-		inline bool operator ==(FrameworkHandle a_Rhs) const { return handle == a_Rhs.handle; }
-		inline bool operator !=(FrameworkHandle a_Rhs) const { return handle != a_Rhs.handle; }
+		inline bool operator ==(FrameworkHandle a_rhs) const { return handle == a_rhs.handle; }
+		inline bool operator !=(FrameworkHandle a_rhs) const { return handle != a_rhs.handle; }
 	};
 
 	using WindowHandle = FrameworkHandle<struct WindowHandleTag>;
@@ -88,7 +88,7 @@ namespace BB
 #define BB_MEMORY_DEBUG_SEND
 #define BB_MEMORY_DEBUG_FREE
 #endif //_DEBUG
-	typedef void* (*AllocateFunc)(BB_MEMORY_DEBUG void* a_Allocator, size_t a_Size, const size_t a_Alignment, void* a_OldPtr);
+	typedef void* (*AllocateFunc)(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, const size_t a_Alignment, void* a_OldPtr);
 	struct Allocator
 	{
 		AllocateFunc func;

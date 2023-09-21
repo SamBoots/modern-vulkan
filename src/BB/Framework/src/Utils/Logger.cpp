@@ -58,12 +58,12 @@ public:
 		return m_LoggerInst;
 	}
 
-	void WriteLogInfoToFile(const char* a_Msg, const size_t a_Size)
+	void WriteLogInfoToFile(const char* a_Msg, const size_t a_size)
 	{
 		OSWaitAndLockMutex(m_WriteToFileMutex);
-		WriteToConsole(a_Msg, static_cast<uint32_t>(a_Size));
+		WriteToConsole(a_Msg, static_cast<uint32_t>(a_size));
 
-		if (m_CacheString.size() + a_Size > m_MaxLoggerBufferSize)
+		if (m_CacheString.size() + a_size > m_MaxLoggerBufferSize)
 		{
 			m_UploadString.clear();
 			m_UploadString.append(m_CacheString);
@@ -74,7 +74,7 @@ public:
 			m_CacheString.clear();
 		}
 
-		m_CacheString.append(a_Msg, a_Size);
+		m_CacheString.append(a_Msg, a_size);
 
 		OSUnlockMutex(m_WriteToFileMutex);
 	}

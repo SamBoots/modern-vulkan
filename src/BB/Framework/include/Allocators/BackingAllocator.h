@@ -19,10 +19,10 @@ namespace BB
 	/// Reserve and commit virtual memory at the same time. 
 	/// </summary>
 	/// <param name="a_Start:"> The previous pointer used to commit the backing memory, nullptr if this is the first instance of allocation. </param>
-	/// <param name="a_Size:"> size of the virtual memory allocation in bytes, will be changed to be above OSDevice.virtual_memory_minimum_allocation and a multiple of OSDevice.virtual_memory_page_size. If a_Start is not a nullptr it will extend the commited range, will also be changed similiarly to normal.</param>
+	/// <param name="a_size:"> size of the virtual memory allocation in bytes, will be changed to be above OSDevice.virtual_memory_minimum_allocation and a multiple of OSDevice.virtual_memory_page_size. If a_Start is not a nullptr it will extend the commited range, will also be changed similiarly to normal.</param>
 	/// <param name="a_ReserveSize:"> How much extra memory is reserved for possible resizes. Default is VIRTUAL_RESERVE_STANDARD, which will reserve 128 times more virtual space (64 times more on x86).</param>
 	/// <returns>Pointer to the start of the virtual memory, or the updated commited range. </returns>
-	void* mallocVirtual(void* a_Start, size_t& a_Size, const size_t a_ReserveSize = VIRTUAL_RESERVE_STANDARD);
+	void* mallocVirtual(void* a_Start, size_t& a_size, const size_t a_ReserveSize = VIRTUAL_RESERVE_STANDARD);
 	
 	/// <summary>
 	/// Free all the pages from a given pointer.

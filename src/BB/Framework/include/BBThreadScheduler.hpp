@@ -25,7 +25,7 @@ namespace BB
 		void DestroyThreads();
 		ThreadTask StartTaskThread(void(*a_Function)(void*), void* a_FuncParameter);
 
-		void WaitForTask(const ThreadTask a_Handle);
-		bool TaskFinished(const ThreadTask a_Handle);
+		void WaitForTask(const ThreadTask a_handle);
+		bool TaskFinished(const ThreadTask a_handle);
 	}
 }

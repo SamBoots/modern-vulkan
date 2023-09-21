@@ -34,20 +34,20 @@ namespace BB
 
 #pragma region AllocationFunctions
 	//Use the BBnew or BBalloc function instead of this.
-	inline void* BBalloc_f(BB_MEMORY_DEBUG Allocator a_Allocator, const size_t a_Size, const size_t a_Alignment)
+	inline void* BBalloc_f(BB_MEMORY_DEBUG Allocator a_allocator, const size_t a_size, const size_t a_Alignment)
 	{
-		return a_Allocator.func(BB_MEMORY_DEBUG_SEND a_Allocator.allocator, a_Size, a_Alignment, nullptr);
+		return a_allocator.func(BB_MEMORY_DEBUG_SEND a_allocator.allocator, a_size, a_Alignment, nullptr);
 	}
 
 	//Use the BBnewArr function instead of this.
 	template <typename T>
-	inline T* BBnewArr_f(BB_MEMORY_DEBUG Allocator a_Allocator, size_t a_Length)
+	inline T* BBnewArr_f(BB_MEMORY_DEBUG Allocator a_allocator, size_t a_Length)
 	{
 		BB_ASSERT(a_Length != 0, "Trying to allocate an array with a length of 0.");
 
 		if constexpr (std::is_trivially_constructible_v<T> || std::is_trivially_destructible_v<T>)
 		{
-			return reinterpret_cast<T*>(a_Allocator.func(BB_MEMORY_DEBUG_SEND a_Allocator.allocator, sizeof(T) * a_Length, __alignof(T), nullptr));
+			return reinterpret_cast<T*>(a_allocator.func(BB_MEMORY_DEBUG_SEND a_allocator.allocator, sizeof(T) * a_Length, __alignof(T), nullptr));
 		}
 		else
 		{
@@ -59,7 +59,7 @@ namespace BB
 				t_HeaderSize = sizeof(size_t) / sizeof(T);
 
 			//Allocate the array, but shift it by sizeof(size_t) bytes forward to allow the size of the header to be put in as well.
-			T* ptr = (reinterpret_cast<T*>(a_Allocator.func(BB_MEMORY_DEBUG_SEND a_Allocator.allocator, sizeof(T) * (a_Length + t_HeaderSize), __alignof(T), nullptr))) + t_HeaderSize;
+			T* ptr = (reinterpret_cast<T*>(a_allocator.func(BB_MEMORY_DEBUG_SEND a_allocator.allocator, sizeof(T) * (a_Length + t_HeaderSize), __alignof(T), nullptr))) + t_HeaderSize;
 
 			//Store the size of the array inside the first element of the pointer.
 			*(reinterpret_cast<size_t*>(ptr) - 1) = a_Length;
@@ -76,24 +76,24 @@ namespace BB
 	}
 
 	template <typename T>
-	inline void BBfree_f(Allocator a_Allocator, T* a_Ptr)
+	inline void BBfree_f(Allocator a_allocator, T* a_Ptr)
 	{
 		BB_ASSERT(a_Ptr != nullptr, "Trying to free a nullptr");
 		if constexpr (!std::is_trivially_destructible_v<T>)
 		{
 			a_Ptr->~T();
 		}
-		a_Allocator.func(BB_MEMORY_DEBUG_FREE a_Allocator.allocator, 0, 0, a_Ptr);
+		a_allocator.func(BB_MEMORY_DEBUG_FREE a_allocator.allocator, 0, 0, a_Ptr);
 	}
 
 	template <typename T>
-	inline void BBfreeArr_f(Allocator a_Allocator, T* a_Ptr)
+	inline void BBfreeArr_f(Allocator a_allocator, T* a_Ptr)
 	{
 		BB_ASSERT(a_Ptr != nullptr, "Trying to freeArray a nullptr");
 
 		if constexpr (std::is_trivially_constructible_v<T> || std::is_trivially_destructible_v<T>)
 		{
-			a_Allocator.func(BB_MEMORY_DEBUG_FREE a_Allocator.allocator, 0, 0, a_Ptr);
+			a_allocator.func(BB_MEMORY_DEBUG_FREE a_allocator.allocator, 0, 0, a_Ptr);
 		}
 		else
 		{
@@ -109,11 +109,11 @@ namespace BB
 			else
 				t_HeaderSize = sizeof(size_t) / sizeof(T);
 
-			a_Allocator.func(BB_MEMORY_DEBUG_FREE a_Allocator.allocator, 0, 0, a_Ptr - t_HeaderSize);
+			a_allocator.func(BB_MEMORY_DEBUG_FREE a_allocator.allocator, 0, 0, a_Ptr - t_HeaderSize);
 		}
 	}
 
-	inline void BBTagAlloc(Allocator a_Allocator, const void* a_Ptr, const char* a_TagName)
+	inline void BBTagAlloc(Allocator a_allocator, const void* a_Ptr, const char* a_TagName)
 	{
 		typedef allocators::BaseAllocator::AllocationLog AllocationLog;
 		AllocationLog* t_Log = reinterpret_cast<AllocationLog*>(Pointer::Subtract(a_Ptr, sizeof(AllocationLog)));

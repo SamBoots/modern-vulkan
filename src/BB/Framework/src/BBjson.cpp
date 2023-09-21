@@ -200,15 +200,15 @@ void BB::JsonNodeToString(const JsonNode* a_Node, String& a_String)
 }
 
 JsonParser::JsonParser(const char* a_Path)
-	: m_Allocator(mbSize * 8, a_Path)
+	: m_allocator(mbSize * 8, a_Path)
 {
-	Buffer buffer = ReadOSFile(m_Allocator, a_Path);
+	Buffer buffer = ReadOSFile(m_allocator, a_Path);
 	m_JsonFile.data = reinterpret_cast<char*>(buffer.data);
 	m_JsonFile.size = static_cast<uint32_t>(buffer.size);
 }
 
 JsonParser::JsonParser(const Buffer& a_Buffer)
-	: m_Allocator(mbSize * 8, "Json from memory read")
+	: m_allocator(mbSize * 8, "Json from memory read")
 {
 	m_JsonFile.data = reinterpret_cast<char*>(a_Buffer.data);
 	m_JsonFile.size = static_cast<uint32_t>(a_Buffer.size);
@@ -216,7 +216,7 @@ JsonParser::JsonParser(const Buffer& a_Buffer)
 
 JsonParser::~JsonParser()
 {
-	m_Allocator.Clear();
+	m_allocator.Clear();
 }
 
 JsonNode* JsonParser::PraseSingleToken(const Token& a_Token)
@@ -265,10 +265,10 @@ void JsonParser::Parse()
 
 JsonNode* JsonParser::ParseObject()
 {
-	JsonNode* t_ObjectNode = BBnew(m_Allocator, JsonNode);
+	JsonNode* t_ObjectNode = BBnew(m_allocator, JsonNode);
 	t_ObjectNode->type = JSON_TYPE::OBJECT;
 
-	JsonObject::Pair* t_PairHead = BBnew(m_Allocator, JsonObject::Pair);
+	JsonObject::Pair* t_PairHead = BBnew(m_allocator, JsonObject::Pair);
 	uint32_t t_PairCount = 0;
 
 	Token t_NextToken = GetToken(m_JsonFile);
@@ -279,7 +279,7 @@ JsonNode* JsonParser::ParseObject()
 	while (t_ContinueLoop)
 	{
 		BB_WARNING(t_NextToken.type == TOKEN_TYPE::STRING, "Object does not start with a string!", WarningType::HIGH);
-		char* t_ElementName = BBnewArr(m_Allocator, t_NextToken.strSize + 1, char);
+		char* t_ElementName = BBnewArr(m_allocator, t_NextToken.strSize + 1, char);
 		Memory::Copy(t_ElementName, t_NextToken.str, t_NextToken.strSize);
 		t_ElementName[t_NextToken.strSize] = '\0';
 
@@ -322,11 +322,11 @@ JsonNode* JsonParser::ParseObject()
 		{
 			BB_ASSERT(t_NextToken.type == TOKEN_TYPE::COMMA, "the token after a object pair should be a } or ,");
 			t_NextToken = GetToken(m_JsonFile);
-			t_Pair->next = BBnew(m_Allocator, JsonObject::Pair);
+			t_Pair->next = BBnew(m_allocator, JsonObject::Pair);
 			t_Pair = t_Pair->next;
 		}
 	}
-	t_ObjectNode->object = BBnew(m_Allocator, JsonObject)(m_Allocator, t_PairCount, t_PairHead);
+	t_ObjectNode->object = BBnew(m_allocator, JsonObject)(m_allocator, t_PairCount, t_PairHead);
 	t_Pair = t_PairHead;
 	for (size_t i = 0; i < t_PairCount; i++)
 	{
@@ -339,7 +339,7 @@ JsonNode* JsonParser::ParseObject()
 
 JsonNode* JsonParser::ParseList()
 {
-	JsonNode* t_Node = BBnew(m_Allocator, JsonNode);
+	JsonNode* t_Node = BBnew(m_allocator, JsonNode);
 	t_Node->type = JSON_TYPE::LIST;
 
 	uint32_t t_ListSize = 0;
@@ -410,7 +410,7 @@ JsonNode* JsonParser::ParseList()
 	m_JsonFile.pos = t_ListStartPos;
 
 	t_Node->list.nodeCount = t_ListSize;
-	t_Node->list.nodes = BBnewArr(m_Allocator, t_Node->list.nodeCount, JsonNode*);
+	t_Node->list.nodes = BBnewArr(m_allocator, t_Node->list.nodeCount, JsonNode*);
 
 	t_NextToken = GetToken(m_JsonFile);
 
@@ -452,10 +452,10 @@ JsonNode* JsonParser::ParseList()
 
 JsonNode* JsonParser::ParseString(const Token& a_Token)
 {
-	JsonNode* t_Node = BBnew(m_Allocator, JsonNode);
+	JsonNode* t_Node = BBnew(m_allocator, JsonNode);
 	t_Node->type = JSON_TYPE::STRING;
 
-	t_Node->string = BBnewArr(m_Allocator, a_Token.strSize + 1, char);
+	t_Node->string = BBnewArr(m_allocator, a_Token.strSize + 1, char);
 	Memory::Copy(t_Node->string, a_Token.str, a_Token.strSize);
 	t_Node->string[a_Token.strSize] = '\0';
 
@@ -464,7 +464,7 @@ JsonNode* JsonParser::ParseString(const Token& a_Token)
 
 JsonNode* JsonParser::ParseNumber(const Token& a_Token)
 {
-	JsonNode* t_Node = BBnew(m_Allocator, JsonNode);
+	JsonNode* t_Node = BBnew(m_allocator, JsonNode);
 	t_Node->type = JSON_TYPE::NUMBER;
 
 	t_Node->number = std::stof(a_Token.str);
@@ -474,7 +474,7 @@ JsonNode* JsonParser::ParseNumber(const Token& a_Token)
 
 JsonNode* JsonParser::ParseBoolean(const Token& a_Token)
 {
-	JsonNode* t_Node = BBnew(m_Allocator, JsonNode);
+	JsonNode* t_Node = BBnew(m_allocator, JsonNode);
 	t_Node->type = JSON_TYPE::BOOL;
 
 	const Token t_Token = GetToken(m_JsonFile);
@@ -490,7 +490,7 @@ JsonNode* JsonParser::ParseBoolean(const Token& a_Token)
 
 JsonNode* JsonParser::ParseNull()
 {
-	JsonNode* t_Node = BBnew(m_Allocator, JsonNode);
+	JsonNode* t_Node = BBnew(m_allocator, JsonNode);
 	t_Node->type = JSON_TYPE::NULL_TYPE;
 
 	return t_Node;

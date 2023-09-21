@@ -15,21 +15,21 @@ TEST(Slotmap_Datastructure, Slotmap_Insert_Remove)
 	{
 		size2593bytesObj t_Value1{};
 		t_Value1.value = 500;
-		BB::SlotmapHandle t_ID1 = t_Map.insert(t_Value1);
-		ASSERT_EQ(t_Map.find(t_ID1).value, t_Value1.value) << "Wrong element was likely grabbed.";
+		BB::SlotmapHandle id1 = t_Map.insert(t_Value1);
+		ASSERT_EQ(t_Map.find(id1).value, t_Value1.value) << "Wrong element was likely grabbed.";
 
 		//try inserting again after an deletion.
 		size2593bytesObj t_Value2{};
 		t_Value2.value = 1000;
-		BB::SlotmapHandle t_ID2 = t_Map.insert(t_Value2);
-		ASSERT_EQ(t_Map.find(t_ID2).value, t_Value2.value) << "Wrong element was likely grabbed.";
+		BB::SlotmapHandle id2 = t_Map.insert(t_Value2);
+		ASSERT_EQ(t_Map.find(id2).value, t_Value2.value) << "Wrong element was likely grabbed.";
 
-		t_Map.erase(t_ID1);
+		t_Map.erase(id1);
 
-		ASSERT_EQ(t_Map.find(t_ID2).value, t_Value2.value) << "Wrong element was likely grabbed.";
+		ASSERT_EQ(t_Map.find(id2).value, t_Value2.value) << "Wrong element was likely grabbed.";
 
-		t_ID1 = t_Map.insert(t_Value1);
-		ASSERT_EQ(t_Map.find(t_ID1).value, t_Value1.value) << "Wrong element was likely grabbed.";
+		id1 = t_Map.insert(t_Value1);
+		ASSERT_EQ(t_Map.find(id1).value, t_Value1.value) << "Wrong element was likely grabbed.";
 	}
 }
 
@@ -46,20 +46,20 @@ TEST(Slotmap_Datastructure, Slotmap_Insert_Erase_Iterator)
 	{
 		size2593bytesObj t_Value{};
 		t_Value.value = 500;
-		BB::SlotmapHandle t_ID = t_Map.insert(t_Value);
-		ASSERT_EQ(t_Map.find(t_ID).value, t_Value.value) << "Wrong element was likely grabbed.";
+		BB::SlotmapHandle id = t_Map.insert(t_Value);
+		ASSERT_EQ(t_Map.find(id).value, t_Value.value) << "Wrong element was likely grabbed.";
 
-		t_Map.erase(t_ID);
+		t_Map.erase(id);
 
 		//try inserting again after an deletion.
-		t_ID = t_Map.insert(t_Value);
-		ASSERT_EQ(t_Map.find(t_ID).value, t_Value.value) << "Wrong element was likely grabbed.";
+		id = t_Map.insert(t_Value);
+		ASSERT_EQ(t_Map.find(id).value, t_Value.value) << "Wrong element was likely grabbed.";
 
-		t_Map.erase(t_ID);
+		t_Map.erase(id);
 	}
 
 	size2593bytesObj t_RandomKeys[samples]{};
-	BB::SlotmapHandle t_IDs[samples]{};
+	BB::SlotmapHandle ids[samples]{};
 	for (size_t i = 0; i < samples; i++)
 	{
 		t_RandomKeys[i] = static_cast<size_t>(BB::Random::Random());
@@ -67,7 +67,7 @@ TEST(Slotmap_Datastructure, Slotmap_Insert_Erase_Iterator)
 
 	for (size_t i = 0; i < samples; i++)
 	{
-		t_IDs[i] = t_Map.insert(t_RandomKeys[i]);
+		ids[i] = t_Map.insert(t_RandomKeys[i]);
 	}
 
 
@@ -82,7 +82,7 @@ TEST(Slotmap_Datastructure, Slotmap_Insert_Erase_Iterator)
 
 	for (size_t i = 0; i < samples; i++)
 	{
-		t_IDs[i] = t_Map.insert(t_RandomKeys[i]);
+		ids[i] = t_Map.insert(t_RandomKeys[i]);
 	}
 
 	t_Count = 0;
@@ -104,7 +104,7 @@ TEST(Slotmap_Datastructure, Slotmap_Copy_Assignment)
 	BB::Slotmap<size2593bytesObj> t_Map(t_Allocator, samples);
 
 	size2593bytesObj t_RandomKeys[samples]{};
-	BB::SlotmapHandle t_IDs[samples]{};
+	BB::SlotmapHandle ids[samples]{};
 	for (size_t i = 0; i < samples; i++)
 	{
 		t_RandomKeys[i] = static_cast<size_t>(BB::Random::Random());
@@ -112,7 +112,7 @@ TEST(Slotmap_Datastructure, Slotmap_Copy_Assignment)
 
 	for (size_t i = 0; i < samples; i++)
 	{
-		t_IDs[i] = t_Map.insert(t_RandomKeys[i]);
+		ids[i] = t_Map.insert(t_RandomKeys[i]);
 	}
 
 
@@ -178,7 +178,7 @@ TEST(Slotmap_Datastructure, Slotmap_Reserve_Grow)
 	t_Map.reserve(initialMapSize);
 
 	size2593bytesObj t_RandomKeys[samples]{};
-	BB::SlotmapHandle t_IDs[samples]{};
+	BB::SlotmapHandle ids[samples]{};
 	for (size_t i = 0; i < samples; i++)
 	{
 		t_RandomKeys[i] = static_cast<size_t>(BB::Random::Random());
@@ -186,7 +186,7 @@ TEST(Slotmap_Datastructure, Slotmap_Reserve_Grow)
 
 	for (size_t i = 0; i < initialMapSize; i++)
 	{
-		t_IDs[i] = t_Map.insert(t_RandomKeys[i]);
+		ids[i] = t_Map.insert(t_RandomKeys[i]);
 	}
 
 
@@ -199,7 +199,7 @@ TEST(Slotmap_Datastructure, Slotmap_Reserve_Grow)
 
 	for (size_t i = initialMapSize; i < samples; i++)
 	{
-		t_IDs[i] = t_Map.insert(t_RandomKeys[i]);
+		ids[i] = t_Map.insert(t_RandomKeys[i]);
 	}
 
 	t_Count = 0;

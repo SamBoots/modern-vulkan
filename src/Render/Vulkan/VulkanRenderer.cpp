@@ -325,16 +325,16 @@ static VkDevice CreateLogicalDevice(Allocator a_temp_allocator, const VkPhysical
 	dynamic_rendering.dynamicRendering = VK_TRUE;
 	dynamic_rendering.pNext = &shader_draw_features;
 
-	VkPhysicalDeviceDescriptorIndexingFeatures t_IndexingFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES };
-	t_IndexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
-	t_IndexingFeatures.runtimeDescriptorArray = VK_TRUE;
-	t_IndexingFeatures.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
-	t_IndexingFeatures.descriptorBindingVariableDescriptorCount = VK_TRUE;
-	t_IndexingFeatures.pNext = &dynamic_rendering;
+	VkPhysicalDeviceDescriptorIndexingFeatures indexingFeatures{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES };
+	indexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
+	indexingFeatures.runtimeDescriptorArray = VK_TRUE;
+	indexingFeatures.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
+	indexingFeatures.descriptorBindingVariableDescriptorCount = VK_TRUE;
+	indexingFeatures.pNext = &dynamic_rendering;
 
 	VkPhysicalDeviceBufferDeviceAddressFeatures address_feature{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES };
 	address_feature.bufferDeviceAddress = VK_TRUE;
-	address_feature.pNext = &t_IndexingFeatures;
+	address_feature.pNext = &indexingFeatures;
 
 	VkPhysicalDeviceDescriptorBufferFeaturesEXT  descriptor_buffer_info{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT };
 	descriptor_buffer_info.descriptorBuffer = VK_TRUE;

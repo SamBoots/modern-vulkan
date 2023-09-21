@@ -68,7 +68,7 @@ namespace BB
 
 		struct FixedLinearAllocator : public BaseAllocator
 		{
-			FixedLinearAllocator(const size_t a_Size, const char* a_Name = "unnamed");
+			FixedLinearAllocator(const size_t a_size, const char* a_Name = "unnamed");
 			~FixedLinearAllocator();
 
 			operator Allocator() override;
@@ -79,7 +79,7 @@ namespace BB
 			FixedLinearAllocator& operator =(const FixedLinearAllocator&) = delete;
 			FixedLinearAllocator& operator =(FixedLinearAllocator&&) = delete;
 
-			void* Alloc(size_t a_Size, size_t a_Alignment) override;
+			void* Alloc(size_t a_size, size_t a_Alignment) override;
 			void Free(void*) override;
 			void Clear() override;
 
@@ -124,7 +124,7 @@ namespace BB
 
 		struct FreelistAllocator : public BaseAllocator
 		{
-			FreelistAllocator(const size_t a_Size, const char* a_Name = "unnamed");
+			FreelistAllocator(const size_t a_size, const char* a_Name = "unnamed");
 			~FreelistAllocator();
 
 			operator Allocator() override;
@@ -135,7 +135,7 @@ namespace BB
 			FreelistAllocator& operator =(const FreelistAllocator&) = delete;
 			FreelistAllocator& operator =(FreelistAllocator&&) = delete;
 
-			void* Alloc(size_t a_Size, size_t a_Alignment) override;
+			void* Alloc(size_t a_size, size_t a_Alignment) override;
 			void Free(void* a_Ptr) override;
 			void Clear() override;
 
@@ -169,7 +169,7 @@ namespace BB
 			POW_FreelistAllocator& operator =(const POW_FreelistAllocator&) = delete;
 			POW_FreelistAllocator& operator =(POW_FreelistAllocator&&) = delete;
 
-			void* Alloc(size_t a_Size, size_t) override;
+			void* Alloc(size_t a_size, size_t) override;
 			void Free(void* a_Ptr) override;
 			void Clear() override;
 
@@ -198,7 +198,7 @@ namespace BB
 
 		//struct PoolAllocator
 		//{
-		//	PoolAllocator(const size_t a_ObjectSize, const size_t a_ObjectCount, const size_t a_Alignment);
+		//	PoolAllocator(const size_t a_objectSize, const size_t a_objectCount, const size_t a_Alignment);
 		//	~PoolAllocator();
 
 		//	//just delete these for safety, copies might cause errors.
@@ -207,7 +207,7 @@ namespace BB
 		//	PoolAllocator& operator =(const PoolAllocator&) = delete;
 		//	PoolAllocator& operator =(PoolAllocator&&) = delete;
 
-		//	void* Alloc(size_t a_Size, size_t);
+		//	void* Alloc(size_t a_size, size_t);
 		//	void Free(void* a_Ptr);
 		//	void Clear();
 
@@ -221,7 +221,7 @@ namespace BB
 
 
 
-//inline void* operator new(size_t a_Bytes, BB::memory::LinearAllocator* a_Allocator)
+//inline void* operator new(size_t a_Bytes, BB::memory::LinearAllocator* a_allocator)
 //{
-//	return a_Allocator->alloc(a_Bytes);
+//	return a_allocator->alloc(a_Bytes);
 //};

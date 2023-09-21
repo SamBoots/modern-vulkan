@@ -133,9 +133,9 @@ WindowHandle OSDevice::CreateOSWindow(OS_WINDOW_STYLE a_Style, int a_X, int a_Y,
 	return WindowHandle(static_cast<uint32_t>(m_OSDevice->OSWindows.emplace(a_Style, a_X, a_Y, a_Width, a_Height, a_WindowName)));
 }
 
-void BB::OSDevice::DestroyOSWindow(WindowHandle a_Handle)
+void BB::OSDevice::DestroyOSWindow(WindowHandle a_handle)
 {
-	m_OSDevice->OSWindows.erase(a_Handle.index);
+	m_OSDevice->OSWindows.erase(a_handle.index);
 }
 
 void OSDevice::ExitApp() const

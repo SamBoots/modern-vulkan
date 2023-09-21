@@ -42,8 +42,8 @@ namespace BB
 		TransformHandle CreateTransform(const float3 a_Position);
 		TransformHandle CreateTransform(const float3 a_Position, const float3 a_Axis, const float a_Radians);
 		TransformHandle CreateTransform(const float3 a_Position, const float3 a_Axis, const float a_Radians, const float3 a_Scale);
-		void FreeTransform(const TransformHandle a_Handle);
-		Transform& GetTransform(const TransformHandle a_Handle) const;
+		void FreeTransform(const TransformHandle a_handle);
+		Transform& GetTransform(const TransformHandle a_handle) const;
 
 		const uint32_t PoolSize() const;
 		const class UploadBuffer& PoolGPUUploadBuffer();

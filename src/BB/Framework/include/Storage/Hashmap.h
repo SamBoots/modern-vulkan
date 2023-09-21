@@ -19,9 +19,9 @@ namespace BB
 	};
 
 	//Calculate the load factor.
-	static size_t LFCalculation(size_t a_Size, float a_LoadFactor)
+	static size_t LFCalculation(size_t a_size, float a_LoadFactor)
 	{
-		return static_cast<size_t>(static_cast<float>(a_Size) * (1.f / a_LoadFactor + 1.f));
+		return static_cast<size_t>(static_cast<float>(a_size) * (1.f / a_LoadFactor + 1.f));
 	}
 
 	struct String_KeyComp
@@ -70,43 +70,43 @@ namespace BB
 		};
 
 	public:
-		UM_HashMap(Allocator a_Allocator)
-			: UM_HashMap(a_Allocator, Hashmap_Specs::Standard_Hashmap_Size)
+		UM_HashMap(Allocator a_allocator)
+			: UM_HashMap(a_allocator, Hashmap_Specs::Standard_Hashmap_Size)
 		{}
-		UM_HashMap(Allocator a_Allocator, const size_t a_Size)
-			: m_Allocator(a_Allocator)
+		UM_HashMap(Allocator a_allocator, const size_t a_size)
+			: m_allocator(a_allocator)
 		{
-			m_Capacity = LFCalculation(a_Size, Hashmap_Specs::UM_LoadFactor);
-			m_Size = 0;
-			m_LoadCapacity = a_Size;
-			m_Entries = reinterpret_cast<HashEntry*>(BBalloc(m_Allocator, m_Capacity * sizeof(HashEntry)));
+			m_capacity = LFCalculation(a_size, Hashmap_Specs::UM_LoadFactor);
+			m_size = 0;
+			m_LoadCapacity = a_size;
+			m_Entries = reinterpret_cast<HashEntry*>(BBalloc(m_allocator, m_capacity * sizeof(HashEntry)));
 
-			for (size_t i = 0; i < m_Capacity; i++)
+			for (size_t i = 0; i < m_capacity; i++)
 			{
 				new (&m_Entries[i]) HashEntry();
 			}
 		}
-		UM_HashMap(const UM_HashMap<Key, Value>& a_Map)
+		UM_HashMap(const UM_HashMap<Key, Value>& a_map)
 		{
-			m_Allocator = a_Map.m_Allocator;
-			m_Size = a_Map.m_Size;
-			m_Capacity = a_Map.m_Capacity;
-			m_LoadCapacity = a_Map.m_LoadCapacity;
+			m_allocator = a_map.m_allocator;
+			m_size = a_map.m_size;
+			m_capacity = a_map.m_capacity;
+			m_LoadCapacity = a_map.m_LoadCapacity;
 
-			m_Entries = reinterpret_cast<HashEntry*>(BBalloc(m_Allocator, m_Capacity * sizeof(HashEntry)));
+			m_Entries = reinterpret_cast<HashEntry*>(BBalloc(m_allocator, m_capacity * sizeof(HashEntry)));
 
 			//Copy over the hashmap and construct the element
-			for (size_t i = 0; i < m_Capacity; i++)
+			for (size_t i = 0; i < m_capacity; i++)
 			{
-				if (a_Map.m_Entries[i].state != Hashmap_Specs::UM_EMPTYNODE)
+				if (a_map.m_Entries[i].state != Hashmap_Specs::UM_EMPTYNODE)
 				{
-					new (&m_Entries[i]) HashEntry(a_Map.m_Entries[i]);
+					new (&m_Entries[i]) HashEntry(a_map.m_Entries[i]);
 					HashEntry* t_Entry = &m_Entries[i];
 					HashEntry* t_PreviousEntry;
 					while (t_Entry->next_Entry != nullptr)
 					{
 						t_PreviousEntry = t_Entry;
-						t_Entry = reinterpret_cast<HashEntry*>(BBnew(m_Allocator, HashEntry)(*t_Entry->next_Entry));
+						t_Entry = reinterpret_cast<HashEntry*>(BBnew(m_allocator, HashEntry)(*t_Entry->next_Entry));
 						t_PreviousEntry->next_Entry = t_Entry;
 					}
 				}
@@ -116,20 +116,20 @@ namespace BB
 				}
 			}
 		}
-		UM_HashMap(UM_HashMap<Key, Value>&& a_Map) noexcept
+		UM_HashMap(UM_HashMap<Key, Value>&& a_map) noexcept
 		{
-			m_Allocator = a_Map.m_Allocator;
-			m_Size = a_Map.m_Size;
-			m_Capacity = a_Map.m_Capacity;
-			m_LoadCapacity = a_Map.m_LoadCapacity;
-			m_Entries = a_Map.m_Entries;
+			m_allocator = a_map.m_allocator;
+			m_size = a_map.m_size;
+			m_capacity = a_map.m_capacity;
+			m_LoadCapacity = a_map.m_LoadCapacity;
+			m_Entries = a_map.m_Entries;
 
-			a_Map.m_Size = 0;
-			a_Map.m_Capacity = 0;
-			a_Map.m_LoadCapacity = 0;
-			a_Map.m_Entries = nullptr;
-			a_Map.m_Allocator.allocator = nullptr;
-			a_Map.m_Allocator.func = nullptr;
+			a_map.m_size = 0;
+			a_map.m_capacity = 0;
+			a_map.m_LoadCapacity = 0;
+			a_map.m_Entries = nullptr;
+			a_map.m_allocator.allocator = nullptr;
+			a_map.m_allocator.func = nullptr;
 		}
 		~UM_HashMap()
 		{
@@ -137,33 +137,33 @@ namespace BB
 			{
 				clear();
 
-				BBfree(m_Allocator, m_Entries);
+				BBfree(m_allocator, m_Entries);
 			}
 		}
 
-		UM_HashMap<Key, Value>& operator=(const UM_HashMap<Key, Value>& a_Rhs)
+		UM_HashMap<Key, Value>& operator=(const UM_HashMap<Key, Value>& a_rhs)
 		{
 			this->~UM_HashMap();
 
-			m_Allocator = a_Rhs.m_Allocator;
-			m_Size = a_Rhs.m_Size;
-			m_Capacity = a_Rhs.m_Capacity;
-			m_LoadCapacity = a_Rhs.m_LoadCapacity;
+			m_allocator = a_rhs.m_allocator;
+			m_size = a_rhs.m_size;
+			m_capacity = a_rhs.m_capacity;
+			m_LoadCapacity = a_rhs.m_LoadCapacity;
 
-			m_Entries = reinterpret_cast<HashEntry*>(BBalloc(m_Allocator, m_Capacity * sizeof(HashEntry)));
+			m_Entries = reinterpret_cast<HashEntry*>(BBalloc(m_allocator, m_capacity * sizeof(HashEntry)));
 
 			//Copy over the hashmap and construct the element
-			for (size_t i = 0; i < m_Capacity; i++)
+			for (size_t i = 0; i < m_capacity; i++)
 			{
-				if (a_Rhs.m_Entries[i].state != Hashmap_Specs::UM_EMPTYNODE)
+				if (a_rhs.m_Entries[i].state != Hashmap_Specs::UM_EMPTYNODE)
 				{
-					new (&m_Entries[i]) HashEntry(a_Rhs.m_Entries[i]);
+					new (&m_Entries[i]) HashEntry(a_rhs.m_Entries[i]);
 					HashEntry* t_Entry = &m_Entries[i];
 					HashEntry* t_PreviousEntry;
 					while (t_Entry->next_Entry != nullptr)
 					{
 						t_PreviousEntry = t_Entry;
-						t_Entry = reinterpret_cast<HashEntry*>(BBnew(m_Allocator, HashEntry)(*t_Entry->next_Entry));
+						t_Entry = reinterpret_cast<HashEntry*>(BBnew(m_allocator, HashEntry)(*t_Entry->next_Entry));
 						t_PreviousEntry->next_Entry = t_Entry;
 					}
 				}
@@ -175,22 +175,22 @@ namespace BB
 
 			return *this;
 		}
-		UM_HashMap<Key, Value>& operator=(UM_HashMap<Key, Value>&& a_Rhs) noexcept
+		UM_HashMap<Key, Value>& operator=(UM_HashMap<Key, Value>&& a_rhs) noexcept
 		{
 			this->~UM_HashMap();
 
-			m_Allocator = a_Rhs.m_Allocator;
-			m_Size = a_Rhs.m_Size;
-			m_Capacity = a_Rhs.m_Capacity;
-			m_LoadCapacity = a_Rhs.m_LoadCapacity;
-			m_Entries = a_Rhs.m_Entries;
+			m_allocator = a_rhs.m_allocator;
+			m_size = a_rhs.m_size;
+			m_capacity = a_rhs.m_capacity;
+			m_LoadCapacity = a_rhs.m_LoadCapacity;
+			m_Entries = a_rhs.m_Entries;
 
-			a_Rhs.m_Size = 0;
-			a_Rhs.m_Capacity = 0;
-			a_Rhs.m_LoadCapacity = 0;
-			a_Rhs.m_Entries = nullptr;
-			a_Rhs.m_Allocator.allocator = nullptr;
-			a_Rhs.m_Allocator.func = nullptr;
+			a_rhs.m_size = 0;
+			a_rhs.m_capacity = 0;
+			a_rhs.m_LoadCapacity = 0;
+			a_rhs.m_Entries = nullptr;
+			a_rhs.m_allocator.allocator = nullptr;
+			a_rhs.m_allocator.func = nullptr;
 
 			return *this;
 		}
@@ -202,10 +202,10 @@ namespace BB
 		template <class... Args>
 		void emplace(const Key& a_Key, Args&&... a_ValueArgs)
 		{
-			if (m_Size > m_LoadCapacity)
+			if (m_size > m_LoadCapacity)
 				grow();
 
-			const Hash t_Hash = Hash::MakeHash(a_Key) % m_Capacity;
+			const Hash t_Hash = Hash::MakeHash(a_Key) % m_capacity;
 
 			HashEntry* t_Entry = &m_Entries[t_Hash.hash];
 			if (t_Entry->state == Hashmap_Specs::UM_EMPTYNODE)
@@ -221,7 +221,7 @@ namespace BB
 			{
 				if (t_Entry->next_Entry == nullptr)
 				{
-					HashEntry* t_NewEntry = BBnew(m_Allocator, HashEntry);
+					HashEntry* t_NewEntry = BBnew(m_allocator, HashEntry);
 					t_NewEntry->key = a_Key;
 					new (&t_NewEntry->value) Value(std::forward<Args>(a_ValueArgs)...);
 					t_NewEntry->next_Entry = nullptr;
@@ -233,7 +233,7 @@ namespace BB
 		}
 		Value* find(const Key& a_Key) const
 		{
-			const Hash t_Hash = Hash::MakeHash(a_Key) % m_Capacity;
+			const Hash t_Hash = Hash::MakeHash(a_Key) % m_capacity;
 
 			HashEntry* t_Entry = &m_Entries[t_Hash];
 
@@ -252,7 +252,7 @@ namespace BB
 		}
 		void erase(const Key& a_Key)
 		{
-			const Hash t_Hash = Hash::MakeHash(a_Key) % m_Capacity;;
+			const Hash t_Hash = Hash::MakeHash(a_Key) % m_capacity;;
 
 			HashEntry* t_Entry = &m_Entries[t_Hash];
 			if (Match(t_Entry, a_Key))
@@ -263,7 +263,7 @@ namespace BB
 				{
 					HashEntry* t_NextEntry = t_Entry->next_Entry;
 					*t_Entry = *t_Entry->next_Entry;
-					BBfree(m_Allocator, t_NextEntry);
+					BBfree(m_allocator, t_NextEntry);
 					return;
 				}
 
@@ -278,7 +278,7 @@ namespace BB
 				if (Match(t_Entry, a_Key))
 				{
 					t_PreviousEntry = t_Entry->next_Entry;
-					BBfree(m_Allocator, t_Entry);
+					BBfree(m_allocator, t_Entry);
 					return;
 				}
 				t_PreviousEntry = t_Entry;
@@ -289,7 +289,7 @@ namespace BB
 		{
 			//go through all the entries and individually delete the extra values from the linked list.
 			//They need to be deleted seperatly since the memory is somewhere else.
-			for (size_t i = 0; i < m_Capacity; i++)
+			for (size_t i = 0; i < m_capacity; i++)
 			{
 				if (m_Entries[i].state != Hashmap_Specs::UM_EMPTYNODE)
 				{
@@ -300,36 +300,36 @@ namespace BB
 						t_NextEntry = t_NextEntry->next_Entry;
 						t_DeleteEntry->~HashEntry();
 
-						BBfree(m_Allocator, t_DeleteEntry);
+						BBfree(m_allocator, t_DeleteEntry);
 					}
 					m_Entries[i].state = Hashmap_Specs::UM_EMPTYNODE;
 				}
 			}
-			for (size_t i = 0; i < m_Capacity; i++)
+			for (size_t i = 0; i < m_capacity; i++)
 				if (m_Entries[i].state == Hashmap_Specs::UM_EMPTYNODE)
 					m_Entries[i].~HashEntry();
 
-			m_Size = 0;
+			m_size = 0;
 		}
 
-		void reserve(const size_t a_Size)
+		void reserve(const size_t a_size)
 		{
-			if (a_Size > m_Capacity)
+			if (a_size > m_capacity)
 			{
-				size_t t_ModifiedCapacity = RoundUp(a_Size, Hashmap_Specs::multipleValue);
+				size_t t_ModifiedCapacity = RoundUp(a_size, Hashmap_Specs::multipleValue);
 
 				reallocate(t_ModifiedCapacity);
 			}
 		}
 
-		size_t size() const { return m_Size; }
+		size_t size() const { return m_size; }
 
 	private:
 		void grow(size_t a_MinCapacity = 1)
 		{
 			BB_WARNING(false, "Resizing an OL_HashMap, this might be a bit slow. Possibly reserve more.", WarningType::OPTIMALIZATION);
 
-			size_t t_ModifiedCapacity = m_Capacity * 2;
+			size_t t_ModifiedCapacity = m_capacity * 2;
 
 			if (a_MinCapacity > t_ModifiedCapacity)
 				t_ModifiedCapacity = RoundUp(a_MinCapacity, Hashmap_Specs::multipleValue);
@@ -342,14 +342,14 @@ namespace BB
 			const size_t t_NewCapacity = LFCalculation(a_NewLoadCapacity, Hashmap_Specs::UM_LoadFactor);
 
 			//Allocate the new buffer.
-			HashEntry* t_NewEntries = reinterpret_cast<HashEntry*>(BBalloc(m_Allocator, t_NewCapacity * sizeof(HashEntry)));
+			HashEntry* t_NewEntries = reinterpret_cast<HashEntry*>(BBalloc(m_allocator, t_NewCapacity * sizeof(HashEntry)));
 
 			for (size_t i = 0; i < t_NewCapacity; i++)
 			{
 				new (&t_NewEntries[i]) HashEntry();
 			}
 
-			for (size_t i = 0; i < m_Capacity; i++)
+			for (size_t i = 0; i < m_capacity; i++)
 			{
 				if (m_Entries[i].state != Hashmap_Specs::UM_EMPTYNODE)
 				{
@@ -366,7 +366,7 @@ namespace BB
 					{
 						if (t_Entry->next_Entry == nullptr)
 						{
-							HashEntry* t_NewEntry = BBnew(m_Allocator, HashEntry)(m_Entries[i]);
+							HashEntry* t_NewEntry = BBnew(m_allocator, HashEntry)(m_Entries[i]);
 						}
 						t_Entry = t_Entry->next_Entry;
 					}
@@ -375,18 +375,18 @@ namespace BB
 
 			this->~UM_HashMap();
 
-			m_Capacity = t_NewCapacity;
+			m_capacity = t_NewCapacity;
 			m_LoadCapacity = a_NewLoadCapacity;
 			m_Entries = t_NewEntries;
 		}
 
-		size_t m_Capacity;
+		size_t m_capacity;
 		size_t m_LoadCapacity;
-		size_t m_Size = 0;
+		size_t m_size = 0;
 
 		HashEntry* m_Entries;
 
-		Allocator m_Allocator;
+		Allocator m_allocator;
 
 	private:
 		bool Match(const HashEntry* a_Entry, const Key& a_Key) const
@@ -407,75 +407,75 @@ namespace BB
 		static constexpr bool trivalDestructableKey = std::is_trivially_destructible_v<Key>;
 
 	public:
-		OL_HashMap(Allocator a_Allocator)
-			: OL_HashMap(a_Allocator, Hashmap_Specs::Standard_Hashmap_Size)
+		OL_HashMap(Allocator a_allocator)
+			: OL_HashMap(a_allocator, Hashmap_Specs::Standard_Hashmap_Size)
 		{}
-		OL_HashMap(Allocator a_Allocator, const size_t a_Size)
-			: m_Allocator(a_Allocator)
+		OL_HashMap(Allocator a_allocator, const size_t a_size)
+			: m_allocator(a_allocator)
 		{
-			m_Capacity = LFCalculation(a_Size, Hashmap_Specs::OL_LoadFactor);
-			m_Size = 0;
-			m_LoadCapacity = a_Size;
+			m_capacity = LFCalculation(a_size, Hashmap_Specs::OL_LoadFactor);
+			m_size = 0;
+			m_LoadCapacity = a_size;
 
-			const size_t t_MemorySize = (sizeof(Hash) + sizeof(Key) + sizeof(Value)) * m_Capacity;
+			const size_t t_MemorySize = (sizeof(Hash) + sizeof(Key) + sizeof(Value)) * m_capacity;
 
-			void* t_Buffer = BBalloc(m_Allocator, t_MemorySize);
+			void* t_Buffer = BBalloc(m_allocator, t_MemorySize);
 			m_Hashes = reinterpret_cast<Hash*>(t_Buffer);
-			m_Keys = reinterpret_cast<Key*>(Pointer::Add(t_Buffer, sizeof(Hash) * m_Capacity));
-			m_Values = reinterpret_cast<Value*>(Pointer::Add(t_Buffer, (sizeof(Hash) + sizeof(Key)) * m_Capacity));
-			for (size_t i = 0; i < m_Capacity; i++)
+			m_Keys = reinterpret_cast<Key*>(Pointer::Add(t_Buffer, sizeof(Hash) * m_capacity));
+			m_Values = reinterpret_cast<Value*>(Pointer::Add(t_Buffer, (sizeof(Hash) + sizeof(Key)) * m_capacity));
+			for (size_t i = 0; i < m_capacity; i++)
 			{
 				m_Hashes[i] = Hashmap_Specs::OL_EMPTY;
 			}
 		}
-		OL_HashMap(const OL_HashMap<Key, Value>& a_Map)
+		OL_HashMap(const OL_HashMap<Key, Value>& a_map)
 		{
-			m_Capacity = a_Map.m_Capacity;
-			m_Size = 0;
-			m_LoadCapacity = a_Map.m_LoadCapacity;
+			m_capacity = a_map.m_capacity;
+			m_size = 0;
+			m_LoadCapacity = a_map.m_LoadCapacity;
 
-			m_Allocator = a_Map.m_Allocator;
+			m_allocator = a_map.m_allocator;
 
-			const size_t t_MemorySize = (sizeof(Hash) + sizeof(Key) + sizeof(Value)) * m_Capacity;
+			const size_t t_MemorySize = (sizeof(Hash) + sizeof(Key) + sizeof(Value)) * m_capacity;
 
-			void* t_Buffer = BBalloc(m_Allocator, t_MemorySize);
+			void* t_Buffer = BBalloc(m_allocator, t_MemorySize);
 			m_Hashes = reinterpret_cast<Hash*>(t_Buffer);
-			m_Keys = reinterpret_cast<Key*>(Pointer::Add(t_Buffer, sizeof(Hash) * m_Capacity));
-			m_Values = reinterpret_cast<Value*>(Pointer::Add(t_Buffer, (sizeof(Hash) + sizeof(Key)) * m_Capacity));
-			for (size_t i = 0; i < m_Capacity; i++)
+			m_Keys = reinterpret_cast<Key*>(Pointer::Add(t_Buffer, sizeof(Hash) * m_capacity));
+			m_Values = reinterpret_cast<Value*>(Pointer::Add(t_Buffer, (sizeof(Hash) + sizeof(Key)) * m_capacity));
+			for (size_t i = 0; i < m_capacity; i++)
 			{
 				m_Hashes[i] = Hashmap_Specs::OL_EMPTY;
 			}
 
-			for (size_t i = 0; i < m_Capacity; i++)
+			for (size_t i = 0; i < m_capacity; i++)
 			{
-				if (a_Map.m_Hashes[i] != Hashmap_Specs::OL_EMPTY && a_Map.m_Hashes[i] != Hashmap_Specs::OL_TOMBSTONE)
+				if (a_map.m_Hashes[i] != Hashmap_Specs::OL_EMPTY && a_map.m_Hashes[i] != Hashmap_Specs::OL_TOMBSTONE)
 				{
-					insert(a_Map.m_Keys[i], a_Map.m_Values[i]);
+					insert(a_map.m_Keys[i], a_map.m_Values[i]);
 				}
 			}
 		}
-		OL_HashMap(OL_HashMap<Key, Value>&& a_Map) noexcept
+		OL_HashMap(OL_HashMap<Key, Value>&& a_map) noexcept
 		{
-			m_Capacity = a_Map.m_Capacity;
-			m_Size = a_Map.m_Size;
-			m_LoadCapacity = a_Map.m_LoadCapacity;
+			m_capacity = a_map.m_capacity;
+			m_size = a_map.m_size;
+			m_LoadCapacity = a_map.m_LoadCapacity;
 
-			m_Hashes = a_Map.m_Hashes;
-			m_Keys = a_Map.m_Keys;
-			m_Values = a_Map.m_Values;
+			m_Hashes = a_map.m_Hashes;
+			m_Keys = a_map.m_Keys;
+			m_Values = a_map.m_Values;
 
-			m_Allocator = a_Map.m_Allocator;
+			m_allocator = a_map.m_allocator;
 
-			a_Map.m_Capacity = 0;
-			a_Map.m_Size = 0;
-			a_Map.m_LoadCapacity = 0;
-			a_Map.m_Hashes = nullptr;
-			a_Map.m_Keys = nullptr;
-			a_Map.m_Values = nullptr;
+			a_map.m_capacity = 0;
+			a_map.m_size = 0;
+			a_map.m_LoadCapacity = 0;
+			a_map.m_Hashes = nullptr;
+			a_map.m_Keys = nullptr;
+			a_map.m_Values = nullptr;
 
-			a_Map.m_Allocator.allocator = nullptr;
-			a_Map.m_Allocator.func = nullptr;
+			a_map.m_allocator.allocator = nullptr;
+			a_map.m_allocator.func = nullptr;
 		}
 		~OL_HashMap()
 		{
@@ -483,74 +483,74 @@ namespace BB
 			{
 				//Call the destructor if it has one for the value.
 				if constexpr (!trivalDestructableValue)
-					for (size_t i = 0; i < m_Capacity; i++)
+					for (size_t i = 0; i < m_capacity; i++)
 						if (m_Hashes[i] != 0)
 							m_Values[i].~Value();
 				//Call the destructor if it has one for the key.
 				if constexpr (!trivalDestructableKey)
-					for (size_t i = 0; i < m_Capacity; i++)
+					for (size_t i = 0; i < m_capacity; i++)
 						if (m_Hashes[i] != 0)
 							m_Keys[i].~Key();
 
-				BBfree(m_Allocator, m_Hashes);
+				BBfree(m_allocator, m_Hashes);
 			}
 		}
 
-		OL_HashMap<Key, Value>& operator=(const OL_HashMap<Key, Value>& a_Rhs)
+		OL_HashMap<Key, Value>& operator=(const OL_HashMap<Key, Value>& a_rhs)
 		{
 			this->~OL_HashMap();
 
-			m_Capacity = a_Rhs.m_Capacity;
-			m_Size = 0;
-			m_LoadCapacity = a_Rhs.m_LoadCapacity;
+			m_capacity = a_rhs.m_capacity;
+			m_size = 0;
+			m_LoadCapacity = a_rhs.m_LoadCapacity;
 
-			m_Allocator = a_Rhs.m_Allocator;
+			m_allocator = a_rhs.m_allocator;
 
-			const size_t t_MemorySize = (sizeof(Hash) + sizeof(Key) + sizeof(Value)) * m_Capacity;
+			const size_t t_MemorySize = (sizeof(Hash) + sizeof(Key) + sizeof(Value)) * m_capacity;
 
-			void* t_Buffer = BBalloc(m_Allocator, t_MemorySize);
+			void* t_Buffer = BBalloc(m_allocator, t_MemorySize);
 			m_Hashes = reinterpret_cast<Hash*>(t_Buffer);
-			m_Keys = reinterpret_cast<Key*>(Pointer::Add(t_Buffer, sizeof(Hash) * m_Capacity));
-			m_Values = reinterpret_cast<Value*>(Pointer::Add(t_Buffer, (sizeof(Hash) + sizeof(Key)) * m_Capacity));
-			for (size_t i = 0; i < m_Capacity; i++)
+			m_Keys = reinterpret_cast<Key*>(Pointer::Add(t_Buffer, sizeof(Hash) * m_capacity));
+			m_Values = reinterpret_cast<Value*>(Pointer::Add(t_Buffer, (sizeof(Hash) + sizeof(Key)) * m_capacity));
+			for (size_t i = 0; i < m_capacity; i++)
 			{
 				m_Hashes[i] = Hashmap_Specs::OL_EMPTY;
 			}
 
-			for (size_t i = 0; i < m_Capacity; i++)
+			for (size_t i = 0; i < m_capacity; i++)
 			{
-				if (a_Rhs.m_Hashes[i] != Hashmap_Specs::OL_EMPTY && a_Rhs.m_Hashes[i] != Hashmap_Specs::OL_TOMBSTONE)
+				if (a_rhs.m_Hashes[i] != Hashmap_Specs::OL_EMPTY && a_rhs.m_Hashes[i] != Hashmap_Specs::OL_TOMBSTONE)
 				{
-					insert(a_Rhs.m_Keys[i], a_Rhs.m_Values[i]);
+					insert(a_rhs.m_Keys[i], a_rhs.m_Values[i]);
 				}
 			}
 
 			return *this;
 		}
-		OL_HashMap<Key, Value>& operator=(OL_HashMap<Key, Value>&& a_Rhs) noexcept
+		OL_HashMap<Key, Value>& operator=(OL_HashMap<Key, Value>&& a_rhs) noexcept
 		{
 			this->~OL_HashMap();
 
-			m_Capacity = a_Rhs.m_Capacity;
-			m_Size = a_Rhs.m_Size;
-			m_LoadCapacity = a_Rhs.m_LoadCapacity;
+			m_capacity = a_rhs.m_capacity;
+			m_size = a_rhs.m_size;
+			m_LoadCapacity = a_rhs.m_LoadCapacity;
 
-			m_Allocator = a_Rhs.m_Allocator;
+			m_allocator = a_rhs.m_allocator;
 
-			m_Hashes = a_Rhs.m_Hashes;
-			m_Keys = a_Rhs.m_Keys;
-			m_Values = a_Rhs.m_Values;
+			m_Hashes = a_rhs.m_Hashes;
+			m_Keys = a_rhs.m_Keys;
+			m_Values = a_rhs.m_Values;
 
-			a_Rhs.m_Capacity = 0;
-			a_Rhs.m_Size = 0;
-			a_Rhs.m_LoadCapacity = 0;
+			a_rhs.m_capacity = 0;
+			a_rhs.m_size = 0;
+			a_rhs.m_LoadCapacity = 0;
 
-			a_Rhs.m_Allocator.allocator = nullptr;
-			a_Rhs.m_Allocator.func = nullptr;
+			a_rhs.m_allocator.allocator = nullptr;
+			a_rhs.m_allocator.func = nullptr;
 
-			a_Rhs.m_Hashes = nullptr;
-			a_Rhs.m_Keys = nullptr;
-			a_Rhs.m_Values = nullptr;
+			a_rhs.m_Hashes = nullptr;
+			a_rhs.m_Keys = nullptr;
+			a_rhs.m_Values = nullptr;
 
 			return *this;
 		}
@@ -562,14 +562,14 @@ namespace BB
 		template <class... Args>
 		void emplace(const Key& a_Key, Args&&... a_ValueArgs)
 		{
-			if (m_Size > m_LoadCapacity)
+			if (m_size > m_LoadCapacity)
 				grow();
 
-			m_Size++;
-			const Hash t_Hash = Hash::MakeHash(a_Key) % m_Capacity;
+			m_size++;
+			const Hash t_Hash = Hash::MakeHash(a_Key) % m_capacity;
 
 
-			for (size_t i = t_Hash; i < m_Capacity; i++)
+			for (size_t i = t_Hash; i < m_capacity; i++)
 			{
 				if (m_Hashes[i] == Hashmap_Specs::OL_EMPTY || m_Hashes[i] == Hashmap_Specs::OL_TOMBSTONE)
 				{
@@ -594,9 +594,9 @@ namespace BB
 		}
 		Value* find(const Key& a_Key) const
 		{
-			const Hash t_Hash = Hash::MakeHash(a_Key) % m_Capacity;
+			const Hash t_Hash = Hash::MakeHash(a_Key) % m_capacity;
 
-			for (size_t i = t_Hash; i < m_Capacity; i++)
+			for (size_t i = t_Hash; i < m_capacity; i++)
 			{
 				if (m_Hashes[i] != Hashmap_Specs::OL_TOMBSTONE && KeyComp()(m_Keys[i], a_Key))
 				{
@@ -628,9 +628,9 @@ namespace BB
 		}
 		void erase(const Key& a_Key)
 		{
-			const Hash t_Hash = Hash::MakeHash(a_Key) % m_Capacity;
+			const Hash t_Hash = Hash::MakeHash(a_Key) % m_capacity;
 
-			for (size_t i = t_Hash; i < m_Capacity; i++)
+			for (size_t i = t_Hash; i < m_capacity; i++)
 			{
 				if (KeyComp()(m_Keys[i], a_Key))
 				{
@@ -643,7 +643,7 @@ namespace BB
 						m_Keys[i].~Key();
 					m_Keys[i] = 0;
 
-					m_Size--;
+					m_size--;
 					return;
 				}
 			}
@@ -662,7 +662,7 @@ namespace BB
 						m_Keys[i].~Key();
 					m_Keys[i] = 0;
 
-					m_Size--;
+					m_size--;
 					return;
 				}
 			}
@@ -670,7 +670,7 @@ namespace BB
 		}
 		void clear()
 		{
-			for (size_t i = 0; i < m_Capacity; i++)
+			for (size_t i = 0; i < m_capacity; i++)
 			{
 				if (m_Hashes[i] != Hashmap_Specs::OL_EMPTY)
 				{
@@ -682,26 +682,26 @@ namespace BB
 					m_Keys[i] = 0;
 				}
 			}
-			m_Size = 0;
+			m_size = 0;
 		}
 
-		void reserve(const size_t a_Size)
+		void reserve(const size_t a_size)
 		{
-			if (a_Size > m_Capacity)
+			if (a_size > m_capacity)
 			{
-				size_t t_ModifiedCapacity = RoundUp(a_Size, Hashmap_Specs::multipleValue);
+				size_t t_ModifiedCapacity = RoundUp(a_size, Hashmap_Specs::multipleValue);
 
 				reallocate(t_ModifiedCapacity);
 			}
 		}
 
-		size_t size() const { return m_Size; }
+		size_t size() const { return m_size; }
 	private:
 		void grow(size_t a_MinCapacity = 1)
 		{
 			BB_WARNING(false, "Resizing an OL_HashMap, this might be a bit slow. Possibly reserve more.", WarningType::OPTIMALIZATION);
 
-			size_t t_ModifiedCapacity = m_Capacity * 2;
+			size_t t_ModifiedCapacity = m_capacity * 2;
 
 			if (a_MinCapacity > t_ModifiedCapacity)
 				t_ModifiedCapacity = RoundUp(a_MinCapacity, Hashmap_Specs::multipleValue);
@@ -714,7 +714,7 @@ namespace BB
 
 			//Allocate the new buffer.
 			const size_t t_MemorySize = (sizeof(Hash) + sizeof(Key) + sizeof(Value)) * t_NewCapacity;
-			void* t_Buffer = BBalloc(m_Allocator, t_MemorySize);
+			void* t_Buffer = BBalloc(m_allocator, t_MemorySize);
 
 			Hash* t_NewHashes = reinterpret_cast<Hash*>(t_Buffer);
 			Key* t_NewKeys = reinterpret_cast<Key*>(Pointer::Add(t_Buffer, sizeof(Hash) * t_NewCapacity));
@@ -724,7 +724,7 @@ namespace BB
 				t_NewHashes[i] = Hashmap_Specs::OL_EMPTY;
 			}
 
-			for (size_t i = 0; i < m_Capacity; i++)
+			for (size_t i = 0; i < m_capacity; i++)
 			{
 				if (m_Hashes[i] == i)
 				{
@@ -750,13 +750,13 @@ namespace BB
 			m_Keys = t_NewKeys;
 			m_Values = t_NewValues;
 
-			m_Capacity = t_NewCapacity;
+			m_capacity = t_NewCapacity;
 			m_LoadCapacity = a_NewLoadCapacity;
 		}
 
 	private:
-		size_t m_Capacity;
-		size_t m_Size;
+		size_t m_capacity;
+		size_t m_size;
 		size_t m_LoadCapacity;
 
 		//All the elements.
@@ -764,7 +764,7 @@ namespace BB
 		Key* m_Keys;
 		Value* m_Values;
 
-		Allocator m_Allocator;
+		Allocator m_allocator;
 	};
 }
 

@@ -199,14 +199,14 @@ uint32_t BB::OSAllocationGranularity()
 }
 
 
-void* BB::ReserveVirtualMemory(const size_t a_Size)
+void* BB::ReserveVirtualMemory(const size_t a_size)
 {
-	return VirtualAlloc(nullptr, a_Size, MEM_RESERVE, PAGE_NOACCESS);
+	return VirtualAlloc(nullptr, a_size, MEM_RESERVE, PAGE_NOACCESS);
 }
 
-bool BB::CommitVirtualMemory(void* a_Ptr, const size_t a_Size)
+bool BB::CommitVirtualMemory(void* a_Ptr, const size_t a_size)
 {
-	void* t_Ptr = VirtualAlloc(a_Ptr, a_Size, MEM_COMMIT, PAGE_READWRITE);
+	void* t_Ptr = VirtualAlloc(a_Ptr, a_size, MEM_COMMIT, PAGE_READWRITE);
 	return t_Ptr;
 }
 
@@ -253,14 +253,14 @@ LibHandle BB::LoadLib(const wchar* a_LibName)
 	return LibHandle((uintptr_t)t_Mod);
 }
 
-void BB::UnloadLib(const LibHandle a_Handle)
+void BB::UnloadLib(const LibHandle a_handle)
 {
-	FreeLibrary(reinterpret_cast<HMODULE>(a_Handle.ptrHandle));
+	FreeLibrary(reinterpret_cast<HMODULE>(a_handle.ptrHandle));
 }
 
-LibFuncPtr BB::LibLoadFunc(const LibHandle a_Handle, const char* a_FuncName)
+LibFuncPtr BB::LibLoadFunc(const LibHandle a_handle, const char* a_FuncName)
 {
-	LibFuncPtr t_Func = GetProcAddress(reinterpret_cast<HMODULE>(a_Handle.ptrHandle), a_FuncName);
+	LibFuncPtr t_Func = GetProcAddress(reinterpret_cast<HMODULE>(a_handle.ptrHandle), a_FuncName);
 	if (t_Func == NULL)
 	{
 		LatestOSError();
@@ -731,29 +731,29 @@ WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, co
 	return WindowHandle((uintptr_t)t_Window);
 }
 
-void* BB::GetOSWindowHandle(const WindowHandle a_Handle)
+void* BB::GetOSWindowHandle(const WindowHandle a_handle)
 {
-	return reinterpret_cast<HWND>(a_Handle.handle);
+	return reinterpret_cast<HWND>(a_handle.handle);
 }
 
-void BB::GetWindowSize(const WindowHandle a_Handle, int& a_X, int& a_Y)
+void BB::GetWindowSize(const WindowHandle a_handle, int& a_X, int& a_Y)
 {
 	RECT t_Rect;
-	GetClientRect(reinterpret_cast<HWND>(a_Handle.handle), &t_Rect);
+	GetClientRect(reinterpret_cast<HWND>(a_handle.handle), &t_Rect);
 
 	a_X = t_Rect.right;
 	a_Y = t_Rect.bottom;
 }
 
-void BB::DirectDestroyOSWindow(const WindowHandle a_Handle)
+void BB::DirectDestroyOSWindow(const WindowHandle a_handle)
 {
-	DestroyWindow(reinterpret_cast<HWND>(a_Handle.ptrHandle));
+	DestroyWindow(reinterpret_cast<HWND>(a_handle.ptrHandle));
 }
 
-void BB::FreezeMouseOnWindow(const WindowHandle a_Handle)
+void BB::FreezeMouseOnWindow(const WindowHandle a_handle)
 {
 	RECT t_Rect;
-	GetClientRect(reinterpret_cast<HWND>(a_Handle.ptrHandle), &t_Rect);
+	GetClientRect(reinterpret_cast<HWND>(a_handle.ptrHandle), &t_Rect);
 
 	POINT t_LeftRightUpDown[2]{};
 	t_LeftRightUpDown[0].x = t_Rect.left;
@@ -761,7 +761,7 @@ void BB::FreezeMouseOnWindow(const WindowHandle a_Handle)
 	t_LeftRightUpDown[1].x = t_Rect.right;
 	t_LeftRightUpDown[1].y = t_Rect.bottom;
 
-	MapWindowPoints(reinterpret_cast<HWND>(a_Handle.ptrHandle), nullptr, t_LeftRightUpDown, _countof(t_LeftRightUpDown));
+	MapWindowPoints(reinterpret_cast<HWND>(a_handle.ptrHandle), nullptr, t_LeftRightUpDown, _countof(t_LeftRightUpDown));
 
 	t_Rect.left = t_LeftRightUpDown[0].x;
 	t_Rect.top = t_LeftRightUpDown[0].y;

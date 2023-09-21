@@ -44,27 +44,27 @@ namespace BB
 				return t_Tmp;
 			}
 
-			friend bool operator== (const Iterator& a_Lhs, const Iterator& a_Rhs) { return a_Lhs.m_ptr == a_Rhs.m_ptr; };
-			friend bool operator!= (const Iterator& a_Lhs, const Iterator& a_Rhs) { return a_Lhs.m_ptr != a_Rhs.m_ptr; };
+			friend bool operator== (const Iterator& a_Lhs, const Iterator& a_rhs) { return a_Lhs.m_ptr == a_rhs.m_ptr; };
+			friend bool operator!= (const Iterator& a_Lhs, const Iterator& a_rhs) { return a_Lhs.m_ptr != a_rhs.m_ptr; };
 
-			friend bool operator< (const Iterator& a_Lhs, const Iterator& a_Rhs) { return a_Lhs.m_ptr < a_Rhs.m_ptr; };
-			friend bool operator> (const Iterator& a_Lhs, const Iterator& a_Rhs) { return a_Lhs.m_ptr > a_Rhs.m_ptr; };
-			friend bool operator<= (const Iterator& a_Lhs, const Iterator& a_Rhs) { return a_Lhs.m_ptr <= a_Rhs.m_ptr; };
-			friend bool operator>= (const Iterator& a_Lhs, const Iterator& a_Rhs) { return a_Lhs.m_ptr >= a_Rhs.m_ptr; };
+			friend bool operator< (const Iterator& a_Lhs, const Iterator& a_rhs) { return a_Lhs.m_ptr < a_rhs.m_ptr; };
+			friend bool operator> (const Iterator& a_Lhs, const Iterator& a_rhs) { return a_Lhs.m_ptr > a_rhs.m_ptr; };
+			friend bool operator<= (const Iterator& a_Lhs, const Iterator& a_rhs) { return a_Lhs.m_ptr <= a_rhs.m_ptr; };
+			friend bool operator>= (const Iterator& a_Lhs, const Iterator& a_rhs) { return a_Lhs.m_ptr >= a_rhs.m_ptr; };
 
 
 		private:
 			pointer m_Ptr;
 		};
 
-		Array(Allocator a_Allocator);
-		Array(Allocator a_Allocator, size_t a_Size);
+		Array(Allocator a_allocator);
+		Array(Allocator a_allocator, size_t a_size);
 		Array(const Array<T>& a_Array);
 		Array(Array<T>&& a_Array) noexcept;
 		~Array();
 
-		Array<T>& operator=(const Array<T>& a_Rhs);
-		Array<T>& operator=(Array<T>&& a_Rhs) noexcept;
+		Array<T>& operator=(const Array<T>& a_rhs);
+		Array<T>& operator=(Array<T>&& a_rhs) noexcept;
 		T& operator[](const size_t a_Index) const;
 
 		void push_back(T& a_Element);
@@ -76,69 +76,69 @@ namespace BB
 		template <class... Args>
 		void emplace(size_t a_Position, Args&&... a_Args);
 
-		void reserve(size_t a_Size);
-		void resize(size_t a_Size);
+		void reserve(size_t a_size);
+		void resize(size_t a_size);
 
 		void pop();
 		void clear();
 
-		const size_t size() const { return m_Size; };
-		const size_t capacity() const { return m_Capacity; }
+		const size_t size() const { return m_size; };
+		const size_t capacity() const { return m_capacity; }
 		T* data() const { return m_Arr; };
 
 		Iterator begin() { return Iterator(m_Arr); }
-		Iterator end() { return Iterator(&m_Arr[m_Size + 1]); } //Get an out of bounds Iterator.
+		Iterator end() { return Iterator(&m_Arr[m_size + 1]); } //Get an out of bounds Iterator.
 			 
 	private:
 		void grow(size_t a_MinCapacity = 0);
-		//This function also changes the m_Capacity value.
-		void reallocate(size_t a_NewCapacity);
+		//This function also changes the m_capacity value.
+		void reallocate(size_t a_new_capacity);
 
-		Allocator m_Allocator;
+		Allocator m_allocator;
 
 		T* m_Arr;
-		size_t m_Size = 0;
-		size_t m_Capacity;
+		size_t m_size = 0;
+		size_t m_capacity;
 	};
 
 	template<typename T>
-	inline BB::Array<T>::Array(Allocator a_Allocator)
-		: Array(a_Allocator, Array_Specs::standardSize) {}
+	inline BB::Array<T>::Array(Allocator a_allocator)
+		: Array(a_allocator, Array_Specs::standardSize) {}
 
 	template<typename T>
-	inline BB::Array<T>::Array(Allocator a_Allocator, size_t a_Size)
-		: m_Allocator(a_Allocator)
+	inline BB::Array<T>::Array(Allocator a_allocator, size_t a_size)
+		: m_allocator(a_allocator)
 	{
-		BB_ASSERT(a_Size != 0, "Dynamic_array size is specified to be 0");
-		m_Capacity = RoundUp(a_Size, Array_Specs::multipleValue);
+		BB_ASSERT(a_size != 0, "Dynamic_array size is specified to be 0");
+		m_capacity = RoundUp(a_size, Array_Specs::multipleValue);
 
-		m_Arr = reinterpret_cast<T*>(BBalloc(m_Allocator, m_Capacity * sizeof(T)));
+		m_Arr = reinterpret_cast<T*>(BBalloc(m_allocator, m_capacity * sizeof(T)));
 	}
 
 	template<typename T>
 	inline BB::Array<T>::Array(const Array<T>& a_Array)
 	{
-		m_Allocator = a_Array.m_Allocator;
-		m_Size = a_Array.m_Size;
-		m_Capacity = a_Array.m_Capacity;
-		m_Arr = reinterpret_cast<T*>(BBalloc(m_Allocator, m_Capacity * sizeof(T)));
+		m_allocator = a_Array.m_allocator;
+		m_size = a_Array.m_size;
+		m_capacity = a_Array.m_capacity;
+		m_Arr = reinterpret_cast<T*>(BBalloc(m_allocator, m_capacity * sizeof(T)));
 
-		Memory::Copy<T>(m_Arr, a_Array.m_Arr, m_Size);
+		Memory::Copy<T>(m_Arr, a_Array.m_Arr, m_size);
 	}
 
 	template<typename T>
 	inline BB::Array<T>::Array(Array<T>&& a_Array) noexcept
 	{
-		m_Allocator = a_Array.m_Allocator;
-		m_Size = a_Array.m_Size;
-		m_Capacity = a_Array.m_Capacity;
+		m_allocator = a_Array.m_allocator;
+		m_size = a_Array.m_size;
+		m_capacity = a_Array.m_capacity;
 		m_Arr = a_Array.m_Arr;
 
-		a_Array.m_Size = 0;
-		a_Array.m_Capacity = 0;
+		a_Array.m_size = 0;
+		a_Array.m_capacity = 0;
 		a_Array.m_Arr = nullptr;
-		a_Array.m_Allocator.allocator = nullptr;
-		a_Array.m_Allocator.func = nullptr;
+		a_Array.m_allocator.allocator = nullptr;
+		a_Array.m_allocator.func = nullptr;
 	}
 
 	template<typename T>
@@ -148,46 +148,46 @@ namespace BB
 		{
 			if constexpr (!trivialDestructible_T)
 			{
-				for (size_t i = 0; i < m_Size; i++)
+				for (size_t i = 0; i < m_size; i++)
 				{
 					m_Arr[i].~T();
 				}
 			}
 
-			BBfree(m_Allocator, m_Arr);
+			BBfree(m_allocator, m_Arr);
 		}
 	}
 
 	template<typename T>
-	inline Array<T>& BB::Array<T>::operator=(const Array<T>& a_Rhs)
+	inline Array<T>& BB::Array<T>::operator=(const Array<T>& a_rhs)
 	{
 		this->~Array();
 
-		m_Allocator = a_Rhs.m_Allocator;
-		m_Size = a_Rhs.m_Size;
-		m_Capacity = a_Rhs.m_Capacity;
-		m_Arr = reinterpret_cast<T*>(BBalloc(m_Allocator, m_Capacity * sizeof(T)));
+		m_allocator = a_rhs.m_allocator;
+		m_size = a_rhs.m_size;
+		m_capacity = a_rhs.m_capacity;
+		m_Arr = reinterpret_cast<T*>(BBalloc(m_allocator, m_capacity * sizeof(T)));
 
-		Memory::Copy<T>(m_Arr, a_Rhs.m_Arr, m_Size);
+		Memory::Copy<T>(m_Arr, a_rhs.m_Arr, m_size);
 		
 		return *this;
 	}
 
 	template<typename T>
-	inline Array<T>& BB::Array<T>::operator=(Array<T>&& a_Rhs) noexcept
+	inline Array<T>& BB::Array<T>::operator=(Array<T>&& a_rhs) noexcept
 	{
 		this->~Array();
 
-		m_Allocator = a_Rhs.m_Allocator;
-		m_Size = a_Rhs.m_Size;
-		m_Capacity = a_Rhs.m_Capacity;
-		m_Arr = a_Rhs.m_Arr;
+		m_allocator = a_rhs.m_allocator;
+		m_size = a_rhs.m_size;
+		m_capacity = a_rhs.m_capacity;
+		m_Arr = a_rhs.m_Arr;
 
-		a_Rhs.m_Size = 0;
-		a_Rhs.m_Capacity = 0;
-		a_Rhs.m_Arr = nullptr;
-		a_Rhs.m_Allocator.allocator = nullptr;
-		a_Rhs.m_Allocator.func = nullptr;
+		a_rhs.m_size = 0;
+		a_rhs.m_capacity = 0;
+		a_rhs.m_Arr = nullptr;
+		a_rhs.m_allocator.allocator = nullptr;
+		a_rhs.m_allocator.func = nullptr;
 
 		return *this;
 	}
@@ -195,7 +195,7 @@ namespace BB
 	template<typename T>
 	inline T& Array<T>::operator[](const size_t a_Index) const
 	{
-		BB_ASSERT(a_Index <= m_Size, "Dynamic_Array, trying to get an element using the [] operator but that element is not there.");
+		BB_ASSERT(a_Index <= m_size, "Dynamic_Array, trying to get an element using the [] operator but that element is not there.");
 		return m_Arr[a_Index];
 	}
 
@@ -208,12 +208,12 @@ namespace BB
 	template<typename T>
 	inline void Array<T>::push_back(const T* a_Elements, size_t a_Count)
 	{
-		if (m_Size + a_Count > m_Capacity)
+		if (m_size + a_Count > m_capacity)
 			grow(a_Count);
 
 		Memory::Copy<T>(m_Arr, a_Elements, a_Count);
 
-		m_Size += a_Count;
+		m_size += a_Count;
 	}
 
 	template<typename T>
@@ -226,25 +226,25 @@ namespace BB
 	template<class ...Args>
 	inline void BB::Array<T>::emplace_back(Args&&... a_Args)
 	{
-		if (m_Size >= m_Capacity)
+		if (m_size >= m_capacity)
 			grow();
 
-		new (&m_Arr[m_Size]) T(std::forward<Args>(a_Args)...);
-		m_Size++;
+		new (&m_Arr[m_size]) T(std::forward<Args>(a_Args)...);
+		m_size++;
 	}
 
 	template<typename T>
 	template<class ...Args>
 	inline void BB::Array<T>::emplace(size_t a_Position, Args&&... a_Args)
 	{
-		BB_ASSERT(m_Size >= a_Position, "trying to insert in a position that is bigger then the current Dynamic_Array size!");
-		if (m_Size >= m_Capacity)
+		BB_ASSERT(m_size >= a_Position, "trying to insert in a position that is bigger then the current Dynamic_Array size!");
+		if (m_size >= m_capacity)
 			grow();
 
 		if constexpr (!trivialDestructible_T)
 		{
 			//Move all elements after a_Position 1 to the front.
-			for (size_t i = m_Size; i > a_Position; i--)
+			for (size_t i = m_size; i > a_Position; i--)
 			{
 				new (&m_Arr[i]) T(m_Arr[i - 1]);
 				m_Arr[i - 1].~T();
@@ -254,20 +254,20 @@ namespace BB
 		{
 			//Move all elements after a_Position 1 to the front.
 			//Using memmove for more safety.
-			memmove(&m_Arr[a_Position + 1], &m_Arr[a_Position], sizeof(T) * (m_Size - a_Position));
+			memmove(&m_Arr[a_Position + 1], &m_Arr[a_Position], sizeof(T) * (m_size - a_Position));
 		}
 
 		new (&m_Arr[a_Position]) T(std::forward<Args>(a_Args)...);
-		m_Size++;
+		m_size++;
 	}
 
 
 	template<typename T>
-	inline void Array<T>::reserve(size_t a_Size)
+	inline void Array<T>::reserve(size_t a_size)
 	{
-		if (a_Size > m_Capacity)
+		if (a_size > m_capacity)
 		{
-			size_t t_ModifiedCapacity = RoundUp(a_Size, Array_Specs::multipleValue);
+			size_t t_ModifiedCapacity = RoundUp(a_size, Array_Specs::multipleValue);
 
 			reallocate(t_ModifiedCapacity);
 			return;
@@ -275,26 +275,26 @@ namespace BB
 	}
 
 	template<typename T>
-	inline void BB::Array<T>::resize(size_t a_Size)
+	inline void BB::Array<T>::resize(size_t a_size)
 	{
-		reserve(a_Size);
+		reserve(a_size);
 
-		for (size_t i = m_Size; i < a_Size; i++)
+		for (size_t i = m_size; i < a_size; i++)
 		{
 			new (&m_Arr[i]) T();
 		}
 
-		m_Size = a_Size;
+		m_size = a_size;
 	}
 
 	template<typename T>
 	inline void BB::Array<T>::pop()
 	{
-		BB_ASSERT(m_Size != 0, "Dynamic_Array, Popping while m_Size is 0!");
-		--m_Size;
+		BB_ASSERT(m_size != 0, "Dynamic_Array, Popping while m_size is 0!");
+		--m_size;
 		if constexpr (!trivialDestructible_T)
 		{
-			m_Arr[m_Size].~T();
+			m_Arr[m_size].~T();
 		}
 	}
 
@@ -303,18 +303,18 @@ namespace BB
 	{
 		if constexpr (!trivialDestructible_T)
 		{
-			for (size_t i = 0; i < m_Size; i++)
+			for (size_t i = 0; i < m_size; i++)
 			{
 				m_Arr[i].~T();
 			}
 		}
-		m_Size = 0;
+		m_size = 0;
 	}
 
 	template<typename T>
 	inline void Array<T>::grow(size_t a_MinCapacity)
 	{
-		size_t t_ModifiedCapacity = m_Capacity * 2;
+		size_t t_ModifiedCapacity = m_capacity * 2;
 
 		if (a_MinCapacity > t_ModifiedCapacity)
 			t_ModifiedCapacity = RoundUp(a_MinCapacity, Array_Specs::multipleValue);
@@ -323,14 +323,14 @@ namespace BB
 	}
 
 	template<typename T>
-	inline void Array<T>::reallocate(size_t a_NewCapacity)
+	inline void Array<T>::reallocate(size_t a_new_capacity)
 	{
-		T* t_NewArr = reinterpret_cast<T*>(BBalloc(m_Allocator, a_NewCapacity * sizeof(T)));
+		T* t_NewArr = reinterpret_cast<T*>(BBalloc(m_allocator, a_new_capacity * sizeof(T)));
 
-		Memory::Move(t_NewArr, m_Arr, m_Size);
-		BBfree(m_Allocator, m_Arr);
+		Memory::Move(t_NewArr, m_Arr, m_size);
+		BBfree(m_allocator, m_Arr);
 
 		m_Arr = t_NewArr;
-		m_Capacity = a_NewCapacity;
+		m_capacity = a_new_capacity;
 	}
 }

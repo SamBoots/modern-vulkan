@@ -2,12 +2,12 @@
 
 namespace BB
 {
-	void* ReallocTemp(BB_MEMORY_DEBUG void* a_Allocator, size_t a_Size, size_t a_Alignment, void*)
+	void* ReallocTemp(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, size_t a_Alignment, void*)
 	{
-		if (a_Size == 0)
+		if (a_size == 0)
 			return nullptr;
 
-		return reinterpret_cast<TemporaryAllocator*>(a_Allocator)->Alloc(a_Size, a_Alignment);
+		return reinterpret_cast<TemporaryAllocator*>(a_allocator)->Alloc(a_size, a_Alignment);
 	}
 
 	struct TemporaryFreeBlock
@@ -45,13 +45,13 @@ namespace BB
 		}
 	}
 
-	void* BB::TemporaryAllocator::Alloc(size_t a_Size, size_t a_Alignment)
+	void* BB::TemporaryAllocator::Alloc(size_t a_size, size_t a_Alignment)
 	{
 		size_t t_Adjustment = Pointer::AlignForwardAdjustment(
 			Pointer::Add(m_FreeBlock, m_FreeBlock->used),
 			a_Alignment);
 
-		size_t t_AlignedSize = a_Size + t_Adjustment;
+		size_t t_AlignedSize = a_size + t_Adjustment;
 
 		//Does it fit in our current block.
 		if (m_FreeBlock->size - m_FreeBlock->used >= t_AlignedSize)
@@ -75,7 +75,7 @@ namespace BB
 		m_FreeBlock->previousBlock = t_Previous;
 
 		//Try again with the new block
-		return Alloc(a_Size, a_Alignment);
+		return Alloc(a_size, a_Alignment);
 	}
 
 	void BB::TemporaryAllocator::Clear()
