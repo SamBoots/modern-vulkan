@@ -11,6 +11,8 @@
 //interface library in Cmake does not seem to include this directory. WHY?!
 #include "../../../lib/VMA/vk_mem_alloc.h"
 
+#include "Storage/Slotmap.h"
+
 using namespace BB;
 using namespace Render;
 
@@ -43,6 +45,31 @@ struct VulkanBuffer
 {
 	VkBuffer buffer;
 	VmaAllocation allocation;
+};
+
+static inline VkDeviceSize GetBufferDeviceAddress(const VkDevice a_device, const VkBuffer a_buffer)
+{
+	VkBufferDeviceAddressInfoKHR buffer_address_info{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
+	buffer_address_info.buffer = a_buffer;
+	return vkGetBufferDeviceAddress(a_device, &buffer_address_info);
+}
+
+class VulkanDescriptorLinearBuffer
+{
+public:
+	VulkanDescriptorLinearBuffer(const size_t a_buffer_size, const VkBufferUsageFlags a_buffer_usage);
+	~VulkanDescriptorLinearBuffer();
+
+	const DescriptorAllocation AllocateDescriptor(const uint32_t a_size);
+
+private:
+	VkBuffer m_buffer;
+	VmaAllocation m_allocation;
+	//using uint32_t since descriptor buffers on some drivers only spend 32-bits virtual address.
+	uint32_t m_size;
+	uint32_t m_offset;
+	void* m_start;
+	VkDeviceAddress m_start_address = 0;
 };
 
 constexpr int VULKAN_VERSION = 3;
@@ -251,7 +278,7 @@ VulkanQueueDeviceInfo FindQueueIndex(VkQueueFamilyProperties* a_queue_properties
 
 static VulkanQueuesIndices GetQueueIndices(Allocator a_temp_allocator, const VkPhysicalDevice a_phys_device)
 {
-	VulkanQueuesIndices return_value;
+	VulkanQueuesIndices return_value{};
 
 	uint32_t queue_family_count = 0;
 	vkGetPhysicalDeviceQueueFamilyProperties(a_phys_device, &queue_family_count, nullptr);
@@ -402,9 +429,10 @@ struct Vulkan_inst
 	VkQueue present_queue;
 	VmaAllocator vma;
 
-	uint32_t buffer_count = 0;
-	uint32_t buffer_max = 32;
-	VulkanBuffer* buffers;
+	//jank pointer
+	VulkanDescriptorLinearBuffer* pdescriptor_buffer;
+
+	StaticSlotmap<VulkanBuffer> buffers;
 
 	VulkanQueuesIndices queue_indices;
 	struct DeviceInfo
@@ -451,6 +479,46 @@ struct Vulkan_swapchain
 
 static Vulkan_inst* s_vulkan_inst = nullptr;
 static Vulkan_swapchain* s_vulkan_swapchain = nullptr;
+
+VulkanDescriptorLinearBuffer::VulkanDescriptorLinearBuffer(const size_t a_buffer_size, const VkBufferUsageFlags a_buffer_usage)
+	:	m_size(a_buffer_size)
+{
+	VkBufferCreateInfo buffer_info{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+	buffer_info.size = a_buffer_size;
+	buffer_info.usage = a_buffer_usage;
+	buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	VmaAllocationCreateInfo vma_alloc{};
+	vma_alloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+	vma_alloc.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+
+	VKASSERT(vmaCreateBuffer(s_vulkan_inst->vma,
+		&buffer_info, &vma_alloc,
+		&m_buffer, &m_allocation,
+		nullptr), "Vulkan::VMA, Failed to allocate memory for a descriptor buffer");
+
+	VKASSERT(vmaMapMemory(s_vulkan_inst->vma, m_allocation, &m_start),
+		"Vulkan: Failed to map memory for descriptor buffer");
+	m_start_address = GetBufferDeviceAddress(s_vulkan_inst->device, m_buffer);
+}
+
+VulkanDescriptorLinearBuffer::~VulkanDescriptorLinearBuffer()
+{
+	vmaUnmapMemory(s_vulkan_inst->vma, m_allocation);
+	vmaDestroyBuffer(s_vulkan_inst->vma, m_buffer, m_allocation);
+}
+
+const DescriptorAllocation VulkanDescriptorLinearBuffer::AllocateDescriptor(const uint32_t a_size)
+{
+	DescriptorAllocation allocation;
+
+	allocation.size = a_size;
+	allocation.offset = m_offset;
+
+	m_offset += a_size;
+
+	return allocation;
+}
 
 #ifdef _DEBUG
 static inline void SetDebugName_f(const char* a_name, const uint64_t a_object_handle, const VkObjectType a_obj_type)
@@ -584,18 +652,20 @@ bool Render::InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a
 		}
 	}
 
-	s_vulkan_inst->buffers = BBnewArr(a_stack_allocator, s_vulkan_inst->buffer_max, VulkanBuffer);
+	s_vulkan_inst->buffers.Init(a_stack_allocator, 128);
+	s_vulkan_inst->pdescriptor_buffer = BBnew(a_stack_allocator, VulkanDescriptorLinearBuffer)(
+		mbSize * 4,
+		VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
 
 	return true;
 }
 
-bool Render::CreateSwapchain(StackAllocator_t& a_stack_allocator, const WindowHandle a_window_handle, const uint32_t a_width, const uint32_t a_height, const uint32_t a_backbuffer_count)
+bool Render::CreateSwapchain(StackAllocator_t& a_stack_allocator, const WindowHandle a_window_handle, const uint32_t a_width, const uint32_t a_height, uint32_t& a_backbuffer_count)
 {
 	BB_ASSERT(s_vulkan_inst != nullptr, "trying to create a swapchain while vulkan is not initialized");
 	BB_ASSERT(s_vulkan_swapchain == nullptr, "trying to create a swapchain while one exists");
 	s_vulkan_swapchain = BBnew(a_stack_allocator, Vulkan_swapchain);
 	
-
 	BBStackAllocatorScope(a_stack_allocator)
 	{
 		//Surface
@@ -696,9 +766,7 @@ bool Render::CreateSwapchain(StackAllocator_t& a_stack_allocator, const WindowHa
 		const uint32_t backbuffer_count = Clamp(a_backbuffer_count, capabilities.minImageCount, capabilities.maxImageCount);
 		swapchain_create_info.minImageCount = backbuffer_count;
 		s_vulkan_swapchain->frame_count = backbuffer_count;
-
-		BB_WARNING(backbuffer_count == a_backbuffer_count, "backbuffer amount changed when creating swapchain", WarningType::HIGH);
-		BB_ASSERT(backbuffer_count <= a_backbuffer_count, "too many backbuffers", WarningType::HIGH);
+		a_backbuffer_count = backbuffer_count;
 
 		VKASSERT(vkCreateSwapchainKHR(s_vulkan_inst->device, 
 			&swapchain_create_info, 
@@ -803,24 +871,24 @@ const RBuffer Render::CreateBuffer(const BufferCreateInfo& a_create_info)
 	{
 	case BUFFER_TYPE::UPLOAD:
 		buffer_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-		vma_alloc.usage == VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+		vma_alloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
 		vma_alloc.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
 		break;
 	case BUFFER_TYPE::STORAGE:
 		buffer_info.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-		vma_alloc.usage == VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+		vma_alloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 		break;
 	case BUFFER_TYPE::UNIFORM:
 		buffer_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-		vma_alloc.usage == VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+		vma_alloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 		break;
 	case BUFFER_TYPE::VERTEX:
 		buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-		vma_alloc.usage == VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+		vma_alloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 		break;
 	case BUFFER_TYPE::INDEX:
 		buffer_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-		vma_alloc.usage == VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+		vma_alloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 		break;
 	default:
 		BB_ASSERT(false, "unknown buffer type");
@@ -834,7 +902,24 @@ const RBuffer Render::CreateBuffer(const BufferCreateInfo& a_create_info)
 
 	SetDebugName(a_create_info.name, buffer.buffer, VK_OBJECT_TYPE_BUFFER);
 
-	const uint32_t buffer_pos = s_vulkan_inst->buffer_count++;
-	s_vulkan_inst->buffers[buffer_pos] = buffer;
-	return RBuffer(buffer_pos);
+	return RBuffer(s_vulkan_inst->buffers.insert(buffer).handle);
+}
+
+void Render::FreeBuffer(const RBuffer a_buffer)
+{
+	s_vulkan_inst->buffers.erase(a_buffer.handle);
+}
+
+void* Render::MapBufferMemory(const RBuffer a_buffer)
+{
+	const VulkanBuffer& buffer = s_vulkan_inst->buffers.find(a_buffer.handle);
+	void* mapped;
+	vmaMapMemory(s_vulkan_inst->vma, buffer.allocation, &mapped);
+	return mapped;
+}
+
+void  Render::UnmapBufferMemory(const RBuffer a_buffer)
+{
+	const VulkanBuffer& buffer = s_vulkan_inst->buffers.find(a_buffer.handle);
+	vmaUnmapMemory(s_vulkan_inst->vma, buffer.allocation);
 }

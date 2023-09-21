@@ -9,6 +9,12 @@ namespace BB
 		struct BufferView
 		{
 			RBuffer buffer;
+			uint64_t size;
+			uint64_t offset;
+		};
+
+		struct DescriptorAllocation
+		{
 			uint32_t size;
 			uint32_t offset;
 		};

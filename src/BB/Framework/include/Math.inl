@@ -300,7 +300,7 @@ namespace BB
 		float3 u = (a * y) - (b * x);
 		float3 v = (c * w) - (d * z);
 
-		float inv_det = 1.0f / (Float3Dot(s, v) + Float3Dot(t, u));
+		const float inv_det = 1.0f / (Float3Dot(s, v) + Float3Dot(t, u));
 		s = (s * inv_det);
 		t = (t * inv_det);
 		u = (u * inv_det);
