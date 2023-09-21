@@ -112,6 +112,10 @@ struct RenderInterface_inst
 	} *frames;
 
 	StaticSlotmap<Mesh> mesh_map{};
+
+	uint32_t draw_list_count;
+	uint32_t draw_list_max;
+	DrawList* draw_lists;
 };
 
 static RenderInterface_inst* s_render_inst;
@@ -168,6 +172,9 @@ void Render::InitializeRenderer(StackAllocator_t& a_stack_allocator, const Rende
 	s_render_inst->swapchain_height = a_render_create_info.swapchain_height;
 	s_render_inst->debug = a_render_create_info.debug;
 
+	s_render_inst->draw_list_max = 128;
+	s_render_inst->draw_list_count = 0;
+	s_render_inst->draw_lists = BBnewArr(a_stack_allocator, s_render_inst->draw_list_max, DrawList);
 	s_render_inst->mesh_map.Init(a_stack_allocator, 32);
 
 	{
@@ -194,6 +201,9 @@ void Render::InitializeRenderer(StackAllocator_t& a_stack_allocator, const Rende
 
 void  Render::StartFrame()
 {
+	//clear the drawlist, maybe do this on a per-frame basis of we do GPU upload?
+	s_render_inst->draw_list_count = 0;
+
 	//setup rendering
 	VulkanStartFrame(s_render_inst->backbuffer_pos);
 }
@@ -227,5 +237,8 @@ void Render::FreeMesh(const MeshHandle a_mesh)
 
 void Render::DrawMesh(const MeshHandle a_mesh, const Mat4x4& a_transform)
 {
-
+	DrawList draw_list;
+	draw_list.mesh = a_mesh;
+	draw_list.matrix = a_transform;
+	s_render_inst->draw_lists[s_render_inst->draw_list_count++] = draw_list;
 }

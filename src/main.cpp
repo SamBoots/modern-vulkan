@@ -83,12 +83,18 @@ int main(int argc, char** argv)
 			}
 		}
 
+
 		
 		BBStackAllocatorScope(main_allocator)
 		{
+			Render::StartFrame();
+
 			//draw stuff here!
 			Render::DrawMesh(quad_mesh, Mat4x4Identity());
+
+			Render::EndFrame();
 		}
+
 	}
 
 	DirectDestroyOSWindow(window);

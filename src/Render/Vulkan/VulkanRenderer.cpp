@@ -810,8 +810,6 @@ bool Render::CreateSwapchain(StackAllocator_t& a_stack_allocator, const WindowHa
 			nullptr, 
 			&s_vulkan_swapchain->swapchain), 
 			"Vulkan: Failed to create swapchain.");
-
-		return true;
 	}
 
 	s_vulkan_swapchain->frames = BBnewArr(a_stack_allocator, s_vulkan_swapchain->frame_count, Vulkan_swapchain::swapchain_frame);
@@ -861,6 +859,8 @@ bool Render::CreateSwapchain(StackAllocator_t& a_stack_allocator, const WindowHa
 				&s_vulkan_swapchain->frames[i].present_finished_semaphore);
 		}
 	}
+
+	return true;
 }
 
 bool Render::VulkanStartFrame(const uint32_t a_backbuffer)
