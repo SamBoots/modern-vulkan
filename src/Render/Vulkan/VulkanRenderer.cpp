@@ -60,7 +60,7 @@ public:
 	VulkanDescriptorLinearBuffer(const size_t a_buffer_size, const VkBufferUsageFlags a_buffer_usage);
 	~VulkanDescriptorLinearBuffer();
 
-	const DescriptorAllocation AllocateDescriptor(const uint32_t a_size);
+	const DescriptorAllocation AllocateDescriptor(const RDescriptor a_descriptor);
 
 private:
 	VkBuffer m_buffer;
@@ -138,6 +138,36 @@ static bool CheckExtensionSupport(Allocator a_temp_allocator, Slice<const char*>
 		}
 	}
 	return true;
+}
+
+static inline VkDescriptorType DescriptorBufferType(const RENDER_DESCRIPTOR_TYPE a_Type)
+{
+	switch (a_Type)
+	{
+	case RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT:	return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	case RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER:	return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	case RENDER_DESCRIPTOR_TYPE::READWRITE:			return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	case RENDER_DESCRIPTOR_TYPE::IMAGE:				return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+	case RENDER_DESCRIPTOR_TYPE::SAMPLER:			return VK_DESCRIPTOR_TYPE_SAMPLER;
+	default:
+		BB_ASSERT(false, "Vulkan: RENDER_DESCRIPTOR_TYPE failed to convert to a VkDescriptorType.");
+		return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		break;
+	}
+}
+
+static inline VkShaderStageFlagBits ShaderStageBits(const RENDER_SHADER_STAGE a_Stage)
+{
+	switch (a_Stage)
+	{
+	case RENDER_SHADER_STAGE::ALL:					return VK_SHADER_STAGE_ALL;
+	case RENDER_SHADER_STAGE::VERTEX:				return VK_SHADER_STAGE_VERTEX_BIT;
+	case RENDER_SHADER_STAGE::FRAGMENT_PIXEL:		return VK_SHADER_STAGE_FRAGMENT_BIT;
+	default:
+		BB_ASSERT(false, "Vulkan: RENDER_SHADER_STAGE failed to convert to a VkShaderStageFlagBits.");
+		return VK_SHADER_STAGE_ALL;
+		break;
+	}
 }
 
 static bool CheckValidationLayerSupport(Allocator a_temp_allocator, const Slice<const char*> a_layers)
@@ -508,14 +538,21 @@ VulkanDescriptorLinearBuffer::~VulkanDescriptorLinearBuffer()
 	vmaDestroyBuffer(s_vulkan_inst->vma, m_buffer, m_allocation);
 }
 
-const DescriptorAllocation VulkanDescriptorLinearBuffer::AllocateDescriptor(const uint32_t a_size)
+const DescriptorAllocation VulkanDescriptorLinearBuffer::AllocateDescriptor(const RDescriptor a_descriptor)
 {
 	DescriptorAllocation allocation;
+	const VkDescriptorSetLayout descriptor_set = reinterpret_cast<VkDescriptorSetLayout>(a_descriptor.handle);
+	VkDeviceSize descriptors_size;
+	s_vulkan_inst->pfn.GetDescriptorSetLayoutSizeEXT(
+		s_vulkan_inst->device,
+		descriptor_set,
+		&descriptors_size);
 
-	allocation.size = a_size;
+	allocation.descriptor = a_descriptor;
+	allocation.size = descriptors_size;
 	allocation.offset = m_offset;
 
-	m_offset += a_size;
+	m_offset += descriptors_size;
 
 	return allocation;
 }
@@ -635,7 +672,7 @@ bool Render::InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a
 		}
 
 		{	//VMA stuff
-				//Setup the Vulkan Memory Allocator
+			//Setup the Vulkan Memory Allocator
 			VmaVulkanFunctions vk_functions{};
 			vk_functions.vkGetInstanceProcAddr = &vkGetInstanceProcAddr;
 			vk_functions.vkGetDeviceProcAddr = &vkGetDeviceProcAddr;
@@ -908,6 +945,73 @@ const RBuffer Render::CreateBuffer(const BufferCreateInfo& a_create_info)
 void Render::FreeBuffer(const RBuffer a_buffer)
 {
 	s_vulkan_inst->buffers.erase(a_buffer.handle);
+}
+
+RDescriptor Render::CreateDescriptor(Allocator a_temp_allocator, Slice<DescriptorBindingInfo> a_bindings)
+{
+	VkDescriptorSetLayout set_layout;
+
+	VkDescriptorSetLayoutBinding* layout_binds = BBnewArr(
+		a_temp_allocator,
+		a_bindings.size(),
+		VkDescriptorSetLayoutBinding);
+
+	VkDescriptorBindingFlags* bindless_flags = BBnewArr(
+		a_temp_allocator,
+		a_bindings.size(),
+		VkDescriptorBindingFlags);
+	bool is_bindless = false;
+
+	for (size_t i = 0; i < a_bindings.size(); i++)
+	{
+		const DescriptorBindingInfo& binding = a_bindings[i];
+		layout_binds[i].binding = binding.binding;
+		layout_binds[i].descriptorCount = binding.count;
+		layout_binds[i].descriptorType = DescriptorBufferType(binding.type);
+		layout_binds[i].stageFlags = ShaderStageBits(binding.shader_stage);
+
+		if (binding.count > 1)
+		{
+			is_bindless = true;
+			bindless_flags[i] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
+				VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;
+		}
+		else
+			bindless_flags[i] = 0;
+	}
+
+	VkDescriptorSetLayoutCreateInfo layout_info{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+	layout_info.pBindings = layout_binds;
+	layout_info.bindingCount = static_cast<uint32_t>(a_bindings.size());
+	layout_info.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
+
+	if (is_bindless) //if bindless add another struct and return here.
+	{
+		VkDescriptorSetLayoutBindingFlagsCreateInfo t_LayoutExtInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT };
+		t_LayoutExtInfo.bindingCount = static_cast<uint32_t>(a_bindings.size());
+		t_LayoutExtInfo.pBindingFlags = bindless_flags;
+
+		layout_info.pNext = &t_LayoutExtInfo;
+
+		//Do some algorithm to see if I already made a descriptorlayout like this one.
+		VKASSERT(vkCreateDescriptorSetLayout(s_vulkan_inst->device,
+			&layout_info, nullptr, &set_layout),
+			"Vulkan: Failed to create a descriptorsetlayout.");
+	}
+	else
+	{
+		//Do some algorithm to see if I already made a descriptorlayout like this one.
+		VKASSERT(vkCreateDescriptorSetLayout(s_vulkan_inst->device,
+			&layout_info, nullptr, &set_layout),
+			"Vulkan: Failed to create a descriptorsetlayout.");
+	}
+
+	return RDescriptor((uint64_t)set_layout);
+}
+
+DescriptorAllocation Render::AllocateDescriptor(const RDescriptor a_descriptor)
+{
+	return s_vulkan_inst->pdescriptor_buffer->AllocateDescriptor(a_descriptor);
 }
 
 void* Render::MapBufferMemory(const RBuffer a_buffer)

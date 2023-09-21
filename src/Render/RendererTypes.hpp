@@ -15,6 +15,7 @@ namespace BB
 
 		struct DescriptorAllocation
 		{
+			RDescriptor descriptor;
 			uint32_t size;
 			uint32_t offset;
 		};
