@@ -511,7 +511,7 @@ static Vulkan_inst* s_vulkan_inst = nullptr;
 static Vulkan_swapchain* s_vulkan_swapchain = nullptr;
 
 VulkanDescriptorLinearBuffer::VulkanDescriptorLinearBuffer(const size_t a_buffer_size, const VkBufferUsageFlags a_buffer_usage)
-	:	m_size(a_buffer_size)
+	:	m_size(static_cast<uint32_t>(a_buffer_size))
 {
 	VkBufferCreateInfo buffer_info{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
 	buffer_info.size = a_buffer_size;
@@ -549,10 +549,10 @@ const DescriptorAllocation VulkanDescriptorLinearBuffer::AllocateDescriptor(cons
 		&descriptors_size);
 
 	allocation.descriptor = a_descriptor;
-	allocation.size = descriptors_size;
+	allocation.size = static_cast<uint32_t>(descriptors_size);
 	allocation.offset = m_offset;
 
-	m_offset += descriptors_size;
+	m_offset += allocation.size;
 
 	return allocation;
 }
@@ -573,7 +573,7 @@ static inline void SetDebugName_f(const char* a_name, const uint64_t a_object_ha
 #define SetDebugName()
 #endif _DEBUG
 
-bool Render::InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a_app_name, const char* a_engine_name, const bool a_debug)
+bool Vulkan::InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a_app_name, const char* a_engine_name, const bool a_debug)
 {
 	BB_ASSERT(s_vulkan_inst == nullptr, "trying to initialize vulkan while it's already initialized");
 	s_vulkan_inst = BBnew(a_stack_allocator, Vulkan_inst) {};
@@ -694,10 +694,16 @@ bool Render::InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a
 		mbSize * 4,
 		VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
 
+	//Get the present queue.
+	vkGetDeviceQueue(s_vulkan_inst->device,
+		s_vulkan_inst->queue_indices.present,
+		0,
+		&s_vulkan_inst->present_queue);
+
 	return true;
 }
 
-bool Render::CreateSwapchain(StackAllocator_t& a_stack_allocator, const WindowHandle a_window_handle, const uint32_t a_width, const uint32_t a_height, uint32_t& a_backbuffer_count)
+bool Vulkan::CreateSwapchain(StackAllocator_t& a_stack_allocator, const WindowHandle a_window_handle, const uint32_t a_width, const uint32_t a_height, uint32_t& a_backbuffer_count)
 {
 	BB_ASSERT(s_vulkan_inst != nullptr, "trying to create a swapchain while vulkan is not initialized");
 	BB_ASSERT(s_vulkan_swapchain == nullptr, "trying to create a swapchain while one exists");
@@ -708,7 +714,7 @@ bool Render::CreateSwapchain(StackAllocator_t& a_stack_allocator, const WindowHa
 		//Surface
 		VkWin32SurfaceCreateInfoKHR surface_create_info{};
 		surface_create_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-		surface_create_info.hwnd = reinterpret_cast<HWND>(a_window_handle.ptrHandle);
+		surface_create_info.hwnd = reinterpret_cast<HWND>(a_window_handle.ptr_handle);
 		surface_create_info.hinstance = GetModuleHandle(nullptr);
 		VKASSERT(vkCreateWin32SurfaceKHR(s_vulkan_inst->instance,
 			&surface_create_info,
@@ -863,7 +869,7 @@ bool Render::CreateSwapchain(StackAllocator_t& a_stack_allocator, const WindowHa
 	return true;
 }
 
-bool Render::VulkanStartFrame(const uint32_t a_backbuffer)
+bool Vulkan::StartFrame(const uint32_t a_backbuffer)
 {
 	uint32_t image_index;
 	VKASSERT(vkAcquireNextImageKHR(s_vulkan_inst->device,
@@ -877,7 +883,7 @@ bool Render::VulkanStartFrame(const uint32_t a_backbuffer)
 	return true;
 }
 
-bool Render::VulkanEndFrame(const uint32_t a_backbuffer)
+bool Vulkan::EndFrame(const uint32_t a_backbuffer)
 {
 	VkPresentInfoKHR present_info{};
 	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -894,7 +900,55 @@ bool Render::VulkanEndFrame(const uint32_t a_backbuffer)
 	return true;
 }
 
-const RBuffer Render::CreateBuffer(const BufferCreateInfo& a_create_info)
+void Vulkan::CreateCommandPool(const RENDER_QUEUE_TYPE a_queue_type, const uint32_t a_command_list_count, RCommandPool& a_pool, CommandList* a_plists)
+{
+	VkCommandPoolCreateInfo pool_create_info{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
+	switch (a_queue_type)
+	{
+	case RENDER_QUEUE_TYPE::GRAPHICS:
+		pool_create_info.queueFamilyIndex = s_vulkan_inst->queue_indices.graphics;
+		break;
+	case RENDER_QUEUE_TYPE::TRANSFER:
+		pool_create_info.queueFamilyIndex = s_vulkan_inst->queue_indices.transfer;
+		break;
+	case RENDER_QUEUE_TYPE::COMPUTE:
+		pool_create_info.queueFamilyIndex = s_vulkan_inst->queue_indices.compute;
+		break;
+	default:
+		BB_ASSERT(false, "Vulkan: Tried to make a command allocator with a queue type that does not exist.");
+		break;
+	}
+
+	VkCommandPool command_pool;
+
+	VKASSERT(vkCreateCommandPool(s_vulkan_inst->device,
+		&pool_create_info,
+		nullptr,
+		&command_pool),
+		"Vulkan: Failed to create command pool.");
+
+	VkCommandBufferAllocateInfo list_create_info{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
+	list_create_info.commandPool = command_pool;
+	list_create_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	list_create_info.commandBufferCount = a_command_list_count;
+
+	VkCommandBuffer* cmd_buffers = reinterpret_cast<VkCommandBuffer*>(&a_plists);
+
+	VKASSERT(vkAllocateCommandBuffers(s_vulkan_inst->device,
+		&list_create_info,
+		cmd_buffers),
+		"Vulkan: Failed to allocate command buffers!");
+
+
+	a_pool = (uintptr_t)command_pool;
+}
+
+void Vulkan::FreeCommandPool(const RCommandPool a_pool)
+{
+	vkDestroyCommandPool(s_vulkan_inst->device, reinterpret_cast<VkCommandPool>(a_pool.handle), nullptr);
+}
+
+const RBuffer Vulkan::CreateBuffer(const BufferCreateInfo& a_create_info)
 {
 	VulkanBuffer buffer;
 
@@ -942,12 +996,12 @@ const RBuffer Render::CreateBuffer(const BufferCreateInfo& a_create_info)
 	return RBuffer(s_vulkan_inst->buffers.insert(buffer).handle);
 }
 
-void Render::FreeBuffer(const RBuffer a_buffer)
+void Vulkan::FreeBuffer(const RBuffer a_buffer)
 {
 	s_vulkan_inst->buffers.erase(a_buffer.handle);
 }
 
-RDescriptor Render::CreateDescriptor(Allocator a_temp_allocator, Slice<DescriptorBindingInfo> a_bindings)
+RDescriptor Vulkan::CreateDescriptor(Allocator a_temp_allocator, Slice<DescriptorBindingInfo> a_bindings)
 {
 	VkDescriptorSetLayout set_layout;
 
@@ -1009,12 +1063,12 @@ RDescriptor Render::CreateDescriptor(Allocator a_temp_allocator, Slice<Descripto
 	return RDescriptor((uint64_t)set_layout);
 }
 
-DescriptorAllocation Render::AllocateDescriptor(const RDescriptor a_descriptor)
+DescriptorAllocation Vulkan::AllocateDescriptor(const RDescriptor a_descriptor)
 {
 	return s_vulkan_inst->pdescriptor_buffer->AllocateDescriptor(a_descriptor);
 }
 
-void* Render::MapBufferMemory(const RBuffer a_buffer)
+void* Vulkan::MapBufferMemory(const RBuffer a_buffer)
 {
 	const VulkanBuffer& buffer = s_vulkan_inst->buffers.find(a_buffer.handle);
 	void* mapped;
@@ -1022,8 +1076,61 @@ void* Render::MapBufferMemory(const RBuffer a_buffer)
 	return mapped;
 }
 
-void  Render::UnmapBufferMemory(const RBuffer a_buffer)
+void Vulkan::UnmapBufferMemory(const RBuffer a_buffer)
 {
 	const VulkanBuffer& buffer = s_vulkan_inst->buffers.find(a_buffer.handle);
 	vmaUnmapMemory(s_vulkan_inst->vma, buffer.allocation);
+}
+
+void Vulkan::ResetCommandPool(const RCommandPool a_pool)
+{
+	const VkCommandPool cmd_pool = reinterpret_cast<VkCommandPool>(a_pool.handle);
+	vkResetCommandPool(s_vulkan_inst->device, cmd_pool, 0);
+}
+
+void Vulkan::StartCommandList(const RCommandList a_list, const char* a_name)
+{
+	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+	VkCommandBufferBeginInfo cmd_begin_info{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+	VKASSERT(vkBeginCommandBuffer(cmd_list,
+		&cmd_begin_info),
+		"Vulkan: Failed to begin commandbuffer");
+
+	SetDebugName(a_name, cmd_list, VK_OBJECT_TYPE_COMMAND_BUFFER);
+}
+
+void Vulkan::EndCommandList(const RCommandList a_list)
+{
+	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+	VKASSERT(vkEndCommandBuffer(cmd_list), "Vulkan: Error when trying to end commandbuffer!");
+	SetDebugName(nullptr, cmd_list, VK_OBJECT_TYPE_COMMAND_BUFFER);
+}
+
+RQueue Vulkan::GetQueue(const RENDER_QUEUE_TYPE a_queue_type, const char* a_name)
+{
+	uint32_t queue_index;
+	switch (a_queue_type)
+	{
+	case RENDER_QUEUE_TYPE::GRAPHICS:
+		queue_index = s_vulkan_inst->queue_indices.graphics;
+		break;
+	case RENDER_QUEUE_TYPE::TRANSFER:
+		queue_index = s_vulkan_inst->queue_indices.transfer;
+		break;
+	case RENDER_QUEUE_TYPE::COMPUTE:
+		queue_index = s_vulkan_inst->queue_indices.compute;
+		break;
+	default:
+		BB_ASSERT(false, "Vulkan: Trying to get a device queue that you didn't setup yet.");
+		break;
+	}
+	VkQueue queue;
+	vkGetDeviceQueue(s_vulkan_inst->device,
+		queue_index,
+		0,
+		&queue);
+
+	SetDebugName(a_name, queue, VK_OBJECT_TYPE_QUEUE);
+
+	return RQueue((uint64_t)queue);
 }

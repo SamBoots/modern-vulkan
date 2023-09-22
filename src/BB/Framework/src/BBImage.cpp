@@ -175,10 +175,10 @@ void FilterImagePart(void* a_param)
 
 						const __m128 simd_filter = _mm_set_ps1(params.filter[filterY * params.filter_width + filterX]);
 						const __m128 rgba_mod = _mm_set_ps(
-							(pixel & 0x000000ff) >> 0,
-							(pixel & 0x0000ff00) >> 8,
-							(pixel & 0x00ff0000) >> 16,
-							(pixel & 0xff000000) >> 24);
+							static_cast<float>((pixel & 0x000000ff) >> 0),
+							static_cast<float>((pixel & 0x0000ff00) >> 8),
+							static_cast<float>((pixel & 0x00ff0000) >> 16),
+							static_cast<float>((pixel & 0xff000000) >> 24));
 
 						simd_rgba = _mm_add_ps(simd_rgba, _mm_mul_ps(rgba_mod, simd_filter));
 					}
@@ -209,10 +209,10 @@ void FilterImagePart(void* a_param)
 						const uint32_t imageY = (y - params.filter_height / 2 + filterY + params.img_height) % params.img_height;
 						const uint32_t pixel = reinterpret_cast<const uint32_t*>(params.img_start_old_pixel)[imageY * params.img_width + imageX];
 						const float filter = params.filter[filterY * params.filter_width + filterX];
-						a += ((pixel & 0x000000ff) >> 24) * filter;
-						r += ((pixel & 0x0000ff00) >> 16) * filter;
-						g += ((pixel & 0x00ff0000) >> 8) * filter;
-						b += ((pixel & 0xff000000) >> 0) * filter;
+						a += static_cast<float>((pixel & 0x000000ff) >> 24) * filter;
+						r += static_cast<float>((pixel & 0x0000ff00) >> 16) * filter;
+						g += static_cast<float>((pixel & 0x00ff0000) >> 8) * filter;
+						b += static_cast<float>((pixel & 0xff000000) >> 0) * filter;
 					}
 
 				a = Clampf(params.factor * a + params.bias, 0, 255);
@@ -256,7 +256,7 @@ void BBImage::FilterImage(Allocator a_temp_allocator, const float* a_filter, con
 		params[0].factor = a_factor;
 		params[0].bias = a_bias;
 
-		for (size_t i = 0; i < worker_threads; i++)
+		for (uint32_t i = 0; i < worker_threads; i++)
 		{
 			params[i] = params[0];
 			params[i].img_height_start = pixel_height_per_thread * i;
@@ -294,10 +294,10 @@ void BBImage::FilterImage(Allocator a_temp_allocator, const float* a_filter, con
 
 						const __m128 simd_filter = _mm_set_ps1(a_filter[filterY * a_filter_width + filterX]);
 						const __m128 rgba_mod = _mm_set_ps(
-							(pixel & 0x000000ff) >> 0,
-							(pixel & 0x0000ff00) >> 8,
-							(pixel & 0x00ff0000) >> 16,
-							(pixel & 0xff000000) >> 24);
+							static_cast<float>((pixel & 0x000000ff) >> 0),
+							static_cast<float>((pixel & 0x0000ff00) >> 8),
+							static_cast<float>((pixel & 0x00ff0000) >> 16),
+							static_cast<float>((pixel & 0xff000000) >> 24));
 
 						simd_rgba = _mm_add_ps(simd_rgba, _mm_mul_ps(rgba_mod, simd_filter));
 					}
@@ -330,10 +330,10 @@ void BBImage::FilterImage(Allocator a_temp_allocator, const float* a_filter, con
 						const uint32_t pixel = reinterpret_cast<uint32_t*>(old_data)[imageY * m_width + imageX];
 						const float filter = a_filter[filterY * a_filter_width + filterX];
 
-						b += ((pixel & 0x000000ff) >> 0) * filter;
-						g += ((pixel & 0x0000ff00) >> 8) * filter;
-						r += ((pixel & 0x00ff0000) >> 16) * filter;
-						a += ((pixel & 0xff000000) >> 24) * filter;
+						b += static_cast<float>(((pixel & 0x000000ff) >> 0)) * filter;
+						g += static_cast<float>(((pixel & 0x0000ff00) >> 8)) * filter;
+						r += static_cast<float>(((pixel & 0x00ff0000) >> 16)) * filter;
+						a += static_cast<float>(((pixel & 0xff000000) >> 24)) * filter;
 					}
 
 				r = Clampf(a_factor * r + a_bias, 0, 255);

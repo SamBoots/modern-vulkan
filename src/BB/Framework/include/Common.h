@@ -38,20 +38,20 @@ namespace BB
 		{
 			handle = a_handle;
 		};
-		FrameworkHandle(uint32_t a_Index, uint32_t a_ExtraIndex)
+		FrameworkHandle(uint32_t a_Index, uint32_t a_extra_index)
 		{
 			index = a_Index;
-			extraIndex = a_ExtraIndex;
+			extra_index = a_extra_index;
 		};
 		struct
 		{
 			//The handle's main index. Always used and is the main handle.
 			uint32_t index;
 			//A extra handle index, can be used to track something else. Usually this value is 0 or is part of a pointer.
-			uint32_t extraIndex;
+			uint32_t extra_index;
 		};
 		//Some handles work with pointers.
-		void* ptrHandle;
+		void* ptr_handle;
 		uint64_t handle{};
 
 		inline bool operator ==(FrameworkHandle a_rhs) const { return handle == a_rhs.handle; }
@@ -64,7 +64,7 @@ namespace BB
 	using OSFileHandle = FrameworkHandle<struct OSFileHandleTag>;
 	using BBMutex = FrameworkHandle<struct BBMutexTag>;
 	using BBSemaphore = FrameworkHandle<struct BBSemaphoreTag>;
-	using BBRWLock = FrameworkHandle<struct RWLockTag>;
+	using BBRWLock = FrameworkHandle<struct BBRWLockTag>;
 	using BBConditionalVariable = FrameworkHandle<struct BBConditionalVariableTag>;
 	using ThreadTask = FrameworkHandle<struct ThreadTasktag>;
 

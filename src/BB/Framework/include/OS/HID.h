@@ -100,11 +100,10 @@ namespace BB
 
 	struct InputEvent
 	{
-		InputEvent() {}; //WHY C++, had to do this as it appearantly deleted the standard constructor.
-		INPUT_TYPE inputType{};
+		INPUT_TYPE inputType;
 		union
 		{
-			MouseInfo mouseInfo{};
+			MouseInfo mouseInfo;
 			KeyInfo keyInfo;
 		};
 	};

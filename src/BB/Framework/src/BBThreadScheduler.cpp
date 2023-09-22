@@ -15,7 +15,7 @@ struct ThreadInfo
 	void(*function)(void*);
 	void* functionParameter;
 	THREAD_STATUS threadStatus;
-	//debug value for the ThreadHandle extraIndex;
+	//debug value for the ThreadHandle extra_index;
 	BBConditionalVariable condition;
 	uint32_t generation;
 };
@@ -122,12 +122,12 @@ ThreadTask BB::Threads::StartTaskThread(void(*a_Function)(void*), void* a_FuncPa
 
 void BB::Threads::WaitForTask(const ThreadTask a_handle)
 {
-	while (s_ThreadScheduler.threads[a_handle.index].threadInfo.generation < a_handle.extraIndex) {};
+	while (s_ThreadScheduler.threads[a_handle.index].threadInfo.generation < a_handle.extra_index) {};
 }
 
 bool BB::Threads::TaskFinished(const ThreadTask a_handle)
 {
-	if (s_ThreadScheduler.threads[a_handle.index].threadInfo.generation <= a_handle.extraIndex)
+	if (s_ThreadScheduler.threads[a_handle.index].threadInfo.generation <= a_handle.extra_index)
 		return true;
 
 	return false;

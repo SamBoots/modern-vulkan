@@ -5,6 +5,15 @@ namespace BB
 {
 	namespace Render
 	{
+		struct BufferView;
+
+		using RCommandPool = FrameworkHandle<struct RCommandPoolTag>;
+		using RCommandList = FrameworkHandle<struct RCommandListTag>;
+
+		using RDescriptor = FrameworkHandle<struct RDescriptorTag>;
+		using RBuffer = FrameworkHandle<struct RBufferTag>;
+		using MeshHandle = FrameworkHandle<struct MeshHandleTag>;
+
 		struct Vertex
 		{
 			float3 pos;
@@ -12,9 +21,10 @@ namespace BB
 			float2 uv;
 			float3 color;
 		};
-		struct BufferView;
-		using RDescriptor = FrameworkHandle<struct RDescriptorTag>;
-		using RBuffer = FrameworkHandle<struct RBufferTag>;
-		using MeshHandle = FrameworkHandle<struct MeshHandleTag>;
+
+		struct CommandList //MUST BE 8 BYTES!!!! it's just an interface.
+		{
+			RCommandList api_cmd_list;
+		};
 	}
 }

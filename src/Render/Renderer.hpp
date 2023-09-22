@@ -28,7 +28,6 @@ namespace BB
 		void StartFrame();
 		void EndFrame();
 
-
 		MeshHandle CreateMesh(const CreateMeshInfo& a_create_info);
 		void FreeMesh(const MeshHandle a_mesh);
 
