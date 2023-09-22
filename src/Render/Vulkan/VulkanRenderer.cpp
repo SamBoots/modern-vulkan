@@ -1106,6 +1106,41 @@ void Vulkan::EndCommandList(const RCommandList a_list)
 	SetDebugName(nullptr, cmd_list, VK_OBJECT_TYPE_COMMAND_BUFFER);
 }
 
+RFence Vulkan::CreateFence(const uint64_t a_initial_value, const char* a_name)
+{
+	VkSemaphoreTypeCreateInfo timeline_semaphore_info{ VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO };
+	timeline_semaphore_info.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+	timeline_semaphore_info.initialValue = a_initial_value;
+
+	VkSemaphoreCreateInfo semaphore_create_info{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
+	semaphore_create_info.pNext = &timeline_semaphore_info;
+
+	VkSemaphore timeline_semaphore;
+	vkCreateSemaphore(s_vulkan_inst->device,
+		&semaphore_create_info,
+		nullptr,
+		&timeline_semaphore);
+
+	SetDebugName(a_name, timeline_semaphore, VK_OBJECT_TYPE_SEMAPHORE);
+
+	return RFence((uintptr_t)timeline_semaphore);
+}
+
+void Vulkan::FreeFence(const RFence a_fence)
+{
+	vkDestroySemaphore(s_vulkan_inst->device, reinterpret_cast<VkSemaphore>(a_fence.handle), nullptr);
+}
+
+void Vulkan::WaitFences(const RFence* a_fences, const uint64_t* a_fence_values, const uint32_t a_fence_count)
+{
+	VkSemaphoreWaitInfo t_WaitInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO };
+	t_WaitInfo.semaphoreCount = a_fence_count;
+	t_WaitInfo.pSemaphores = reinterpret_cast<const VkSemaphore*>(a_fences);
+	t_WaitInfo.pValues = a_fence_values;
+
+	vkWaitSemaphores(s_vulkan_inst->device, &t_WaitInfo, 1000000000);
+}
+
 RQueue Vulkan::GetQueue(const RENDER_QUEUE_TYPE a_queue_type, const char* a_name)
 {
 	uint32_t queue_index;

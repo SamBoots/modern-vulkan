@@ -18,8 +18,8 @@ struct VirtualHeader
 #if _DEBUG
 	size_t check_value;
 #endif //_DEBUG
+	size_t bytes_commited;
 	size_t bytes_reserved;
-	size_t bytesReserved;
 };
 
 void* BB::mallocVirtual(void* a_start, size_t& a_size, const size_t a_reserve_size)
@@ -39,13 +39,13 @@ void* BB::mallocVirtual(void* a_start, size_t& a_size, const size_t a_reserve_si
 		BB_ASSERT(page_header->check_value == VIRTUAL_HEADER_TYPE_CHECK, "Send a pointer that is NOT a start of a virtual allocation!");
 #endif //_DEBUG
 		//Commit more memory if there is enough reserved.
-		if (page_header->bytesReserved > page_adjusted_size + page_header->bytes_reserved)
+		if (page_header->bytes_reserved > page_adjusted_size + page_header->bytes_commited)
 		{
-			void* t_NewCommitRange = Pointer::Add(page_header, page_header->bytes_reserved);
+			void* new_commit_address = Pointer::Add(page_header, page_header->bytes_commited);
 
-			page_header->bytes_reserved += page_adjusted_size;
-			BB_ASSERT(CommitVirtualMemory(page_header, page_header->bytes_reserved) != 0, "Error commiting virtual memory");
-			return t_NewCommitRange;
+			page_header->bytes_commited += page_adjusted_size;
+			BB_ASSERT(CommitVirtualMemory(page_header, page_header->bytes_commited) != 0, "Error commiting virtual memory");
+			return new_commit_address;
 		}
 
 		BB_ASSERT(false, "Going over reserved memory! Make sure to reserve more memory");
@@ -63,8 +63,8 @@ void* BB::mallocVirtual(void* a_start, size_t& a_size, const size_t a_reserve_si
 #if _DEBUG
 	reinterpret_cast<VirtualHeader*>(address)->check_value = VIRTUAL_HEADER_TYPE_CHECK;
 #endif //_DEBUG
-	reinterpret_cast<VirtualHeader*>(address)->bytes_reserved = page_adjusted_size;
-	reinterpret_cast<VirtualHeader*>(address)->bytesReserved = additional_reserve;
+	reinterpret_cast<VirtualHeader*>(address)->bytes_commited = page_adjusted_size;
+	reinterpret_cast<VirtualHeader*>(address)->bytes_reserved = additional_reserve;
 
 	//Return the pointer that does not include the StartPageHeader
 	return Pointer::Add(address, sizeof(VirtualHeader));

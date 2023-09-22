@@ -73,6 +73,10 @@ namespace BB
 			void StartCommandList(const RCommandList a_list, const char* a_name);
 			void EndCommandList(const RCommandList a_list);
 
+			RFence CreateFence(const uint64_t a_initial_value, const char* a_name);
+			void FreeFence(const RFence a_fence);
+			void WaitFences(const RFence* a_fences, const uint64_t* a_fence_values, const uint32_t a_fence_count);
+
 			RQueue GetQueue(const RENDER_QUEUE_TYPE a_queue_type, const char* a_name);
 		}
 	}

@@ -43,6 +43,11 @@ public:
 		Vulkan::EndCommandList(a_list->api_cmd_list);
 		m_recording = false;
 	}
+	void ResetPool()
+	{
+		BB_ASSERT(m_recording == false, "trying to reset a pool while still recording");
+		Vulkan::ResetCommandPool(m_api_cmd_pool);
+	}
 };
 
 //THREAD SAFE: TRUE
@@ -54,6 +59,9 @@ public:
 		:	m_pool_count(a_command_pool_count)
 	{
 		m_queue = Vulkan::GetQueue(a_queue_type, a_name);
+		m_fence.fence = Vulkan::CreateFence(0, "make_it_queue_name_sam!!!");
+		m_fence.last_complete_value = 0;
+		m_fence.next_fence_value = 1;
 
 		m_pools = BBnewArr(a_system_allocator, a_command_pool_count, CommandPool);
 		for (uint32_t i = 0; i < a_command_pool_count; i++)
@@ -78,7 +86,7 @@ public:
 	~RenderQueue()
 	{
 		WaitIdle();
-
+		Vulkan::FreeFence(m_fence.fence);
 		for (uint32_t i = 0; i < m_pool_count; i++)
 		{
 			Vulkan::FreeCommandPool(m_pools[i].m_api_cmd_pool);
@@ -93,12 +101,51 @@ public:
 		return pool;
 	}
 
-	//void ExecuteCommands(CommandList* a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const RENDER_PIPELINE_STAGE* a_WaitStages, const uint32_t a_FenceCount);
-	//void ExecutePresentCommands(CommandList* a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const RENDER_PIPELINE_STAGE* a_WaitStages, const uint32_t a_FenceCount);
-	//void WaitFenceValue(const uint64_t a_FenceValue);
-	void WaitIdle()
+	void ReturnPool(CommandPool* a_pool)
+	{
+		OSAcquireSRWLockWrite(&m_lock);
+		a_pool->m_fence_value = m_fence.next_fence_value;
+		BB_SLL_PUSH(m_in_flight_pools, a_pool);
+		OSReleaseSRWLockWrite(&m_lock);
+	}
+
+	void ExecuteCommands(CommandList* a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const uint32_t a_FenceCount)
 	{
 
+	}
+
+	//void ExecutePresentCommands(CommandList* a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const RENDER_PIPELINE_STAGE* a_WaitStages, const uint32_t a_FenceCount);
+	void WaitFenceValue(const uint64_t a_FenceValue)
+	{
+		OSAcquireSRWLockWrite(&m_lock);
+
+		Vulkan::WaitFences(&m_fence.fence, &a_FenceValue, 1);
+
+		//Thank you Descent Raytracer teammates great code that I can steal
+		for (CommandPool** in_flight_command_polls = &m_in_flight_pools; *in_flight_command_polls;)
+		{
+			CommandPool* command_pool = *in_flight_command_polls;
+
+			if (command_pool->m_fence_value <= a_FenceValue)
+			{
+				command_pool->ResetPool();
+
+				//Get next in-flight commandlist
+				*in_flight_command_polls = command_pool->next;
+				BB_SLL_PUSH(m_free_pools, command_pool);
+			}
+			else
+			{
+				in_flight_command_polls = &command_pool->next;
+			}
+		}
+
+		OSReleaseSRWLockWrite(&m_lock);
+	}
+
+	void WaitIdle()
+	{
+		WaitFenceValue(m_fence.next_fence_value - 1);
 	}
 
 	RenderFence GetFence() const { return m_fence; }
