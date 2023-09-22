@@ -53,7 +53,6 @@ namespace BB
 
 	void OSSystemInfo(SystemInfo& a_system_info);
 	uint32_t OSPageSize();
-	uint32_t OSAllocationGranularity();
 
 	void* ReserveVirtualMemory(const size_t a_size);
 	bool CommitVirtualMemory(void* a_Ptr, const size_t a_size);

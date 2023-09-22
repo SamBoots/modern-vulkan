@@ -191,13 +191,6 @@ uint32_t BB::OSPageSize()
 	GetSystemInfo(&sys_info);
 	return sys_info.dwPageSize;
 }
-uint32_t BB::OSAllocationGranularity()
-{
-	SYSTEM_INFO sys_info;
-	GetSystemInfo(&sys_info);
-	return sys_info.dwAllocationGranularity;
-}
-
 
 void* BB::ReserveVirtualMemory(const size_t a_size)
 {

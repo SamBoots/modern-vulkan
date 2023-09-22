@@ -16,35 +16,35 @@ constexpr size_t VIRTUAL_HEADER_TYPE_CHECK = 0xB0AFB0AF;
 struct VirtualHeader
 {
 #if _DEBUG
-	size_t checkValue;
+	size_t check_value;
 #endif //_DEBUG
-	size_t bytesCommited;
+	size_t bytes_reserved;
 	size_t bytesReserved;
 };
 
-void* BB::mallocVirtual(void* a_Start, size_t& a_size, const size_t a_ReserveSize)
+void* BB::mallocVirtual(void* a_start, size_t& a_size, const size_t a_reserve_size)
 {
 	//Adjust the requested bytes by the page size and the minimum virtual allocaion size.
-	const size_t t_PageAdjustedSize = Max(RoundUp(a_size + sizeof(VirtualHeader), OSPageSize()), OSAllocationGranularity());
+	const size_t page_adjusted_size = RoundUp(a_size + sizeof(VirtualHeader), OSPageSize());
 
 	//Set the reference of a_size so that the allocator has enough memory until the end of the page.
-	a_size = t_PageAdjustedSize - sizeof(VirtualHeader);
+	a_size = page_adjusted_size - sizeof(VirtualHeader);
 
 	//Check the pageHeader
-	if (a_Start != nullptr)
+	if (a_start != nullptr)
 	{
 		//Get the header for preperation to resize it.
-		VirtualHeader* t_PageHeader = reinterpret_cast<VirtualHeader*>(Pointer::Subtract(a_Start, sizeof(VirtualHeader)));
+		VirtualHeader* page_header = reinterpret_cast<VirtualHeader*>(Pointer::Subtract(a_start, sizeof(VirtualHeader)));
 #if _DEBUG
-		BB_ASSERT(t_PageHeader->checkValue == VIRTUAL_HEADER_TYPE_CHECK, "Send a pointer that is NOT a start of a virtual allocation!");
+		BB_ASSERT(page_header->check_value == VIRTUAL_HEADER_TYPE_CHECK, "Send a pointer that is NOT a start of a virtual allocation!");
 #endif //_DEBUG
 		//Commit more memory if there is enough reserved.
-		if (t_PageHeader->bytesReserved > t_PageAdjustedSize + t_PageHeader->bytesCommited)
+		if (page_header->bytesReserved > page_adjusted_size + page_header->bytes_reserved)
 		{
-			void* t_NewCommitRange = Pointer::Add(t_PageHeader, t_PageHeader->bytesCommited);
+			void* t_NewCommitRange = Pointer::Add(page_header, page_header->bytes_reserved);
 
-			t_PageHeader->bytesCommited += t_PageAdjustedSize;
-			BB_ASSERT(CommitVirtualMemory(t_PageHeader, t_PageHeader->bytesCommited) != 0, "Error commiting virtual memory");
+			page_header->bytes_reserved += page_adjusted_size;
+			BB_ASSERT(CommitVirtualMemory(page_header, page_header->bytes_reserved) != 0, "Error commiting virtual memory");
 			return t_NewCommitRange;
 		}
 
@@ -52,27 +52,27 @@ void* BB::mallocVirtual(void* a_Start, size_t& a_size, const size_t a_ReserveSiz
 	}
 
 	//When making a new header reserve a lot more then that is requested to support later resizes better.
-	const size_t t_AdditionalReserve = t_PageAdjustedSize * a_ReserveSize;
-	void* t_Address = ReserveVirtualMemory(t_AdditionalReserve);
-	BB_ASSERT(t_Address != NULL, "Error reserving virtual memory");
+	const size_t additional_reserve = page_adjusted_size * a_reserve_size;
+	void* address = ReserveVirtualMemory(additional_reserve);
+	BB_ASSERT(address != NULL, "Error reserving virtual memory");
 
 	//Now commit enough memory that the user requested.
-	BB_ASSERT(CommitVirtualMemory(t_Address, t_PageAdjustedSize) != NULL, "Error commiting right after a reserve virtual memory");
+	BB_ASSERT(CommitVirtualMemory(address, page_adjusted_size) != NULL, "Error commiting right after a reserve virtual memory");
 
 	//Set the header of the allocator, used for later resizes and when you need to free it.
 #if _DEBUG
-	reinterpret_cast<VirtualHeader*>(t_Address)->checkValue = VIRTUAL_HEADER_TYPE_CHECK;
+	reinterpret_cast<VirtualHeader*>(address)->check_value = VIRTUAL_HEADER_TYPE_CHECK;
 #endif //_DEBUG
-	reinterpret_cast<VirtualHeader*>(t_Address)->bytesCommited = t_PageAdjustedSize;
-	reinterpret_cast<VirtualHeader*>(t_Address)->bytesReserved = t_AdditionalReserve;
+	reinterpret_cast<VirtualHeader*>(address)->bytes_reserved = page_adjusted_size;
+	reinterpret_cast<VirtualHeader*>(address)->bytesReserved = additional_reserve;
 
 	//Return the pointer that does not include the StartPageHeader
-	return Pointer::Add(t_Address, sizeof(VirtualHeader));
+	return Pointer::Add(address, sizeof(VirtualHeader));
 }
 
-void BB::freeVirtual(void* a_Ptr)
+void BB::freeVirtual(void* a_ptr)
 {
-	BB_ASSERT(ReleaseVirtualMemory(Pointer::Subtract(a_Ptr, sizeof(VirtualHeader))) != 0, "Error on releasing virtual memory");
+	BB_ASSERT(ReleaseVirtualMemory(Pointer::Subtract(a_ptr, sizeof(VirtualHeader))) != 0, "Error on releasing virtual memory");
 }
 
 //#pragma region Unit Test
