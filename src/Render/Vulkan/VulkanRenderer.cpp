@@ -869,13 +869,13 @@ bool Vulkan::CreateSwapchain(StackAllocator_t& a_stack_allocator, const WindowHa
 	return true;
 }
 
-bool Vulkan::StartFrame(const uint32_t a_backbuffer)
+bool Vulkan::StartFrame(const uint32_t a_backbuffer_index)
 {
 	uint32_t image_index;
 	VKASSERT(vkAcquireNextImageKHR(s_vulkan_inst->device,
 		s_vulkan_swapchain->swapchain,
 		UINT64_MAX,
-		s_vulkan_swapchain->frames[a_backbuffer].image_available_semaphore,
+		s_vulkan_swapchain->frames[a_backbuffer_index].image_available_semaphore,
 		VK_NULL_HANDLE,
 		&image_index),
 		"Vulkan: failed to get next image.");
@@ -883,15 +883,15 @@ bool Vulkan::StartFrame(const uint32_t a_backbuffer)
 	return true;
 }
 
-bool Vulkan::EndFrame(const uint32_t a_backbuffer)
+bool Vulkan::EndFrame(const uint32_t a_backbuffer_index)
 {
 	VkPresentInfoKHR present_info{};
 	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	present_info.waitSemaphoreCount = 1;
-	present_info.pWaitSemaphores = &s_vulkan_swapchain->frames[a_backbuffer].present_finished_semaphore;
+	present_info.pWaitSemaphores = &s_vulkan_swapchain->frames[a_backbuffer_index].present_finished_semaphore;
 	present_info.swapchainCount = 1; //Swapchain will always be 1
 	present_info.pSwapchains = &s_vulkan_swapchain->swapchain;
-	present_info.pImageIndices = &a_backbuffer; //THIS MAY BE WRONG
+	present_info.pImageIndices = &a_backbuffer_index; //THIS MAY BE WRONG
 	present_info.pResults = nullptr;
 
 	VKASSERT(vkQueuePresentKHR(s_vulkan_inst->present_queue, &present_info),
@@ -1104,6 +1104,88 @@ void Vulkan::EndCommandList(const RCommandList a_list)
 	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 	VKASSERT(vkEndCommandBuffer(cmd_list), "Vulkan: Error when trying to end commandbuffer!");
 	SetDebugName(nullptr, cmd_list, VK_OBJECT_TYPE_COMMAND_BUFFER);
+}
+
+void Vulkan::ExecuteCommandLists(const RQueue a_queue, const ExecuteCommandsInfo* a_execute_infos, const uint32_t a_execute_info_count)
+{
+	VkTimelineSemaphoreSubmitInfo* timeline_sem_infos = BBstackAlloc(
+		a_execute_info_count,
+		VkTimelineSemaphoreSubmitInfo);
+	VkSubmitInfo* submit_infos = BBstackAlloc(
+		a_execute_info_count,
+		VkSubmitInfo);
+
+	for (size_t i = 0; i < a_execute_info_count; i++)
+	{
+		const ExecuteCommandsInfo& exe_inf = a_execute_infos[i];
+		VkTimelineSemaphoreSubmitInfo& cur_sem_inf = timeline_sem_infos[i];
+		VkSubmitInfo& cur_sub_inf = submit_infos[i];
+
+		cur_sem_inf.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
+		cur_sem_inf.pNext = nullptr;
+		cur_sem_inf.pWaitSemaphoreValues = exe_inf.wait_values;
+		cur_sem_inf.waitSemaphoreValueCount = exe_inf.wait_count;
+		cur_sem_inf.pSignalSemaphoreValues = exe_inf.signal_values;
+		cur_sem_inf.signalSemaphoreValueCount = exe_inf.signal_count;
+
+		cur_sub_inf.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		cur_sub_inf.pNext = &timeline_sem_infos[i];
+		cur_sub_inf.commandBufferCount = exe_inf.list_count;
+		cur_sub_inf.pCommandBuffers = reinterpret_cast<const VkCommandBuffer*>(exe_inf.lists);
+		cur_sub_inf.waitSemaphoreCount = exe_inf.wait_count;
+		cur_sub_inf.pWaitSemaphores = reinterpret_cast<const VkSemaphore*>(exe_inf.wait_fences);
+		cur_sub_inf.signalSemaphoreCount = exe_inf.signal_count;
+		cur_sub_inf.pSignalSemaphores = reinterpret_cast<const VkSemaphore*>(exe_inf.signal_fences);
+	}
+
+	VkQueue queue = reinterpret_cast<VkQueue>(a_queue.handle);
+	VKASSERT(vkQueueSubmit(queue,
+		a_execute_info_count,
+		submit_infos,
+		VK_NULL_HANDLE),
+		"Vulkan: failed to submit to queue.");
+}
+
+void Vulkan::ExecutePresentCommandList(const RQueue a_queue, const ExecuteCommandsInfo& a_execute_info, const uint32_t a_backbuffer_index)
+{
+	//TEMP
+	constexpr VkPipelineStageFlags WAIT_STAGES[8] = { VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT };
+
+	VkTimelineSemaphoreSubmitInfo timeline_sem_info{ VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO };
+	timeline_sem_info.pWaitSemaphoreValues = a_execute_info.wait_values;
+	timeline_sem_info.waitSemaphoreValueCount = a_execute_info.wait_count;
+	timeline_sem_info.pSignalSemaphoreValues = a_execute_info.signal_values;
+	timeline_sem_info.signalSemaphoreValueCount = a_execute_info.signal_count;
+
+	//handle the window api for vulkan.
+	const uint32_t wait_semaphore_count = a_execute_info.wait_count + 1;
+	const uint32_t signal_semaphore_count = a_execute_info.signal_count + 1;
+
+	VkSemaphore* wait_semaphores = BBstackAlloc(wait_semaphore_count, VkSemaphore);
+	VkSemaphore* signal_semaphores = BBstackAlloc(signal_semaphore_count, VkSemaphore);
+
+	Memory::Copy<VkSemaphore>(wait_semaphores, a_execute_info.wait_fences, a_execute_info.wait_count);
+	wait_semaphores[a_execute_info.wait_count] = s_vulkan_swapchain->frames[a_backbuffer_index].image_available_semaphore;
+
+	Memory::Copy<VkSemaphore>(signal_semaphores, a_execute_info.signal_fences, a_execute_info.signal_count);
+	signal_semaphores[a_execute_info.signal_count] = s_vulkan_swapchain->frames[a_backbuffer_index].present_finished_semaphore;
+
+	VkSubmitInfo submit_info{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
+	submit_info.pNext = &timeline_sem_info;
+	submit_info.commandBufferCount = a_execute_info.list_count;
+	submit_info.pCommandBuffers = reinterpret_cast<const VkCommandBuffer*>(a_execute_info.lists);
+	submit_info.waitSemaphoreCount = a_execute_info.wait_count;
+	submit_info.pWaitSemaphores = wait_semaphores;
+	submit_info.signalSemaphoreCount = a_execute_info.signal_count;
+	submit_info.pSignalSemaphores = signal_semaphores;
+	submit_info.pWaitDstStageMask = WAIT_STAGES;
+
+	VkQueue queue = reinterpret_cast<VkQueue>(a_queue.handle);
+	VKASSERT(vkQueueSubmit(queue,
+		1,
+		&submit_info,
+		VK_NULL_HANDLE),
+		"Vulkan: failed to submit to queue.");
 }
 
 RFence Vulkan::CreateFence(const uint64_t a_initial_value, const char* a_name)

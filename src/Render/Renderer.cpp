@@ -58,6 +58,7 @@ public:
 	RenderQueue(Allocator a_system_allocator, const RENDER_QUEUE_TYPE a_queue_type, const char* a_name, const uint32_t a_command_pool_count, const uint32_t a_command_lists_per_pool)
 		:	m_pool_count(a_command_pool_count)
 	{
+		m_queue_type = a_queue_type;
 		m_queue = Vulkan::GetQueue(a_queue_type, a_name);
 		m_fence.fence = Vulkan::CreateFence(0, "make_it_queue_name_sam!!!");
 		m_fence.last_complete_value = 0;
@@ -109,9 +110,41 @@ public:
 		OSReleaseSRWLockWrite(&m_lock);
 	}
 
-	void ExecuteCommands(CommandList* a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const uint32_t a_FenceCount)
+	void ExecuteCommands(CommandList* a_lists, const uint32_t a_list_count, const RFence* const a_wait_fences, const uint64_t* const wait_values, const uint32_t a_fence_count)
 	{
+		ExecuteCommandsInfo execute_info;
+		execute_info.lists = a_lists;
+		execute_info.list_count = a_list_count;
+		execute_info.wait_fences = a_wait_fences;
+		execute_info.wait_values = wait_values;
+		execute_info.wait_count = a_fence_count;
+		execute_info.signal_fences = &m_fence.fence;
+		execute_info.signal_values = &m_fence.next_fence_value;
+		execute_info.signal_count = 1;
 
+		OSAcquireSRWLockWrite(&m_lock);
+		Vulkan::ExecuteCommandLists(m_queue, &execute_info, 1);
+		++m_fence.next_fence_value;
+		OSReleaseSRWLockWrite(&m_lock);
+	}
+
+	void ExecutePresentCommands(CommandList* a_lists, const uint32_t a_list_count, const RFence* const a_wait_fences, const uint64_t* const wait_values, const uint32_t a_fence_count, const uint32_t a_backbuffer_index)
+	{
+		BB_ASSERT(m_queue_type == RENDER_QUEUE_TYPE::GRAPHICS, "calling a present commands on a non-graphics command queue is not valid");
+		ExecuteCommandsInfo execute_info;
+		execute_info.lists = a_lists;
+		execute_info.list_count = a_list_count;
+		execute_info.wait_fences = a_wait_fences;
+		execute_info.wait_values = wait_values;
+		execute_info.wait_count = a_fence_count;
+		execute_info.signal_fences = &m_fence.fence;
+		execute_info.signal_values = &m_fence.next_fence_value;
+		execute_info.signal_count = 1;
+
+		OSAcquireSRWLockWrite(&m_lock);
+		Vulkan::ExecutePresentCommandList(m_queue, execute_info, a_backbuffer_index);
+		++m_fence.next_fence_value;
+		OSReleaseSRWLockWrite(&m_lock);
 	}
 
 	//void ExecutePresentCommands(CommandList* a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const RENDER_PIPELINE_STAGE* a_WaitStages, const uint32_t a_FenceCount);
@@ -153,14 +186,15 @@ public:
 	uint64_t GetLastCompletedValue() const { return m_fence.last_complete_value; }
 
 private:
-	BBRWLock m_lock;
-	const uint32_t m_pool_count;
-	CommandPool* m_pools;
-	CommandPool* m_free_pools;
-	CommandPool* m_in_flight_pools = nullptr;
+	RENDER_QUEUE_TYPE m_queue_type; //4
+	BBRWLock m_lock; //12
+	const uint32_t m_pool_count; //16
+	CommandPool* m_pools; //24
+	CommandPool* m_free_pools; //32 
+	CommandPool* m_in_flight_pools = nullptr; //40
 
-	RQueue m_queue;
-	RenderFence m_fence;
+	RQueue m_queue;//48 
+	RenderFence m_fence; //72
 };
 
 //transform this into a pool for multithread goodness
@@ -236,6 +270,12 @@ struct DrawList
 
 struct RenderInterface_inst
 {
+	RenderInterface_inst(Allocator a_system_allocator)
+		: graphics_queue(a_system_allocator, RENDER_QUEUE_TYPE::GRAPHICS, "graphics queue", 8, 8)
+	{
+
+	}
+
 	WindowHandle swapchain_window;
 	uint32_t swapchain_width;
 	uint32_t swapchain_height;
@@ -273,6 +313,8 @@ struct RenderInterface_inst
 	uint32_t draw_list_count;
 	uint32_t draw_list_max;
 	DrawList* draw_lists;
+
+	RenderQueue graphics_queue;
 };
 
 static RenderInterface_inst* s_render_inst;
@@ -306,7 +348,7 @@ BufferView AllocateFromIndexBuffer(const size_t a_size_in_bytes)
 void Render::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererCreateInfo& a_render_create_info)
 {
 	Vulkan::InitializeVulkan(a_stack_allocator, a_render_create_info.app_name, a_render_create_info.engine_name, a_render_create_info.debug);
-	s_render_inst = BBnew(a_stack_allocator, RenderInterface_inst) {};
+	s_render_inst = BBnew(a_stack_allocator, RenderInterface_inst)(a_stack_allocator);
 	s_render_inst->backbuffer_count = 3;
 	s_render_inst->backbuffer_pos = 0;
 	Vulkan::CreateSwapchain(a_stack_allocator, a_render_create_info.window_handle, a_render_create_info.swapchain_width, a_render_create_info.swapchain_height, s_render_inst->backbuffer_count);
@@ -371,9 +413,10 @@ void  Render::EndFrame()
 
 
 	//present
-	Vulkan::EndFrame(s_render_inst->backbuffer_pos);
+	s_render_inst->graphics_queue.ExecutePresentCommands(nullptr, 0, nullptr, nullptr, 0, s_render_inst->backbuffer_pos);
 
 	//swap images
+	Vulkan::EndFrame(s_render_inst->backbuffer_pos);
 	s_render_inst->backbuffer_pos = (s_render_inst->backbuffer_pos + 1) % s_render_inst->backbuffer_count;
 	s_render_inst->backbuffer_pos;
 }

@@ -26,7 +26,6 @@ TEST(BBjson, Small_Local_Memory_JSON)
 		BB_LOG(t_JsonString.c_str());
 	}
 
-
 	//Try to read the string as a json again.
 	t_JsonBuffer.data = t_JsonString.data();
 	t_JsonBuffer.size = t_JsonString.size();

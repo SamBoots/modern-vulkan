@@ -42,5 +42,19 @@ namespace BB
 
 		using RQueue = FrameworkHandle<struct RQueueTag>;
 		using RFence = FrameworkHandle<struct RFenceTag>;
+
+		struct ExecuteCommandsInfo
+		{
+			const CommandList* lists;
+			uint32_t list_count;
+
+			const RFence* wait_fences;
+			const uint64_t* wait_values;
+			uint32_t wait_count;
+
+			const RFence* signal_fences;
+			const uint64_t* signal_values;
+			uint32_t signal_count;
+		};
 	}
 }

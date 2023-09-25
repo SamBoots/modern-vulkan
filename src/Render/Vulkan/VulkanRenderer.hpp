@@ -54,8 +54,8 @@ namespace BB
 
 			bool CreateSwapchain(StackAllocator_t& a_stack_allocator, const WindowHandle a_window_handle, const uint32_t a_width, const uint32_t a_height, uint32_t& a_backbuffer_count);
 
-			bool StartFrame(const uint32_t a_backbuffer);
-			bool EndFrame(const uint32_t a_backbuffer);
+			bool StartFrame(const uint32_t a_backbuffer_index);
+			bool EndFrame(const uint32_t a_backbuffer_index);
 
 			void CreateCommandPool(const RENDER_QUEUE_TYPE a_queue_type, const uint32_t a_command_list_count, RCommandPool& a_pool, CommandList* a_plists);
 			void FreeCommandPool(const RCommandPool a_pool);
@@ -72,6 +72,9 @@ namespace BB
 			void ResetCommandPool(const RCommandPool a_pool);
 			void StartCommandList(const RCommandList a_list, const char* a_name);
 			void EndCommandList(const RCommandList a_list);
+
+			void ExecuteCommandLists(const RQueue a_queue, const ExecuteCommandsInfo* a_execute_infos, const uint32_t a_execute_info_count);
+			void ExecutePresentCommandList(const RQueue a_queue, const ExecuteCommandsInfo& a_execute_info, const uint32_t a_backbuffer_index);
 
 			RFence CreateFence(const uint64_t a_initial_value, const char* a_name);
 			void FreeFence(const RFence a_fence);
