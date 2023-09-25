@@ -888,37 +888,6 @@ bool Vulkan::CreateSwapchain(StackAllocator_t& a_stack_allocator, const WindowHa
 	return true;
 }
 
-bool Vulkan::StartFrame(const uint32_t a_backbuffer_index)
-{
-	uint32_t image_index;
-	VKASSERT(vkAcquireNextImageKHR(s_vulkan_inst->device,
-		s_vulkan_swapchain->swapchain,
-		UINT64_MAX,
-		s_vulkan_swapchain->frames[a_backbuffer_index].image_available_semaphore,
-		VK_NULL_HANDLE,
-		&image_index),
-		"Vulkan: failed to get next image.");
-
-	return true;
-}
-
-bool Vulkan::EndFrame(const uint32_t a_backbuffer_index)
-{
-	VkPresentInfoKHR present_info{};
-	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-	present_info.waitSemaphoreCount = 1;
-	present_info.pWaitSemaphores = &s_vulkan_swapchain->frames[a_backbuffer_index].present_finished_semaphore;
-	present_info.swapchainCount = 1; //Swapchain will always be 1
-	present_info.pSwapchains = &s_vulkan_swapchain->swapchain;
-	present_info.pImageIndices = &a_backbuffer_index; //THIS MAY BE WRONG
-	present_info.pResults = nullptr;
-
-	VKASSERT(vkQueuePresentKHR(s_vulkan_inst->present_queue, &present_info),
-		"Vulkan: Failed to queuepresentKHR.");
-
-	return true;
-}
-
 void Vulkan::CreateCommandPool(const RENDER_QUEUE_TYPE a_queue_type, const uint32_t a_command_list_count, RCommandPool& a_pool, RCommandList* a_plists)
 {
 	VkCommandPoolCreateInfo pool_create_info{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
@@ -1180,7 +1149,6 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 
 	vkCmdBeginRendering(cmd_buffer, &rendering_info);
 
-
 	VkViewport t_Viewport{};
 	t_Viewport.x = 0.0f;
 	t_Viewport.y = 0.0f;
@@ -1190,7 +1158,6 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 	t_Viewport.maxDepth = 1.0f;
 	vkCmdSetViewport(cmd_buffer, 0, 1, &t_Viewport);
 
-
 	vkCmdSetScissor(cmd_buffer, 0, 1, &scissor);
 }
 
@@ -1199,17 +1166,16 @@ void Vulkan::EndRendering(const RCommandList a_list, const EndRenderingInfo& a_r
 	VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 	vkCmdEndRendering(cmd_buffer);
 
-	VkImageMemoryBarrier t_PresentBarrier{};
-	t_PresentBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-	t_PresentBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-	t_PresentBarrier.oldLayout = ImageLayout(a_rendering_info.initial_layout);
-	t_PresentBarrier.newLayout = ImageLayout(a_rendering_info.final_layout);
-	t_PresentBarrier.image = s_vulkan_swapchain->frames[a_backbuffer_index].image;
-	t_PresentBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	t_PresentBarrier.subresourceRange.baseArrayLayer = 0;
-	t_PresentBarrier.subresourceRange.layerCount = 1;
-	t_PresentBarrier.subresourceRange.baseMipLevel = 0;
-	t_PresentBarrier.subresourceRange.levelCount = 1;
+	VkImageMemoryBarrier present_barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+	present_barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	present_barrier.oldLayout = ImageLayout(a_rendering_info.initial_layout);
+	present_barrier.newLayout = ImageLayout(a_rendering_info.final_layout);
+	present_barrier.image = s_vulkan_swapchain->frames[a_backbuffer_index].image;
+	present_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	present_barrier.subresourceRange.baseArrayLayer = 0;
+	present_barrier.subresourceRange.layerCount = 1;
+	present_barrier.subresourceRange.baseMipLevel = 0;
+	present_barrier.subresourceRange.levelCount = 1;
 
 	vkCmdPipelineBarrier(cmd_buffer,
 		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -1220,7 +1186,7 @@ void Vulkan::EndRendering(const RCommandList a_list, const EndRenderingInfo& a_r
 		0,
 		nullptr,
 		1,
-		&t_PresentBarrier);
+		&present_barrier);
 }
 
 void Vulkan::ExecuteCommandLists(const RQueue a_queue, const ExecuteCommandsInfo* a_execute_infos, const uint32_t a_execute_info_count)
@@ -1268,18 +1234,17 @@ void Vulkan::ExecutePresentCommandList(const RQueue a_queue, const ExecuteComman
 	//TEMP
 	constexpr VkPipelineStageFlags WAIT_STAGES[8] = { VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT };
 
-	VkTimelineSemaphoreSubmitInfo timeline_sem_info{ VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO };
-	timeline_sem_info.pWaitSemaphoreValues = a_execute_info.wait_values;
-	timeline_sem_info.waitSemaphoreValueCount = a_execute_info.wait_count;
-	timeline_sem_info.pSignalSemaphoreValues = a_execute_info.signal_values;
-	timeline_sem_info.signalSemaphoreValueCount = a_execute_info.signal_count;
-
 	//handle the window api for vulkan.
 	const uint32_t wait_semaphore_count = a_execute_info.wait_count + 1;
 	const uint32_t signal_semaphore_count = a_execute_info.signal_count + 1;
 
+
 	VkSemaphore* wait_semaphores = BBstackAlloc(wait_semaphore_count, VkSemaphore);
+	uint64_t* wait_values = BBstackAlloc(signal_semaphore_count, uint64_t);
 	VkSemaphore* signal_semaphores = BBstackAlloc(signal_semaphore_count, VkSemaphore);
+	uint64_t* signal_values = BBstackAlloc(signal_semaphore_count, uint64_t);
+
+	//MEMCPY wait/signal values.
 
 	Memory::Copy<VkSemaphore>(wait_semaphores, a_execute_info.wait_fences, a_execute_info.wait_count);
 	wait_semaphores[a_execute_info.wait_count] = s_vulkan_swapchain->frames[a_backbuffer_index].image_available_semaphore;
@@ -1287,13 +1252,20 @@ void Vulkan::ExecutePresentCommandList(const RQueue a_queue, const ExecuteComman
 	Memory::Copy<VkSemaphore>(signal_semaphores, a_execute_info.signal_fences, a_execute_info.signal_count);
 	signal_semaphores[a_execute_info.signal_count] = s_vulkan_swapchain->frames[a_backbuffer_index].present_finished_semaphore;
 
+	VkTimelineSemaphoreSubmitInfo timeline_sem_info{ VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO };
+	timeline_sem_info.pWaitSemaphoreValues = wait_values;
+	timeline_sem_info.waitSemaphoreValueCount = wait_semaphore_count;
+	timeline_sem_info.pSignalSemaphoreValues = signal_values;
+	timeline_sem_info.signalSemaphoreValueCount = signal_semaphore_count;
+
+
 	VkSubmitInfo submit_info{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
 	submit_info.pNext = &timeline_sem_info;
 	submit_info.commandBufferCount = a_execute_info.list_count;
 	submit_info.pCommandBuffers = reinterpret_cast<const VkCommandBuffer*>(a_execute_info.lists);
-	submit_info.waitSemaphoreCount = a_execute_info.wait_count;
+	submit_info.waitSemaphoreCount = wait_semaphore_count;
 	submit_info.pWaitSemaphores = wait_semaphores;
-	submit_info.signalSemaphoreCount = a_execute_info.signal_count;
+	submit_info.signalSemaphoreCount = signal_semaphore_count;
 	submit_info.pSignalSemaphores = signal_semaphores;
 	submit_info.pWaitDstStageMask = WAIT_STAGES;
 
@@ -1303,6 +1275,37 @@ void Vulkan::ExecutePresentCommandList(const RQueue a_queue, const ExecuteComman
 		&submit_info,
 		VK_NULL_HANDLE),
 		"Vulkan: failed to submit to queue.");
+}
+
+bool Vulkan::StartFrame(const uint32_t a_backbuffer_index)
+{
+	uint32_t image_index;
+	VKASSERT(vkAcquireNextImageKHR(s_vulkan_inst->device,
+		s_vulkan_swapchain->swapchain,
+		UINT64_MAX,
+		s_vulkan_swapchain->frames[a_backbuffer_index].image_available_semaphore,
+		VK_NULL_HANDLE,
+		&image_index),
+		"Vulkan: failed to get next image.");
+
+	return true;
+}
+
+bool Vulkan::EndFrame(const uint32_t a_backbuffer_index)
+{
+	VkPresentInfoKHR present_info{};
+	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	present_info.waitSemaphoreCount = 1;
+	present_info.pWaitSemaphores = &s_vulkan_swapchain->frames[a_backbuffer_index].present_finished_semaphore;
+	present_info.swapchainCount = 1; //Swapchain will always be 1
+	present_info.pSwapchains = &s_vulkan_swapchain->swapchain;
+	present_info.pImageIndices = &a_backbuffer_index; //THIS MAY BE WRONG
+	present_info.pResults = nullptr;
+
+	VKASSERT(vkQueuePresentKHR(s_vulkan_inst->present_queue, &present_info),
+		"Vulkan: Failed to queuepresentKHR.");
+
+	return true;
 }
 
 RFence Vulkan::CreateFence(const uint64_t a_initial_value, const char* a_name)

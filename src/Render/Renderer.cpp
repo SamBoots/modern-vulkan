@@ -416,38 +416,35 @@ void  Render::StartFrame()
 
 	current_use_pool = s_render_inst->graphics_queue.GetCommandPool("test getting thing command pool");
 	current_command_list = current_use_pool->StartCommandList("test getting thing command list");
-
-	StartRenderingInfo rendering_info;
-	rendering_info.viewport_width = s_render_inst->swapchain_width;
-	rendering_info.viewport_height = s_render_inst->swapchain_height;
-	rendering_info.initial_layout = RENDER_IMAGE_LAYOUT::UNDEFINED;
-	rendering_info.final_layout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-	rendering_info.load_color = false;
-	rendering_info.store_color = true;
-	rendering_info.clear_color_rgba = float4{ 1.f, 1.f, 0.f, 1.f };
-	Vulkan::StartRendering(current_command_list.api_cmd_list, rendering_info, s_render_inst->backbuffer_pos);
 }
 
 void  Render::EndFrame()
 {
 	//render
-
+	StartRenderingInfo start_rendering_info;
+	start_rendering_info.viewport_width = s_render_inst->swapchain_width;
+	start_rendering_info.viewport_height = s_render_inst->swapchain_height;
+	start_rendering_info.initial_layout = RENDER_IMAGE_LAYOUT::UNDEFINED;
+	start_rendering_info.final_layout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+	start_rendering_info.load_color = false;
+	start_rendering_info.store_color = true;
+	start_rendering_info.clear_color_rgba = float4{ 1.f, 1.f, 0.f, 1.f };
+	Vulkan::StartRendering(current_command_list.api_cmd_list, start_rendering_info, s_render_inst->backbuffer_pos);
 
 	//present
-	EndRenderingInfo rendering_info;
-	rendering_info.initial_layout = RENDER_IMAGE_LAYOUT::UNDEFINED;
-	rendering_info.final_layout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-	Vulkan::EndRendering(current_command_list.api_cmd_list, rendering_info, s_render_inst->backbuffer_pos);
+	EndRenderingInfo end_rendering_info;
+	end_rendering_info.initial_layout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+	end_rendering_info.final_layout = RENDER_IMAGE_LAYOUT::PRESENT;
+	Vulkan::EndRendering(current_command_list.api_cmd_list, end_rendering_info, s_render_inst->backbuffer_pos);
 	current_use_pool->EndCommandList(current_command_list);
 
 	s_render_inst->frames[s_render_inst->backbuffer_pos].fence_value = s_render_inst->graphics_queue.GetNextFenceValue();
-	s_render_inst->graphics_queue.ExecutePresentCommands(nullptr, 0, nullptr, nullptr, 0, s_render_inst->backbuffer_pos);
+	s_render_inst->graphics_queue.ExecutePresentCommands(&current_command_list, 1, nullptr, nullptr, 0, s_render_inst->backbuffer_pos);
 	s_render_inst->graphics_queue.ReturnPool(current_use_pool);
 
 	//swap images
 	Vulkan::EndFrame(s_render_inst->backbuffer_pos);
 	s_render_inst->backbuffer_pos = (s_render_inst->backbuffer_pos + 1) % s_render_inst->backbuffer_count;
-	s_render_inst->backbuffer_pos;
 }
 
 MeshHandle Render::CreateMesh(const CreateMeshInfo& a_create_info)
