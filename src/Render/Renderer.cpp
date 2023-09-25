@@ -20,33 +20,35 @@ class CommandPool
 	friend class RenderQueue;
 	uint32_t m_list_count; //4 
 	uint32_t m_list_current_free; //8
-	CommandList* m_lists; //16
+	RCommandList* m_lists; //16
 	uint64_t m_fence_value; //24
 	RCommandPool m_api_cmd_pool; //32
 	CommandPool* next; //40 
 	bool m_recording; //44
 	BB_PAD(4); //48
 public:
-	CommandList* StartCommandList(const char* a_name = nullptr)
+	CommandList StartCommandList(const char* a_name = nullptr)
 	{
 		BB_ASSERT(m_recording == false, "already recording a commandlist from this commandpool!");
-		CommandList* pcmd_list = &m_lists[m_list_current_free++];
-		Vulkan::StartCommandList(pcmd_list->api_cmd_list, a_name);
+		BB_ASSERT(m_list_current_free < m_list_count, "command pool out of lists!");
+		CommandList list{ m_lists[m_list_current_free++] };
+		Vulkan::StartCommandList(list.api_cmd_list, a_name);
 		m_recording = true;
-		return pcmd_list;
+		return list;
 	}
 
-	void EndCommandList(CommandList* a_list)
+	void EndCommandList(CommandList a_list)
 	{
 		BB_ASSERT(m_recording == true, "trying to end a commandlist while the pool is not recording any list");
-		BB_ASSERT(a_list->api_cmd_list == m_lists[m_list_count - 1].api_cmd_list, "commandlist that was submitted is not from this pool or was already closed!");
-		Vulkan::EndCommandList(a_list->api_cmd_list);
+		BB_ASSERT(a_list.api_cmd_list == m_lists[m_list_current_free - 1], "commandlist that was submitted is not from this pool or was already closed!");
+		Vulkan::EndCommandList(a_list.api_cmd_list);
 		m_recording = false;
 	}
 	void ResetPool()
 	{
 		BB_ASSERT(m_recording == false, "trying to reset a pool while still recording");
 		Vulkan::ResetCommandPool(m_api_cmd_pool);
+		m_list_current_free = 0;
 	}
 };
 
@@ -71,7 +73,7 @@ public:
 			m_pools[i].m_fence_value = 0;
 			m_pools[i].m_list_count = a_command_lists_per_pool;
 			m_pools[i].m_list_current_free = 0;
-			m_pools[i].m_lists = BBnewArr(a_system_allocator, m_pools[i].m_list_count, CommandList);
+			m_pools[i].m_lists = BBnewArr(a_system_allocator, m_pools[i].m_list_count, RCommandList);
 			Vulkan::CreateCommandPool(a_queue_type, a_command_lists_per_pool, m_pools[i].m_api_cmd_pool, m_pools[i].m_lists);
 		}
 
@@ -97,6 +99,7 @@ public:
 	CommandPool* GetCommandPool(const char* a_pool_name = "")
 	{
 		OSAcquireSRWLockWrite(&m_lock);
+		BB_ASSERT(m_free_pools, "pool is a nullptr, no more pools left!");
 		CommandPool* pool = BB_SLL_POP(m_free_pools);
 		OSReleaseSRWLockWrite(&m_lock);
 		return pool;
@@ -398,13 +401,31 @@ void Render::InitializeRenderer(StackAllocator_t& a_stack_allocator, const Rende
 	}
 }
 
+CommandPool* current_use_pool;
+CommandList current_command_list;
+
 void  Render::StartFrame()
 {
+	s_render_inst->graphics_queue.WaitFenceValue(s_render_inst->frames[s_render_inst->backbuffer_pos].fence_value);
+
 	//clear the drawlist, maybe do this on a per-frame basis of we do GPU upload?
 	s_render_inst->draw_list_count = 0;
 
 	//setup rendering
 	Vulkan::StartFrame(s_render_inst->backbuffer_pos);
+
+	current_use_pool = s_render_inst->graphics_queue.GetCommandPool("test getting thing command pool");
+	current_command_list = current_use_pool->StartCommandList("test getting thing command list");
+
+	StartRenderingInfo rendering_info;
+	rendering_info.viewport_width = s_render_inst->swapchain_width;
+	rendering_info.viewport_height = s_render_inst->swapchain_height;
+	rendering_info.initial_layout = RENDER_IMAGE_LAYOUT::UNDEFINED;
+	rendering_info.final_layout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+	rendering_info.load_color = false;
+	rendering_info.store_color = true;
+	rendering_info.clear_color_rgba = float4{ 1.f, 1.f, 0.f, 1.f };
+	Vulkan::StartRendering(current_command_list.api_cmd_list, rendering_info, s_render_inst->backbuffer_pos);
 }
 
 void  Render::EndFrame()
@@ -413,7 +434,15 @@ void  Render::EndFrame()
 
 
 	//present
+	EndRenderingInfo rendering_info;
+	rendering_info.initial_layout = RENDER_IMAGE_LAYOUT::UNDEFINED;
+	rendering_info.final_layout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+	Vulkan::EndRendering(current_command_list.api_cmd_list, rendering_info, s_render_inst->backbuffer_pos);
+	current_use_pool->EndCommandList(current_command_list);
+
+	s_render_inst->frames[s_render_inst->backbuffer_pos].fence_value = s_render_inst->graphics_queue.GetNextFenceValue();
 	s_render_inst->graphics_queue.ExecutePresentCommands(nullptr, 0, nullptr, nullptr, 0, s_render_inst->backbuffer_pos);
+	s_render_inst->graphics_queue.ReturnPool(current_use_pool);
 
 	//swap images
 	Vulkan::EndFrame(s_render_inst->backbuffer_pos);

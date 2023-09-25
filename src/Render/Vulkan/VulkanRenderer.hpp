@@ -57,7 +57,7 @@ namespace BB
 			bool StartFrame(const uint32_t a_backbuffer_index);
 			bool EndFrame(const uint32_t a_backbuffer_index);
 
-			void CreateCommandPool(const RENDER_QUEUE_TYPE a_queue_type, const uint32_t a_command_list_count, RCommandPool& a_pool, CommandList* a_plists);
+			void CreateCommandPool(const RENDER_QUEUE_TYPE a_queue_type, const uint32_t a_command_list_count, RCommandPool& a_pool, RCommandList* a_plists);
 			void FreeCommandPool(const RCommandPool a_pool);
 
 			const RBuffer CreateBuffer(const BufferCreateInfo& a_create_info);
@@ -72,6 +72,9 @@ namespace BB
 			void ResetCommandPool(const RCommandPool a_pool);
 			void StartCommandList(const RCommandList a_list, const char* a_name);
 			void EndCommandList(const RCommandList a_list);
+
+			void StartRendering(const RCommandList a_list, const StartRenderingInfo& a_render_info, const uint32_t a_backbuffer_index);
+			void EndRendering(const RCommandList a_list, const EndRenderingInfo& a_rendering_info, const uint32_t a_backbuffer_index);
 
 			void ExecuteCommandLists(const RQueue a_queue, const ExecuteCommandsInfo* a_execute_infos, const uint32_t a_execute_info_count);
 			void ExecutePresentCommandList(const RQueue a_queue, const ExecuteCommandsInfo& a_execute_info, const uint32_t a_backbuffer_index);

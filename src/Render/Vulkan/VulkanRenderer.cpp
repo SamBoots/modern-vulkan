@@ -170,6 +170,25 @@ static inline VkShaderStageFlagBits ShaderStageBits(const RENDER_SHADER_STAGE a_
 	}
 }
 
+static inline VkImageLayout ImageLayout(const RENDER_IMAGE_LAYOUT a_ImageLayout)
+{
+	switch (a_ImageLayout)
+	{
+	case RENDER_IMAGE_LAYOUT::UNDEFINED:				return VK_IMAGE_LAYOUT_UNDEFINED;
+	case RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL: return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	case RENDER_IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT: return VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	case RENDER_IMAGE_LAYOUT::GENERAL:					return VK_IMAGE_LAYOUT_GENERAL;
+	case RENDER_IMAGE_LAYOUT::TRANSFER_SRC:				return VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+	case RENDER_IMAGE_LAYOUT::TRANSFER_DST:				return VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	case RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY:			return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	case RENDER_IMAGE_LAYOUT::PRESENT:					return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	default:
+		BB_ASSERT(false, "Vulkan: RENDER_IMAGE_LAYOUT failed to convert to a VkImageLayout.");
+		return VK_IMAGE_LAYOUT_UNDEFINED;
+		break;
+	}
+}
+
 static bool CheckValidationLayerSupport(Allocator a_temp_allocator, const Slice<const char*> a_layers)
 {
 	// check layers if they are available.
@@ -900,7 +919,7 @@ bool Vulkan::EndFrame(const uint32_t a_backbuffer_index)
 	return true;
 }
 
-void Vulkan::CreateCommandPool(const RENDER_QUEUE_TYPE a_queue_type, const uint32_t a_command_list_count, RCommandPool& a_pool, CommandList* a_plists)
+void Vulkan::CreateCommandPool(const RENDER_QUEUE_TYPE a_queue_type, const uint32_t a_command_list_count, RCommandPool& a_pool, RCommandList* a_plists)
 {
 	VkCommandPoolCreateInfo pool_create_info{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
 	switch (a_queue_type)
@@ -932,7 +951,7 @@ void Vulkan::CreateCommandPool(const RENDER_QUEUE_TYPE a_queue_type, const uint3
 	list_create_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 	list_create_info.commandBufferCount = a_command_list_count;
 
-	VkCommandBuffer* cmd_buffers = reinterpret_cast<VkCommandBuffer*>(&a_plists);
+	VkCommandBuffer* cmd_buffers = reinterpret_cast<VkCommandBuffer*>(a_plists);
 
 	VKASSERT(vkAllocateCommandBuffers(s_vulkan_inst->device,
 		&list_create_info,
@@ -1104,6 +1123,104 @@ void Vulkan::EndCommandList(const RCommandList a_list)
 	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 	VKASSERT(vkEndCommandBuffer(cmd_list), "Vulkan: Error when trying to end commandbuffer!");
 	SetDebugName(nullptr, cmd_list, VK_OBJECT_TYPE_COMMAND_BUFFER);
+}
+
+void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo& a_render_info, const uint32_t a_backbuffer_index)
+{
+	VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+
+	//include depth stencil later.
+	VkImageMemoryBarrier2 image_barriers[1];
+	image_barriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	image_barriers[0].dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+	image_barriers[0].srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+	image_barriers[0].dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	image_barriers[0].oldLayout = ImageLayout(a_render_info.initial_layout);
+	image_barriers[0].newLayout = ImageLayout(a_render_info.final_layout);
+	image_barriers[0].image = s_vulkan_swapchain->frames[a_backbuffer_index].image;
+	image_barriers[0].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	image_barriers[0].subresourceRange.baseArrayLayer = 0;
+	image_barriers[0].subresourceRange.layerCount = 1;
+	image_barriers[0].subresourceRange.baseMipLevel = 0;
+	image_barriers[0].subresourceRange.levelCount = 1;
+
+	VkDependencyInfo barrier_info{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+	barrier_info.pImageMemoryBarriers = image_barriers;
+	barrier_info.imageMemoryBarrierCount = 1;
+
+	VkRenderingAttachmentInfo rendering_attachment{ VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
+	if (a_render_info.load_color)
+		rendering_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
+	else
+		rendering_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+
+	if (a_render_info.store_color)
+		rendering_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	else
+		rendering_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+	rendering_attachment.imageLayout = ImageLayout(a_render_info.final_layout); //Get the layout after the memory barrier.
+	rendering_attachment.imageView = s_vulkan_swapchain->frames[a_backbuffer_index].image_view;
+	rendering_attachment.clearValue.color.float32[0] = a_render_info.clear_color_rgba.x;
+	rendering_attachment.clearValue.color.float32[1] = a_render_info.clear_color_rgba.y;
+	rendering_attachment.clearValue.color.float32[2] = a_render_info.clear_color_rgba.z;
+	rendering_attachment.clearValue.color.float32[3] = a_render_info.clear_color_rgba.w;
+
+
+	VkRect2D scissor{};
+	scissor.offset = { 0, 0 };
+	scissor.extent.width = a_render_info.viewport_width;
+	scissor.extent.height = a_render_info.viewport_height;
+
+	VkRenderingInfo rendering_info{ VK_STRUCTURE_TYPE_RENDERING_INFO };
+	rendering_info.renderArea = scissor;
+	rendering_info.layerCount = 1;
+	rendering_info.pColorAttachments = &rendering_attachment;
+	rendering_info.colorAttachmentCount = 1;
+
+	vkCmdBeginRendering(cmd_buffer, &rendering_info);
+
+
+	VkViewport t_Viewport{};
+	t_Viewport.x = 0.0f;
+	t_Viewport.y = 0.0f;
+	t_Viewport.width = static_cast<float>(a_render_info.viewport_width);
+	t_Viewport.height = static_cast<float>(a_render_info.viewport_height);
+	t_Viewport.minDepth = 0.0f;
+	t_Viewport.maxDepth = 1.0f;
+	vkCmdSetViewport(cmd_buffer, 0, 1, &t_Viewport);
+
+
+	vkCmdSetScissor(cmd_buffer, 0, 1, &scissor);
+}
+
+void Vulkan::EndRendering(const RCommandList a_list, const EndRenderingInfo& a_rendering_info, const uint32_t a_backbuffer_index)
+{
+	VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+	vkCmdEndRendering(cmd_buffer);
+
+	VkImageMemoryBarrier t_PresentBarrier{};
+	t_PresentBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	t_PresentBarrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	t_PresentBarrier.oldLayout = ImageLayout(a_rendering_info.initial_layout);
+	t_PresentBarrier.newLayout = ImageLayout(a_rendering_info.final_layout);
+	t_PresentBarrier.image = s_vulkan_swapchain->frames[a_backbuffer_index].image;
+	t_PresentBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	t_PresentBarrier.subresourceRange.baseArrayLayer = 0;
+	t_PresentBarrier.subresourceRange.layerCount = 1;
+	t_PresentBarrier.subresourceRange.baseMipLevel = 0;
+	t_PresentBarrier.subresourceRange.levelCount = 1;
+
+	vkCmdPipelineBarrier(cmd_buffer,
+		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+		VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+		0,
+		0,
+		nullptr,
+		0,
+		nullptr,
+		1,
+		&t_PresentBarrier);
 }
 
 void Vulkan::ExecuteCommandLists(const RQueue a_queue, const ExecuteCommandsInfo* a_execute_infos, const uint32_t a_execute_info_count)

@@ -26,6 +26,18 @@ namespace BB
 			FENCE
 		};
 
+		enum class RENDER_IMAGE_LAYOUT : uint32_t
+		{
+			UNDEFINED,
+			GENERAL,
+			TRANSFER_SRC,
+			TRANSFER_DST,
+			COLOR_ATTACHMENT_OPTIMAL,
+			DEPTH_STENCIL_ATTACHMENT,
+			SHADER_READ_ONLY,
+			PRESENT
+		};
+
 		struct BufferView
 		{
 			RBuffer buffer;
@@ -55,6 +67,27 @@ namespace BB
 			const RFence* signal_fences;
 			const uint64_t* signal_values;
 			uint32_t signal_count;
+		};
+
+		struct StartRenderingInfo
+		{
+			uint32_t viewport_width;
+			uint32_t viewport_height;
+
+			bool load_color;
+			bool store_color;
+			RENDER_IMAGE_LAYOUT initial_layout;
+			RENDER_IMAGE_LAYOUT final_layout;
+
+			//RImageHandle depthStencil{};
+
+			float4 clear_color_rgba;
+		};
+
+		struct EndRenderingInfo
+		{
+			RENDER_IMAGE_LAYOUT initial_layout;
+			RENDER_IMAGE_LAYOUT final_layout;
 		};
 	}
 }
