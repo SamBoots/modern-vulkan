@@ -1099,8 +1099,9 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 	VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 
 	//include depth stencil later.
-	VkImageMemoryBarrier2 image_barriers[1];
+	VkImageMemoryBarrier2 image_barriers[1]{};
 	image_barriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+	image_barriers[0].pNext = nullptr;
 	image_barriers[0].dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 	image_barriers[0].srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
 	image_barriers[0].dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -1116,6 +1117,8 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 	VkDependencyInfo barrier_info{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
 	barrier_info.pImageMemoryBarriers = image_barriers;
 	barrier_info.imageMemoryBarrierCount = 1;
+
+	vkCmdPipelineBarrier2(cmd_buffer, &barrier_info);
 
 	VkRenderingAttachmentInfo rendering_attachment{ VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
 	if (a_render_info.load_color)
@@ -1166,8 +1169,10 @@ void Vulkan::EndRendering(const RCommandList a_list, const EndRenderingInfo& a_r
 	VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 	vkCmdEndRendering(cmd_buffer);
 
-	VkImageMemoryBarrier present_barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
-	present_barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+	VkImageMemoryBarrier2 present_barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
+	present_barrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+	present_barrier.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
+	present_barrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 	present_barrier.oldLayout = ImageLayout(a_rendering_info.initial_layout);
 	present_barrier.newLayout = ImageLayout(a_rendering_info.final_layout);
 	present_barrier.image = s_vulkan_swapchain->frames[a_backbuffer_index].image;
@@ -1177,16 +1182,11 @@ void Vulkan::EndRendering(const RCommandList a_list, const EndRenderingInfo& a_r
 	present_barrier.subresourceRange.baseMipLevel = 0;
 	present_barrier.subresourceRange.levelCount = 1;
 
-	vkCmdPipelineBarrier(cmd_buffer,
-		VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-		VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-		0,
-		0,
-		nullptr,
-		0,
-		nullptr,
-		1,
-		&present_barrier);
+	VkDependencyInfo barrier_info{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+	barrier_info.pImageMemoryBarriers = &present_barrier;
+	barrier_info.imageMemoryBarrierCount = 1;
+
+	vkCmdPipelineBarrier2(cmd_buffer, &barrier_info);
 }
 
 void Vulkan::ExecuteCommandLists(const RQueue a_queue, const ExecuteCommandsInfo* a_execute_infos, const uint32_t a_execute_info_count)
@@ -1247,17 +1247,20 @@ void Vulkan::ExecutePresentCommandList(const RQueue a_queue, const ExecuteComman
 	//MEMCPY wait/signal values.
 
 	Memory::Copy<VkSemaphore>(wait_semaphores, a_execute_info.wait_fences, a_execute_info.wait_count);
+	Memory::Copy(wait_values, a_execute_info.wait_values, a_execute_info.wait_count);
 	wait_semaphores[a_execute_info.wait_count] = s_vulkan_swapchain->frames[a_backbuffer_index].image_available_semaphore;
+	wait_values[a_execute_info.wait_count] = 0;
 
 	Memory::Copy<VkSemaphore>(signal_semaphores, a_execute_info.signal_fences, a_execute_info.signal_count);
+	Memory::Copy(signal_values, a_execute_info.signal_values, a_execute_info.signal_count);
 	signal_semaphores[a_execute_info.signal_count] = s_vulkan_swapchain->frames[a_backbuffer_index].present_finished_semaphore;
+	signal_values[a_execute_info.signal_count] = 0;
 
 	VkTimelineSemaphoreSubmitInfo timeline_sem_info{ VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO };
 	timeline_sem_info.pWaitSemaphoreValues = wait_values;
 	timeline_sem_info.waitSemaphoreValueCount = wait_semaphore_count;
 	timeline_sem_info.pSignalSemaphoreValues = signal_values;
 	timeline_sem_info.signalSemaphoreValueCount = signal_semaphore_count;
-
 
 	VkSubmitInfo submit_info{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
 	submit_info.pNext = &timeline_sem_info;

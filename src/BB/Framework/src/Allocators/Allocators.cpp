@@ -226,17 +226,17 @@ FixedLinearAllocator::FixedLinearAllocator(const size_t a_size, const char* a_Na
 {
 	BB_ASSERT(a_size != 0, "Fixed linear allocator is created with a size of 0!");
 	size_t t_Size = a_size;
-	m_Start = mallocVirtual(nullptr, t_Size, VIRTUAL_RESERVE_NONE);
-	m_Buffer = m_Start;
+	m_start = mallocVirtual(nullptr, t_Size, VIRTUAL_RESERVE_NONE);
+	m_Buffer = m_start;
 #ifdef _DEBUG
-	m_End = reinterpret_cast<uintptr_t>(m_Start) + t_Size;
+	m_End = reinterpret_cast<uintptr_t>(m_start) + t_Size;
 #endif //_DEBUG
 }
 
 FixedLinearAllocator::~FixedLinearAllocator()
 {
 	Validate();
-	freeVirtual(reinterpret_cast<void*>(m_Start));
+	freeVirtual(reinterpret_cast<void*>(m_start));
 }
 
 FixedLinearAllocator::operator Allocator()
@@ -271,7 +271,7 @@ void FixedLinearAllocator::Free(void*)
 void FixedLinearAllocator::Clear()
 {
 	BaseAllocator::Clear();
-	m_Buffer = m_Start;
+	m_Buffer = m_start;
 }
 
 StackAllocator::StackAllocator(const size_t a_size, const char* a_name)
@@ -378,8 +378,8 @@ FreelistAllocator::FreelistAllocator(const size_t a_size, const char* a_Name)
 	BB_ASSERT(a_size != 0, "Freelist allocator is created with a size of 0!");
 	BB_WARNING(a_size > 10240, "Freelist allocator is smaller then 10 kb, you generally want a bigger freelist.", WarningType::OPTIMALIZATION);
 	m_TotalAllocSize = a_size;
-	m_Start = reinterpret_cast<uint8_t*>(mallocVirtual(nullptr, m_TotalAllocSize));
-	m_FreeBlocks = reinterpret_cast<FreeBlock*>(m_Start);
+	m_start = reinterpret_cast<uint8_t*>(mallocVirtual(nullptr, m_TotalAllocSize));
+	m_FreeBlocks = reinterpret_cast<FreeBlock*>(m_start);
 	m_FreeBlocks->size = m_TotalAllocSize;
 	m_FreeBlocks->next = nullptr;
 }
@@ -387,7 +387,7 @@ FreelistAllocator::FreelistAllocator(const size_t a_size, const char* a_Name)
 FreelistAllocator::~FreelistAllocator()
 {
 	Validate();
-	freeVirtual(m_Start);
+	freeVirtual(m_start);
 }
 
 FreelistAllocator::operator Allocator()
@@ -446,7 +446,7 @@ void* FreelistAllocator::Alloc(size_t a_size, size_t a_Alignment)
 	}
 	BB_WARNING(false, "Increasing the size of a freelist allocator, risk of fragmented memory.", WarningType::OPTIMALIZATION);
 	//Double the size of the freelist.
-	FreeBlock* t_NewAllocBlock = reinterpret_cast<FreeBlock*>(mallocVirtual(m_Start, m_TotalAllocSize));
+	FreeBlock* t_NewAllocBlock = reinterpret_cast<FreeBlock*>(mallocVirtual(m_start, m_TotalAllocSize));
 	t_NewAllocBlock->size = m_TotalAllocSize;
 	t_NewAllocBlock->next = m_FreeBlocks;
 
@@ -509,7 +509,7 @@ void FreelistAllocator::Free(void* a_Ptr)
 void BB::allocators::FreelistAllocator::Clear()
 {
 	BaseAllocator::Clear();
-	m_FreeBlocks = reinterpret_cast<FreeBlock*>(m_Start);
+	m_FreeBlocks = reinterpret_cast<FreeBlock*>(m_start);
 	m_FreeBlocks->size = m_TotalAllocSize;
 	m_FreeBlocks->next = nullptr;
 }
@@ -649,10 +649,10 @@ void BB::allocators::POW_FreelistAllocator::Clear()
 //
 //	size_t t_PoolAllocSize = a_objectSize * a_objectCount;
 //	m_ObjectCount = a_objectCount;
-//	m_Start = reinterpret_cast<void**>(mallocVirtual(m_Start, t_PoolAllocSize));
-//	m_Alignment = pointerutils::alignForwardAdjustment(m_Start, a_Alignment);
-//	m_Start = reinterpret_cast<void**>(pointerutils::Add(m_Start, m_Alignment));
-//	m_Pool = m_Start;
+//	m_start = reinterpret_cast<void**>(mallocVirtual(m_start, t_PoolAllocSize));
+//	m_Alignment = pointerutils::alignForwardAdjustment(m_start, a_Alignment);
+//	m_start = reinterpret_cast<void**>(pointerutils::Add(m_start, m_Alignment));
+//	m_Pool = m_start;
 //
 //	void** t_Pool = m_Pool;
 //
@@ -666,7 +666,7 @@ void BB::allocators::POW_FreelistAllocator::Clear()
 //
 //BB::allocators::PoolAllocator::~PoolAllocator()
 //{
-//	freeVirtual(m_Start);
+//	freeVirtual(m_start);
 //}
 //
 //void* BB::allocators::PoolAllocator::Alloc(size_t a_size, size_t)
@@ -678,8 +678,8 @@ void BB::allocators::POW_FreelistAllocator::Clear()
 //	{
 //		size_t t_Increase = m_ObjectCount;
 //		size_t t_ByteIncrease = m_ObjectCount * a_size;
-//		mallocVirtual(m_Start, t_ByteIncrease);
-//		void** t_Pool = reinterpret_cast<void**>(pointerutils::Add(m_Start, m_ObjectCount * a_size + m_Alignment));
+//		mallocVirtual(m_start, t_ByteIncrease);
+//		void** t_Pool = reinterpret_cast<void**>(pointerutils::Add(m_start, m_ObjectCount * a_size + m_Alignment));
 //		m_Pool = t_Pool;
 //		m_ObjectCount += m_ObjectCount;
 //		
@@ -704,5 +704,5 @@ void BB::allocators::POW_FreelistAllocator::Clear()
 //
 //void BB::allocators::PoolAllocator::Clear()
 //{
-//	m_Pool = reinterpret_cast<void**>(m_Start);
+//	m_Pool = reinterpret_cast<void**>(m_start);
 //}

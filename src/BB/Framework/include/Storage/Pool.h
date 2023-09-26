@@ -41,7 +41,7 @@ namespace BB
 		/// </summary>
 		void Free(T* a_Ptr);
 
-		T* data() const { return reinterpret_cast<T*>(m_Start); }
+		T* data() const { return reinterpret_cast<T*>(m_start); }
 
 	private:
 #ifdef _DEBUG
@@ -52,7 +52,7 @@ namespace BB
 		Allocator m_allocator{};
 #endif // _DEBUG
 
-		void* m_Start = nullptr;
+		void* m_start = nullptr;
 		T** m_Pool;
 	};
 
@@ -60,16 +60,16 @@ namespace BB
 	template<typename T>
 	inline Pool<T>::~Pool()
 	{
-		BB_ASSERT(m_Start == nullptr, "Memory pool was not destroyed before it went out of scope!");
+		BB_ASSERT(m_start == nullptr, "Memory pool was not destroyed before it went out of scope!");
 	}
 #endif // _DEBUG
 
 	template<typename T>
 	inline Pool<T>::Pool(Pool&& a_Pool)
 	{
-		m_Start = a_Pool.m_Start;
+		m_start = a_Pool.m_start;
 		m_Pool = a_Pool.m_Pool;
-		m_Start = nullptr;
+		m_start = nullptr;
 		m_Pool = nullptr;
 
 #ifdef _DEBUG
@@ -86,9 +86,9 @@ namespace BB
 	template<typename T>
 	inline Pool<T>& Pool<T>::operator=(Pool&& a_rhs)
 	{
-		m_Start = a_rhs.m_Start;
+		m_start = a_rhs.m_start;
 		m_Pool = a_rhs.m_Pool;
-		a_rhs.m_Start = nullptr;
+		a_rhs.m_start = nullptr;
 		a_rhs.m_Pool = nullptr;
 
 #ifdef _DEBUG
@@ -108,7 +108,7 @@ namespace BB
 	inline void Pool<T>::CreatePool(Allocator a_allocator, const size_t a_size)
 	{
 		BB_STATIC_ASSERT(sizeof(T) >= sizeof(void*), "Pool object is smaller then the size of a pointer.");
-		BB_ASSERT(m_Start == nullptr, "Trying to create a pool while one already exists!");
+		BB_ASSERT(m_start == nullptr, "Trying to create a pool while one already exists!");
 
 #ifdef _DEBUG
 		m_size = 0;
@@ -116,8 +116,8 @@ namespace BB
 		m_allocator = a_allocator;
 #endif //_DEBUG
 
-		m_Start = BBalloc(a_allocator, a_size * sizeof(T));
-		m_Pool = reinterpret_cast<T**>(m_Start);
+		m_start = BBalloc(a_allocator, a_size * sizeof(T));
+		m_Pool = reinterpret_cast<T**>(m_start);
 
 		T** t_Pool = m_Pool;
 
@@ -135,12 +135,12 @@ namespace BB
 #ifdef _DEBUG
 		BB_ASSERT(m_allocator.allocator == a_allocator.allocator, "Trying to delete a pool with an allocator that wasn't used in it's CreatePool function.");
 #endif //_DEBUG
-		BBfree(a_allocator, m_Start);
+		BBfree(a_allocator, m_start);
 #ifdef _DEBUG
 		//Set everything to 0 in debug to indicate it was destroyed.
 		memset(this, 0, sizeof(BB::Pool<T>));
 #endif //_DEBUG
-		m_Start = nullptr;
+		m_start = nullptr;
 	}
 
 	template<class T>
@@ -168,7 +168,7 @@ namespace BB
 	inline void BB::Pool<T>::Free(T* a_Ptr)
 	{
 #ifdef _DEBUG
-		BB_ASSERT((a_Ptr >= m_Start && a_Ptr < Pointer::Add(m_Start,  m_capacity * sizeof(T))), "Trying to free an pool object that is not part of this pool!");
+		BB_ASSERT((a_Ptr >= m_start && a_Ptr < Pointer::Add(m_start,  m_capacity * sizeof(T))), "Trying to free an pool object that is not part of this pool!");
 		--m_size;
 #endif // _DEBUG
 

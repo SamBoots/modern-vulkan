@@ -84,7 +84,7 @@ namespace BB
 			void Clear() override;
 
 		private:
-			void* m_Start;
+			void* m_start;
 			void* m_Buffer;
 #ifdef _DEBUG
 			uintptr_t m_End;
@@ -150,7 +150,7 @@ namespace BB
 				FreeBlock* next;
 			};
 
-			uint8_t* m_Start = nullptr;
+			uint8_t* m_start = nullptr;
 			FreeBlock* m_FreeBlocks;
 			size_t m_TotalAllocSize;
 		};
@@ -212,7 +212,7 @@ namespace BB
 
 		//	size_t m_Alignment;
 		//	size_t m_ObjectCount;
-		//	void** m_Start = nullptr;
+		//	void** m_start = nullptr;
 		//	void** m_Pool;
 		//};
 	}

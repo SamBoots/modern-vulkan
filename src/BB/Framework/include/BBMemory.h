@@ -5,8 +5,10 @@
 #include <malloc.h>
 #include <type_traits>
 
-template <typename T>
-struct MacroType { typedef T type; }; //I hate C++.
+////incase BBnewArr / BBStackAlloc / BBStackAlloc_s do not work anymore due to template stuff, use this again.
+////This was required once to make templates work in macros but not anymore?
+//template <typename T>
+//struct MacroType { typedef T type; }; //I hate C++.
 
 namespace BB
 {
@@ -15,14 +17,14 @@ namespace BB
 	constexpr const size_t gbSize = mbSize * 1024;
 
 //_alloca wrapper, does not require a free call.
-#define BBstackAlloc(a_count, a_type) reinterpret_cast<MacroType<a_type*>::type>(_alloca(a_count * sizeof(a_type)))
+#define BBstackAlloc(a_count, a_type) reinterpret_cast<a_type*>(_alloca(a_count * sizeof(a_type)))
 //_malloca wrapper, be sure to call BBstackFree_s
-#define BBstackAlloc_s(a_count, a_type) reinterpret_cast<MacroType<a_type*>::type>(_malloca(a_count * sizeof(a_type)))
+#define BBstackAlloc_s(a_count, a_type) reinterpret_cast<a_type*>(_malloca(a_count * sizeof(a_type)))
 #define BBstackFree_s(a_ptr) _freea(a_ptr)
 
 #define BBalloc(a_allocator, a_size) BB::BBalloc_f(BB_MEMORY_DEBUG_ARGS a_allocator, a_size, 1)
 #define BBnew(a_allocator, a_type) new (BB::BBalloc_f(BB_MEMORY_DEBUG_ARGS a_allocator, sizeof(a_type), __alignof(a_type))) a_type
-#define BBnewArr(a_allocator, a_length, a_type) (BB::BBnewArr_f<MacroType<a_type>::type>(BB_MEMORY_DEBUG_ARGS a_allocator, a_length))
+#define BBnewArr(a_allocator, a_length, a_type) (BB::BBnewArr_f<a_type>(BB_MEMORY_DEBUG_ARGS a_allocator, a_length))
 
 #define BBfree(a_allocator, a_ptr) BBfree_f(a_allocator, a_ptr)
 #define BBfreeArr(a_allocator, a_ptr) BBfreeArr_f(a_allocator, a_ptr)

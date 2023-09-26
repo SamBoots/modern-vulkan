@@ -50,7 +50,7 @@ namespace BB
 		size_t m_capacity = 0;
 #endif // _DEBUG
 
-		void* m_Start = nullptr;
+		void* m_start = nullptr;
 		T** m_Pool = nullptr;
 	};
 
@@ -58,7 +58,7 @@ namespace BB
 	template<typename T>
 	inline GrowPool<T>::~GrowPool()
 	{
-		BB_ASSERT(m_Start == nullptr, "Memory pool was not destroyed before it went out of scope!");
+		BB_ASSERT(m_start == nullptr, "Memory pool was not destroyed before it went out of scope!");
 	}
 #endif _DEBUG
 
@@ -66,11 +66,11 @@ namespace BB
 	inline void GrowPool<T>::CreatePool(const size_t a_size)
 	{
 		BB_STATIC_ASSERT(sizeof(T) >= sizeof(void*), "Pool object is smaller then the size of a pointer.");
-		BB_ASSERT(m_Start == nullptr, "Trying to create a pool while one already exists!");
+		BB_ASSERT(m_start == nullptr, "Trying to create a pool while one already exists!");
 
 		size_t t_AllocSize = a_size * sizeof(T);
-		m_Start = mallocVirtual(m_Start, t_AllocSize);
-		m_Pool = reinterpret_cast<T**>(m_Start);
+		m_start = mallocVirtual(m_start, t_AllocSize);
+		m_Pool = reinterpret_cast<T**>(m_start);
 		const size_t t_SpaceForElements = t_AllocSize / sizeof(T);
 
 #ifdef _DEBUG
@@ -91,12 +91,12 @@ namespace BB
 	template<typename T>
 	inline void GrowPool<T>::DestroyPool()
 	{
-		freeVirtual(m_Start);
+		freeVirtual(m_start);
 #ifdef _DEBUG
 		//Set everything to 0 in debug to indicate it was destroyed.
 		memset(this, 0, sizeof(BB::GrowPool<T>));
 #endif //_DEBUG
-		m_Start = nullptr;
+		m_start = nullptr;
 	}
 
 	template<class T>
@@ -106,17 +106,17 @@ namespace BB
 		{
 			BB_WARNING(false, "Growing the growpool, if this happens often try to reserve more.", WarningType::OPTIMALIZATION);
 			//get more memory!
-			size_t t_AllocSize = 0;
-			mallocVirtual(m_Start, t_AllocSize);
-			const size_t t_SpaceForElements = t_AllocSize / sizeof(T);
+			size_t alloc_size = 8 * sizeof(T);
+			mallocVirtual(m_start, alloc_size);
+			const size_t elements_allocated = Max(static_cast<size_t>(8), static_cast<size_t>(alloc_size / sizeof(T)));
 
 #ifdef _DEBUG
-			m_capacity += t_SpaceForElements;
+			m_capacity += elements_allocated;
 #endif //_DEBUG
 
 			T** t_Pool = m_Pool;
 
-			for (size_t i = 0; i < t_SpaceForElements - 1; i++)
+			for (size_t i = 0; i < elements_allocated - 1; i++)
 			{
 				*t_Pool = (reinterpret_cast<T*>(t_Pool)) + 1;
 				t_Pool = reinterpret_cast<T**>(*t_Pool);
@@ -140,7 +140,7 @@ namespace BB
 	inline void GrowPool<T>::Free(T* a_Ptr)
 	{
 #ifdef _DEBUG
-		BB_ASSERT((a_Ptr >= m_Start && a_Ptr < Pointer::Add(m_Start, m_capacity * sizeof(T))), "Trying to free an pool object that is not part of this pool!");
+		BB_ASSERT((a_Ptr >= m_start && a_Ptr < Pointer::Add(m_start, m_capacity * sizeof(T))), "Trying to free an pool object that is not part of this pool!");
 		--m_size;
 #endif // _DEBUG
 
