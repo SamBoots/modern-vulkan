@@ -38,6 +38,47 @@ namespace BB
 			PRESENT
 		};
 
+		enum class RENDER_SHADER_STAGE : uint32_t
+		{
+			ALL,
+			VERTEX,
+			FRAGMENT_PIXEL
+		};
+
+		enum class BUFFER_TYPE
+		{
+			UPLOAD,
+			STORAGE,
+			UNIFORM,
+			VERTEX,
+			INDEX
+		};
+
+		enum class RENDER_DESCRIPTOR_TYPE : uint32_t
+		{
+			READONLY_CONSTANT, //CBV or uniform buffer
+			READONLY_BUFFER, //SRV or Storage buffer
+			READWRITE, //UAV or readwrite storage buffer(?)
+			IMAGE,
+			SAMPLER,
+			ENUM_SIZE
+		};
+
+		struct BufferCreateInfo
+		{
+			const char* name = nullptr;
+			uint64_t size = 0;
+			BUFFER_TYPE type;
+		};
+
+		struct DescriptorBindingInfo
+		{
+			uint32_t binding;
+			uint32_t count;
+			RENDER_DESCRIPTOR_TYPE type;
+			RENDER_SHADER_STAGE shader_stage;
+		};
+
 		struct BufferView
 		{
 			RBuffer buffer;
@@ -47,7 +88,7 @@ namespace BB
 
 		struct DescriptorAllocation
 		{
-			RDescriptor descriptor;
+			RDescriptorLayout descriptor;
 			uint32_t size;
 			uint32_t offset;
 		};
@@ -88,6 +129,27 @@ namespace BB
 		{
 			RENDER_IMAGE_LAYOUT initial_layout;
 			RENDER_IMAGE_LAYOUT final_layout;
+		};
+
+		struct PushConstantRanges
+		{
+			RENDER_SHADER_STAGE stages;
+			uint32_t offset;
+			uint32_t size;
+		};
+
+		struct ShaderObjectCreateInfo
+		{
+			//maybe flags.
+			RENDER_SHADER_STAGE stage;
+			RENDER_SHADER_STAGE next_stages;
+			size_t shader_code_size;
+			const void* shader_code;
+			const char* shader_entry;
+			uint32_t descriptor_layout_count;
+			RDescriptorLayout* descriptor_layouts;
+			uint32_t push_constant_range_count;
+			PushConstantRanges* push_constant_ranges;
 		};
 	}
 }

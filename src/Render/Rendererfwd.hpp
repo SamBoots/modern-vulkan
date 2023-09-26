@@ -10,7 +10,8 @@ namespace BB
 		using RCommandPool = FrameworkHandle<struct RCommandPoolTag>;
 		using RCommandList = FrameworkHandle<struct RCommandListTag>;
 
-		using RDescriptor = FrameworkHandle<struct RDescriptorTag>;
+		using ShaderObject = FrameworkHandle<struct ShaderObjectTag>;
+		using RDescriptorLayout = FrameworkHandle<struct RDescriptorLayoutTag>;
 		using RBuffer = FrameworkHandle<struct RBufferTag>;
 		using MeshHandle = FrameworkHandle<struct MeshHandleTag>;
 

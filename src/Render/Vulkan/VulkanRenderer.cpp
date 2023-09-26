@@ -60,7 +60,7 @@ public:
 	VulkanDescriptorLinearBuffer(const size_t a_buffer_size, const VkBufferUsageFlags a_buffer_usage);
 	~VulkanDescriptorLinearBuffer();
 
-	const DescriptorAllocation AllocateDescriptor(const RDescriptor a_descriptor);
+	const DescriptorAllocation AllocateDescriptor(const RDescriptorLayout a_descriptor);
 
 private:
 	VkBuffer m_buffer;
@@ -507,6 +507,7 @@ struct Vulkan_inst
 		PFN_vkCmdBindDescriptorBufferEmbeddedSamplersEXT CmdBindDescriptorBufferEmbeddedSamplersEXT;
 		PFN_vkCmdSetDescriptorBufferOffsetsEXT CmdSetDescriptorBufferOffsetsEXT;
 		PFN_vkSetDebugUtilsObjectNameEXT SetDebugUtilsObjectNameEXT;
+		PFN_vkCreateShadersEXT CreateShaderEXT;
 	} pfn;
 };
 
@@ -557,7 +558,7 @@ VulkanDescriptorLinearBuffer::~VulkanDescriptorLinearBuffer()
 	vmaDestroyBuffer(s_vulkan_inst->vma, m_buffer, m_allocation);
 }
 
-const DescriptorAllocation VulkanDescriptorLinearBuffer::AllocateDescriptor(const RDescriptor a_descriptor)
+const DescriptorAllocation VulkanDescriptorLinearBuffer::AllocateDescriptor(const RDescriptorLayout a_descriptor)
 {
 	DescriptorAllocation allocation;
 	const VkDescriptorSetLayout descriptor_set = reinterpret_cast<VkDescriptorSetLayout>(a_descriptor.handle);
@@ -612,7 +613,8 @@ bool Vulkan::InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a
 		VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME,
 		VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
 		VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME,
-		VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME
+		VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME,
+		VK_EXT_SHADER_OBJECT_EXTENSION_NAME
 	};
 
 	BBStackAllocatorScope(a_stack_allocator)
@@ -664,6 +666,7 @@ bool Vulkan::InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a
 		s_vulkan_inst->pfn.CmdBindDescriptorBufferEmbeddedSamplersEXT = (PFN_vkCmdBindDescriptorBufferEmbeddedSamplersEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdBindDescriptorBufferEmbeddedSamplersEXT");
 		s_vulkan_inst->pfn.CmdSetDescriptorBufferOffsetsEXT = (PFN_vkCmdSetDescriptorBufferOffsetsEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdSetDescriptorBufferOffsetsEXT");
 		s_vulkan_inst->pfn.SetDebugUtilsObjectNameEXT = (PFN_vkSetDebugUtilsObjectNameEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkSetDebugUtilsObjectNameEXT");
+		s_vulkan_inst->pfn.CreateShaderEXT = (PFN_vkCreateShadersEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCreateShadersEXT");
 
 		{	//device & queues
 			s_vulkan_inst->phys_device = FindPhysicalDevice(a_stack_allocator, s_vulkan_inst->instance);
@@ -989,7 +992,7 @@ void Vulkan::FreeBuffer(const RBuffer a_buffer)
 	s_vulkan_inst->buffers.erase(a_buffer.handle);
 }
 
-RDescriptor Vulkan::CreateDescriptor(Allocator a_temp_allocator, Slice<DescriptorBindingInfo> a_bindings)
+RDescriptorLayout Vulkan::CreateDescriptorLayout(Allocator a_temp_allocator, Slice<DescriptorBindingInfo> a_bindings)
 {
 	VkDescriptorSetLayout set_layout;
 
@@ -1048,12 +1051,59 @@ RDescriptor Vulkan::CreateDescriptor(Allocator a_temp_allocator, Slice<Descripto
 			"Vulkan: Failed to create a descriptorsetlayout.");
 	}
 
-	return RDescriptor((uint64_t)set_layout);
+	return RDescriptorLayout((uint64_t)set_layout);
 }
 
-DescriptorAllocation Vulkan::AllocateDescriptor(const RDescriptor a_descriptor)
+DescriptorAllocation Vulkan::AllocateDescriptor(const RDescriptorLayout a_descriptor)
 {
 	return s_vulkan_inst->pdescriptor_buffer->AllocateDescriptor(a_descriptor);
+}
+
+void Vulkan::CreateShaderObject(Allocator a_temp_allocator, Slice<ShaderObjectCreateInfo> a_shader_objects, ShaderObject* a_pshader_objects)
+{
+	VkShaderCreateInfoEXT* shader_create_infos = BBnewArr(a_temp_allocator, a_shader_objects.size(), VkShaderCreateInfoEXT);
+
+	for (size_t i = 0; i < a_shader_objects.size(); i++)
+	{
+		const ShaderObjectCreateInfo& shad_info = a_shader_objects[i];
+		VkShaderCreateInfoEXT& create_inf = shader_create_infos[i];
+		create_inf.sType = VK_STRUCTURE_TYPE_SHADER_CREATE_INFO_EXT;
+		create_inf.pNext = nullptr;
+		create_inf.flags = 0;
+		create_inf.stage = ShaderStageBits(shad_info.stage);
+		create_inf.nextStage = ShaderStageBits(shad_info.next_stages);
+		create_inf.codeType = VK_SHADER_CODE_TYPE_SPIRV_EXT; //for now always SPIR-V
+		create_inf.codeSize = shad_info.shader_code_size;
+		create_inf.pCode = shad_info.shader_code;
+		create_inf.pName = shad_info.shader_entry;
+		create_inf.setLayoutCount = shad_info.descriptor_layout_count;
+		create_inf.pSetLayouts = reinterpret_cast<VkDescriptorSetLayout*>(shad_info.descriptor_layouts);
+
+		VkPushConstantRange* constant_ranges = BBnewArr(a_temp_allocator, shad_info.push_constant_range_count, VkPushConstantRange);
+		for (size_t i = 0; i < shad_info.push_constant_range_count; i++)
+		{
+			constant_ranges[i].stageFlags = ShaderStageBits(shad_info.push_constant_ranges[i].stages);
+			constant_ranges[i].size = shad_info.push_constant_ranges[i].size;
+			constant_ranges[i].offset = shad_info.push_constant_ranges[i].offset;
+		}
+		create_inf.pushConstantRangeCount = shad_info.push_constant_range_count;
+		create_inf.pPushConstantRanges = constant_ranges;
+		create_inf.pSpecializationInfo = nullptr;
+	}
+
+	VKASSERT(s_vulkan_inst->pfn.CreateShaderEXT(s_vulkan_inst->device,
+		a_shader_objects.size(),
+		shader_create_infos,
+		nullptr,
+		reinterpret_cast<VkShaderEXT*>(a_pshader_objects)),
+		"Failed to create shader objects!");
+}
+
+void Vulkan::DestroyShaderObject(const ShaderObject a_shader_object)
+{
+	vkDestroyShaderEXT(s_vulkan_inst->device,
+		reinterpret_cast<VkShaderEXT>(a_shader_object.handle),
+		nullptr);
 }
 
 void* Vulkan::MapBufferMemory(const RBuffer a_buffer)
@@ -1152,14 +1202,14 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 
 	vkCmdBeginRendering(cmd_buffer, &rendering_info);
 
-	VkViewport t_Viewport{};
-	t_Viewport.x = 0.0f;
-	t_Viewport.y = 0.0f;
-	t_Viewport.width = static_cast<float>(a_render_info.viewport_width);
-	t_Viewport.height = static_cast<float>(a_render_info.viewport_height);
-	t_Viewport.minDepth = 0.0f;
-	t_Viewport.maxDepth = 1.0f;
-	vkCmdSetViewport(cmd_buffer, 0, 1, &t_Viewport);
+	VkViewport viewport{};
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+	viewport.width = static_cast<float>(a_render_info.viewport_width);
+	viewport.height = static_cast<float>(a_render_info.viewport_height);
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+	vkCmdSetViewport(cmd_buffer, 0, 1, &viewport);
 
 	vkCmdSetScissor(cmd_buffer, 0, 1, &scissor);
 }
