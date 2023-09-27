@@ -64,7 +64,7 @@ Token GetToken(JsonFile& a_JsonFile)
 		t_Token.strSize = static_cast<uint32_t>(t_StrLen);
 		t_Token.str = &a_JsonFile.data[a_JsonFile.pos];
 
-		a_JsonFile.pos += t_StrLen + 1; //includes the last "
+		a_JsonFile.pos += static_cast<uint32_t>(t_StrLen) + 1; //includes the last "
 	}
 	else if (t_C == '-' || (t_C >= '0' && t_C <= '9')) //is number
 	{
@@ -78,7 +78,7 @@ Token GetToken(JsonFile& a_JsonFile)
 		t_Token.strSize = static_cast<uint32_t>(t_StrLen);
 		t_Token.str = &a_JsonFile.data[a_JsonFile.pos - 1];
 
-		a_JsonFile.pos += t_StrLen - 1; //includes the last
+		a_JsonFile.pos += static_cast<uint32_t>(t_StrLen) - 1; //includes the last
 	}
 	else if (t_C == 'f') {
 		t_Token.type = TOKEN_TYPE::BOOLEAN;

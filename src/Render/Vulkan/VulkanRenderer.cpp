@@ -1,7 +1,9 @@
 #include "VulkanRenderer.hpp"
+
 #ifdef _WIN32
 #define VK_USE_PLATFORM_WIN32_KHR
 #endif //_WIN32
+
 #include <Vulkan/vulkan.h>
 
 #define VMA_STATIC_VULKAN_FUNCTIONS 1
@@ -552,6 +554,7 @@ VulkanDescriptorLinearBuffer::VulkanDescriptorLinearBuffer(const size_t a_buffer
 	VKASSERT(vmaMapMemory(s_vulkan_inst->vma, m_allocation, &m_start),
 		"Vulkan: Failed to map memory for descriptor buffer");
 	m_start_address = GetBufferDeviceAddress(s_vulkan_inst->device, m_buffer);
+	m_offset = 0;
 }
 
 VulkanDescriptorLinearBuffer::~VulkanDescriptorLinearBuffer()
@@ -1126,7 +1129,7 @@ void Vulkan::CreateShaderObject(Allocator a_temp_allocator, Slice<ShaderObjectCr
 	}
 
 	VKASSERT(s_vulkan_inst->pfn.CreateShaderEXT(s_vulkan_inst->device,
-		a_shader_objects.size(),
+		static_cast<uint32_t>(a_shader_objects.size()),
 		shader_create_infos,
 		nullptr,
 		reinterpret_cast<VkShaderEXT*>(a_pshader_objects)),
