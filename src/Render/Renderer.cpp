@@ -263,6 +263,7 @@ private:
 
 struct Mesh
 {
+	DescriptorAllocation mesh_descriptor_allocation;
 	BufferView vertex_buffer;
 	BufferView index_buffer;
 };
@@ -277,9 +278,7 @@ struct RenderInterface_inst
 {
 	RenderInterface_inst(Allocator a_system_allocator)
 		: graphics_queue(a_system_allocator, RENDER_QUEUE_TYPE::GRAPHICS, "graphics queue", 8, 8)
-	{
-
-	}
+	{}
 
 	WindowHandle swapchain_window;
 	uint32_t swapchain_width;
@@ -329,6 +328,7 @@ CommandList current_command_list;
 
 ShaderObject vertex_object;
 ShaderObject fragment_object;
+RDescriptorLayout vertex_descriptor_layout;
 RPipelineLayout pipeline_layout;
 
 BufferView AllocateFromVertexBuffer(const size_t a_size_in_bytes)
@@ -414,9 +414,17 @@ void Render::InitializeRenderer(StackAllocator_t& a_stack_allocator, const Rende
 	BBStackAllocatorScope(a_stack_allocator)
 	{
 		//temp stuff
+		DescriptorBindingInfo descriptor_bindings[1];
+		descriptor_bindings[0].binding = 0;
+		descriptor_bindings[0].count = 1;
+		descriptor_bindings[0].shader_stage = SHADER_STAGE::VERTEX;
+		descriptor_bindings[0].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+		vertex_descriptor_layout = Vulkan::CreateDescriptorLayout(a_stack_allocator, Slice(descriptor_bindings, 1));
+
+		pipeline_layout = Vulkan::CreatePipelineLayout(&vertex_descriptor_layout, 1, nullptr, 0);
+
 		const ShaderCode vertex_shader = CompileShader(a_stack_allocator, "../resources/shaders/hlsl/Debug.hlsl", "VertexMain", SHADER_STAGE::VERTEX);
 		const ShaderCode fragment_shader = CompileShader(a_stack_allocator, "../resources/shaders/hlsl/Debug.hlsl", "FragmentMain", SHADER_STAGE::FRAGMENT_PIXEL);
-
 
 		Buffer shader_buffer = GetShaderCodeBuffer(vertex_shader);
 		ShaderObjectCreateInfo shader_objects_info[2];
@@ -434,8 +442,8 @@ void Render::InitializeRenderer(StackAllocator_t& a_stack_allocator, const Rende
 		shader_objects_info[1].shader_code_size = shader_buffer.size;
 		shader_objects_info[1].shader_code = shader_buffer.data;
 		shader_objects_info[1].shader_entry = "FragmentMain";
-		shader_objects_info[1].descriptor_layout_count = 0;
-		//shader_objects_info[1].descriptor_layouts = vertexlayout;
+		shader_objects_info[1].descriptor_layout_count = 1;
+		shader_objects_info[1].descriptor_layouts = &vertex_descriptor_layout;
 		shader_objects_info[1].push_constant_range_count = 0;
 
 		ShaderObject shader_objects[2];
@@ -444,7 +452,8 @@ void Render::InitializeRenderer(StackAllocator_t& a_stack_allocator, const Rende
 		vertex_object = shader_objects[0];
 		fragment_object = shader_objects[1];
 
-
+		ReleaseShaderCode(vertex_shader);
+		ReleaseShaderCode(fragment_shader);
 	}
 }
 
@@ -496,6 +505,7 @@ MeshHandle Render::CreateMesh(const CreateMeshInfo& a_create_info)
 	Mesh mesh;
 	mesh.vertex_buffer = AllocateFromVertexBuffer(a_create_info.vertices.sizeInBytes());
 	mesh.index_buffer = AllocateFromIndexBuffer(a_create_info.vertices.sizeInBytes());
+	mesh.mesh_descriptor_allocation = Vulkan::AllocateDescriptor(vertex_descriptor_layout);
 
 	return MeshHandle(s_render_inst->mesh_map.insert(mesh).handle);
 }

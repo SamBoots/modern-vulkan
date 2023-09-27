@@ -144,5 +144,32 @@ namespace BB
 			uint32_t push_constant_range_count;
 			PushConstantRanges* push_constant_ranges;
 		};
+
+		struct WriteDescriptorBuffer
+		{
+			RBuffer buffer;
+			size_t range;
+			size_t offset;
+		};
+
+		struct WriteDescriptorData
+		{
+			uint32_t binding;
+			uint32_t descriptor_index;
+			RENDER_DESCRIPTOR_TYPE type{};
+			union
+			{
+				WriteDescriptorBuffer buffer;
+				//WriteDescriptorImage image;
+			};
+		};
+
+		struct WriteDescriptorInfos
+		{
+			RDescriptorLayout descriptor_layout{};
+			DescriptorAllocation allocation;
+
+			BB::Slice<WriteDescriptorData> data;
+		};
 	}
 }
