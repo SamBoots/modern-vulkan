@@ -19,6 +19,7 @@ namespace BB
 
 		enum class SHADER_STAGE : uint32_t
 		{
+			NONE,
 			ALL,
 			VERTEX,
 			FRAGMENT_PIXEL

@@ -422,6 +422,10 @@ static VkDevice CreateLogicalDevice(Allocator a_temp_allocator, const VkPhysical
 	sync_features.synchronization2 = VK_TRUE;
 	sync_features.pNext = &descriptor_buffer_info;
 
+	VkPhysicalDeviceShaderObjectFeaturesEXT shader_objects{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_OBJECT_FEATURES_EXT };
+	shader_objects.shaderObject = true;
+	shader_objects.pNext = &sync_features;
+
 
 	VkDeviceQueueCreateInfo* queue_create_infos = BBnewArr(a_temp_allocator, 3, VkDeviceQueueCreateInfo);
 	float standard_queue_prios[16] = { 1.0f }; // just put it all to 1 for multiple queues;
@@ -461,7 +465,7 @@ static VkDevice CreateLogicalDevice(Allocator a_temp_allocator, const VkPhysical
 	device_create_info.pEnabledFeatures = &device_features;
 	device_create_info.ppEnabledExtensionNames = a_device_extensions.data();
 	device_create_info.enabledExtensionCount = static_cast<uint32_t>(a_device_extensions.size());
-	device_create_info.pNext = &sync_features;
+	device_create_info.pNext = &shader_objects;
 
 	VKASSERT(vkCreateDevice(a_phys_device,
 		&device_create_info,
@@ -1073,12 +1077,17 @@ RPipelineLayout CreatePipelineLayout(const RDescriptorLayout* a_descriptor_layou
 	create_info.setLayoutCount = a_layout_count;
 	create_info.pSetLayouts = reinterpret_cast<const VkDescriptorSetLayout*>(a_descriptor_layouts);
 	
-	VkPushConstantRange* constant_ranges = BBstackAlloc(a_constant_range_count, VkPushConstantRange);
-	for (size_t i = 0; i < a_constant_range_count; i++)
+	VkPushConstantRange* constant_ranges = nullptr;
+	if (a_constant_range_count)
 	{
-		constant_ranges[i].stageFlags = ShaderStageBits(a_constant_ranges[i].stages);
-		constant_ranges[i].size = a_constant_ranges[i].size;
-		constant_ranges[i].offset = a_constant_ranges[i].offset;
+		//jank allocation
+		constant_ranges = BBstackAlloc_s(a_constant_range_count, VkPushConstantRange);
+		for (size_t i = 0; i < a_constant_range_count; i++)
+		{
+			constant_ranges[i].stageFlags = ShaderStageBits(a_constant_ranges[i].stages);
+			constant_ranges[i].size = a_constant_ranges[i].size;
+			constant_ranges[i].offset = a_constant_ranges[i].offset;
+		}
 	}
 
 	create_info.pushConstantRangeCount = a_constant_range_count;
@@ -1086,6 +1095,7 @@ RPipelineLayout CreatePipelineLayout(const RDescriptorLayout* a_descriptor_layou
 
 	VkPipelineLayout pipe_layout;
 	vkCreatePipelineLayout(s_vulkan_inst->device, &create_info, nullptr, &pipe_layout);
+	BBstackFree_s(constant_ranges);
 	return RPipelineLayout((uintptr_t)pipe_layout);
 }
 
@@ -1106,9 +1116,12 @@ void Vulkan::CreateShaderObject(Allocator a_temp_allocator, Slice<ShaderObjectCr
 		VkShaderCreateInfoEXT& create_inf = shader_create_infos[i];
 		create_inf.sType = VK_STRUCTURE_TYPE_SHADER_CREATE_INFO_EXT;
 		create_inf.pNext = nullptr;
-		create_inf.flags = 0;
+		create_inf.flags = VK_SHADER_CREATE_LINK_STAGE_BIT_EXT;
 		create_inf.stage = ShaderStageBits(shad_info.stage);
-		create_inf.nextStage = ShaderStageBits(shad_info.next_stages);
+		if (shad_info.next_stages == SHADER_STAGE::NONE)
+			create_inf.nextStage = 0;
+		else
+			create_inf.nextStage = ShaderStageBits(shad_info.next_stages);
 		create_inf.codeType = VK_SHADER_CODE_TYPE_SPIRV_EXT; //for now always SPIR-V
 		create_inf.codeSize = shad_info.shader_code_size;
 		create_inf.pCode = shad_info.shader_code;
@@ -1116,13 +1129,19 @@ void Vulkan::CreateShaderObject(Allocator a_temp_allocator, Slice<ShaderObjectCr
 		create_inf.setLayoutCount = shad_info.descriptor_layout_count;
 		create_inf.pSetLayouts = reinterpret_cast<VkDescriptorSetLayout*>(shad_info.descriptor_layouts);
 
-		VkPushConstantRange* constant_ranges = BBnewArr(a_temp_allocator, shad_info.push_constant_range_count, VkPushConstantRange);
-		for (size_t i = 0; i < shad_info.push_constant_range_count; i++)
+		VkPushConstantRange* constant_ranges;
+		if (shad_info.push_constant_range_count)
 		{
-			constant_ranges[i].stageFlags = ShaderStageBits(shad_info.push_constant_ranges[i].stages);
-			constant_ranges[i].size = shad_info.push_constant_ranges[i].size;
-			constant_ranges[i].offset = shad_info.push_constant_ranges[i].offset;
+			constant_ranges = BBnewArr(a_temp_allocator, shad_info.push_constant_range_count, VkPushConstantRange);
+			for (size_t i = 0; i < shad_info.push_constant_range_count; i++)
+			{
+				constant_ranges[i].stageFlags = ShaderStageBits(shad_info.push_constant_ranges[i].stages);
+				constant_ranges[i].size = shad_info.push_constant_ranges[i].size;
+				constant_ranges[i].offset = shad_info.push_constant_ranges[i].offset;
+			}
 		}
+		else
+			constant_ranges = nullptr;
 		create_inf.pushConstantRangeCount = shad_info.push_constant_range_count;
 		create_inf.pPushConstantRanges = constant_ranges;
 		create_inf.pSpecializationInfo = nullptr;

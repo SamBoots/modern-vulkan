@@ -4,6 +4,8 @@
 #include "Storage/Slotmap.h"
 #include "Program.h"
 
+#include "ShaderCompiler.h"
+
 using namespace BB;
 using namespace Render;
 
@@ -14,7 +16,7 @@ struct RenderFence
 	RFence fence;
 };
 
-//get one per thread
+//get one pool per thread
 class CommandPool
 {
 	friend class RenderQueue;
@@ -322,6 +324,13 @@ struct RenderInterface_inst
 
 static RenderInterface_inst* s_render_inst;
 
+CommandPool* current_use_pool;
+CommandList current_command_list;
+
+ShaderObject vertex_object;
+ShaderObject fragment_object;
+RPipelineLayout pipeline_layout;
+
 BufferView AllocateFromVertexBuffer(const size_t a_size_in_bytes)
 {
 	BufferView view;
@@ -399,10 +408,45 @@ void Render::InitializeRenderer(StackAllocator_t& a_stack_allocator, const Rende
 		s_render_inst->index_buffer.size = static_cast<uint32_t>(index_buffer.size);
 		s_render_inst->index_buffer.used = 0;
 	}
-}
 
-CommandPool* current_use_pool;
-CommandList current_command_list;
+	InitShaderCompiler();
+
+	BBStackAllocatorScope(a_stack_allocator)
+	{
+		//temp stuff
+		const ShaderCode vertex_shader = CompileShader(a_stack_allocator, "../resources/shaders/hlsl/Debug.hlsl", "VertexMain", SHADER_STAGE::VERTEX);
+		const ShaderCode fragment_shader = CompileShader(a_stack_allocator, "../resources/shaders/hlsl/Debug.hlsl", "FragmentMain", SHADER_STAGE::FRAGMENT_PIXEL);
+
+
+		Buffer shader_buffer = GetShaderCodeBuffer(vertex_shader);
+		ShaderObjectCreateInfo shader_objects_info[2];
+		shader_objects_info[0].stage = SHADER_STAGE::VERTEX;
+		shader_objects_info[0].next_stages = SHADER_STAGE::FRAGMENT_PIXEL;
+		shader_objects_info[0].shader_code_size = shader_buffer.size;
+		shader_objects_info[0].shader_code = shader_buffer.data;
+		shader_objects_info[0].shader_entry = "VertexMain";
+		shader_objects_info[0].descriptor_layout_count = 0;
+		shader_objects_info[0].push_constant_range_count = 0;
+
+		shader_buffer = GetShaderCodeBuffer(fragment_shader);
+		shader_objects_info[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
+		shader_objects_info[1].next_stages = SHADER_STAGE::NONE;
+		shader_objects_info[1].shader_code_size = shader_buffer.size;
+		shader_objects_info[1].shader_code = shader_buffer.data;
+		shader_objects_info[1].shader_entry = "FragmentMain";
+		shader_objects_info[1].descriptor_layout_count = 0;
+		//shader_objects_info[1].descriptor_layouts = vertexlayout;
+		shader_objects_info[1].push_constant_range_count = 0;
+
+		ShaderObject shader_objects[2];
+		Vulkan::CreateShaderObject(a_stack_allocator, Slice(shader_objects_info, _countof(shader_objects_info)), shader_objects);
+
+		vertex_object = shader_objects[0];
+		fragment_object = shader_objects[1];
+
+
+	}
+}
 
 void  Render::StartFrame()
 {
