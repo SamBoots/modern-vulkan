@@ -38,13 +38,6 @@ namespace BB
 			PRESENT
 		};
 
-		enum class RENDER_SHADER_STAGE : uint32_t
-		{
-			ALL,
-			VERTEX,
-			FRAGMENT_PIXEL
-		};
-
 		enum class BUFFER_TYPE
 		{
 			UPLOAD,
@@ -76,7 +69,7 @@ namespace BB
 			uint32_t binding;
 			uint32_t count;
 			RENDER_DESCRIPTOR_TYPE type;
-			RENDER_SHADER_STAGE shader_stage;
+			SHADER_STAGE shader_stage;
 		};
 
 		struct BufferView
@@ -133,7 +126,7 @@ namespace BB
 
 		struct PushConstantRanges
 		{
-			RENDER_SHADER_STAGE stages;
+			SHADER_STAGE stages;
 			uint32_t offset;
 			uint32_t size;
 		};
@@ -141,8 +134,8 @@ namespace BB
 		struct ShaderObjectCreateInfo
 		{
 			//maybe flags.
-			RENDER_SHADER_STAGE stage;
-			RENDER_SHADER_STAGE next_stages;
+			SHADER_STAGE stage;
+			SHADER_STAGE next_stages;
 			size_t shader_code_size;
 			const void* shader_code;
 			const char* shader_entry;

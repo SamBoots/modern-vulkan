@@ -9,24 +9,42 @@ find_package(Vulkan REQUIRED)
 
 add_executable(Renderer
 	"Render/Vulkan/VulkanRenderer.cpp"
+	"Render/ShaderCompiler.cpp"
 	"Render/Renderer.cpp"
 	"main.cpp")
 
-target_link_libraries(Renderer
-	BBFramework 
+target_link_libraries(Renderer	BBFramework 
 	Vulkan::Vulkan
 	VMA
-	IMGUI)
+	IMGUI
+	DXCompiler)
 
 #Include library
 target_include_directories(Renderer PUBLIC
 	"Render/Vulkan"
 	"Render")
 
+#compile Definitions.
+if (WIN32)
+set(PLATFORM_NAME "_WIN")
+target_compile_definitions(Renderer PRIVATE VK_USE_PLATFORM_WIN32_KHR)
+elseif(UNIX)
+set(PLATFORM_NAME "_LINUX")
+target_compile_definitions(Renderer PRIVATE VK_USE_PLATFORM_XLIB_KHR)
+endif ()
+
+add_custom_command(TARGET Renderer POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "${CMAKE_SOURCE_DIR}/lib/DXC/bin/${CPU_ARCHITECTURE}/dxcompiler.dll"
+        $<TARGET_FILE_DIR:Renderer>)
+
+add_custom_command(TARGET Renderer POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy
+        "${CMAKE_SOURCE_DIR}/Libs/DXC/bin/${CPU_ARCHITECTURE}/dxil.dll"
+        $<TARGET_FILE_DIR:Renderer>)
+
 add_executable(image_filter_test
 	"image_test_main.cpp")
 
 target_link_libraries(image_filter_test PUBLIC
 	BBFramework)
-
-add_subdirectory ("resources")

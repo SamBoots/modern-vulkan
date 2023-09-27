@@ -156,15 +156,15 @@ static inline VkDescriptorType DescriptorBufferType(const RENDER_DESCRIPTOR_TYPE
 	}
 }
 
-static inline VkShaderStageFlagBits ShaderStageBits(const RENDER_SHADER_STAGE a_Stage)
+static inline VkShaderStageFlagBits ShaderStageBits(const SHADER_STAGE a_Stage)
 {
 	switch (a_Stage)
 	{
-	case RENDER_SHADER_STAGE::ALL:					return VK_SHADER_STAGE_ALL;
-	case RENDER_SHADER_STAGE::VERTEX:				return VK_SHADER_STAGE_VERTEX_BIT;
-	case RENDER_SHADER_STAGE::FRAGMENT_PIXEL:		return VK_SHADER_STAGE_FRAGMENT_BIT;
+	case SHADER_STAGE::ALL:					return VK_SHADER_STAGE_ALL;
+	case SHADER_STAGE::VERTEX:				return VK_SHADER_STAGE_VERTEX_BIT;
+	case SHADER_STAGE::FRAGMENT_PIXEL:		return VK_SHADER_STAGE_FRAGMENT_BIT;
 	default:
-		BB_ASSERT(false, "Vulkan: RENDER_SHADER_STAGE failed to convert to a VkShaderStageFlagBits.");
+		BB_ASSERT(false, "Vulkan: SHADER_STAGE failed to convert to a VkShaderStageFlagBits.");
 		return VK_SHADER_STAGE_ALL;
 		break;
 	}
@@ -508,6 +508,8 @@ struct Vulkan_inst
 		PFN_vkCmdSetDescriptorBufferOffsetsEXT CmdSetDescriptorBufferOffsetsEXT;
 		PFN_vkSetDebugUtilsObjectNameEXT SetDebugUtilsObjectNameEXT;
 		PFN_vkCreateShadersEXT CreateShaderEXT;
+		PFN_vkDestroyShaderEXT DestroyShaderEXT;
+		PFN_vkCmdBindShadersEXT CmdBindShadersEXT;
 	} pfn;
 };
 
@@ -614,6 +616,7 @@ bool Vulkan::InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a
 		VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
 		VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME,
 		VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME,
+		VK_EXT_VERTEX_INPUT_DYNAMIC_STATE_EXTENSION_NAME,
 		VK_EXT_SHADER_OBJECT_EXTENSION_NAME
 	};
 
@@ -667,6 +670,8 @@ bool Vulkan::InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a
 		s_vulkan_inst->pfn.CmdSetDescriptorBufferOffsetsEXT = (PFN_vkCmdSetDescriptorBufferOffsetsEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdSetDescriptorBufferOffsetsEXT");
 		s_vulkan_inst->pfn.SetDebugUtilsObjectNameEXT = (PFN_vkSetDebugUtilsObjectNameEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkSetDebugUtilsObjectNameEXT");
 		s_vulkan_inst->pfn.CreateShaderEXT = (PFN_vkCreateShadersEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCreateShadersEXT");
+		s_vulkan_inst->pfn.DestroyShaderEXT = (PFN_vkDestroyShaderEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkDestroyShaderEXT");
+		s_vulkan_inst->pfn.CmdBindShadersEXT = (PFN_vkCmdBindShadersEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdBindShadersEXT");
 
 		{	//device & queues
 			s_vulkan_inst->phys_device = FindPhysicalDevice(a_stack_allocator, s_vulkan_inst->instance);
@@ -1051,12 +1056,41 @@ RDescriptorLayout Vulkan::CreateDescriptorLayout(Allocator a_temp_allocator, Sli
 			"Vulkan: Failed to create a descriptorsetlayout.");
 	}
 
-	return RDescriptorLayout((uint64_t)set_layout);
+	return RDescriptorLayout((uintptr_t)set_layout);
 }
 
 DescriptorAllocation Vulkan::AllocateDescriptor(const RDescriptorLayout a_descriptor)
 {
 	return s_vulkan_inst->pdescriptor_buffer->AllocateDescriptor(a_descriptor);
+}
+
+RPipelineLayout CreatePipelineLayout(const RDescriptorLayout* a_descriptor_layouts, const uint32_t a_layout_count, const PushConstantRanges* a_constant_ranges, const uint32_t a_constant_range_count)
+{
+	VkPipelineLayoutCreateInfo create_info{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+	create_info.setLayoutCount = a_layout_count;
+	create_info.pSetLayouts = reinterpret_cast<const VkDescriptorSetLayout*>(a_descriptor_layouts);
+	
+	VkPushConstantRange* constant_ranges = BBstackAlloc(a_constant_range_count, VkPushConstantRange);
+	for (size_t i = 0; i < a_constant_range_count; i++)
+	{
+		constant_ranges[i].stageFlags = ShaderStageBits(a_constant_ranges[i].stages);
+		constant_ranges[i].size = a_constant_ranges[i].size;
+		constant_ranges[i].offset = a_constant_ranges[i].offset;
+	}
+
+	create_info.pushConstantRangeCount = a_constant_range_count;
+	create_info.pPushConstantRanges = constant_ranges;
+
+	VkPipelineLayout pipe_layout;
+	vkCreatePipelineLayout(s_vulkan_inst->device, &create_info, nullptr, &pipe_layout);
+	return RPipelineLayout((uintptr_t)pipe_layout);
+}
+
+void FreePipelineLayout(const RPipelineLayout a_layout)
+{
+	vkDestroyPipelineLayout(s_vulkan_inst->device, 
+		reinterpret_cast<VkPipelineLayout>(a_layout.handle),
+		nullptr);
 }
 
 void Vulkan::CreateShaderObject(Allocator a_temp_allocator, Slice<ShaderObjectCreateInfo> a_shader_objects, ShaderObject* a_pshader_objects)
@@ -1101,7 +1135,7 @@ void Vulkan::CreateShaderObject(Allocator a_temp_allocator, Slice<ShaderObjectCr
 
 void Vulkan::DestroyShaderObject(const ShaderObject a_shader_object)
 {
-	vkDestroyShaderEXT(s_vulkan_inst->device,
+	s_vulkan_inst->pfn.DestroyShaderEXT(s_vulkan_inst->device,
 		reinterpret_cast<VkShaderEXT>(a_shader_object.handle),
 		nullptr);
 }
@@ -1164,6 +1198,22 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 	image_barriers[0].subresourceRange.baseMipLevel = 0;
 	image_barriers[0].subresourceRange.levelCount = 1;
 
+	vkCmdSetCullMode(cmd_buffer, VK_CULL_MODE_BACK_BIT);
+	vkCmdSetFrontFace(cmd_buffer, VK_FRONT_FACE_COUNTER_CLOCKWISE);
+	vkCmdSetPrimitiveTopology(cmd_buffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+
+	if (0) //DEPTH OP
+	{
+		vkCmdSetDepthTestEnable(cmd_buffer, VK_TRUE);
+		vkCmdSetDepthWriteEnable(cmd_buffer, VK_TRUE);
+		vkCmdSetDepthCompareOp(cmd_buffer, VK_COMPARE_OP_LESS_OR_EQUAL);
+	}
+	else
+	{
+		vkCmdSetDepthTestEnable(cmd_buffer, VK_FALSE);
+		vkCmdSetDepthWriteEnable(cmd_buffer, VK_FALSE);
+	}
+
 	VkDependencyInfo barrier_info{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
 	barrier_info.pImageMemoryBarriers = image_barriers;
 	barrier_info.imageMemoryBarrierCount = 1;
@@ -1209,9 +1259,11 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 	viewport.height = static_cast<float>(a_render_info.viewport_height);
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
-	vkCmdSetViewport(cmd_buffer, 0, 1, &viewport);
+	vkCmdSetViewportWithCount(cmd_buffer, 1, &viewport);
 
-	vkCmdSetScissor(cmd_buffer, 0, 1, &scissor);
+	vkCmdSetScissorWithCount(cmd_buffer, 1, &scissor);
+	//set more due to shader objects
+
 }
 
 void Vulkan::EndRendering(const RCommandList a_list, const EndRenderingInfo& a_rendering_info, const uint32_t a_backbuffer_index)
@@ -1237,6 +1289,17 @@ void Vulkan::EndRendering(const RCommandList a_list, const EndRenderingInfo& a_r
 	barrier_info.imageMemoryBarrierCount = 1;
 
 	vkCmdPipelineBarrier2(cmd_buffer, &barrier_info);
+}
+
+void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stage_count, const SHADER_STAGE* a_shader_stages, const ShaderObject* a_shader_objects)
+{
+	VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+
+	VkShaderStageFlagBits* shader_stages = BBstackAlloc(a_shader_stage_count, VkShaderStageFlagBits);
+	for (size_t i = 0; i < a_shader_stage_count; i++)
+		shader_stages[i] = ShaderStageBits(a_shader_stages[i]);
+
+	s_vulkan_inst->pfn.CmdBindShadersEXT(cmd_buffer, a_shader_stage_count, shader_stages, reinterpret_cast<const VkShaderEXT*>(a_shader_objects));
 }
 
 void Vulkan::ExecuteCommandLists(const RQueue a_queue, const ExecuteCommandsInfo* a_execute_infos, const uint32_t a_execute_info_count)

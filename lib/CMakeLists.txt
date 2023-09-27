@@ -8,6 +8,11 @@ add_library(VMA INTERFACE
 "VMA/vk_mem_alloc.h")
 target_include_directories(VMA INTERFACE VMA)
 
+add_library(DXCompiler INTERFACE
+"DXC/inc/dxcapi.h"
+"DXC/inc/d3d12shader.h")
+target_include_directories(DXCompiler INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+
 add_library(stb_image INTERFACE
 "stb/stb_image.h"
 )

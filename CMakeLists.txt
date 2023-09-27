@@ -70,6 +70,7 @@ endif(CMAKE_BUILD_TYPE MATCHES Debug)
 
 add_subdirectory ("lib")
 add_subdirectory ("src")
+add_subdirectory ("resources")
 
 message(STATUS "Building binaries at")
 message(STATUS ${CMAKE_BINARY_DIR})
