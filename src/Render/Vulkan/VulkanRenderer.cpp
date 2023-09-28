@@ -1390,6 +1390,28 @@ void Vulkan::EndRendering(const RCommandList a_list, const EndRenderingInfo& a_r
 	vkCmdPipelineBarrier2(cmd_buffer, &barrier_info);
 }
 
+void Vulkan::BindVertexBuffer(const RCommandList a_list, const RBuffer a_buffer, const uint64_t a_offset)
+{
+	VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+
+	const size_t offsets = 0;
+	vkCmdBindVertexBuffers(cmd_buffer,
+		0,
+		1,
+		&s_vulkan_inst->buffers[a_buffer.handle].buffer,
+		&offsets);
+}
+
+void Vulkan::BindIndexBuffer(const RCommandList a_list, const RBuffer a_buffer, const uint64_t a_offset)
+{
+	VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+
+	vkCmdBindIndexBuffer(cmd_buffer,
+		s_vulkan_inst->buffers[a_buffer.handle].buffer,
+		a_offset,
+		VK_INDEX_TYPE_UINT32);
+}
+
 void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stage_count, const SHADER_STAGE* a_shader_stages, const ShaderObject* a_shader_objects)
 {
 	VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
@@ -1412,6 +1434,13 @@ void Vulkan::SetDescriptorBufferOffset(const RCommandList a_list, const RPipelin
 		a_set_count,
 		a_buffer_indices,
 		a_offsets);
+}
+
+void Vulkan::DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance)
+{
+	VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+
+	vkCmdDrawIndexed(cmd_buffer, a_index_count, a_instance_count, a_first_index, a_vertex_offset, a_first_instance);
 }
 
 void Vulkan::ExecuteCommandLists(const RQueue a_queue, const ExecuteCommandsInfo* a_execute_infos, const uint32_t a_execute_info_count)
