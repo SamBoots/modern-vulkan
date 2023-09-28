@@ -56,18 +56,6 @@ static inline VkDeviceSize GetBufferDeviceAddress(const VkDevice a_device, const
 	return vkGetBufferDeviceAddress(a_device, &buffer_address_info);
 }
 
-static inline VkDescriptorAddressInfoEXT GetDescriptorAddressInfo(const VkDevice a_device, const WriteDescriptorBuffer& a_Buffer, const VkFormat a_Format = VK_FORMAT_UNDEFINED)
-{
-	VkDescriptorAddressInfoEXT t_Info{ VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT };
-	t_Info.range = a_Buffer.range;
-	t_Info.address = GetBufferDeviceAddress(a_device, reinterpret_cast<VulkanBuffer*>(a_Buffer.buffer.handle)->buffer);
-	//offset the address.
-	t_Info.address += a_Buffer.offset;
-	t_Info.format = a_Format;
-	return t_Info;
-}
-
-
 class VulkanDescriptorLinearBuffer
 {
 public:
@@ -156,17 +144,17 @@ static bool CheckExtensionSupport(Allocator a_temp_allocator, Slice<const char*>
 	return true;
 }
 
-static inline VkDescriptorType DescriptorBufferType(const RENDER_DESCRIPTOR_TYPE a_Type)
+static inline VkDescriptorType DescriptorBufferType(const DESCRIPTOR_TYPE a_Type)
 {
 	switch (a_Type)
 	{
-	case RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT:	return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	case RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER:	return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	case RENDER_DESCRIPTOR_TYPE::READWRITE:			return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	case RENDER_DESCRIPTOR_TYPE::IMAGE:				return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-	case RENDER_DESCRIPTOR_TYPE::SAMPLER:			return VK_DESCRIPTOR_TYPE_SAMPLER;
+	case DESCRIPTOR_TYPE::READONLY_CONSTANT:	return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	case DESCRIPTOR_TYPE::READONLY_BUFFER:	return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	case DESCRIPTOR_TYPE::READWRITE:			return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	case DESCRIPTOR_TYPE::IMAGE:				return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+	case DESCRIPTOR_TYPE::SAMPLER:			return VK_DESCRIPTOR_TYPE_SAMPLER;
 	default:
-		BB_ASSERT(false, "Vulkan: RENDER_DESCRIPTOR_TYPE failed to convert to a VkDescriptorType.");
+		BB_ASSERT(false, "Vulkan: DESCRIPTOR_TYPE failed to convert to a VkDescriptorType.");
 		return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		break;
 	}
@@ -551,6 +539,17 @@ struct Vulkan_swapchain
 static Vulkan_inst* s_vulkan_inst = nullptr;
 static Vulkan_swapchain* s_vulkan_swapchain = nullptr;
 
+static inline VkDescriptorAddressInfoEXT GetDescriptorAddressInfo(const VkDevice a_device, const BufferView& a_Buffer, const VkFormat a_Format = VK_FORMAT_UNDEFINED)
+{
+	VkDescriptorAddressInfoEXT t_Info{ VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT };
+	t_Info.range = a_Buffer.size;
+	t_Info.address = GetBufferDeviceAddress(a_device, s_vulkan_inst->buffers[a_Buffer.buffer.handle].buffer);
+	//offset the address.
+	t_Info.address += a_Buffer.offset;
+	t_Info.format = a_Format;
+	return t_Info;
+}
+
 VulkanDescriptorLinearBuffer::VulkanDescriptorLinearBuffer(const size_t a_buffer_size, const VkBufferUsageFlags a_buffer_usage)
 	:	m_size(static_cast<uint32_t>(a_buffer_size))
 {
@@ -593,6 +592,7 @@ const DescriptorAllocation VulkanDescriptorLinearBuffer::AllocateDescriptor(cons
 	allocation.descriptor = a_descriptor;
 	allocation.size = static_cast<uint32_t>(descriptors_size);
 	allocation.offset = m_offset;
+	allocation.buffer_start = m_start; //Maybe just get this from the descriptor heap? We only have one heap anyway.
 
 	m_offset += allocation.size;
 
@@ -1090,52 +1090,53 @@ void Vulkan::WriteDescriptors(const WriteDescriptorInfos& a_write_info)
 	{
 		const WriteDescriptorData& write_data = a_write_info.data[i];
 
-		VkDeviceSize t_Offset;
-		s_vulkan_inst->pfn.GetDescriptorSetLayoutBindingOffsetEXT(s_vulkan_inst->device,
-			reinterpret_cast<VkDescriptorSetLayout>(a_write_info.descriptor_layout.handle),
-			write_data.binding,
-			&t_Offset);
-
 		union VkDescData
 		{
 			VkDescriptorAddressInfoEXT buffer;
 			VkDescriptorImageInfo image;
 		};
 
-		VkDescData t_Data{};
+		VkDescData data{};
 
 		VkDeviceSize descriptor_size;
-		VkDescriptorGetInfoEXT t_DescInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT };
+		VkDescriptorGetInfoEXT desc_info{ VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT };
 		switch (write_data.type)
 		{
-		case RENDER_DESCRIPTOR_TYPE::READONLY_CONSTANT:
-			t_Data.buffer = GetDescriptorAddressInfo(s_vulkan_inst->device, write_data.buffer);
-			t_DescInfo.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			t_DescInfo.data.pUniformBuffer = &t_Data.buffer;
+		case DESCRIPTOR_TYPE::READONLY_CONSTANT:
+			data.buffer = GetDescriptorAddressInfo(s_vulkan_inst->device, write_data.buffer_view);
+			desc_info.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			desc_info.data.pUniformBuffer = &data.buffer;
 			descriptor_size = s_vulkan_inst->descriptor_sizes.uniform_buffer;
 			break;
-		case RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER:
-		case RENDER_DESCRIPTOR_TYPE::READWRITE:
-			t_Data.buffer = GetDescriptorAddressInfo(s_vulkan_inst->device, write_data.buffer);
-			t_DescInfo.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-			t_DescInfo.data.pStorageBuffer = &t_Data.buffer;
+		case DESCRIPTOR_TYPE::READONLY_BUFFER:
+		case DESCRIPTOR_TYPE::READWRITE:
+			data.buffer = GetDescriptorAddressInfo(s_vulkan_inst->device, write_data.buffer_view);
+			desc_info.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+			desc_info.data.pStorageBuffer = &data.buffer;
 			descriptor_size = s_vulkan_inst->descriptor_sizes.storage_buffer;
 			break;
-		case RENDER_DESCRIPTOR_TYPE::IMAGE:
-			//t_Data.image = GetDescriptorImageInfo(s_vulkan_inst->device, write_data.image);
-			//t_DescInfo.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-			//t_DescInfo.data.pSampledImage = &t_Data.image;
+		case DESCRIPTOR_TYPE::IMAGE:
+			//data.image = GetDescriptorImageInfo(s_vulkan_inst->device, write_data.image);
+			//desc_info.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+			//desc_info.data.pSampledImage = &data.image;
+			BB_ASSERT(false, "Image not yet supported");
 			break;
 		default:
-			BB_ASSERT(false, "Vulkan: RENDER_DESCRIPTOR_TYPE failed to convert to a VkDescriptorType.");
-			t_DescInfo.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			BB_ASSERT(false, "Vulkan: DESCRIPTOR_TYPE failed to convert to a VkDescriptorType.");
+			desc_info.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 			break;
 		}
 
-		t_Offset += descriptor_size * write_data.descriptor_index;
-		void* t_DescriptorLocation = Pointer::Add(a_write_info.allocation., a_WriteInfo.allocation.offset + t_Offset);
+		VkDeviceSize descriptor_offset;
+		s_vulkan_inst->pfn.GetDescriptorSetLayoutBindingOffsetEXT(s_vulkan_inst->device,
+			reinterpret_cast<VkDescriptorSetLayout>(a_write_info.descriptor_layout.handle),
+			write_data.binding,
+			&descriptor_offset);
 
-		s_vulkan_inst->pfn.GetDescriptorEXT(s_vulkan_inst->device, &t_DescInfo, t_DescriptorSize, t_DescriptorLocation);
+		descriptor_offset += descriptor_size * write_data.descriptor_index;
+		void* descriptor_mem = Pointer::Add(a_write_info.allocation.buffer_start, a_write_info.allocation.offset + descriptor_offset);
+
+		s_vulkan_inst->pfn.GetDescriptorEXT(s_vulkan_inst->device, &desc_info, descriptor_size, descriptor_mem);
 	}
 }
 

@@ -55,8 +55,8 @@ namespace BB
 	uint32_t OSPageSize();
 
 	void* ReserveVirtualMemory(const size_t a_size);
-	bool CommitVirtualMemory(void* a_Ptr, const size_t a_size);
-	bool ReleaseVirtualMemory(void* a_Ptr);
+	bool CommitVirtualMemory(void* a_ptr, const size_t a_size);
+	bool ReleaseVirtualMemory(void* a_ptr);
 
 	//Prints the latest OS error and returns the error code, if it has no error code it returns 0.
 	const uint32_t LatestOSError();

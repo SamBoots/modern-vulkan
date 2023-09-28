@@ -197,15 +197,15 @@ void* BB::ReserveVirtualMemory(const size_t a_size)
 	return VirtualAlloc(nullptr, a_size, MEM_RESERVE, PAGE_NOACCESS);
 }
 
-bool BB::CommitVirtualMemory(void* a_Ptr, const size_t a_size)
+bool BB::CommitVirtualMemory(void* a_ptr, const size_t a_size)
 {
-	void* t_Ptr = VirtualAlloc(a_Ptr, a_size, MEM_COMMIT, PAGE_READWRITE);
+	void* t_Ptr = VirtualAlloc(a_ptr, a_size, MEM_COMMIT, PAGE_READWRITE);
 	return t_Ptr;
 }
 
-bool BB::ReleaseVirtualMemory(void* a_Ptr)
+bool BB::ReleaseVirtualMemory(void* a_ptr)
 {
-	return VirtualFree(a_Ptr, 0, MEM_RELEASE);
+	return VirtualFree(a_ptr, 0, MEM_RELEASE);
 }
 
 const uint32_t BB::LatestOSError()

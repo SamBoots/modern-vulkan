@@ -76,10 +76,10 @@ void* AllocDebug(BB_MEMORY_DEBUG BaseAllocator* a_allocator, const size_t a_size
 	return Pointer::Add(a_AllocatedPtr, MEMORY_BOUNDRY_FRONT + sizeof(BaseAllocator::AllocationLog));
 }
 
-void* FreeDebug(BaseAllocator* a_allocator, void* a_Ptr)
+void* FreeDebug(BaseAllocator* a_allocator, void* a_ptr)
 {
 	const BaseAllocator::AllocationLog* t_AllocLog = reinterpret_cast<BaseAllocator::AllocationLog*>(
-		Pointer::Subtract(a_Ptr, sizeof(BaseAllocator::AllocationLog)));
+		Pointer::Subtract(a_ptr, sizeof(BaseAllocator::AllocationLog)));
 
 	const BOUNDRY_ERROR t_HasError = Memory_CheckBoundries(t_AllocLog->front, t_AllocLog->back);
 	switch (t_HasError)
@@ -98,7 +98,7 @@ void* FreeDebug(BaseAllocator* a_allocator, void* a_Ptr)
 		break;
 	}
 
-	a_Ptr = Pointer::Subtract(a_Ptr, MEMORY_BOUNDRY_FRONT + sizeof(BaseAllocator::AllocationLog));
+	a_ptr = Pointer::Subtract(a_ptr, MEMORY_BOUNDRY_FRONT + sizeof(BaseAllocator::AllocationLog));
 
 	BaseAllocator::AllocationLog* t_FrontLog = a_allocator->frontLog;
 
@@ -107,7 +107,7 @@ void* FreeDebug(BaseAllocator* a_allocator, void* a_Ptr)
 	else
 		a_allocator->frontLog = t_FrontLog->prev;
 
-	return a_Ptr;
+	return a_ptr;
 }
 #endif //_DEBUG
 #pragma endregion DEBUG
@@ -155,10 +155,10 @@ void BB::allocators::BaseAllocator::Clear()
 #endif //_DEBUG
 }
 
-void* LinearRealloc(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, const size_t a_Alignment, void* a_Ptr)
+void* LinearRealloc(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, const size_t a_Alignment, void* a_ptr)
 {
 	LinearAllocator* t_Linear = reinterpret_cast<LinearAllocator*>(a_allocator);
-	BB_ASSERT(a_Ptr == nullptr, "Trying to free a pointer on a linear allocator!");
+	BB_ASSERT(a_ptr == nullptr, "Trying to free a pointer on a linear allocator!");
 #ifdef _DEBUG
 	a_size += MEMORY_BOUNDRY_FRONT + MEMORY_BOUNDRY_BACK + sizeof(BaseAllocator::AllocationLog);
 #endif //_DEBUG
@@ -348,7 +348,7 @@ void StackAllocator::SetMarker(const StackMarker a_marker)
 	m_buffer = reinterpret_cast<void*>(a_marker);
 }
 
-void* FreelistRealloc(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, const size_t a_Alignment, void* a_Ptr)
+void* FreelistRealloc(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, const size_t a_Alignment, void* a_ptr)
 {
 	FreelistAllocator* t_Freelist = reinterpret_cast<FreelistAllocator*>(a_allocator);
 	if (a_size > 0)
@@ -365,9 +365,9 @@ void* FreelistRealloc(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, const si
 	else
 	{
 #ifdef _DEBUG
-		a_Ptr = FreeDebug(t_Freelist, a_Ptr);
+		a_ptr = FreeDebug(t_Freelist, a_ptr);
 #endif //_DEBUG
-		t_Freelist->Free(a_Ptr);
+		t_Freelist->Free(a_ptr);
 		return nullptr;
 	}
 };
@@ -459,12 +459,12 @@ void* FreelistAllocator::Alloc(size_t a_size, size_t a_Alignment)
 	return this->Alloc(a_size, a_Alignment);
 }
 
-void FreelistAllocator::Free(void* a_Ptr)
+void FreelistAllocator::Free(void* a_ptr)
 {
-	BB_ASSERT(a_Ptr != nullptr, "Nullptr send to FreelistAllocator::Free!.");
-	AllocHeader* t_Header = reinterpret_cast<AllocHeader*>(Pointer::Subtract(a_Ptr, sizeof(AllocHeader)));
+	BB_ASSERT(a_ptr != nullptr, "Nullptr send to FreelistAllocator::Free!.");
+	AllocHeader* t_Header = reinterpret_cast<AllocHeader*>(Pointer::Subtract(a_ptr, sizeof(AllocHeader)));
 	size_t t_BlockSize = t_Header->size;
-	uintptr_t t_BlockStart = reinterpret_cast<uintptr_t>(a_Ptr) - t_Header->adjustment;
+	uintptr_t t_BlockStart = reinterpret_cast<uintptr_t>(a_ptr) - t_Header->adjustment;
 	uintptr_t t_BlockEnd = t_BlockStart + t_BlockSize;
 
 	FreeBlock* t_PreviousBlock = nullptr;
@@ -616,9 +616,9 @@ void* BB::allocators::POW_FreelistAllocator::Alloc(size_t a_size, size_t)
 	return nullptr;
 }
 
-void BB::allocators::POW_FreelistAllocator::Free(void* a_Ptr)
+void BB::allocators::POW_FreelistAllocator::Free(void* a_ptr)
 {
-	AllocHeader* t_Address = static_cast<AllocHeader*>(Pointer::Subtract(a_Ptr, sizeof(AllocHeader)));
+	AllocHeader* t_Address = static_cast<AllocHeader*>(Pointer::Subtract(a_ptr, sizeof(AllocHeader)));
 	FreeList* t_FreeList = t_Address->freeList;
 
 	FreeBlock* t_NewFreeBlock = reinterpret_cast<FreeBlock*>(t_Address);
@@ -696,10 +696,10 @@ void BB::allocators::POW_FreelistAllocator::Clear()
 //	return t_Item;
 //}
 //
-//void BB::allocators::PoolAllocator::Free(void* a_Ptr)
+//void BB::allocators::PoolAllocator::Free(void* a_ptr)
 //{
-//	(*reinterpret_cast<void**>(a_Ptr)) = m_Pool;
-//	m_Pool = reinterpret_cast<void**>(a_Ptr);
+//	(*reinterpret_cast<void**>(a_ptr)) = m_Pool;
+//	m_Pool = reinterpret_cast<void**>(a_ptr);
 //}
 //
 //void BB::allocators::PoolAllocator::Clear()

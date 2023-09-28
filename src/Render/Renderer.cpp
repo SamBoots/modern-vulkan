@@ -392,7 +392,7 @@ void Render::InitializeRenderer(StackAllocator_t& a_stack_allocator, const Rende
 		BufferCreateInfo vertex_buffer;
 		vertex_buffer.name = "global vertex buffer";
 		vertex_buffer.size = mbSize * 64;
-		vertex_buffer.type = BUFFER_TYPE::VERTEX;
+		vertex_buffer.type = BUFFER_TYPE::STORAGE; //using byteaddressbuffer to get the vertices
 
 		s_render_inst->vertex_buffer.buffer = Vulkan::CreateBuffer(vertex_buffer);
 		s_render_inst->vertex_buffer.size = static_cast<uint32_t>(vertex_buffer.size);
@@ -418,7 +418,7 @@ void Render::InitializeRenderer(StackAllocator_t& a_stack_allocator, const Rende
 		descriptor_bindings[0].binding = 0;
 		descriptor_bindings[0].count = 1;
 		descriptor_bindings[0].shader_stage = SHADER_STAGE::VERTEX;
-		descriptor_bindings[0].type = RENDER_DESCRIPTOR_TYPE::READONLY_BUFFER;
+		descriptor_bindings[0].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
 		vertex_descriptor_layout = Vulkan::CreateDescriptorLayout(a_stack_allocator, Slice(descriptor_bindings, 1));
 
 		pipeline_layout = Vulkan::CreatePipelineLayout(&vertex_descriptor_layout, 1, nullptr, 0);
@@ -506,6 +506,19 @@ MeshHandle Render::CreateMesh(const CreateMeshInfo& a_create_info)
 	mesh.vertex_buffer = AllocateFromVertexBuffer(a_create_info.vertices.sizeInBytes());
 	mesh.index_buffer = AllocateFromIndexBuffer(a_create_info.vertices.sizeInBytes());
 	mesh.mesh_descriptor_allocation = Vulkan::AllocateDescriptor(vertex_descriptor_layout);
+
+	WriteDescriptorData mesh_descriptor_write;
+	mesh_descriptor_write.binding = 0;
+	mesh_descriptor_write.descriptor_index = 0;
+	mesh_descriptor_write.type = DESCRIPTOR_TYPE::READONLY_BUFFER;
+	mesh_descriptor_write.buffer_view = mesh.vertex_buffer;
+
+	WriteDescriptorInfos mesh_descriptor_info;
+	mesh_descriptor_info.allocation = mesh.mesh_descriptor_allocation;
+	mesh_descriptor_info.descriptor_layout = vertex_descriptor_layout;
+	mesh_descriptor_info.data = Slice(&mesh_descriptor_write, 1);
+
+	Vulkan::WriteDescriptors(mesh_descriptor_info);
 
 	return MeshHandle(s_render_inst->mesh_map.insert(mesh).handle);
 }

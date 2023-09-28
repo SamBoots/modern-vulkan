@@ -303,7 +303,7 @@ typedef struct
 {
    // private data
    STB_TEXTEDIT_POSITIONTYPE  where;
-   STB_TEXTEDIT_POSITIONTYPE  insert_length;
+   STB_TEXTEDIT_POSITIONTYPE  inserlength;
    STB_TEXTEDIT_POSITIONTYPE  delete_length;
    int                        char_storage;
 } StbUndoRecord;
@@ -1119,7 +1119,7 @@ static void stb_textedit_discard_undo(StbUndoState *state)
    if (state->undo_point > 0) {
       // if the 0th undo state has characters, clean those up
       if (state->undo_rec[0].char_storage >= 0) {
-         int n = state->undo_rec[0].insert_length, i;
+         int n = state->undo_rec[0].inserlength, i;
          // delete n characters from all other records
          state->undo_char_point -= n;
          STB_TEXTEDIT_memmove(state->undo_char, state->undo_char + n, (size_t) (state->undo_char_point*sizeof(STB_TEXTEDIT_CHARTYPE)));
@@ -1143,7 +1143,7 @@ static void stb_textedit_discard_redo(StbUndoState *state)
    if (state->redo_point <= k) {
       // if the k'th undo state has characters, clean those up
       if (state->undo_rec[k].char_storage >= 0) {
-         int n = state->undo_rec[k].insert_length, i;
+         int n = state->undo_rec[k].inserlength, i;
          // move the remaining redo character data to the end of the buffer
          state->redo_char_point += n;
          STB_TEXTEDIT_memmove(state->undo_char + state->redo_char_point, state->undo_char + state->redo_char_point-n, (size_t) ((STB_TEXTEDIT_UNDOCHARCOUNT - state->redo_char_point)*sizeof(STB_TEXTEDIT_CHARTYPE)));
@@ -1197,7 +1197,7 @@ static STB_TEXTEDIT_CHARTYPE *stb_text_createundo(StbUndoState *state, int pos, 
       return NULL;
 
    r->where = pos;
-   r->insert_length = (STB_TEXTEDIT_POSITIONTYPE) insert_len;
+   r->inserlength = (STB_TEXTEDIT_POSITIONTYPE) insert_len;
    r->delete_length = (STB_TEXTEDIT_POSITIONTYPE) delete_len;
 
    if (insert_len == 0) {
@@ -1222,8 +1222,8 @@ static void stb_text_undo(STB_TEXTEDIT_STRING *str, STB_TexteditState *state)
    r = &s->undo_rec[s->redo_point-1];
    r->char_storage = -1;
 
-   r->insert_length = u.delete_length;
-   r->delete_length = u.insert_length;
+   r->inserlength = u.delete_length;
+   r->delete_length = u.inserlength;
    r->where = u.where;
 
    if (u.delete_length) {
@@ -1239,7 +1239,7 @@ static void stb_text_undo(STB_TEXTEDIT_STRING *str, STB_TexteditState *state)
 
       if (s->undo_char_point + u.delete_length >= STB_TEXTEDIT_UNDOCHARCOUNT) {
          // the undo records take up too much character space; there's no space to store the redo characters
-         r->insert_length = 0;
+         r->inserlength = 0;
       } else {
          int i;
 
@@ -1266,13 +1266,13 @@ static void stb_text_undo(STB_TEXTEDIT_STRING *str, STB_TexteditState *state)
    }
 
    // check type of recorded action:
-   if (u.insert_length) {
+   if (u.inserlength) {
       // easy case: was a deletion, so we need to insert n characters
-      STB_TEXTEDIT_INSERTCHARS(str, u.where, &s->undo_char[u.char_storage], u.insert_length);
-      s->undo_char_point -= u.insert_length;
+      STB_TEXTEDIT_INSERTCHARS(str, u.where, &s->undo_char[u.char_storage], u.inserlength);
+      s->undo_char_point -= u.inserlength;
    }
 
-   state->cursor = u.where + u.insert_length;
+   state->cursor = u.where + u.inserlength;
 
    s->undo_point--;
    s->redo_point--;
@@ -1292,8 +1292,8 @@ static void stb_text_redo(STB_TEXTEDIT_STRING *str, STB_TexteditState *state)
    // we KNOW there must be room for the undo record, because the redo record
    // was derived from an undo record
 
-   u->delete_length = r.insert_length;
-   u->insert_length = r.delete_length;
+   u->delete_length = r.inserlength;
+   u->inserlength = r.delete_length;
    u->where = r.where;
    u->char_storage = -1;
 
@@ -1301,29 +1301,29 @@ static void stb_text_redo(STB_TEXTEDIT_STRING *str, STB_TexteditState *state)
       // the redo record requires us to delete characters, so the undo record
       // needs to store the characters
 
-      if (s->undo_char_point + u->insert_length > s->redo_char_point) {
-         u->insert_length = 0;
+      if (s->undo_char_point + u->inserlength > s->redo_char_point) {
+         u->inserlength = 0;
          u->delete_length = 0;
       } else {
          int i;
          u->char_storage = s->undo_char_point;
-         s->undo_char_point = s->undo_char_point + u->insert_length;
+         s->undo_char_point = s->undo_char_point + u->inserlength;
 
          // now save the characters
-         for (i=0; i < u->insert_length; ++i)
+         for (i=0; i < u->inserlength; ++i)
             s->undo_char[u->char_storage + i] = STB_TEXTEDIT_GETCHAR(str, u->where + i);
       }
 
       STB_TEXTEDIT_DELETECHARS(str, r.where, r.delete_length);
    }
 
-   if (r.insert_length) {
+   if (r.inserlength) {
       // easy case: need to insert n characters
-      STB_TEXTEDIT_INSERTCHARS(str, r.where, &s->undo_char[r.char_storage], r.insert_length);
-      s->redo_char_point += r.insert_length;
+      STB_TEXTEDIT_INSERTCHARS(str, r.where, &s->undo_char[r.char_storage], r.inserlength);
+      s->redo_char_point += r.inserlength;
    }
 
-   state->cursor = r.where + r.insert_length;
+   state->cursor = r.where + r.inserlength;
 
    s->undo_point++;
    s->redo_point++;

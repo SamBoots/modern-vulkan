@@ -34,7 +34,7 @@ namespace BB
 	public:
 		struct Iterator
 		{
-			Iterator(T* a_Ptr) : m_Ptr(a_Ptr) {}
+			Iterator(T* a_ptr) : m_Ptr(a_ptr) {}
 
 			T& operator*() const { return *m_Ptr; }
 			T* operator->() { return m_Ptr; }

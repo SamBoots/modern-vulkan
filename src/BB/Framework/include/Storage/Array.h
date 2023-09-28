@@ -26,7 +26,7 @@ namespace BB
 			using pointer = T*;
 			using reference = T&;
 
-			Iterator(pointer a_Ptr) : m_Ptr(a_Ptr) {}
+			Iterator(pointer a_ptr) : m_Ptr(a_ptr) {}
 
 			reference operator*() const { return *m_Ptr; }
 			pointer operator->() { return m_Ptr; }
@@ -68,9 +68,9 @@ namespace BB
 		T& operator[](const size_t a_Index) const;
 
 		void push_back(T& a_Element);
-		void push_back(const T* a_Elements, size_t a_Count);
+		void push_back(const T* a_Elements, size_t a_count);
 		void insert(size_t a_Position, const T& a_Element);
-		void insert(size_t a_Position, const T* a_Elements, size_t a_Count);
+		void insert(size_t a_Position, const T* a_Elements, size_t a_count);
 		template <class... Args>
 		void emplace_back(Args&&... a_Args);
 		template <class... Args>
@@ -206,14 +206,14 @@ namespace BB
 	}
 
 	template<typename T>
-	inline void Array<T>::push_back(const T* a_Elements, size_t a_Count)
+	inline void Array<T>::push_back(const T* a_Elements, size_t a_count)
 	{
-		if (m_size + a_Count > m_capacity)
-			grow(a_Count);
+		if (m_size + a_count > m_capacity)
+			grow(a_count);
 
-		Memory::Copy<T>(m_Arr, a_Elements, a_Count);
+		Memory::Copy<T>(m_Arr, a_Elements, a_count);
 
-		m_size += a_Count;
+		m_size += a_count;
 	}
 
 	template<typename T>

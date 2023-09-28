@@ -14,7 +14,7 @@ namespace BB
 	public:
 		struct Iterator
 		{
-			Iterator(T* a_Ptr) : m_Ptr(a_Ptr) {}
+			Iterator(T* a_ptr) : m_Ptr(a_ptr) {}
 
 			T& operator*() const { return *m_Ptr; }
 			T* operator->() { return m_Ptr; }
@@ -45,7 +45,7 @@ namespace BB
 		};
 
 		Slice() : m_Ptr(nullptr), m_size(0) {};
-		Slice(T* a_Ptr, size_t a_Size) : m_Ptr(a_Ptr), m_size(a_Size) {};
+		Slice(T* a_ptr, size_t a_Size) : m_Ptr(a_ptr), m_size(a_Size) {};
 		Slice(T* a_Begin, T* a_End) : m_Ptr(a_Begin), m_size(a_End - a_Begin) {};
 		Slice(Array<T>& a_Array) : m_Ptr(a_Array.data()), m_size(a_Array.size()) {};
 		Slice(Pool<T>& a_Pool) : m_Ptr(a_Pool.data()), m_size(a_Pool.size()) {};

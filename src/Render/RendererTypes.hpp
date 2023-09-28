@@ -1,6 +1,6 @@
 #pragma once
-#include "Common.h"
 #include "Rendererfwd.hpp"
+#include "Slice.h"
 
 namespace BB
 {
@@ -47,7 +47,7 @@ namespace BB
 			INDEX
 		};
 
-		enum class RENDER_DESCRIPTOR_TYPE : uint32_t
+		enum class DESCRIPTOR_TYPE : uint32_t
 		{
 			READONLY_CONSTANT, //CBV or uniform buffer
 			READONLY_BUFFER, //SRV or Storage buffer
@@ -68,7 +68,7 @@ namespace BB
 		{
 			uint32_t binding;
 			uint32_t count;
-			RENDER_DESCRIPTOR_TYPE type;
+			DESCRIPTOR_TYPE type;
 			SHADER_STAGE shader_stage;
 		};
 
@@ -84,6 +84,7 @@ namespace BB
 			RDescriptorLayout descriptor;
 			uint32_t size;
 			uint32_t offset;
+			void* buffer_start; //Maybe just get this from the descriptor heap? We only have one heap anyway.
 		};
 
 		using RQueue = FrameworkHandle<struct RQueueTag>;
@@ -145,21 +146,14 @@ namespace BB
 			PushConstantRanges* push_constant_ranges;
 		};
 
-		struct WriteDescriptorBuffer
-		{
-			RBuffer buffer;
-			size_t range;
-			size_t offset;
-		};
-
 		struct WriteDescriptorData
 		{
 			uint32_t binding;
 			uint32_t descriptor_index;
-			RENDER_DESCRIPTOR_TYPE type{};
+			DESCRIPTOR_TYPE type{};
 			union
 			{
-				WriteDescriptorBuffer buffer;
+				BufferView buffer_view{};
 				//WriteDescriptorImage image;
 			};
 		};

@@ -478,10 +478,10 @@ namespace BB
 			BB_ASSERT(m_size < sizeof(m_String), "Stack string overflow");
 		};
 
-		void pop_back(uint32_t a_Count)
+		void pop_back(uint32_t a_count)
 		{
-			m_size -= a_Count;
-			memset(Pointer::Add(m_String, m_size), NULL, a_Count);
+			m_size -= a_count;
+			memset(Pointer::Add(m_String, m_size), NULL, a_count);
 		};
 
 		void clear()

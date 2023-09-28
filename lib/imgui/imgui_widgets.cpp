@@ -4236,11 +4236,11 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
     }
 
     // Process mouse inputs and character inputs
-    int backup_current_text_length = 0;
+    int backup_current_texlength = 0;
     if (g.ActiveId == id)
     {
         IM_ASSERT(state != NULL);
-        backup_current_text_length = state->CurLenA;
+        backup_current_texlength = state->CurLenA;
         state->Edited = false;
         state->BufCapacityA = buf_size;
         state->Flags = flags;
@@ -4505,7 +4505,7 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
 
     // Process callbacks and apply result back to user's buffer.
     const char* apply_new_text = NULL;
-    int apply_new_text_length = 0;
+    int apply_new_texlength = 0;
     if (g.ActiveId == id)
     {
         IM_ASSERT(state != NULL);
@@ -4515,7 +4515,7 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
             {
                 // Clear input
                 apply_new_text = "";
-                apply_new_text_length = 0;
+                apply_new_texlength = 0;
                 STB_TEXTEDIT_CHARTYPE empty_string;
                 stb_textedit_replace(state, &state->Stb, &empty_string, 0);
             }
@@ -4524,14 +4524,14 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
                 // Restore initial value. Only return true if restoring to the initial value changes the current buffer contents.
                 // Push records into the undo stack so we can CTRL+Z the revert operation itself
                 apply_new_text = state->InitialTextA.Data;
-                apply_new_text_length = state->InitialTextA.Size - 1;
+                apply_new_texlength = state->InitialTextA.Size - 1;
                 ImVector<ImWchar> w_text;
-                if (apply_new_text_length > 0)
+                if (apply_new_texlength > 0)
                 {
-                    w_text.resize(ImTextCountCharsFromUtf8(apply_new_text, apply_new_text + apply_new_text_length) + 1);
-                    ImTextStrFromUtf8(w_text.Data, w_text.Size, apply_new_text, apply_new_text + apply_new_text_length);
+                    w_text.resize(ImTextCountCharsFromUtf8(apply_new_text, apply_new_text + apply_new_texlength) + 1);
+                    ImTextStrFromUtf8(w_text.Data, w_text.Size, apply_new_text, apply_new_text + apply_new_texlength);
                 }
-                stb_textedit_replace(state, &state->Stb, w_text.Data, (apply_new_text_length > 0) ? (w_text.Size - 1) : 0);
+                stb_textedit_replace(state, &state->Stb, w_text.Data, (apply_new_texlength > 0) ? (w_text.Size - 1) : 0);
             }
         }
 
@@ -4624,8 +4624,8 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
                         IM_ASSERT((flags & ImGuiInputTextFlags_ReadOnly) == 0);
                         IM_ASSERT(callback_data.BufTextLen == (int)strlen(callback_data.Buf)); // You need to maintain BufTextLen if you change the text!
                         InputTextReconcileUndoStateAfterUserCallback(state, callback_data.Buf, callback_data.BufTextLen); // FIXME: Move the rest of this block inside function and rename to InputTextReconcileStateAfterUserCallback() ?
-                        if (callback_data.BufTextLen > backup_current_text_length && is_resizable)
-                            state->TextW.resize(state->TextW.Size + (callback_data.BufTextLen - backup_current_text_length)); // Worse case scenario resize
+                        if (callback_data.BufTextLen > backup_current_texlength && is_resizable)
+                            state->TextW.resize(state->TextW.Size + (callback_data.BufTextLen - backup_current_texlength)); // Worse case scenario resize
                         state->CurLenW = ImTextStrFromUtf8(state->TextW.Data, state->TextW.Size, callback_data.Buf, NULL);
                         state->CurLenA = callback_data.BufTextLen;  // Assume correct length and valid UTF-8 from user, saves us an extra strlen()
                         state->CursorAnimReset();
@@ -4637,7 +4637,7 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
             if (!is_readonly && strcmp(state->TextA.Data, buf) != 0)
             {
                 apply_new_text = state->TextA.Data;
-                apply_new_text_length = state->CurLenA;
+                apply_new_texlength = state->CurLenA;
             }
         }
     }
@@ -4645,10 +4645,10 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
     // Copy result to user buffer. This can currently only happen when (g.ActiveId == id)
     if (apply_new_text != NULL)
     {
-        // We cannot test for 'backup_current_text_length != apply_new_text_length' here because we have no guarantee that the size
+        // We cannot test for 'backup_current_texlength != apply_new_texlength' here because we have no guarantee that the size
         // of our owned buffer matches the size of the string object held by the user, and by design we allow InputText() to be used
         // without any storage on user's side.
-        IM_ASSERT(apply_new_text_length >= 0);
+        IM_ASSERT(apply_new_texlength >= 0);
         if (is_resizable)
         {
             ImGuiInputTextCallbackData callback_data;
@@ -4656,19 +4656,19 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
             callback_data.EventFlag = ImGuiInputTextFlags_CallbackResize;
             callback_data.Flags = flags;
             callback_data.Buf = buf;
-            callback_data.BufTextLen = apply_new_text_length;
-            callback_data.BufSize = ImMax(buf_size, apply_new_text_length + 1);
+            callback_data.BufTextLen = apply_new_texlength;
+            callback_data.BufSize = ImMax(buf_size, apply_new_texlength + 1);
             callback_data.UserData = callback_user_data;
             callback(&callback_data);
             buf = callback_data.Buf;
             buf_size = callback_data.BufSize;
-            apply_new_text_length = ImMin(callback_data.BufTextLen, buf_size - 1);
-            IM_ASSERT(apply_new_text_length <= buf_size);
+            apply_new_texlength = ImMin(callback_data.BufTextLen, buf_size - 1);
+            IM_ASSERT(apply_new_texlength <= buf_size);
         }
-        //IMGUI_DEBUG_PRINT("InputText(\"%s\"): apply_new_text length %d\n", label, apply_new_text_length);
+        //IMGUI_DEBUG_PRINT("InputText(\"%s\"): apply_new_text length %d\n", label, apply_new_texlength);
 
-        // If the underlying buffer resize was denied or not carried to the next frame, apply_new_text_length+1 may be >= buf_size.
-        ImStrncpy(buf, apply_new_text, ImMin(apply_new_text_length + 1, buf_size));
+        // If the underlying buffer resize was denied or not carried to the next frame, apply_new_texlength+1 may be >= buf_size.
+        ImStrncpy(buf, apply_new_text, ImMin(apply_new_texlength + 1, buf_size));
         value_changed = true;
     }
 
@@ -4948,9 +4948,9 @@ void ImGui::DebugNodeInputTextState(ImGuiInputTextState* state)
                 BeginDisabled();
             char buf[64] = "";
             if (undo_rec_type != ' ' && undo_rec->char_storage != -1)
-                ImTextStrToUtf8(buf, IM_ARRAYSIZE(buf), undo_state->undo_char + undo_rec->char_storage, undo_state->undo_char + undo_rec->char_storage + undo_rec->insert_length);
+                ImTextStrToUtf8(buf, IM_ARRAYSIZE(buf), undo_state->undo_char + undo_rec->char_storage, undo_state->undo_char + undo_rec->char_storage + undo_rec->inserlength);
             Text("%c [%02d] where %03d, insert %03d, delete %03d, char_storage %03d \"%s\"",
-                undo_rec_type, n, undo_rec->where, undo_rec->insert_length, undo_rec->delete_length, undo_rec->char_storage, buf);
+                undo_rec_type, n, undo_rec->where, undo_rec->inserlength, undo_rec->delete_length, undo_rec->char_storage, buf);
             if (undo_rec_type == ' ')
                 EndDisabled();
         }

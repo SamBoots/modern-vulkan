@@ -288,23 +288,23 @@ namespace BB
 		/// <summary>
 		/// Move the given pointer by a given size.
 		/// </summary>
-		/// <param name="a_Ptr:"> The pointer you want to shift </param>
+		/// <param name="a_ptr:"> The pointer you want to shift </param>
 		/// <param name="a_Add:"> The amount of bytes you want move the pointer forward. </param>
 		/// <returns>The shifted pointer. </returns>
-		inline static void* Add(const void* a_Ptr, const size_t a_Add)
+		inline static void* Add(const void* a_ptr, const size_t a_Add)
 		{
-			return reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(a_Ptr) + a_Add);
+			return reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(a_ptr) + a_Add);
 		}
 
 		/// <summary>
 		/// Move the given pointer by a given size.
 		/// </summary>
-		/// <param name="a_Ptr:"> The pointer you want to shift </param>
+		/// <param name="a_ptr:"> The pointer you want to shift </param>
 		/// <param name="a_Subtract:"> The amount of bytes you want move the pointer backwards. </param>
 		/// <returns>The shifted pointer. </returns>
-		inline static void* Subtract(const void* a_Ptr, const size_t a_Subtract)
+		inline static void* Subtract(const void* a_ptr, const size_t a_Subtract)
 		{
-			return reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(a_Ptr) - a_Subtract);
+			return reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(a_ptr) - a_Subtract);
 		}
 
 		/// <summary>
@@ -326,12 +326,12 @@ namespace BB
 		/// <summary>
 		/// Align a given pointer forward.
 		/// </summary>
-		/// <param name="a_Ptr:"> The pointer you want to align </param>
+		/// <param name="a_ptr:"> The pointer you want to align </param>
 		/// <param name="a_Alignment:"> The alignment of the data. </param>
 		/// <returns>The given address but aligned forward. </returns>
-		inline static size_t AlignForwardAdjustment(const void* a_Ptr, const size_t a_Alignment)
+		inline static size_t AlignForwardAdjustment(const void* a_ptr, const size_t a_Alignment)
 		{
-			const uintptr_t t_UPtr = reinterpret_cast<uintptr_t>(a_Ptr);
+			const uintptr_t t_UPtr = reinterpret_cast<uintptr_t>(a_ptr);
 			const uintptr_t t_AlignedPtr = (t_UPtr - 1u + a_Alignment) & -a_Alignment;
 
 			return t_AlignedPtr - t_UPtr;
@@ -352,13 +352,13 @@ namespace BB
 		/// <summary>
 		/// Align a given pointer forward.
 		/// </summary>
-		/// <param name="a_Ptr:"> The pointer you want to align </param>
+		/// <param name="a_ptr:"> The pointer you want to align </param>
 		/// <param name="a_Alignment:"> The alignment of the data. </param>
 		/// <param name="a_HeaderSize:"> The size in bytes of the Header you want to align forward's too </param>
 		/// <returns>The given address but aligned forward with the allocation header's size in mind. </returns>
-		inline static size_t AlignForwardAdjustmentHeader(const void* a_Ptr, const size_t a_Alignment, const size_t a_HeaderSize)
+		inline static size_t AlignForwardAdjustmentHeader(const void* a_ptr, const size_t a_Alignment, const size_t a_HeaderSize)
 		{
-			size_t adjustment = AlignForwardAdjustment(a_Ptr, a_Alignment);
+			size_t adjustment = AlignForwardAdjustment(a_ptr, a_Alignment);
 			size_t neededSpace = a_HeaderSize;
 
 			if (adjustment < neededSpace)

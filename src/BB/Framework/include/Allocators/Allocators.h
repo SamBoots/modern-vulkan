@@ -136,7 +136,7 @@ namespace BB
 			FreelistAllocator& operator =(FreelistAllocator&&) = delete;
 
 			void* Alloc(size_t a_size, size_t a_Alignment) override;
-			void Free(void* a_Ptr) override;
+			void Free(void* a_ptr) override;
 			void Clear() override;
 
 			struct AllocHeader 
@@ -169,7 +169,7 @@ namespace BB
 			POW_FreelistAllocator& operator =(POW_FreelistAllocator&&) = delete;
 
 			void* Alloc(size_t a_size, size_t) override;
-			void Free(void* a_Ptr) override;
+			void Free(void* a_ptr) override;
 			void Clear() override;
 
 			struct FreeBlock
@@ -207,7 +207,7 @@ namespace BB
 		//	PoolAllocator& operator =(PoolAllocator&&) = delete;
 
 		//	void* Alloc(size_t a_size, size_t);
-		//	void Free(void* a_Ptr);
+		//	void Free(void* a_ptr);
 		//	void Clear();
 
 		//	size_t m_Alignment;

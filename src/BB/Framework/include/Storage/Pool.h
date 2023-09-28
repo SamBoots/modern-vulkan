@@ -39,7 +39,7 @@ namespace BB
 		/// <summary>
 		/// Return an object to the pool.
 		/// </summary>
-		void Free(T* a_Ptr);
+		void Free(T* a_ptr);
 
 		T* data() const { return reinterpret_cast<T*>(m_start); }
 
@@ -165,16 +165,16 @@ namespace BB
 	}
 
 	template<typename T>
-	inline void BB::Pool<T>::Free(T* a_Ptr)
+	inline void BB::Pool<T>::Free(T* a_ptr)
 	{
 #ifdef _DEBUG
-		BB_ASSERT((a_Ptr >= m_start && a_Ptr < Pointer::Add(m_start,  m_capacity * sizeof(T))), "Trying to free an pool object that is not part of this pool!");
+		BB_ASSERT((a_ptr >= m_start && a_ptr < Pointer::Add(m_start,  m_capacity * sizeof(T))), "Trying to free an pool object that is not part of this pool!");
 		--m_size;
 #endif // _DEBUG
 
 		//Set the previous free list to the new head.
-		(*reinterpret_cast<T**>(a_Ptr)) = reinterpret_cast<T*>(m_Pool);
+		(*reinterpret_cast<T**>(a_ptr)) = reinterpret_cast<T*>(m_Pool);
 		//Set the new head.
-		m_Pool = reinterpret_cast<T**>(a_Ptr);
+		m_Pool = reinterpret_cast<T**>(a_ptr);
 	}
 }

@@ -43,13 +43,13 @@ namespace BB
 
 	//Use the BBnewArr function instead of this.
 	template <typename T>
-	inline T* BBnewArr_f(BB_MEMORY_DEBUG Allocator a_allocator, size_t a_Length)
+	inline T* BBnewArr_f(BB_MEMORY_DEBUG Allocator a_allocator, size_t a_length)
 	{
-		BB_ASSERT(a_Length != 0, "Trying to allocate an array with a length of 0.");
+		BB_ASSERT(a_length != 0, "Trying to allocate an array with a length of 0.");
 
 		if constexpr (std::is_trivially_constructible_v<T> && std::is_trivially_destructible_v<T>)
 		{
-			return reinterpret_cast<T*>(a_allocator.func(BB_MEMORY_DEBUG_SEND a_allocator.allocator, sizeof(T) * a_Length, __alignof(T), nullptr));
+			return reinterpret_cast<T*>(a_allocator.func(BB_MEMORY_DEBUG_SEND a_allocator.allocator, sizeof(T) * a_length, __alignof(T), nullptr));
 		}
 		else
 		{
@@ -61,15 +61,15 @@ namespace BB
 				header_size = sizeof(size_t) / sizeof(T);
 
 			//Allocate the array, but shift it by sizeof(size_t) bytes forward to allow the size of the header to be put in as well.
-			T* ptr = (reinterpret_cast<T*>(a_allocator.func(BB_MEMORY_DEBUG_SEND a_allocator.allocator, sizeof(T) * (a_Length + header_size), __alignof(T), nullptr))) + header_size;
+			T* ptr = (reinterpret_cast<T*>(a_allocator.func(BB_MEMORY_DEBUG_SEND a_allocator.allocator, sizeof(T) * (a_length + header_size), __alignof(T), nullptr))) + header_size;
 
 			//Store the size of the array inside the first element of the pointer.
-			*(reinterpret_cast<size_t*>(ptr) - 1) = a_Length;
+			*(reinterpret_cast<size_t*>(ptr) - 1) = a_length;
 
 			if constexpr (!std::is_trivially_constructible_v<T>)
 			{
 				//Create the elements.
-				for (size_t i = 0; i < a_Length; i++)
+				for (size_t i = 0; i < a_length; i++)
 					new (&ptr[i]) T();
 			}
 
@@ -78,54 +78,54 @@ namespace BB
 	}
 
 	template <typename T>
-	inline void BBfree_f(Allocator a_allocator, T* a_Ptr)
+	inline void BBfree_f(Allocator a_allocator, T* a_ptr)
 	{
-		BB_ASSERT(a_Ptr != nullptr, "Trying to free a nullptr");
+		BB_ASSERT(a_ptr != nullptr, "Trying to free a nullptr");
 		if constexpr (!std::is_trivially_destructible_v<T>)
 		{
-			a_Ptr->~T();
+			a_ptr->~T();
 		}
-		a_allocator.func(BB_MEMORY_DEBUG_FREE a_allocator.allocator, 0, 0, a_Ptr);
+		a_allocator.func(BB_MEMORY_DEBUG_FREE a_allocator.allocator, 0, 0, a_ptr);
 	}
 
 	template <typename T>
-	inline void BBfreeArr_f(Allocator a_allocator, T* a_Ptr)
+	inline void BBfreeArr_f(Allocator a_allocator, T* a_ptr)
 	{
-		BB_ASSERT(a_Ptr != nullptr, "Trying to freeArray a nullptr");
+		BB_ASSERT(a_ptr != nullptr, "Trying to freeArray a nullptr");
 
 		if constexpr (std::is_trivially_constructible_v<T> || std::is_trivially_destructible_v<T>)
 		{
-			a_allocator.func(BB_MEMORY_DEBUG_FREE a_allocator.allocator, 0, 0, a_Ptr);
+			a_allocator.func(BB_MEMORY_DEBUG_FREE a_allocator.allocator, 0, 0, a_ptr);
 		}
 		else
 		{
 			//get the array size
-			size_t t_Length = *(reinterpret_cast<size_t*>(a_Ptr) - 1);
+			size_t length = *(reinterpret_cast<size_t*>(a_ptr) - 1);
 
-			for (size_t i = 0; i < t_Length; i++)
-				a_Ptr[i].~T();
+			for (size_t i = 0; i < length; i++)
+				a_ptr[i].~T();
 
-			size_t t_HeaderSize;
+			size_t header_size;
 			if constexpr (sizeof(size_t) % sizeof(T) > 0)
-				t_HeaderSize = sizeof(size_t) / sizeof(T) + 1;
+				header_size = sizeof(size_t) / sizeof(T) + 1;
 			else
-				t_HeaderSize = sizeof(size_t) / sizeof(T);
+				header_size = sizeof(size_t) / sizeof(T);
 
-			a_allocator.func(BB_MEMORY_DEBUG_FREE a_allocator.allocator, 0, 0, a_Ptr - t_HeaderSize);
+			a_allocator.func(BB_MEMORY_DEBUG_FREE a_allocator.allocator, 0, 0, a_ptr - header_size);
 		}
 	}
 
-	inline void BBTagAlloc(Allocator a_allocator, const void* a_Ptr, const char* a_TagName)
+	inline void BBTagAlloc(Allocator a_allocator, const void* a_ptr, const char* a_TagName)
 	{
 		typedef allocators::BaseAllocator::AllocationLog AllocationLog;
-		AllocationLog* t_Log = reinterpret_cast<AllocationLog*>(Pointer::Subtract(a_Ptr, sizeof(AllocationLog)));
+		AllocationLog* log = reinterpret_cast<AllocationLog*>(Pointer::Subtract(a_ptr, sizeof(AllocationLog)));
 		//do a check to see if the boundries are there, if yes. Then it's a 99.99999% chance this is a existing allocation using BB.
 		//not the same allocator tho, so bad usage of this will still bite you in the ass.
-		const uintptr_t back = reinterpret_cast<uintptr_t>(t_Log->back) + MEMORY_BOUNDRY_FRONT;
-		const uintptr_t front = reinterpret_cast<uintptr_t>(t_Log->front);
-		BB_ASSERT((back - front) == t_Log->allocSize, "BBTagAlloc is not tagging a memory space allocated by a BB allocator");
+		const uintptr_t back = reinterpret_cast<uintptr_t>(log->back) + MEMORY_BOUNDRY_FRONT;
+		const uintptr_t front = reinterpret_cast<uintptr_t>(log->front);
+		BB_ASSERT((back - front) == log->allocSize, "BBTagAlloc is not tagging a memory space allocated by a BB allocator");
 
-		t_Log->tagName = a_TagName;
+		log->tagName = a_TagName;
 	}
 }
 #pragma endregion // AllocationFunctions

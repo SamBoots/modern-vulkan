@@ -21,6 +21,7 @@ namespace BB
 
 			RDescriptorLayout CreateDescriptorLayout(Allocator a_temp_allocator, Slice<DescriptorBindingInfo> a_bindings);
 			DescriptorAllocation AllocateDescriptor(const RDescriptorLayout a_descriptor);
+			void WriteDescriptors(const WriteDescriptorInfos& a_write_info);
 
 			RPipelineLayout CreatePipelineLayout(const RDescriptorLayout* a_descriptor_layouts, const uint32_t a_layout_count, const PushConstantRanges* a_constant_ranges, const uint32_t a_constant_range_count);
 			void FreePipelineLayout(const RPipelineLayout a_layout);
