@@ -12,6 +12,7 @@ namespace BB
 
 		using ShaderCode = FrameworkHandle<struct ShdaerCodeTag>;
 		using ShaderObject = FrameworkHandle<struct ShaderObjectTag>;
+		using RPipeline = FrameworkHandle<struct RPipelineTag>;
 		using RDescriptorLayout = FrameworkHandle<struct RDescriptorLayoutTag>;
 		using RPipelineLayout = FrameworkHandle<struct RPipelineLayoutTag>;
 		using RBuffer = FrameworkHandle<struct RBufferTag>;

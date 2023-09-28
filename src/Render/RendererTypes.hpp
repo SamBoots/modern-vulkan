@@ -62,6 +62,7 @@ namespace BB
 			const char* name = nullptr;
 			uint64_t size = 0;
 			BUFFER_TYPE type;
+			bool host_writable;
 		};
 
 		struct DescriptorBindingInfo
@@ -130,6 +131,20 @@ namespace BB
 			SHADER_STAGE stages;
 			uint32_t offset;
 			uint32_t size;
+		};
+
+		struct CreatePipelineInfo
+		{
+			RPipelineLayout layout;
+			struct ShaderCode
+			{
+				size_t shader_code_size;
+				const void* shader_code;
+				const char* shader_entry;
+			};
+
+			ShaderCode vertex;
+			ShaderCode fragment;
 		};
 
 		struct ShaderObjectCreateInfo

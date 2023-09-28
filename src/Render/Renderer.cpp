@@ -217,12 +217,13 @@ public:
 		:	m_size(static_cast<uint32_t>(a_size))
 	{
 		BB_ASSERT(a_size < UINT32_MAX, "upload buffer size is larger then UINT32_MAX, this is not supported");
-		BufferCreateInfo t_UploadBufferInfo{};
-		t_UploadBufferInfo.name = a_Name;
-		t_UploadBufferInfo.size = m_size;
-		t_UploadBufferInfo.type = BUFFER_TYPE::UPLOAD;
+		BufferCreateInfo upload_buffer_info;
+		upload_buffer_info.name = a_Name;
+		upload_buffer_info.size = m_size;
+		upload_buffer_info.type = BUFFER_TYPE::UPLOAD;
+		upload_buffer_info.host_writable = true;
 
-		m_buffer = Vulkan::CreateBuffer(t_UploadBufferInfo);
+		m_buffer = Vulkan::CreateBuffer(upload_buffer_info);
 
 		m_offset = 0;
 		m_start = Vulkan::MapBufferMemory(m_buffer);
@@ -326,6 +327,7 @@ static RenderInterface_inst* s_render_inst;
 CommandPool* current_use_pool;
 CommandList current_command_list;
 
+RPipeline test_pipeline;
 ShaderObject vertex_object;
 ShaderObject fragment_object;
 RDescriptorLayout vertex_descriptor_layout;
@@ -393,6 +395,7 @@ void Render::InitializeRenderer(StackAllocator_t& a_stack_allocator, const Rende
 		vertex_buffer.name = "global vertex buffer";
 		vertex_buffer.size = mbSize * 64;
 		vertex_buffer.type = BUFFER_TYPE::STORAGE; //using byteaddressbuffer to get the vertices
+		vertex_buffer.host_writable = true;
 
 		s_render_inst->vertex_buffer.buffer = Vulkan::CreateBuffer(vertex_buffer);
 		s_render_inst->vertex_buffer.size = static_cast<uint32_t>(vertex_buffer.size);
@@ -403,6 +406,7 @@ void Render::InitializeRenderer(StackAllocator_t& a_stack_allocator, const Rende
 		index_buffer.name = "global index buffer";
 		index_buffer.size = mbSize * 64;
 		index_buffer.type = BUFFER_TYPE::INDEX;
+		index_buffer.host_writable = true;
 
 		s_render_inst->index_buffer.buffer = Vulkan::CreateBuffer(index_buffer);
 		s_render_inst->index_buffer.size = static_cast<uint32_t>(index_buffer.size);
@@ -433,7 +437,8 @@ void Render::InitializeRenderer(StackAllocator_t& a_stack_allocator, const Rende
 		shader_objects_info[0].shader_code_size = shader_buffer.size;
 		shader_objects_info[0].shader_code = shader_buffer.data;
 		shader_objects_info[0].shader_entry = "VertexMain";
-		shader_objects_info[0].descriptor_layout_count = 0;
+		shader_objects_info[0].descriptor_layout_count = 1;
+		shader_objects_info[0].descriptor_layouts = &vertex_descriptor_layout;
 		shader_objects_info[0].push_constant_range_count = 0;
 
 		shader_buffer = GetShaderCodeBuffer(fragment_shader);
@@ -451,6 +456,17 @@ void Render::InitializeRenderer(StackAllocator_t& a_stack_allocator, const Rende
 
 		vertex_object = shader_objects[0];
 		fragment_object = shader_objects[1];
+
+		CreatePipelineInfo pipe_info;
+		pipe_info.layout = pipeline_layout;
+		pipe_info.vertex.shader_code_size = shader_buffer.size;
+		pipe_info.vertex.shader_code = shader_buffer.data;
+		pipe_info.vertex.shader_entry = "VertexMain";
+
+		pipe_info.fragment.shader_code_size = shader_buffer.size;
+		pipe_info.fragment.shader_code = shader_buffer.data;
+		pipe_info.fragment.shader_entry = "FragmentMain";
+		test_pipeline = Vulkan::CreatePipeline(a_stack_allocator, pipe_info);
 
 		ReleaseShaderCode(vertex_shader);
 		ReleaseShaderCode(fragment_shader);
@@ -481,7 +497,7 @@ void  Render::EndFrame()
 	start_rendering_info.final_layout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 	start_rendering_info.load_color = false;
 	start_rendering_info.store_color = true;
-	start_rendering_info.clear_color_rgba = float4{ 1.f, 1.f, 0.f, 1.f };
+	start_rendering_info.clear_color_rgba = float4{ 0.f, 0.f, 0.f, 1.f };
 	Vulkan::StartRendering(current_command_list.api_cmd_list, start_rendering_info, s_render_inst->backbuffer_pos);
 
 	Vulkan::BindIndexBuffer(current_command_list.api_cmd_list, s_render_inst->index_buffer.buffer, 0);
@@ -491,14 +507,14 @@ void  Render::EndFrame()
 		const DrawList& draw_list = s_render_inst->draw_lists[i];
 		const Mesh& mesh = s_render_inst->mesh_map.find(draw_list.mesh.handle);
 
-		const SHADER_STAGE shader_stages[]{ SHADER_STAGE::VERTEX, SHADER_STAGE::FRAGMENT_PIXEL };
-		const ShaderObject shader_objects[]{ vertex_object, fragment_object };
-		Vulkan::BindShaders(current_command_list.api_cmd_list, 2, shader_stages, shader_objects);
-
 		const uint32_t buffer_indices = 0;
 		const size_t buffer_offsets[]{ mesh.mesh_descriptor_allocation.offset };
 		Vulkan::SetDescriptorBufferOffset(current_command_list.api_cmd_list, pipeline_layout, 0, 1, &buffer_indices, buffer_offsets);
 	
+		const SHADER_STAGE shader_stages[]{ SHADER_STAGE::VERTEX, SHADER_STAGE::FRAGMENT_PIXEL };
+		const ShaderObject shader_objects[]{ vertex_object, fragment_object };
+		Vulkan::BindShaders(current_command_list.api_cmd_list, 2, shader_stages, shader_objects);
+
 		Vulkan::DrawIndexed(current_command_list.api_cmd_list,
 			mesh.index_buffer.size / sizeof(uint32_t),
 			1,
@@ -527,8 +543,16 @@ MeshHandle Render::CreateMesh(const CreateMeshInfo& a_create_info)
 {
 	Mesh mesh;
 	mesh.vertex_buffer = AllocateFromVertexBuffer(a_create_info.vertices.sizeInBytes());
-	mesh.index_buffer = AllocateFromIndexBuffer(a_create_info.vertices.sizeInBytes());
+	mesh.index_buffer = AllocateFromIndexBuffer(a_create_info.indices.sizeInBytes());
 	mesh.mesh_descriptor_allocation = Vulkan::AllocateDescriptor(vertex_descriptor_layout);
+
+	void* vert = Vulkan::MapBufferMemory(mesh.vertex_buffer.buffer);
+	memcpy(vert, a_create_info.vertices.data(), a_create_info.vertices.sizeInBytes());
+	Vulkan::UnmapBufferMemory(mesh.vertex_buffer.buffer);
+
+	void* indices = Vulkan::MapBufferMemory(mesh.index_buffer.buffer);
+	memcpy(indices, a_create_info.indices.data(), a_create_info.indices.sizeInBytes());
+	Vulkan::UnmapBufferMemory(mesh.index_buffer.buffer);
 
 	WriteDescriptorData mesh_descriptor_write;
 	mesh_descriptor_write.binding = 0;

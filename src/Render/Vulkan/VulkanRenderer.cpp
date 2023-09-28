@@ -517,6 +517,14 @@ struct Vulkan_inst
 		PFN_vkCreateShadersEXT CreateShaderEXT;
 		PFN_vkDestroyShaderEXT DestroyShaderEXT;
 		PFN_vkCmdBindShadersEXT CmdBindShadersEXT;
+		PFN_vkCmdSetPolygonModeEXT CmdSetPolygonModeEXT;
+		PFN_vkCmdSetVertexInputEXT CmdSetVertexInputEXT;
+		PFN_vkCmdSetRasterizationSamplesEXT CmdSetRasterizationSamplesEXT;
+		PFN_vkCmdSetColorWriteMaskEXT CmdSetColorWriteMaskEXT;
+		PFN_vkCmdSetColorBlendEnableEXT CmdSetColorBlendEnableEXT;
+		PFN_vkCmdSetColorBlendEquationEXT CmdSetColorBlendEquationEXT;
+		PFN_vkCmdSetAlphaToCoverageEnableEXT CmdSetAlphaToCoverageEnableEXT;
+		PFN_vkCmdSetSampleMaskEXT CmdSetSampleMaskEXT;
 	} pfn;
 };
 
@@ -541,13 +549,13 @@ static Vulkan_swapchain* s_vulkan_swapchain = nullptr;
 
 static inline VkDescriptorAddressInfoEXT GetDescriptorAddressInfo(const VkDevice a_device, const BufferView& a_Buffer, const VkFormat a_Format = VK_FORMAT_UNDEFINED)
 {
-	VkDescriptorAddressInfoEXT t_Info{ VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT };
-	t_Info.range = a_Buffer.size;
-	t_Info.address = GetBufferDeviceAddress(a_device, s_vulkan_inst->buffers[a_Buffer.buffer.handle].buffer);
+	VkDescriptorAddressInfoEXT info{ VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT };
+	info.range = a_Buffer.size;
+	info.address = GetBufferDeviceAddress(a_device, s_vulkan_inst->buffers[a_Buffer.buffer.handle].buffer);
 	//offset the address.
-	t_Info.address += a_Buffer.offset;
-	t_Info.format = a_Format;
-	return t_Info;
+	info.address += a_Buffer.offset;
+	info.format = a_Format;
+	return info;
 }
 
 VulkanDescriptorLinearBuffer::VulkanDescriptorLinearBuffer(const size_t a_buffer_size, const VkBufferUsageFlags a_buffer_usage)
@@ -692,6 +700,14 @@ bool Vulkan::InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a
 		s_vulkan_inst->pfn.CreateShaderEXT = (PFN_vkCreateShadersEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCreateShadersEXT");
 		s_vulkan_inst->pfn.DestroyShaderEXT = (PFN_vkDestroyShaderEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkDestroyShaderEXT");
 		s_vulkan_inst->pfn.CmdBindShadersEXT = (PFN_vkCmdBindShadersEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdBindShadersEXT");
+		s_vulkan_inst->pfn.CmdSetPolygonModeEXT = (PFN_vkCmdSetPolygonModeEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdSetPolygonModeEXT");
+		s_vulkan_inst->pfn.CmdSetVertexInputEXT = (PFN_vkCmdSetVertexInputEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdSetVertexInputEXT");
+		s_vulkan_inst->pfn.CmdSetRasterizationSamplesEXT = (PFN_vkCmdSetRasterizationSamplesEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdSetRasterizationSamplesEXT");
+		s_vulkan_inst->pfn.CmdSetColorWriteMaskEXT = (PFN_vkCmdSetColorWriteMaskEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdSetColorWriteMaskEXT");
+		s_vulkan_inst->pfn.CmdSetColorBlendEnableEXT = (PFN_vkCmdSetColorBlendEnableEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdSetColorBlendEnableEXT");
+		s_vulkan_inst->pfn.CmdSetColorBlendEquationEXT = (PFN_vkCmdSetColorBlendEquationEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdSetColorBlendEquationEXT");
+		s_vulkan_inst->pfn.CmdSetAlphaToCoverageEnableEXT = (PFN_vkCmdSetAlphaToCoverageEnableEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdSetAlphaToCoverageEnableEXT");
+		s_vulkan_inst->pfn.CmdSetSampleMaskEXT = (PFN_vkCmdSetSampleMaskEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdSetSampleMaskEXT");
 
 		{	//device & queues
 			s_vulkan_inst->phys_device = FindPhysicalDevice(a_stack_allocator, s_vulkan_inst->instance);
@@ -978,29 +994,31 @@ const RBuffer Vulkan::CreateBuffer(const BufferCreateInfo& a_create_info)
 	{
 	case BUFFER_TYPE::UPLOAD:
 		buffer_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-		vma_alloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
-		vma_alloc.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
 		break;
 	case BUFFER_TYPE::STORAGE:
 		buffer_info.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-		vma_alloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 		break;
 	case BUFFER_TYPE::UNIFORM:
 		buffer_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
-		vma_alloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 		break;
 	case BUFFER_TYPE::VERTEX:
 		buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-		vma_alloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 		break;
 	case BUFFER_TYPE::INDEX:
 		buffer_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-		vma_alloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 		break;
 	default:
 		BB_ASSERT(false, "unknown buffer type");
 		break;
 	}
+
+	if (a_create_info.host_writable)
+	{
+		vma_alloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
+		vma_alloc.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+	}
+	else
+		vma_alloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
 	VKASSERT(vmaCreateBuffer(s_vulkan_inst->vma,
 		&buffer_info, &vma_alloc,
@@ -1050,10 +1068,10 @@ RDescriptorLayout Vulkan::CreateDescriptorLayout(Allocator a_temp_allocator, Sli
 			bindless_flags[i] = 0;
 	}
 
-	VkDescriptorSetLayoutCreateInfo layout_info{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
-	layout_info.pBindings = layout_binds;
-	layout_info.bindingCount = static_cast<uint32_t>(a_bindings.size());
-	layout_info.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
+	VkDescriptorSetLayoutCreateInfo layouinfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+	layouinfo.pBindings = layout_binds;
+	layouinfo.bindingCount = static_cast<uint32_t>(a_bindings.size());
+	layouinfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
 
 	if (is_bindless) //if bindless add another struct and return here.
 	{
@@ -1061,18 +1079,18 @@ RDescriptorLayout Vulkan::CreateDescriptorLayout(Allocator a_temp_allocator, Sli
 		t_LayoutExtInfo.bindingCount = static_cast<uint32_t>(a_bindings.size());
 		t_LayoutExtInfo.pBindingFlags = bindless_flags;
 
-		layout_info.pNext = &t_LayoutExtInfo;
+		layouinfo.pNext = &t_LayoutExtInfo;
 
 		//Do some algorithm to see if I already made a descriptorlayout like this one.
 		VKASSERT(vkCreateDescriptorSetLayout(s_vulkan_inst->device,
-			&layout_info, nullptr, &set_layout),
+			&layouinfo, nullptr, &set_layout),
 			"Vulkan: Failed to create a descriptorsetlayout.");
 	}
 	else
 	{
 		//Do some algorithm to see if I already made a descriptorlayout like this one.
 		VKASSERT(vkCreateDescriptorSetLayout(s_vulkan_inst->device,
-			&layout_info, nullptr, &set_layout),
+			&layouinfo, nullptr, &set_layout),
 			"Vulkan: Failed to create a descriptorsetlayout.");
 	}
 
@@ -1175,6 +1193,136 @@ void FreePipelineLayout(const RPipelineLayout a_layout)
 	vkDestroyPipelineLayout(s_vulkan_inst->device, 
 		reinterpret_cast<VkPipelineLayout>(a_layout.handle),
 		nullptr);
+}
+
+RPipeline Vulkan::CreatePipeline(Allocator a_temp_allocator, const CreatePipelineInfo& a_info)
+{
+	VkPipeline pipeline;
+
+
+	VkShaderModule vertex_module;
+	VkShaderModuleCreateInfo shader_mod_info{ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
+	shader_mod_info.pCode = reinterpret_cast<const uint32_t*>(a_info.vertex.shader_code);
+	shader_mod_info.codeSize = a_info.vertex.shader_code_size;
+
+	VKASSERT(vkCreateShaderModule(s_vulkan_inst->device, &shader_mod_info, nullptr, &vertex_module),
+		"Vulkan: Failed to create shadermodule.");
+
+	VkShaderModule fragment_module;
+	shader_mod_info.pCode = reinterpret_cast<const uint32_t*>(a_info.fragment.shader_code);
+	shader_mod_info.codeSize = a_info.fragment.shader_code_size;
+
+	VKASSERT(vkCreateShaderModule(s_vulkan_inst->device, &shader_mod_info, nullptr, &fragment_module),
+		"Vulkan: Failed to create shadermodule.");
+
+	VkPipelineShaderStageCreateInfo pipe_shader_info[2];
+	pipe_shader_info[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	pipe_shader_info[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+	pipe_shader_info[0].module = vertex_module;
+	pipe_shader_info[0].pName = a_info.vertex.shader_entry;
+	pipe_shader_info[0].pSpecializationInfo = nullptr;
+
+	pipe_shader_info[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	pipe_shader_info[1].stage = VK_SHADER_STAGE_VERTEX_BIT;
+	pipe_shader_info[1].module = fragment_module;
+	pipe_shader_info[1].pName = a_info.fragment.shader_entry;
+	pipe_shader_info[1].pSpecializationInfo = nullptr;
+
+
+	VkPipelineRasterizationStateCreateInfo pipe_raster{ VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO };
+	pipe_raster.depthClampEnable = VK_FALSE;
+	pipe_raster.depthBiasEnable = VK_FALSE;
+	pipe_raster.rasterizerDiscardEnable = VK_FALSE;
+	pipe_raster.polygonMode = VK_POLYGON_MODE_FILL;
+	pipe_raster.cullMode = VK_CULL_MODE_NONE;
+	pipe_raster.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	pipe_raster.lineWidth = 1.0f;
+	pipe_raster.depthBiasConstantFactor = 0.0f; // Optional
+	pipe_raster.depthBiasClamp = 0.0f; // Optional
+	pipe_raster.depthBiasSlopeFactor = 0.0f; // Optional
+
+	VkPipelineColorBlendAttachmentState color_attach{};
+	color_attach.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	color_attach.blendEnable = VK_TRUE;
+	color_attach.colorBlendOp = VK_BLEND_OP_ADD;
+	color_attach.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;
+	color_attach.dstColorBlendFactor = VK_BLEND_FACTOR_DST_COLOR;
+	color_attach.alphaBlendOp = VK_BLEND_OP_ADD;
+	color_attach.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	color_attach.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+
+	VkPipelineColorBlendStateCreateInfo pipe_color_blend{ VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO };
+	pipe_color_blend.logicOp = VK_LOGIC_OP_CLEAR;
+	pipe_color_blend.logicOpEnable = VK_FALSE;
+	pipe_color_blend.attachmentCount = 1;
+	pipe_color_blend.pAttachments = &color_attach;
+
+	VkPipelineVertexInputStateCreateInfo pipe_vertex_input{ VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
+	pipe_vertex_input.vertexBindingDescriptionCount = 0;
+	pipe_vertex_input.vertexAttributeDescriptionCount = 0;
+
+	VkPipelineInputAssemblyStateCreateInfo input_assembly{};
+	input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	input_assembly.primitiveRestartEnable = VK_FALSE;
+
+	//Get dynamic state for the viewport and scissor.
+	VkDynamicState dynamic_states[2]{ VK_DYNAMIC_STATE_VIEWPORT_WITH_COUNT, VK_DYNAMIC_STATE_SCISSOR_WITH_COUNT };
+	VkPipelineDynamicStateCreateInfo dynamic_state_info{ VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO };
+	dynamic_state_info.dynamicStateCount = 2;
+	dynamic_state_info.pDynamicStates = dynamic_states;
+
+	//Set viewport to nullptr and let the commandbuffer handle it via 
+	VkPipelineViewportStateCreateInfo pipe_viewport_state{ VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO };
+	pipe_viewport_state.viewportCount = 0;
+	pipe_viewport_state.pViewports = nullptr;
+	pipe_viewport_state.scissorCount = 0;
+	pipe_viewport_state.pScissors = nullptr;
+
+	VkPipelineMultisampleStateCreateInfo multi_sampling{ VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO };
+	multi_sampling.sampleShadingEnable = VK_FALSE;
+	multi_sampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	multi_sampling.alphaToCoverageEnable = VK_FALSE; // Optional
+	multi_sampling.alphaToOneEnable = VK_FALSE; // Optional
+	multi_sampling.minSampleShading = 1.0f; // Optional
+	multi_sampling.pSampleMask = nullptr; // Optional
+
+	VkPipelineRenderingCreateInfo pipeline_dynamic_rendering{ VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO }; //attachment for dynamic rendering.
+	pipeline_dynamic_rendering.colorAttachmentCount = 1;
+	pipeline_dynamic_rendering.pColorAttachmentFormats = &s_vulkan_swapchain->image_format;
+	pipeline_dynamic_rendering.pNext = nullptr;
+
+	VkPipelineDepthStencilStateCreateInfo pipe_stencil{ VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO };
+
+	VkGraphicsPipelineCreateInfo pipeline_info{ VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
+	pipeline_info.pStages = pipe_shader_info;
+	pipeline_info.stageCount = _countof(pipe_shader_info);
+	pipeline_info.pRasterizationState = &pipe_raster;
+	pipeline_info.pColorBlendState = &pipe_color_blend;
+	pipeline_info.pVertexInputState = &pipe_vertex_input;
+	pipeline_info.pInputAssemblyState = &input_assembly;
+	pipeline_info.layout = reinterpret_cast<VkPipelineLayout>(a_info.layout.handle);
+	pipeline_info.pDynamicState = &dynamic_state_info;
+	pipeline_info.pViewportState = &pipe_viewport_state;
+	pipeline_info.pMultisampleState = &multi_sampling;
+	pipeline_info.pDepthStencilState = &pipe_stencil;
+	pipeline_info.flags = VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
+	pipeline_info.basePipelineHandle = VK_NULL_HANDLE;
+	pipeline_info.basePipelineIndex = -1;
+	pipeline_info.pNext = &pipeline_dynamic_rendering;
+
+	VKASSERT(vkCreateGraphicsPipelines(s_vulkan_inst->device,
+		VK_NULL_HANDLE,
+		1,
+		&pipeline_info,
+		nullptr,
+		&pipeline),
+		"failed to create graphics pipeline");
+
+	vkDestroyShaderModule(s_vulkan_inst->device, vertex_module, nullptr);
+	vkDestroyShaderModule(s_vulkan_inst->device, fragment_module, nullptr);
+
+	return RPipeline((uintptr_t)pipeline);
 }
 
 void Vulkan::CreateShaderObject(Allocator a_temp_allocator, Slice<ShaderObjectCreateInfo> a_shader_objects, ShaderObject* a_pshader_objects)
@@ -1297,22 +1445,6 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 	image_barriers[0].subresourceRange.baseMipLevel = 0;
 	image_barriers[0].subresourceRange.levelCount = 1;
 
-	vkCmdSetCullMode(cmd_buffer, VK_CULL_MODE_BACK_BIT);
-	vkCmdSetFrontFace(cmd_buffer, VK_FRONT_FACE_COUNTER_CLOCKWISE);
-	vkCmdSetPrimitiveTopology(cmd_buffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-
-	if (0) //DEPTH OP
-	{
-		vkCmdSetDepthTestEnable(cmd_buffer, VK_TRUE);
-		vkCmdSetDepthWriteEnable(cmd_buffer, VK_TRUE);
-		vkCmdSetDepthCompareOp(cmd_buffer, VK_COMPARE_OP_LESS_OR_EQUAL);
-	}
-	else
-	{
-		vkCmdSetDepthTestEnable(cmd_buffer, VK_FALSE);
-		vkCmdSetDepthWriteEnable(cmd_buffer, VK_FALSE);
-	}
-
 	VkDependencyInfo barrier_info{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
 	barrier_info.pImageMemoryBarriers = image_barriers;
 	barrier_info.imageMemoryBarrierCount = 1;
@@ -1350,6 +1482,53 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 	rendering_info.colorAttachmentCount = 1;
 
 	vkCmdBeginRendering(cmd_buffer, &rendering_info);
+
+	vkCmdSetRasterizerDiscardEnable(cmd_buffer, VK_FALSE);
+
+	vkCmdSetCullMode(cmd_buffer, VK_CULL_MODE_BACK_BIT);
+	vkCmdSetFrontFace(cmd_buffer, VK_FRONT_FACE_COUNTER_CLOCKWISE);
+	vkCmdSetPrimitiveTopology(cmd_buffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	s_vulkan_inst->pfn.CmdSetPolygonModeEXT(cmd_buffer, VK_POLYGON_MODE_FILL);
+	s_vulkan_inst->pfn.CmdSetRasterizationSamplesEXT(cmd_buffer, VK_SAMPLE_COUNT_1_BIT);
+	s_vulkan_inst->pfn.CmdSetSampleMaskEXT(cmd_buffer, VK_SAMPLE_COUNT_1_BIT, nullptr);
+
+	{
+		VkBool32 color_enable = VK_TRUE;
+		s_vulkan_inst->pfn.CmdSetColorBlendEnableEXT(cmd_buffer, 0, 1, &color_enable);
+		VkColorComponentFlags color_flags = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+		s_vulkan_inst->pfn.CmdSetColorWriteMaskEXT(cmd_buffer, 0, 1, &color_flags);
+
+		VkColorBlendEquationEXT color_blend_equation{};
+		color_blend_equation.colorBlendOp = VK_BLEND_OP_ADD;
+		color_blend_equation.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;
+		color_blend_equation.dstColorBlendFactor = VK_BLEND_FACTOR_DST_COLOR;
+		color_blend_equation.alphaBlendOp = VK_BLEND_OP_ADD;
+		color_blend_equation.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+		color_blend_equation.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+		//color thing.
+		s_vulkan_inst->pfn.CmdSetColorBlendEquationEXT(cmd_buffer, 0, 1, &color_blend_equation);
+	}
+
+	s_vulkan_inst->pfn.CmdSetAlphaToCoverageEnableEXT(cmd_buffer, VK_FALSE);
+	s_vulkan_inst->pfn.CmdSetVertexInputEXT(cmd_buffer, 0, nullptr, 0, nullptr); //FOR GUI maybe not
+
+	vkCmdSetPrimitiveRestartEnable(cmd_buffer, VK_FALSE);
+
+	if (0) //DEPTH OP
+	{
+		vkCmdSetDepthBiasEnable(cmd_buffer, VK_TRUE);
+		vkCmdSetDepthTestEnable(cmd_buffer, VK_TRUE);
+		vkCmdSetDepthWriteEnable(cmd_buffer, VK_TRUE);
+		vkCmdSetDepthCompareOp(cmd_buffer, VK_COMPARE_OP_LESS_OR_EQUAL);
+	}
+	else
+	{
+		vkCmdSetStencilTestEnable(cmd_buffer, false);
+
+		vkCmdSetDepthBiasEnable(cmd_buffer, VK_FALSE);
+		vkCmdSetDepthTestEnable(cmd_buffer, VK_FALSE);
+		vkCmdSetDepthWriteEnable(cmd_buffer, VK_FALSE);
+	}
 
 	VkViewport viewport{};
 	viewport.x = 0.0f;
@@ -1448,7 +1627,7 @@ void Vulkan::ExecuteCommandLists(const RQueue a_queue, const ExecuteCommandsInfo
 	VkTimelineSemaphoreSubmitInfo* timeline_sem_infos = BBstackAlloc(
 		a_execute_info_count,
 		VkTimelineSemaphoreSubmitInfo);
-	VkSubmitInfo* submit_infos = BBstackAlloc(
+	VkSubmitInfo* submiinfos = BBstackAlloc(
 		a_execute_info_count,
 		VkSubmitInfo);
 
@@ -1456,7 +1635,7 @@ void Vulkan::ExecuteCommandLists(const RQueue a_queue, const ExecuteCommandsInfo
 	{
 		const ExecuteCommandsInfo& exe_inf = a_execute_infos[i];
 		VkTimelineSemaphoreSubmitInfo& cur_sem_inf = timeline_sem_infos[i];
-		VkSubmitInfo& cur_sub_inf = submit_infos[i];
+		VkSubmitInfo& cur_sub_inf = submiinfos[i];
 
 		cur_sem_inf.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
 		cur_sem_inf.pNext = nullptr;
@@ -1478,7 +1657,7 @@ void Vulkan::ExecuteCommandLists(const RQueue a_queue, const ExecuteCommandsInfo
 	VkQueue queue = reinterpret_cast<VkQueue>(a_queue.handle);
 	VKASSERT(vkQueueSubmit(queue,
 		a_execute_info_count,
-		submit_infos,
+		submiinfos,
 		VK_NULL_HANDLE),
 		"Vulkan: failed to submit to queue.");
 }
@@ -1516,20 +1695,20 @@ void Vulkan::ExecutePresentCommandList(const RQueue a_queue, const ExecuteComman
 	timeline_sem_info.pSignalSemaphoreValues = signal_values;
 	timeline_sem_info.signalSemaphoreValueCount = signal_semaphore_count;
 
-	VkSubmitInfo submit_info{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
-	submit_info.pNext = &timeline_sem_info;
-	submit_info.commandBufferCount = a_execute_info.list_count;
-	submit_info.pCommandBuffers = reinterpret_cast<const VkCommandBuffer*>(a_execute_info.lists);
-	submit_info.waitSemaphoreCount = wait_semaphore_count;
-	submit_info.pWaitSemaphores = wait_semaphores;
-	submit_info.signalSemaphoreCount = signal_semaphore_count;
-	submit_info.pSignalSemaphores = signal_semaphores;
-	submit_info.pWaitDstStageMask = WAIT_STAGES;
+	VkSubmitInfo submiinfo{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
+	submiinfo.pNext = &timeline_sem_info;
+	submiinfo.commandBufferCount = a_execute_info.list_count;
+	submiinfo.pCommandBuffers = reinterpret_cast<const VkCommandBuffer*>(a_execute_info.lists);
+	submiinfo.waitSemaphoreCount = wait_semaphore_count;
+	submiinfo.pWaitSemaphores = wait_semaphores;
+	submiinfo.signalSemaphoreCount = signal_semaphore_count;
+	submiinfo.pSignalSemaphores = signal_semaphores;
+	submiinfo.pWaitDstStageMask = WAIT_STAGES;
 
 	VkQueue queue = reinterpret_cast<VkQueue>(a_queue.handle);
 	VKASSERT(vkQueueSubmit(queue,
 		1,
-		&submit_info,
+		&submiinfo,
 		VK_NULL_HANDLE),
 		"Vulkan: failed to submit to queue.");
 }
@@ -1550,16 +1729,16 @@ bool Vulkan::StartFrame(const uint32_t a_backbuffer_index)
 
 bool Vulkan::EndFrame(const uint32_t a_backbuffer_index)
 {
-	VkPresentInfoKHR present_info{};
-	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-	present_info.waitSemaphoreCount = 1;
-	present_info.pWaitSemaphores = &s_vulkan_swapchain->frames[a_backbuffer_index].present_finished_semaphore;
-	present_info.swapchainCount = 1; //Swapchain will always be 1
-	present_info.pSwapchains = &s_vulkan_swapchain->swapchain;
-	present_info.pImageIndices = &a_backbuffer_index; //THIS MAY BE WRONG
-	present_info.pResults = nullptr;
+	VkPresentInfoKHR preseninfo{};
+	preseninfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	preseninfo.waitSemaphoreCount = 1;
+	preseninfo.pWaitSemaphores = &s_vulkan_swapchain->frames[a_backbuffer_index].present_finished_semaphore;
+	preseninfo.swapchainCount = 1; //Swapchain will always be 1
+	preseninfo.pSwapchains = &s_vulkan_swapchain->swapchain;
+	preseninfo.pImageIndices = &a_backbuffer_index; //THIS MAY BE WRONG
+	preseninfo.pResults = nullptr;
 
-	VKASSERT(vkQueuePresentKHR(s_vulkan_inst->present_queue, &present_info),
+	VKASSERT(vkQueuePresentKHR(s_vulkan_inst->present_queue, &preseninfo),
 		"Vulkan: Failed to queuepresentKHR.");
 
 	return true;

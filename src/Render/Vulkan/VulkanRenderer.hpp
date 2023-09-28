@@ -26,6 +26,7 @@ namespace BB
 			RPipelineLayout CreatePipelineLayout(const RDescriptorLayout* a_descriptor_layouts, const uint32_t a_layout_count, const PushConstantRanges* a_constant_ranges, const uint32_t a_constant_range_count);
 			void FreePipelineLayout(const RPipelineLayout a_layout);
 
+			RPipeline CreatePipeline(Allocator a_temp_allocator, const CreatePipelineInfo& a_info);
 			void CreateShaderObject(Allocator a_temp_allocator, Slice<ShaderObjectCreateInfo> a_shader_objects, ShaderObject* a_pshader_objects);
 			void DestroyShaderObject(const ShaderObject a_shader_object);
 
