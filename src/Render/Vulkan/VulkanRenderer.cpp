@@ -1197,9 +1197,6 @@ void FreePipelineLayout(const RPipelineLayout a_layout)
 
 RPipeline Vulkan::CreatePipeline(Allocator a_temp_allocator, const CreatePipelineInfo& a_info)
 {
-	VkPipeline pipeline;
-
-
 	VkShaderModule vertex_module;
 	VkShaderModuleCreateInfo shader_mod_info{ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
 	shader_mod_info.pCode = reinterpret_cast<const uint32_t*>(a_info.vertex.shader_code);
@@ -1217,13 +1214,15 @@ RPipeline Vulkan::CreatePipeline(Allocator a_temp_allocator, const CreatePipelin
 
 	VkPipelineShaderStageCreateInfo pipe_shader_info[2];
 	pipe_shader_info[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	pipe_shader_info[0].pNext = false;
 	pipe_shader_info[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
 	pipe_shader_info[0].module = vertex_module;
 	pipe_shader_info[0].pName = a_info.vertex.shader_entry;
 	pipe_shader_info[0].pSpecializationInfo = nullptr;
 
 	pipe_shader_info[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	pipe_shader_info[1].stage = VK_SHADER_STAGE_VERTEX_BIT;
+	pipe_shader_info[1].pNext = false;
+	pipe_shader_info[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
 	pipe_shader_info[1].module = fragment_module;
 	pipe_shader_info[1].pName = a_info.fragment.shader_entry;
 	pipe_shader_info[1].pSpecializationInfo = nullptr;
@@ -1311,6 +1310,7 @@ RPipeline Vulkan::CreatePipeline(Allocator a_temp_allocator, const CreatePipelin
 	pipeline_info.basePipelineIndex = -1;
 	pipeline_info.pNext = &pipeline_dynamic_rendering;
 
+	VkPipeline pipeline;
 	VKASSERT(vkCreateGraphicsPipelines(s_vulkan_inst->device,
 		VK_NULL_HANDLE,
 		1,

@@ -459,10 +459,12 @@ void Render::InitializeRenderer(StackAllocator_t& a_stack_allocator, const Rende
 
 		CreatePipelineInfo pipe_info;
 		pipe_info.layout = pipeline_layout;
+		shader_buffer = GetShaderCodeBuffer(vertex_shader);
 		pipe_info.vertex.shader_code_size = shader_buffer.size;
 		pipe_info.vertex.shader_code = shader_buffer.data;
 		pipe_info.vertex.shader_entry = "VertexMain";
 
+		shader_buffer = GetShaderCodeBuffer(fragment_shader);
 		pipe_info.fragment.shader_code_size = shader_buffer.size;
 		pipe_info.fragment.shader_code = shader_buffer.data;
 		pipe_info.fragment.shader_entry = "FragmentMain";
