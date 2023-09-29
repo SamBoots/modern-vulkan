@@ -80,13 +80,11 @@ namespace BB
 			uint64_t offset;
 		};
 
-		struct RenderCopyBufferInfo
+		struct RenderCopyBufferRegion
 		{
 			uint64_t size;
-			RBuffer src;
-			uint64_t srcOffset;
-			RBuffer dst;
-			uint64_t dstOffset;
+			uint64_t src_offset;
+			uint64_t dst_offset;
 		};
 
 		struct DescriptorAllocation

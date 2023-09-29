@@ -12,12 +12,12 @@
 using namespace BB;
 
 //crappy hash, don't care for now.
-const uint64_t StringHash(const char* a_String)
+const uint64_t StringHash(const char* a_string)
 {
 	uint64_t hash = 5381;
 	int c;
 
-	while (c = *a_String++)
+	while (c = *a_string++)
 		hash = ((hash << 5) + hash) + c;
 
 	return hash;

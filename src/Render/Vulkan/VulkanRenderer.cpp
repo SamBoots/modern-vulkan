@@ -62,30 +62,18 @@ public:
 	VulkanDescriptorLinearBuffer(const size_t a_buffer_size, const VkBufferUsageFlags a_buffer_usage);
 	~VulkanDescriptorLinearBuffer();
 
-	void CPUHeapToGPU(const VkCommandBuffer a_cmd_buffer);
 	const DescriptorAllocation AllocateDescriptor(const RDescriptorLayout a_descriptor);
 
-	const VkDeviceAddress GPUStartAddress() const { return m_gpu_heap.start_address; }
+	const VkDeviceAddress GPUStartAddress() const { return m_start_address; }
 
 private:
 	//using uint32_t since descriptor buffers on some drivers only spend 32-bits virtual address.
 	uint32_t m_size;
 	uint32_t m_offset;
-
-
-	struct GPUheap
-	{
-		VkBuffer buffer;
-		VmaAllocation allocation;
-		VkDeviceAddress start_address = 0;
-	} m_gpu_heap;
-
-	struct CPUheap
-	{
-		VkBuffer buffer;
-		VmaAllocation allocation;
-		void* mem_start;
-	} m_cpu_heap;
+	VkBuffer m_buffer;
+	VmaAllocation m_allocation;
+	VkDeviceAddress m_start_address = 0;
+	void* m_start;
 };
 
 constexpr int VULKAN_VERSION = 3;
@@ -116,21 +104,21 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 
 static VkDebugUtilsMessengerCreateInfoEXT CreateDebugCallbackCreateInfo()
 {
-	VkDebugUtilsMessengerCreateInfoEXT t_CreateInfo{};
-	t_CreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-	t_CreateInfo.messageSeverity =
+	VkDebugUtilsMessengerCreateInfoEXT create_info{};
+	create_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+	create_info.messageSeverity =
 		//VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
 		VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
 		VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
 		VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-	t_CreateInfo.messageType =
+	create_info.messageType =
 		VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
 		VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
 		VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-	t_CreateInfo.pfnUserCallback = debugCallback;
-	t_CreateInfo.pUserData = nullptr;
+	create_info.pfnUserCallback = debugCallback;
+	create_info.pUserData = nullptr;
 
-	return t_CreateInfo;
+	return create_info;
 }
 
 static bool CheckExtensionSupport(Allocator a_temp_allocator, Slice<const char*> a_extensions)
@@ -172,9 +160,9 @@ static inline VkDescriptorType DescriptorBufferType(const DESCRIPTOR_TYPE a_Type
 	}
 }
 
-static inline VkShaderStageFlagBits ShaderStageBits(const SHADER_STAGE a_Stage)
+static inline VkShaderStageFlagBits ShaderStageBits(const SHADER_STAGE a_stage)
 {
-	switch (a_Stage)
+	switch (a_stage)
 	{
 	case SHADER_STAGE::ALL:					return VK_SHADER_STAGE_ALL;
 	case SHADER_STAGE::VERTEX:				return VK_SHADER_STAGE_VERTEX_BIT;
@@ -186,9 +174,9 @@ static inline VkShaderStageFlagBits ShaderStageBits(const SHADER_STAGE a_Stage)
 	}
 }
 
-static inline VkImageLayout ImageLayout(const RENDER_IMAGE_LAYOUT a_ImageLayout)
+static inline VkImageLayout ImageLayout(const RENDER_IMAGE_LAYOUT a_image_layout)
 {
-	switch (a_ImageLayout)
+	switch (a_image_layout)
 	{
 	case RENDER_IMAGE_LAYOUT::UNDEFINED:				return VK_IMAGE_LAYOUT_UNDEFINED;
 	case RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL: return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
@@ -576,7 +564,7 @@ VulkanDescriptorLinearBuffer::VulkanDescriptorLinearBuffer(const size_t a_buffer
 	//create the CPU buffer
 	VkBufferCreateInfo buffer_info{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
 	buffer_info.size = a_buffer_size;
-	buffer_info.usage = a_buffer_usage | VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	buffer_info.usage = a_buffer_usage;
 	buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 	VmaAllocationCreateInfo vma_alloc{};
@@ -585,45 +573,19 @@ VulkanDescriptorLinearBuffer::VulkanDescriptorLinearBuffer(const size_t a_buffer
 
 	VKASSERT(vmaCreateBuffer(s_vulkan_inst->vma,
 		&buffer_info, &vma_alloc,
-		&m_cpu_heap.buffer, &m_cpu_heap.allocation,
+		&m_buffer, &m_allocation,
 		nullptr), "Vulkan::VMA, Failed to allocate memory for a descriptor buffer");
 
-	VKASSERT(vmaMapMemory(s_vulkan_inst->vma, m_cpu_heap.allocation, &m_cpu_heap.mem_start),
+	VKASSERT(vmaMapMemory(s_vulkan_inst->vma, m_allocation, &m_start),
 		"Vulkan: Failed to map memory for descriptor buffer");
 
-	//create the GPU heap
-	buffer_info.usage = a_buffer_usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-
-	vma_alloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-	vma_alloc.flags = 0;
-
-	VKASSERT(vmaCreateBuffer(s_vulkan_inst->vma,
-		&buffer_info, &vma_alloc,
-		&m_gpu_heap.buffer, &m_gpu_heap.allocation,
-		nullptr), "Vulkan::VMA, Failed to allocate memory for a descriptor buffer");
-
-	m_gpu_heap.start_address = GetBufferDeviceAddress(s_vulkan_inst->device, m_gpu_heap.buffer);
+	m_start_address = GetBufferDeviceAddress(s_vulkan_inst->device, m_buffer);
 }
 
 VulkanDescriptorLinearBuffer::~VulkanDescriptorLinearBuffer()
 {
-	vmaUnmapMemory(s_vulkan_inst->vma, m_cpu_heap.allocation);
-	vmaDestroyBuffer(s_vulkan_inst->vma, m_cpu_heap.buffer, m_cpu_heap.allocation);
-	vmaDestroyBuffer(s_vulkan_inst->vma, m_gpu_heap.buffer, m_gpu_heap.allocation);
-}
-
-void VulkanDescriptorLinearBuffer::CPUHeapToGPU(const VkCommandBuffer a_cmd_buffer)
-{
-	VkBufferCopy copy_region{};
-	copy_region.srcOffset = 0;
-	copy_region.dstOffset = 0;
-	copy_region.size = m_size;
-
-	vkCmdCopyBuffer(a_cmd_buffer,
-		m_cpu_heap.buffer,
-		m_gpu_heap.buffer,
-		1,
-		&copy_region);
+	vmaUnmapMemory(s_vulkan_inst->vma, m_allocation);
+	vmaDestroyBuffer(s_vulkan_inst->vma, m_buffer, m_allocation);
 }
 
 const DescriptorAllocation VulkanDescriptorLinearBuffer::AllocateDescriptor(const RDescriptorLayout a_descriptor)
@@ -639,7 +601,7 @@ const DescriptorAllocation VulkanDescriptorLinearBuffer::AllocateDescriptor(cons
 	allocation.descriptor = a_descriptor;
 	allocation.size = static_cast<uint32_t>(descriptors_size);
 	allocation.offset = m_offset;
-	allocation.buffer_start = m_cpu_heap.mem_start; //Maybe just get this from the descriptor heap? We only have one heap anyway.
+	allocation.buffer_start = m_start; //Maybe just get this from the descriptor heap? We only have one heap anyway.
 
 	m_offset += allocation.size;
 
@@ -1460,30 +1422,32 @@ void Vulkan::StartCommandList(const RCommandList a_list, const char* a_name)
 void Vulkan::EndCommandList(const RCommandList a_list)
 {
 	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
-	//TEMP
-#pragma message("CPU to GPU descriptor heap copy temporarily in end commandlist");
-	s_vulkan_inst->pdescriptor_buffer->CPUHeapToGPU(cmd_list);
-	//TEMP
 	VKASSERT(vkEndCommandBuffer(cmd_list), "Vulkan: Error when trying to end commandbuffer!");
 	SetDebugName(nullptr, cmd_list, VK_OBJECT_TYPE_COMMAND_BUFFER);
 }
 
-void Vulkan::CopyBuffer(const RCommandList a_list, const RenderCopyBufferInfo& a_copy_info)
+void Vulkan::CopyBuffer(Allocator a_temp_allocator, const RCommandList a_list, const RBuffer a_dst, const RBuffer a_src, const Slice<RenderCopyBufferRegion> a_region_infos)
 {
 	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
-	const VulkanBuffer& src_buf = s_vulkan_inst->buffers.find(a_copy_info.src.handle);
-	const VulkanBuffer& dst_buf = s_vulkan_inst->buffers.find(a_copy_info.dst.handle);
+	const VulkanBuffer& dst_buf = s_vulkan_inst->buffers.find(a_dst.handle);
+	const VulkanBuffer& src_buf = s_vulkan_inst->buffers.find(a_src.handle);
 
-	VkBufferCopy copy_region{};
-	copy_region.srcOffset = a_copy_info.srcOffset;
-	copy_region.dstOffset = a_copy_info.dstOffset;
-	copy_region.size = a_copy_info.size;
+	VkBufferCopy* copy_regions = BBnewArr(a_temp_allocator, a_region_infos.size(), VkBufferCopy);
+	for (size_t i = 0; i < a_region_infos.size(); i++)
+	{
+		const RenderCopyBufferRegion& r_cpy_reg = a_region_infos[i];
+		VkBufferCopy& cpy_reg = copy_regions[i];
+
+		cpy_reg.size = r_cpy_reg.size;
+		cpy_reg.dstOffset = r_cpy_reg.dst_offset;
+		cpy_reg.srcOffset = r_cpy_reg.src_offset;
+	}
 	
 	vkCmdCopyBuffer(cmd_list,
 		src_buf.buffer,
 		dst_buf.buffer,
-		1,
-		&copy_region);
+		static_cast<uint32_t>(a_region_infos.size()),
+		copy_regions);
 }
 
 void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo& a_render_info, const uint32_t a_backbuffer_index)
@@ -1529,7 +1493,6 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 	rendering_attachment.clearValue.color.float32[1] = a_render_info.clear_color_rgba.y;
 	rendering_attachment.clearValue.color.float32[2] = a_render_info.clear_color_rgba.z;
 	rendering_attachment.clearValue.color.float32[3] = a_render_info.clear_color_rgba.w;
-
 
 	VkRect2D scissor{};
 	scissor.offset = { 0, 0 };
