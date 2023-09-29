@@ -62,18 +62,30 @@ public:
 	VulkanDescriptorLinearBuffer(const size_t a_buffer_size, const VkBufferUsageFlags a_buffer_usage);
 	~VulkanDescriptorLinearBuffer();
 
+	void CPUHeapToGPU(const VkCommandBuffer a_cmd_buffer);
 	const DescriptorAllocation AllocateDescriptor(const RDescriptorLayout a_descriptor);
 
-	const VkDeviceAddress GetStartAddress() const { return m_start_address; }
+	const VkDeviceAddress GPUStartAddress() const { return m_gpu_heap.start_address; }
 
 private:
-	VkBuffer m_buffer;
-	VmaAllocation m_allocation;
 	//using uint32_t since descriptor buffers on some drivers only spend 32-bits virtual address.
 	uint32_t m_size;
 	uint32_t m_offset;
-	void* m_start;
-	VkDeviceAddress m_start_address = 0;
+
+
+	struct GPUheap
+	{
+		VkBuffer buffer;
+		VmaAllocation allocation;
+		VkDeviceAddress start_address = 0;
+	} m_gpu_heap;
+
+	struct CPUheap
+	{
+		VkBuffer buffer;
+		VmaAllocation allocation;
+		void* mem_start;
+	} m_cpu_heap;
 };
 
 constexpr int VULKAN_VERSION = 3;
@@ -559,11 +571,12 @@ static inline VkDescriptorAddressInfoEXT GetDescriptorAddressInfo(const VkDevice
 }
 
 VulkanDescriptorLinearBuffer::VulkanDescriptorLinearBuffer(const size_t a_buffer_size, const VkBufferUsageFlags a_buffer_usage)
-	:	m_size(static_cast<uint32_t>(a_buffer_size))
+	:	m_size(static_cast<uint32_t>(a_buffer_size)), m_offset(0)
 {
+	//create the CPU buffer
 	VkBufferCreateInfo buffer_info{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
 	buffer_info.size = a_buffer_size;
-	buffer_info.usage = a_buffer_usage;
+	buffer_info.usage = a_buffer_usage | VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 	buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 	VmaAllocationCreateInfo vma_alloc{};
@@ -572,19 +585,45 @@ VulkanDescriptorLinearBuffer::VulkanDescriptorLinearBuffer(const size_t a_buffer
 
 	VKASSERT(vmaCreateBuffer(s_vulkan_inst->vma,
 		&buffer_info, &vma_alloc,
-		&m_buffer, &m_allocation,
+		&m_cpu_heap.buffer, &m_cpu_heap.allocation,
 		nullptr), "Vulkan::VMA, Failed to allocate memory for a descriptor buffer");
 
-	VKASSERT(vmaMapMemory(s_vulkan_inst->vma, m_allocation, &m_start),
+	VKASSERT(vmaMapMemory(s_vulkan_inst->vma, m_cpu_heap.allocation, &m_cpu_heap.mem_start),
 		"Vulkan: Failed to map memory for descriptor buffer");
-	m_start_address = GetBufferDeviceAddress(s_vulkan_inst->device, m_buffer);
-	m_offset = 0;
+
+	//create the GPU heap
+	buffer_info.usage = a_buffer_usage | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+
+	vma_alloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+	vma_alloc.flags = 0;
+
+	VKASSERT(vmaCreateBuffer(s_vulkan_inst->vma,
+		&buffer_info, &vma_alloc,
+		&m_gpu_heap.buffer, &m_gpu_heap.allocation,
+		nullptr), "Vulkan::VMA, Failed to allocate memory for a descriptor buffer");
+
+	m_gpu_heap.start_address = GetBufferDeviceAddress(s_vulkan_inst->device, m_gpu_heap.buffer);
 }
 
 VulkanDescriptorLinearBuffer::~VulkanDescriptorLinearBuffer()
 {
-	vmaUnmapMemory(s_vulkan_inst->vma, m_allocation);
-	vmaDestroyBuffer(s_vulkan_inst->vma, m_buffer, m_allocation);
+	vmaUnmapMemory(s_vulkan_inst->vma, m_cpu_heap.allocation);
+	vmaDestroyBuffer(s_vulkan_inst->vma, m_cpu_heap.buffer, m_cpu_heap.allocation);
+	vmaDestroyBuffer(s_vulkan_inst->vma, m_gpu_heap.buffer, m_gpu_heap.allocation);
+}
+
+void VulkanDescriptorLinearBuffer::CPUHeapToGPU(const VkCommandBuffer a_cmd_buffer)
+{
+	VkBufferCopy copy_region{};
+	copy_region.srcOffset = 0;
+	copy_region.dstOffset = 0;
+	copy_region.size = m_size;
+
+	vkCmdCopyBuffer(a_cmd_buffer,
+		m_cpu_heap.buffer,
+		m_gpu_heap.buffer,
+		1,
+		&copy_region);
 }
 
 const DescriptorAllocation VulkanDescriptorLinearBuffer::AllocateDescriptor(const RDescriptorLayout a_descriptor)
@@ -600,7 +639,7 @@ const DescriptorAllocation VulkanDescriptorLinearBuffer::AllocateDescriptor(cons
 	allocation.descriptor = a_descriptor;
 	allocation.size = static_cast<uint32_t>(descriptors_size);
 	allocation.offset = m_offset;
-	allocation.buffer_start = m_start; //Maybe just get this from the descriptor heap? We only have one heap anyway.
+	allocation.buffer_start = m_cpu_heap.mem_start; //Maybe just get this from the descriptor heap? We only have one heap anyway.
 
 	m_offset += allocation.size;
 
@@ -1412,7 +1451,7 @@ void Vulkan::StartCommandList(const RCommandList a_list, const char* a_name)
 	//jank? bind the single descriptor buffer that we have when starting the commandlist.
 	VkDescriptorBufferBindingInfoEXT descriptor_buffer_info { VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT };
 	descriptor_buffer_info.usage = VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT;
-	descriptor_buffer_info.address = s_vulkan_inst->pdescriptor_buffer->GetStartAddress();
+	descriptor_buffer_info.address = s_vulkan_inst->pdescriptor_buffer->GPUStartAddress();
 	s_vulkan_inst->pfn.CmdBindDescriptorBuffersEXT(cmd_list, 1, &descriptor_buffer_info);
 
 	SetDebugName(a_name, cmd_list, VK_OBJECT_TYPE_COMMAND_BUFFER);
@@ -1421,8 +1460,30 @@ void Vulkan::StartCommandList(const RCommandList a_list, const char* a_name)
 void Vulkan::EndCommandList(const RCommandList a_list)
 {
 	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+	//TEMP
+#pragma message("CPU to GPU descriptor heap copy temporarily in end commandlist");
+	s_vulkan_inst->pdescriptor_buffer->CPUHeapToGPU(cmd_list);
+	//TEMP
 	VKASSERT(vkEndCommandBuffer(cmd_list), "Vulkan: Error when trying to end commandbuffer!");
 	SetDebugName(nullptr, cmd_list, VK_OBJECT_TYPE_COMMAND_BUFFER);
+}
+
+void Vulkan::CopyBuffer(const RCommandList a_list, const RenderCopyBufferInfo& a_copy_info)
+{
+	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+	const VulkanBuffer& src_buf = s_vulkan_inst->buffers.find(a_copy_info.src.handle);
+	const VulkanBuffer& dst_buf = s_vulkan_inst->buffers.find(a_copy_info.dst.handle);
+
+	VkBufferCopy copy_region{};
+	copy_region.srcOffset = a_copy_info.srcOffset;
+	copy_region.dstOffset = a_copy_info.dstOffset;
+	copy_region.size = a_copy_info.size;
+	
+	vkCmdCopyBuffer(cmd_list,
+		src_buf.buffer,
+		dst_buf.buffer,
+		1,
+		&copy_region);
 }
 
 void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo& a_render_info, const uint32_t a_backbuffer_index)
@@ -1564,12 +1625,13 @@ void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stag
 
 	vkCmdSetRasterizerDiscardEnable(cmd_buffer, VK_FALSE);
 
-	vkCmdSetCullMode(cmd_buffer, VK_CULL_MODE_BACK_BIT);
+	vkCmdSetCullMode(cmd_buffer, VK_CULL_MODE_NONE);
 	vkCmdSetFrontFace(cmd_buffer, VK_FRONT_FACE_COUNTER_CLOCKWISE);
 	vkCmdSetPrimitiveTopology(cmd_buffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	s_vulkan_inst->pfn.CmdSetPolygonModeEXT(cmd_buffer, VK_POLYGON_MODE_FILL);
 	s_vulkan_inst->pfn.CmdSetRasterizationSamplesEXT(cmd_buffer, VK_SAMPLE_COUNT_1_BIT);
-	s_vulkan_inst->pfn.CmdSetSampleMaskEXT(cmd_buffer, VK_SAMPLE_COUNT_1_BIT, nullptr);
+	const uint32_t mask = UINT32_MAX;
+	s_vulkan_inst->pfn.CmdSetSampleMaskEXT(cmd_buffer, VK_SAMPLE_COUNT_1_BIT, &mask);
 
 	{
 		VkBool32 color_enable = VK_TRUE;
@@ -1589,8 +1651,8 @@ void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stag
 	}
 
 	s_vulkan_inst->pfn.CmdSetAlphaToCoverageEnableEXT(cmd_buffer, VK_FALSE);
-	s_vulkan_inst->pfn.CmdSetVertexInputEXT(cmd_buffer, 0, nullptr, 0, nullptr); //FOR GUI maybe not
-
+	//FOR imgui maybe not, but that is because I'm dumb asf
+	s_vulkan_inst->pfn.CmdSetVertexInputEXT(cmd_buffer, 0, nullptr, 0, nullptr); 
 	vkCmdSetPrimitiveRestartEnable(cmd_buffer, VK_FALSE);
 
 	if (0) //DEPTH OP

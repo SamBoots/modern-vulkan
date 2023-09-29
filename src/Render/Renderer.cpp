@@ -502,21 +502,21 @@ void  Render::EndFrame()
 	start_rendering_info.clear_color_rgba = float4{ 0.f, 0.f, 0.f, 1.f };
 	Vulkan::StartRendering(current_command_list.api_cmd_list, start_rendering_info, s_render_inst->backbuffer_pos);
 
-	Vulkan::BindPipeline(current_command_list.api_cmd_list, test_pipeline);
+	//Vulkan::BindPipeline(current_command_list.api_cmd_list, test_pipeline);
 	Vulkan::BindIndexBuffer(current_command_list.api_cmd_list, s_render_inst->index_buffer.buffer, 0);
 
 	for (size_t i = 0; i < s_render_inst->draw_list_count; i++)
 	{
 		const DrawList& draw_list = s_render_inst->draw_lists[i];
 		const Mesh& mesh = s_render_inst->mesh_map.find(draw_list.mesh.handle);
+	
+		const SHADER_STAGE shader_stages[]{ SHADER_STAGE::VERTEX, SHADER_STAGE::FRAGMENT_PIXEL };
+		const ShaderObject shader_objects[]{ vertex_object, fragment_object };
+		Vulkan::BindShaders(current_command_list.api_cmd_list, 2, shader_stages, shader_objects);
 
 		const uint32_t buffer_indices = 0;
 		const size_t buffer_offsets[]{ mesh.mesh_descriptor_allocation.offset };
 		Vulkan::SetDescriptorBufferOffset(current_command_list.api_cmd_list, pipeline_layout, 0, 1, &buffer_indices, buffer_offsets);
-	
-		const SHADER_STAGE shader_stages[]{ SHADER_STAGE::VERTEX, SHADER_STAGE::FRAGMENT_PIXEL };
-		const ShaderObject shader_objects[]{ vertex_object, fragment_object };
-		//Vulkan::BindShaders(current_command_list.api_cmd_list, 2, shader_stages, shader_objects);
 
 		Vulkan::DrawIndexed(current_command_list.api_cmd_list,
 			mesh.index_buffer.size / sizeof(uint32_t),
