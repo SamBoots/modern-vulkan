@@ -1483,53 +1483,6 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 
 	vkCmdBeginRendering(cmd_buffer, &rendering_info);
 
-	vkCmdSetRasterizerDiscardEnable(cmd_buffer, VK_FALSE);
-
-	vkCmdSetCullMode(cmd_buffer, VK_CULL_MODE_BACK_BIT);
-	vkCmdSetFrontFace(cmd_buffer, VK_FRONT_FACE_COUNTER_CLOCKWISE);
-	vkCmdSetPrimitiveTopology(cmd_buffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-	s_vulkan_inst->pfn.CmdSetPolygonModeEXT(cmd_buffer, VK_POLYGON_MODE_FILL);
-	s_vulkan_inst->pfn.CmdSetRasterizationSamplesEXT(cmd_buffer, VK_SAMPLE_COUNT_1_BIT);
-	s_vulkan_inst->pfn.CmdSetSampleMaskEXT(cmd_buffer, VK_SAMPLE_COUNT_1_BIT, nullptr);
-
-	{
-		VkBool32 color_enable = VK_TRUE;
-		s_vulkan_inst->pfn.CmdSetColorBlendEnableEXT(cmd_buffer, 0, 1, &color_enable);
-		VkColorComponentFlags color_flags = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-		s_vulkan_inst->pfn.CmdSetColorWriteMaskEXT(cmd_buffer, 0, 1, &color_flags);
-
-		VkColorBlendEquationEXT color_blend_equation{};
-		color_blend_equation.colorBlendOp = VK_BLEND_OP_ADD;
-		color_blend_equation.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;
-		color_blend_equation.dstColorBlendFactor = VK_BLEND_FACTOR_DST_COLOR;
-		color_blend_equation.alphaBlendOp = VK_BLEND_OP_ADD;
-		color_blend_equation.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-		color_blend_equation.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-		//color thing.
-		s_vulkan_inst->pfn.CmdSetColorBlendEquationEXT(cmd_buffer, 0, 1, &color_blend_equation);
-	}
-
-	s_vulkan_inst->pfn.CmdSetAlphaToCoverageEnableEXT(cmd_buffer, VK_FALSE);
-	s_vulkan_inst->pfn.CmdSetVertexInputEXT(cmd_buffer, 0, nullptr, 0, nullptr); //FOR GUI maybe not
-
-	vkCmdSetPrimitiveRestartEnable(cmd_buffer, VK_FALSE);
-
-	if (0) //DEPTH OP
-	{
-		vkCmdSetDepthBiasEnable(cmd_buffer, VK_TRUE);
-		vkCmdSetDepthTestEnable(cmd_buffer, VK_TRUE);
-		vkCmdSetDepthWriteEnable(cmd_buffer, VK_TRUE);
-		vkCmdSetDepthCompareOp(cmd_buffer, VK_COMPARE_OP_LESS_OR_EQUAL);
-	}
-	else
-	{
-		vkCmdSetStencilTestEnable(cmd_buffer, false);
-
-		vkCmdSetDepthBiasEnable(cmd_buffer, VK_FALSE);
-		vkCmdSetDepthTestEnable(cmd_buffer, VK_FALSE);
-		vkCmdSetDepthWriteEnable(cmd_buffer, VK_FALSE);
-	}
-
 	VkViewport viewport{};
 	viewport.x = 0.0f;
 	viewport.y = 0.0f;
@@ -1591,6 +1544,14 @@ void Vulkan::BindIndexBuffer(const RCommandList a_list, const RBuffer a_buffer, 
 		VK_INDEX_TYPE_UINT32);
 }
 
+void Vulkan::BindPipeline(const RCommandList a_list, const RPipeline a_pipeline)
+{
+	VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+	VkPipeline pipeline = reinterpret_cast<VkPipeline>(a_pipeline.handle);
+
+	vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
+}
+
 void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stage_count, const SHADER_STAGE* a_shader_stages, const ShaderObject* a_shader_objects)
 {
 	VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
@@ -1600,6 +1561,53 @@ void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stag
 		shader_stages[i] = ShaderStageBits(a_shader_stages[i]);
 
 	s_vulkan_inst->pfn.CmdBindShadersEXT(cmd_buffer, a_shader_stage_count, shader_stages, reinterpret_cast<const VkShaderEXT*>(a_shader_objects));
+
+	vkCmdSetRasterizerDiscardEnable(cmd_buffer, VK_FALSE);
+
+	vkCmdSetCullMode(cmd_buffer, VK_CULL_MODE_BACK_BIT);
+	vkCmdSetFrontFace(cmd_buffer, VK_FRONT_FACE_COUNTER_CLOCKWISE);
+	vkCmdSetPrimitiveTopology(cmd_buffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+	s_vulkan_inst->pfn.CmdSetPolygonModeEXT(cmd_buffer, VK_POLYGON_MODE_FILL);
+	s_vulkan_inst->pfn.CmdSetRasterizationSamplesEXT(cmd_buffer, VK_SAMPLE_COUNT_1_BIT);
+	s_vulkan_inst->pfn.CmdSetSampleMaskEXT(cmd_buffer, VK_SAMPLE_COUNT_1_BIT, nullptr);
+
+	{
+		VkBool32 color_enable = VK_TRUE;
+		s_vulkan_inst->pfn.CmdSetColorBlendEnableEXT(cmd_buffer, 0, 1, &color_enable);
+		VkColorComponentFlags color_flags = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+		s_vulkan_inst->pfn.CmdSetColorWriteMaskEXT(cmd_buffer, 0, 1, &color_flags);
+
+		VkColorBlendEquationEXT color_blend_equation{};
+		color_blend_equation.colorBlendOp = VK_BLEND_OP_ADD;
+		color_blend_equation.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;
+		color_blend_equation.dstColorBlendFactor = VK_BLEND_FACTOR_DST_COLOR;
+		color_blend_equation.alphaBlendOp = VK_BLEND_OP_ADD;
+		color_blend_equation.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+		color_blend_equation.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+		//color thing.
+		s_vulkan_inst->pfn.CmdSetColorBlendEquationEXT(cmd_buffer, 0, 1, &color_blend_equation);
+	}
+
+	s_vulkan_inst->pfn.CmdSetAlphaToCoverageEnableEXT(cmd_buffer, VK_FALSE);
+	s_vulkan_inst->pfn.CmdSetVertexInputEXT(cmd_buffer, 0, nullptr, 0, nullptr); //FOR GUI maybe not
+
+	vkCmdSetPrimitiveRestartEnable(cmd_buffer, VK_FALSE);
+
+	if (0) //DEPTH OP
+	{
+		vkCmdSetDepthBiasEnable(cmd_buffer, VK_TRUE);
+		vkCmdSetDepthTestEnable(cmd_buffer, VK_TRUE);
+		vkCmdSetDepthWriteEnable(cmd_buffer, VK_TRUE);
+		vkCmdSetDepthCompareOp(cmd_buffer, VK_COMPARE_OP_LESS_OR_EQUAL);
+	}
+	else
+	{
+		vkCmdSetStencilTestEnable(cmd_buffer, false);
+
+		vkCmdSetDepthBiasEnable(cmd_buffer, VK_FALSE);
+		vkCmdSetDepthTestEnable(cmd_buffer, VK_FALSE);
+		vkCmdSetDepthWriteEnable(cmd_buffer, VK_FALSE);
+	}
 }
 
 void Vulkan::SetDescriptorBufferOffset(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_first_set, const uint32_t a_set_count, const uint32_t* a_buffer_indices, const size_t* a_offsets)
