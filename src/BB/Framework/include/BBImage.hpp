@@ -13,7 +13,13 @@ namespace BB
 
 		BBImage& operator=(const BBImage& a_rhs);
 
-		void FilterImage(Allocator a_temp_allocator, const float* a_filter, const uint32_t a_filter_width, const uint32_t a_filter_height, const float a_factor, const float a_bias, const uint32_t a_thread_count);
+		void FilterImage(Allocator a_temp_allocator, 
+			const float* a_filter, 
+			const uint32_t a_filter_width, 
+			const uint32_t a_filter_height, 
+			const float a_factor, 
+			const float a_bias, 
+			const uint32_t a_thread_count);
 		void SharpenImage(Allocator a_temp_allocator, const float a_intensity, const uint32_t a_thread_count);
 
 		void WriteAsBMP(const char* a_file_path);

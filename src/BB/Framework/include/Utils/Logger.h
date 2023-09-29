@@ -17,18 +17,18 @@ namespace BB
 	namespace Logger
 	{
 		//Use BB_LOG for better use.
-		void Log_Message(const char* a_FileName, int a_Line, const char* a_Formats, ...);
+		void Log_Message(const char* a_file_name, int a_Line, const char* a_Formats, ...);
 		//Use BB_WARNING for better use.
-		void Log_Warning_Optimization(const char* a_FileName, int a_Line, const char* a_Formats, ...);
+		void Log_Warning_Optimization(const char* a_file_name, int a_Line, const char* a_Formats, ...);
 		//Use BB_WARNING for better use.
-		void Log_Warning_Low(const char* a_FileName, int a_Line, const char* a_Formats, ...);
+		void Log_Warning_Low(const char* a_file_name, int a_Line, const char* a_Formats, ...);
 		//Use BB_WARNING for better use.
-		void Log_Warning_Medium(const char* a_FileName, int a_Line, const char* a_Formats, ...);
+		void Log_Warning_Medium(const char* a_file_name, int a_Line, const char* a_Formats, ...);
 		//Use BB_WARNING for better use.
-		void Log_Warning_High(const char* a_FileName, int a_Line, const char* a_Formats, ...);
+		void Log_Warning_High(const char* a_file_name, int a_Line, const char* a_Formats, ...);
 		//Use BB_ASSERT for better use.
 		//IT DOES NOT ASSERT, BB_ASSERT DOES
-		void Log_Assert(const char* a_FileName, int a_Line, const char* a_Formats, ...);
+		void Log_Assert(const char* a_file_name, int a_Line, const char* a_Formats, ...);
 
 		void EnableLogType(const WarningType a_WarningType);
 		void EnableLogTypes(const WarningTypeFlags a_WarningTypes);

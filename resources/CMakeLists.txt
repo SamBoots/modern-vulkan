@@ -29,3 +29,13 @@ add_custom_target(copy_textures ALL
     COMMENT "Copying Textures")
 
 add_dependencies(Renderer copy_textures)
+
+
+#copy models when a change happened.
+add_custom_target(copy_filter_images ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/resources/filter_textures
+    ${CMAKE_BINARY_DIR}/resources/filter_textures
+    COMMENT "Copying image filter directory")
+
+add_dependencies(image_filter_test copy_filter_images)

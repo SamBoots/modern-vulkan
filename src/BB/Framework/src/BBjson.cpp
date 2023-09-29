@@ -199,10 +199,10 @@ void BB::JsonNodeToString(const JsonNode* a_Node, String& a_String)
 	}
 }
 
-JsonParser::JsonParser(const char* a_Path)
-	: m_allocator(mbSize * 8, a_Path)
+JsonParser::JsonParser(const char* a_path)
+	: m_allocator(mbSize * 8, a_path)
 {
-	Buffer buffer = ReadOSFile(m_allocator, a_Path);
+	Buffer buffer = ReadOSFile(m_allocator, a_path);
 	m_JsonFile.data = reinterpret_cast<char*>(buffer.data);
 	m_JsonFile.size = static_cast<uint32_t>(buffer.size);
 }

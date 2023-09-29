@@ -35,6 +35,6 @@ namespace BB
 		const AssetHandle LoadAsset(void* a_AssetJobInfo);
 
 		const RTexture GetImage(const AssetHandle a_Asset);
-		const RTexture GetImageWait(const char* a_Path);
+		const RTexture GetImageWait(const char* a_path);
 	};
 }

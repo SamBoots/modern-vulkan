@@ -308,9 +308,14 @@ void BB::OSCreateDirectory(const char* a_path_name)
 #endif //_DEBUG
 }
 
-OSFileHandle BB::CreateOSFile(const char* a_FileName)
+bool BB::OSFileIsValid(const OSFileHandle a_file_handle)
 {
-	const HANDLE t_CreatedFile = CreateFileA(a_FileName,
+	return a_file_handle.handle != (uintptr_t)INVALID_HANDLE_VALUE;
+}
+
+OSFileHandle BB::CreateOSFile(const char* a_file_name)
+{
+	const HANDLE created_file = CreateFileA(a_file_name,
 		GENERIC_WRITE | GENERIC_READ,
 		0,
 		NULL,
@@ -318,7 +323,7 @@ OSFileHandle BB::CreateOSFile(const char* a_FileName)
 		FILE_ATTRIBUTE_NORMAL,
 		NULL);
 
-	if (t_CreatedFile == INVALID_HANDLE_VALUE)
+	if (created_file == INVALID_HANDLE_VALUE)
 	{
 		LatestOSError();
 		BB_WARNING(false,
@@ -326,12 +331,12 @@ OSFileHandle BB::CreateOSFile(const char* a_FileName)
 			WarningType::HIGH);
 	}
 
-	return OSFileHandle((uintptr_t)t_CreatedFile);
+	return OSFileHandle((uintptr_t)created_file);
 }
 
-OSFileHandle BB::CreateOSFile(const wchar* a_FileName)
+OSFileHandle BB::CreateOSFile(const wchar* a_file_name)
 {
-	const HANDLE t_CreatedFile = CreateFileW(a_FileName,
+	const HANDLE created_file = CreateFileW(a_file_name,
 		GENERIC_WRITE | GENERIC_READ,
 		0,
 		NULL,
@@ -339,7 +344,7 @@ OSFileHandle BB::CreateOSFile(const wchar* a_FileName)
 		FILE_ATTRIBUTE_NORMAL,
 		NULL);
 
-	if (t_CreatedFile == INVALID_HANDLE_VALUE)
+	if (created_file == INVALID_HANDLE_VALUE)
 	{
 		LatestOSError();
 		BB_WARNING(false, 
@@ -347,12 +352,12 @@ OSFileHandle BB::CreateOSFile(const wchar* a_FileName)
 			WarningType::HIGH);
 	}
 	
-	return OSFileHandle((uintptr_t)t_CreatedFile);
+	return OSFileHandle((uintptr_t)created_file);
 }
 
-OSFileHandle BB::LoadOSFile(const char* a_FileName)
+OSFileHandle BB::LoadOSFile(const char* a_file_name)
 {
-	const HANDLE t_LoadedFile = CreateFileA(a_FileName,
+	const HANDLE load_file = CreateFileA(a_file_name,
 		GENERIC_WRITE | GENERIC_READ,
 		0,
 		NULL,
@@ -360,16 +365,16 @@ OSFileHandle BB::LoadOSFile(const char* a_FileName)
 		FILE_ATTRIBUTE_NORMAL,
 		NULL);
 
-	if (t_LoadedFile == INVALID_HANDLE_VALUE)
+	if (load_file == INVALID_HANDLE_VALUE)
 		LatestOSError();
 
-	return OSFileHandle((uintptr_t)t_LoadedFile);
+	return OSFileHandle((uintptr_t)load_file);
 }
 
 //char replaced with string view later on.
-OSFileHandle BB::LoadOSFile(const wchar* a_FileName)
+OSFileHandle BB::LoadOSFile(const wchar* a_file_name)
 {
-	const HANDLE t_LoadedFile = CreateFileW(a_FileName,
+	const HANDLE load_file = CreateFileW(a_file_name,
 		GENERIC_WRITE | GENERIC_READ,
 		0,
 		NULL,
@@ -377,7 +382,7 @@ OSFileHandle BB::LoadOSFile(const wchar* a_FileName)
 		FILE_ATTRIBUTE_NORMAL,
 		NULL);
 
-	if (t_LoadedFile == INVALID_HANDLE_VALUE)
+	if (load_file == INVALID_HANDLE_VALUE)
 	{
 		LatestOSError();
 		BB_WARNING(false,
@@ -385,23 +390,23 @@ OSFileHandle BB::LoadOSFile(const wchar* a_FileName)
 			WarningType::HIGH);
 	}
 
-	return OSFileHandle((uintptr_t)t_LoadedFile);
+	return OSFileHandle((uintptr_t)load_file);
 }
 
 //Reads a loaded file.
 //Buffer.data will have a dynamic allocation from the given allocator.
-Buffer BB::ReadOSFile(Allocator a_SysAllocator, const OSFileHandle a_FileHandle)
+Buffer BB::ReadOSFile(Allocator a_system_allocator, const OSFileHandle a_FileHandle)
 {
-	Buffer t_FileBuffer{};
+	Buffer file_buffer{};
 
-	t_FileBuffer.size = GetOSFileSize(a_FileHandle);
-	t_FileBuffer.data = reinterpret_cast<char*>(BBalloc(a_SysAllocator, t_FileBuffer.size));
-	DWORD t_BytesRead = 0;
+	file_buffer.size = GetOSFileSize(a_FileHandle);
+	file_buffer.data = reinterpret_cast<char*>(BBalloc(a_system_allocator, file_buffer.size));
+	DWORD bytes_read = 0;
 
 	if (FALSE == ReadFile(reinterpret_cast<HANDLE>(a_FileHandle.ptr_handle),
-		t_FileBuffer.data,
-		static_cast<DWORD>(t_FileBuffer.size),
-		&t_BytesRead,
+		file_buffer.data,
+		static_cast<DWORD>(file_buffer.size),
+		&bytes_read,
 		NULL))
 	{
 		LatestOSError();
@@ -410,22 +415,22 @@ Buffer BB::ReadOSFile(Allocator a_SysAllocator, const OSFileHandle a_FileHandle)
 			WarningType::HIGH);
 	}
 
-	return t_FileBuffer;
+	return file_buffer;
 }
 
-Buffer BB::ReadOSFile(Allocator a_SysAllocator, const char* a_Path)
+Buffer BB::ReadOSFile(Allocator a_system_allocator, const char* a_path)
 {
-	Buffer t_FileBuffer{};
-	OSFileHandle t_ReadFile = LoadOSFile(a_Path);
+	Buffer file_buffer{};
+	OSFileHandle read_file = LoadOSFile(a_path);
+	BB_ASSERT(OSFileIsValid(read_file), "OS file invalid, will cause errors");
+	file_buffer.size = GetOSFileSize(read_file);
+	file_buffer.data = reinterpret_cast<char*>(BBalloc(a_system_allocator, file_buffer.size));
+	DWORD bytes_read = 0;
 
-	t_FileBuffer.size = GetOSFileSize(t_ReadFile);
-	t_FileBuffer.data = reinterpret_cast<char*>(BBalloc(a_SysAllocator, t_FileBuffer.size));
-	DWORD t_BytesRead = 0;
-
-	if (FALSE == ReadFile(reinterpret_cast<HANDLE>(t_ReadFile.ptr_handle),
-		t_FileBuffer.data,
-		static_cast<DWORD>(t_FileBuffer.size),
-		&t_BytesRead,
+	if (FALSE == ReadFile(reinterpret_cast<HANDLE>(read_file.ptr_handle),
+		file_buffer.data,
+		static_cast<DWORD>(file_buffer.size),
+		&bytes_read,
 		NULL))
 	{
 		BB_WARNING(false,
@@ -434,24 +439,24 @@ Buffer BB::ReadOSFile(Allocator a_SysAllocator, const char* a_Path)
 		LatestOSError();
 	}
 
-	CloseOSFile(t_ReadFile);
+	CloseOSFile(read_file);
 
-	return t_FileBuffer;
+	return file_buffer;
 }
 
-Buffer BB::ReadOSFile(Allocator a_SysAllocator, const wchar* a_Path)
+Buffer BB::ReadOSFile(Allocator a_system_allocator, const wchar* a_path)
 {
-	Buffer t_FileBuffer{};
-	OSFileHandle t_ReadFile = LoadOSFile(a_Path);
+	Buffer file_buffer{};
+	OSFileHandle read_file = LoadOSFile(a_path);
+	BB_ASSERT(OSFileIsValid(read_file), "OS file invalid, will cause errors");
+	file_buffer.size = GetOSFileSize(read_file);
+	file_buffer.data = reinterpret_cast<char*>(BBalloc(a_system_allocator, file_buffer.size));
+	DWORD bytes_read = 0;
 
-	t_FileBuffer.size = GetOSFileSize(t_ReadFile);
-	t_FileBuffer.data = reinterpret_cast<char*>(BBalloc(a_SysAllocator, t_FileBuffer.size));
-	DWORD t_BytesRead = 0;
-
-	if (FALSE == ReadFile(reinterpret_cast<HANDLE>(t_ReadFile.ptr_handle),
-		t_FileBuffer.data,
-		static_cast<DWORD>(t_FileBuffer.size),
-		&t_BytesRead,
+	if (FALSE == ReadFile(reinterpret_cast<HANDLE>(read_file.ptr_handle),
+		file_buffer.data,
+		static_cast<DWORD>(file_buffer.size),
+		&bytes_read,
 		NULL))
 	{
 		BB_WARNING(false,
@@ -460,9 +465,9 @@ Buffer BB::ReadOSFile(Allocator a_SysAllocator, const wchar* a_Path)
 		LatestOSError();
 	}
 
-	CloseOSFile(t_ReadFile);
+	CloseOSFile(read_file);
 
-	return t_FileBuffer;
+	return file_buffer;
 }
 
 //char replaced with string view later on.

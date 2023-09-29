@@ -91,7 +91,7 @@ namespace BB
 	{
 	public:
 		//load from disk
-		JsonParser(const char* a_Path);
+		JsonParser(const char* a_path);
 		//load from memory
 		JsonParser(const Buffer& a_Buffer);
 		~JsonParser();

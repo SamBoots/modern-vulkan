@@ -106,7 +106,7 @@ static void WriteLoggerToFile(void*)
 	LoggerSingleton::GetInstance()->LoggerWriteToFile();
 }
 
-static void Log_to_Console(const char* a_FileName, int a_Line, const char* a_WarningLevel, const char* a_Formats, va_list a_Args)
+static void Log_to_Console(const char* a_file_name, int a_Line, const char* a_WarningLevel, const char* a_Formats, va_list a_Args)
 {
 	constexpr const char LOG_MESSAGE_ERROR_LEVEL_0[]{ "Severity: " };
 	constexpr const char LOG_MESSAGE_FILE_0[]{ "\nFile: " };
@@ -121,7 +121,7 @@ static void Log_to_Console(const char* a_FileName, int a_Line, const char* a_War
 	}
 	{ //Get the file.
 		t_String.append(LOG_MESSAGE_FILE_0, sizeof(LOG_MESSAGE_FILE_0) - 1);
-		t_String.append(a_FileName);
+		t_String.append(a_file_name);
 	}
 	{ //Get the line number into the buffer
 		char lineNumString[8]{};
@@ -169,63 +169,63 @@ static void Log_to_Console(const char* a_FileName, int a_Line, const char* a_War
 	LoggerSingleton::GetInstance()->WriteLogInfoToFile(t_String.data(), t_String.size());
 }
 
-void Logger::Log_Message(const char* a_FileName, int a_Line, const char* a_Formats, ...)
+void Logger::Log_Message(const char* a_file_name, int a_Line, const char* a_Formats, ...)
 {
 	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::INFO))
 		return;
 	va_list t_vl;
 	va_start(t_vl, a_Formats);
-	Log_to_Console(a_FileName, a_Line, "Info", a_Formats, t_vl);
+	Log_to_Console(a_file_name, a_Line, "Info", a_Formats, t_vl);
 	va_end(t_vl);
 }
 
-void Logger::Log_Warning_Optimization(const char* a_FileName, int a_Line, const char* a_Formats, ...)
+void Logger::Log_Warning_Optimization(const char* a_file_name, int a_Line, const char* a_Formats, ...)
 {
 	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::OPTIMALIZATION))
 		return;
 	va_list t_vl;
 	va_start(t_vl, a_Formats);
-	Log_to_Console(a_FileName, a_Line, "Optimalization Warning", a_Formats, t_vl);
+	Log_to_Console(a_file_name, a_Line, "Optimalization Warning", a_Formats, t_vl);
 	va_end(t_vl);
 }
 
-void Logger::Log_Warning_Low(const char* a_FileName, int a_Line, const char* a_Formats, ...)
+void Logger::Log_Warning_Low(const char* a_file_name, int a_Line, const char* a_Formats, ...)
 {
 	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::LOW))
 		return;
 	va_list t_vl;
 	va_start(t_vl, a_Formats);
-	Log_to_Console(a_FileName, a_Line, "Warning (LOW)", a_Formats, t_vl);
+	Log_to_Console(a_file_name, a_Line, "Warning (LOW)", a_Formats, t_vl);
 	va_end(t_vl);
 }
 
-void Logger::Log_Warning_Medium(const char* a_FileName, int a_Line, const char* a_Formats, ...)
+void Logger::Log_Warning_Medium(const char* a_file_name, int a_Line, const char* a_Formats, ...)
 {
 	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::MEDIUM))
 		return;
 	va_list t_vl;
 	va_start(t_vl, a_Formats);
-	Log_to_Console(a_FileName, a_Line, "Warning (MEDIUM)", a_Formats, t_vl);
+	Log_to_Console(a_file_name, a_Line, "Warning (MEDIUM)", a_Formats, t_vl);
 	va_end(t_vl);
 }
 
-void Logger::Log_Warning_High(const char* a_FileName, int a_Line, const char* a_Formats, ...)
+void Logger::Log_Warning_High(const char* a_file_name, int a_Line, const char* a_Formats, ...)
 {
 	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::HIGH))
 		return;
 	va_list t_vl;
 	va_start(t_vl, a_Formats);
-	Log_to_Console(a_FileName, a_Line, "Warning (HIGH)", a_Formats, t_vl);
+	Log_to_Console(a_file_name, a_Line, "Warning (HIGH)", a_Formats, t_vl);
 	va_end(t_vl);
 }
 
-void Logger::Log_Assert(const char* a_FileName, int a_Line, const char* a_Formats, ...)
+void Logger::Log_Assert(const char* a_file_name, int a_Line, const char* a_Formats, ...)
 {
 	if (!LoggerSingleton::GetInstance()->IsLogEnabled(WarningType::ASSERT))
 		return;
 	va_list t_vl;
 	va_start(t_vl, a_Formats);
-	Log_to_Console(a_FileName, a_Line, "Critical", a_Formats, t_vl);
+	Log_to_Console(a_file_name, a_Line, "Critical", a_Formats, t_vl);
 	va_end(t_vl);
 }
 

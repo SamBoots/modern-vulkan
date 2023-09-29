@@ -64,12 +64,12 @@ struct TransformNode
 
 struct BB::TransformPool_inst
 {
-	TransformPool_inst(Allocator a_SysAllocator, const uint32_t a_TransformCount)
-		:	systemAllocator(a_SysAllocator)
+	TransformPool_inst(Allocator a_system_allocator, const uint32_t a_TransformCount)
+		:	systemAllocator(a_system_allocator)
 	{
 		transformCount = a_TransformCount;
 		nextFreeTransform = 0;
-		transforms = reinterpret_cast<TransformNode*>(BBalloc(a_SysAllocator, sizeof(TransformNode) * a_TransformCount));
+		transforms = reinterpret_cast<TransformNode*>(BBalloc(a_system_allocator, sizeof(TransformNode) * a_TransformCount));
 		for (size_t i = 0; i < static_cast<size_t>(transformCount - 1); i++)
 		{
 			transforms[i].next = static_cast<uint32_t>(i + 1);
@@ -88,9 +88,9 @@ struct BB::TransformPool_inst
 	TransformNode* transforms;
 };
 
-TransformPool::TransformPool(Allocator a_SysAllocator, const uint32_t a_MatrixSize)
+TransformPool::TransformPool(Allocator a_system_allocator, const uint32_t a_MatrixSize)
 {
-	inst = BBnew(a_SysAllocator, TransformPool_inst)(a_SysAllocator, a_MatrixSize);
+	inst = BBnew(a_system_allocator, TransformPool_inst)(a_system_allocator, a_MatrixSize);
 }
 
 TransformPool::~TransformPool()

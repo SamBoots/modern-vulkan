@@ -77,7 +77,7 @@ int main(int argc, char** argv)
 	
 	if (false)
 	{
-		BBImage image1{ allocator, "resources/bmpimage.bmp" };
+		BBImage image1{ allocator, "../resources/filter_textures/bmpimage.bmp" };
 		BBImage image2{ allocator, image1 };
 		BBImage image3{ allocator, image1 };
 		BBImage image4{ allocator, image1 };
@@ -91,7 +91,7 @@ int main(int argc, char** argv)
 		image4.WriteAsBMP("8.bmp");
 	}
 
-	BBImage image{ allocator, "resources/bmpimage.bmp" };
+	BBImage image{ allocator, "../resources/filter_textures/bmpimage.bmp" };
 	const BBImage image_backup{ allocator, image };
 	image.WriteAsBMP("WriteNormal.bmp");
 	image.WriteAsTARGA("WriteNormal.tga");

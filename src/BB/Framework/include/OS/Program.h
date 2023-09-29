@@ -74,24 +74,25 @@ namespace BB
 	void WriteToConsole(const wchar_t* a_String, uint32_t a_StrLength);
 
 	void OSCreateDirectory(const char* a_path_name);
-
+	
+	bool OSFileIsValid(const OSFileHandle a_file_handle);
 	//char replaced with string view later on.
 	//handle is 0 if it failed to create the file, it will assert on failure.
-	OSFileHandle CreateOSFile(const char* a_FileName);
-	OSFileHandle CreateOSFile(const wchar* a_FileName);
+	OSFileHandle CreateOSFile(const char* a_file_name);
+	OSFileHandle CreateOSFile(const wchar* a_file_name);
 	//char replaced with string view later on.
 	//handle is 0 if it failed to load the file.
-	OSFileHandle LoadOSFile(const char* a_FileName);
-	OSFileHandle LoadOSFile(const wchar* a_FileName);
+	OSFileHandle LoadOSFile(const char* a_file_name);
+	OSFileHandle LoadOSFile(const wchar* a_file_name);
 	//char replaced with string view later on.
 	void WriteToOSFile(const OSFileHandle a_file_handle, const void* a_data, const size_t a_size);
 	//Reads a loaded file.
 	//Buffer.data will have a dynamic allocation from the given allocator.
-	Buffer ReadOSFile(Allocator a_SysAllocator, const OSFileHandle a_FileHandle);
+	Buffer ReadOSFile(Allocator a_system_allocator, const OSFileHandle a_FileHandle);
 	//Reads an external file from path.
 	//Buffer.data will have a dynamic allocation from the given allocator.
-	Buffer ReadOSFile(Allocator a_SysAllocator, const char* a_Path);
-	Buffer ReadOSFile(Allocator a_SysAllocator, const wchar* a_Path);
+	Buffer ReadOSFile(Allocator a_system_allocator, const char* a_path);
+	Buffer ReadOSFile(Allocator a_system_allocator, const wchar* a_path);
 	//Get a file's size in bytes.
 	uint64_t GetOSFileSize(const OSFileHandle a_FileHandle);
 	//Set the file position, a_Offset can be 0 if you just want to move it to BEGIN or END.

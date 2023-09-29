@@ -70,18 +70,18 @@ static CommandList* SetupCommandLists(const char* a_Name = "default asset loader
 	return t_CmdList;
 }
 
-static TextureAsset LoadImageDisk(const char* a_Path)
+static TextureAsset LoadImageDisk(const char* a_path)
 {
-	CommandList* t_CmdList = SetupCommandLists(a_Path);
+	CommandList* t_CmdList = SetupCommandLists(a_path);
 
 	int x, y, c;
 	//hacky way, whatever we do it for now.
-	stbi_uc* t_Pixels = stbi_load(a_Path, &x, &y, &c, 4);
+	stbi_uc* t_Pixels = stbi_load(a_path, &x, &y, &c, 4);
 	BB_ASSERT(t_Pixels != nullptr, "failed to load image from disk");
 	RImageHandle t_Image;
 	{
 		RenderImageCreateInfo t_ImageInfo;
-		t_ImageInfo.name = a_Path;
+		t_ImageInfo.name = a_path;
 		t_ImageInfo.width = static_cast<uint32_t>(x);
 		t_ImageInfo.height = static_cast<uint32_t>(y);
 		t_ImageInfo.depth = 1;
@@ -221,9 +221,9 @@ const RTexture Asset::GetImage(const AssetHandle a_Asset)
 	return t_Asset->texture.texture;
 }
 
-const RTexture Asset::GetImageWait(const char* a_Path)
+const RTexture Asset::GetImageWait(const char* a_path)
 {
-	const uint64_t t_Hash = StringHash(a_Path);
+	const uint64_t t_Hash = StringHash(a_path);
 
 	AssetSlot* t_Slot = s_AssetManager.assetMap.find(t_Hash);
 
@@ -233,7 +233,7 @@ const RTexture Asset::GetImageWait(const char* a_Path)
 	AssetDiskJobInfo a_JobInfo{};
 	a_JobInfo.assetType = AssetType::IMAGE;
 	a_JobInfo.loadType = AssetLoadType::DISK;
-	a_JobInfo.path = a_Path;
+	a_JobInfo.path = a_path;
 
 	LoadAsset(&a_JobInfo);
 	t_Slot = s_AssetManager.assetMap.find(t_Hash);
