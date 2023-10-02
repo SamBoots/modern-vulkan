@@ -51,7 +51,7 @@ namespace BB
 #endif // _DEBUG
 
 		void* m_start = nullptr;
-		T** m_Pool = nullptr;
+		T** m_pool = nullptr;
 	};
 
 #ifdef _DEBUG
@@ -70,7 +70,7 @@ namespace BB
 
 		size_t t_AllocSize = a_size * sizeof(T);
 		m_start = mallocVirtual(m_start, t_AllocSize);
-		m_Pool = reinterpret_cast<T**>(m_start);
+		m_pool = reinterpret_cast<T**>(m_start);
 		const size_t t_SpaceForElements = t_AllocSize / sizeof(T);
 
 #ifdef _DEBUG
@@ -78,7 +78,7 @@ namespace BB
 		m_capacity = t_SpaceForElements;
 #endif //_DEBUG
 
-		T** t_Pool = m_Pool;
+		T** t_Pool = m_pool;
 
 		for (size_t i = 0; i < t_SpaceForElements - 1; i++)
 		{
@@ -102,7 +102,7 @@ namespace BB
 	template<class T>
 	inline T* GrowPool<T>::Get()
 	{
-		if (*m_Pool == nullptr)
+		if (*m_pool == nullptr)
 		{
 			BB_WARNING(false, "Growing the growpool, if this happens often try to reserve more.", WarningType::OPTIMALIZATION);
 			//get more memory!
@@ -114,7 +114,7 @@ namespace BB
 			m_capacity += elements_allocated;
 #endif //_DEBUG
 
-			T** t_Pool = m_Pool;
+			T** t_Pool = m_pool;
 
 			for (size_t i = 0; i < elements_allocated - 1; i++)
 			{
@@ -125,9 +125,9 @@ namespace BB
 		}
 
 		//Take the freelist
-		T* t_Ptr = reinterpret_cast<T*>(m_Pool);
+		T* t_Ptr = reinterpret_cast<T*>(m_pool);
 		//Set the new head of the freelist.
-		m_Pool = reinterpret_cast<T**>(*m_Pool);
+		m_pool = reinterpret_cast<T**>(*m_pool);
 
 #ifdef _DEBUG
 		++m_size;
@@ -145,8 +145,8 @@ namespace BB
 #endif // _DEBUG
 
 		//Set the previous free list to the new head.
-		(*reinterpret_cast<T**>(a_ptr)) = reinterpret_cast<T*>(m_Pool);
+		(*reinterpret_cast<T**>(a_ptr)) = reinterpret_cast<T*>(m_pool);
 		//Set the new head.
-		m_Pool = reinterpret_cast<T**>(a_ptr);
+		m_pool = reinterpret_cast<T**>(a_ptr);
 	}
 }

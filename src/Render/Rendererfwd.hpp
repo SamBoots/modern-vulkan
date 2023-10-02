@@ -33,10 +33,5 @@ namespace BB
 			float2 uv;
 			float3 color;
 		};
-
-		struct CommandList //MUST BE 8 BYTES!!!! it's just an interface.
-		{
-			RCommandList api_cmd_list;
-		};
 	}
 }

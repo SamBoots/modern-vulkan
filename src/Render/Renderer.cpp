@@ -16,6 +16,61 @@ struct RenderFence
 	RFence fence;
 };
 
+struct UploadBufferView
+{
+	RBuffer upload_buffer_handle;	//8
+	void* view_mem_start;			//16
+	//I suppose we never make an upload buffer bigger then 2-4 gb? test for it I suppose.
+	uint32_t offset;				//20
+	uint32_t size;					//24
+	uint64_t fence_value;			//32
+};
+
+/// <summary>
+/// Handles one large upload buffer and handles it as if it's seperate buffers by handling chunks.
+/// </summary>
+class UploadBufferPool
+{
+public:
+	UploadBufferPool(Allocator a_sys_allocator, const size_t a_size_per_pool, const uint32_t a_pool_count)
+		:	m_upload_view_count(a_pool_count)
+	{
+		const size_t upload_buffer_size = a_size_per_pool * m_upload_view_count;
+
+		BufferCreateInfo buffer_info;
+		buffer_info.type = BUFFER_TYPE::UPLOAD;
+		buffer_info.size = upload_buffer_size;
+		buffer_info.host_writable = true;
+		buffer_info.name = "upload_buffer_pool";
+		m_upload_buffer = Vulkan::CreateBuffer(buffer_info);
+		m_upload_mem_start = Vulkan::MapBufferMemory(m_upload_buffer);
+
+		m_upload_views = BBnewArr(a_sys_allocator, m_upload_view_count, UploadBufferView);
+		for (size_t i = 0; i < m_upload_view_count; i++)
+		{
+			m_upload_views[i].upload_buffer_handle = m_upload_buffer;
+			m_upload_views[i].size = a_size_per_pool;
+			m_upload_views[i].offset = i * a_size_per_pool;
+			m_upload_views[i].view_mem_start = Pointer::Add(m_upload_mem_start, m_upload_views[i].offset);
+			m_upload_views[i].fence_value = 0;
+		}
+
+		m_upload_view_current_free = 0;
+	}
+	~UploadBufferPool()
+	{
+		Vulkan::UnmapBufferMemory(m_upload_buffer);
+		Vulkan::FreeBuffer(m_upload_buffer);
+	}
+
+private:
+	RBuffer m_upload_buffer;			//8
+	void* m_upload_mem_start;			//16
+	uint32_t m_upload_view_current_free;//20
+	const uint32_t m_upload_view_count; //24
+	UploadBufferView* m_upload_views;	//32
+};
+
 //get one pool per thread
 class CommandPool
 {
@@ -29,21 +84,21 @@ class CommandPool
 	bool m_recording; //44
 	BB_PAD(4); //48
 public:
-	CommandList StartCommandList(const char* a_name = nullptr)
+	RCommandList StartCommandList(const char* a_name = nullptr)
 	{
 		BB_ASSERT(m_recording == false, "already recording a commandlist from this commandpool!");
 		BB_ASSERT(m_list_current_free < m_list_count, "command pool out of lists!");
-		CommandList list{ m_lists[m_list_current_free++] };
-		Vulkan::StartCommandList(list.api_cmd_list, a_name);
+		RCommandList list{ m_lists[m_list_current_free++] };
+		Vulkan::StartCommandList(list, a_name);
 		m_recording = true;
 		return list;
 	}
 
-	void EndCommandList(CommandList a_list)
+	void EndCommandList(RCommandList a_list)
 	{
 		BB_ASSERT(m_recording == true, "trying to end a commandlist while the pool is not recording any list");
-		BB_ASSERT(a_list.api_cmd_list == m_lists[m_list_current_free - 1], "commandlist that was submitted is not from this pool or was already closed!");
-		Vulkan::EndCommandList(a_list.api_cmd_list);
+		BB_ASSERT(a_list == m_lists[m_list_current_free - 1], "commandlist that was submitted is not from this pool or was already closed!");
+		Vulkan::EndCommandList(a_list);
 		m_recording = false;
 	}
 	void ResetPool()
@@ -115,7 +170,7 @@ public:
 		OSReleaseSRWLockWrite(&m_lock);
 	}
 
-	void ExecuteCommands(CommandList* a_lists, const uint32_t a_list_count, const RFence* const a_wait_fences, const uint64_t* const wait_values, const uint32_t a_fence_count)
+	void ExecuteCommands(RCommandList* a_lists, const uint32_t a_list_count, const RFence* const a_wait_fences, const uint64_t* const wait_values, const uint32_t a_fence_count)
 	{
 		ExecuteCommandsInfo execute_info;
 		execute_info.lists = a_lists;
@@ -133,7 +188,7 @@ public:
 		OSReleaseSRWLockWrite(&m_lock);
 	}
 
-	void ExecutePresentCommands(CommandList* a_lists, const uint32_t a_list_count, const RFence* const a_wait_fences, const uint64_t* const wait_values, const uint32_t a_fence_count, const uint32_t a_backbuffer_index)
+	void ExecutePresentCommands(RCommandList* a_lists, const uint32_t a_list_count, const RFence* const a_wait_fences, const uint64_t* const wait_values, const uint32_t a_fence_count, const uint32_t a_backbuffer_index)
 	{
 		BB_ASSERT(m_queue_type == RENDER_QUEUE_TYPE::GRAPHICS, "calling a present commands on a non-graphics command queue is not valid");
 		ExecuteCommandsInfo execute_info;
@@ -325,7 +380,7 @@ struct RenderInterface_inst
 static RenderInterface_inst* s_render_inst;
 
 CommandPool* current_use_pool;
-CommandList current_command_list;
+RCommandList current_command_list;
 
 RPipeline test_pipeline;
 ShaderObject vertex_object;
@@ -500,10 +555,10 @@ void  Render::EndFrame()
 	start_rendering_info.load_color = false;
 	start_rendering_info.store_color = true;
 	start_rendering_info.clear_color_rgba = float4{ 0.f, 0.f, 0.f, 1.f };
-	Vulkan::StartRendering(current_command_list.api_cmd_list, start_rendering_info, s_render_inst->backbuffer_pos);
+	Vulkan::StartRendering(current_command_list, start_rendering_info, s_render_inst->backbuffer_pos);
 
 	//Vulkan::BindPipeline(current_command_list.api_cmd_list, test_pipeline);
-	Vulkan::BindIndexBuffer(current_command_list.api_cmd_list, s_render_inst->index_buffer.buffer, 0);
+	Vulkan::BindIndexBuffer(current_command_list, s_render_inst->index_buffer.buffer, 0);
 
 	for (size_t i = 0; i < s_render_inst->draw_list_count; i++)
 	{
@@ -512,13 +567,13 @@ void  Render::EndFrame()
 	
 		const SHADER_STAGE shader_stages[]{ SHADER_STAGE::VERTEX, SHADER_STAGE::FRAGMENT_PIXEL };
 		const ShaderObject shader_objects[]{ vertex_object, fragment_object };
-		Vulkan::BindShaders(current_command_list.api_cmd_list, 2, shader_stages, shader_objects);
+		Vulkan::BindShaders(current_command_list, 2, shader_stages, shader_objects);
 
 		const uint32_t buffer_indices = 0;
 		const size_t buffer_offsets[]{ mesh.mesh_descriptor_allocation.offset };
-		Vulkan::SetDescriptorBufferOffset(current_command_list.api_cmd_list, pipeline_layout, 0, 1, &buffer_indices, buffer_offsets);
+		Vulkan::SetDescriptorBufferOffset(current_command_list, pipeline_layout, 0, 1, &buffer_indices, buffer_offsets);
 
-		Vulkan::DrawIndexed(current_command_list.api_cmd_list,
+		Vulkan::DrawIndexed(current_command_list,
 			mesh.index_buffer.size / sizeof(uint32_t),
 			1,
 			mesh.index_buffer.offset / sizeof(uint32_t),
@@ -530,7 +585,7 @@ void  Render::EndFrame()
 	EndRenderingInfo end_rendering_info;
 	end_rendering_info.initial_layout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 	end_rendering_info.final_layout = RENDER_IMAGE_LAYOUT::PRESENT;
-	Vulkan::EndRendering(current_command_list.api_cmd_list, end_rendering_info, s_render_inst->backbuffer_pos);
+	Vulkan::EndRendering(current_command_list, end_rendering_info, s_render_inst->backbuffer_pos);
 	current_use_pool->EndCommandList(current_command_list);
 
 	s_render_inst->frames[s_render_inst->backbuffer_pos].fence_value = s_render_inst->graphics_queue.GetNextFenceValue();

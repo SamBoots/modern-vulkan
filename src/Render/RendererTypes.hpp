@@ -100,7 +100,7 @@ namespace BB
 
 		struct ExecuteCommandsInfo
 		{
-			const CommandList* lists;
+			const RCommandList* lists;
 			uint32_t list_count;
 
 			const RFence* wait_fences;

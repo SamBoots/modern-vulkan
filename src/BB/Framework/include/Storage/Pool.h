@@ -26,7 +26,7 @@ namespace BB
 		Pool& operator =(const Pool&) = delete;
 
 		//We do moving however
-		Pool(Pool&& a_Pool);
+		Pool(Pool&& a_pool);
 		Pool& operator =(Pool&& a_rhs);
 
 		void CreatePool(Allocator a_allocator, const size_t a_size);
@@ -53,7 +53,7 @@ namespace BB
 #endif // _DEBUG
 
 		void* m_start = nullptr;
-		T** m_Pool;
+		T** m_pool;
 	};
 
 #ifdef _DEBUG
@@ -65,21 +65,21 @@ namespace BB
 #endif // _DEBUG
 
 	template<typename T>
-	inline Pool<T>::Pool(Pool&& a_Pool)
+	inline Pool<T>::Pool(Pool&& a_pool)
 	{
-		m_start = a_Pool.m_start;
-		m_Pool = a_Pool.m_Pool;
+		m_start = a_pool.m_start;
+		m_pool = a_pool.m_pool;
 		m_start = nullptr;
-		m_Pool = nullptr;
+		m_pool = nullptr;
 
 #ifdef _DEBUG
-		m_size = a_Pool.m_size;
-		m_capacity = a_Pool.m_capacity;
-		m_allocator = a_Pool.m_allocator;
-		a_Pool.m_size = 0;
-		a_Pool.m_capacity = 0;
-		a_Pool.m_allocator.allocator = nullptr;
-		a_Pool.m_allocator.func = nullptr;
+		m_size = a_pool.m_size;
+		m_capacity = a_pool.m_capacity;
+		m_allocator = a_pool.m_allocator;
+		a_pool.m_size = 0;
+		a_pool.m_capacity = 0;
+		a_pool.m_allocator.allocator = nullptr;
+		a_pool.m_allocator.func = nullptr;
 #endif // _DEBUG
 	}
 
@@ -87,9 +87,9 @@ namespace BB
 	inline Pool<T>& Pool<T>::operator=(Pool&& a_rhs)
 	{
 		m_start = a_rhs.m_start;
-		m_Pool = a_rhs.m_Pool;
+		m_pool = a_rhs.m_pool;
 		a_rhs.m_start = nullptr;
-		a_rhs.m_Pool = nullptr;
+		a_rhs.m_pool = nullptr;
 
 #ifdef _DEBUG
 		m_size = a_rhs.m_size;
@@ -117,9 +117,9 @@ namespace BB
 #endif //_DEBUG
 
 		m_start = BBalloc(a_allocator, a_size * sizeof(T));
-		m_Pool = reinterpret_cast<T**>(m_start);
+		m_pool = reinterpret_cast<T**>(m_start);
 
-		T** t_Pool = m_Pool;
+		T** t_Pool = m_pool;
 
 		for (size_t i = 0; i < a_size - 1; i++)
 		{
@@ -146,16 +146,16 @@ namespace BB
 	template<class T>
 	inline T* Pool<T>::Get()
 	{
-		if (m_Pool == nullptr)
+		if (m_pool == nullptr)
 		{
 			BB_WARNING(false, "Trying to get an pool object while there are none left!", WarningType::HIGH);
 			return nullptr;
 		}
 
 		//Take the freelist
-		T* t_Ptr = reinterpret_cast<T*>(m_Pool);
+		T* t_Ptr = reinterpret_cast<T*>(m_pool);
 		//Set the new head of the freelist.
-		m_Pool = reinterpret_cast<T**>(*m_Pool);
+		m_pool = reinterpret_cast<T**>(*m_pool);
 
 #ifdef _DEBUG
 		++m_size;
@@ -173,8 +173,8 @@ namespace BB
 #endif // _DEBUG
 
 		//Set the previous free list to the new head.
-		(*reinterpret_cast<T**>(a_ptr)) = reinterpret_cast<T*>(m_Pool);
+		(*reinterpret_cast<T**>(a_ptr)) = reinterpret_cast<T*>(m_pool);
 		//Set the new head.
-		m_Pool = reinterpret_cast<T**>(a_ptr);
+		m_pool = reinterpret_cast<T**>(a_ptr);
 	}
 }
