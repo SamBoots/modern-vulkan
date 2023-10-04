@@ -13,8 +13,8 @@ namespace BB
 		RawPool(Allocator a_allocator, const size_t a_size)
 		{
 			BB_STATIC_ASSERT(sizeof(T) >= sizeof(void*), "Pool object is smaller then the size of a pointer.");
-
-			m_pool = &BBnewArr(a_allocator, a_size, T);
+			static_assert(sizeof(T) >= sizeof(void*));
+			m_pool = reinterpret_cast<T**>(new T[a_size]{});
 
 			T** pool = m_pool;
 
@@ -31,12 +31,12 @@ namespace BB
 		RawPool& operator =(const RawPool&) = delete;
 
 		//We do moving however
-		RawPool(Pool&& a_pool)
+		RawPool(RawPool&& a_pool)
 		{
 			m_pool = a_pool.m_pool;
 			m_pool = nullptr;
 		}
-		RawPool& operator =(Pool&& a_rhs)
+		RawPool& operator =(RawPool&& a_rhs)
 		{
 			m_pool = a_rhs.m_pool;
 			a_rhs.m_pool = nullptr;
@@ -50,9 +50,7 @@ namespace BB
 				return nullptr;
 			}
 
-			//Take the freelist
 			T* ptr = reinterpret_cast<T*>(m_pool);
-			//Set the new head of the freelist.
 			m_pool = reinterpret_cast<T**>(*m_pool);
 
 			return ptr;

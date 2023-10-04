@@ -18,12 +18,14 @@ struct RenderFence
 
 struct UploadBufferView
 {
+	friend class UploadBufferPool;
 	RBuffer upload_buffer_handle;	//8
 	void* view_mem_start;			//16
-	//I suppose we never make an upload buffer bigger then 2-4 gb? test for it I suppose.
+	//I suppose we never make an upload buffer bigger then 2-4 gb? test for it on uploadbufferpool creation
 	uint32_t offset;				//20
 	uint32_t size;					//24
 	uint64_t fence_value;			//32
+	UploadBufferView* next;			//40
 };
 
 /// <summary>
@@ -36,6 +38,7 @@ public:
 		:	m_upload_view_count(a_pool_count)
 	{
 		const size_t upload_buffer_size = a_size_per_pool * m_upload_view_count;
+		BB_ASSERT(upload_buffer_size < UINT32_MAX, "we use uint32_t for offset and size but the uploadbuffer size is bigger then UINT32_MAX");
 
 		BufferCreateInfo buffer_info;
 		buffer_info.type = BUFFER_TYPE::UPLOAD;
@@ -45,17 +48,20 @@ public:
 		m_upload_buffer = Vulkan::CreateBuffer(buffer_info);
 		m_upload_mem_start = Vulkan::MapBufferMemory(m_upload_buffer);
 
-		m_upload_views = BBnewArr(a_sys_allocator, m_upload_view_count, UploadBufferView);
+		m_views = BBnewArr(a_sys_allocator, m_upload_view_count, UploadBufferView);
 		for (size_t i = 0; i < m_upload_view_count; i++)
 		{
-			m_upload_views[i].upload_buffer_handle = m_upload_buffer;
-			m_upload_views[i].size = a_size_per_pool;
-			m_upload_views[i].offset = i * a_size_per_pool;
-			m_upload_views[i].view_mem_start = Pointer::Add(m_upload_mem_start, m_upload_views[i].offset);
-			m_upload_views[i].fence_value = 0;
+			m_views[i].upload_buffer_handle = m_upload_buffer;
+			m_views[i].size = a_size_per_pool;
+			m_views[i].offset = i * a_size_per_pool;
+			m_views[i].view_mem_start = Pointer::Add(m_upload_mem_start, m_views[i].offset);
+			m_views[i].fence_value = 0;
+			m_views[i].wait_fence = BB_INVALID_HANDLE;
 		}
 
-		m_upload_view_current_free = 0;
+		m_free_views = m_views;
+		m_in_flight_views = nullptr;
+		m_lock = OSCreateRWLock();
 	}
 	~UploadBufferPool()
 	{
@@ -63,12 +69,78 @@ public:
 		Vulkan::FreeBuffer(m_upload_buffer);
 	}
 
+	UploadBufferView* GetUploadView(const char* a_pool_name = "")
+	{
+		OSAcquireSRWLockWrite(&m_lock);
+		UploadBufferView* view = BB_SLL_POP(m_free_views);
+		//TODO, handle nullptr, maybe just wait or do the reset here?
+		OSReleaseSRWLockWrite(&m_lock);
+		return view;
+	}
+
+	//return a upload view and then place a wait_fence on it.
+	void ReturnUploadView(UploadBufferView* a_view, const RFence a_wait_fence, const uint64_t a_fence_value)
+	{
+		OSAcquireSRWLockWrite(&m_lock);
+		a_view->wait_fence = a_wait_fence;
+		a_view->fence_value = a_fence_value;
+		BB_SLL_PUSH(m_in_flight_views, a_view);
+		OSReleaseSRWLockWrite(&m_lock);
+	}
+
+	void CheckIfInFlightDone()
+	{
+		UploadBufferView* local_list_free = nullptr;
+
+		//lock as a write can be attempetd in m_in_flight_pools.
+		OSAcquireSRWLockWrite(&m_lock);
+		UploadBufferView* local_list_in_flight = m_in_flight_views;
+		OSReleaseSRWLockWrite(&m_lock);
+
+		//Thank you Descent Raytracer teammates great code that I can steal
+		for (UploadBufferView** in_flight_views = &local_list_in_flight; *in_flight_views;)
+		{
+			UploadBufferView* view = *in_flight_views;
+
+			if (view->fence_value <= a_FenceValue)
+			{
+				//Get next in-flight commandlist
+				*in_flight_views = view->next;
+				BB_SLL_PUSH(local_list_free, view);
+			}
+			else
+			{
+				in_flight_views = &view->next;
+			}
+		}
+
+		if (local_list_free)
+		{
+			//jank, find better way to do this.
+			UploadBufferView* local_list_end = local_list_free;
+			while (local_list_end->next != nullptr)
+			{
+				local_list_end = local_list_end->next;
+			}
+			OSAcquireSRWLockWrite(&m_lock);
+			local_list_end->next = m_free_views;
+			m_free_views = local_list_free;
+			OSReleaseSRWLockWrite(&m_lock);
+		}
+	}
+
 private:
 	RBuffer m_upload_buffer;			//8
 	void* m_upload_mem_start;			//16
-	uint32_t m_upload_view_current_free;//20
-	const uint32_t m_upload_view_count; //24
-	UploadBufferView* m_upload_views;	//32
+
+	const uint32_t m_upload_view_count;	//24
+	UploadBufferView* m_views;			//32
+	UploadBufferView* m_free_views;		//40
+	UploadBufferView* m_in_flight_views;//48
+	BBRWLock m_lock;					//56
+
+	//this fence should be send to all execute commandlists when they include a upload buffer from here.
+	RenderFence m_upload_fence;			//80
 };
 
 //get one pool per thread
@@ -210,12 +282,17 @@ public:
 	//void ExecutePresentCommands(CommandList* a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const RENDER_PIPELINE_STAGE* a_WaitStages, const uint32_t a_FenceCount);
 	void WaitFenceValue(const uint64_t a_FenceValue)
 	{
+		CommandPool* local_list_free = nullptr;
+
+		//lock as a write can be attempetd in m_in_flight_pools.
 		OSAcquireSRWLockWrite(&m_lock);
+		CommandPool* local_list_in_flight = m_in_flight_pools;
+		OSReleaseSRWLockWrite(&m_lock);
 
 		Vulkan::WaitFences(&m_fence.fence, &a_FenceValue, 1);
 
 		//Thank you Descent Raytracer teammates great code that I can steal
-		for (CommandPool** in_flight_command_polls = &m_in_flight_pools; *in_flight_command_polls;)
+		for (CommandPool** in_flight_command_polls = &local_list_in_flight; *in_flight_command_polls;)
 		{
 			CommandPool* command_pool = *in_flight_command_polls;
 
@@ -225,7 +302,7 @@ public:
 
 				//Get next in-flight commandlist
 				*in_flight_command_polls = command_pool->next;
-				BB_SLL_PUSH(m_free_pools, command_pool);
+				BB_SLL_PUSH(local_list_free, command_pool);
 			}
 			else
 			{
@@ -233,7 +310,19 @@ public:
 			}
 		}
 
-		OSReleaseSRWLockWrite(&m_lock);
+		if (local_list_free)
+		{
+			//jank, find better way to do this.
+			CommandPool* local_list_end = local_list_free;
+			while (local_list_end->next != nullptr)
+			{
+				local_list_end = local_list_end->next;
+			}
+			OSAcquireSRWLockWrite(&m_lock);
+			local_list_end->next = m_free_pools;
+			m_free_pools = local_list_free;
+			OSReleaseSRWLockWrite(&m_lock);
+		}
 	}
 
 	void WaitIdle()
