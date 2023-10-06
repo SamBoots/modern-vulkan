@@ -6,6 +6,8 @@
 
 #include "ShaderCompiler.h"
 
+#include "BBIntrin.h"
+
 using namespace BB;
 using namespace Render;
 
@@ -56,12 +58,15 @@ public:
 			m_views[i].offset = i * a_size_per_pool;
 			m_views[i].view_mem_start = Pointer::Add(m_upload_mem_start, m_views[i].offset);
 			m_views[i].fence_value = 0;
-			m_views[i].wait_fence = BB_INVALID_HANDLE;
 		}
 
 		m_free_views = m_views;
 		m_in_flight_views = nullptr;
 		m_lock = OSCreateRWLock();
+
+		m_fence = Vulkan::CreateFence(0, "upload buffer fence");
+		m_last_completed_fence_value = 0;
+		m_next_fence_value = 1;
 	}
 	~UploadBufferPool()
 	{
@@ -78,11 +83,23 @@ public:
 		return view;
 	}
 
+	void IncrementNextFenceValue()
+	{
+		//yes
+		//maybe a lock is faster as it can be uncontested. Which may often be the case.
+		BBInterlockedIncrement64(reinterpret_cast<volatile long long*>(&m_next_fence_value));
+	}
+
+	void GetFence(RFence* a_fence, uint64_t* a_next_fence_value)
+	{
+		*a_fence = m_fence;
+		*a_next_fence_value = m_next_fence_value;
+	}
+
 	//return a upload view and then place a wait_fence on it.
-	void ReturnUploadView(UploadBufferView* a_view, const RFence a_wait_fence, const uint64_t a_fence_value)
+	void ReturnUploadView(UploadBufferView* a_view, const uint64_t a_fence_value)
 	{
 		OSAcquireSRWLockWrite(&m_lock);
-		a_view->wait_fence = a_wait_fence;
 		a_view->fence_value = a_fence_value;
 		BB_SLL_PUSH(m_in_flight_views, a_view);
 		OSReleaseSRWLockWrite(&m_lock);
@@ -95,6 +112,7 @@ public:
 		//lock as a write can be attempetd in m_in_flight_pools.
 		OSAcquireSRWLockWrite(&m_lock);
 		UploadBufferView* local_list_in_flight = m_in_flight_views;
+		m_last_completed_fence_value = Vulkan::GetCurrentFenceValue(m_fence);
 		OSReleaseSRWLockWrite(&m_lock);
 
 		//Thank you Descent Raytracer teammates great code that I can steal
@@ -102,7 +120,7 @@ public:
 		{
 			UploadBufferView* view = *in_flight_views;
 
-			if (view->fence_value <= a_FenceValue)
+			if (view->fence_value <= m_last_completed_fence_value)
 			{
 				//Get next in-flight commandlist
 				*in_flight_views = view->next;
@@ -130,17 +148,19 @@ public:
 	}
 
 private:
-	RBuffer m_upload_buffer;			//8
-	void* m_upload_mem_start;			//16
+	RBuffer m_upload_buffer;			  //8
+	void* m_upload_mem_start;			  //16
 
-	const uint32_t m_upload_view_count;	//24
-	UploadBufferView* m_views;			//32
-	UploadBufferView* m_free_views;		//40
-	UploadBufferView* m_in_flight_views;//48
-	BBRWLock m_lock;					//56
+	const uint32_t m_upload_view_count;	  //24
+	UploadBufferView* m_views;			  //32
+	UploadBufferView* m_free_views;		  //40
+	UploadBufferView* m_in_flight_views;  //48
+	BBRWLock m_lock;					  //56
 
 	//this fence should be send to all execute commandlists when they include a upload buffer from here.
-	RenderFence m_upload_fence;			//80
+	RFence m_fence;						  //64
+	volatile uint64_t m_next_fence_value; //72
+	uint64_t m_last_completed_fence_value;//80
 };
 
 //get one pool per thread
@@ -242,36 +262,55 @@ public:
 		OSReleaseSRWLockWrite(&m_lock);
 	}
 
-	void ExecuteCommands(RCommandList* a_lists, const uint32_t a_list_count, const RFence* const a_wait_fences, const uint64_t* const wait_values, const uint32_t a_fence_count)
+	void ExecutePresentCommands(RCommandList* a_lists, const uint32_t a_list_count, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const uint32_t a_wait_count, const uint32_t a_backbuffer_index)
 	{
+		BB_ASSERT(m_queue_type == RENDER_QUEUE_TYPE::GRAPHICS, "calling a present commands on a non-graphics command queue is not valid");
+		
+		const uint32_t signal_fence_count = 1 + a_signal_count;
+		RFence* signal_fences = BBstackAlloc(signal_fence_count, RFence);
+		uint64_t* signal_values = BBstackAlloc(signal_fence_count, uint64_t);
+		Memory::Copy(signal_fences, a_signal_fences, a_signal_count);
+		signal_fences[a_signal_count] = m_fence.fence;
+		Memory::Copy(signal_values, a_signal_values, a_signal_count);
+		signal_values[a_signal_count] = m_fence.next_fence_value;
+
 		ExecuteCommandsInfo execute_info;
 		execute_info.lists = a_lists;
 		execute_info.list_count = a_list_count;
+		execute_info.signal_fences = signal_fences;
+		execute_info.signal_values = signal_values;
+		execute_info.signal_count = signal_fence_count;
 		execute_info.wait_fences = a_wait_fences;
-		execute_info.wait_values = wait_values;
-		execute_info.wait_count = a_fence_count;
-		execute_info.signal_fences = &m_fence.fence;
-		execute_info.signal_values = &m_fence.next_fence_value;
-		execute_info.signal_count = 1;
+		execute_info.wait_values = a_wait_values;
+		execute_info.wait_count = a_wait_count;
 
 		OSAcquireSRWLockWrite(&m_lock);
-		Vulkan::ExecuteCommandLists(m_queue, &execute_info, 1);
+		Vulkan::ExecutePresentCommandList(m_queue, execute_info, a_backbuffer_index);
 		++m_fence.next_fence_value;
 		OSReleaseSRWLockWrite(&m_lock);
 	}
 
-	void ExecutePresentCommands(RCommandList* a_lists, const uint32_t a_list_count, const RFence* const a_wait_fences, const uint64_t* const wait_values, const uint32_t a_fence_count, const uint32_t a_backbuffer_index)
+	void ExecutePresentCommands(RCommandList* a_lists, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const uint32_t a_wait_count, const uint32_t a_backbuffer_index)
 	{
 		BB_ASSERT(m_queue_type == RENDER_QUEUE_TYPE::GRAPHICS, "calling a present commands on a non-graphics command queue is not valid");
+		
+		const uint32_t signal_fence_count = 1 + a_signal_count;
+		RFence* signal_fences = BBstackAlloc(signal_fence_count, RFence);
+		uint64_t* signal_values = BBstackAlloc(signal_fence_count, uint64_t);
+		Memory::Copy(signal_fences, a_signal_fences, a_signal_count);
+		signal_fences[a_signal_count] = m_fence.fence;
+		Memory::Copy(signal_values, a_signal_values, a_signal_count);
+		signal_values[a_signal_count] = m_fence.next_fence_value;
+
 		ExecuteCommandsInfo execute_info;
 		execute_info.lists = a_lists;
-		execute_info.list_count = a_list_count;
+		execute_info.list_count = 1;
+		execute_info.signal_fences = signal_fences;
+		execute_info.signal_values = signal_values;
+		execute_info.signal_count = signal_fence_count;
 		execute_info.wait_fences = a_wait_fences;
-		execute_info.wait_values = wait_values;
-		execute_info.wait_count = a_fence_count;
-		execute_info.signal_fences = &m_fence.fence;
-		execute_info.signal_values = &m_fence.next_fence_value;
-		execute_info.signal_count = 1;
+		execute_info.wait_values = a_wait_values;
+		execute_info.wait_count = a_wait_count;
 
 		OSAcquireSRWLockWrite(&m_lock);
 		Vulkan::ExecutePresentCommandList(m_queue, execute_info, a_backbuffer_index);
@@ -280,7 +319,7 @@ public:
 	}
 
 	//void ExecutePresentCommands(CommandList* a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const RENDER_PIPELINE_STAGE* a_WaitStages, const uint32_t a_FenceCount);
-	void WaitFenceValue(const uint64_t a_FenceValue)
+	void WaitFenceValue(const uint64_t a_fence_value)
 	{
 		CommandPool* local_list_free = nullptr;
 
@@ -289,14 +328,14 @@ public:
 		CommandPool* local_list_in_flight = m_in_flight_pools;
 		OSReleaseSRWLockWrite(&m_lock);
 
-		Vulkan::WaitFences(&m_fence.fence, &a_FenceValue, 1);
+		Vulkan::WaitFence(m_fence.fence, a_fence_value);
 
 		//Thank you Descent Raytracer teammates great code that I can steal
 		for (CommandPool** in_flight_command_polls = &local_list_in_flight; *in_flight_command_polls;)
 		{
 			CommandPool* command_pool = *in_flight_command_polls;
 
-			if (command_pool->m_fence_value <= a_FenceValue)
+			if (command_pool->m_fence_value <= a_fence_value)
 			{
 				command_pool->ResetPool();
 
@@ -415,14 +454,18 @@ struct Mesh
 
 struct DrawList
 {
-	MeshHandle mesh;
-	Mat4x4 matrix;
+	MeshHandle* mesh;
+	Mat4x4* matrix;
 };
+
+constexpr uint32_t UPLOAD_BUFFER_POOL_SIZE = mbSize * 8;
+constexpr uint32_t UPLOAD_BUFFER_POOL_COUNT = 8;
 
 struct RenderInterface_inst
 {
 	RenderInterface_inst(Allocator a_system_allocator)
-		: graphics_queue(a_system_allocator, RENDER_QUEUE_TYPE::GRAPHICS, "graphics queue", 8, 8)
+		: graphics_queue(a_system_allocator, RENDER_QUEUE_TYPE::GRAPHICS, "graphics queue", 8, 8),
+		  upload_buffers(a_system_allocator, UPLOAD_BUFFER_POOL_SIZE, UPLOAD_BUFFER_POOL_COUNT)
 	{}
 
 	WindowHandle swapchain_window;
@@ -461,9 +504,11 @@ struct RenderInterface_inst
 
 	uint32_t draw_list_count;
 	uint32_t draw_list_max;
-	DrawList* draw_lists;
+	DrawList draw_list_data;
 
 	RenderQueue graphics_queue;
+
+	UploadBufferPool upload_buffers;
 };
 
 static RenderInterface_inst* s_render_inst;
@@ -512,7 +557,6 @@ void Render::InitializeRenderer(StackAllocator_t& a_stack_allocator, const Rende
 	Vulkan::CreateSwapchain(a_stack_allocator, a_render_create_info.window_handle, a_render_create_info.swapchain_width, a_render_create_info.swapchain_height, s_render_inst->backbuffer_count);
 	s_render_inst->frames = BBnewArr(a_stack_allocator, s_render_inst->backbuffer_count, RenderInterface_inst::Frame);
 
-
 	BufferCreateInfo per_frame_buffer_info;
 	per_frame_buffer_info.name = "per_frame_buffer";
 	per_frame_buffer_info.size = mbSize * 4;
@@ -531,7 +575,9 @@ void Render::InitializeRenderer(StackAllocator_t& a_stack_allocator, const Rende
 
 	s_render_inst->draw_list_max = 128;
 	s_render_inst->draw_list_count = 0;
-	s_render_inst->draw_lists = BBnewArr(a_stack_allocator, s_render_inst->draw_list_max, DrawList);
+	s_render_inst->draw_list_data.mesh = BBnewArr(a_stack_allocator, s_render_inst->draw_list_max, MeshHandle);
+	s_render_inst->draw_list_data.matrix = BBnewArr(a_stack_allocator, s_render_inst->draw_list_max, Mat4x4);
+
 	s_render_inst->mesh_map.Init(a_stack_allocator, 32);
 
 	{
@@ -622,6 +668,7 @@ void Render::InitializeRenderer(StackAllocator_t& a_stack_allocator, const Rende
 void  Render::StartFrame()
 {
 	s_render_inst->graphics_queue.WaitFenceValue(s_render_inst->frames[s_render_inst->backbuffer_pos].fence_value);
+	s_render_inst->upload_buffers.CheckIfInFlightDone();
 
 	//clear the drawlist, maybe do this on a per-frame basis of we do GPU upload?
 	s_render_inst->draw_list_count = 0;
@@ -635,6 +682,19 @@ void  Render::StartFrame()
 
 void  Render::EndFrame()
 {
+	//upload matrices
+	//optimalization, upload previous frame matrices when using transfer buffer?
+	UploadBufferView* pmatrix_upload_view = s_render_inst->upload_buffers.GetUploadView();
+	memcpy(pmatrix_upload_view->view_mem_start, s_render_inst->draw_list_data.matrix, sizeof(Mat4x4) * s_render_inst->draw_list_count);
+
+	//upload to some GPU buffer here.
+
+
+	RFence upload_fence;
+	uint64_t upload_fence_value;
+	s_render_inst->upload_buffers.GetFence(&upload_fence, &upload_fence_value);
+	s_render_inst->upload_buffers.ReturnUploadView(pmatrix_upload_view, upload_fence_value);
+
 	//render
 	StartRenderingInfo start_rendering_info;
 	start_rendering_info.viewport_width = s_render_inst->swapchain_width;
@@ -646,17 +706,19 @@ void  Render::EndFrame()
 	start_rendering_info.clear_color_rgba = float4{ 0.f, 0.f, 0.f, 1.f };
 	Vulkan::StartRendering(current_command_list, start_rendering_info, s_render_inst->backbuffer_pos);
 
-	//Vulkan::BindPipeline(current_command_list.api_cmd_list, test_pipeline);
+#ifdef _USE_G_PIPELINE
+	Vulkan::BindPipeline(current_command_list.api_cmd_list, test_pipeline);
+#endif //_USE_G_PIPELINE
 	Vulkan::BindIndexBuffer(current_command_list, s_render_inst->index_buffer.buffer, 0);
 
 	for (size_t i = 0; i < s_render_inst->draw_list_count; i++)
 	{
-		const DrawList& draw_list = s_render_inst->draw_lists[i];
-		const Mesh& mesh = s_render_inst->mesh_map.find(draw_list.mesh.handle);
-	
+		const Mesh& mesh = s_render_inst->mesh_map.find(s_render_inst->draw_list_data.mesh[i].handle);
+#ifndef _USE_G_PIPELINE
 		const SHADER_STAGE shader_stages[]{ SHADER_STAGE::VERTEX, SHADER_STAGE::FRAGMENT_PIXEL };
 		const ShaderObject shader_objects[]{ vertex_object, fragment_object };
 		Vulkan::BindShaders(current_command_list, 2, shader_stages, shader_objects);
+#endif //_USE_G_PIPELINE
 
 		const uint32_t buffer_indices = 0;
 		const size_t buffer_offsets[]{ mesh.mesh_descriptor_allocation.offset };
@@ -678,7 +740,8 @@ void  Render::EndFrame()
 	current_use_pool->EndCommandList(current_command_list);
 
 	s_render_inst->frames[s_render_inst->backbuffer_pos].fence_value = s_render_inst->graphics_queue.GetNextFenceValue();
-	s_render_inst->graphics_queue.ExecutePresentCommands(&current_command_list, 1, nullptr, nullptr, 0, s_render_inst->backbuffer_pos);
+	s_render_inst->graphics_queue.ExecutePresentCommands(&current_command_list, &upload_fence, &upload_fence_value, 1, nullptr, nullptr, 0, s_render_inst->backbuffer_pos);
+	s_render_inst->upload_buffers.IncrementNextFenceValue();
 	s_render_inst->graphics_queue.ReturnPool(current_use_pool);
 
 	//swap images
@@ -724,8 +787,6 @@ void Render::FreeMesh(const MeshHandle a_mesh)
 
 void Render::DrawMesh(const MeshHandle a_mesh, const Mat4x4& a_transform)
 {
-	DrawList draw_list;
-	draw_list.mesh = a_mesh;
-	draw_list.matrix = a_transform;
-	s_render_inst->draw_lists[s_render_inst->draw_list_count++] = draw_list;
+	s_render_inst->draw_list_data.mesh[s_render_inst->draw_list_count] = a_mesh;
+	s_render_inst->draw_list_data.matrix[s_render_inst->draw_list_count++] = a_transform;
 }

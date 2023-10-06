@@ -23,7 +23,13 @@ struct VSOutput
     _BBEXT(2)  float3 normal : NORMAL0;
 };
 
-_BBBIND(0, 0) ByteAddressBuffer vertex_data;
+struct Indices
+{
+    uint vertex_buffer_offset;
+    uint transform_index;
+};
+
+_BBBIND(0, 0)ByteAddressBuffer vertex_data;
 
 VSOutput VertexMain(uint VertexIndex : SV_VertexID)
 {

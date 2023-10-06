@@ -59,9 +59,10 @@ namespace BB
 			bool EndFrame(const uint32_t a_backbuffer_index);
 
 			RFence CreateFence(const uint64_t a_initial_value, const char* a_name);
-			void FreeFence(const RFence a_fence, const uint64_t a_fence_values);
-			void WaitFences(const RFence a_fences, const uint64_t* a_fence_values, const uint32_t a_fence_count);
+			void FreeFence(const RFence a_fence);
+			void WaitFence(const RFence a_fence, const uint64_t a_fence_value);
 			void WaitFences(const RFence* a_fences, const uint64_t* a_fence_values, const uint32_t a_fence_count);
+			uint64_t GetCurrentFenceValue(const RFence a_fence);
 
 			RQueue GetQueue(const RENDER_QUEUE_TYPE a_queue_type, const char* a_name);
 		}

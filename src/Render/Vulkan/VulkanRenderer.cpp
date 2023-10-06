@@ -1802,14 +1802,33 @@ void Vulkan::FreeFence(const RFence a_fence)
 	vkDestroySemaphore(s_vulkan_inst->device, reinterpret_cast<VkSemaphore>(a_fence.handle), nullptr);
 }
 
+void Vulkan::WaitFence(const RFence a_fence, const uint64_t a_fence_value)
+{
+	VkSemaphoreWaitInfo wait_info{ VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO };
+	wait_info.semaphoreCount = 1;
+	wait_info.pSemaphores = reinterpret_cast<const VkSemaphore*>(&a_fence);
+	wait_info.pValues = &a_fence_value;
+
+	vkWaitSemaphores(s_vulkan_inst->device, &wait_info, 1000000000);
+}
+
 void Vulkan::WaitFences(const RFence* a_fences, const uint64_t* a_fence_values, const uint32_t a_fence_count)
 {
-	VkSemaphoreWaitInfo t_WaitInfo{ VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO };
-	t_WaitInfo.semaphoreCount = a_fence_count;
-	t_WaitInfo.pSemaphores = reinterpret_cast<const VkSemaphore*>(a_fences);
-	t_WaitInfo.pValues = a_fence_values;
+	VkSemaphoreWaitInfo wait_info{ VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO };
+	wait_info.semaphoreCount = a_fence_count;
+	wait_info.pSemaphores = reinterpret_cast<const VkSemaphore*>(a_fences);
+	wait_info.pValues = a_fence_values;
 
-	vkWaitSemaphores(s_vulkan_inst->device, &t_WaitInfo, 1000000000);
+	vkWaitSemaphores(s_vulkan_inst->device, &wait_info, 1000000000);
+}
+
+uint64_t Vulkan::GetCurrentFenceValue(const RFence a_fence)
+{
+	uint64_t value;
+	vkGetSemaphoreCounterValue(s_vulkan_inst->device,
+		reinterpret_cast<const VkSemaphore>(a_fence.handle),
+		&value);
+	return value;
 }
 
 RQueue Vulkan::GetQueue(const RENDER_QUEUE_TYPE a_queue_type, const char* a_name)
