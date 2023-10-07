@@ -4,9 +4,12 @@
 
 namespace BB
 {
-	void InitShaderCompiler();
+	using ShaderCompiler = FrameworkHandle<struct ShaderCompilerTag>;
 
-	const ShaderCode CompileShader(Allocator a_temp_allocator, const char* a_full_path, const char* a_entry, const SHADER_STAGE a_shader_stage);
+	ShaderCompiler CreateShaderCompiler(Allocator a_system_allocator);
+	void DestroyShaderCompiler(const ShaderCompiler a_shader_compiler);
+
+	const ShaderCode CompileShader(Allocator a_temp_allocator, const ShaderCompiler a_shader_compiler, const char* a_full_path, const char* a_entry, const SHADER_STAGE a_shader_stage);
 	void ReleaseShaderCode(const ShaderCode a_handle);
 
 	Buffer GetShaderCodeBuffer(const ShaderCode a_handle);

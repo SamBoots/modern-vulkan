@@ -11,24 +11,34 @@
 
 using namespace BB;
 
-struct ShaderCompiler
+struct ShaderCompiler_inst
 {
 	IDxcUtils* utils;
 	IDxcCompiler3* compiler;
 	IDxcIncludeHandler* include_header;
 };
 
-static ShaderCompiler s_shader_compiler;
-
-void BB::InitShaderCompiler()
+ShaderCompiler CreateShaderCompiler(Allocator a_system_allocator)
 {
-	DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&s_shader_compiler.utils));
-	DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&s_shader_compiler.compiler));
-	s_shader_compiler.utils->CreateDefaultIncludeHandler(&s_shader_compiler.include_header);
+	ShaderCompiler_inst* inst = BBnew(a_system_allocator, ShaderCompiler_inst);
+
+	DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&inst->utils));
+	DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&inst->compiler));
+	inst->utils->CreateDefaultIncludeHandler(&inst->include_header);
+
+	return ShaderCompiler((uintptr_t)inst);
+}
+void DestroyShaderCompiler(const ShaderCompiler a_shader_compiler)
+{
+	const ShaderCompiler_inst* inst = reinterpret_cast<ShaderCompiler_inst*>(a_shader_compiler.handle);
+	inst->include_header->Release();
+	inst->compiler->Release();
+	inst->utils->Release();
 }
 
-const ShaderCode BB::CompileShader(Allocator a_temp_allocator, const char* a_full_path, const char* a_entry, const SHADER_STAGE a_shader_stage)
+const ShaderCode BB::CompileShader(Allocator a_temp_allocator, const ShaderCompiler a_shader_compiler, const char* a_full_path, const char* a_entry, const SHADER_STAGE a_shader_stage)
 {
+	const ShaderCompiler_inst* inst = reinterpret_cast<ShaderCompiler_inst*>(a_shader_compiler.handle);
 	LPCWSTR shader_type;
 	switch (a_shader_stage)
 	{
@@ -72,7 +82,7 @@ const ShaderCode BB::CompileShader(Allocator a_temp_allocator, const char* a_ful
 
 
 	IDxcBlobEncoding* source_blob;
-	s_shader_compiler.utils->LoadFile(full_path_w, nullptr, &source_blob);
+	inst->utils->LoadFile(full_path_w, nullptr, &source_blob);
 	DxcBuffer source;
 	source.Ptr = source_blob->GetBufferPointer();
 	source.Size = source_blob->GetBufferSize();
@@ -81,11 +91,11 @@ const ShaderCode BB::CompileShader(Allocator a_temp_allocator, const char* a_ful
 	IDxcResult* result;
 	HRESULT hresult;
 
-	hresult = s_shader_compiler.compiler->Compile(
+	hresult = inst->compiler->Compile(
 		&source,
 		shader_compile_args,
 		shader_compile_arg_count,
-		s_shader_compiler.include_header,
+		inst->include_header,
 		IID_PPV_ARGS(&result)
 	);
 

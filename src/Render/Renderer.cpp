@@ -472,6 +472,8 @@ struct RenderInterface_inst
 	uint32_t swapchain_height;
 	bool debug;
 
+	ShaderCompiler shader_compiler;
+
 	struct VertexBuffer
 	{
 		RBuffer buffer;
@@ -580,7 +582,7 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 
 	s_render_inst->mesh_map.Init(a_stack_allocator, 32);
 
-	InitShaderCompiler();
+	s_render_inst->shader_compiler = CreateShaderCompiler(a_stack_allocator);
 
 	BBStackAllocatorScope(a_stack_allocator)
 	{
@@ -598,8 +600,8 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		push_constant.size = sizeof(ShaderIndices);
 		pipeline_layout = Vulkan::CreatePipelineLayout(&global_descriptor_layout, 1, &push_constant, 1);
 
-		const ShaderCode vertex_shader = CompileShader(a_stack_allocator, "../resources/shaders/hlsl/Debug.hlsl", "VertexMain", SHADER_STAGE::VERTEX);
-		const ShaderCode fragment_shader = CompileShader(a_stack_allocator, "../resources/shaders/hlsl/Debug.hlsl", "FragmentMain", SHADER_STAGE::FRAGMENT_PIXEL);
+		const ShaderCode vertex_shader = CompileShader(a_stack_allocator, s_render_inst->shader_compiler, "../resources/shaders/hlsl/Debug.hlsl", "VertexMain", SHADER_STAGE::VERTEX);
+		const ShaderCode fragment_shader = CompileShader(a_stack_allocator, s_render_inst->shader_compiler, "../resources/shaders/hlsl/Debug.hlsl", "FragmentMain", SHADER_STAGE::FRAGMENT_PIXEL);
 
 		Buffer shader_buffer = GetShaderCodeBuffer(vertex_shader);
 
