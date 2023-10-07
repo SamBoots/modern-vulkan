@@ -21,7 +21,7 @@ namespace BB
 		DescriptorAllocation AllocateDescriptor(const RDescriptorLayout a_descriptor);
 		void WriteDescriptors(const WriteDescriptorInfos& a_write_info);
 
-		RPipelineLayout CreatePipelineLayout(const RDescriptorLayout* a_descriptor_layouts, const uint32_t a_layout_count, const PushConstantRanges* a_constant_ranges, const uint32_t a_constant_range_count);
+		RPipelineLayout CreatePipelineLayout(const RDescriptorLayout* a_descriptor_layouts, const uint32_t a_layout_count, const PushConstantRange* a_constant_ranges, const uint32_t a_constant_range_count);
 		void FreePipelineLayout(const RPipelineLayout a_layout);
 
 		RPipeline CreatePipeline(Allocator a_temp_allocator, const CreatePipelineInfo& a_info);
@@ -47,6 +47,7 @@ namespace BB
 		void BindPipeline(const RCommandList a_list, const RPipeline a_pipeline);
 		void BindShaders(const RCommandList a_list, const uint32_t a_shader_stage_count, const SHADER_STAGE* a_shader_stages, const ShaderObject* a_shader_objects);
 		void SetDescriptorBufferOffset(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_first_set, const uint32_t a_set_count, const uint32_t* a_buffer_indices, const size_t* a_offsets);
+		void SetPushConstants(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_offset, const uint32_t a_size, const void* a_data);
 
 		void DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance);
 

@@ -2,7 +2,6 @@
 
 struct VSOutput
 {
-    //not sure if needed, check directx12 later.
     float4 pos : SV_POSITION;
     _BBEXT(0)  float3 color : COLOR0;
     _BBEXT(1)  float2 uv : UV0;
@@ -11,7 +10,7 @@ struct VSOutput
 
 VSOutput VertexMain(uint VertexIndex : SV_VertexID)
 {
-    const uint vertex_offset = sizeof(BB::Vertex) * VertexIndex;
+    const uint vertex_offset = shader_indices.vertex_buffer_offset + sizeof(BB::Vertex) * VertexIndex;
     BB::Vertex cur_vertex;
     cur_vertex.position = asfloat(vertex_data.Load3(vertex_offset));
     cur_vertex.normal = asfloat(vertex_data.Load3(vertex_offset + 12));

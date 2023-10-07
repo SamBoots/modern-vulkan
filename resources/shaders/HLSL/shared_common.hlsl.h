@@ -11,7 +11,7 @@ namespace BB
         float3 color; //44 
     };
 
-    struct Shader_Indices
+    struct ShaderIndices
     {
         uint vertex_buffer_offset;
         uint transform_index;

@@ -131,7 +131,7 @@ namespace BB
 		RENDER_IMAGE_LAYOUT final_layout;
 	};
 
-	struct PushConstantRanges
+	struct PushConstantRange
 	{
 		SHADER_STAGE stages;
 		uint32_t offset;
@@ -163,7 +163,7 @@ namespace BB
 		uint32_t descriptor_layout_count;
 		RDescriptorLayout* descriptor_layouts;
 		uint32_t push_constant_range_count;
-		PushConstantRanges* push_constant_ranges;
+		PushConstantRange* push_constant_ranges;
 	};
 
 	struct WriteDescriptorData

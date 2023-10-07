@@ -477,6 +477,7 @@ struct RenderInterface_inst
 		RBuffer buffer;
 		uint32_t size;
 		uint32_t used;
+		DescriptorAllocation descriptor_allocation;
 	} vertex_buffer;
 	struct IndexBuffer
 	{
@@ -518,7 +519,7 @@ RCommandList current_command_list;
 RPipeline test_pipeline;
 ShaderObject vertex_object;
 ShaderObject fragment_object;
-RDescriptorLayout vertex_descriptor_layout;
+RDescriptorLayout global_descriptor_layout;
 RPipelineLayout pipeline_layout;
 
 BufferView AllocateFromVertexBuffer(const size_t a_size_in_bytes)
@@ -579,47 +580,29 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 
 	s_render_inst->mesh_map.Init(a_stack_allocator, 32);
 
-	{
-		BufferCreateInfo vertex_buffer;
-		vertex_buffer.name = "global vertex buffer";
-		vertex_buffer.size = mbSize * 64;
-		vertex_buffer.type = BUFFER_TYPE::STORAGE; //using byteaddressbuffer to get the vertices
-		vertex_buffer.host_writable = true;
-
-		s_render_inst->vertex_buffer.buffer = Vulkan::CreateBuffer(vertex_buffer);
-		s_render_inst->vertex_buffer.size = static_cast<uint32_t>(vertex_buffer.size);
-		s_render_inst->vertex_buffer.used = 0;
-	}
-	{
-		BufferCreateInfo index_buffer;
-		index_buffer.name = "global index buffer";
-		index_buffer.size = mbSize * 64;
-		index_buffer.type = BUFFER_TYPE::INDEX;
-		index_buffer.host_writable = true;
-
-		s_render_inst->index_buffer.buffer = Vulkan::CreateBuffer(index_buffer);
-		s_render_inst->index_buffer.size = static_cast<uint32_t>(index_buffer.size);
-		s_render_inst->index_buffer.used = 0;
-	}
-
 	InitShaderCompiler();
 
 	BBStackAllocatorScope(a_stack_allocator)
 	{
-		//temp stuff
+		//global descriptor set 0
 		DescriptorBindingInfo descriptor_bindings[1];
 		descriptor_bindings[0].binding = 0;
 		descriptor_bindings[0].count = 1;
 		descriptor_bindings[0].shader_stage = SHADER_STAGE::VERTEX;
 		descriptor_bindings[0].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-		vertex_descriptor_layout = Vulkan::CreateDescriptorLayout(a_stack_allocator, Slice(descriptor_bindings, 1));
+		global_descriptor_layout = Vulkan::CreateDescriptorLayout(a_stack_allocator, Slice(descriptor_bindings, 1));
 
-		pipeline_layout = Vulkan::CreatePipelineLayout(&vertex_descriptor_layout, 1, nullptr, 0);
+		PushConstantRange push_constant;
+		push_constant.stages = SHADER_STAGE::ALL;
+		push_constant.offset = 0;
+		push_constant.size = sizeof(ShaderIndices);
+		pipeline_layout = Vulkan::CreatePipelineLayout(&global_descriptor_layout, 1, &push_constant, 1);
 
 		const ShaderCode vertex_shader = CompileShader(a_stack_allocator, "../resources/shaders/hlsl/Debug.hlsl", "VertexMain", SHADER_STAGE::VERTEX);
 		const ShaderCode fragment_shader = CompileShader(a_stack_allocator, "../resources/shaders/hlsl/Debug.hlsl", "FragmentMain", SHADER_STAGE::FRAGMENT_PIXEL);
 
 		Buffer shader_buffer = GetShaderCodeBuffer(vertex_shader);
+
 		ShaderObjectCreateInfo shader_objects_info[2];
 		shader_objects_info[0].stage = SHADER_STAGE::VERTEX;
 		shader_objects_info[0].next_stages = SHADER_STAGE::FRAGMENT_PIXEL;
@@ -627,8 +610,9 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		shader_objects_info[0].shader_code = shader_buffer.data;
 		shader_objects_info[0].shader_entry = "VertexMain";
 		shader_objects_info[0].descriptor_layout_count = 1;
-		shader_objects_info[0].descriptor_layouts = &vertex_descriptor_layout;
-		shader_objects_info[0].push_constant_range_count = 0;
+		shader_objects_info[0].descriptor_layouts = &global_descriptor_layout;
+		shader_objects_info[0].push_constant_range_count = 1;
+		shader_objects_info[0].push_constant_ranges = &push_constant;
 
 		shader_buffer = GetShaderCodeBuffer(fragment_shader);
 		shader_objects_info[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
@@ -637,8 +621,9 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		shader_objects_info[1].shader_code = shader_buffer.data;
 		shader_objects_info[1].shader_entry = "FragmentMain";
 		shader_objects_info[1].descriptor_layout_count = 1;
-		shader_objects_info[1].descriptor_layouts = &vertex_descriptor_layout;
-		shader_objects_info[1].push_constant_range_count = 0;
+		shader_objects_info[1].descriptor_layouts = &global_descriptor_layout;
+		shader_objects_info[1].push_constant_range_count = 1;
+		shader_objects_info[1].push_constant_ranges = &push_constant;
 
 		ShaderObject shader_objects[2];
 		Vulkan::CreateShaderObject(a_stack_allocator, Slice(shader_objects_info, _countof(shader_objects_info)), shader_objects);
@@ -661,6 +646,49 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 
 		ReleaseShaderCode(vertex_shader);
 		ReleaseShaderCode(fragment_shader);
+	}
+
+	{
+		BufferCreateInfo vertex_buffer;
+		vertex_buffer.name = "global vertex buffer";
+		vertex_buffer.size = mbSize * 64;
+		vertex_buffer.type = BUFFER_TYPE::STORAGE; //using byteaddressbuffer to get the vertices
+		vertex_buffer.host_writable = true;
+
+		s_render_inst->vertex_buffer.buffer = Vulkan::CreateBuffer(vertex_buffer);
+		s_render_inst->vertex_buffer.size = static_cast<uint32_t>(vertex_buffer.size);
+		s_render_inst->vertex_buffer.used = 0;
+		s_render_inst->vertex_buffer.descriptor_allocation = Vulkan::AllocateDescriptor(global_descriptor_layout);
+
+		BufferView view;
+		view.buffer = s_render_inst->vertex_buffer.buffer;
+		view.offset = 0;
+		view.size = s_render_inst->vertex_buffer.size;
+
+		WriteDescriptorData vertex_descriptor_write{};
+		vertex_descriptor_write.binding = 0;
+		vertex_descriptor_write.descriptor_index = 0;
+		vertex_descriptor_write.type = DESCRIPTOR_TYPE::READONLY_BUFFER;
+		vertex_descriptor_write.buffer_view = view;
+
+		WriteDescriptorInfos vertex_descriptor_info;
+		vertex_descriptor_info.allocation = s_render_inst->vertex_buffer.descriptor_allocation;
+		vertex_descriptor_info.descriptor_layout = global_descriptor_layout;
+		vertex_descriptor_info.data = Slice(&vertex_descriptor_write, 1);
+
+		Vulkan::WriteDescriptors(vertex_descriptor_info);
+
+	}
+	{
+		BufferCreateInfo index_buffer;
+		index_buffer.name = "global index buffer";
+		index_buffer.size = mbSize * 64;
+		index_buffer.type = BUFFER_TYPE::INDEX;
+		index_buffer.host_writable = true;
+
+		s_render_inst->index_buffer.buffer = Vulkan::CreateBuffer(index_buffer);
+		s_render_inst->index_buffer.size = static_cast<uint32_t>(index_buffer.size);
+		s_render_inst->index_buffer.used = 0;
 	}
 }
 
@@ -709,6 +737,9 @@ void BB::EndFrame()
 	Vulkan::BindPipeline(current_command_list.api_cmd_list, test_pipeline);
 #endif //_USE_G_PIPELINE
 	Vulkan::BindIndexBuffer(current_command_list, s_render_inst->index_buffer.buffer, 0);
+	const uint32_t buffer_indices = 0;
+	const size_t buffer_offsets[]{ s_render_inst->vertex_buffer.descriptor_allocation.offset };
+	Vulkan::SetDescriptorBufferOffset(current_command_list, pipeline_layout, 0, 1, &buffer_indices, buffer_offsets);
 
 	for (size_t i = 0; i < s_render_inst->draw_list_count; i++)
 	{
@@ -718,10 +749,10 @@ void BB::EndFrame()
 		const ShaderObject shader_objects[]{ vertex_object, fragment_object };
 		Vulkan::BindShaders(current_command_list, 2, shader_stages, shader_objects);
 #endif //_USE_G_PIPELINE
-
-		const uint32_t buffer_indices = 0;
-		const size_t buffer_offsets[]{ mesh.mesh_descriptor_allocation.offset };
-		Vulkan::SetDescriptorBufferOffset(current_command_list, pipeline_layout, 0, 1, &buffer_indices, buffer_offsets);
+		ShaderIndices shader_indices;
+		shader_indices.transform_index = i;
+		shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh.vertex_buffer.offset);
+		Vulkan::SetPushConstants(current_command_list, pipeline_layout, 0, sizeof(ShaderIndices), &shader_indices);
 
 		Vulkan::DrawIndexed(current_command_list,
 			mesh.index_buffer.size / sizeof(uint32_t),
@@ -753,7 +784,6 @@ MeshHandle BB::CreateMesh(const CreateMeshInfo& a_create_info)
 	Mesh mesh;
 	mesh.vertex_buffer = AllocateFromVertexBuffer(a_create_info.vertices.sizeInBytes());
 	mesh.index_buffer = AllocateFromIndexBuffer(a_create_info.indices.sizeInBytes());
-	mesh.mesh_descriptor_allocation = Vulkan::AllocateDescriptor(vertex_descriptor_layout);
 
 	void* vert = Vulkan::MapBufferMemory(mesh.vertex_buffer.buffer);
 	memcpy(vert, a_create_info.vertices.data(), a_create_info.vertices.sizeInBytes());
@@ -762,19 +792,6 @@ MeshHandle BB::CreateMesh(const CreateMeshInfo& a_create_info)
 	void* indices = Vulkan::MapBufferMemory(mesh.index_buffer.buffer);
 	memcpy(indices, a_create_info.indices.data(), a_create_info.indices.sizeInBytes());
 	Vulkan::UnmapBufferMemory(mesh.index_buffer.buffer);
-
-	WriteDescriptorData mesh_descriptor_write;
-	mesh_descriptor_write.binding = 0;
-	mesh_descriptor_write.descriptor_index = 0;
-	mesh_descriptor_write.type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-	mesh_descriptor_write.buffer_view = mesh.vertex_buffer;
-
-	WriteDescriptorInfos mesh_descriptor_info;
-	mesh_descriptor_info.allocation = mesh.mesh_descriptor_allocation;
-	mesh_descriptor_info.descriptor_layout = vertex_descriptor_layout;
-	mesh_descriptor_info.data = Slice(&mesh_descriptor_write, 1);
-
-	Vulkan::WriteDescriptors(mesh_descriptor_info);
 
 	return MeshHandle(s_render_inst->mesh_map.insert(mesh).handle);
 }

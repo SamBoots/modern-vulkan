@@ -13,4 +13,10 @@
 
 _BBBIND(0, 0)ByteAddressBuffer vertex_data;
 
+#ifdef _VULKAN
+    [[vk::push_constant]] BB::ShaderIndices shader_indices;
+#else
+    ConstantBuffer<BB::ShaderIndices> shader_indices;
+#endif
+
 #endif //COMMON_HLSL

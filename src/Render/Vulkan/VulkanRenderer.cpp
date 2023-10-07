@@ -1158,7 +1158,7 @@ void Vulkan::WriteDescriptors(const WriteDescriptorInfos& a_write_info)
 	}
 }
 
-RPipelineLayout Vulkan::CreatePipelineLayout(const RDescriptorLayout* a_descriptor_layouts, const uint32_t a_layout_count, const PushConstantRanges* a_constant_ranges, const uint32_t a_constant_range_count)
+RPipelineLayout Vulkan::CreatePipelineLayout(const RDescriptorLayout* a_descriptor_layouts, const uint32_t a_layout_count, const PushConstantRange* a_constant_ranges, const uint32_t a_constant_range_count)
 {
 	VkPipelineLayoutCreateInfo create_info{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
 	create_info.setLayoutCount = a_layout_count;
@@ -1451,7 +1451,7 @@ void Vulkan::CopyBuffer(Allocator a_temp_allocator, const RCommandList a_list, c
 
 void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo& a_render_info, const uint32_t a_backbuffer_index)
 {
-	VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 
 	//include depth stencil later.
 	VkImageMemoryBarrier2 image_barriers[1]{};
@@ -1522,7 +1522,7 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 
 void Vulkan::EndRendering(const RCommandList a_list, const EndRenderingInfo& a_rendering_info, const uint32_t a_backbuffer_index)
 {
-	VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 	vkCmdEndRendering(cmd_buffer);
 
 	VkImageMemoryBarrier2 present_barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
@@ -1547,7 +1547,7 @@ void Vulkan::EndRendering(const RCommandList a_list, const EndRenderingInfo& a_r
 
 void Vulkan::BindVertexBuffer(const RCommandList a_list, const RBuffer a_buffer, const uint64_t a_offset)
 {
-	VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 
 	const size_t offsets = 0;
 	vkCmdBindVertexBuffers(cmd_buffer,
@@ -1559,7 +1559,7 @@ void Vulkan::BindVertexBuffer(const RCommandList a_list, const RBuffer a_buffer,
 
 void Vulkan::BindIndexBuffer(const RCommandList a_list, const RBuffer a_buffer, const uint64_t a_offset)
 {
-	VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 
 	vkCmdBindIndexBuffer(cmd_buffer,
 		s_vulkan_inst->buffers[a_buffer.handle].buffer,
@@ -1569,15 +1569,15 @@ void Vulkan::BindIndexBuffer(const RCommandList a_list, const RBuffer a_buffer, 
 
 void Vulkan::BindPipeline(const RCommandList a_list, const RPipeline a_pipeline)
 {
-	VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
-	VkPipeline pipeline = reinterpret_cast<VkPipeline>(a_pipeline.handle);
+	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+	const VkPipeline pipeline = reinterpret_cast<VkPipeline>(a_pipeline.handle);
 
 	vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 }
 
 void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stage_count, const SHADER_STAGE* a_shader_stages, const ShaderObject* a_shader_objects)
 {
-	VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 
 	VkShaderStageFlagBits* shader_stages = BBstackAlloc(a_shader_stage_count, VkShaderStageFlagBits);
 	for (size_t i = 0; i < a_shader_stage_count; i++)
@@ -1636,7 +1636,7 @@ void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stag
 
 void Vulkan::SetDescriptorBufferOffset(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_first_set, const uint32_t a_set_count, const uint32_t* a_buffer_indices, const size_t* a_offsets)
 {
-	VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 
 	s_vulkan_inst->pfn.CmdSetDescriptorBufferOffsetsEXT(cmd_buffer,
 		VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -1647,9 +1647,20 @@ void Vulkan::SetDescriptorBufferOffset(const RCommandList a_list, const RPipelin
 		a_offsets);
 }
 
+void Vulkan::SetPushConstants(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_offset, const uint32_t a_size, const void* a_data)
+{
+	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+	vkCmdPushConstants(cmd_buffer, 
+		reinterpret_cast<VkPipelineLayout>(a_pipe_layout.handle), 
+		VK_SHADER_STAGE_ALL, 
+		a_offset, 
+		a_size, 
+		a_data);
+}
+
 void Vulkan::DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance)
 {
-	VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 
 	vkCmdDrawIndexed(cmd_buffer, a_index_count, a_instance_count, a_first_index, a_vertex_offset, a_first_instance);
 }
@@ -1702,7 +1713,6 @@ void Vulkan::ExecutePresentCommandList(const RQueue a_queue, const ExecuteComman
 	//handle the window api for vulkan.
 	const uint32_t wait_semaphore_count = a_execute_info.wait_count + 1;
 	const uint32_t signal_semaphore_count = a_execute_info.signal_count + 1;
-
 
 	VkSemaphore* wait_semaphores = BBstackAlloc(wait_semaphore_count, VkSemaphore);
 	uint64_t* wait_values = BBstackAlloc(signal_semaphore_count, uint64_t);
