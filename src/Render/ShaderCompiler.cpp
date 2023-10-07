@@ -10,25 +10,24 @@
 //https://simoncoenen.com/blog/programming/graphics/DxcCompiling Guide used, I'll also use this as reference to remind myself.
 
 using namespace BB;
-using namespace BB::Render;
 
 struct ShaderCompiler
 {
 	IDxcUtils* utils;
 	IDxcCompiler3* compiler;
-	IDxcLibrary* library;
+	IDxcIncludeHandler* include_header;
 };
 
 static ShaderCompiler s_shader_compiler;
 
-void BB::Render::InitShaderCompiler()
+void BB::InitShaderCompiler()
 {
 	DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&s_shader_compiler.utils));
 	DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&s_shader_compiler.compiler));
-	DxcCreateInstance(CLSID_DxcLibrary, IID_PPV_ARGS(&s_shader_compiler.library));
+	s_shader_compiler.utils->CreateDefaultIncludeHandler(&s_shader_compiler.include_header);
 }
 
-const ShaderCode BB::Render::CompileShader(Allocator a_temp_allocator, const char* a_full_path, const char* a_entry, const SHADER_STAGE a_shader_stage)
+const ShaderCode BB::CompileShader(Allocator a_temp_allocator, const char* a_full_path, const char* a_entry, const SHADER_STAGE a_shader_stage)
 {
 	LPCWSTR shader_type;
 	switch (a_shader_stage)
@@ -55,11 +54,13 @@ const ShaderCode BB::Render::CompileShader(Allocator a_temp_allocator, const cha
 	//Lots of arguments, since we will add some extra.
 	LPCWSTR shader_compile_args[] =
 	{
+		L"-I", L"../resources/shaders/HLSL",
 		full_path_w,
 		L"-E", entry_w,		// Entry point
 		L"-T", shader_type,	// Shader Type
 		L"-Zs",				// Enable debug
 		L"-Qstrip_debug",	// Strip out the debug and reflect info to keep the actual shader object small.
+		L"-HV", L"2021",
 
 		//VULKAN SPECIFIC
 		L"-spirv",
@@ -84,7 +85,7 @@ const ShaderCode BB::Render::CompileShader(Allocator a_temp_allocator, const cha
 		&source,
 		shader_compile_args,
 		shader_compile_arg_count,
-		nullptr,
+		s_shader_compiler.include_header,
 		IID_PPV_ARGS(&result)
 	);
 
@@ -120,12 +121,12 @@ const ShaderCode BB::Render::CompileShader(Allocator a_temp_allocator, const cha
 	return ShaderCode((uintptr_t)shader_code);
 }
 
-void Render::ReleaseShaderCode(const ShaderCode a_handle)
+void BB::ReleaseShaderCode(const ShaderCode a_handle)
 {
 	reinterpret_cast<IDxcBlob*>(a_handle.handle)->Release();
 }
 
-Buffer Render::GetShaderCodeBuffer(const ShaderCode a_handle)
+Buffer BB::GetShaderCodeBuffer(const ShaderCode a_handle)
 {
 	return Buffer
 	{

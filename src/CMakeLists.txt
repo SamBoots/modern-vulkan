@@ -32,7 +32,9 @@ endif ()
 #Include library
 target_include_directories(Renderer PUBLIC
 	"Render/Vulkan"
-	"Render")
+	"Render"
+	"../resources/shaders/HLSL" #for the shared shader headers
+)
 
 add_custom_command(TARGET Renderer POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy

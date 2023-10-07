@@ -34,20 +34,20 @@ int main(int argc, char** argv)
 		window_height,
 		L"Modern Vulkan");
 
-	Render::RendererCreateInfo render_create_info;
+	RendererCreateInfo render_create_info;
 	render_create_info.app_name = "modern vulkan";
 	render_create_info.engine_name = "Building Block Engine";
 	render_create_info.window_handle = window;
 	render_create_info.swapchain_width = static_cast<uint32_t>(window_width);
 	render_create_info.swapchain_height = static_cast<uint32_t>(window_height);
 	render_create_info.debug = true;
-	Render::InitializeRenderer(main_allocator, render_create_info);
+	InitializeRenderer(main_allocator, render_create_info);
 
-	Render::MeshHandle quad_mesh;
+	MeshHandle quad_mesh;
 	BBStackAllocatorScope(main_allocator)
 	{
 		//Do some simpel model loading and drawing.
-		Render::Vertex vertices[4];
+		Vertex vertices[4];
 		vertices[0] = { {-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 0.0f, 0.0f} };
 		vertices[1] = { {0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 1.0f, 0.0f} };
 		vertices[2] = { {0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 1.0f} };
@@ -55,10 +55,10 @@ int main(int argc, char** argv)
 
 		const uint32_t indices[] = { 0, 1, 2, 2, 3, 0 };
 
-		Render::CreateMeshInfo quad_create_info{};
+		CreateMeshInfo quad_create_info{};
 		quad_create_info.vertices = Slice(vertices, _countof(vertices));
 		quad_create_info.indices = Slice(indices, _countof(indices));
-		quad_mesh = Render::CreateMesh(quad_create_info);
+		quad_mesh = CreateMesh(quad_create_info);
 	}
 
 	InputEvent input_events[INPUT_EVENT_BUFFER_MAX];
@@ -87,12 +87,12 @@ int main(int argc, char** argv)
 		
 		BBStackAllocatorScope(main_allocator)
 		{
-			Render::StartFrame();
+			StartFrame();
 
 			//draw stuff here!
-			Render::DrawMesh(quad_mesh, Mat4x4Identity());
+			DrawMesh(quad_mesh, Mat4x4Identity());
 
-			Render::EndFrame();
+			EndFrame();
 		}
 
 	}

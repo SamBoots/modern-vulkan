@@ -9,7 +9,6 @@
 #include "BBIntrin.h"
 
 using namespace BB;
-using namespace Render;
 
 struct RenderFence
 {
@@ -548,7 +547,7 @@ BufferView AllocateFromIndexBuffer(const size_t a_size_in_bytes)
 	return view;
 }
 
-void Render::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererCreateInfo& a_render_create_info)
+void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererCreateInfo& a_render_create_info)
 {
 	Vulkan::InitializeVulkan(a_stack_allocator, a_render_create_info.app_name, a_render_create_info.engine_name, a_render_create_info.debug);
 	s_render_inst = BBnew(a_stack_allocator, RenderInterface_inst)(a_stack_allocator);
@@ -665,7 +664,7 @@ void Render::InitializeRenderer(StackAllocator_t& a_stack_allocator, const Rende
 	}
 }
 
-void  Render::StartFrame()
+void BB::StartFrame()
 {
 	s_render_inst->graphics_queue.WaitFenceValue(s_render_inst->frames[s_render_inst->backbuffer_pos].fence_value);
 	s_render_inst->upload_buffers.CheckIfInFlightDone();
@@ -680,7 +679,7 @@ void  Render::StartFrame()
 	current_command_list = current_use_pool->StartCommandList("test getting thing command list");
 }
 
-void  Render::EndFrame()
+void BB::EndFrame()
 {
 	//upload matrices
 	//optimalization, upload previous frame matrices when using transfer buffer?
@@ -749,7 +748,7 @@ void  Render::EndFrame()
 	s_render_inst->backbuffer_pos = (s_render_inst->backbuffer_pos + 1) % s_render_inst->backbuffer_count;
 }
 
-MeshHandle Render::CreateMesh(const CreateMeshInfo& a_create_info)
+MeshHandle BB::CreateMesh(const CreateMeshInfo& a_create_info)
 {
 	Mesh mesh;
 	mesh.vertex_buffer = AllocateFromVertexBuffer(a_create_info.vertices.sizeInBytes());
@@ -780,12 +779,12 @@ MeshHandle Render::CreateMesh(const CreateMeshInfo& a_create_info)
 	return MeshHandle(s_render_inst->mesh_map.insert(mesh).handle);
 }
 
-void Render::FreeMesh(const MeshHandle a_mesh)
+void BB::FreeMesh(const MeshHandle a_mesh)
 {
 	s_render_inst->mesh_map.erase(a_mesh.handle);
 }
 
-void Render::DrawMesh(const MeshHandle a_mesh, const Mat4x4& a_transform)
+void BB::DrawMesh(const MeshHandle a_mesh, const Mat4x4& a_transform)
 {
 	s_render_inst->draw_list_data.mesh[s_render_inst->draw_list_count] = a_mesh;
 	s_render_inst->draw_list_data.matrix[s_render_inst->draw_list_count++] = a_transform;

@@ -1,18 +1,4 @@
-#ifdef _VULKAN
-#define _BBEXT(num) [[vk::location(num)]]
-#define _BBBIND(bind, set) [[vk::binding(bind, set)]]
-#else
-#define _BBEXT(num) [[vk::location(num)]]
-#define _BBBIND(bind, set) [[vk::binding(bind, set)]]
-#endif
-
-struct Vertex
-{
-    float3 position; //12
-    float3 normal; //24
-    float2 uv; //32
-    float3 color; //44 
-};
+#include "common.hlsl"
 
 struct VSOutput
 {
@@ -23,18 +9,10 @@ struct VSOutput
     _BBEXT(2)  float3 normal : NORMAL0;
 };
 
-struct Indices
-{
-    uint vertex_buffer_offset;
-    uint transform_index;
-};
-
-_BBBIND(0, 0)ByteAddressBuffer vertex_data;
-
 VSOutput VertexMain(uint VertexIndex : SV_VertexID)
 {
-    const uint vertex_offset = sizeof(Vertex) * VertexIndex;
-    Vertex cur_vertex;
+    const uint vertex_offset = sizeof(BB::Vertex) * VertexIndex;
+    BB::Vertex cur_vertex;
     cur_vertex.position = asfloat(vertex_data.Load3(vertex_offset));
     cur_vertex.normal = asfloat(vertex_data.Load3(vertex_offset + 12));
     cur_vertex.uv = asfloat(vertex_data.Load2(vertex_offset + 24));

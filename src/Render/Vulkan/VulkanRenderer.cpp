@@ -16,7 +16,6 @@
 #include "Storage/Slotmap.h"
 
 using namespace BB;
-using namespace Render;
 
 #ifdef _DEBUG
 #define VKASSERT(a_VKResult, a_Msg)\
@@ -621,7 +620,7 @@ static inline void SetDebugName_f(const char* a_name, const uint64_t a_object_ha
 
 #define SetDebugName(a_name, a_object_handle, a_obj_type) SetDebugName_f(a_name, (uint64_t)a_object_handle, a_obj_type)
 #else
-#define SetDebugName()
+#define SetDebugName
 #endif _DEBUG
 
 bool Vulkan::InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a_app_name, const char* a_engine_name, const bool a_debug)

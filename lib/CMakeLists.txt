@@ -13,8 +13,4 @@ add_library(DXCompiler INTERFACE
 "DXC/inc/d3d12shader.h")
 target_include_directories(DXCompiler INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_library(stb_image INTERFACE
-"stb/stb_image.h"
-)
-
 add_subdirectory("imgui")

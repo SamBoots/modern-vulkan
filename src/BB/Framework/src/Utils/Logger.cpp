@@ -114,7 +114,7 @@ static void Log_to_Console(const char* a_file_name, int a_Line, const char* a_Wa
 	constexpr const char LOG_MESSAGE_MESSAGE_TXT_2[]{ "\nThe Message: " };
 
 	//Format the message
-	StackString<1024> t_String{};
+	StackString<4096> t_String{};
 	{	//Start with the warning level
 		t_String.append(LOG_MESSAGE_ERROR_LEVEL_0, sizeof(LOG_MESSAGE_ERROR_LEVEL_0) - 1);
 		t_String.append(a_WarningLevel);
