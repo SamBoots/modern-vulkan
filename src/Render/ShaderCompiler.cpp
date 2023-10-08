@@ -18,7 +18,7 @@ struct ShaderCompiler_inst
 	IDxcIncludeHandler* include_header;
 };
 
-ShaderCompiler CreateShaderCompiler(Allocator a_system_allocator)
+ShaderCompiler BB::CreateShaderCompiler(Allocator a_system_allocator)
 {
 	ShaderCompiler_inst* inst = BBnew(a_system_allocator, ShaderCompiler_inst);
 
@@ -28,7 +28,7 @@ ShaderCompiler CreateShaderCompiler(Allocator a_system_allocator)
 
 	return ShaderCompiler((uintptr_t)inst);
 }
-void DestroyShaderCompiler(const ShaderCompiler a_shader_compiler)
+void BB::DestroyShaderCompiler(const ShaderCompiler a_shader_compiler)
 {
 	const ShaderCompiler_inst* inst = reinterpret_cast<ShaderCompiler_inst*>(a_shader_compiler.handle);
 	inst->include_header->Release();

@@ -53,8 +53,8 @@ public:
 		for (size_t i = 0; i < m_upload_view_count; i++)
 		{
 			m_views[i].upload_buffer_handle = m_upload_buffer;
-			m_views[i].size = a_size_per_pool;
-			m_views[i].offset = i * a_size_per_pool;
+			m_views[i].size = static_cast<uint32_t>(a_size_per_pool);
+			m_views[i].offset = static_cast<uint32_t>(i * a_size_per_pool);
 			m_views[i].view_mem_start = Pointer::Add(m_upload_mem_start, m_views[i].offset);
 			m_views[i].fence_value = 0;
 		}
@@ -384,66 +384,6 @@ private:
 	RenderFence m_fence; //72
 };
 
-//transform this into a pool for multithread goodness
-class UploadBuffer
-{
-public:
-	struct Chunk
-	{
-		void* memory;
-		uint32_t offset;
-		uint32_t size;
-	};
-
-	UploadBuffer(const size_t a_size, const char* a_Name = nullptr)
-		:	m_size(static_cast<uint32_t>(a_size))
-	{
-		BB_ASSERT(a_size < UINT32_MAX, "upload buffer size is larger then UINT32_MAX, this is not supported");
-		BufferCreateInfo upload_buffer_info;
-		upload_buffer_info.name = a_Name;
-		upload_buffer_info.size = m_size;
-		upload_buffer_info.type = BUFFER_TYPE::UPLOAD;
-		upload_buffer_info.host_writable = true;
-
-		m_buffer = Vulkan::CreateBuffer(upload_buffer_info);
-
-		m_offset = 0;
-		m_start = Vulkan::MapBufferMemory(m_buffer);
-	}
-	~UploadBuffer()
-	{
-		Vulkan::UnmapBufferMemory(m_buffer);
-		Vulkan::FreeBuffer(m_buffer);
-	}
-
-	const Chunk Alloc(const size_t a_size)
-	{
-		BB_ASSERT(a_size < UINT32_MAX, "upload buffer alloc size is larger then UINT32_MAX, this is not supported");
-		BB_ASSERT(m_size >= m_offset + a_size, "Now enough space to alloc in the uploadbuffer.");
-		Chunk chunk{};
-		chunk.memory = Pointer::Add(m_start, m_offset);
-		chunk.offset = m_offset;
-		chunk.size = static_cast<uint32_t>(a_size);
-		m_offset += static_cast<uint32_t>(a_size);
-		return chunk;
-	}
-	void Clear()
-	{
-		memset(m_start, 0, m_offset);
-		m_offset = 0;
-	}
-
-	inline const uint32_t GetCurrentOffset() const { return m_offset; }
-	inline const RBuffer Buffer() const { return m_buffer; }
-	inline void* GetStart() const { return m_start; }
-
-private:
-	RBuffer m_buffer;
-	const uint32_t m_size;
-	uint32_t m_offset;
-	void* m_start;
-};
-
 struct Mesh
 {
 	DescriptorAllocation mesh_descriptor_allocation;
@@ -498,7 +438,9 @@ struct RenderInterface_inst
 			uint32_t size;
 			uint32_t used;
 		} per_frame_buffer;
-		UploadBuffer upload_buffer{ mbSize * 4 };
+
+		BufferView transform_buffer;
+		DescriptorAllocation desc_alloc;
 		uint64_t fence_value;
 	} *frames;
 
@@ -522,6 +464,7 @@ RPipeline test_pipeline;
 ShaderObject vertex_object;
 ShaderObject fragment_object;
 RDescriptorLayout global_descriptor_layout;
+RDescriptorLayout frame_descriptor_layout;
 RPipelineLayout pipeline_layout;
 
 BufferView AllocateFromVertexBuffer(const size_t a_size_in_bytes)
@@ -559,17 +502,6 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 	Vulkan::CreateSwapchain(a_stack_allocator, a_render_create_info.window_handle, a_render_create_info.swapchain_width, a_render_create_info.swapchain_height, s_render_inst->backbuffer_count);
 	s_render_inst->frames = BBnewArr(a_stack_allocator, s_render_inst->backbuffer_count, RenderInterface_inst::Frame);
 
-	BufferCreateInfo per_frame_buffer_info;
-	per_frame_buffer_info.name = "per_frame_buffer";
-	per_frame_buffer_info.size = mbSize * 4;
-	per_frame_buffer_info.type = BUFFER_TYPE::UNIFORM;
-	for (uint32_t i = 0; i < s_render_inst->backbuffer_count; i++)
-	{
-		s_render_inst->frames[i].per_frame_buffer.buffer = Vulkan::CreateBuffer(per_frame_buffer_info);
-		s_render_inst->frames[i].per_frame_buffer.size = static_cast<uint32_t>(per_frame_buffer_info.size);
-		s_render_inst->frames[i].per_frame_buffer.used = 0;
-	}
-
 	s_render_inst->swapchain_window = a_render_create_info.window_handle;
 	s_render_inst->swapchain_width = a_render_create_info.swapchain_width;
 	s_render_inst->swapchain_height = a_render_create_info.swapchain_height;
@@ -586,19 +518,31 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 
 	BBStackAllocatorScope(a_stack_allocator)
 	{
-		//global descriptor set 0
-		DescriptorBindingInfo descriptor_bindings[1];
-		descriptor_bindings[0].binding = 0;
-		descriptor_bindings[0].count = 1;
-		descriptor_bindings[0].shader_stage = SHADER_STAGE::VERTEX;
-		descriptor_bindings[0].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-		global_descriptor_layout = Vulkan::CreateDescriptorLayout(a_stack_allocator, Slice(descriptor_bindings, 1));
+		{
+			//global descriptor set 0
+			DescriptorBindingInfo descriptor_bindings[1];
+			descriptor_bindings[0].binding = 0;
+			descriptor_bindings[0].count = 1;
+			descriptor_bindings[0].shader_stage = SHADER_STAGE::VERTEX;
+			descriptor_bindings[0].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
+			global_descriptor_layout = Vulkan::CreateDescriptorLayout(a_stack_allocator, Slice(descriptor_bindings, 1));
+		}
+		{
+			//global descriptor set 0
+			DescriptorBindingInfo descriptor_bindings[1];
+			descriptor_bindings[0].binding = 0;
+			descriptor_bindings[0].count = 1;
+			descriptor_bindings[0].shader_stage = SHADER_STAGE::VERTEX;
+			descriptor_bindings[0].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
+			frame_descriptor_layout = Vulkan::CreateDescriptorLayout(a_stack_allocator, Slice(descriptor_bindings, 1));
+		}
 
+		RDescriptorLayout desc_layouts[] = { global_descriptor_layout, frame_descriptor_layout };
 		PushConstantRange push_constant;
 		push_constant.stages = SHADER_STAGE::ALL;
 		push_constant.offset = 0;
 		push_constant.size = sizeof(ShaderIndices);
-		pipeline_layout = Vulkan::CreatePipelineLayout(&global_descriptor_layout, 1, &push_constant, 1);
+		pipeline_layout = Vulkan::CreatePipelineLayout(desc_layouts, _countof(desc_layouts), &push_constant, 1);
 
 		const ShaderCode vertex_shader = CompileShader(a_stack_allocator, s_render_inst->shader_compiler, "../resources/shaders/hlsl/Debug.hlsl", "VertexMain", SHADER_STAGE::VERTEX);
 		const ShaderCode fragment_shader = CompileShader(a_stack_allocator, s_render_inst->shader_compiler, "../resources/shaders/hlsl/Debug.hlsl", "FragmentMain", SHADER_STAGE::FRAGMENT_PIXEL);
@@ -611,8 +555,8 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		shader_objects_info[0].shader_code_size = shader_buffer.size;
 		shader_objects_info[0].shader_code = shader_buffer.data;
 		shader_objects_info[0].shader_entry = "VertexMain";
-		shader_objects_info[0].descriptor_layout_count = 1;
-		shader_objects_info[0].descriptor_layouts = &global_descriptor_layout;
+		shader_objects_info[0].descriptor_layout_count = _countof(desc_layouts);
+		shader_objects_info[0].descriptor_layouts = desc_layouts;
 		shader_objects_info[0].push_constant_range_count = 1;
 		shader_objects_info[0].push_constant_ranges = &push_constant;
 
@@ -622,8 +566,8 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		shader_objects_info[1].shader_code_size = shader_buffer.size;
 		shader_objects_info[1].shader_code = shader_buffer.data;
 		shader_objects_info[1].shader_entry = "FragmentMain";
-		shader_objects_info[1].descriptor_layout_count = 1;
-		shader_objects_info[1].descriptor_layouts = &global_descriptor_layout;
+		shader_objects_info[1].descriptor_layout_count = _countof(desc_layouts);
+		shader_objects_info[1].descriptor_layouts = desc_layouts;
 		shader_objects_info[1].push_constant_range_count = 1;
 		shader_objects_info[1].push_constant_ranges = &push_constant;
 
@@ -692,6 +636,46 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		s_render_inst->index_buffer.size = static_cast<uint32_t>(index_buffer.size);
 		s_render_inst->index_buffer.used = 0;
 	}
+
+
+	BBStackAllocatorScope(a_stack_allocator)
+	{
+		//per frame stuff
+		BufferCreateInfo per_frame_buffer_info;
+		per_frame_buffer_info.name = "per_frame_buffer";
+		per_frame_buffer_info.size = mbSize * 4;
+		per_frame_buffer_info.type = BUFFER_TYPE::UNIFORM;
+		for (uint32_t i = 0; i < s_render_inst->backbuffer_count; i++)
+		{
+			auto& pf = s_render_inst->frames[i];
+			pf.per_frame_buffer.buffer = Vulkan::CreateBuffer(per_frame_buffer_info);
+			pf.per_frame_buffer.size = static_cast<uint32_t>(per_frame_buffer_info.size);
+			pf.per_frame_buffer.used = 0;
+
+			pf.transform_buffer.buffer = pf.per_frame_buffer.buffer;
+			pf.transform_buffer.size = s_render_inst->draw_list_max * sizeof(Mat4x4);
+			pf.transform_buffer.offset = pf.per_frame_buffer.used;
+
+			pf.per_frame_buffer.used += static_cast<uint32_t>(pf.transform_buffer.size);
+
+
+			//descriptors
+			pf.desc_alloc = Vulkan::AllocateDescriptor(frame_descriptor_layout);
+
+			WriteDescriptorData matrix_buffer_desc{};
+			matrix_buffer_desc.binding = 0;
+			matrix_buffer_desc.descriptor_index = 0;
+			matrix_buffer_desc.type = DESCRIPTOR_TYPE::READONLY_BUFFER;
+			matrix_buffer_desc.buffer_view = pf.transform_buffer;
+
+			WriteDescriptorInfos frame_desc_write;
+			frame_desc_write.allocation = pf.desc_alloc;
+			frame_desc_write.descriptor_layout = frame_descriptor_layout;
+			frame_desc_write.data = Slice(&matrix_buffer_desc, 1);
+
+			Vulkan::WriteDescriptors(frame_desc_write);
+		}
+	}
 }
 
 void BB::StartFrame()
@@ -711,13 +695,23 @@ void BB::StartFrame()
 
 void BB::EndFrame()
 {
+	const auto& cur_frame = s_render_inst->frames[s_render_inst->backbuffer_pos];
+
 	//upload matrices
 	//optimalization, upload previous frame matrices when using transfer buffer?
 	UploadBufferView* pmatrix_upload_view = s_render_inst->upload_buffers.GetUploadView();
 	memcpy(pmatrix_upload_view->view_mem_start, s_render_inst->draw_list_data.matrix, sizeof(Mat4x4) * s_render_inst->draw_list_count);
 
 	//upload to some GPU buffer here.
-
+	RenderCopyBuffer matrix_buffer_copy;
+	matrix_buffer_copy.src = pmatrix_upload_view->upload_buffer_handle;
+	matrix_buffer_copy.dst = cur_frame.transform_buffer.buffer;
+	RenderCopyBufferRegion matrix_buffer_region;
+	matrix_buffer_region.src_offset = pmatrix_upload_view->offset;
+	matrix_buffer_region.dst_offset = cur_frame.transform_buffer.offset;
+	matrix_buffer_region.size = cur_frame.transform_buffer.size;
+	matrix_buffer_copy.regions = Slice(&matrix_buffer_region, 1);
+	Vulkan::CopyBuffer(current_command_list, matrix_buffer_copy);
 
 	RFence upload_fence;
 	uint64_t upload_fence_value;
@@ -794,6 +788,26 @@ MeshHandle BB::CreateMesh(const CreateMeshInfo& a_create_info)
 	void* indices = Vulkan::MapBufferMemory(mesh.index_buffer.buffer);
 	memcpy(indices, a_create_info.indices.data(), a_create_info.indices.sizeInBytes());
 	Vulkan::UnmapBufferMemory(mesh.index_buffer.buffer);
+
+	//copy thing
+	//RenderCopyBufferRegion copy_regions[2];
+	//RenderCopyBuffer copy_buffer_infos[2];
+
+	//copy_buffer_infos[0].dst = mesh.vertex_buffer.buffer;
+	//copy_buffer_infos[0].src = ;
+	//copy_regions[0].size = mesh.vertex_buffer.size;
+	//copy_regions[0].dst_offset = mesh.vertex_buffer.offset;
+	//copy_regions[0].src_offset;
+	//copy_buffer_infos[0].regions = Slice(&copy_regions[0], 1);
+
+	//copy_buffer_infos[1].dst = mesh.index_buffer.buffer;
+	//copy_buffer_infos[1].src = ;
+	//copy_regions[1].size = mesh.index_buffer.size;
+	//copy_regions[1].dst_offset = mesh.index_buffer.offset;
+	//copy_regions[1].src_offset;
+	//copy_buffer_infos[1].regions = Slice(&copy_regions[1], 1);
+
+	//Vulkan::CopyBuffers(, copy_buffer_infos, 2);
 
 	return MeshHandle(s_render_inst->mesh_map.insert(mesh).handle);
 }

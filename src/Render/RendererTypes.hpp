@@ -85,6 +85,13 @@ namespace BB
 		uint64_t dst_offset;
 	};
 
+	struct RenderCopyBuffer
+	{
+		RBuffer dst;
+		RBuffer src;
+		Slice<RenderCopyBufferRegion> regions;
+	};
+
 	struct DescriptorAllocation
 	{
 		RDescriptorLayout descriptor;

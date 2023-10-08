@@ -1425,16 +1425,16 @@ void Vulkan::EndCommandList(const RCommandList a_list)
 	SetDebugName(nullptr, cmd_list, VK_OBJECT_TYPE_COMMAND_BUFFER);
 }
 
-void Vulkan::CopyBuffer(Allocator a_temp_allocator, const RCommandList a_list, const RBuffer a_dst, const RBuffer a_src, const Slice<RenderCopyBufferRegion> a_region_infos)
+void Vulkan::CopyBuffer(const RCommandList a_list, const RenderCopyBuffer& a_copy_buffer)
 {
 	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
-	const VulkanBuffer& dst_buf = s_vulkan_inst->buffers.find(a_dst.handle);
-	const VulkanBuffer& src_buf = s_vulkan_inst->buffers.find(a_src.handle);
+	const VulkanBuffer& dst_buf = s_vulkan_inst->buffers.find(a_copy_buffer.dst.handle);
+	const VulkanBuffer& src_buf = s_vulkan_inst->buffers.find(a_copy_buffer.src.handle);
 
-	VkBufferCopy* copy_regions = BBnewArr(a_temp_allocator, a_region_infos.size(), VkBufferCopy);
-	for (size_t i = 0; i < a_region_infos.size(); i++)
+	VkBufferCopy* copy_regions = BBstackAlloc(a_copy_buffer.regions.size(), VkBufferCopy);
+	for (size_t i = 0; i < a_copy_buffer.regions.size(); i++)
 	{
-		const RenderCopyBufferRegion& r_cpy_reg = a_region_infos[i];
+		const RenderCopyBufferRegion& r_cpy_reg = a_copy_buffer.regions[i];
 		VkBufferCopy& cpy_reg = copy_regions[i];
 
 		cpy_reg.size = r_cpy_reg.size;
@@ -1445,8 +1445,37 @@ void Vulkan::CopyBuffer(Allocator a_temp_allocator, const RCommandList a_list, c
 	vkCmdCopyBuffer(cmd_list,
 		src_buf.buffer,
 		dst_buf.buffer,
-		static_cast<uint32_t>(a_region_infos.size()),
+		static_cast<uint32_t>(a_copy_buffer.regions.size()),
 		copy_regions);
+}
+
+void Vulkan::CopyBuffers(const RCommandList a_list, const RenderCopyBuffer* a_copy_buffers, const uint32_t a_copy_buffer_count)
+{
+	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+
+	for (size_t i = 0; i < a_copy_buffer_count; i++)
+	{
+		const RenderCopyBuffer& cpy_buf = a_copy_buffers[i];
+		const VulkanBuffer& dst_buf = s_vulkan_inst->buffers.find(cpy_buf.dst.handle);
+		const VulkanBuffer& src_buf = s_vulkan_inst->buffers.find(cpy_buf.src.handle);
+
+		VkBufferCopy* copy_regions = BBstackAlloc(cpy_buf.regions.size(), VkBufferCopy);
+		for (size_t i = 0; i < cpy_buf.regions.size(); i++)
+		{
+			const RenderCopyBufferRegion& r_cpy_reg = cpy_buf.regions[i];
+			VkBufferCopy& cpy_reg = copy_regions[i];
+
+			cpy_reg.size = r_cpy_reg.size;
+			cpy_reg.dstOffset = r_cpy_reg.dst_offset;
+			cpy_reg.srcOffset = r_cpy_reg.src_offset;
+		}
+
+		vkCmdCopyBuffer(cmd_list,
+			src_buf.buffer,
+			dst_buf.buffer,
+			static_cast<uint32_t>(cpy_buf.regions.size()),
+			copy_regions);
+	}
 }
 
 void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo& a_render_info, const uint32_t a_backbuffer_index)
