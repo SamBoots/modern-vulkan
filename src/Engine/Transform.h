@@ -18,7 +18,7 @@ namespace BB
 		void SetRotation(const float3 a_Axis, const float a_Radians);
 		void SetScale(const float3 a_Scale);
 
-		const Mat4x4 CreateMatrix();
+		const float4x4 CreateMatrix();
 
 		//44 bytes class
 		float3 m_Pos; //12

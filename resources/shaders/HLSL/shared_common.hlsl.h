@@ -11,6 +11,24 @@ namespace BB
         float3 color; //44 
     };
 
+    struct SceneInfo
+    {
+        float4x4 view;
+        float4x4 proj;
+
+        float3 ambientLight;
+        float ambientStrength;
+
+        uint lightCount;
+        uint3 padding;
+    };
+
+    struct Transform
+    {
+        float4x4 transform;
+        float4x4 inverse;
+    };
+
     struct ShaderIndices
     {
         uint vertex_buffer_offset;

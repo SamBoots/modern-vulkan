@@ -90,7 +90,7 @@ int main(int argc, char** argv)
 			StartFrame();
 
 			//draw stuff here!
-			DrawMesh(quad_mesh, Mat4x4Identity());
+			DrawMesh(quad_mesh, Float4x4Identity());
 
 			EndFrame();
 		}

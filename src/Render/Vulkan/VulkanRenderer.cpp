@@ -387,8 +387,6 @@ static VulkanQueuesIndices GetQueueIndices(Allocator a_temp_allocator, const VkP
 
 static VkDevice CreateLogicalDevice(Allocator a_temp_allocator, const VkPhysicalDevice a_phys_device, const VulkanQueuesIndices& a_queue_indices, const BB::Slice<const char*>& a_device_extensions)
 {
-	VkDevice return_device;
-
 	VkPhysicalDeviceFeatures device_features{};
 	device_features.samplerAnisotropy = VK_TRUE;
 	VkPhysicalDeviceTimelineSemaphoreFeatures timeline_sem_features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES };
@@ -467,6 +465,7 @@ static VkDevice CreateLogicalDevice(Allocator a_temp_allocator, const VkPhysical
 	device_create_info.enabledExtensionCount = static_cast<uint32_t>(a_device_extensions.size());
 	device_create_info.pNext = &shader_objects;
 
+	VkDevice return_device;
 	VKASSERT(vkCreateDevice(a_phys_device,
 		&device_create_info,
 		nullptr,

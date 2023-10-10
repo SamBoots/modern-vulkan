@@ -41,12 +41,12 @@ void Transform::SetScale(const float3 a_Scale)
 	m_Scale = a_Scale;
 }
 
-const Mat4x4 Transform::CreateMatrix()
+const float4x4 Transform::CreateMatrix()
 {
-	Mat4x4 t_Matrix = Mat4x4Identity();
-	t_Matrix = t_Matrix * Mat4x4FromTranslation(m_Pos);
-	t_Matrix = t_Matrix * Mat4x4FromQuat(m_Rot);
-	t_Matrix = Mat4x4Scale(t_Matrix, m_Scale);
+	float4x4 t_Matrix = float4x4Identity();
+	t_Matrix = t_Matrix * float4x4FromTranslation(m_Pos);
+	t_Matrix = t_Matrix * float4x4FromQuat(m_Rot);
+	t_Matrix = float4x4Scale(t_Matrix, m_Scale);
 	return t_Matrix;
 }
 

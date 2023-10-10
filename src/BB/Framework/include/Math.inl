@@ -153,15 +153,15 @@ namespace BB
 
 	// FLOAT4
 	//--------------------------------------------------------
-	// MAT4x4
+	// FLOAT4x4
 
-	static inline Mat4x4 Mat4x4FromFloats(
+	static inline float4x4 Float4x4FromFloats(
 		float m00, float m01, float m02, float m03,
 		float m10, float m11, float m12, float m13,
 		float m20, float m21, float m22, float m23,
 		float m30, float m31, float m32, float m33)
 	{
-		Mat4x4 mat;
+		float4x4 mat;
 		mat.e[0][0] = m00; mat.e[0][1] = m01; mat.e[0][2] = m02; mat.e[0][3] = m03;
 		mat.e[1][0] = m10; mat.e[1][1] = m11; mat.e[1][2] = m12; mat.e[1][3] = m13;
 		mat.e[2][0] = m20; mat.e[2][1] = m21; mat.e[2][2] = m22; mat.e[2][3] = m23;
@@ -169,9 +169,9 @@ namespace BB
 		return mat;
 	}
 
-	static inline Mat4x4 Mat4x4FromFloat4s(const float4 r0, const float4 r1, const float4 r2, const float4 r3)
+	static inline float4x4 Float4x4FromFloat4s(const float4 r0, const float4 r1, const float4 r2, const float4 r3)
 	{
-		Mat4x4 mat;
+		float4x4 mat;
 		mat.r0 = r0;
 		mat.r1 = r1;
 		mat.r2 = r2;
@@ -179,9 +179,9 @@ namespace BB
 		return mat;
 	}
 
-	static inline Mat4x4 operator*(const Mat4x4 a_Lhs, const Mat4x4 a_rhs)
+	static inline float4x4 operator*(const float4x4 a_Lhs, const float4x4 a_rhs)
 	{
-		Mat4x4 mat;
+		float4x4 mat;
 		mat.r0 = a_Lhs.r0 * a_rhs.r0.x + a_Lhs.r1 * a_rhs.r0.y + a_Lhs.r2 * a_rhs.r0.z + a_Lhs.r3 * a_rhs.r0.w;
 		mat.r1 = a_Lhs.r0 * a_rhs.r1.x + a_Lhs.r1 * a_rhs.r1.y + a_Lhs.r2 * a_rhs.r1.z + a_Lhs.r3 * a_rhs.r1.w;
 		mat.r2 = a_Lhs.r0 * a_rhs.r2.x + a_Lhs.r1 * a_rhs.r2.y + a_Lhs.r2 * a_rhs.r2.z + a_Lhs.r3 * a_rhs.r2.w;
@@ -189,9 +189,9 @@ namespace BB
 		return mat;
 	}
 
-	static inline Mat4x4 Mat4x4Identity()
+	static inline float4x4 Float4x4Identity()
 	{
-		Mat4x4 mat = { 0 };
+		float4x4 mat = { 0 };
 		mat.e[0][0] = 1;
 		mat.e[1][1] = 1;
 		mat.e[2][2] = 1;
@@ -199,18 +199,18 @@ namespace BB
 		return mat;
 	}
 
-	static inline Mat4x4 Mat4x4FromTranslation(const float3 translation)
+	static inline float4x4 Float4x4FromTranslation(const float3 translation)
 	{
-		Mat4x4 result = Mat4x4Identity();
+		float4x4 result = Float4x4Identity();
 		result.e[3][0] = translation.x;
 		result.e[3][1] = translation.y;
 		result.e[3][2] = translation.z;
 		return result;
 	}
 
-	static inline Mat4x4 Mat4x4FromQuat(const Quat q)
+	static inline float4x4 Float4x4FromQuat(const Quat q)
 	{
-		Mat4x4 rotMat = Mat4x4Identity();
+		float4x4 rotMat = Float4x4Identity();
 		const float qxx = q.x * q.x;
 		const float qyy = q.y * q.y;
 		const float qzz = q.z * q.z;
@@ -237,9 +237,9 @@ namespace BB
 		return rotMat;
 	}
 
-	static inline Mat4x4 Mat4x4Scale(const Mat4x4 m, const float3 s)
+	static inline float4x4 Float4x4Scale(const float4x4 m, const float3 s)
 	{
-		Mat4x4 mat;
+		float4x4 mat;
 		mat.r0 = m.r0 * s.x;
 		mat.r1 = m.r1 * s.y;
 		mat.r2 = m.r2 * s.z;
@@ -247,11 +247,11 @@ namespace BB
 		return mat;
 	}
 
-	static Mat4x4 Mat4x4Perspective(const float fov, const float aspect, const float nearField, const float farField)
+	static float4x4 Float4x4Perspective(const float fov, const float aspect, const float nearField, const float farField)
 	{
 		const float tanHalfFov = tan(fov / 2.f);
 
-		Mat4x4 mat = {0};
+		float4x4 mat = {0};
 		mat.e[0][0] = 1.f / (aspect * tanHalfFov);
 		mat.e[1][1] = 1.f / (tanHalfFov);
 		mat.e[2][2] = -(farField + nearField) / (farField - nearField);
@@ -260,13 +260,13 @@ namespace BB
 		return mat;
 	}
 
-	static inline Mat4x4 Mat4x4Lookat(const float3 eye, const float3 center, const float3 up)
+	static inline float4x4 Float4x4Lookat(const float3 eye, const float3 center, const float3 up)
 	{
 		const float3 f = Float3Normalize(center - eye);
 		const float3 s = Float3Normalize(Float3Cross(f, up));
 		const float3 u = Float3Cross(s, f);
 
-		Mat4x4 mat = Mat4x4Identity();
+		float4x4 mat = Float4x4Identity();
 		mat.e[0][0] = s.x;
 		mat.e[1][0] = s.y;
 		mat.e[2][0] = s.z;
@@ -282,7 +282,7 @@ namespace BB
 		return mat;
 	}
 
-	static inline Mat4x4 Mat4x4Inverse(const Mat4x4 m)
+	static inline float4x4 Float4x4Inverse(const float4x4 m)
 	{
 		const float3 a = float3{ m.e[0][0], m.e[1][0], m.e[2][0] };
 		const float3 b = float3{ m.e[0][1], m.e[1][1], m.e[2][1] };
@@ -311,14 +311,14 @@ namespace BB
 		const float3 r2 = (Float3Cross(d, u) + (s * w));
 		const float3 r3 = (Float3Cross(u, c) - (s * z));
 
-		return Mat4x4FromFloats(
+		return Float4x4FromFloats(
 			r0.x, r0.y, r0.z, -Float3Dot(b, t),
 			r1.x, r1.y, r1.z, Float3Dot(a, t),
 			r2.x, r2.y, r2.z, -Float3Dot(d, s),
 			r3.x, r3.y, r3.z, Float3Dot(c, s));
 	}
 
-	// MAT4x4
+	// float4x4
 	//--------------------------------------------------------
 	// QUAT
 

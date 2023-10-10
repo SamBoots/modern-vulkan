@@ -208,7 +208,7 @@ namespace BB
 		float4 xyzw;
 	};
 
-	union Mat3x3
+	union float3x3
 	{
 		float e[3][3];
 		struct
@@ -219,7 +219,7 @@ namespace BB
 		};
 	};
 
-	union Mat4x4
+	union float4x4
 	{
 		float e[4][4];
 		struct

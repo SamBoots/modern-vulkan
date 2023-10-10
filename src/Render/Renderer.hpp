@@ -29,5 +29,5 @@ namespace BB
 	MeshHandle CreateMesh(const CreateMeshInfo& a_create_info);
 	void FreeMesh(const MeshHandle a_mesh);
 
-	void DrawMesh(const MeshHandle a_mesh, const Mat4x4& a_transform);
+	void DrawMesh(const MeshHandle a_mesh, const float4x4& a_transform);
 }

@@ -12,6 +12,8 @@
 
 
 _BBBIND(0, 0)ByteAddressBuffer vertex_data;
+_BBBIND(0, 1)ByteAddressBuffer scene_data;
+_BBBIND(1, 1)ByteAddressBuffer transform_data;
 
 #ifdef _VULKAN
     [[vk::push_constant]] BB::ShaderIndices shader_indices;
