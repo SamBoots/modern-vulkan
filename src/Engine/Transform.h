@@ -46,7 +46,6 @@ namespace BB
 		Transform& GetTransform(const TransformHandle a_handle) const;
 
 		const uint32_t PoolSize() const;
-		const class UploadBuffer& PoolGPUUploadBuffer();
 			
 	private:
 		struct TransformPool_inst* inst;

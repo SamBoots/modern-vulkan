@@ -16,9 +16,9 @@ _BBBIND(0, 1)ByteAddressBuffer scene_data;
 _BBBIND(1, 1)ByteAddressBuffer transform_data;
 
 #ifdef _VULKAN
-    [[vk::push_constant]] BB::ShaderIndices shader_indices;
+    [[vk::push_constant]] ShaderIndices shader_indices;
 #else
-    ConstantBuffer<BB::ShaderIndices> shader_indices;
+    ConstantBuffer<ShaderIndices> shader_indices;
 #endif
 
 #endif //COMMON_HLSL

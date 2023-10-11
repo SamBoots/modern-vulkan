@@ -1,8 +1,11 @@
 #pragma once
 #include "shared_defines.hlsl.h"
 
+#ifndef __HLSL_VERSION
+//I don't like namespaces in my shaders
 namespace BB
 {
+#endif//__HLSL_VERSION
     struct Vertex
     {
         float3 position; //12
@@ -34,4 +37,6 @@ namespace BB
         uint vertex_buffer_offset;
         uint transform_index;
     };
+#ifndef __HLSL_VERSION
 }
+#endif //__HLSL_VERSION

@@ -64,44 +64,10 @@ namespace BB
 		}
 
 		/// <summary>
-		/// Memcpy abstraction that will call the constructor and/or deconstructor if needed.
-		/// Unsafe version: It will call memcpy instead of memmove
+		/// Memmove abstraction that will call the constructor and/or deconstructor if needed.
 		/// </summary>
 		template<typename T>
 		inline static void* Move(T* __restrict a_Destination, const T* __restrict a_Source, const size_t a_ElementCount)
-		{
-			constexpr bool trivalConstruction = std::is_trivially_constructible_v<T>;
-			constexpr bool trivalDestructible = std::is_trivially_destructible_v<T>;
-
-			if constexpr (trivalConstruction)
-			{
-				return memcpy(a_Destination, a_Source, a_ElementCount * sizeof(T));
-			}
-			else if constexpr (!trivalConstruction || !trivalDestructible)
-			{
-				for (size_t i = 0; i < a_ElementCount; i++)
-				{
-					if constexpr (!trivalConstruction)
-					{
-						new (&a_Destination[i]) T(a_Source[i]);
-					}
-					if constexpr (!trivalDestructible)
-					{
-						a_Source[i].~T();
-					}
-				}
-				return a_Destination;
-			}
-			BB_ASSERT(false, "Something weird happened in Utils.h, Unsafe Move.");
-			return nullptr;
-		}
-
-		/// <summary>
-		/// Memmove abstraction that will call the constructor and/or deconstructor if needed.
-		/// Safe version: It will call memmove instead of memcpy
-		/// </summary>
-		template<typename T>
-		inline static void* sMove(T* __restrict a_Destination, const T* __restrict a_Source, const size_t a_ElementCount)
 		{
 			constexpr bool trivalConstruction = std::is_trivially_constructible_v<T>;
 			constexpr bool trivalDestructible = std::is_trivially_destructible_v<T>;
@@ -125,7 +91,8 @@ namespace BB
 				}
 				return a_Destination;
 			}
-			BB_ASSERT(false, "Something weird happened in Utils.h, Unsafe Move.");
+			else
+				BB_STATIC_ASSERT(false, "Something weird happened, Unsafe Move.");
 			return nullptr;
 		}
 

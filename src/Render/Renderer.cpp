@@ -111,16 +111,16 @@ public:
 
 	void CheckIfInFlightDone()
 	{
-		UploadBufferView* local_list_free = nullptr;
+		UploadBufferView* local_view_free = nullptr;
 
 		//lock as a write can be attempetd in m_in_flight_pools.
 		OSAcquireSRWLockWrite(&m_lock);
-		UploadBufferView* local_list_in_flight = m_in_flight_views;
+		UploadBufferView* local_view_in_flight = m_in_flight_views;
 		m_last_completed_fence_value = Vulkan::GetCurrentFenceValue(m_fence);
 		OSReleaseSRWLockWrite(&m_lock);
 
 		//Thank you Descent Raytracer teammates great code that I can steal
-		for (UploadBufferView** in_flight_views = &local_list_in_flight; *in_flight_views;)
+		for (UploadBufferView** in_flight_views = &local_view_in_flight; *in_flight_views;)
 		{
 			UploadBufferView* view = *in_flight_views;
 
@@ -128,7 +128,7 @@ public:
 			{
 				//Get next in-flight commandlist
 				*in_flight_views = view->next;
-				BB_SLL_PUSH(local_list_free, view);
+				BB_SLL_PUSH(local_view_free, view);
 			}
 			else
 			{
@@ -136,10 +136,10 @@ public:
 			}
 		}
 
-		if (local_list_free)
+		if (local_view_free)
 		{
 			//jank, find better way to do this.
-			UploadBufferView* local_list_end = local_list_free;
+			UploadBufferView* local_list_end = local_view_free;
 			while (local_list_end->next != nullptr)
 			{
 				local_list_end = local_list_end->next;
@@ -661,21 +661,25 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		for (uint32_t i = 0; i < s_render_inst->backbuffer_count; i++)
 		{
 			auto& pf = s_render_inst->frames[i];
-			pf.per_frame_buffer.buffer = Vulkan::CreateBuffer(per_frame_buffer_info);
-			pf.per_frame_buffer.size = static_cast<uint32_t>(per_frame_buffer_info.size);
-			pf.per_frame_buffer.used = 0;
+			{
+				pf.per_frame_buffer.buffer = Vulkan::CreateBuffer(per_frame_buffer_info);
+				pf.per_frame_buffer.size = static_cast<uint32_t>(per_frame_buffer_info.size);
+				pf.per_frame_buffer.used = 0;
+			}
+			{
+				pf.scene_buffer.buffer = pf.per_frame_buffer.buffer;
+				pf.scene_buffer.size = sizeof(SceneInfo);
+				pf.scene_buffer.offset = pf.per_frame_buffer.used;
 
-			pf.transform_buffer.buffer = pf.per_frame_buffer.buffer;
-			pf.transform_buffer.size = s_render_inst->draw_list_max * sizeof(float4x4);
-			pf.transform_buffer.offset = pf.per_frame_buffer.used;
+				pf.per_frame_buffer.used += static_cast<uint32_t>(pf.scene_buffer.size);
+			}
+			{
+				pf.transform_buffer.buffer = pf.per_frame_buffer.buffer;
+				pf.transform_buffer.size = s_render_inst->draw_list_max * sizeof(float4x4);
+				pf.transform_buffer.offset = pf.per_frame_buffer.used;
 
-			pf.per_frame_buffer.used += static_cast<uint32_t>(pf.transform_buffer.size);
-
-			pf.scene_buffer.buffer = pf.per_frame_buffer.buffer;
-			pf.scene_buffer.size = sizeof(SceneInfo);
-			pf.scene_buffer.offset = pf.per_frame_buffer.used;
-
-			pf.per_frame_buffer.used += static_cast<uint32_t>(pf.scene_buffer.size);
+				pf.per_frame_buffer.used += static_cast<uint32_t>(pf.transform_buffer.size);
+			}
 
 			//descriptors
 			pf.desc_alloc = Vulkan::AllocateDescriptor(frame_descriptor_layout);

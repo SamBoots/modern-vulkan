@@ -11,17 +11,17 @@ struct VSOutput
 
 VSOutput VertexMain(uint VertexIndex : SV_VertexID)
 {
-    BB::SceneInfo scene_info = scene_data.Load<BB::SceneInfo>(0);
+    SceneInfo scene_info = scene_data.Load<SceneInfo>(0);
     
-    const uint vertex_offset = shader_indices.vertex_buffer_offset + sizeof(BB::Vertex) * VertexIndex;
-    BB::Vertex cur_vertex;
+    const uint vertex_offset = shader_indices.vertex_buffer_offset + sizeof(Vertex) * VertexIndex;
+    Vertex cur_vertex;
     cur_vertex.position = asfloat(vertex_data.Load3(vertex_offset));
     cur_vertex.normal = asfloat(vertex_data.Load3(vertex_offset + 12));
     cur_vertex.uv = asfloat(vertex_data.Load2(vertex_offset + 24));
     cur_vertex.color = asfloat(vertex_data.Load3(vertex_offset + 32));
    
-    BB::Transform transform = transform_data.Load<BB::Transform>(
-        sizeof(BB::Transform) * shader_indices.transform_index);
+    Transform transform = transform_data.Load<Transform>(
+        sizeof(Transform) * shader_indices.transform_index);
     
     VSOutput output = (VSOutput) 0;
     output.pos = mul(scene_info.proj, mul(scene_info.view, mul(transform.transform, float4(cur_vertex.position.xyz, 1.0))));
