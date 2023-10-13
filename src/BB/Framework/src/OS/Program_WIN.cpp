@@ -93,48 +93,48 @@ LRESULT wm_input(HWND a_Hwnd, WPARAM a_WParam, LPARAM a_LParam)
 
 	if (t_Input.header.dwType == RIM_TYPEKEYBOARD)
 	{
-		t_Event.inputType = INPUT_TYPE::KEYBOARD;
+		t_Event.input_type = INPUT_TYPE::KEYBOARD;
 		uint16_t scanCode = t_Input.data.keyboard.MakeCode;
 
 		// Scan codes could contain 0xe0 or 0xe1 one-byte prefix.
 		//scanCode |= (t_Input->data.keyboard.Flags & RI_KEY_E0) ? 0xe000 : 0;
 		//scanCode |= (t_Raw->data.keyboard.Flags & RI_KEY_E1) ? 0xe100 : 0;
 
-		t_Event.keyInfo.scancode = s_translate_key[scanCode];
-		t_Event.keyInfo.keyPressed = !(t_Input.data.keyboard.Flags & RI_KEY_BREAK);
+		t_Event.key_info.scancode = s_translate_key[scanCode];
+		t_Event.key_info.key_pressed = !(t_Input.data.keyboard.Flags & RI_KEY_BREAK);
 		PushInput(t_Event);
 	}
 	else if (t_Input.header.dwType == RIM_TYPEMOUSE && s_ProgramInfo.trackingMouse)
 	{
-		t_Event.inputType = INPUT_TYPE::MOUSE;
+		t_Event.input_type = INPUT_TYPE::MOUSE;
 		const float2 t_MoveInput{ 
 			static_cast<float>(t_Input.data.mouse.lLastX), 
 			static_cast<float>(t_Input.data.mouse.lLastY) };
 		if (t_Input.data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE)
 		{
 			BB_ASSERT(false, "Windows Input, not using MOUSE_MOVE_ABSOLUTE currently.");
-			//t_Event.mouseInfo.moveOffset = t_MoveInput - s_InputInfo.mouse.oldPos;
+			//t_Event.mouse_info.move_offset = t_MoveInput - s_InputInfo.mouse.oldPos;
 			//s_InputInfo.mouse.oldPos = t_MoveInput;
 		}
 		else
 		{
-			t_Event.mouseInfo.moveOffset = t_MoveInput;
+			t_Event.mouse_info.move_offset = t_MoveInput;
 			POINT t_Point;
 			GetCursorPos(&t_Point);
 			ScreenToClient(a_Hwnd, &t_Point);
-			t_Event.mouseInfo.mousePos = { (float)t_Point.x, (float)t_Point.y };
+			t_Event.mouse_info.mouse_pos = { (float)t_Point.x, (float)t_Point.y };
 		}
 
-		t_Event.mouseInfo.left_pressed = t_Input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN;
-		t_Event.mouseInfo.left_released = t_Input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_UP;
-		t_Event.mouseInfo.right_pressed = t_Input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_DOWN;
-		t_Event.mouseInfo.right_released = t_Input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_UP;
-		t_Event.mouseInfo.middle_pressed = t_Input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_DOWN;
-		t_Event.mouseInfo.middle_released = t_Input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_UP;
+		t_Event.mouse_info.left_pressed = t_Input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN;
+		t_Event.mouse_info.left_released = t_Input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_UP;
+		t_Event.mouse_info.right_pressed = t_Input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_DOWN;
+		t_Event.mouse_info.right_released = t_Input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_UP;
+		t_Event.mouse_info.middle_pressed = t_Input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_DOWN;
+		t_Event.mouse_info.middle_released = t_Input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_UP;
 		if (t_Input.data.mouse.usButtonFlags & (RI_MOUSE_WHEEL | WM_MOUSEHWHEEL))
 		{
 			const int16_t t_MouseMove = *reinterpret_cast<const int16_t*>(&t_Input.data.mouse.usButtonData);
-			t_Event.mouseInfo.wheelMove = t_MouseMove / WHEEL_DELTA;
+			t_Event.mouse_info.wheel_move = t_MouseMove / WHEEL_DELTA;
 		}
 		PushInput(t_Event);
 	}

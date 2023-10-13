@@ -7,11 +7,10 @@ add_subdirectory ("BB")
 
 find_package(Vulkan REQUIRED)
 
-add_executable(Renderer
+add_library(Renderer
 	"Render/Vulkan/VulkanRenderer.cpp"
 	"Render/ShaderCompiler.cpp"
-	"Render/Renderer.cpp"
-	"main.cpp")
+	"Render/Renderer.cpp")
 
 target_link_libraries(Renderer BBFramework 
 	Vulkan::Vulkan
@@ -45,6 +44,18 @@ add_custom_command(TARGET Renderer POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy
         "${CMAKE_SOURCE_DIR}/lib/DXC/bin/${CPU_ARCHITECTURE}/dxil.dll"
         $<TARGET_FILE_DIR:Renderer>)
+
+add_executable(Engine
+	"Engine/Camera.cpp"
+	"Engine/Transform.cpp"
+	"Engine/AssetLoader.cpp"
+	"main.cpp")
+
+target_include_directories(Engine PUBLIC
+	"Engine")
+
+target_link_libraries(Engine 
+	Renderer)
 
 add_executable(image_filter_test
 	"image_test_main.cpp")

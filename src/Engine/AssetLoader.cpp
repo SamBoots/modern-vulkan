@@ -1,5 +1,4 @@
 #include "AssetLoader.hpp"
-#include "RenderFrontend.h"
 #include "Storage/BBString.h"
 
 #pragma warning(push, 0)

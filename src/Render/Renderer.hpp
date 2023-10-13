@@ -26,6 +26,9 @@ namespace BB
 	void StartFrame();
 	void EndFrame();
 
+	void SetView(const float4x4& a_view);
+	void SetProjection(const float4x4& a_projection);
+
 	MeshHandle CreateMesh(const CreateMeshInfo& a_create_info);
 	void FreeMesh(const MeshHandle a_mesh);
 

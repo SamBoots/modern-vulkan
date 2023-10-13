@@ -72,10 +72,10 @@ namespace BB
 
 	struct MouseInfo
 	{
-		float2 moveOffset;
-		float2 mousePos;
+		float2 move_offset;
+		float2 mouse_pos;
 		//Might add more here.
-		int16_t wheelMove;
+		int16_t wheel_move;
 		bool left_pressed;
 		bool left_released;
 		bool right_pressed;
@@ -89,7 +89,7 @@ namespace BB
 	{
 		KEYBOARD_KEY scancode;
 		wchar utf16; //NOT IN USE;
-		bool keyPressed;
+		bool key_pressed;
 	};
 
 	enum class INPUT_TYPE : int32_t
@@ -100,11 +100,11 @@ namespace BB
 
 	struct InputEvent
 	{
-		INPUT_TYPE inputType;
+		INPUT_TYPE input_type;
 		union
 		{
-			MouseInfo mouseInfo;
-			KeyInfo keyInfo;
+			MouseInfo mouse_info;
+			KeyInfo key_info;
 		};
 	};
 

@@ -1,5 +1,4 @@
-#include "Transform.h"
-#include "RenderFrontend.h"
+#include "Transform.hpp"
 #include "Math.inl"
 
 using namespace BB;
@@ -43,10 +42,10 @@ void Transform::SetScale(const float3 a_Scale)
 
 const float4x4 Transform::CreateMatrix()
 {
-	float4x4 t_Matrix = float4x4Identity();
-	t_Matrix = t_Matrix * float4x4FromTranslation(m_Pos);
-	t_Matrix = t_Matrix * float4x4FromQuat(m_Rot);
-	t_Matrix = float4x4Scale(t_Matrix, m_Scale);
+	float4x4 t_Matrix = Float4x4Identity();
+	t_Matrix = t_Matrix * Float4x4FromTranslation(m_Pos);
+	t_Matrix = t_Matrix * Float4x4FromQuat(m_Rot);
+	t_Matrix = Float4x4Scale(t_Matrix, m_Scale);
 	return t_Matrix;
 }
 
