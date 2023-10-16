@@ -148,7 +148,7 @@ int main(int argc, char** argv)
 			StartFrame();
 
 			//draw stuff here!
-			DrawMesh(quad_mesh, transform_pool.GetTransform(transform_test).transform);
+			DrawMesh(quad_mesh, transform_pool.GetTransform(transform_test).CreateMatrix());
 
 			EndFrame();
 		}

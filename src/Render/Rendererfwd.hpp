@@ -23,6 +23,8 @@ namespace BB
 		NONE,
 		ALL,
 		VERTEX,
-		FRAGMENT_PIXEL
+		FRAGMENT_PIXEL,
+
+		ENUM_SIZE
 	};
 }

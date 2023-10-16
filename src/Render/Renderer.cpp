@@ -761,8 +761,8 @@ void BB::EndFrame()
 	StartRenderingInfo start_rendering_info;
 	start_rendering_info.viewport_width = s_render_inst->swapchain_width;
 	start_rendering_info.viewport_height = s_render_inst->swapchain_height;
-	start_rendering_info.initial_layout = RENDER_IMAGE_LAYOUT::UNDEFINED;
-	start_rendering_info.final_layout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+	start_rendering_info.initial_layout = IMAGE_LAYOUT::UNDEFINED;
+	start_rendering_info.final_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 	start_rendering_info.load_color = false;
 	start_rendering_info.store_color = true;
 	start_rendering_info.clear_color_rgba = float4{ 0.f, 0.f, 0.f, 1.f };
@@ -799,8 +799,8 @@ void BB::EndFrame()
 
 	//present
 	EndRenderingInfo end_rendering_info;
-	end_rendering_info.initial_layout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-	end_rendering_info.final_layout = RENDER_IMAGE_LAYOUT::PRESENT;
+	end_rendering_info.initial_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+	end_rendering_info.final_layout = IMAGE_LAYOUT::PRESENT;
 	Vulkan::EndRendering(current_command_list, end_rendering_info, s_render_inst->backbuffer_pos);
 	current_use_pool->EndCommandList(current_command_list);
 

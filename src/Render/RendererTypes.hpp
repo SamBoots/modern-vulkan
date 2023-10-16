@@ -8,7 +8,9 @@ namespace BB
 	{
 		GRAPHICS,
 		TRANSFER,
-		COMPUTE
+		COMPUTE,
+
+		ENUM_SIZE
 	};
 
 	enum class RENDER_RESOURCE_TYPE : uint32_t
@@ -21,10 +23,12 @@ namespace BB
 		BUFFER,
 		IMAGE,
 		SAMPLER,
-		FENCE
+		FENCE,
+
+		ENUM_SIZE
 	};
 
-	enum class RENDER_IMAGE_LAYOUT : uint32_t
+	enum class IMAGE_LAYOUT : uint32_t
 	{
 		UNDEFINED,
 		GENERAL,
@@ -33,7 +37,9 @@ namespace BB
 		COLOR_ATTACHMENT_OPTIMAL,
 		DEPTH_STENCIL_ATTACHMENT,
 		SHADER_READ_ONLY,
-		PRESENT
+		PRESENT,
+
+		ENUM_SIZE
 	};
 
 	enum class BUFFER_TYPE
@@ -42,7 +48,9 @@ namespace BB
 		STORAGE,
 		UNIFORM,
 		VERTEX,
-		INDEX
+		INDEX,
+
+		ENUM_SIZE
 	};
 
 	enum class DESCRIPTOR_TYPE : uint32_t
@@ -52,6 +60,7 @@ namespace BB
 		READWRITE, //UAV or readwrite storage buffer(?)
 		IMAGE,
 		SAMPLER,
+
 		ENUM_SIZE
 	};
 
@@ -124,8 +133,8 @@ namespace BB
 
 		bool load_color;
 		bool store_color;
-		RENDER_IMAGE_LAYOUT initial_layout;
-		RENDER_IMAGE_LAYOUT final_layout;
+		IMAGE_LAYOUT initial_layout;
+		IMAGE_LAYOUT final_layout;
 
 		//RImageHandle depthStencil{};
 
@@ -134,8 +143,8 @@ namespace BB
 
 	struct EndRenderingInfo
 	{
-		RENDER_IMAGE_LAYOUT initial_layout;
-		RENDER_IMAGE_LAYOUT final_layout;
+		IMAGE_LAYOUT initial_layout;
+		IMAGE_LAYOUT final_layout;
 	};
 
 	struct PushConstantRange

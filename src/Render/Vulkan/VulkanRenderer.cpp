@@ -143,55 +143,6 @@ static bool CheckExtensionSupport(Allocator a_temp_allocator, Slice<const char*>
 	return true;
 }
 
-static inline VkDescriptorType DescriptorBufferType(const DESCRIPTOR_TYPE a_Type)
-{
-	switch (a_Type)
-	{
-	case DESCRIPTOR_TYPE::READONLY_CONSTANT:	return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	case DESCRIPTOR_TYPE::READONLY_BUFFER:	return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	case DESCRIPTOR_TYPE::READWRITE:			return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	case DESCRIPTOR_TYPE::IMAGE:				return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-	case DESCRIPTOR_TYPE::SAMPLER:			return VK_DESCRIPTOR_TYPE_SAMPLER;
-	default:
-		BB_ASSERT(false, "Vulkan: DESCRIPTOR_TYPE failed to convert to a VkDescriptorType.");
-		return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		break;
-	}
-}
-
-static inline VkShaderStageFlagBits ShaderStageBits(const SHADER_STAGE a_stage)
-{
-	switch (a_stage)
-	{
-	case SHADER_STAGE::ALL:					return VK_SHADER_STAGE_ALL;
-	case SHADER_STAGE::VERTEX:				return VK_SHADER_STAGE_VERTEX_BIT;
-	case SHADER_STAGE::FRAGMENT_PIXEL:		return VK_SHADER_STAGE_FRAGMENT_BIT;
-	default:
-		BB_ASSERT(false, "Vulkan: SHADER_STAGE failed to convert to a VkShaderStageFlagBits.");
-		return VK_SHADER_STAGE_ALL;
-		break;
-	}
-}
-
-static inline VkImageLayout ImageLayout(const RENDER_IMAGE_LAYOUT a_image_layout)
-{
-	switch (a_image_layout)
-	{
-	case RENDER_IMAGE_LAYOUT::UNDEFINED:				return VK_IMAGE_LAYOUT_UNDEFINED;
-	case RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL: return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	case RENDER_IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT: return VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-	case RENDER_IMAGE_LAYOUT::GENERAL:					return VK_IMAGE_LAYOUT_GENERAL;
-	case RENDER_IMAGE_LAYOUT::TRANSFER_SRC:				return VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-	case RENDER_IMAGE_LAYOUT::TRANSFER_DST:				return VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-	case RENDER_IMAGE_LAYOUT::SHADER_READ_ONLY:			return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	case RENDER_IMAGE_LAYOUT::PRESENT:					return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	default:
-		BB_ASSERT(false, "Vulkan: RENDER_IMAGE_LAYOUT failed to convert to a VkImageLayout.");
-		return VK_IMAGE_LAYOUT_UNDEFINED;
-		break;
-	}
-}
-
 static bool CheckValidationLayerSupport(Allocator a_temp_allocator, const Slice<const char*> a_layers)
 {
 	// check layers if they are available.
@@ -477,6 +428,29 @@ static VkDevice CreateLogicalDevice(Allocator a_temp_allocator, const VkPhysical
 
 struct Vulkan_inst
 {
+	Vulkan_inst()
+	{
+		enum_conv.descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::READONLY_CONSTANT)] = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		enum_conv.descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::READONLY_BUFFER)] = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		enum_conv.descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::READWRITE)] = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		enum_conv.descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::IMAGE)] = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+		enum_conv.descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::SAMPLER)] = VK_DESCRIPTOR_TYPE_SAMPLER;
+
+		enum_conv.shader_stage[static_cast<uint32_t>(SHADER_STAGE::ALL)] = VK_SHADER_STAGE_ALL;
+		enum_conv.shader_stage[static_cast<uint32_t>(SHADER_STAGE::VERTEX)] = VK_SHADER_STAGE_VERTEX_BIT;
+		enum_conv.shader_stage[static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL)] = VK_SHADER_STAGE_FRAGMENT_BIT;
+		enum_conv.shader_stage[static_cast<uint32_t>(SHADER_STAGE::NONE)] = 0;
+
+		enum_conv.image_layout[static_cast<uint32_t>(IMAGE_LAYOUT::UNDEFINED)] = VK_IMAGE_LAYOUT_UNDEFINED;
+		enum_conv.image_layout[static_cast<uint32_t>(IMAGE_LAYOUT::GENERAL)] = VK_IMAGE_LAYOUT_GENERAL;
+		enum_conv.image_layout[static_cast<uint32_t>(IMAGE_LAYOUT::TRANSFER_SRC)] = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		enum_conv.image_layout[static_cast<uint32_t>(IMAGE_LAYOUT::TRANSFER_DST)] = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		enum_conv.image_layout[static_cast<uint32_t>(IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL)] = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		enum_conv.image_layout[static_cast<uint32_t>(IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT)] = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		enum_conv.image_layout[static_cast<uint32_t>(IMAGE_LAYOUT::SHADER_READ_ONLY)] = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		enum_conv.image_layout[static_cast<uint32_t>(IMAGE_LAYOUT::PRESENT)] = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	}
+
 	VkInstance instance;
 	VkPhysicalDevice phys_device;
 	VkDevice device;
@@ -501,6 +475,16 @@ struct Vulkan_inst
 		uint32_t sampled_image;
 		uint32_t sampler;
 	} descriptor_sizes;
+
+	//maybe faster then a switch... profile!
+	struct EnumConversions
+	{
+		VkDescriptorType descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::ENUM_SIZE)];
+		VkShaderStageFlags shader_stage[static_cast<uint32_t>(SHADER_STAGE::ENUM_SIZE)];
+		VkImageLayout image_layout[static_cast<uint32_t>(IMAGE_LAYOUT::ENUM_SIZE)];
+	};
+
+	EnumConversions enum_conv;
 
 	struct Pfn
 	{
@@ -544,6 +528,71 @@ struct Vulkan_swapchain
 
 static Vulkan_inst* s_vulkan_inst = nullptr;
 static Vulkan_swapchain* s_vulkan_swapchain = nullptr;
+
+static inline VkDescriptorType DescriptorBufferType(const DESCRIPTOR_TYPE a_type)
+{
+	return s_vulkan_inst->enum_conv.descriptor_types[static_cast<uint32_t>(a_type)];
+
+		/*switch (a_type)
+		{
+		case DESCRIPTOR_TYPE::READONLY_CONSTANT:	return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		case DESCRIPTOR_TYPE::READONLY_BUFFER:	return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		case DESCRIPTOR_TYPE::READWRITE:			return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+		case DESCRIPTOR_TYPE::IMAGE:				return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+		case DESCRIPTOR_TYPE::SAMPLER:			return VK_DESCRIPTOR_TYPE_SAMPLER;
+		default:
+			BB_ASSERT(false, "Vulkan: DESCRIPTOR_TYPE failed to convert to a VkDescriptorType.");
+			return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			break;
+		}*/
+}
+
+static inline VkShaderStageFlags ShaderStageFlags(const SHADER_STAGE a_stage)
+{
+	if (true)
+	{
+		return s_vulkan_inst->enum_conv.shader_stage[static_cast<uint32_t>(a_stage)];
+	}
+	else
+	{
+		switch (a_stage)
+		{
+		case SHADER_STAGE::ALL:					return VK_SHADER_STAGE_ALL;
+		case SHADER_STAGE::VERTEX:				return VK_SHADER_STAGE_VERTEX_BIT;
+		case SHADER_STAGE::FRAGMENT_PIXEL:		return VK_SHADER_STAGE_FRAGMENT_BIT;
+		default:
+			BB_ASSERT(false, "Vulkan: SHADER_STAGE failed to convert to a VkShaderStageFlagBits.");
+			return VK_SHADER_STAGE_ALL;
+			break;
+		}
+	}
+}
+
+static inline VkImageLayout ImageLayout(const IMAGE_LAYOUT a_image_layout)
+{
+	if (true)
+	{
+		return s_vulkan_inst->enum_conv.image_layout[static_cast<uint32_t>(a_image_layout)];
+	}
+	else
+	{
+		switch (a_image_layout)
+		{
+		case IMAGE_LAYOUT::UNDEFINED:				return VK_IMAGE_LAYOUT_UNDEFINED;
+		case IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL:return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		case IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT:return VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		case IMAGE_LAYOUT::GENERAL:					return VK_IMAGE_LAYOUT_GENERAL;
+		case IMAGE_LAYOUT::TRANSFER_SRC:			return VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		case IMAGE_LAYOUT::TRANSFER_DST:			return VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		case IMAGE_LAYOUT::SHADER_READ_ONLY:		return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		case IMAGE_LAYOUT::PRESENT:					return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		default:
+			BB_ASSERT(false, "Vulkan: IMAGE_LAYOUT failed to convert to a VkImageLayout.");
+			return VK_IMAGE_LAYOUT_UNDEFINED;
+			break;
+		}
+	}
+}
 
 static inline VkDescriptorAddressInfoEXT GetDescriptorAddressInfo(const VkDevice a_device, const BufferView& a_Buffer, const VkFormat a_Format = VK_FORMAT_UNDEFINED)
 {
@@ -769,7 +818,7 @@ bool Vulkan::CreateSwapchain(StackAllocator_t& a_stack_allocator, const WindowHa
 {
 	BB_ASSERT(s_vulkan_inst != nullptr, "trying to create a swapchain while vulkan is not initialized");
 	BB_ASSERT(s_vulkan_swapchain == nullptr, "trying to create a swapchain while one exists");
-	s_vulkan_swapchain = BBnew(a_stack_allocator, Vulkan_swapchain);
+	s_vulkan_swapchain = BBnew(a_stack_allocator, Vulkan_swapchain) {};
 	
 	BBStackAllocatorScope(a_stack_allocator)
 	{
@@ -1055,7 +1104,7 @@ RDescriptorLayout Vulkan::CreateDescriptorLayout(Allocator a_temp_allocator, Sli
 		layout_binds[i].binding = binding.binding;
 		layout_binds[i].descriptorCount = binding.count;
 		layout_binds[i].descriptorType = DescriptorBufferType(binding.type);
-		layout_binds[i].stageFlags = ShaderStageBits(binding.shader_stage);
+		layout_binds[i].stageFlags = ShaderStageFlags(binding.shader_stage);
 
 		if (binding.count > 1)
 		{
@@ -1170,7 +1219,7 @@ RPipelineLayout Vulkan::CreatePipelineLayout(const RDescriptorLayout* a_descript
 		constant_ranges = BBstackAlloc_s(a_constant_range_count, VkPushConstantRange);
 		for (size_t i = 0; i < a_constant_range_count; i++)
 		{
-			constant_ranges[i].stageFlags = ShaderStageBits(a_constant_ranges[i].stages);
+			constant_ranges[i].stageFlags = ShaderStageFlags(a_constant_ranges[i].stages);
 			constant_ranges[i].size = a_constant_ranges[i].size;
 			constant_ranges[i].offset = a_constant_ranges[i].offset;
 		}
@@ -1335,11 +1384,8 @@ void Vulkan::CreateShaderObject(Allocator a_temp_allocator, Slice<ShaderObjectCr
 		create_inf.sType = VK_STRUCTURE_TYPE_SHADER_CREATE_INFO_EXT;
 		create_inf.pNext = nullptr;
 		create_inf.flags = VK_SHADER_CREATE_LINK_STAGE_BIT_EXT;
-		create_inf.stage = ShaderStageBits(shad_info.stage);
-		if (shad_info.next_stages == SHADER_STAGE::NONE)
-			create_inf.nextStage = 0;
-		else
-			create_inf.nextStage = ShaderStageBits(shad_info.next_stages);
+		create_inf.stage = static_cast<VkShaderStageFlagBits>(ShaderStageFlags(shad_info.stage));
+		create_inf.nextStage = ShaderStageFlags(shad_info.next_stages);
 		create_inf.codeType = VK_SHADER_CODE_TYPE_SPIRV_EXT; //for now always SPIR-V
 		create_inf.codeSize = shad_info.shader_code_size;
 		create_inf.pCode = shad_info.shader_code;
@@ -1353,7 +1399,7 @@ void Vulkan::CreateShaderObject(Allocator a_temp_allocator, Slice<ShaderObjectCr
 			constant_ranges = BBnewArr(a_temp_allocator, shad_info.push_constant_range_count, VkPushConstantRange);
 			for (size_t i = 0; i < shad_info.push_constant_range_count; i++)
 			{
-				constant_ranges[i].stageFlags = ShaderStageBits(shad_info.push_constant_ranges[i].stages);
+				constant_ranges[i].stageFlags = ShaderStageFlags(shad_info.push_constant_ranges[i].stages);
 				constant_ranges[i].size = shad_info.push_constant_ranges[i].size;
 				constant_ranges[i].offset = shad_info.push_constant_ranges[i].offset;
 			}
@@ -1609,7 +1655,7 @@ void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stag
 
 	VkShaderStageFlagBits* shader_stages = BBstackAlloc(a_shader_stage_count, VkShaderStageFlagBits);
 	for (size_t i = 0; i < a_shader_stage_count; i++)
-		shader_stages[i] = ShaderStageBits(a_shader_stages[i]);
+		shader_stages[i] = static_cast<VkShaderStageFlagBits>(ShaderStageFlags(a_shader_stages[i]));
 
 	s_vulkan_inst->pfn.CmdBindShadersEXT(cmd_buffer, a_shader_stage_count, shader_stages, reinterpret_cast<const VkShaderEXT*>(a_shader_objects));
 

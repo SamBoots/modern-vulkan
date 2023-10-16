@@ -26,7 +26,7 @@ namespace BB
         uint3 padding;
     };
 
-    struct Transform
+    struct ShaderTransform
     {
         float4x4 transform;
         float4x4 inverse;

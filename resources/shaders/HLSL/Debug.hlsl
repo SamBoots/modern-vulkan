@@ -20,8 +20,8 @@ VSOutput VertexMain(uint VertexIndex : SV_VertexID)
     cur_vertex.uv = asfloat(vertex_data.Load2(vertex_offset + 24));
     cur_vertex.color = asfloat(vertex_data.Load3(vertex_offset + 32));
    
-    Transform transform = transform_data.Load<Transform>(
-        sizeof(Transform) * shader_indices.transform_index);
+    ShaderTransform transform = transform_data.Load<ShaderTransform>(
+        sizeof(ShaderTransform) * shader_indices.transform_index);
     
     VSOutput output = (VSOutput) 0;
     output.pos = mul(scene_info.proj, mul(scene_info.view, mul(transform.transform, float4(cur_vertex.position.xyz, 1.0))));
