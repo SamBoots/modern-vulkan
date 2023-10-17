@@ -42,7 +42,7 @@ namespace BB
 		ENUM_SIZE
 	};
 
-	enum class BUFFER_TYPE
+	enum class BUFFER_TYPE : uint32_t
 	{
 		UPLOAD,
 		STORAGE,

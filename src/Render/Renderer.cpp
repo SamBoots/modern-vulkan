@@ -772,9 +772,9 @@ void BB::EndFrame()
 	Vulkan::BindPipeline(current_command_list.api_cmd_list, test_pipeline);
 #endif //_USE_G_PIPELINE
 	Vulkan::BindIndexBuffer(current_command_list, s_render_inst->index_buffer.buffer, 0);
-	const uint32_t buffer_indices = 0;
-	const size_t buffer_offsets[]{ s_render_inst->vertex_buffer.descriptor_allocation.offset };
-	Vulkan::SetDescriptorBufferOffset(current_command_list, pipeline_layout, 0, 1, &buffer_indices, buffer_offsets);
+	const uint32_t buffer_indices[] = { 0, 0 };
+	const size_t buffer_offsets[]{ s_render_inst->vertex_buffer.descriptor_allocation.offset, cur_frame.desc_alloc.offset };
+	Vulkan::SetDescriptorBufferOffset(current_command_list, pipeline_layout, 0, _countof(buffer_offsets), buffer_indices, buffer_offsets);
 
 	for (uint32_t i = 0; i < s_render_inst->draw_list_count; i++)
 	{
@@ -790,9 +790,9 @@ void BB::EndFrame()
 		Vulkan::SetPushConstants(current_command_list, pipeline_layout, 0, sizeof(ShaderIndices), &shader_indices);
 
 		Vulkan::DrawIndexed(current_command_list,
-			mesh.index_buffer.size / sizeof(uint32_t),
+			static_cast<uint32_t>(mesh.index_buffer.size / sizeof(uint32_t)),
 			1,
-			mesh.index_buffer.offset / sizeof(uint32_t),
+			static_cast<uint32_t>(mesh.index_buffer.offset / sizeof(uint32_t)),
 			0,
 			0);
 	}

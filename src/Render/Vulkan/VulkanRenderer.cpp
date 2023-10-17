@@ -1473,8 +1473,8 @@ void Vulkan::EndCommandList(const RCommandList a_list)
 void Vulkan::CopyBuffer(const RCommandList a_list, const RenderCopyBuffer& a_copy_buffer)
 {
 	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
-	const VulkanBuffer& dst_buf = s_vulkan_inst->buffers.find(a_copy_buffer.dst.handle);
-	const VulkanBuffer& src_buf = s_vulkan_inst->buffers.find(a_copy_buffer.src.handle);
+	const VkBuffer dst_buf = s_vulkan_inst->buffers.find(a_copy_buffer.dst.handle).buffer;
+	const VkBuffer src_buf = s_vulkan_inst->buffers.find(a_copy_buffer.src.handle).buffer;
 
 	VkBufferCopy* copy_regions = BBstackAlloc(a_copy_buffer.regions.size(), VkBufferCopy);
 	for (size_t i = 0; i < a_copy_buffer.regions.size(); i++)
@@ -1488,8 +1488,8 @@ void Vulkan::CopyBuffer(const RCommandList a_list, const RenderCopyBuffer& a_cop
 	}
 	
 	vkCmdCopyBuffer(cmd_list,
-		src_buf.buffer,
-		dst_buf.buffer,
+		src_buf,
+		dst_buf,
 		static_cast<uint32_t>(a_copy_buffer.regions.size()),
 		copy_regions);
 }
