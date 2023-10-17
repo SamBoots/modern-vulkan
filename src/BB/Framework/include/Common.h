@@ -1,8 +1,13 @@
 #pragma once
 #include <cstdint>
 
+#include <BBIntrin.h>
+
 namespace BB
 {
+
+
+
 	namespace allocators
 	{
 		struct LinearAllocator;
@@ -38,7 +43,7 @@ namespace BB
 		{
 			handle = a_handle;
 		};
-		FrameworkHandle(uint32_t a_Index, uint32_t a_extra_index)
+		FrameworkHandle(unsigned int a_Index, unsigned int a_extra_index)
 		{
 			index = a_Index;
 			extra_index = a_extra_index;
@@ -46,9 +51,9 @@ namespace BB
 		struct
 		{
 			//The handle's main index. Always used and is the main handle.
-			uint32_t index;
+			unsigned int index;
 			//A extra handle index, can be used to track something else. Usually this value is 0 or is part of a pointer.
-			uint32_t extra_index;
+			unsigned int extra_index;
 		};
 		//Some handles work with pointers.
 		void* ptr_handle;
@@ -119,6 +124,9 @@ namespace BB
 
 	union float4
 	{
+		float4() = default;
+		float4(const float a_x, const float a_y, const float a_z, const float a_w) { LoadFloat4(a_x, a_y, a_z, a_w); };
+		float4(const VecFloat4 a_vec) { vec = a_vec; }
 		float e[4];
 		struct
 		{
@@ -127,6 +135,7 @@ namespace BB
 			float z;
 			float w;
 		};
+		VecFloat4 vec;
 	};
 
 	union int2
@@ -152,7 +161,11 @@ namespace BB
 
 	union int4
 	{
+		int4() = default;
+		int4(const int a_x, const int a_y, const int a_z, const int a_w) { x = a_x, y = a_y, z = a_z, w = a_w; };
+		int4(const VecInt4 a_vec) { vec = a_vec; }
 		int e[4];
+		VecInt4 vec;
 		struct
 		{
 			int x;
@@ -164,35 +177,39 @@ namespace BB
 
 	union uint2
 	{
-		uint32_t e[2];
+		unsigned int e[2];
 		struct
 		{
-			uint32_t x;
-			uint32_t y;
+			unsigned int x;
+			unsigned int y;
 		};
 	};
 
 	union uint3
 	{
-		uint32_t e[3];
+		unsigned int e[3];
 		struct
 		{
-			uint32_t x;
-			uint32_t y;
-			uint32_t z;
+			unsigned int x;
+			unsigned int y;
+			unsigned int z;
 		};
 	};
 
 	union uint4
 	{
-		uint32_t e[4];
+		uint4() = default;
+		uint4(const unsigned int a_x, const unsigned int a_y, const unsigned int a_z, const unsigned int a_w) { x = a_x, y = a_y, z = a_z, w = a_w; };
+		uint4(const VecUint4 a_vec) { vec = a_vec; }
+		unsigned int e[4];
 		struct
 		{
-			uint32_t x;
-			uint32_t y;
-			uint32_t z;
-			uint32_t w;
+			unsigned int x;
+			unsigned int y;
+			unsigned int z;
+			unsigned int w;
 		};
+		VecUint4 vec;
 	};
 
 	union Quat
@@ -206,6 +223,7 @@ namespace BB
 		};
 		float3 xyz;
 		float4 xyzw;
+		VecFloat4 vec;
 	};
 
 	union float3x3
@@ -229,5 +247,6 @@ namespace BB
 			float4 r2;
 			float4 r3;
 		};
+		VecFloat4 vec[4];
 	};
 }

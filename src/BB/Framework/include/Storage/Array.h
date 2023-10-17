@@ -44,13 +44,13 @@ namespace BB
 				return t_Tmp;
 			}
 
-			friend bool operator== (const Iterator& a_Lhs, const Iterator& a_rhs) { return a_Lhs.m_ptr == a_rhs.m_ptr; };
-			friend bool operator!= (const Iterator& a_Lhs, const Iterator& a_rhs) { return a_Lhs.m_ptr != a_rhs.m_ptr; };
+			friend bool operator== (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_ptr == a_rhs.m_ptr; };
+			friend bool operator!= (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_ptr != a_rhs.m_ptr; };
 
-			friend bool operator< (const Iterator& a_Lhs, const Iterator& a_rhs) { return a_Lhs.m_ptr < a_rhs.m_ptr; };
-			friend bool operator> (const Iterator& a_Lhs, const Iterator& a_rhs) { return a_Lhs.m_ptr > a_rhs.m_ptr; };
-			friend bool operator<= (const Iterator& a_Lhs, const Iterator& a_rhs) { return a_Lhs.m_ptr <= a_rhs.m_ptr; };
-			friend bool operator>= (const Iterator& a_Lhs, const Iterator& a_rhs) { return a_Lhs.m_ptr >= a_rhs.m_ptr; };
+			friend bool operator< (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_ptr < a_rhs.m_ptr; };
+			friend bool operator> (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_ptr > a_rhs.m_ptr; };
+			friend bool operator<= (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_ptr <= a_rhs.m_ptr; };
+			friend bool operator>= (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_ptr >= a_rhs.m_ptr; };
 
 
 		private:
