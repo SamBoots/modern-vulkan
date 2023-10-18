@@ -132,7 +132,8 @@ namespace BB
 
 	static inline float Float4Dot(const float4 a, const float4 b)
 	{
-		return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+		const float4 mod = MulFloat4(a.vec, b.vec);
+		return mod.x + mod.y + mod.z + mod.w;
 	}
 
 	static inline float Float4LengthSq(const float4 a)
@@ -163,20 +164,20 @@ namespace BB
 		float m30, float m31, float m32, float m33)
 	{
 		float4x4 mat;
-		mat.e[0][0] = m00; mat.e[0][1] = m01; mat.e[0][2] = m02; mat.e[0][3] = m03;
-		mat.e[1][0] = m10; mat.e[1][1] = m11; mat.e[1][2] = m12; mat.e[1][3] = m13;
-		mat.e[2][0] = m20; mat.e[2][1] = m21; mat.e[2][2] = m22; mat.e[2][3] = m23;
-		mat.e[3][0] = m30; mat.e[3][1] = m31; mat.e[3][2] = m32; mat.e[3][3] = m33;
+		mat.vec[0] = LoadFloat4(m00, m01, m02, m03);
+		mat.vec[1] = LoadFloat4(m10, m11, m12, m13);
+		mat.vec[2] = LoadFloat4(m20, m21, m22, m23);
+		mat.vec[3] = LoadFloat4(m30, m31, m32, m33);
 		return mat;
 	}
 
 	static inline float4x4 Float4x4FromFloat4s(const float4 r0, const float4 r1, const float4 r2, const float4 r3)
 	{
 		float4x4 mat;
-		mat.r0 = r0;
-		mat.r1 = r1;
-		mat.r2 = r2;
-		mat.r3 = r3;
+		mat.vec[0] = LoadFloat4(r0.x, r0.y, r0.z, r0.w);
+		mat.vec[1] = LoadFloat4(r1.x, r1.y, r1.z, r1.w);
+		mat.vec[2] = LoadFloat4(r2.x, r2.y, r2.z, r2.w);
+		mat.vec[3] = LoadFloat4(r3.x, r3.y, r3.z, r3.w);
 		return mat;
 	}
 
@@ -192,11 +193,11 @@ namespace BB
 
 	static inline float4x4 Float4x4Identity()
 	{
-		float4x4 mat = { 0 };
-		mat.e[0][0] = 1;
-		mat.e[1][1] = 1;
-		mat.e[2][2] = 1;
-		mat.e[3][3] = 1;
+		float4x4 mat;
+		mat.vec[0] = LoadFloat4(1, 0, 0, 0);
+		mat.vec[1] = LoadFloat4(0, 1, 0, 0);
+		mat.vec[2] = LoadFloat4(0, 0, 1, 0);
+		mat.vec[3] = LoadFloat4(0, 0, 0, 1);
 		return mat;
 	}
 
@@ -325,12 +326,12 @@ namespace BB
 
 	static inline Quat operator*(const Quat a_lhs, const Quat a_rhs)
 	{
-		return Quat{ a_lhs.x * a_rhs.x, a_lhs.y * a_rhs.y, a_lhs.z * a_rhs.z, a_lhs.w * a_rhs.w };
+		return Quat{ MulFloat4(a_lhs.vec, a_rhs.vec) };
 	}
 
 	static inline Quat IdentityQuat()
 	{
-		return Quat{ 0, 0, 0, 1 };
+		return Quat{ LoadFloat4(0, 0, 0, 1) };
 	}
 
 	static inline Quat QuatFromAxisAngle(const float3 axis, const float angle)
@@ -347,11 +348,6 @@ namespace BB
 
 	static inline Quat QuatRotateQuat(const Quat a, const Quat b)
 	{
-		Quat quat;
-		quat.x = a.x * b.x;
-		quat.y = a.y * b.y;
-		quat.z = a.z * b.z;
-		quat.w = a.w * b.w;
-		return quat;
+		return Quat{ MulFloat4(a.vec, b.vec) };
 	}
 }

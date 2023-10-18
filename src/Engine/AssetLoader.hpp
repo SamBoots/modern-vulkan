@@ -7,48 +7,50 @@ namespace BB
 	constexpr const char SHADERS_DIRECTORY[] = "Resources/shaders/";
 	constexpr const char TEXTURE_DIRECTORY[] = "resources/textures/";
 
+	constexpr uint32_t MODEL_NO_MESH;
 	struct Model
 	{
 		struct Primitive
 		{
-			uint32_t index_start = 0;
-			uint32_t index_count = 0;
+			uint32_t index_start;
+			uint32_t index_count;
 			//RTexture baseColorIndex = BB_INVALID_HANDLE;
 			//RTexture normalIndex = BB_INVALID_HANDLE;
 		};
 
 		struct Mesh
 		{
-			uint32_t primitive_offset = 0;
-			uint32_t primitive_count = 0;
+			uint32_t primitive_offset;
+			uint32_t primitive_count;
 		};
 
 		struct Node
 		{
 			float4x4 transform;
-			Model::Node* childeren = nullptr;
-			uint32_t child_count = 0;
-			uint32_t mesh_index = MESH_INVALID_INDEX;
+			Model::Node* childeren;
+			uint32_t child_count;
+			uint32_t mesh_index;
 		};
 
 		uint64_t vertex_offset;
 		uint64_t index_offset;
 
-		Node* nodes = nullptr;
-		uint32_t node_count = 0;
+		Node* linear_nodes;
+		Node* root_nodes;
+		uint32_t root_node_count;
 
-		Mesh* meshes = nullptr;
-		uint32_t mesh_count = 0;
+		Mesh* meshes;
+		uint32_t mesh_count;
 
-		Primitive* primitives = nullptr;
-		uint32_t primitive_count = 0;
+		Primitive* primitives;
+		uint32_t primitive_count;
 	};
 
 	namespace Asset
 	{
 		char* FindOrCreateString(const char* a_string);
 
-		void LoadglTFModel(Allocator a_SystemAllocator, Model& a_Model, UploadBuffer& a_UploadBuffer, const CommandListHandle a_CommandList, const char* a_Path);
+		void LoadglTFModel(Allocator a_temp_allocator, const char* a_Path);
 
 		Model LoadModel
 	};

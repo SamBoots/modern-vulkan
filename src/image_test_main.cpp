@@ -116,35 +116,35 @@ int main(int argc, char** argv)
 			size_t cur_string_size = directory_names.size();
 			directory_names.append("writegaussian3x3.bmp");
 			image.WriteAsBMP(directory_names.c_str());
-			directory_names.pop_back(directory_names.size() - cur_string_size);
+			directory_names.pop_back(static_cast<uint32_t>(directory_names.size() - cur_string_size));
 
 			image = image_backup;
 			image.FilterImage(allocator, gaussian5x5_filter, 5, 5, gaussian5x5_factor, gaussian5x5_bias, thread_count);
 			cur_string_size = directory_names.size();
 			directory_names.append("writegaussian5x5.bmp");
 			image.WriteAsBMP(directory_names.c_str());
-			directory_names.pop_back(directory_names.size() - cur_string_size);
+			directory_names.pop_back(static_cast<uint32_t>(directory_names.size() - cur_string_size));
 
 			image = image_backup;
 			image.FilterImage(allocator, blur5x5_filter, 5, 5, blur5x5_factor, blur5x5_bias, thread_count);
 			cur_string_size = directory_names.size();
 			directory_names.append("writeblur5x5.bmp");
 			image.WriteAsBMP(directory_names.c_str());
-			directory_names.pop_back(directory_names.size() - cur_string_size);
+			directory_names.pop_back(static_cast<uint32_t>(directory_names.size() - cur_string_size));
 
 			image = image_backup;
 			image.FilterImage(allocator, motion_blur_filter, 9, 9, motion_blur_factor, motion_blur_bias, thread_count);
 			cur_string_size = directory_names.size();
 			directory_names.append("writemotion_blur.bmp");
 			image.WriteAsBMP(directory_names.c_str());
-			directory_names.pop_back(directory_names.size() - cur_string_size);
+			directory_names.pop_back(static_cast<uint32_t>(directory_names.size() - cur_string_size));
 
 			image = image_backup;
 			image.SharpenImage(allocator, 1, thread_count);
 			cur_string_size = directory_names.size();
 			directory_names.append("writesharpen.bmp");
 			image.WriteAsBMP(directory_names.c_str());
-			directory_names.pop_back(directory_names.size() - cur_string_size);
+			directory_names.pop_back(static_cast<uint32_t>(directory_names.size() - cur_string_size));
 
 			directory_names.pop_back(1);
 			auto t_Speed = std::chrono::duration_cast<ms>(std::chrono::high_resolution_clock::now() - t_Timer).count() * MILLITIMEDIVIDE;
