@@ -20,6 +20,8 @@ namespace BB
 
 		struct Mesh
 		{
+			MeshHandle mesh_handle;
+
 			uint32_t primitive_offset;
 			uint32_t primitive_count;
 		};
@@ -31,9 +33,6 @@ namespace BB
 			uint32_t child_count;
 			uint32_t mesh_index;
 		};
-
-		uint64_t vertex_offset;
-		uint64_t index_offset;
 
 		Node* linear_nodes;
 		Node* root_nodes;
@@ -50,8 +49,6 @@ namespace BB
 	{
 		char* FindOrCreateString(const char* a_string);
 
-		void LoadglTFModel(Allocator a_temp_allocator, const char* a_Path);
-
-		Model LoadModel
+		void LoadglTFModel(const char* a_Path);
 	};
 }

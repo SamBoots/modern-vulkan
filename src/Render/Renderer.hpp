@@ -26,6 +26,8 @@ namespace BB
 	void StartFrame();
 	void EndFrame();
 
+	UploadBufferView GetUploadBuffer();
+
 	void SetView(const float4x4& a_view);
 	void SetProjection(const float4x4& a_projection);
 
