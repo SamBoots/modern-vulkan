@@ -17,6 +17,23 @@ struct RenderFence
 	RFence fence;
 };
 
+struct UploadBufferView
+{
+	friend class UploadBufferPool;
+	RBuffer upload_buffer_handle;	//8
+	void* view_mem_start;			//16
+	//I suppose we never make an upload buffer bigger then 2-4 gb? test for it on uploadbufferpool creation
+	uint32_t offset;				//20
+	uint32_t size;					//24
+	uint64_t fence_value;			//32
+	UploadBufferView* next;			//40
+
+	void MemoryCopy(void* a_src, const uint32_t a_byte_offset, const uint32_t a_byte_size)
+	{
+		memcpy(Pointer::Add(view_mem_start, a_byte_offset), a_src, a_byte_size);
+	}
+};
+
 /// <summary>
 /// Handles one large upload buffer and handles it as if it's seperate buffers by handling chunks.
 /// </summary>
@@ -813,11 +830,11 @@ MeshHandle BB::CreateMesh(const CreateMeshInfo& a_create_info)
 	mesh.index_buffer = AllocateFromIndexBuffer(a_create_info.indices.sizeInBytes());
 
 	void* vert = Vulkan::MapBufferMemory(mesh.vertex_buffer.buffer);
-	memcpy(vert, a_create_info.vertices.data(), a_create_info.vertices.sizeInBytes());
+	memcpy(Pointer::Add(vert, mesh.vertex_buffer.offset), a_create_info.vertices.data(), a_create_info.vertices.sizeInBytes());
 	Vulkan::UnmapBufferMemory(mesh.vertex_buffer.buffer);
 
 	void* indices = Vulkan::MapBufferMemory(mesh.index_buffer.buffer);
-	memcpy(indices, a_create_info.indices.data(), a_create_info.indices.sizeInBytes());
+	memcpy(Pointer::Add(indices, mesh.index_buffer.offset), a_create_info.indices.data(), a_create_info.indices.sizeInBytes());
 	Vulkan::UnmapBufferMemory(mesh.index_buffer.buffer);
 
 	//copy thing

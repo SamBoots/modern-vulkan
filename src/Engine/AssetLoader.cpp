@@ -75,18 +75,7 @@ static inline void* GetAccessorDataPtr(const cgltf_accessor* a_Accessor)
 	return Pointer::Add(a_Accessor->buffer_view->buffer->data, accessor_offset);
 }
 
-static uint32_t ChildNodeCount(const cgltf_node& a_node)
-{
-	uint32_t count = a_node.children_count;
-	for (size_t node_index = 0; node_index < a_node.children_count; node_index++)
-	{
-		const cgltf_node& node = *a_node.children[node_index];
-		count += ChildNodeCount(node);
-	}
-	return count;
-}
-
-static void LoadglTFNode(Allocator a_temp_allocator, const cgltf_node& a_node, Model& a_model, uint32_t& a_node_index, uint32_t& a_mesh_index, uint32_t& a_prim_index)
+static void LoadglTFNode(Allocator a_temp_allocator, const cgltf_node& a_node, Model& a_model, uint32_t& a_node_index)
 {
 	Model::Node& mod_node = a_model.linear_nodes[a_node_index++];
 
@@ -97,17 +86,11 @@ static void LoadglTFNode(Allocator a_temp_allocator, const cgltf_node& a_node, M
 
 	if (a_node.mesh != nullptr)
 	{
-		BB_ASSERT(a_model.mesh_count > a_mesh_index, "Trying to load another mesh while all meshes should've been loaded");
 		const cgltf_mesh& mesh = *a_node.mesh;
-		Model::Mesh& mod_mesh = a_model.meshes[a_mesh_index];
-
-		mod_node.mesh_index = a_mesh_index++;
-		mod_mesh.primitive_offset = a_prim_index;
-		mod_mesh.primitive_count = static_cast<uint32_t>(mesh.primitives_count);
 
 		uint32_t index_count = 0;
 		uint32_t vertex_count = 0;
-		for (size_t prim_index = 0; prim_index < mod_mesh.primitive_count; prim_index++)
+		for (size_t prim_index = 0; prim_index < mesh.primitives_count; prim_index++)
 		{
 			const cgltf_primitive& prim = mesh.primitives[prim_index];
 			index_count += static_cast<uint32_t>(prim.indices->count);
@@ -128,10 +111,9 @@ static void LoadglTFNode(Allocator a_temp_allocator, const cgltf_node& a_node, M
 		uint32_t* index_offset = indices;
 		Vertex* vertex_offset = vertices;
 
-		for (size_t prim_index = 0; prim_index < mod_mesh.primitive_count; prim_index++)
+		for (size_t prim_index = 0; prim_index < mesh.primitives_count; prim_index++)
 		{
 			const cgltf_primitive& prim = mesh.primitives[prim_index];
-			Model::Primitive& mod_prim = a_model.primitives[a_prim_index++];
 
 			//do images here.... 
 
@@ -199,18 +181,18 @@ static void LoadglTFNode(Allocator a_temp_allocator, const cgltf_node& a_node, M
 		create_mesh.vertices = Slice(vertices, vertex_count);
 		create_mesh.indices = Slice(indices, index_count);
 
-		mod_mesh.mesh_handle = CreateMesh(create_mesh);
+		mod_node.mesh_handle = CreateMesh(create_mesh);
 	}
 	else
-		mod_node.mesh_index = MODEL_NO_MESH;
+		mod_node.mesh_handle = BB_INVALID_HANDLE;
 
-	mod_node.child_count = a_node.children_count;
+	mod_node.child_count = static_cast<uint32_t>(a_node.children_count);
 	if (mod_node.child_count != 0)
 	{
 		mod_node.childeren = &a_model.linear_nodes[a_node_index]; //childeren are loaded linearly, i'm quite sure.
 		for (size_t i = 0; i < mod_node.child_count; i++)
 		{
-			LoadglTFNode(a_temp_allocator, *a_node.children[i], a_model, a_node_index, a_mesh_index, a_prim_index);
+			LoadglTFNode(a_temp_allocator, *a_node.children[i], a_model, a_node_index);
 		}
 	}
 }
@@ -226,50 +208,26 @@ const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const char* a_path
 
 	BB_ASSERT(cgltf_validate(gltf_data) == cgltf_result_success, "GLTF model validation failed!");
 
-	uint32_t linear_node_count = 0;
-	uint32_t primitive_count = 0;
-
-	//Get the node count.
-	for (size_t node_index = 0; node_index < gltf_data->nodes_count; node_index++)
-	{
-		const cgltf_node& node = gltf_data->nodes[node_index];
-		linear_node_count += ChildNodeCount(node);
-	}
-
-	//get the index count
-	for (size_t mesh_index = 0; mesh_index < gltf_data->meshes_count; mesh_index++)
-	{
-		const cgltf_mesh& mesh = gltf_data->meshes[mesh_index];
-		primitive_count += mesh.primitives_count;
-	}
+	const uint32_t linear_node_count = static_cast<uint32_t>(gltf_data->nodes_count);
 
 	//optimize the memory space with one allocation for the entire model
 	Model* model = BBnew(s_asset_manager.allocator, Model);
-
-	model->mesh_count = gltf_data->meshes_count;
-	model->meshes = BBnewArr(s_asset_manager.allocator, model->mesh_count, Model::Mesh);
-	model->primitive_count = primitive_count;
-	model->primitives = BBnewArr(s_asset_manager.allocator, model->primitive_count, Model::Primitive);
-
 	model->linear_nodes = BBnewArr(s_asset_manager.allocator, linear_node_count, Model::Node);
 
 	//for now this is going to be the root node, which is 0.
 	//This is not accurate on all GLTF models
-	model->root_node_count = gltf_data->nodes_count;
+	model->root_node_count = static_cast<uint32_t>(gltf_data->scene->nodes_count);
 	BB_ASSERT(model->root_node_count == 1, "not supporting more then 1 root node for gltf yet.");
 	model->root_nodes = &model->linear_nodes[0];
 
 	uint32_t current_node = 0;
-	uint32_t current_mesh = 0;
-	uint32_t current_primitive = 0;
 
 	for (size_t i = 0; i < gltf_data->scene->nodes_count; i++)
 	{
-		LoadglTFNode(a_temp_allocator , *gltf_data->scene->nodes[i], *model, current_node, current_mesh, current_primitive);
+		LoadglTFNode(a_temp_allocator , *gltf_data->scene->nodes[i], *model, current_node);
 	}
 
 	cgltf_free(gltf_data);
-
 
 	AssetSlot asset;
 	asset.type = ASSET_TYPE::MODEL;

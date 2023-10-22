@@ -8,10 +8,22 @@
 #include "Camera.hpp"
 #include "Transform.hpp"
 
+#include "AssetLoader.hpp"
+
 #include <chrono>
 
 #include "Renderer.hpp"
 #include "Math.inl"
+
+void DrawglTFNode(BB::Model::Node& a_node, BB::float4x4 a_transform)
+{
+	if (a_node.mesh_handle != BB::BB_INVALID_HANDLE)
+		BB::DrawMesh(a_node.mesh_handle, a_transform);
+	for (size_t i = 0; i < a_node.child_count; i++)
+	{
+		DrawglTFNode(a_node.childeren[i], a_transform * a_node.transform);
+	}
+}
 
 int main(int argc, char** argv)
 {
@@ -29,6 +41,7 @@ int main(int argc, char** argv)
 	StackAllocator_t main_allocator{ mbSize * 32 };
 	TransformPool transform_pool{ main_allocator, 32 };
 	const TransformHandle transform_test = transform_pool.CreateTransform(float3{ 0, -1, 1 });
+	const TransformHandle transform_gltf = transform_pool.CreateTransform(float3{ 0, 1, 1 }, float3{ 0, 0, 0 }, 0, float3{ 0.1f, 0.1f, 0.1f });
 
 	int window_width = 1280;
 	int window_height = 720;
@@ -68,12 +81,17 @@ int main(int argc, char** argv)
 		vertices[2] = { {0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 1.0f} };
 		vertices[3] = { {-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}, {1.0f, 1.0f, 1.0f} };
 
-		const uint32_t indices[] = { 0, 1, 2, 2, 3, 0 };
+		uint32_t indices[] = { 0, 1, 2, 2, 3, 0 };
 
 		CreateMeshInfo quad_create_info{};
 		quad_create_info.vertices = Slice(vertices, _countof(vertices));
 		quad_create_info.indices = Slice(indices, _countof(indices));
 		quad_mesh = CreateMesh(quad_create_info);
+	}
+	const Model* gltf_model;
+	BBStackAllocatorScope(main_allocator)
+	{
+		gltf_model = Asset::LoadglTFModel(main_allocator, "../resources/models/Duck.gltf");
 	}
 
 	InputEvent input_events[INPUT_EVENT_BUFFER_MAX];
@@ -147,8 +165,14 @@ int main(int argc, char** argv)
 			BB::SetView(camera.CalculateView());
 			StartFrame();
 
+
+
 			//draw stuff here!
 			DrawMesh(quad_mesh, transform_pool.GetTransform(transform_test).CreateMatrix());
+			for (size_t i = 0; i < gltf_model->root_node_count; i++)
+			{
+				DrawglTFNode(gltf_model->root_nodes[i], transform_pool.GetTransform(transform_gltf).CreateMatrix());
+			}
 
 			EndFrame();
 		}
