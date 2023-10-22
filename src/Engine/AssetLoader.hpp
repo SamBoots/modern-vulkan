@@ -43,12 +43,14 @@ namespace BB
 
 		Primitive* primitives;
 		uint32_t primitive_count;
+
+		AssetHandle asset_handle;
 	};
 
 	namespace Asset
 	{
 		char* FindOrCreateString(const char* a_string);
 
-		void LoadglTFModel(const char* a_Path);
+		const Model* LoadglTFModel(Allocator a_temp_allocator, const char* a_Path);
 	};
 }

@@ -27,14 +27,14 @@ const uint64_t StringHash(const char* a_string)
 	return hash;
 }
 
-enum class AssetType : uint32_t
+enum class ASSET_TYPE : uint32_t
 {
 	MODEL
 };
 
 struct AssetSlot
 {
-	AssetType type;
+	ASSET_TYPE type;
 	uint64_t hash;
 	const char* path;
 	union
@@ -50,22 +50,22 @@ struct AssetManager
 	OL_HashMap<uint64_t, AssetSlot> asset_map{ allocator, 64 };
 	OL_HashMap<uint64_t, char*> stringMap{ allocator, 128 };
 };
-static AssetManager s_AssetManager{};
+static AssetManager s_asset_manager{};
 
 using namespace BB;
 
 char* Asset::FindOrCreateString(const char* a_string)
 {
 	const uint64_t t_StringHash = StringHash(a_string);
-	char** t_StringPtr = s_AssetManager.stringMap.find(t_StringHash);
+	char** t_StringPtr = s_asset_manager.stringMap.find(t_StringHash);
 	if (t_StringPtr != nullptr)
 		return *t_StringPtr;
 
 	const uint32_t t_StringSize = static_cast<uint32_t>(strlen(a_string) + 1);
-	char* t_String = BBnewArr(s_AssetManager.allocator, t_StringSize, char);
+	char* t_String = BBnewArr(s_asset_manager.allocator, t_StringSize, char);
 	memcpy(t_String, a_string, t_StringSize);
 	t_String[t_StringSize - 1] = '\0';
-	s_AssetManager.stringMap.emplace(t_StringHash, t_String);
+	s_asset_manager.stringMap.emplace(t_StringHash, t_String);
 	return t_String;
 }
 
@@ -86,7 +86,7 @@ static uint32_t ChildNodeCount(const cgltf_node& a_node)
 	return count;
 }
 
-static void LoadglTFNode(const cgltf_node& a_node, Model& a_model, uint32_t& a_node_index, uint32_t& a_mesh_index, uint32_t& a_prim_index)
+static void LoadglTFNode(Allocator a_temp_allocator, const cgltf_node& a_node, Model& a_model, uint32_t& a_node_index, uint32_t& a_mesh_index, uint32_t& a_prim_index)
 {
 	Model::Node& mod_node = a_model.linear_nodes[a_node_index++];
 
@@ -123,7 +123,11 @@ static void LoadglTFNode(const cgltf_node& a_node, Model& a_model, uint32_t& a_n
 			}
 		}
 
-		uint32_t current_index = 0;
+		uint32_t* indices = BBnewArr(a_temp_allocator, index_count, uint32_t);
+		Vertex* vertices = BBnewArr(a_temp_allocator, vertex_count, Vertex);
+		uint32_t* index_offset = indices;
+		Vertex* vertex_offset = vertices;
+
 		for (size_t prim_index = 0; prim_index < mod_mesh.primitive_count; prim_index++)
 		{
 			const cgltf_primitive& prim = mesh.primitives[prim_index];
@@ -136,17 +140,19 @@ static void LoadglTFNode(const cgltf_node& a_node, Model& a_model, uint32_t& a_n
 				void* index_data = GetAccessorDataPtr(prim.indices);
 				if (prim.indices->component_type == cgltf_component_type_r_32u)
 				{
-					Memory::Copy(&a_indices[current_index], index_data, prim.indices->count);
-					current_index += prim.indices->count;
+					Memory::Copy(&index_offset, index_data, prim.indices->count);
+					index_offset += prim.indices->count;
 				}
 				else if (prim.indices->component_type == cgltf_component_type_r_16u)
+				{
 					for (size_t i = 0; i < prim.indices->count; i++)
-						a_indices[current_index++] = reinterpret_cast<uint16_t*>(index_data)[i];
+						indices[i] = reinterpret_cast<uint16_t*>(index_data)[i];
+					index_offset += prim.indices->count;
+				}
 				else
 					BB_ASSERT(false, "GLTF mesh has an index type that is not supported!");
 			}
 
-			Vertex* vertex_offset = a_vertices;
 			for (size_t attrib_index = 0; attrib_index < prim.attributes_count; attrib_index++)
 			{
 				const cgltf_attribute& attrib = prim.attributes[attrib_index];
@@ -163,7 +169,7 @@ static void LoadglTFNode(const cgltf_node& a_node, Model& a_model, uint32_t& a_n
 
 						data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride));
 						//increment the main vertices, jank.
-						++a_vertices;
+						++vertex_offset;
 					}
 					break;
 				case cgltf_attribute_type_normal:
@@ -188,6 +194,12 @@ static void LoadglTFNode(const cgltf_node& a_node, Model& a_model, uint32_t& a_n
 				}
 			}
 		}
+
+		CreateMeshInfo create_mesh;
+		create_mesh.vertices = Slice(vertices, vertex_count);
+		create_mesh.indices = Slice(indices, index_count);
+
+		mod_mesh.mesh_handle = CreateMesh(create_mesh);
 	}
 	else
 		mod_node.mesh_index = MODEL_NO_MESH;
@@ -198,19 +210,19 @@ static void LoadglTFNode(const cgltf_node& a_node, Model& a_model, uint32_t& a_n
 		mod_node.childeren = &a_model.linear_nodes[a_node_index]; //childeren are loaded linearly, i'm quite sure.
 		for (size_t i = 0; i < mod_node.child_count; i++)
 		{
-			LoadglTFNode(*a_node.children[i], a_model, a_node_index, a_mesh_index, a_prim_index);
+			LoadglTFNode(a_temp_allocator, *a_node.children[i], a_model, a_node_index, a_mesh_index, a_prim_index);
 		}
 	}
 }
 
-void Asset::LoadglTFModel(const char* a_Path)
+const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const char* a_path)
 {
 	cgltf_options gltf_option = {};
 	cgltf_data* gltf_data = { 0 };
 
-	BB_ASSERT(cgltf_parse_file(&gltf_option, a_Path, &gltf_data) == cgltf_result_success, "Failed to load glTF model, cgltf_parse_file.");
+	BB_ASSERT(cgltf_parse_file(&gltf_option, a_path, &gltf_data) == cgltf_result_success, "Failed to load glTF model, cgltf_parse_file.");
 
-	cgltf_load_buffers(&gltf_option, gltf_data, a_Path);
+	cgltf_load_buffers(&gltf_option, gltf_data, a_path);
 
 	BB_ASSERT(cgltf_validate(gltf_data) == cgltf_result_success, "GLTF model validation failed!");
 
@@ -232,14 +244,14 @@ void Asset::LoadglTFModel(const char* a_Path)
 	}
 
 	//optimize the memory space with one allocation for the entire model
-	Model* model = BBnew(s_AssetManager.allocator, Model);
+	Model* model = BBnew(s_asset_manager.allocator, Model);
 
 	model->mesh_count = gltf_data->meshes_count;
-	model->meshes = BBnewArr(s_AssetManager.allocator, model->mesh_count, Model::Mesh);
+	model->meshes = BBnewArr(s_asset_manager.allocator, model->mesh_count, Model::Mesh);
 	model->primitive_count = primitive_count;
-	model->primitives = BBnewArr(s_AssetManager.allocator, model->primitive_count, Model::Primitive);
+	model->primitives = BBnewArr(s_asset_manager.allocator, model->primitive_count, Model::Primitive);
 
-	model->linear_nodes = BBnewArr(s_AssetManager.allocator, linear_node_count, Model::Node);
+	model->linear_nodes = BBnewArr(s_asset_manager.allocator, linear_node_count, Model::Node);
 
 	//for now this is going to be the root node, which is 0.
 	//This is not accurate on all GLTF models
@@ -253,8 +265,20 @@ void Asset::LoadglTFModel(const char* a_Path)
 
 	for (size_t i = 0; i < gltf_data->scene->nodes_count; i++)
 	{
-		LoadglTFNode(*gltf_data->scene->nodes[i], *model, current_node, current_mesh, current_primitive);
+		LoadglTFNode(a_temp_allocator , *gltf_data->scene->nodes[i], *model, current_node, current_mesh, current_primitive);
 	}
 
 	cgltf_free(gltf_data);
+
+
+	AssetSlot asset;
+	asset.type = ASSET_TYPE::MODEL;
+	asset.path = FindOrCreateString(a_path);
+	asset.hash = StringHash(a_path);
+	asset.model = model;
+
+	s_asset_manager.asset_map.insert(asset.hash, asset);
+
+	model->asset_handle = asset.hash;
+	return model;
 }

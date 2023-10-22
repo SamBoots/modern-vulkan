@@ -17,23 +17,6 @@ struct RenderFence
 	RFence fence;
 };
 
-struct UploadBufferView
-{
-	friend class UploadBufferPool;
-	RBuffer upload_buffer_handle;	//8
-	void* view_mem_start;			//16
-	//I suppose we never make an upload buffer bigger then 2-4 gb? test for it on uploadbufferpool creation
-	uint32_t offset;				//20
-	uint32_t size;					//24
-	uint64_t fence_value;			//32
-	UploadBufferView* next;			//40
-
-	void MemoryCopy(void* a_src, const uint32_t a_byte_offset, const uint32_t a_byte_size)
-	{
-		memcpy(Pointer::Add(view_mem_start, a_byte_offset), a_src, a_byte_size);
-	}
-};
-
 /// <summary>
 /// Handles one large upload buffer and handles it as if it's seperate buffers by handling chunks.
 /// </summary>
