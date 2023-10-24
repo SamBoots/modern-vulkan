@@ -58,43 +58,53 @@ const BOUNDRY_ERROR Memory_CheckBoundries(void* a_Front, void* a_Back)
 	return BOUNDRY_ERROR::NONE;
 }
 
-void* AllocDebug(BB_MEMORY_DEBUG BaseAllocator* a_allocator, const size_t a_size, void* a_AllocatedPtr)
+void* AllocDebug(BB_MEMORY_DEBUG BaseAllocator* a_allocator, const size_t a_size, void* a_allocated_ptr)
 {
 	//Get the space for the allocation log, but keep enough space for the boundry check.
-	BaseAllocator::AllocationLog* t_AllocLog = reinterpret_cast<BaseAllocator::AllocationLog*>(
-		Pointer::Add(a_AllocatedPtr, MEMORY_BOUNDRY_FRONT));
+	BaseAllocator::AllocationLog* alloc_log = reinterpret_cast<BaseAllocator::AllocationLog*>(
+		Pointer::Add(a_allocated_ptr, MEMORY_BOUNDRY_FRONT));
 
-	t_AllocLog->prev = a_allocator->frontLog;
-	t_AllocLog->front = a_AllocatedPtr;
-	t_AllocLog->back = Memory_AddBoundries(a_AllocatedPtr, a_size);
-	t_AllocLog->allocSize = static_cast<uint32_t>(a_size);
-	t_AllocLog->file = a_File;
-	t_AllocLog->line = a_Line;
-	t_AllocLog->tagName = "";
+	alloc_log->prev = a_allocator->frontLog;
+	alloc_log->front = a_allocated_ptr;
+	alloc_log->back = Memory_AddBoundries(a_allocated_ptr, a_size);
+	alloc_log->allocSize = static_cast<uint32_t>(a_size);
+	alloc_log->file = a_file;
+	alloc_log->line = a_line;
+	alloc_log->is_array = a_is_array;
+	alloc_log->tagName = "";
 	//set the new front log.
-	a_allocator->frontLog = t_AllocLog;
-	return Pointer::Add(a_AllocatedPtr, MEMORY_BOUNDRY_FRONT + sizeof(BaseAllocator::AllocationLog));
+	a_allocator->frontLog = alloc_log;
+	return Pointer::Add(a_allocated_ptr, MEMORY_BOUNDRY_FRONT + sizeof(BaseAllocator::AllocationLog));
 }
 
-void* FreeDebug(BaseAllocator* a_allocator, void* a_ptr)
+void* FreeDebug(BaseAllocator* a_allocator, bool a_is_array, void* a_ptr)
 {
-	const BaseAllocator::AllocationLog* t_AllocLog = reinterpret_cast<BaseAllocator::AllocationLog*>(
+	const BaseAllocator::AllocationLog* alloc_log = reinterpret_cast<BaseAllocator::AllocationLog*>(
 		Pointer::Subtract(a_ptr, sizeof(BaseAllocator::AllocationLog)));
 
-	const BOUNDRY_ERROR t_HasError = Memory_CheckBoundries(t_AllocLog->front, t_AllocLog->back);
+	if (alloc_log->is_array == true)
+	{
+		BB_ASSERT(a_is_array == true, "Called BBFree instead of BBFreeArr on memory that was allocated as an array");
+	}
+	else
+	{
+		BB_ASSERT(a_is_array == false, "Called BBFreeArr instead of BBFree, this may indicate wrong use of allocation functions");
+	}
+	
+	const BOUNDRY_ERROR t_HasError = Memory_CheckBoundries(alloc_log->front, alloc_log->back);
 	switch (t_HasError)
 	{
 	case BOUNDRY_ERROR::FRONT:
 		//We call it explictally since we can avoid the macro and pull in the file + name directly to Log_Error. 
-		Logger::Log_Assert(t_AllocLog->file, t_AllocLog->line, "ss",
-			t_AllocLog->tagName,
-			"Memory Boundry overwritten at the front of memory block.");
+		Logger::Log_Assert(alloc_log->file, alloc_log->line, "ss",
+			alloc_log->tagName,
+			"Memory Boundry overwritten at the front of memory block");
 		break;
 	case BOUNDRY_ERROR::BACK:
 		//We call it explictally since we can avoid the macro and pull in the file + name directly to Log_Error. 
-		Logger::Log_Assert(t_AllocLog->file, t_AllocLog->line, "ss",
-			t_AllocLog->tagName,
-			"Memory Boundry overwritten at the back of memory block.");
+		Logger::Log_Assert(alloc_log->file, alloc_log->line, "ss",
+			alloc_log->tagName,
+			"Memory Boundry overwritten at the back of memory block");
 		break;
 	}
 
@@ -102,8 +112,8 @@ void* FreeDebug(BaseAllocator* a_allocator, void* a_ptr)
 
 	BaseAllocator::AllocationLog* t_FrontLog = a_allocator->frontLog;
 
-	if (t_AllocLog != a_allocator->frontLog)
-		DeleteEntry(t_FrontLog, t_AllocLog);
+	if (alloc_log != a_allocator->frontLog)
+		DeleteEntry(t_FrontLog, alloc_log);
 	else
 		a_allocator->frontLog = t_FrontLog->prev;
 
@@ -164,7 +174,7 @@ void* LinearRealloc(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, const size
 #endif //_DEBUG
 	void* t_AllocatedPtr = t_Linear->Alloc(a_size, a_Alignment);
 #ifdef _DEBUG
-	t_AllocatedPtr = AllocDebug(a_File, a_Line, t_Linear, a_size, t_AllocatedPtr);
+	t_AllocatedPtr = AllocDebug(a_file, a_line, a_is_array, t_Linear, a_size, t_AllocatedPtr);
 #endif //_DEBUG
 	return t_AllocatedPtr;
 };
@@ -350,24 +360,24 @@ void StackAllocator::SetMarker(const StackMarker a_marker)
 
 void* FreelistRealloc(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, const size_t a_Alignment, void* a_ptr)
 {
-	FreelistAllocator* t_Freelist = reinterpret_cast<FreelistAllocator*>(a_allocator);
+	FreelistAllocator* freelist = reinterpret_cast<FreelistAllocator*>(a_allocator);
 	if (a_size > 0)
 	{
 #ifdef _DEBUG
 		a_size += MEMORY_BOUNDRY_FRONT + MEMORY_BOUNDRY_BACK + sizeof(BaseAllocator::AllocationLog);
 #endif //_DEBUG
-		void* t_AllocatedPtr = t_Freelist->Alloc(a_size, a_Alignment);
+		void* allocated_ptr = freelist->Alloc(a_size, a_Alignment);
 #ifdef _DEBUG
-		t_AllocatedPtr = AllocDebug(a_File, a_Line, t_Freelist, a_size, t_AllocatedPtr);
+		allocated_ptr = AllocDebug(a_file, a_line, a_is_array, freelist, a_size, allocated_ptr);
 #endif //_DEBUG
-		return t_AllocatedPtr;
+		return allocated_ptr;
 	}
 	else
 	{
 #ifdef _DEBUG
-		a_ptr = FreeDebug(t_Freelist, a_ptr);
+		a_ptr = FreeDebug(freelist, a_is_array, a_ptr);
 #endif //_DEBUG
-		t_Freelist->Free(a_ptr);
+		freelist->Free(a_ptr);
 		return nullptr;
 	}
 };

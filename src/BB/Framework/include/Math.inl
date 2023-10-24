@@ -184,10 +184,10 @@ namespace BB
 	static inline float4x4 operator*(const float4x4 a_lhs, const float4x4 a_rhs)
 	{
 		float4x4 mat;
-		mat.r0 = a_lhs.r0 * a_rhs.r0.x + a_lhs.r1 * a_rhs.r0.y + a_lhs.r2 * a_rhs.r0.z + a_lhs.r3 * a_rhs.r0.w;
-		mat.r1 = a_lhs.r0 * a_rhs.r1.x + a_lhs.r1 * a_rhs.r1.y + a_lhs.r2 * a_rhs.r1.z + a_lhs.r3 * a_rhs.r1.w;
-		mat.r2 = a_lhs.r0 * a_rhs.r2.x + a_lhs.r1 * a_rhs.r2.y + a_lhs.r2 * a_rhs.r2.z + a_lhs.r3 * a_rhs.r2.w;
-		mat.r3 = a_lhs.r0 * a_rhs.r3.x + a_lhs.r1 * a_rhs.r3.y + a_lhs.r2 * a_rhs.r3.z + a_lhs.r3 * a_rhs.r3.w;
+		mat.r0 = a_lhs.r0 * a_rhs.r0;
+		mat.r1 = a_lhs.r1 * a_rhs.r1;
+		mat.r2 = a_lhs.r2 * a_rhs.r2;
+		mat.r3 = a_lhs.r3 * a_rhs.r3;
 		return mat;
 	}
 

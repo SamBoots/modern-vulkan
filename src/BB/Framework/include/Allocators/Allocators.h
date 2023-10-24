@@ -35,6 +35,7 @@ namespace BB
 				//maybe not safe due to possibly allocating more then 4 gb.
 				uint32_t allocSize; //40 bytes
 				const char* tagName; //48 bytes
+				bool is_array; //52 bytes
 			}* frontLog = nullptr;
 			const char* name;
 

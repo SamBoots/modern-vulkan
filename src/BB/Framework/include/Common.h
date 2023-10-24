@@ -83,15 +83,23 @@ namespace BB
 
 
 #ifdef _DEBUG
-#define BB_MEMORY_DEBUG const char* a_File, int a_Line,
-#define BB_MEMORY_DEBUG_ARGS __FILE__, __LINE__,
-#define BB_MEMORY_DEBUG_SEND a_File, a_Line,
-#define BB_MEMORY_DEBUG_FREE nullptr, 0,
+#define BB_MEMORY_DEBUG const char* a_file, int a_line, bool a_is_array,
+#define BB_MEMORY_DEBUG_ARGS __FILE__, __LINE__, false,
+#define BB_MEMORY_DEBUG_SEND a_file, a_line, false,
+#define BB_MEMORY_DEBUG_FREE nullptr, 0, false,
+
+#define BB_MEMORY_DEBUG_ARGS_ARR __FILE__, __LINE__, true,
+#define BB_MEMORY_DEBUG_SEND_ARR a_file, a_line, true,
+#define BB_MEMORY_DEBUG_FREE_ARR nullptr, 0, true,
 #else //No debug
 #define BB_MEMORY_DEBUG 
 #define BB_MEMORY_DEBUG_ARGS
 #define BB_MEMORY_DEBUG_SEND
 #define BB_MEMORY_DEBUG_FREE
+
+#define BB_MEMORY_DEBUG_ARGS_ARR
+#define BB_MEMORY_DEBUG_SEND_ARR
+#define BB_MEMORY_DEBUG_FREE_ARR
 #endif //_DEBUG
 	typedef void* (*AllocateFunc)(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, const size_t a_Alignment, void* a_OldPtr);
 	struct Allocator

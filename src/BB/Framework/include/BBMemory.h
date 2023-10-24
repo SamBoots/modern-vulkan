@@ -24,7 +24,7 @@ namespace BB
 
 #define BBalloc(a_allocator, a_size) BB::BBalloc_f(BB_MEMORY_DEBUG_ARGS a_allocator, a_size, 1)
 #define BBnew(a_allocator, a_type) new (BB::BBalloc_f(BB_MEMORY_DEBUG_ARGS a_allocator, sizeof(a_type), __alignof(a_type))) a_type
-#define BBnewArr(a_allocator, a_length, a_type) (BB::BBnewArr_f<a_type>(BB_MEMORY_DEBUG_ARGS a_allocator, a_length))
+#define BBnewArr(a_allocator, a_length, a_type) (BB::BBnewArr_f<a_type>(BB_MEMORY_DEBUG_ARGS_ARR a_allocator, a_length))
 
 #define BBfree(a_allocator, a_ptr) BBfree_f(a_allocator, a_ptr)
 #define BBfreeArr(a_allocator, a_ptr) BBfreeArr_f(a_allocator, a_ptr)
@@ -49,7 +49,7 @@ namespace BB
 
 		if constexpr (std::is_trivially_constructible_v<T> && std::is_trivially_destructible_v<T>)
 		{
-			return reinterpret_cast<T*>(a_allocator.func(BB_MEMORY_DEBUG_SEND a_allocator.allocator, sizeof(T) * a_length, __alignof(T), nullptr));
+			return reinterpret_cast<T*>(a_allocator.func(BB_MEMORY_DEBUG_SEND_ARR a_allocator.allocator, sizeof(T) * a_length, __alignof(T), nullptr));
 		}
 		else
 		{
@@ -61,7 +61,7 @@ namespace BB
 				header_size = sizeof(size_t) / sizeof(T);
 
 			//Allocate the array, but shift it by sizeof(size_t) bytes forward to allow the size of the header to be put in as well.
-			T* ptr = (reinterpret_cast<T*>(a_allocator.func(BB_MEMORY_DEBUG_SEND a_allocator.allocator, sizeof(T) * (a_length + header_size), __alignof(T), nullptr))) + header_size;
+			T* ptr = (reinterpret_cast<T*>(a_allocator.func(BB_MEMORY_DEBUG_SEND_ARR a_allocator.allocator, sizeof(T) * (a_length + header_size), __alignof(T), nullptr))) + header_size;
 
 			//Store the size of the array inside the first element of the pointer.
 			*(reinterpret_cast<size_t*>(ptr) - 1) = a_length;
@@ -95,7 +95,7 @@ namespace BB
 
 		if constexpr (std::is_trivially_constructible_v<T> || std::is_trivially_destructible_v<T>)
 		{
-			a_allocator.func(BB_MEMORY_DEBUG_FREE a_allocator.allocator, 0, 0, a_ptr);
+			a_allocator.func(BB_MEMORY_DEBUG_FREE_ARR a_allocator.allocator, 0, 0, a_ptr);
 		}
 		else
 		{
@@ -111,7 +111,7 @@ namespace BB
 			else
 				header_size = sizeof(size_t) / sizeof(T);
 
-			a_allocator.func(BB_MEMORY_DEBUG_FREE a_allocator.allocator, 0, 0, a_ptr - header_size);
+			a_allocator.func(BB_MEMORY_DEBUG_FREE_ARR a_allocator.allocator, 0, 0, a_ptr - header_size);
 		}
 	}
 
