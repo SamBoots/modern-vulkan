@@ -15,13 +15,15 @@
 #include "Renderer.hpp"
 #include "Math.inl"
 
-void DrawglTFNode(BB::Model::Node& a_node, BB::float4x4 a_transform)
+void DrawglTFNode(BB::Model::Node& a_node, const BB::float4x4& a_transform)
 {
+	BB::float4x4 local_transform = a_transform * a_node.transform;
+
 	if (a_node.mesh_handle != BB::BB_INVALID_HANDLE)
-		BB::DrawMesh(a_node.mesh_handle, a_transform);
+		BB::DrawMesh(a_node.mesh_handle, local_transform);
 	for (size_t i = 0; i < a_node.child_count; i++)
 	{
-		DrawglTFNode(a_node.childeren[i], a_transform * a_node.transform);
+		DrawglTFNode(a_node.childeren[i], local_transform);
 	}
 }
 
@@ -41,7 +43,7 @@ int main(int argc, char** argv)
 	StackAllocator_t main_allocator{ mbSize * 32 };
 	TransformPool transform_pool{ main_allocator, 32 };
 	const TransformHandle transform_test = transform_pool.CreateTransform(float3{ 0, -1, 1 });
-	const TransformHandle transform_gltf = transform_pool.CreateTransform(float3{ 0, 0, 1 });//, float3{ 0, 0, 0 }, 0, float3{ 0.1f, 0.1f, 0.1f });
+	const TransformHandle transform_gltf = transform_pool.CreateTransform(float3{ 0, 0, 1 });
 
 	int window_width = 1280;
 	int window_height = 720;
@@ -165,13 +167,12 @@ int main(int argc, char** argv)
 			BB::SetView(camera.CalculateView());
 			StartFrame();
 
-
-
 			//draw stuff here!
 			DrawMesh(quad_mesh, transform_pool.GetTransform(transform_test).CreateMatrix());
 			for (size_t i = 0; i < gltf_model->root_node_count; i++)
 			{
-				DrawglTFNode(gltf_model->root_nodes[i], transform_pool.GetTransform(transform_gltf).CreateMatrix());
+				const float4x4 root_matrix = transform_pool.GetTransform(transform_gltf).CreateMatrix();
+				DrawglTFNode(gltf_model->root_nodes[i], root_matrix);
 			}
 
 			EndFrame();

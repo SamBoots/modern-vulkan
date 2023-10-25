@@ -394,7 +394,6 @@ private:
 
 struct Mesh
 {
-	DescriptorAllocation mesh_descriptor_allocation;
 	BufferView vertex_buffer;
 	BufferView index_buffer;
 };
@@ -776,14 +775,16 @@ void BB::EndFrame()
 	const size_t buffer_offsets[]{ s_render_inst->vertex_buffer.descriptor_allocation.offset, cur_frame.desc_alloc.offset };
 	Vulkan::SetDescriptorBufferOffset(current_command_list, pipeline_layout, 0, _countof(buffer_offsets), buffer_indices, buffer_offsets);
 
+#ifndef _USE_G_PIPELINE
+	const SHADER_STAGE shader_stages[]{ SHADER_STAGE::VERTEX, SHADER_STAGE::FRAGMENT_PIXEL };
+	const ShaderObject shader_objects[]{ vertex_object, fragment_object };
+	Vulkan::BindShaders(current_command_list, 2, shader_stages, shader_objects);
+#endif //_USE_G_PIPELINE
+
 	for (uint32_t i = 0; i < s_render_inst->draw_list_count; i++)
 	{
 		const Mesh& mesh = s_render_inst->mesh_map.find(s_render_inst->draw_list_data.mesh[i].handle);
-#ifndef _USE_G_PIPELINE
-		const SHADER_STAGE shader_stages[]{ SHADER_STAGE::VERTEX, SHADER_STAGE::FRAGMENT_PIXEL };
-		const ShaderObject shader_objects[]{ vertex_object, fragment_object };
-		Vulkan::BindShaders(current_command_list, 2, shader_stages, shader_objects);
-#endif //_USE_G_PIPELINE
+
 		ShaderIndices shader_indices;
 		shader_indices.transform_index = i;
 		shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh.vertex_buffer.offset);

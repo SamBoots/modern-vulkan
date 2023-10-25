@@ -1,7 +1,7 @@
 #pragma once
 #include <intrin.h>
 
-#define BB_USE_SIMD
+//#define BB_USE_SIMD
 
 namespace BB
 {

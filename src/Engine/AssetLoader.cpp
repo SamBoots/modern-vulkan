@@ -177,6 +177,11 @@ static void LoadglTFNode(Allocator a_temp_allocator, const cgltf_node& a_node, M
 			}
 		}
 
+		for (size_t i = 0; i < vertex_count; i++)
+		{
+			vertices[i].color = { 1.f, 1.f, 1.f };
+		}
+
 		CreateMeshInfo create_mesh;
 		create_mesh.vertices = Slice(vertices, vertex_count);
 		create_mesh.indices = Slice(indices, index_count);
