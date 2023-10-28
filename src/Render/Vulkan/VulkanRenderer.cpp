@@ -1126,7 +1126,7 @@ const RDepthBuffer Vulkan::CreateDepthBuffer(const RenderDepthCreateInfo& a_crea
 	image_create_info.extent.height = a_create_info.height;
 	image_create_info.extent.depth = a_create_info.depth;
 	image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-
+	image_create_info.imageType = VK_IMAGE_TYPE_2D;
 	image_create_info.format = DepthFormat(a_create_info.depth_format);
 	image_create_info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 	image_create_info.mipLevels = 1;
@@ -1140,7 +1140,10 @@ const RDepthBuffer Vulkan::CreateDepthBuffer(const RenderDepthCreateInfo& a_crea
 	VkImageViewCreateInfo view_info{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
 	view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
 	view_info.format = image_create_info.format;
-	view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+	if (a_create_info.depth_format == DEPTH_FORMAT::D32_SFLOAT)
+		view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+	else
+		view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
 	view_info.subresourceRange.baseMipLevel = 0;
 	view_info.subresourceRange.levelCount = image_create_info.mipLevels;
 	view_info.subresourceRange.baseArrayLayer = 0;
@@ -1152,6 +1155,7 @@ const RDepthBuffer Vulkan::CreateDepthBuffer(const RenderDepthCreateInfo& a_crea
 	VulkanImage image;
 
 	VKASSERT(vmaCreateImage(s_vulkan_inst->vma, &image_create_info, &alloc_info, &image.image, &image.allocation, nullptr), "Vulkan: Failed to create image");
+	view_info.image = image.image;
 	VKASSERT(vkCreateImageView(s_vulkan_inst->device, &view_info, nullptr, &image.view), "Vulkan: Failed to create image view.");
 
 	SetDebugName(a_create_info.name, image.image, VK_OBJECT_TYPE_IMAGE);
@@ -1360,7 +1364,6 @@ RPipeline Vulkan::CreatePipeline(Allocator a_temp_allocator, const CreatePipelin
 	pipe_shader_info[1].pName = a_info.fragment.shader_entry;
 	pipe_shader_info[1].pSpecializationInfo = nullptr;
 
-
 	VkPipelineRasterizationStateCreateInfo pipe_raster{ VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO };
 	pipe_raster.depthClampEnable = VK_FALSE;
 	pipe_raster.depthBiasEnable = VK_FALSE;
@@ -1422,9 +1425,19 @@ RPipeline Vulkan::CreatePipeline(Allocator a_temp_allocator, const CreatePipelin
 	VkPipelineRenderingCreateInfo pipeline_dynamic_rendering{ VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO }; //attachment for dynamic rendering.
 	pipeline_dynamic_rendering.colorAttachmentCount = 1;
 	pipeline_dynamic_rendering.pColorAttachmentFormats = &s_vulkan_swapchain->image_format;
+	pipeline_dynamic_rendering.depthAttachmentFormat = DepthFormat(a_info.depth_format);
+	pipeline_dynamic_rendering.stencilAttachmentFormat = DepthFormat(a_info.depth_format);
 	pipeline_dynamic_rendering.pNext = nullptr;
 
 	VkPipelineDepthStencilStateCreateInfo pipe_stencil{ VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO };
+	pipe_stencil.depthTestEnable = VK_TRUE;
+	pipe_stencil.depthWriteEnable = VK_TRUE;
+	pipe_stencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+	pipe_stencil.back.compareMask = VK_COMPARE_OP_ALWAYS;
+	pipe_stencil.depthBoundsTestEnable = VK_FALSE;
+	pipe_stencil.minDepthBounds = 0.0f;
+	pipe_stencil.maxDepthBounds = 0.0f;
+	pipe_stencil.stencilTestEnable = VK_FALSE;
 
 	VkGraphicsPipelineCreateInfo pipeline_info{ VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
 	pipeline_info.pStages = pipe_shader_info;
@@ -1613,7 +1626,7 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 
 	//include depth stencil later.
-	VkImageMemoryBarrier2 image_barriers[1]{};
+	VkImageMemoryBarrier2 image_barriers[2]{};
 	image_barriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 	image_barriers[0].pNext = nullptr;
 	image_barriers[0].dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
@@ -1628,11 +1641,50 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 	image_barriers[0].subresourceRange.baseMipLevel = 0;
 	image_barriers[0].subresourceRange.levelCount = 1;
 
-	VkDependencyInfo barrier_info{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
-	barrier_info.pImageMemoryBarriers = image_barriers;
-	barrier_info.imageMemoryBarrierCount = 1;
+	VkRenderingInfo rendering_info{ VK_STRUCTURE_TYPE_RENDERING_INFO };
+	VkRenderingAttachmentInfo depth_attachment;
 
-	vkCmdPipelineBarrier2(cmd_buffer, &barrier_info);
+	//If we handle the depth stencil we do that here. 
+	if (a_render_info.depth_buffer != BB_INVALID_HANDLE)
+	{
+		const VulkanImage& depth_buffer = s_vulkan_inst->images.find(a_render_info.depth_buffer.handle);
+
+		image_barriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		image_barriers[1].dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		image_barriers[1].srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+		image_barriers[1].dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+		image_barriers[1].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		image_barriers[1].newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		image_barriers[1].image = depth_buffer.image;
+		image_barriers[1].subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+		image_barriers[1].subresourceRange.baseArrayLayer = 0;
+		image_barriers[1].subresourceRange.layerCount = 1;
+		image_barriers[1].subresourceRange.baseMipLevel = 0;
+		image_barriers[1].subresourceRange.levelCount = 1;
+
+		VkDependencyInfo barrier_info{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+		barrier_info.pImageMemoryBarriers = image_barriers;
+		barrier_info.imageMemoryBarrierCount = 2;
+
+		vkCmdPipelineBarrier2(cmd_buffer, &barrier_info);
+
+		depth_attachment = { VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
+		depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		depth_attachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		depth_attachment.imageView = depth_buffer.view;
+		depth_attachment.clearValue.depthStencil = { 1.0f, 0 };
+		rendering_info.pDepthAttachment = &depth_attachment;
+		rendering_info.pStencilAttachment = &depth_attachment;
+	}
+	else
+	{
+		VkDependencyInfo barrier_info{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+		barrier_info.pImageMemoryBarriers = image_barriers;
+		barrier_info.imageMemoryBarrierCount = 1;
+
+		vkCmdPipelineBarrier2(cmd_buffer, &barrier_info);
+	}
 
 	VkRenderingAttachmentInfo rendering_attachment{ VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
 	if (a_render_info.load_color)
@@ -1657,7 +1709,6 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 	scissor.extent.width = a_render_info.viewport_width;
 	scissor.extent.height = a_render_info.viewport_height;
 
-	VkRenderingInfo rendering_info{ VK_STRUCTURE_TYPE_RENDERING_INFO };
 	rendering_info.renderArea = scissor;
 	rendering_info.layerCount = 1;
 	rendering_info.pColorAttachments = &rendering_attachment;
@@ -1747,7 +1798,7 @@ void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stag
 	vkCmdSetRasterizerDiscardEnable(cmd_buffer, VK_FALSE);
 
 	vkCmdSetCullMode(cmd_buffer, VK_CULL_MODE_NONE);
-	vkCmdSetFrontFace(cmd_buffer, VK_FRONT_FACE_COUNTER_CLOCKWISE);
+	vkCmdSetFrontFace(cmd_buffer, VK_FRONT_FACE_CLOCKWISE);
 	vkCmdSetPrimitiveTopology(cmd_buffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	s_vulkan_inst->pfn.CmdSetPolygonModeEXT(cmd_buffer, VK_POLYGON_MODE_FILL);
 	s_vulkan_inst->pfn.CmdSetRasterizationSamplesEXT(cmd_buffer, VK_SAMPLE_COUNT_1_BIT);
@@ -1762,10 +1813,10 @@ void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stag
 
 		VkColorBlendEquationEXT color_blend_equation{};
 		color_blend_equation.colorBlendOp = VK_BLEND_OP_ADD;
-		color_blend_equation.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;
-		color_blend_equation.dstColorBlendFactor = VK_BLEND_FACTOR_DST_COLOR;
+		color_blend_equation.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+		color_blend_equation.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 		color_blend_equation.alphaBlendOp = VK_BLEND_OP_ADD;
-		color_blend_equation.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+		color_blend_equation.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
 		color_blend_equation.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 		//color thing.
 		s_vulkan_inst->pfn.CmdSetColorBlendEquationEXT(cmd_buffer, 0, 1, &color_blend_equation);
@@ -1776,7 +1827,7 @@ void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stag
 	s_vulkan_inst->pfn.CmdSetVertexInputEXT(cmd_buffer, 0, nullptr, 0, nullptr); 
 	vkCmdSetPrimitiveRestartEnable(cmd_buffer, VK_FALSE);
 
-	if (0) //DEPTH OP
+	if (1) //DEPTH OP
 	{
 		vkCmdSetDepthBiasEnable(cmd_buffer, VK_TRUE);
 		vkCmdSetDepthTestEnable(cmd_buffer, VK_TRUE);

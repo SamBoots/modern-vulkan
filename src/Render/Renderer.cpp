@@ -476,6 +476,7 @@ ShaderObject fragment_object;
 RDescriptorLayout global_descriptor_layout;
 RDescriptorLayout frame_descriptor_layout;
 RPipelineLayout pipeline_layout;
+RDepthBuffer depth_buffer;
 
 BufferView AllocateFromVertexBuffer(const size_t a_size_in_bytes)
 {
@@ -603,11 +604,22 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		pipe_info.fragment.shader_code_size = shader_buffer.size;
 		pipe_info.fragment.shader_code = shader_buffer.data;
 		pipe_info.fragment.shader_entry = "FragmentMain";
+
+		pipe_info.depth_format = DEPTH_FORMAT::D24_UNORM_S8_UINT;
 		test_pipeline = Vulkan::CreatePipeline(a_stack_allocator, pipe_info);
 
 		ReleaseShaderCode(vertex_shader);
 		ReleaseShaderCode(fragment_shader);
 	}
+
+	RenderDepthCreateInfo depth_create_info;
+	depth_create_info.name = "stamdard depth buffer";
+	depth_create_info.width = a_render_create_info.swapchain_width;
+	depth_create_info.height = a_render_create_info.swapchain_height;
+	depth_create_info.depth = 1;
+	depth_create_info.depth_format = DEPTH_FORMAT::D24_UNORM_S8_UINT;
+
+	depth_buffer = Vulkan::CreateDepthBuffer(depth_create_info);
 
 	{
 		BufferCreateInfo vertex_buffer;
@@ -638,7 +650,6 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		vertex_descriptor_info.data = Slice(&vertex_descriptor_write, 1);
 
 		Vulkan::WriteDescriptors(vertex_descriptor_info);
-
 	}
 	{
 		BufferCreateInfo index_buffer;
@@ -762,13 +773,16 @@ void BB::EndFrame()
 	start_rendering_info.viewport_height = s_render_inst->swapchain_height;
 	start_rendering_info.initial_layout = IMAGE_LAYOUT::UNDEFINED;
 	start_rendering_info.final_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+	start_rendering_info.depth_buffer = depth_buffer;
 	start_rendering_info.load_color = false;
 	start_rendering_info.store_color = true;
 	start_rendering_info.clear_color_rgba = float4{ 0.f, 0.f, 0.f, 1.f };
 	Vulkan::StartRendering(current_command_list, start_rendering_info, s_render_inst->backbuffer_pos);
 
+//#define _USE_G_PIPELINE
+
 #ifdef _USE_G_PIPELINE
-	Vulkan::BindPipeline(current_command_list.api_cmd_list, test_pipeline);
+	Vulkan::BindPipeline(current_command_list, test_pipeline);
 #endif //_USE_G_PIPELINE
 	Vulkan::BindIndexBuffer(current_command_list, s_render_inst->index_buffer.buffer, 0);
 	const uint32_t buffer_indices[] = { 0, 0 };

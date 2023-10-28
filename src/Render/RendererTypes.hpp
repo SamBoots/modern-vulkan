@@ -161,7 +161,7 @@ namespace BB
 		IMAGE_LAYOUT initial_layout;
 		IMAGE_LAYOUT final_layout;
 
-		//RImageHandle depthStencil{};
+		RDepthBuffer depth_buffer{};
 
 		float4 clear_color_rgba;
 	};
@@ -188,6 +188,8 @@ namespace BB
 			const void* shader_code;
 			const char* shader_entry;
 		};
+
+		DEPTH_FORMAT depth_format;
 
 		ShaderCode vertex;
 		ShaderCode fragment;
