@@ -214,7 +214,7 @@ class RenderQueue
 {
 public:
 
-	RenderQueue(Allocator a_system_allocator, const RENDER_QUEUE_TYPE a_queue_type, const char* a_name, const uint32_t a_command_pool_count, const uint32_t a_command_lists_per_pool)
+	RenderQueue(Allocator a_system_allocator, const QUEUE_TYPE a_queue_type, const char* a_name, const uint32_t a_command_pool_count, const uint32_t a_command_lists_per_pool)
 		:	m_pool_count(a_command_pool_count)
 	{
 		m_queue_type = a_queue_type;
@@ -273,7 +273,7 @@ public:
 
 	void ExecutePresentCommands(RCommandList* a_lists, const uint32_t a_list_count, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const uint32_t a_wait_count, const uint32_t a_backbuffer_index)
 	{
-		BB_ASSERT(m_queue_type == RENDER_QUEUE_TYPE::GRAPHICS, "calling a present commands on a non-graphics command queue is not valid");
+		BB_ASSERT(m_queue_type == QUEUE_TYPE::GRAPHICS, "calling a present commands on a non-graphics command queue is not valid");
 		
 		const uint32_t signal_fence_count = 1 + a_signal_count;
 		RFence* signal_fences = BBstackAlloc(signal_fence_count, RFence);
@@ -301,7 +301,7 @@ public:
 
 	void ExecutePresentCommands(RCommandList* a_lists, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const uint32_t a_wait_count, const uint32_t a_backbuffer_index)
 	{
-		BB_ASSERT(m_queue_type == RENDER_QUEUE_TYPE::GRAPHICS, "calling a present commands on a non-graphics command queue is not valid");
+		BB_ASSERT(m_queue_type == QUEUE_TYPE::GRAPHICS, "calling a present commands on a non-graphics command queue is not valid");
 		
 		const uint32_t signal_fence_count = 1 + a_signal_count;
 		RFence* signal_fences = BBstackAlloc(signal_fence_count, RFence);
@@ -380,7 +380,7 @@ public:
 	uint64_t GetLastCompletedValue() const { return m_fence.last_complete_value; }
 
 private:
-	RENDER_QUEUE_TYPE m_queue_type; //4
+	QUEUE_TYPE m_queue_type; //4
 	BBRWLock m_lock; //12
 	const uint32_t m_pool_count; //16
 	CommandPool* m_pools; //24
@@ -410,7 +410,7 @@ constexpr uint32_t UPLOAD_BUFFER_POOL_COUNT = 8;
 struct RenderInterface_inst
 {
 	RenderInterface_inst(Allocator a_system_allocator)
-		: graphics_queue(a_system_allocator, RENDER_QUEUE_TYPE::GRAPHICS, "graphics queue", 8, 8),
+		: graphics_queue(a_system_allocator, QUEUE_TYPE::GRAPHICS, "graphics queue", 8, 8),
 		  upload_buffers(a_system_allocator, UPLOAD_BUFFER_POOL_SIZE, UPLOAD_BUFFER_POOL_COUNT)
 	{}
 

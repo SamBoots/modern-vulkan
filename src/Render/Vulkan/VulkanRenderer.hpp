@@ -11,11 +11,15 @@ namespace BB
 
 		bool CreateSwapchain(StackAllocator_t& a_stack_allocator, const WindowHandle a_window_handle, const uint32_t a_width, const uint32_t a_height, uint32_t& a_backbuffer_count);
 
-		void CreateCommandPool(const RENDER_QUEUE_TYPE a_queue_type, const uint32_t a_command_list_count, RCommandPool& a_pool, RCommandList* a_plists);
+		void CreateCommandPool(const QUEUE_TYPE a_queue_type, const uint32_t a_command_list_count, RCommandPool& a_pool, RCommandList* a_plists);
 		void FreeCommandPool(const RCommandPool a_pool);
 
 		const RBuffer CreateBuffer(const BufferCreateInfo& a_create_info);
 		void FreeBuffer(const RBuffer a_buffer);
+
+		//image here...
+		const RDepthBuffer CreateDepthBuffer(const RenderDepthCreateInfo& a_create_info);
+		void FreeDepthBuffer(const RDepthBuffer a_depth_buffer);
 
 		RDescriptorLayout CreateDescriptorLayout(Allocator a_temp_allocator, Slice<DescriptorBindingInfo> a_bindings);
 		DescriptorAllocation AllocateDescriptor(const RDescriptorLayout a_descriptor);
@@ -64,6 +68,6 @@ namespace BB
 		void WaitFences(const RFence* a_fences, const uint64_t* a_fence_values, const uint32_t a_fence_count);
 		uint64_t GetCurrentFenceValue(const RFence a_fence);
 
-		RQueue GetQueue(const RENDER_QUEUE_TYPE a_queue_type, const char* a_name);
+		RQueue GetQueue(const QUEUE_TYPE a_queue_type, const char* a_name);
 	}
 }

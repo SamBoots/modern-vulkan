@@ -4,7 +4,7 @@
 
 namespace BB
 {
-	enum class RENDER_QUEUE_TYPE : uint32_t
+	enum class QUEUE_TYPE : uint32_t
 	{
 		GRAPHICS,
 		TRANSFER,
@@ -13,7 +13,7 @@ namespace BB
 		ENUM_SIZE
 	};
 
-	enum class RENDER_RESOURCE_TYPE : uint32_t
+	enum class RESOURCE_TYPE : uint32_t
 	{
 		DESCRIPTOR_HEAP,
 		DESCRIPTOR,
@@ -64,12 +64,37 @@ namespace BB
 		ENUM_SIZE
 	};
 
+	enum class IMAGE_TYPE : uint32_t
+	{
+		TYPE_2D,
+
+		ENUM_SIZE
+	};
+
+	enum class DEPTH_FORMAT : uint32_t
+	{
+		D32_SFLOAT,
+		D32_SFLOAT_S8_UINT,
+		D24_UNORM_S8_UINT,
+
+		ENUM_SIZE
+	};
+
 	struct BufferCreateInfo
 	{
 		const char* name = nullptr;
 		uint64_t size = 0;
 		BUFFER_TYPE type;
 		bool host_writable;
+	};
+
+	struct RenderDepthCreateInfo
+	{
+		const char* name = nullptr;
+		uint32_t width = 0;
+		uint32_t height = 0;
+		uint32_t depth = 0;
+		DEPTH_FORMAT depth_format;
 	};
 
 	struct DescriptorBindingInfo

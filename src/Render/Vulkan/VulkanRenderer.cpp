@@ -25,6 +25,8 @@ using namespace BB;
 #define VKASSERT(a_VKResult, a_Msg) a_VKResult
 #endif //_DEBUG
 
+#define ENUM_CONVERSATION_BY_ARRAY
+
 struct VulkanQueuesIndices
 {
 	uint32_t present; //Is currently always same as graphics.
@@ -46,6 +48,13 @@ struct VulkanBuffer
 {
 	VkBuffer buffer;
 	VmaAllocation allocation;
+};
+
+struct VulkanImage
+{
+	VkImage image;
+	VmaAllocation allocation;
+	VkImageView view;
 };
 
 static inline VkDeviceSize GetBufferDeviceAddress(const VkDevice a_device, const VkBuffer a_buffer)
@@ -430,6 +439,7 @@ struct Vulkan_inst
 {
 	Vulkan_inst()
 	{
+#ifdef ENUM_CONVERSATION_BY_ARRAY
 		enum_conv.descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::READONLY_CONSTANT)] = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		enum_conv.descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::READONLY_BUFFER)] = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 		enum_conv.descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::READWRITE)] = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -449,6 +459,11 @@ struct Vulkan_inst
 		enum_conv.image_layout[static_cast<uint32_t>(IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT)] = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 		enum_conv.image_layout[static_cast<uint32_t>(IMAGE_LAYOUT::SHADER_READ_ONLY)] = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		enum_conv.image_layout[static_cast<uint32_t>(IMAGE_LAYOUT::PRESENT)] = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+		enum_conv.depth_formats[static_cast<uint32_t>(DEPTH_FORMAT::D32_SFLOAT)] = VK_FORMAT_D32_SFLOAT;
+		enum_conv.depth_formats[static_cast<uint32_t>(DEPTH_FORMAT::D32_SFLOAT_S8_UINT)] = VK_FORMAT_D32_SFLOAT_S8_UINT;
+		enum_conv.depth_formats[static_cast<uint32_t>(DEPTH_FORMAT::D24_UNORM_S8_UINT)] = VK_FORMAT_D24_UNORM_S8_UINT;
+#endif //ENUM_CONVERSATION_BY_ARRAY
 	}
 
 	VkInstance instance;
@@ -461,6 +476,7 @@ struct Vulkan_inst
 	VulkanDescriptorLinearBuffer* pdescriptor_buffer;
 
 	StaticSlotmap<VulkanBuffer> buffers;
+	StaticSlotmap<VulkanImage> images;
 
 	VulkanQueuesIndices queue_indices;
 	struct DeviceInfo
@@ -476,15 +492,17 @@ struct Vulkan_inst
 		uint32_t sampler;
 	} descriptor_sizes;
 
+#ifdef ENUM_CONVERSATION_BY_ARRAY
 	//maybe faster then a switch... profile!
 	struct EnumConversions
 	{
 		VkDescriptorType descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::ENUM_SIZE)];
 		VkShaderStageFlags shader_stage[static_cast<uint32_t>(SHADER_STAGE::ENUM_SIZE)];
 		VkImageLayout image_layout[static_cast<uint32_t>(IMAGE_LAYOUT::ENUM_SIZE)];
+		VkFormat depth_formats[static_cast<uint32_t>(DEPTH_FORMAT::ENUM_SIZE)];
 	};
-
 	EnumConversions enum_conv;
+#endif //ENUM_CONVERSATION_BY_ARRAY
 
 	struct Pfn
 	{
@@ -531,67 +549,81 @@ static Vulkan_swapchain* s_vulkan_swapchain = nullptr;
 
 static inline VkDescriptorType DescriptorBufferType(const DESCRIPTOR_TYPE a_type)
 {
+#ifdef ENUM_CONVERSATION_BY_ARRAY
 	return s_vulkan_inst->enum_conv.descriptor_types[static_cast<uint32_t>(a_type)];
-
-		/*switch (a_type)
-		{
-		case DESCRIPTOR_TYPE::READONLY_CONSTANT:	return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		case DESCRIPTOR_TYPE::READONLY_BUFFER:	return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		case DESCRIPTOR_TYPE::READWRITE:			return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		case DESCRIPTOR_TYPE::IMAGE:				return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-		case DESCRIPTOR_TYPE::SAMPLER:			return VK_DESCRIPTOR_TYPE_SAMPLER;
-		default:
-			BB_ASSERT(false, "Vulkan: DESCRIPTOR_TYPE failed to convert to a VkDescriptorType.");
-			return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			break;
-		}*/
+#else
+	switch (a_type)
+	{
+	case DESCRIPTOR_TYPE::READONLY_CONSTANT:	return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	case DESCRIPTOR_TYPE::READONLY_BUFFER:	return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	case DESCRIPTOR_TYPE::READWRITE:			return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	case DESCRIPTOR_TYPE::IMAGE:				return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+	case DESCRIPTOR_TYPE::SAMPLER:			return VK_DESCRIPTOR_TYPE_SAMPLER;
+	default:
+		BB_ASSERT(false, "Vulkan: DESCRIPTOR_TYPE failed to convert to a VkDescriptorType.");
+		return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		break;
+	}
+#endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
 static inline VkShaderStageFlags ShaderStageFlags(const SHADER_STAGE a_stage)
 {
-	if (true)
+#ifdef ENUM_CONVERSATION_BY_ARRAY
+	return s_vulkan_inst->enum_conv.shader_stage[static_cast<uint32_t>(a_stage)];
+#else
+	switch (a_stage)
 	{
-		return s_vulkan_inst->enum_conv.shader_stage[static_cast<uint32_t>(a_stage)];
+	case SHADER_STAGE::ALL:					return VK_SHADER_STAGE_ALL;
+	case SHADER_STAGE::VERTEX:				return VK_SHADER_STAGE_VERTEX_BIT;
+	case SHADER_STAGE::FRAGMENT_PIXEL:		return VK_SHADER_STAGE_FRAGMENT_BIT;
+	default:
+		BB_ASSERT(false, "Vulkan: SHADER_STAGE failed to convert to a VkShaderStageFlagBits.");
+		return VK_SHADER_STAGE_ALL;
+		break;
 	}
-	else
-	{
-		switch (a_stage)
-		{
-		case SHADER_STAGE::ALL:					return VK_SHADER_STAGE_ALL;
-		case SHADER_STAGE::VERTEX:				return VK_SHADER_STAGE_VERTEX_BIT;
-		case SHADER_STAGE::FRAGMENT_PIXEL:		return VK_SHADER_STAGE_FRAGMENT_BIT;
-		default:
-			BB_ASSERT(false, "Vulkan: SHADER_STAGE failed to convert to a VkShaderStageFlagBits.");
-			return VK_SHADER_STAGE_ALL;
-			break;
-		}
-	}
+#endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
 static inline VkImageLayout ImageLayout(const IMAGE_LAYOUT a_image_layout)
 {
-	if (true)
+#ifdef ENUM_CONVERSATION_BY_ARRAY
+	return s_vulkan_inst->enum_conv.image_layout[static_cast<uint32_t>(a_image_layout)];
+#else
+	switch (a_image_layout)
 	{
-		return s_vulkan_inst->enum_conv.image_layout[static_cast<uint32_t>(a_image_layout)];
+	case IMAGE_LAYOUT::UNDEFINED:				return VK_IMAGE_LAYOUT_UNDEFINED;
+	case IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL:return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	case IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT:return VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	case IMAGE_LAYOUT::GENERAL:					return VK_IMAGE_LAYOUT_GENERAL;
+	case IMAGE_LAYOUT::TRANSFER_SRC:			return VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+	case IMAGE_LAYOUT::TRANSFER_DST:			return VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	case IMAGE_LAYOUT::SHADER_READ_ONLY:		return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	case IMAGE_LAYOUT::PRESENT:					return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	default:
+		BB_ASSERT(false, "Vulkan: IMAGE_LAYOUT failed to convert to a VkImageLayout.");
+		return VK_IMAGE_LAYOUT_UNDEFINED;
+		break;
 	}
-	else
+#endif //ENUM_CONVERSATION_BY_ARRAY
+}
+
+static inline VkFormat DepthFormat(const DEPTH_FORMAT a_depth_format)
+{
+#ifdef ENUM_CONVERSATION_BY_ARRAY
+	return s_vulkan_inst->enum_conv.depth_formats[static_cast<uint32_t>(a_depth_format)];
+#else
+	switch (a_depth_format)
 	{
-		switch (a_image_layout)
-		{
-		case IMAGE_LAYOUT::UNDEFINED:				return VK_IMAGE_LAYOUT_UNDEFINED;
-		case IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL:return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		case IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT:return VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		case IMAGE_LAYOUT::GENERAL:					return VK_IMAGE_LAYOUT_GENERAL;
-		case IMAGE_LAYOUT::TRANSFER_SRC:			return VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		case IMAGE_LAYOUT::TRANSFER_DST:			return VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		case IMAGE_LAYOUT::SHADER_READ_ONLY:		return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		case IMAGE_LAYOUT::PRESENT:					return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-		default:
-			BB_ASSERT(false, "Vulkan: IMAGE_LAYOUT failed to convert to a VkImageLayout.");
-			return VK_IMAGE_LAYOUT_UNDEFINED;
-			break;
-		}
+	case DEPTH_FORMAT::D32_SFLOAT:				return VK_FORMAT_D32_SFLOAT;
+	case DEPTH_FORMAT::D32_SFLOAT_S8_UINT:		return VK_FORMAT_D32_SFLOAT_S8_UINT;
+	case DEPTH_FORMAT::D24_UNORM_S8_UINT:		return VK_FORMAT_D24_UNORM_S8_UINT;
+	default:
+		BB_ASSERT(false, "Vulkan: DEPTH_FORMAT failed to convert to a VkFormat.");
+		return VK_FORMAT_D32_SFLOAT;
+		break;
 	}
+#endif ENUM_CONVERSATION_BY_ARRAY
 }
 
 static inline VkDescriptorAddressInfoEXT GetDescriptorAddressInfo(const VkDevice a_device, const BufferView& a_Buffer, const VkFormat a_Format = VK_FORMAT_UNDEFINED)
@@ -801,6 +833,7 @@ bool Vulkan::InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a
 	}
 
 	s_vulkan_inst->buffers.Init(a_stack_allocator, 128);
+	s_vulkan_inst->images.Init(a_stack_allocator, 256);
 	s_vulkan_inst->pdescriptor_buffer = BBnew(a_stack_allocator, VulkanDescriptorLinearBuffer)(
 		mbSize * 4,
 		VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
@@ -980,18 +1013,18 @@ bool Vulkan::CreateSwapchain(StackAllocator_t& a_stack_allocator, const WindowHa
 	return true;
 }
 
-void Vulkan::CreateCommandPool(const RENDER_QUEUE_TYPE a_queue_type, const uint32_t a_command_list_count, RCommandPool& a_pool, RCommandList* a_plists)
+void Vulkan::CreateCommandPool(const QUEUE_TYPE a_queue_type, const uint32_t a_command_list_count, RCommandPool& a_pool, RCommandList* a_plists)
 {
 	VkCommandPoolCreateInfo pool_create_info{ VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
 	switch (a_queue_type)
 	{
-	case RENDER_QUEUE_TYPE::GRAPHICS:
+	case QUEUE_TYPE::GRAPHICS:
 		pool_create_info.queueFamilyIndex = s_vulkan_inst->queue_indices.graphics;
 		break;
-	case RENDER_QUEUE_TYPE::TRANSFER:
+	case QUEUE_TYPE::TRANSFER:
 		pool_create_info.queueFamilyIndex = s_vulkan_inst->queue_indices.transfer;
 		break;
-	case RENDER_QUEUE_TYPE::COMPUTE:
+	case QUEUE_TYPE::COMPUTE:
 		pool_create_info.queueFamilyIndex = s_vulkan_inst->queue_indices.compute;
 		break;
 	default:
@@ -1080,7 +1113,59 @@ const RBuffer Vulkan::CreateBuffer(const BufferCreateInfo& a_create_info)
 
 void Vulkan::FreeBuffer(const RBuffer a_buffer)
 {
+	const VulkanBuffer& buf = s_vulkan_inst->buffers.find(a_buffer.handle);
+	vmaDestroyBuffer(s_vulkan_inst->vma, buf.buffer, buf.allocation);
 	s_vulkan_inst->buffers.erase(a_buffer.handle);
+}
+
+const RDepthBuffer Vulkan::CreateDepthBuffer(const RenderDepthCreateInfo& a_create_info)
+{
+	VkImageCreateInfo image_create_info{ VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
+
+	image_create_info.extent.width = a_create_info.width;
+	image_create_info.extent.height = a_create_info.height;
+	image_create_info.extent.depth = a_create_info.depth;
+	image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+
+	image_create_info.format = DepthFormat(a_create_info.depth_format);
+	image_create_info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+	image_create_info.mipLevels = 1;
+	image_create_info.arrayLayers = 1;
+	//Will be defined in the first layout transition.
+	image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
+	image_create_info.flags = 0;
+
+	VkImageViewCreateInfo view_info{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+	view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	view_info.format = image_create_info.format;
+	view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+	view_info.subresourceRange.baseMipLevel = 0;
+	view_info.subresourceRange.levelCount = image_create_info.mipLevels;
+	view_info.subresourceRange.baseArrayLayer = 0;
+	view_info.subresourceRange.layerCount = image_create_info.arrayLayers;
+
+	VmaAllocationCreateInfo alloc_info{};
+	alloc_info.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+	VulkanImage image;
+
+	VKASSERT(vmaCreateImage(s_vulkan_inst->vma, &image_create_info, &alloc_info, &image.image, &image.allocation, nullptr), "Vulkan: Failed to create image");
+	VKASSERT(vkCreateImageView(s_vulkan_inst->device, &view_info, nullptr, &image.view), "Vulkan: Failed to create image view.");
+
+	SetDebugName(a_create_info.name, image.image, VK_OBJECT_TYPE_IMAGE);
+	SetDebugName(a_create_info.name, image.view, VK_OBJECT_TYPE_IMAGE_VIEW);
+
+	return RDepthBuffer(s_vulkan_inst->images.insert(image).handle);
+}
+
+void Vulkan::FreeDepthBuffer(const RDepthBuffer a_depth_buffer)
+{
+	const VulkanImage& image = s_vulkan_inst->images.find(a_depth_buffer.handle);
+	vkDestroyImageView(s_vulkan_inst->device, image.view, nullptr);
+	vmaDestroyImage(s_vulkan_inst->vma, image.image, image.allocation);
+	s_vulkan_inst->images.erase(a_depth_buffer.handle);
 }
 
 RDescriptorLayout Vulkan::CreateDescriptorLayout(Allocator a_temp_allocator, Slice<DescriptorBindingInfo> a_bindings)
@@ -1914,18 +1999,18 @@ uint64_t Vulkan::GetCurrentFenceValue(const RFence a_fence)
 	return value;
 }
 
-RQueue Vulkan::GetQueue(const RENDER_QUEUE_TYPE a_queue_type, const char* a_name)
+RQueue Vulkan::GetQueue(const QUEUE_TYPE a_queue_type, const char* a_name)
 {
 	uint32_t queue_index;
 	switch (a_queue_type)
 	{
-	case RENDER_QUEUE_TYPE::GRAPHICS:
+	case QUEUE_TYPE::GRAPHICS:
 		queue_index = s_vulkan_inst->queue_indices.graphics;
 		break;
-	case RENDER_QUEUE_TYPE::TRANSFER:
+	case QUEUE_TYPE::TRANSFER:
 		queue_index = s_vulkan_inst->queue_indices.transfer;
 		break;
-	case RENDER_QUEUE_TYPE::COMPUTE:
+	case QUEUE_TYPE::COMPUTE:
 		queue_index = s_vulkan_inst->queue_indices.compute;
 		break;
 	default:
