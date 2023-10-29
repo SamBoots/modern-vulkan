@@ -25,6 +25,7 @@ using namespace BB;
 #define VKASSERT(a_VKResult, a_Msg) a_VKResult
 #endif //_DEBUG
 
+//for performance reasons this can be turned off. I need to profile this.
 #define ENUM_CONVERSATION_BY_ARRAY
 
 struct VulkanQueuesIndices
@@ -1369,7 +1370,7 @@ RPipeline Vulkan::CreatePipeline(Allocator a_temp_allocator, const CreatePipelin
 	pipe_raster.depthBiasEnable = VK_FALSE;
 	pipe_raster.rasterizerDiscardEnable = VK_FALSE;
 	pipe_raster.polygonMode = VK_POLYGON_MODE_FILL;
-	pipe_raster.cullMode = VK_CULL_MODE_NONE;
+	pipe_raster.cullMode = VK_CULL_MODE_BACK_BIT;
 	pipe_raster.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	pipe_raster.lineWidth = 1.0f;
 	pipe_raster.depthBiasConstantFactor = 0.0f; // Optional
@@ -1628,7 +1629,6 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 	//include depth stencil later.
 	VkImageMemoryBarrier2 image_barriers[2]{};
 	image_barriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-	image_barriers[0].pNext = nullptr;
 	image_barriers[0].dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 	image_barriers[0].srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
 	image_barriers[0].dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;

@@ -6,7 +6,7 @@
 
 #include "ShaderCompiler.h"
 
-#include "BBIntrin.h"
+#include "Math.inl"
 
 using namespace BB;
 
@@ -401,7 +401,7 @@ struct Mesh
 struct DrawList
 {
 	MeshHandle* mesh;
-	float4x4* matrix;
+	ShaderTransform* transform;
 };
 
 constexpr uint32_t UPLOAD_BUFFER_POOL_SIZE = mbSize * 8;
@@ -521,7 +521,7 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 	s_render_inst->draw_list_max = 128;
 	s_render_inst->draw_list_count = 0;
 	s_render_inst->draw_list_data.mesh = BBnewArr(a_stack_allocator, s_render_inst->draw_list_max, MeshHandle);
-	s_render_inst->draw_list_data.matrix = BBnewArr(a_stack_allocator, s_render_inst->draw_list_max, float4x4);
+	s_render_inst->draw_list_data.transform = BBnewArr(a_stack_allocator, s_render_inst->draw_list_max, ShaderTransform);
 
 	s_render_inst->mesh_map.Init(a_stack_allocator, 32);
 
@@ -605,7 +605,7 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		pipe_info.fragment.shader_code = shader_buffer.data;
 		pipe_info.fragment.shader_entry = "FragmentMain";
 
-		pipe_info.depth_format = DEPTH_FORMAT::D24_UNORM_S8_UINT;
+		pipe_info.depth_format = DEPTH_FORMAT::D32_SFLOAT_S8_UINT;
 		test_pipeline = Vulkan::CreatePipeline(a_stack_allocator, pipe_info);
 
 		ReleaseShaderCode(vertex_shader);
@@ -744,7 +744,7 @@ void BB::EndFrame()
 	pmatrix_upload_view->MemoryCopy(&s_render_inst->scene_info, upload_used, sizeof(SceneInfo));
 	upload_used += sizeof(SceneInfo);
 	uint32_t matrix_offset = upload_used;
-	pmatrix_upload_view->MemoryCopy(s_render_inst->draw_list_data.matrix, upload_used, sizeof(float4x4) * s_render_inst->draw_list_count);
+	pmatrix_upload_view->MemoryCopy(s_render_inst->draw_list_data.transform, upload_used, sizeof(ShaderTransform) * s_render_inst->draw_list_count);
 
 	//upload to some GPU buffer here.
 	RenderCopyBuffer matrix_buffer_copy;
@@ -757,7 +757,7 @@ void BB::EndFrame()
 
 	buffer_regions[1].src_offset = pmatrix_upload_view->offset + matrix_offset;
 	buffer_regions[1].dst_offset = cur_frame.transform_buffer.offset;
-	buffer_regions[1].size = cur_frame.transform_buffer.size;
+	buffer_regions[1].size = s_render_inst->draw_list_count * sizeof(ShaderTransform);
 	matrix_buffer_copy.regions = Slice(buffer_regions, _countof(buffer_regions));
 	Vulkan::CopyBuffer(current_command_list, matrix_buffer_copy);
 
@@ -779,7 +779,7 @@ void BB::EndFrame()
 	start_rendering_info.clear_color_rgba = float4{ 0.f, 0.f, 0.f, 1.f };
 	Vulkan::StartRendering(current_command_list, start_rendering_info, s_render_inst->backbuffer_pos);
 
-//#define _USE_G_PIPELINE
+#define _USE_G_PIPELINE
 
 #ifdef _USE_G_PIPELINE
 	Vulkan::BindPipeline(current_command_list, test_pipeline);
@@ -883,5 +883,6 @@ void BB::FreeMesh(const MeshHandle a_mesh)
 void BB::DrawMesh(const MeshHandle a_mesh, const float4x4& a_transform)
 {
 	s_render_inst->draw_list_data.mesh[s_render_inst->draw_list_count] = a_mesh;
-	s_render_inst->draw_list_data.matrix[s_render_inst->draw_list_count++] = a_transform;
+	s_render_inst->draw_list_data.transform[s_render_inst->draw_list_count].transform = a_transform;
+	s_render_inst->draw_list_data.transform[s_render_inst->draw_list_count++].inverse = Float4x4Inverse(a_transform);
 }

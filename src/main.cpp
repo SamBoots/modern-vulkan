@@ -43,7 +43,7 @@ int main(int argc, char** argv)
 	StackAllocator_t main_allocator{ mbSize * 32 };
 	TransformPool transform_pool{ main_allocator, 32 };
 	const TransformHandle transform_test = transform_pool.CreateTransform(float3{ 0, -1, 1 });
-	const TransformHandle transform_gltf = transform_pool.CreateTransform(float3{ 0, 0, 1 });
+	const TransformHandle transform_gltf = transform_pool.CreateTransform(float3{ 0, 10, 1 });
 
 	int window_width = 1280;
 	int window_height = 720;
@@ -67,7 +67,7 @@ int main(int argc, char** argv)
 	Camera camera{ float3{2.0f, 2.0f, 2.0f}, 0.35f };
 
 	{
-		float4x4 t_ProjMat = Float4x4Perspective(ToRadians(60.0f),
+		const float4x4 t_ProjMat = Float4x4Perspective(ToRadians(60.0f),
 			render_create_info.swapchain_width / (float)render_create_info.swapchain_height,
 			.001f, 10000.0f);
 		BB::SetProjection(t_ProjMat);
@@ -151,7 +151,7 @@ int main(int argc, char** argv)
 			else if (ip.input_type == INPUT_TYPE::MOUSE)
 			{
 				const MouseInfo& mi = ip.mouse_info;
-				const float2 mouse_move = (mi.move_offset * delta_time) * 0.003f;
+				const float2 mouse_move = (mi.move_offset * delta_time) * 0.001f;
 				if (!freeze_cam)
 					camera.Rotate(mouse_move.x, mouse_move.y);
 
@@ -167,13 +167,13 @@ int main(int argc, char** argv)
 			BB::SetView(camera.CalculateView());
 			StartFrame();
 
-			//draw stuff here!
-			DrawMesh(quad_mesh, transform_pool.GetTransform(transform_test).CreateMatrix());
 			for (size_t i = 0; i < gltf_model->root_node_count; i++)
 			{
 				const float4x4 root_matrix = transform_pool.GetTransform(transform_gltf).CreateMatrix();
 				DrawglTFNode(gltf_model->root_nodes[i], root_matrix);
 			}
+			//draw stuff here!
+			DrawMesh(quad_mesh, transform_pool.GetTransform(transform_test).CreateMatrix());
 
 			EndFrame();
 		}
