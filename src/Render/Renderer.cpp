@@ -605,7 +605,7 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		pipe_info.fragment.shader_code = shader_buffer.data;
 		pipe_info.fragment.shader_entry = "FragmentMain";
 
-		pipe_info.depth_format = DEPTH_FORMAT::D32_SFLOAT_S8_UINT;
+		pipe_info.depth_format = DEPTH_FORMAT::D24_UNORM_S8_UINT;
 		test_pipeline = Vulkan::CreatePipeline(a_stack_allocator, pipe_info);
 
 		ReleaseShaderCode(vertex_shader);
@@ -779,21 +779,17 @@ void BB::EndFrame()
 	start_rendering_info.clear_color_rgba = float4{ 0.f, 0.f, 0.f, 1.f };
 	Vulkan::StartRendering(current_command_list, start_rendering_info, s_render_inst->backbuffer_pos);
 
-#define _USE_G_PIPELINE
-
 #ifdef _USE_G_PIPELINE
 	Vulkan::BindPipeline(current_command_list, test_pipeline);
+#else
+	const SHADER_STAGE shader_stages[]{ SHADER_STAGE::VERTEX, SHADER_STAGE::FRAGMENT_PIXEL };
+	const ShaderObject shader_objects[]{ vertex_object, fragment_object };
+	Vulkan::BindShaders(current_command_list, 2, shader_stages, shader_objects);
 #endif //_USE_G_PIPELINE
 	Vulkan::BindIndexBuffer(current_command_list, s_render_inst->index_buffer.buffer, 0);
 	const uint32_t buffer_indices[] = { 0, 0 };
 	const size_t buffer_offsets[]{ s_render_inst->vertex_buffer.descriptor_allocation.offset, cur_frame.desc_alloc.offset };
 	Vulkan::SetDescriptorBufferOffset(current_command_list, pipeline_layout, 0, _countof(buffer_offsets), buffer_indices, buffer_offsets);
-
-#ifndef _USE_G_PIPELINE
-	const SHADER_STAGE shader_stages[]{ SHADER_STAGE::VERTEX, SHADER_STAGE::FRAGMENT_PIXEL };
-	const ShaderObject shader_objects[]{ vertex_object, fragment_object };
-	Vulkan::BindShaders(current_command_list, 2, shader_stages, shader_objects);
-#endif //_USE_G_PIPELINE
 
 	for (uint32_t i = 0; i < s_render_inst->draw_list_count; i++)
 	{

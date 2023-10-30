@@ -43,7 +43,7 @@ int main(int argc, char** argv)
 	StackAllocator_t main_allocator{ mbSize * 32 };
 	TransformPool transform_pool{ main_allocator, 32 };
 	const TransformHandle transform_test = transform_pool.CreateTransform(float3{ 0, -1, 1 });
-	const TransformHandle transform_gltf = transform_pool.CreateTransform(float3{ 0, 10, 1 });
+	const TransformHandle transform_gltf = transform_pool.CreateTransform(float3{ 0, 1, 1 });
 
 	int window_width = 1280;
 	int window_height = 720;

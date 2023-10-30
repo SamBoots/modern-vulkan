@@ -1676,6 +1676,19 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 		depth_attachment.clearValue.depthStencil = { 1.0f, 0 };
 		rendering_info.pDepthAttachment = &depth_attachment;
 		rendering_info.pStencilAttachment = &depth_attachment;
+
+
+#ifndef USE_G_PIPELINE
+		vkCmdSetStencilTestEnable(cmd_buffer, VK_FALSE);
+
+		vkCmdSetDepthBiasEnable(cmd_buffer, VK_TRUE);
+		vkCmdSetDepthTestEnable(cmd_buffer, VK_TRUE);
+		vkCmdSetDepthWriteEnable(cmd_buffer, VK_TRUE);
+		vkCmdSetDepthCompareOp(cmd_buffer, VK_COMPARE_OP_LESS_OR_EQUAL);
+		
+		vkCmdSetDepthBias(cmd_buffer, 0.f, 0.f, 0.f);
+		
+#endif //USE_G_PIPELINE
 	}
 	else
 	{
@@ -1684,6 +1697,14 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 		barrier_info.imageMemoryBarrierCount = 1;
 
 		vkCmdPipelineBarrier2(cmd_buffer, &barrier_info);
+
+#ifndef USE_G_PIPELINE
+		vkCmdSetStencilTestEnable(cmd_buffer, false);
+
+		vkCmdSetDepthBiasEnable(cmd_buffer, VK_FALSE);
+		vkCmdSetDepthTestEnable(cmd_buffer, VK_FALSE);
+		vkCmdSetDepthWriteEnable(cmd_buffer, VK_FALSE);
+#endif //USE_G_PIPELINE
 	}
 
 	VkRenderingAttachmentInfo rendering_attachment{ VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
@@ -1826,22 +1847,6 @@ void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stag
 	//FOR imgui maybe not, but that is because I'm dumb asf
 	s_vulkan_inst->pfn.CmdSetVertexInputEXT(cmd_buffer, 0, nullptr, 0, nullptr); 
 	vkCmdSetPrimitiveRestartEnable(cmd_buffer, VK_FALSE);
-
-	if (1) //DEPTH OP
-	{
-		vkCmdSetDepthBiasEnable(cmd_buffer, VK_TRUE);
-		vkCmdSetDepthTestEnable(cmd_buffer, VK_TRUE);
-		vkCmdSetDepthWriteEnable(cmd_buffer, VK_TRUE);
-		vkCmdSetDepthCompareOp(cmd_buffer, VK_COMPARE_OP_LESS_OR_EQUAL);
-	}
-	else
-	{
-		vkCmdSetStencilTestEnable(cmd_buffer, false);
-
-		vkCmdSetDepthBiasEnable(cmd_buffer, VK_FALSE);
-		vkCmdSetDepthTestEnable(cmd_buffer, VK_FALSE);
-		vkCmdSetDepthWriteEnable(cmd_buffer, VK_FALSE);
-	}
 }
 
 void Vulkan::SetDescriptorBufferOffset(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_first_set, const uint32_t a_set_count, const uint32_t* a_buffer_indices, const size_t* a_offsets)

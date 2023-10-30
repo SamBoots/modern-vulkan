@@ -19,12 +19,20 @@
       }
     },
     {
-      "name": "vulkan-Debug",
+      "name": "vulkan-Debug-Use-Graphic-Pipelines",
       "inherits": "default-win",
       "cacheVariables": {
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
         "CMAKE_BUILD_TYPE": "Debug",
-        "GRAPHICS_API": "Vulkan"
+        "USE_GRAPHIC_PIPELINES": "TRUE"
+      }
+    },
+    {
+      "name": "vulkan-Debug",
+      "inherits": "default-win",
+      "cacheVariables": {
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+        "CMAKE_BUILD_TYPE": "Debug"
       }
     },
     {

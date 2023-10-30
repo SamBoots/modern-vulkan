@@ -28,6 +28,10 @@ set(PLATFORM_NAME "_LINUX")
 target_compile_definitions(Renderer PUBLIC VK_USE_PLATFORM_XLIB_KHR)
 endif ()
 
+if ("${USE_GRAPHIC_PIPELINES}" STREQUAL "TRUE")
+target_compile_definitions(Renderer PUBLIC _USE_G_PIPELINE)
+endif()
+
 #Include library
 target_include_directories(Renderer PUBLIC
 	"Render/Vulkan"
