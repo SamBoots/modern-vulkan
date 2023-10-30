@@ -34,6 +34,8 @@ struct UploadBufferView
 	}
 };
 
+
+
 /// <summary>
 /// Handles one large upload buffer and handles it as if it's seperate buffers by handling chunks.
 /// </summary>

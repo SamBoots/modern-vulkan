@@ -43,9 +43,9 @@ namespace BB
 		{
 			handle = a_handle;
 		};
-		FrameworkHandle(unsigned int a_Index, unsigned int a_extra_index)
+		FrameworkHandle(unsigned int a_index, unsigned int a_extra_index)
 		{
-			index = a_Index;
+			index = a_index;
 			extra_index = a_extra_index;
 		};
 		struct
@@ -72,6 +72,20 @@ namespace BB
 	using BBRWLock = FrameworkHandle<struct BBRWLockTag>;
 	using BBConditionalVariable = FrameworkHandle<struct BBConditionalVariableTag>;
 	using ThreadTask = FrameworkHandle<struct ThreadTasktag>;
+
+	template<typename Tag>
+	union FrameworkHandle32Bit
+	{
+		FrameworkHandle32Bit() {};
+		FrameworkHandle32Bit(uint32_t a_handle)
+		{
+			handle = a_handle;
+		};
+		uint32_t handle{};
+
+		inline bool operator ==(FrameworkHandle32Bit a_rhs) const { return handle == a_rhs.handle; }
+		inline bool operator !=(FrameworkHandle32Bit a_rhs) const { return handle != a_rhs.handle; }
+	};
 
 	using wchar = wchar_t;
 
