@@ -55,8 +55,15 @@ struct VulkanImage
 {
 	VkImage image;
 	VmaAllocation allocation;
+};
+
+struct VulkanDepth
+{
+	VkImage image;
+	VmaAllocation allocation;
 	VkImageView view;
 };
+
 
 static inline VkDeviceSize GetBufferDeviceAddress(const VkDevice a_device, const VkBuffer a_buffer)
 {
@@ -447,23 +454,37 @@ struct Vulkan_inst
 		enum_conv.descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::IMAGE)] = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
 		enum_conv.descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::SAMPLER)] = VK_DESCRIPTOR_TYPE_SAMPLER;
 
-		enum_conv.shader_stage[static_cast<uint32_t>(SHADER_STAGE::ALL)] = VK_SHADER_STAGE_ALL;
-		enum_conv.shader_stage[static_cast<uint32_t>(SHADER_STAGE::VERTEX)] = VK_SHADER_STAGE_VERTEX_BIT;
-		enum_conv.shader_stage[static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL)] = VK_SHADER_STAGE_FRAGMENT_BIT;
-		enum_conv.shader_stage[static_cast<uint32_t>(SHADER_STAGE::NONE)] = 0;
+		enum_conv.shader_stages[static_cast<uint32_t>(SHADER_STAGE::ALL)] = VK_SHADER_STAGE_ALL;
+		enum_conv.shader_stages[static_cast<uint32_t>(SHADER_STAGE::VERTEX)] = VK_SHADER_STAGE_VERTEX_BIT;
+		enum_conv.shader_stages[static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL)] = VK_SHADER_STAGE_FRAGMENT_BIT;
+		enum_conv.shader_stages[static_cast<uint32_t>(SHADER_STAGE::NONE)] = 0;
 
-		enum_conv.image_layout[static_cast<uint32_t>(IMAGE_LAYOUT::UNDEFINED)] = VK_IMAGE_LAYOUT_UNDEFINED;
-		enum_conv.image_layout[static_cast<uint32_t>(IMAGE_LAYOUT::GENERAL)] = VK_IMAGE_LAYOUT_GENERAL;
-		enum_conv.image_layout[static_cast<uint32_t>(IMAGE_LAYOUT::TRANSFER_SRC)] = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		enum_conv.image_layout[static_cast<uint32_t>(IMAGE_LAYOUT::TRANSFER_DST)] = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		enum_conv.image_layout[static_cast<uint32_t>(IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL)] = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		enum_conv.image_layout[static_cast<uint32_t>(IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT)] = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		enum_conv.image_layout[static_cast<uint32_t>(IMAGE_LAYOUT::SHADER_READ_ONLY)] = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		enum_conv.image_layout[static_cast<uint32_t>(IMAGE_LAYOUT::PRESENT)] = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::UNDEFINED)] = VK_IMAGE_LAYOUT_UNDEFINED;
+		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::GENERAL)] = VK_IMAGE_LAYOUT_GENERAL;
+		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::TRANSFER_SRC)] = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::TRANSFER_DST)] = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL)] = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT)] = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::SHADER_READ_ONLY)] = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::PRESENT)] = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
 		enum_conv.depth_formats[static_cast<uint32_t>(DEPTH_FORMAT::D32_SFLOAT)] = VK_FORMAT_D32_SFLOAT;
 		enum_conv.depth_formats[static_cast<uint32_t>(DEPTH_FORMAT::D32_SFLOAT_S8_UINT)] = VK_FORMAT_D32_SFLOAT_S8_UINT;
 		enum_conv.depth_formats[static_cast<uint32_t>(DEPTH_FORMAT::D24_UNORM_S8_UINT)] = VK_FORMAT_D24_UNORM_S8_UINT;
+
+		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::RGBA8_SRGB)] = VK_FORMAT_R8G8B8A8_SRGB;
+		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::RGBA8_UNORM)] = VK_FORMAT_R8G8B8A8_SNORM;
+
+		enum_conv.image_types[static_cast<uint32_t>(IMAGE_TYPE::TYPE_1D)] = VK_IMAGE_TYPE_1D;
+		enum_conv.image_types[static_cast<uint32_t>(IMAGE_TYPE::TYPE_2D)] = VK_IMAGE_TYPE_2D;
+		enum_conv.image_types[static_cast<uint32_t>(IMAGE_TYPE::TYPE_3D)] = VK_IMAGE_TYPE_3D;
+
+		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_TYPE::TYPE_1D)] = VK_IMAGE_VIEW_TYPE_1D;
+		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_TYPE::TYPE_2D)] = VK_IMAGE_VIEW_TYPE_2D;
+		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_TYPE::TYPE_3D)] = VK_IMAGE_VIEW_TYPE_3D;
+
+		enum_conv.image_tilings[static_cast<uint32_t>(IMAGE_TILING::LINEAR)] = VK_IMAGE_TILING_LINEAR;
+		enum_conv.image_tilings[static_cast<uint32_t>(IMAGE_TILING::OPTIMAL)] = VK_IMAGE_TILING_OPTIMAL;
 #endif //ENUM_CONVERSATION_BY_ARRAY
 	}
 
@@ -478,7 +499,8 @@ struct Vulkan_inst
 
 	StaticSlotmap<VulkanBuffer> buffers;
 	StaticSlotmap<VulkanImage> images;
-
+	StaticSlotmap<VulkanDepth> depth_images;
+	
 	VulkanQueuesIndices queue_indices;
 	struct DeviceInfo
 	{
@@ -498,9 +520,13 @@ struct Vulkan_inst
 	struct EnumConversions
 	{
 		VkDescriptorType descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::ENUM_SIZE)];
-		VkShaderStageFlags shader_stage[static_cast<uint32_t>(SHADER_STAGE::ENUM_SIZE)];
-		VkImageLayout image_layout[static_cast<uint32_t>(IMAGE_LAYOUT::ENUM_SIZE)];
+		VkShaderStageFlags shader_stages[static_cast<uint32_t>(SHADER_STAGE::ENUM_SIZE)];
+		VkImageLayout image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::ENUM_SIZE)];
 		VkFormat depth_formats[static_cast<uint32_t>(DEPTH_FORMAT::ENUM_SIZE)];
+		VkFormat image_formats[static_cast<uint32_t>(IMAGE_FORMAT::ENUM_SIZE)];
+		VkImageType image_types[static_cast<uint32_t>(IMAGE_TYPE::ENUM_SIZE)];
+		VkImageViewType image_view_types[static_cast<uint32_t>(IMAGE_TYPE::ENUM_SIZE)];
+		VkImageTiling image_tilings[static_cast<uint32_t>(IMAGE_TILING::ENUM_SIZE)];
 	};
 	EnumConversions enum_conv;
 #endif //ENUM_CONVERSATION_BY_ARRAY
@@ -571,7 +597,7 @@ static inline VkDescriptorType DescriptorBufferType(const DESCRIPTOR_TYPE a_type
 static inline VkShaderStageFlags ShaderStageFlags(const SHADER_STAGE a_stage)
 {
 #ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.shader_stage[static_cast<uint32_t>(a_stage)];
+	return s_vulkan_inst->enum_conv.shader_stages[static_cast<uint32_t>(a_stage)];
 #else
 	switch (a_stage)
 	{
@@ -589,7 +615,7 @@ static inline VkShaderStageFlags ShaderStageFlags(const SHADER_STAGE a_stage)
 static inline VkImageLayout ImageLayout(const IMAGE_LAYOUT a_image_layout)
 {
 #ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.image_layout[static_cast<uint32_t>(a_image_layout)];
+	return s_vulkan_inst->enum_conv.image_layouts[static_cast<uint32_t>(a_image_layout)];
 #else
 	switch (a_image_layout)
 	{
@@ -622,6 +648,76 @@ static inline VkFormat DepthFormat(const DEPTH_FORMAT a_depth_format)
 	default:
 		BB_ASSERT(false, "Vulkan: DEPTH_FORMAT failed to convert to a VkFormat.");
 		return VK_FORMAT_D32_SFLOAT;
+		break;
+	}
+#endif ENUM_CONVERSATION_BY_ARRAY
+}
+
+static inline VkFormat ImageFormats(const IMAGE_FORMAT a_image_format)
+{
+#ifdef ENUM_CONVERSATION_BY_ARRAY
+	return s_vulkan_inst->enum_conv.image_formats[static_cast<uint32_t>(a_image_format)];
+#else
+	switch (a_image_format)
+	{
+	case IMAGE_FORMAT::RGBA8_SRGB:		return VK_FORMAT_R8G8B8A8_SRGB;
+	case IMAGE_FORMAT::RGBA8_UNORM:		return VK_FORMAT_R8G8B8A8_SNORM;
+	default:
+		BB_ASSERT(false, "Vulkan: IMAGE_FORMAT failed to convert to a VkFormat.");
+		return VK_FORMAT_R8G8B8A8_SRGB;
+		break;
+	}
+#endif ENUM_CONVERSATION_BY_ARRAY
+}
+
+static inline VkImageType ImageTypes(const IMAGE_TYPE a_image_types)
+{
+#ifdef ENUM_CONVERSATION_BY_ARRAY
+	return s_vulkan_inst->enum_conv.image_types[static_cast<uint32_t>(a_image_types)];
+#else
+	switch (a_image_types)
+	{
+	case IMAGE_TYPE::TYPE_1D:		return VK_IMAGE_TYPE_1D;
+	case IMAGE_TYPE::TYPE_2D:		return VK_IMAGE_TYPE_2D;
+	case IMAGE_TYPE::TYPE_3D:		return VK_IMAGE_TYPE_3D;
+	default:
+		BB_ASSERT(false, "Vulkan: IMAGE_TYPE failed to convert to a VkImageType.");
+		return VK_IMAGE_TYPE_1D;
+		break;
+	}
+#endif ENUM_CONVERSATION_BY_ARRAY
+}
+
+static inline VkImageViewType ImageViewTypes(const IMAGE_TYPE a_image_types)
+{
+#ifdef ENUM_CONVERSATION_BY_ARRAY
+	return s_vulkan_inst->enum_conv.image_view_types[static_cast<uint32_t>(a_image_types)];
+#else
+	switch (a_image_types)
+	{
+	case IMAGE_TYPE::TYPE_1D:		return VK_IMAGE_VIEW_TYPE_1D;
+	case IMAGE_TYPE::TYPE_2D:		return VK_IMAGE_VIEW_TYPE_2D;
+	case IMAGE_TYPE::TYPE_3D:		return VK_IMAGE_VIEW_TYPE_3D;
+	default:
+		BB_ASSERT(false, "Vulkan: IMAGE_TYPE failed to convert to a VkImageViewType.");
+		return VK_IMAGE_TYPE_1D;
+		break;
+	}
+#endif ENUM_CONVERSATION_BY_ARRAY
+}
+
+static inline VkImageTiling ImageTilings(const IMAGE_TILING a_image_tiling)
+{
+#ifdef ENUM_CONVERSATION_BY_ARRAY
+	return s_vulkan_inst->enum_conv.image_tilings[static_cast<uint32_t>(a_image_tiling)];
+#else
+	switch (a_image_tiling)
+	{
+	case IMAGE_TILING::LINEAR:		return VK_IMAGE_TILING_LINEAR;
+	case IMAGE_TILING::OPTIMAL:		return VK_IMAGE_TILING_OPTIMAL;
+	default:
+		BB_ASSERT(false, "Vulkan: IMAGE_TILING failed to convert to a VkImageType.");
+		return VK_IMAGE_TYPE_1D;
 		break;
 	}
 #endif ENUM_CONVERSATION_BY_ARRAY
@@ -835,6 +931,7 @@ bool Vulkan::InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a
 
 	s_vulkan_inst->buffers.Init(a_stack_allocator, 128);
 	s_vulkan_inst->images.Init(a_stack_allocator, 256);
+	s_vulkan_inst->depth_images.Init(a_stack_allocator, 32);
 	s_vulkan_inst->pdescriptor_buffer = BBnew(a_stack_allocator, VulkanDescriptorLinearBuffer)(
 		mbSize * 4,
 		VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
@@ -1119,10 +1216,84 @@ void Vulkan::FreeBuffer(const RBuffer a_buffer)
 	s_vulkan_inst->buffers.erase(a_buffer.handle);
 }
 
+const RImage Vulkan::CreateImage(const ImageCreateInfo& a_create_info)
+{
+	VkImageCreateInfo image_create_info{ VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
+	image_create_info.extent.width = a_create_info.width;
+	image_create_info.extent.height = a_create_info.height;
+	image_create_info.extent.depth = a_create_info.depth;
+	image_create_info.mipLevels = a_create_info.mipLevels;
+	image_create_info.arrayLayers = a_create_info.arrayLayers;
+
+	image_create_info.imageType = ImageTypes(a_create_info.type);
+	image_create_info.tiling = ImageTilings(a_create_info.tiling);
+	image_create_info.format = ImageFormats(a_create_info.format);
+	image_create_info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+
+	//Will be defined in the first layout transition.
+	image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
+	image_create_info.flags = 0;
+
+	VmaAllocationCreateInfo alloc_info{};
+	alloc_info.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+	VulkanImage image;
+	VKASSERT(vmaCreateImage(s_vulkan_inst->vma, 
+		&image_create_info,
+		&alloc_info,
+		&image.image,
+		&image.allocation,
+		nullptr), 
+		"Vulkan: Failed to create image");
+
+	SetDebugName(a_create_info.name, image.image, VK_OBJECT_TYPE_IMAGE);
+
+	return RImage(s_vulkan_inst->images.insert(image).handle);
+}
+
+void Vulkan::FreeImage(const RImage a_image)
+{
+	const VulkanImage& image = s_vulkan_inst->images.find(a_image.handle);
+	vmaDestroyImage(s_vulkan_inst->vma, image.image, image.allocation);
+	s_vulkan_inst->images.erase(a_image.handle);
+}
+
+const RImageView Vulkan::CreateViewImage(const ImageViewCreateInfo& a_create_info)
+{
+	VkImageViewCreateInfo view_info{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+
+	view_info.viewType = ImageViewTypes(a_create_info.type);
+	view_info.format = ImageFormats(a_create_info.format);
+	view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	view_info.subresourceRange.baseMipLevel = 0;
+	view_info.subresourceRange.levelCount = a_create_info.mipLevels;
+	view_info.subresourceRange.baseArrayLayer = 0;
+	view_info.subresourceRange.layerCount = a_create_info.arrayLayers;
+
+	VkImageView view;
+	VKASSERT(vkCreateImageView(s_vulkan_inst->device, 
+		&view_info, 
+		nullptr, 
+		&view),
+		"Vulkan: Failed to create image view.");
+
+	SetDebugName(a_create_info.name, view, VK_OBJECT_TYPE_IMAGE_VIEW);
+
+	return RImageView(reinterpret_cast<uintptr_t>(view));
+}
+
+void Vulkan::FreeViewImage(const RImageView a_image_view)
+{
+	vkDestroyImageView(s_vulkan_inst->device, 
+		reinterpret_cast<VkImageView>(a_image_view.handle),
+			nullptr);
+}
+
 const RDepthBuffer Vulkan::CreateDepthBuffer(const RenderDepthCreateInfo& a_create_info)
 {
 	VkImageCreateInfo image_create_info{ VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
-
 	image_create_info.extent.width = a_create_info.width;
 	image_create_info.extent.height = a_create_info.height;
 	image_create_info.extent.depth = a_create_info.depth;
@@ -1153,24 +1324,24 @@ const RDepthBuffer Vulkan::CreateDepthBuffer(const RenderDepthCreateInfo& a_crea
 	VmaAllocationCreateInfo alloc_info{};
 	alloc_info.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
-	VulkanImage image;
+	VulkanDepth depth;
 
-	VKASSERT(vmaCreateImage(s_vulkan_inst->vma, &image_create_info, &alloc_info, &image.image, &image.allocation, nullptr), "Vulkan: Failed to create image");
-	view_info.image = image.image;
-	VKASSERT(vkCreateImageView(s_vulkan_inst->device, &view_info, nullptr, &image.view), "Vulkan: Failed to create image view.");
+	VKASSERT(vmaCreateImage(s_vulkan_inst->vma, &image_create_info, &alloc_info, &depth.image, &depth.allocation, nullptr), "Vulkan: Failed to create image");
+	view_info.image = depth.image;
+	VKASSERT(vkCreateImageView(s_vulkan_inst->device, &view_info, nullptr, &depth.view), "Vulkan: Failed to create image view.");
 
-	SetDebugName(a_create_info.name, image.image, VK_OBJECT_TYPE_IMAGE);
-	SetDebugName(a_create_info.name, image.view, VK_OBJECT_TYPE_IMAGE_VIEW);
+	SetDebugName(a_create_info.name, depth.image, VK_OBJECT_TYPE_IMAGE);
+	SetDebugName(a_create_info.name, depth.view, VK_OBJECT_TYPE_IMAGE_VIEW);
 
-	return RDepthBuffer(s_vulkan_inst->images.insert(image).handle);
+	return RDepthBuffer(s_vulkan_inst->depth_images.insert(depth).handle);
 }
 
 void Vulkan::FreeDepthBuffer(const RDepthBuffer a_depth_buffer)
 {
-	const VulkanImage& image = s_vulkan_inst->images.find(a_depth_buffer.handle);
+	const VulkanDepth& image = s_vulkan_inst->depth_images.find(a_depth_buffer.handle);
 	vkDestroyImageView(s_vulkan_inst->device, image.view, nullptr);
 	vmaDestroyImage(s_vulkan_inst->vma, image.image, image.allocation);
-	s_vulkan_inst->images.erase(a_depth_buffer.handle);
+	s_vulkan_inst->depth_images.erase(a_depth_buffer.handle);
 }
 
 RDescriptorLayout Vulkan::CreateDescriptorLayout(Allocator a_temp_allocator, Slice<DescriptorBindingInfo> a_bindings)
@@ -1647,7 +1818,7 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 	//If we handle the depth stencil we do that here. 
 	if (a_render_info.depth_buffer != BB_INVALID_HANDLE)
 	{
-		const VulkanImage& depth_buffer = s_vulkan_inst->images.find(a_render_info.depth_buffer.handle);
+		const VulkanDepth& depth_buffer = s_vulkan_inst->depth_images.find(a_render_info.depth_buffer.handle);
 
 		image_barriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 		image_barriers[1].dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;

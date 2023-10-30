@@ -66,7 +66,9 @@ namespace BB
 
 	enum class IMAGE_TYPE : uint32_t
 	{
+		TYPE_1D,
 		TYPE_2D,
+		TYPE_3D,
 
 		ENUM_SIZE
 	};
@@ -80,12 +82,52 @@ namespace BB
 		ENUM_SIZE
 	};
 
+	enum class IMAGE_FORMAT : uint32_t
+	{
+		RGBA8_SRGB,
+		RGBA8_UNORM,
+
+		ENUM_SIZE
+	};
+
+	enum class IMAGE_TILING : uint32_t
+	{
+		LINEAR,
+		OPTIMAL,
+
+		ENUM_SIZE
+	};
+
 	struct BufferCreateInfo
 	{
 		const char* name = nullptr;
 		uint64_t size = 0;
 		BUFFER_TYPE type;
 		bool host_writable;
+	};
+
+	struct ImageCreateInfo
+	{
+		const char* name = nullptr;
+		uint32_t width = 0;
+		uint32_t height = 0;
+		uint32_t depth = 0;
+
+		uint16_t arrayLayers = 0;
+		uint16_t mipLevels = 0;
+		IMAGE_TYPE type{};
+		IMAGE_FORMAT format{};
+		IMAGE_TILING tiling{};
+	};
+
+	struct ImageViewCreateInfo
+	{
+		const char* name = nullptr;
+
+		uint16_t arrayLayers = 0;
+		uint16_t mipLevels = 0;
+		IMAGE_TYPE type{};
+		IMAGE_FORMAT format{};
 	};
 
 	struct RenderDepthCreateInfo

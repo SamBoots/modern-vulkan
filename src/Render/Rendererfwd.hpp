@@ -17,6 +17,7 @@ namespace BB
 	using RPipelineLayout = FrameworkHandle<struct RPipelineLayoutTag>;
 	using RBuffer = FrameworkHandle<struct RBufferTag>;
 	using RImage = FrameworkHandle<struct RImageTag>;
+	using RImageView = FrameworkHandle<struct RImageViewTag>;
 	using RDepthBuffer = FrameworkHandle<struct RDepthBufferTag>;
 	using MeshHandle = FrameworkHandle<struct MeshHandleTag>;
 

@@ -17,6 +17,13 @@ namespace BB
 		const RBuffer CreateBuffer(const BufferCreateInfo& a_create_info);
 		void FreeBuffer(const RBuffer a_buffer);
 
+		const RImage CreateImage(const ImageCreateInfo& a_create_info);
+		void FreeImage(const RImage a_image);
+
+		const RImageView CreateViewImage(const ImageViewCreateInfo& a_create_info);
+		void FreeViewImage(const RImageView a_image_view);
+
+
 		//image here...
 		const RDepthBuffer CreateDepthBuffer(const RenderDepthCreateInfo& a_create_info);
 		void FreeDepthBuffer(const RDepthBuffer a_depth_buffer);
