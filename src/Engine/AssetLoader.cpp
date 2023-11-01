@@ -29,7 +29,8 @@ const uint64_t StringHash(const char* a_string)
 
 enum class ASSET_TYPE : uint32_t
 {
-	MODEL
+	MODEL,
+	TEXTURE
 };
 
 struct AssetSlot

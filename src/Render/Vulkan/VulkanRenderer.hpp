@@ -48,7 +48,7 @@ namespace BB
 
 		void CopyBuffer(const RCommandList a_list, const RenderCopyBuffer& a_copy_buffer);
 		void CopyBuffers(const RCommandList a_list, const RenderCopyBuffer* a_copy_buffers, const uint32_t a_copy_buffer_count);
-		//void CopyBufferImage(const CommandListHandle a_RecordingCmdHandle, const RenderCopyBufferImageInfo& a_copy_info);
+		void CopyBufferImage(const RCommandList a_list, const RenderCopyBufferToImageInfo& a_copy_info);
 		//void PipelineBarriers(const CommandListHandle a_RecordingCmdHandle, const PipelineBarrierInfo& a_BarrierInfo);
 
 		void StartRendering(const RCommandList a_list, const StartRenderingInfo& a_render_info, const uint32_t a_backbuffer_index);

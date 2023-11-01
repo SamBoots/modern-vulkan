@@ -1,4 +1,7 @@
 #pragma once
+
+//don't care about uninitialized variable warnings
+#pragma warning(suppress : 26495) 
 #include "Rendererfwd.hpp"
 #include "Slice.h"
 
@@ -64,15 +67,6 @@ namespace BB
 		ENUM_SIZE
 	};
 
-	enum class IMAGE_TYPE : uint32_t
-	{
-		TYPE_1D,
-		TYPE_2D,
-		TYPE_3D,
-
-		ENUM_SIZE
-	};
-
 	enum class DEPTH_FORMAT : uint32_t
 	{
 		D32_SFLOAT,
@@ -82,12 +76,12 @@ namespace BB
 		ENUM_SIZE
 	};
 
-	enum class IMAGE_FORMAT : uint32_t
+	struct BufferCreateInfo
 	{
-		RGBA8_SRGB,
-		RGBA8_UNORM,
-
-		ENUM_SIZE
+		const char* name = nullptr;
+		uint64_t size = 0;
+		BUFFER_TYPE type{};
+		bool host_writable = false;
 	};
 
 	enum class IMAGE_TILING : uint32_t
@@ -98,14 +92,6 @@ namespace BB
 		ENUM_SIZE
 	};
 
-	struct BufferCreateInfo
-	{
-		const char* name = nullptr;
-		uint64_t size = 0;
-		BUFFER_TYPE type;
-		bool host_writable;
-	};
-
 	struct ImageCreateInfo
 	{
 		const char* name = nullptr;
@@ -113,8 +99,8 @@ namespace BB
 		uint32_t height = 0;
 		uint32_t depth = 0;
 
-		uint16_t arrayLayers = 0;
-		uint16_t mipLevels = 0;
+		uint16_t array_layers = 0;
+		uint16_t mip_levels = 0;
 		IMAGE_TYPE type{};
 		IMAGE_FORMAT format{};
 		IMAGE_TILING tiling{};
@@ -124,8 +110,8 @@ namespace BB
 	{
 		const char* name = nullptr;
 
-		uint16_t arrayLayers = 0;
-		uint16_t mipLevels = 0;
+		uint16_t array_layers = 0;
+		uint16_t mip_levels = 0;
 		IMAGE_TYPE type{};
 		IMAGE_FORMAT format{};
 	};
@@ -166,6 +152,32 @@ namespace BB
 		RBuffer dst;
 		RBuffer src;
 		Slice<RenderCopyBufferRegion> regions;
+	};
+
+	struct ImageCopyInfo
+	{
+		uint32_t size_x;
+		uint32_t size_y;
+		uint32_t size_z;
+
+		int32_t offset_x;
+		int32_t offset_y;
+		int32_t offset_z;
+
+		uint16_t mip_level;
+		uint16_t base_array_layer;
+		uint16_t layer_count;
+
+		IMAGE_LAYOUT layout;
+	};
+
+	struct RenderCopyBufferToImageInfo
+	{
+		RBuffer src_buffer;
+		uint32_t src_offset;
+
+		RImage dst_image;
+		ImageCopyInfo dst_image_info;
 	};
 
 	struct DescriptorAllocation
@@ -271,3 +283,5 @@ namespace BB
 		BB::Slice<WriteDescriptorData> data;
 	};
 }
+
+#pragma warning(default : 26495) 

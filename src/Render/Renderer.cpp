@@ -28,14 +28,11 @@ struct UploadBufferView
 	uint64_t fence_value;			//32
 	UploadBufferView* next;			//40
 
-	void MemoryCopy(void* a_src, const uint32_t a_byte_offset, const uint32_t a_byte_size)
+	void MemoryCopy(void* a_src, const uint32_t a_byte_offset, const uint32_t a_byte_size) const
 	{
 		memcpy(Pointer::Add(view_mem_start, a_byte_offset), a_src, a_byte_size);
 	}
 };
-
-using RTexture = FrameworkHandle32Bit<struct RTextureTag>;
-
 
 #define MAX_TEXTURES 1024
 
@@ -44,6 +41,9 @@ class GPUTextureManager
 public:
 	GPUTextureManager()
 	{
+		const uint32_t purple = (209 << 24) | (106 << 16) | (255 << 8) | (255 << 0);
+
+
 		//texture 0 is always the debug texture.
 		textures[0].image = debug_texture;
 		textures[0].next_free = UINT32_MAX;
@@ -60,33 +60,99 @@ public:
 		textures[MAX_TEXTURES - 1].next_free = UINT32_MAX;
 	}
 
-	const RTexture UploadTexture()
+	const RTexture UploadTexture(const UploadImageInfo& a_upload_info, const RCommandList a_list, const UploadBufferView& a_upload_buffer, uint32_t a_upload_buffer_offset)
 	{
+		OSAcquireSRWLockWrite(&lock);
 		const RTexture texture_slot = next_free;
 		TextureSlot& slot = textures[texture_slot.handle];
-
-		//do texture stuff
-
 		next_free = slot.next_free;
+		OSReleaseSRWLockWrite(&lock);
+
+		uint32_t byte_per_pixel;
+		{
+			ImageCreateInfo image_info;
+			image_info.name = a_upload_info.name;
+			image_info.width = a_upload_info.width;
+			image_info.height = a_upload_info.height;
+			image_info.depth = 1;
+			image_info.array_layers = 1;
+			image_info.mip_levels = 1;
+
+			image_info.type = IMAGE_TYPE::TYPE_2D;
+			image_info.tiling = IMAGE_TILING::OPTIMAL;
+
+			switch (a_upload_info.bit_count)
+			{
+			case 32:
+				image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+				byte_per_pixel = 4;
+				break;
+			default:
+				BB_ASSERT(false, "Unsupported bit_count for upload image");
+				break;
+			}
+
+			slot.image = Vulkan::CreateImage(image_info);
+
+			ImageViewCreateInfo image_view_info;
+			image_view_info.name = a_upload_info.name;
+			image_view_info.array_layers = 1;
+			image_view_info.mip_levels = 1;
+			image_view_info.type = image_info.type;
+			image_view_info.format = image_info.format;
+			slot.view = Vulkan::CreateViewImage(image_view_info);
+		}
+
+		//now upload the image.
+
+		a_upload_buffer.MemoryCopy(a_upload_info.pixels, a_upload_buffer_offset, byte_per_pixel);
+
+
+		RenderCopyBufferToImageInfo buffer_to_image;
+		buffer_to_image.src_buffer = a_upload_buffer.upload_buffer_handle;
+		buffer_to_image.src_offset = a_upload_buffer.offset + a_upload_buffer_offset;
+		a_upload_buffer_offset += byte_per_pixel;
+
+		buffer_to_image.dst_image = slot.image;
+		buffer_to_image.dst_image_info.size_x = a_upload_info.width;
+		buffer_to_image.dst_image_info.size_y = a_upload_info.height;
+		buffer_to_image.dst_image_info.size_z = 1;
+		buffer_to_image.dst_image_info.offset_x = 0;
+		buffer_to_image.dst_image_info.offset_y = 0;
+		buffer_to_image.dst_image_info.offset_z = 0;
+		buffer_to_image.dst_image_info.layout = IMAGE_LAYOUT::TRANSFER_DST;
+		buffer_to_image.dst_image_info.mip_level = 0;
+		buffer_to_image.dst_image_info.layer_count = 1;
+		buffer_to_image.dst_image_info.base_array_layer = 1;
+
+		Vulkan::CopyBufferImage(a_list, buffer_to_image);
+
 		return texture_slot;
 	}
 
 	void FreeTexture(const RTexture a_texture)
 	{
 		TextureSlot& slot = textures[a_texture.handle];
+		Vulkan::FreeImage(slot.image);
+		Vulkan::FreeViewImage(slot.view);
+
+		OSAcquireSRWLockWrite(&lock);
 		slot.next_free = next_free;
 		next_free = a_texture.handle;
+		OSReleaseSRWLockWrite(&lock);
 	}
 
 private:
 	struct TextureSlot
 	{
 		RImage image;
+		RImageView view;
 		uint32_t next_free;
 	};
 
 	uint32_t next_free;
 	TextureSlot textures[MAX_TEXTURES];
+	BBRWLock lock;
 
 	//purple color
 	RImage debug_texture;
@@ -478,6 +544,8 @@ struct RenderInterface_inst
 	bool debug;
 
 	ShaderCompiler shader_compiler;
+
+	GPUTextureManager texture_manager;
 
 	struct VertexBuffer
 	{
@@ -892,7 +960,7 @@ void BB::SetProjection(const float4x4& a_proj)
 	s_render_inst->scene_info.proj = a_proj;
 }
 
-MeshHandle BB::CreateMesh(const CreateMeshInfo& a_create_info)
+const MeshHandle BB::CreateMesh(const CreateMeshInfo& a_create_info)
 {
 	Mesh mesh;
 	mesh.vertex_buffer = AllocateFromVertexBuffer(a_create_info.vertices.sizeInBytes());
@@ -932,6 +1000,16 @@ MeshHandle BB::CreateMesh(const CreateMeshInfo& a_create_info)
 void BB::FreeMesh(const MeshHandle a_mesh)
 {
 	s_render_inst->mesh_map.erase(a_mesh.handle);
+}
+
+const RTexture BB::UploadTexture(const UploadImageInfo& a_upload_info)
+{
+	return s_render_inst->texture_manager.UploadTexture(a_upload_info);
+}
+
+void BB::FreeTexture(const RTexture a_texture)
+{
+	return s_render_inst->texture_manager.FreeTexture(a_texture);
 }
 
 void BB::DrawMesh(const MeshHandle a_mesh, const float4x4& a_transform)

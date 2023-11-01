@@ -30,4 +30,21 @@ namespace BB
 
 		ENUM_SIZE
 	};
+
+	enum class IMAGE_FORMAT : uint32_t
+	{
+		RGBA8_SRGB,
+		RGBA8_UNORM,
+
+		ENUM_SIZE
+	};
+
+	enum class IMAGE_TYPE : uint32_t
+	{
+		TYPE_1D,
+		TYPE_2D,
+		TYPE_3D,
+
+		ENUM_SIZE
+	};
 }

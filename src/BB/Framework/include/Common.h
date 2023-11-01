@@ -147,7 +147,7 @@ namespace BB
 	union float4
 	{
 		float4() = default;
-		float4(const float a_x, const float a_y, const float a_z, const float a_w) { LoadFloat4(a_x, a_y, a_z, a_w); };
+		float4(const float a_x, const float a_y, const float a_z, const float a_w) { vec = LoadFloat4(a_x, a_y, a_z, a_w); };
 		float4(const VecFloat4 a_vec) { vec = a_vec; }
 		float e[4];
 		struct
@@ -237,7 +237,7 @@ namespace BB
 	union Quat
 	{
 		Quat() = default;
-		Quat(const float a_x, const float a_y, const float a_z, const float a_w) { LoadFloat4(a_x, a_y, a_z, a_w); };
+		Quat(const float a_x, const float a_y, const float a_z, const float a_w) { vec = LoadFloat4(a_x, a_y, a_z, a_w); };
 		Quat(const VecFloat4 a_vec) { vec = a_vec; }
 		struct
 		{

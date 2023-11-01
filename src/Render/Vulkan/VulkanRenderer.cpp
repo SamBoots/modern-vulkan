@@ -18,11 +18,11 @@
 using namespace BB;
 
 #ifdef _DEBUG
-#define VKASSERT(a_VKResult, a_Msg)\
-	if (a_VKResult != VK_SUCCESS)\
-		BB_ASSERT(false, a_Msg)
+#define VKASSERT(vk_result, a_msg)\
+	if (vk_result != VK_SUCCESS)\
+		BB_ASSERT(false, a_msg)
 #else
-#define VKASSERT(a_VKResult, a_Msg) a_VKResult
+#define VKASSERT(vk_result, a_msg) vk_result
 #endif //_DEBUG
 
 //for performance reasons this can be turned off. I need to profile this.
@@ -1222,8 +1222,8 @@ const RImage Vulkan::CreateImage(const ImageCreateInfo& a_create_info)
 	image_create_info.extent.width = a_create_info.width;
 	image_create_info.extent.height = a_create_info.height;
 	image_create_info.extent.depth = a_create_info.depth;
-	image_create_info.mipLevels = a_create_info.mipLevels;
-	image_create_info.arrayLayers = a_create_info.arrayLayers;
+	image_create_info.mipLevels = a_create_info.mip_levels;
+	image_create_info.arrayLayers = a_create_info.array_layers;
 
 	image_create_info.imageType = ImageTypes(a_create_info.type);
 	image_create_info.tiling = ImageTilings(a_create_info.tiling);
@@ -1268,9 +1268,9 @@ const RImageView Vulkan::CreateViewImage(const ImageViewCreateInfo& a_create_inf
 	view_info.format = ImageFormats(a_create_info.format);
 	view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	view_info.subresourceRange.baseMipLevel = 0;
-	view_info.subresourceRange.levelCount = a_create_info.mipLevels;
+	view_info.subresourceRange.levelCount = a_create_info.mip_levels;
 	view_info.subresourceRange.baseArrayLayer = 0;
-	view_info.subresourceRange.layerCount = a_create_info.arrayLayers;
+	view_info.subresourceRange.layerCount = a_create_info.array_layers;
 
 	VkImageView view;
 	VKASSERT(vkCreateImageView(s_vulkan_inst->device, 
@@ -1473,31 +1473,35 @@ RPipelineLayout Vulkan::CreatePipelineLayout(const RDescriptorLayout* a_descript
 	create_info.setLayoutCount = a_layout_count;
 	create_info.pSetLayouts = reinterpret_cast<const VkDescriptorSetLayout*>(a_descriptor_layouts);
 	
-	VkPushConstantRange* constant_ranges;
 	if (a_constant_range_count)
 	{
-		//jank allocation
-		constant_ranges = BBstackAlloc_s(a_constant_range_count, VkPushConstantRange);
+		VkPushConstantRange* constant_ranges = BBstackAlloc(a_constant_range_count, VkPushConstantRange);
 		for (size_t i = 0; i < a_constant_range_count; i++)
 		{
 			constant_ranges[i].stageFlags = ShaderStageFlags(a_constant_ranges[i].stages);
 			constant_ranges[i].size = a_constant_ranges[i].size;
 			constant_ranges[i].offset = a_constant_ranges[i].offset;
 		}
+
+		create_info.pushConstantRangeCount = a_constant_range_count;
+		create_info.pPushConstantRanges = constant_ranges;
+		VkPipelineLayout pipe_layout;
+		vkCreatePipelineLayout(s_vulkan_inst->device, &create_info, nullptr, &pipe_layout);
+
+		return RPipelineLayout((uintptr_t)pipe_layout);
 	}
 	else
-		constant_ranges = nullptr;
+	{
+		create_info.pushConstantRangeCount = 0;
+		create_info.pPushConstantRanges = nullptr;
+		VkPipelineLayout pipe_layout;
+		vkCreatePipelineLayout(s_vulkan_inst->device, &create_info, nullptr, &pipe_layout);
 
-	create_info.pushConstantRangeCount = a_constant_range_count;
-	create_info.pPushConstantRanges = constant_ranges;
-
-	VkPipelineLayout pipe_layout;
-	vkCreatePipelineLayout(s_vulkan_inst->device, &create_info, nullptr, &pipe_layout);
-	BBstackFree_s(constant_ranges);
-	return RPipelineLayout((uintptr_t)pipe_layout);
+		return RPipelineLayout((uintptr_t)pipe_layout);
+	}
 }
 
-void FreePipelineLayout(const RPipelineLayout a_layout)
+void Vulkan::FreePipelineLayout(const RPipelineLayout a_layout)
 {
 	vkDestroyPipelineLayout(s_vulkan_inst->device, 
 		reinterpret_cast<VkPipelineLayout>(a_layout.handle),
@@ -1791,6 +1795,39 @@ void Vulkan::CopyBuffers(const RCommandList a_list, const RenderCopyBuffer* a_co
 			static_cast<uint32_t>(cpy_buf.regions.size()),
 			copy_regions);
 	}
+}
+
+void Vulkan::CopyBufferImage(const RCommandList a_list, const RenderCopyBufferToImageInfo& a_copy_info)
+{
+	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+
+	const VulkanBuffer& src_buf = s_vulkan_inst->buffers.find(a_copy_info.src_buffer.handle);
+	const VulkanImage& dst_image = s_vulkan_inst->images.find(a_copy_info.dst_image.handle);
+
+	VkBufferImageCopy copy_image;
+	copy_image.bufferOffset = a_copy_info.src_offset;
+	copy_image.bufferImageHeight = 0;
+	copy_image.bufferRowLength = 0;
+
+	copy_image.imageExtent.width = a_copy_info.dst_image_info.size_x;
+	copy_image.imageExtent.height = a_copy_info.dst_image_info.size_y;
+	copy_image.imageExtent.depth = a_copy_info.dst_image_info.size_z;
+
+	copy_image.imageOffset.x = a_copy_info.dst_image_info.offset_x;
+	copy_image.imageOffset.y = a_copy_info.dst_image_info.offset_y;
+	copy_image.imageOffset.z = a_copy_info.dst_image_info.offset_z;
+
+	copy_image.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	copy_image.imageSubresource.mipLevel = a_copy_info.dst_image_info.mip_level;
+	copy_image.imageSubresource.baseArrayLayer = a_copy_info.dst_image_info.base_array_layer;
+	copy_image.imageSubresource.layerCount = a_copy_info.dst_image_info.layer_count;
+
+	vkCmdCopyBufferToImage(cmd_list,
+		src_buf.buffer,
+		dst_image.image,
+		ImageLayout(a_copy_info.dst_image_info.layout),
+		1,
+		&copy_image);
 }
 
 void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo& a_render_info, const uint32_t a_backbuffer_index)
