@@ -21,9 +21,9 @@ struct ThreadInfo
 };
 
 #pragma optimize( "", off ) 
-static void ThreadStartFunc(void* a_Args)
+static void ThreadStartFunc(void* a_args)
 {
-	ThreadInfo* thread_info = reinterpret_cast<ThreadInfo*>(a_Args);
+	ThreadInfo* thread_info = reinterpret_cast<ThreadInfo*>(a_args);
 	BBRWLock lock = OSCreateRWLock();
 	OSAcquireSRWLockWrite(&lock);
 

@@ -36,9 +36,9 @@ namespace BB
 
 #pragma region AllocationFunctions
 	//Use the BBnew or BBalloc function instead of this.
-	inline void* BBalloc_f(BB_MEMORY_DEBUG Allocator a_allocator, const size_t a_size, const size_t a_Alignment)
+	inline void* BBalloc_f(BB_MEMORY_DEBUG Allocator a_allocator, const size_t a_size, const size_t a_alignment)
 	{
-		return a_allocator.func(BB_MEMORY_DEBUG_SEND a_allocator.allocator, a_size, a_Alignment, nullptr);
+		return a_allocator.func(BB_MEMORY_DEBUG_SEND a_allocator.allocator, a_size, a_alignment, nullptr);
 	}
 
 	//Use the BBnewArr function instead of this.

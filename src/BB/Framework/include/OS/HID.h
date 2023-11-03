@@ -87,7 +87,7 @@ namespace BB
 	//7 byte struct (assuming bool is 1 byte.)
 	struct KeyInfo
 	{
-		KEYBOARD_KEY scancode;
+		KEYBOARD_KEY scan_code;
 		wchar utf16; //NOT IN USE;
 		bool key_pressed;
 	};
@@ -108,5 +108,5 @@ namespace BB
 		};
 	};
 
-	void PollInputEvents(InputEvent* a_EventBuffers, size_t& a_InputEventAmount);
+	void PollInputEvents(InputEvent* a_event_buffers, size_t& input_event_amount);
 }

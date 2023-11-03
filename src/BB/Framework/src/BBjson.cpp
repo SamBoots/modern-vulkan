@@ -135,64 +135,64 @@ Token GetToken(JsonFile& a_JsonFile)
 	return t_Token;
 }
 
-void BB::JsonNodeToString(const JsonNode* a_Node, String& a_String)
+void BB::JsonNodeToString(const JsonNode* a_Node, String& a_string)
 {
 	switch (a_Node->type)
 	{
 	case BB::JSON_TYPE::OBJECT:
 	{
-		a_String.append("{");
-		a_String.append("\n");
+		a_string.append("{");
+		a_string.append("\n");
 
 		const JsonObject::Pair* t_Pair = a_Node->object->pairLL;
 		while (t_Pair != nullptr)
 		{
-			a_String.append("\"");
-			a_String.append(t_Pair->name);
-			a_String.append("\"");
-			a_String.append(" : ");
-			JsonNodeToString(t_Pair->node, a_String);
+			a_string.append("\"");
+			a_string.append(t_Pair->name);
+			a_string.append("\"");
+			a_string.append(" : ");
+			JsonNodeToString(t_Pair->node, a_string);
 
 			if (t_Pair->next != nullptr)
-				a_String.append(",\n");
+				a_string.append(",\n");
 			else
-				a_String.append("\n");
+				a_string.append("\n");
 			t_Pair = t_Pair->next;
 		}
 
-		a_String.append("}\n");
+		a_string.append("}\n");
 	}
 		break;
 	case BB::JSON_TYPE::LIST:
-		a_String.append("[\n");
+		a_string.append("[\n");
 
 		for (size_t i = 0; i < a_Node->list.nodeCount; i++)
 		{
-			JsonNodeToString(a_Node->list.nodes[i], a_String);
-			a_String.append(",\n");
+			JsonNodeToString(a_Node->list.nodes[i], a_string);
+			a_string.append(",\n");
 		}
 
-		a_String.append("]\n");
+		a_string.append("]\n");
 		break;
 	case BB::JSON_TYPE::STRING:
-		a_String.append("\"");
-		a_String.append(a_Node->string);
-		a_String.append("\"");
+		a_string.append("\"");
+		a_string.append(a_Node->string);
+		a_string.append("\"");
 		break;
 	case BB::JSON_TYPE::NUMBER:
 		BB_WARNING(false, "Not supporting number to string yet.", WarningType::LOW);
-		a_String.append("\"");
+		a_string.append("\"");
 		//t_JsonString.append(t_Node->number);
-		a_String.append("\"");
+		a_string.append("\"");
 		break;
 	case BB::JSON_TYPE::BOOL:
 		if (a_Node->boolean)
-			a_String.append("true");
+			a_string.append("true");
 		else
-			a_String.append("false");
+			a_string.append("false");
 		break;
 	case BB::JSON_TYPE::NULL_TYPE:
-		a_String.append("null");
+		a_string.append("null");
 		break;
 	default:
 		break;
@@ -272,7 +272,6 @@ JsonNode* JsonParser::ParseObject()
 	uint32_t t_PairCount = 0;
 
 	Token t_NextToken = GetToken(m_JsonFile);
-	uint32_t t_ArrayIndex = 0;
 
 	JsonObject::Pair* t_Pair = t_PairHead;
 	bool t_ContinueLoop = true;
@@ -443,6 +442,8 @@ JsonNode* JsonParser::ParseList()
 		case TOKEN_TYPE::OUT_OF_TOKENS:
 			BB_ASSERT(false, "OUT_OF_TOKENS while reading a list in JSON");
 			break;
+		default:
+				break;
 		}
 
 		t_NextToken = GetToken(m_JsonFile);

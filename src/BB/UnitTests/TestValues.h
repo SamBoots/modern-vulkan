@@ -13,7 +13,7 @@ struct size2593bytes { union { char data[2593]; size_t value; }; };
 struct size2593bytesObj
 {
 	size2593bytesObj() { value = 0; };
-	size2593bytesObj(const size_t a_Value) : value(a_Value) {};
+	size2593bytesObj(const size_t a_value) : value(a_value) {};
 	size2593bytesObj(const size2593bytesObj& a_rhs)
 	{
 		value = a_rhs.value;

@@ -10,13 +10,9 @@ namespace BB
 	{
 		struct BaseAllocator
 		{
-			BaseAllocator(const char* a_Name = "unnamed") { name = a_Name; };
-			//Destructor should be handled by the child types.
-			virtual operator Allocator() = 0;
+			BaseAllocator(const char* a_Name = "unnamed") { name = a_Name; }
 
 			//realloc is the single allocation call that we make.
-			virtual void* Alloc(size_t, size_t) = 0;
-			virtual void Free(void*) = 0;
 			virtual void Clear();
 
 			//just delete these for safety, copies might cause errors.
@@ -49,7 +45,7 @@ namespace BB
 			LinearAllocator(const size_t a_size, const char* a_name = "unnamed");
 			~LinearAllocator();
 
-			operator Allocator() override;
+			operator Allocator();
 
 			//just delete these for safety, copies might cause errors.
 			LinearAllocator(const LinearAllocator&) = delete;
@@ -57,8 +53,8 @@ namespace BB
 			LinearAllocator& operator =(const LinearAllocator&) = delete;
 			LinearAllocator& operator =(LinearAllocator&&) = delete;
 
-			void* Alloc(size_t a_size, size_t a_alignment) override;
-			void Free(void*) override;
+			void* Alloc(size_t a_size, size_t a_alignment);
+			void Free(void*);
 			void Clear() override;
 
 		private:
@@ -72,7 +68,7 @@ namespace BB
 			FixedLinearAllocator(const size_t a_size, const char* a_Name = "unnamed");
 			~FixedLinearAllocator();
 
-			operator Allocator() override;
+			operator Allocator();
 
 			//just delete these for safety, copies might cause errors.
 			FixedLinearAllocator(const FixedLinearAllocator&) = delete;
@@ -80,8 +76,8 @@ namespace BB
 			FixedLinearAllocator& operator =(const FixedLinearAllocator&) = delete;
 			FixedLinearAllocator& operator =(FixedLinearAllocator&&) = delete;
 
-			void* Alloc(size_t a_size, size_t a_Alignment) override;
-			void Free(void*) override;
+			void* Alloc(size_t a_size, size_t a_alignment);
+			void Free(void*);
 			void Clear() override;
 
 		private:
@@ -99,7 +95,7 @@ namespace BB
 			StackAllocator(const size_t a_size, const char* a_name = "unnamed");
 			~StackAllocator();
 
-			operator Allocator() override;
+			operator Allocator();
 
 			//just delete these for safety, copies might cause errors.
 			StackAllocator(const StackAllocator&) = delete;
@@ -107,8 +103,8 @@ namespace BB
 			StackAllocator& operator =(const StackAllocator&) = delete;
 			StackAllocator& operator =(StackAllocator&&) = delete;
 
-			void* Alloc(size_t a_size, size_t a_alignment) override;
-			void Free(void*) override;
+			void* Alloc(size_t a_size, size_t a_alignment);
+			void Free(void*);
 			void Clear() override;
 
 			void SetMarker(const StackMarker a_pos);
@@ -128,7 +124,7 @@ namespace BB
 			FreelistAllocator(const size_t a_size, const char* a_Name = "unnamed");
 			~FreelistAllocator();
 
-			operator Allocator() override;
+			operator Allocator();
 
 			//just delete these for safety, copies might cause errors.
 			FreelistAllocator(const FreelistAllocator&) = delete;
@@ -136,8 +132,8 @@ namespace BB
 			FreelistAllocator& operator =(const FreelistAllocator&) = delete;
 			FreelistAllocator& operator =(FreelistAllocator&&) = delete;
 
-			void* Alloc(size_t a_size, size_t a_Alignment) override;
-			void Free(void* a_ptr) override;
+			void* Alloc(size_t a_size, size_t a_alignment);
+			void Free(void* a_ptr);
 			void Clear() override;
 
 			struct AllocHeader 
@@ -161,7 +157,7 @@ namespace BB
 			POW_FreelistAllocator(const size_t, const char* a_Name = "unnamed");
 			~POW_FreelistAllocator();
 
-			operator Allocator() override;
+			operator Allocator();
 
 			//just delete these for safety, copies might cause errors.
 			POW_FreelistAllocator(const POW_FreelistAllocator&) = delete;
@@ -169,8 +165,8 @@ namespace BB
 			POW_FreelistAllocator& operator =(const POW_FreelistAllocator&) = delete;
 			POW_FreelistAllocator& operator =(POW_FreelistAllocator&&) = delete;
 
-			void* Alloc(size_t a_size, size_t) override;
-			void Free(void* a_ptr) override;
+			void* Alloc(size_t a_size, size_t);
+			void Free(void* a_ptr);
 			void Clear() override;
 
 			struct FreeBlock
@@ -198,7 +194,7 @@ namespace BB
 
 		//struct PoolAllocator
 		//{
-		//	PoolAllocator(const size_t a_objectSize, const size_t a_objectCount, const size_t a_Alignment);
+		//	PoolAllocator(const size_t a_objectSize, const size_t a_objectCount, const size_t a_alignment);
 		//	~PoolAllocator();
 
 		//	//just delete these for safety, copies might cause errors.

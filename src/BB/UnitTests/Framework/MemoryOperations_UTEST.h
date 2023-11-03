@@ -5,10 +5,10 @@
 
 using namespace BB;
 
-static void FillBuffer(uint8_t* a_Value, size_t a_size)
+static void FillBuffer(uint8_t* a_value, size_t a_size)
 {
 	const size_t t_Sequences = a_size / 8;
-	size_t* t_ModifiedValues = reinterpret_cast<size_t*>(a_Value);
+	size_t* t_ModifiedValues = reinterpret_cast<size_t*>(a_value);
 	t_ModifiedValues[0] = 0;
 	t_ModifiedValues[1] = 1;
 

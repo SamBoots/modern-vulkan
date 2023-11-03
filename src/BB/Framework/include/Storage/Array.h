@@ -72,9 +72,9 @@ namespace BB
 		void insert(size_t a_Position, const T& a_Element);
 		void insert(size_t a_Position, const T* a_Elements, size_t a_count);
 		template <class... Args>
-		void emplace_back(Args&&... a_Args);
+		void emplace_back(Args&&... a_args);
 		template <class... Args>
-		void emplace(size_t a_Position, Args&&... a_Args);
+		void emplace(size_t a_Position, Args&&... a_args);
 
 		void reserve(size_t a_size);
 		void resize(size_t a_size);
@@ -224,18 +224,18 @@ namespace BB
 
 	template<typename T>
 	template<class ...Args>
-	inline void BB::Array<T>::emplace_back(Args&&... a_Args)
+	inline void BB::Array<T>::emplace_back(Args&&... a_args)
 	{
 		if (m_size >= m_capacity)
 			grow();
 
-		new (&m_Arr[m_size]) T(std::forward<Args>(a_Args)...);
+		new (&m_Arr[m_size]) T(std::forward<Args>(a_args)...);
 		m_size++;
 	}
 
 	template<typename T>
 	template<class ...Args>
-	inline void BB::Array<T>::emplace(size_t a_Position, Args&&... a_Args)
+	inline void BB::Array<T>::emplace(size_t a_Position, Args&&... a_args)
 	{
 		BB_ASSERT(m_size >= a_Position, "trying to insert in a position that is bigger then the current Dynamic_Array size!");
 		if (m_size >= m_capacity)
@@ -257,7 +257,7 @@ namespace BB
 			memmove(&m_Arr[a_Position + 1], &m_Arr[a_Position], sizeof(T) * (m_size - a_Position));
 		}
 
-		new (&m_Arr[a_Position]) T(std::forward<Args>(a_Args)...);
+		new (&m_Arr[a_Position]) T(std::forward<Args>(a_args)...);
 		m_size++;
 	}
 

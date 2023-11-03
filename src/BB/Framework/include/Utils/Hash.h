@@ -16,37 +16,39 @@ struct Hash
 	void operator*=(size_t a_Multi) { hash *= a_Multi; }
 
 	//Create with uint64_t.
-	static Hash MakeHash(size_t a_Value);
-	static Hash MakeHash(const char* a_Value);
-	static Hash MakeHash(void* a_Value);
+	static Hash MakeHash(size_t a_value);
+	static Hash MakeHash(const char* a_value);
+	static Hash MakeHash(void* a_value);
 
 private:
 
 };
 
-inline Hash Hash::MakeHash(size_t a_Value)
+inline Hash Hash::MakeHash(size_t a_value)
 {
-	a_Value ^= a_Value << 13, a_Value ^= a_Value >> 17;
-	a_Value ^= a_Value << 5;
-	return Hash(a_Value);
+	a_value ^= a_value << 13;
+	a_value ^= a_value >> 17;
+	a_value ^= a_value << 5;
+	return Hash(a_value);
 }
 
-inline Hash Hash::MakeHash(void* a_Value)
+inline Hash Hash::MakeHash(void* a_value)
 {
-	uintptr_t t_Value = reinterpret_cast<uintptr_t>(a_Value);
+	uintptr_t t_Value = reinterpret_cast<uintptr_t>(a_value);
 
-	t_Value ^= t_Value << 13, t_Value ^= t_Value >> 17;
+	t_Value ^= t_Value << 13;
+	t_Value ^= t_Value >> 17;
 	t_Value ^= t_Value << 5;
 	return Hash(t_Value);
 }
 
-inline Hash Hash::MakeHash(const char* a_Value)
+inline Hash Hash::MakeHash(const char* a_value)
 {
-	uint64_t t_Hash = 5381;
-	int t_C;
+	uint64_t hash = 5381;
+	int c;
 
-	while (t_C = *a_Value++)
-		t_Hash = ((t_Hash << 5) + t_Hash) + t_C;
+	while (c == *a_value++)
+		hash = ((hash << 5) + hash) + c;
 
-	return Hash(t_Hash);
+	return hash;
 }

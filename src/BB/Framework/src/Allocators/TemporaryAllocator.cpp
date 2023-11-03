@@ -2,12 +2,12 @@
 
 namespace BB
 {
-	void* ReallocTemp(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, size_t a_Alignment, void*)
+	void* ReallocTemp(BB_MEMORY_DEBUG_UNUSED void* a_allocator, size_t a_size, size_t a_alignment, void*)
 	{
 		if (a_size == 0)
 			return nullptr;
 
-		return reinterpret_cast<TemporaryAllocator*>(a_allocator)->Alloc(a_size, a_Alignment);
+		return reinterpret_cast<TemporaryAllocator*>(a_allocator)->Alloc(a_size, a_alignment);
 	}
 
 	struct TemporaryFreeBlock
@@ -45,19 +45,19 @@ namespace BB
 		}
 	}
 
-	void* BB::TemporaryAllocator::Alloc(size_t a_size, size_t a_Alignment)
+	void* BB::TemporaryAllocator::Alloc(size_t a_size, size_t a_alignment)
 	{
 		size_t t_Adjustment = Pointer::AlignForwardAdjustment(
 			Pointer::Add(m_FreeBlock, m_FreeBlock->used),
-			a_Alignment);
+			a_alignment);
 
-		size_t t_AlignedSize = a_size + t_Adjustment;
+		size_t aligned_size = a_size + t_Adjustment;
 
 		//Does it fit in our current block.
-		if (m_FreeBlock->size - m_FreeBlock->used >= t_AlignedSize)
+		if (m_FreeBlock->size - m_FreeBlock->used >= aligned_size)
 		{
 			void* t_Address = Pointer::Add(m_FreeBlock, m_FreeBlock->used);
-			m_FreeBlock->used += t_AlignedSize;
+			m_FreeBlock->used += aligned_size;
 			return t_Address;
 		}
 
@@ -65,8 +65,8 @@ namespace BB
 		size_t t_NewBlockSize = m_FreeBlock->used + m_FreeBlock->size;
 		//If the allocation is bigger then the new block resize the new block for the allocation.
 		//Round up to the new block size for ease of use and correct alignment.
-		if (t_AlignedSize > t_NewBlockSize)
-			t_NewBlockSize = RoundUp(t_AlignedSize, t_NewBlockSize);
+		if (aligned_size > t_NewBlockSize)
+			t_NewBlockSize = RoundUp(aligned_size, t_NewBlockSize);
 
 		TemporaryFreeBlock* t_Previous = m_FreeBlock;
 		m_FreeBlock = reinterpret_cast<TemporaryFreeBlock*>(BBalloc(m_BackingAllocator, t_NewBlockSize));
@@ -75,7 +75,7 @@ namespace BB
 		m_FreeBlock->previousBlock = t_Previous;
 
 		//Try again with the new block
-		return Alloc(a_size, a_Alignment);
+		return Alloc(a_size, a_alignment);
 	}
 
 	void BB::TemporaryAllocator::Clear()

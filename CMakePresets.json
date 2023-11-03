@@ -1,7 +1,7 @@
 ﻿{
   "cmakeMinimumRequired": {
     "major": 3,
-    "minor": 21,
+    "minor": 8,
     "patch": 0
   },
   "version": 3,
@@ -9,46 +9,98 @@
   "configurePresets": [
     {
       "hidden": true,
-      "name": "default-win",
-      "description": "default build with options for vulkan or DX12. Not for x86.",
+      "name": "default-msvc",
+      "description": "default build for MSVC",
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/out/build/${presetName}",
+      "binaryDir": "${sourceDir}/out/build/msvc/${presetName}",
       "architecture": {
         "value": "x64",
         "strategy": "external"
+      },
+      "cacheVariables": {
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+        "CMAKE_CXX_FLAGS_INIT": "-W4 -WX"
       }
     },
     {
-      "name": "vulkan-Debug-Use-Graphic-Pipelines",
-      "inherits": "default-win",
+      "hidden": true,
+      "name": "default-clang",
+      "description": "default build for clang",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/build/clang/${presetName}",
+      "environment": {
+        "CC": "clang-cl",
+        "CXX": "clang-cl"
+      },
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
       "cacheVariables": {
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+        "CMAKE_CXX_FLAGS_INIT": "-Wall -Wextra -Wno-c++98-compat -Wno-c++98-compat-pedantic -mavx -mavx2"
+      }
+    },
+    {
+      "name": "vulkan-debug-use-graphic-pipelines",
+      "inherits": "default-msvc",
+      "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "USE_GRAPHIC_PIPELINES": "TRUE"
       }
     },
     {
-      "name": "vulkan-Debug",
-      "inherits": "default-win",
+      "name": "vulkan-debug",
+      "inherits": "default-msvc",
       "cacheVariables": {
-        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
         "CMAKE_BUILD_TYPE": "Debug"
       }
     },
     {
-      "name": "vulkan-Release-with-debug",
-      "inherits": "default-win",
+      "name": "vulkan-release-with-debug",
+      "inherits": "default-msvc",
       "cacheVariables": {
-        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "GRAPHICS_API": "Vulkan"
       }
     },
     {
-      "name": "vulkan-Release",
-      "inherits": "default-win",
+      "name": "vulkan-release",
+      "inherits": "default-msvc",
       "cacheVariables": {
-        "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+        "CMAKE_BUILD_TYPE": "Release",
+        "GRAPHICS_API": "Vulkan"
+      }
+    },
+
+    //CLANG
+    {
+      "name": "vulkan-clang-debug-use-graphic-pipelines",
+      "inherits": "default-clang",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "USE_GRAPHIC_PIPELINES": "TRUE"
+      }
+    },
+    {
+      "name": "vulkan-clang-debug",
+      "inherits": "default-clang",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "vulkan-clang-release-with-debug",
+      "inherits": "default-clang",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "GRAPHICS_API": "Vulkan"
+      }
+    },
+    {
+      "name": "vulkan-clang-release",
+      "inherits": "default-clang",
+      "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "GRAPHICS_API": "Vulkan"
       }

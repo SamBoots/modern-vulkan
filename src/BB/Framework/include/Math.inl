@@ -153,6 +153,21 @@ namespace BB
 		return a * rcp_length;
 	}
 
+	static inline float4 Float4Min(const float4 a_lhs, const float4 a_rhs)
+	{
+		return MinFloat4(a_lhs.vec, a_rhs.vec);
+	}
+
+	static inline float4 Float4Max(const float4 a_lhs, const float4 a_rhs)
+	{
+		return MaxFloat4(a_lhs.vec, a_rhs.vec);
+	}
+
+	static inline float4 Float4Clamp(const float4 a_value, const float4 a_min, const float4 a_max)
+	{
+		return MinFloat4(MaxFloat4(a_value.vec, a_min.vec), a_max.vec);
+	}
+
 	// FLOAT4
 	//--------------------------------------------------------
 	// FLOAT4x4
@@ -253,7 +268,7 @@ namespace BB
 	{
 		const float tanHalfFov = tan(fov / 2.f);
 
-		float4x4 mat = {0};
+		float4x4 mat{};
 		mat.e[0][0] = 1.f / (aspect * tanHalfFov);
 		mat.e[1][1] = 1.f / (tanHalfFov);
 		mat.e[2][2] = -(farField + nearField) / (farField - nearField);

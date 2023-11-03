@@ -153,7 +153,7 @@ namespace BB
 		}
 
 		//Take the freelist
-		T* t_Ptr = reinterpret_cast<T*>(m_pool);
+		T* ptr = reinterpret_cast<T*>(m_pool);
 		//Set the new head of the freelist.
 		m_pool = reinterpret_cast<T**>(*m_pool);
 
@@ -161,7 +161,7 @@ namespace BB
 		++m_size;
 #endif //_DEBUG
 
-		return t_Ptr;
+		return ptr;
 	}
 
 	template<typename T>

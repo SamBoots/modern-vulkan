@@ -120,7 +120,7 @@ int main(int argc, char** argv)
 				const KeyInfo& ki = ip.key_info;
 				float3 cam_move{};
 				if (ki.key_pressed)
-					switch (ki.scancode)
+					switch (ki.scan_code)
 					{
 					case KEYBOARD_KEY::_F:
 						freeze_cam = !freeze_cam;

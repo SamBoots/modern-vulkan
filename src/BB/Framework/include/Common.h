@@ -1,13 +1,9 @@
 #pragma once
 #include <cstdint>
-
 #include <BBIntrin.h>
 
 namespace BB
 {
-
-
-
 	namespace allocators
 	{
 		struct LinearAllocator;
@@ -38,16 +34,16 @@ namespace BB
 	template<typename Tag>
 	union FrameworkHandle
 	{
-		FrameworkHandle() {};
+		FrameworkHandle() {}
 		FrameworkHandle(uint64_t a_handle)
 		{
 			handle = a_handle;
-		};
+		}
 		FrameworkHandle(unsigned int a_index, unsigned int a_extra_index)
 		{
 			index = a_index;
 			extra_index = a_extra_index;
-		};
+		}
 		struct
 		{
 			//The handle's main index. Always used and is the main handle.
@@ -76,7 +72,7 @@ namespace BB
 	template<typename Tag>
 	union FrameworkHandle32Bit
 	{
-		FrameworkHandle32Bit() {};
+		FrameworkHandle32Bit() {}
 		FrameworkHandle32Bit(uint32_t a_handle)
 		{
 			handle = a_handle;
@@ -98,6 +94,7 @@ namespace BB
 
 #ifdef _DEBUG
 #define BB_MEMORY_DEBUG const char* a_file, int a_line, bool a_is_array,
+#define BB_MEMORY_DEBUG_UNUSED const char*, int, bool,
 #define BB_MEMORY_DEBUG_ARGS __FILE__, __LINE__, false,
 #define BB_MEMORY_DEBUG_SEND a_file, a_line, false,
 #define BB_MEMORY_DEBUG_FREE nullptr, 0, false,
@@ -115,7 +112,7 @@ namespace BB
 #define BB_MEMORY_DEBUG_SEND_ARR
 #define BB_MEMORY_DEBUG_FREE_ARR
 #endif //_DEBUG
-	typedef void* (*AllocateFunc)(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, const size_t a_Alignment, void* a_OldPtr);
+	typedef void* (*AllocateFunc)(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, const size_t a_alignment, void* a_old_ptr);
 	struct Allocator
 	{
 		AllocateFunc func;
@@ -125,6 +122,9 @@ namespace BB
 
 	union float2
 	{
+		float2() { x = 0; y = 0; }
+		float2(const float a_value) { x = a_value; y = a_value; }
+		float2(const float a_x, const float a_y) { x = a_x; y = a_y; }
 		float e[2];
 		struct
 		{
@@ -135,6 +135,9 @@ namespace BB
 
 	union float3
 	{
+		float3() { x = 0; y = 0; z = 0; }
+		float3(const float a_value) { x = a_value; y = a_value; z = a_value; }
+		float3(const float a_x, const float a_y, const float a_z) { x = a_x; y = a_y; z = a_z; }
 		float e[3];
 		struct
 		{
@@ -146,8 +149,9 @@ namespace BB
 
 	union float4
 	{
-		float4() = default;
-		float4(const float a_x, const float a_y, const float a_z, const float a_w) { vec = LoadFloat4(a_x, a_y, a_z, a_w); };
+		float4() { vec = LoadFloat4Zero(); }
+		float4(const float a_value) { vec = LoadFloat4(a_value); }
+		float4(const float a_x, const float a_y, const float a_z, const float a_w) { vec = LoadFloat4(a_x, a_y, a_z, a_w); }
 		float4(const VecFloat4 a_vec) { vec = a_vec; }
 		float e[4];
 		struct
@@ -184,7 +188,7 @@ namespace BB
 	union int4
 	{
 		int4() = default;
-		int4(const int a_x, const int a_y, const int a_z, const int a_w) { x = a_x, y = a_y, z = a_z, w = a_w; };
+		int4(const int a_x, const int a_y, const int a_z, const int a_w) { x = a_x; y = a_y; z = a_z; w = a_w; }
 		int4(const VecInt4 a_vec) { vec = a_vec; }
 		int e[4];
 		VecInt4 vec;
@@ -221,7 +225,7 @@ namespace BB
 	union uint4
 	{
 		uint4() = default;
-		uint4(const unsigned int a_x, const unsigned int a_y, const unsigned int a_z, const unsigned int a_w) { x = a_x, y = a_y, z = a_z, w = a_w; };
+		uint4(const unsigned int a_x, const unsigned int a_y, const unsigned int a_z, const unsigned int a_w) { x = a_x; y = a_y; z = a_z; w = a_w; }
 		uint4(const VecUint4 a_vec) { vec = a_vec; }
 		unsigned int e[4];
 		struct
@@ -236,10 +240,10 @@ namespace BB
 
 	union Quat
 	{
-		Quat() = default;
+		Quat() { vec = LoadFloat4Zero(); }
 		Quat(const float a_x, const float a_y, const float a_z, const float a_w) { vec = LoadFloat4(a_x, a_y, a_z, a_w); };
 		Quat(const VecFloat4 a_vec) { vec = a_vec; }
-		struct
+		struct 
 		{
 			float x;
 			float y;
@@ -264,6 +268,13 @@ namespace BB
 
 	union float4x4
 	{
+		float4x4()
+		{
+			r0 = {};
+			r1 = {};
+			r2 = {};
+			r3 = {};
+		}
 		float e[4][4];
 		struct
 		{

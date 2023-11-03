@@ -57,17 +57,17 @@ using namespace BB;
 
 char* Asset::FindOrCreateString(const char* a_string)
 {
-	const uint64_t t_StringHash = StringHash(a_string);
-	char** t_StringPtr = s_asset_manager.stringMap.find(t_StringHash);
-	if (t_StringPtr != nullptr)
-		return *t_StringPtr;
+	const uint64_t stringHash = StringHash(a_string);
+	char** stringPtr = s_asset_manager.stringMap.find(stringHash);
+	if (stringPtr != nullptr)
+		return *stringPtr;
 
-	const uint32_t t_StringSize = static_cast<uint32_t>(strlen(a_string) + 1);
-	char* t_String = BBnewArr(s_asset_manager.allocator, t_StringSize, char);
-	memcpy(t_String, a_string, t_StringSize);
-	t_String[t_StringSize - 1] = '\0';
-	s_asset_manager.stringMap.emplace(t_StringHash, t_String);
-	return t_String;
+	const uint32_t stringSize = static_cast<uint32_t>(strlen(a_string) + 1);
+	char* string = BBnewArr(s_asset_manager.allocator, stringSize, char);
+	memcpy(string, a_string, stringSize);
+	string[stringSize - 1] = '\0';
+	s_asset_manager.stringMap.emplace(stringHash, string);
+	return string;
 }
 
 static inline void* GetAccessorDataPtr(const cgltf_accessor* a_Accessor)

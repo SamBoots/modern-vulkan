@@ -17,7 +17,7 @@ namespace BB
 		TemporaryAllocator& operator =(const TemporaryAllocator&) = delete;
 		TemporaryAllocator& operator =(TemporaryAllocator&&) = delete;
 
-		void* Alloc(size_t a_size, size_t a_Alignment);
+		void* Alloc(size_t a_size, size_t a_alignment);
 		void Clear();
 
 	private:

@@ -16,8 +16,8 @@
 namespace BB
 {
 	using LibFuncPtr = void*;
-	typedef void (*PFN_WindowResizeEvent)(const WindowHandle a_WindowHandle, const uint32_t a_X, const uint32_t a_Y);
-	typedef void (*PFN_WindowCloseEvent)(const WindowHandle a_WindowHandle);
+	typedef void (*PFN_WindowResizeEvent)(const WindowHandle a_window_handle, const uint32_t a_X, const uint32_t a_Y);
+	typedef void (*PFN_WindowCloseEvent)(const WindowHandle a_window_handle);
 
 	using OSThreadHandle = FrameworkHandle<struct ThreadHandletag>;
 
@@ -62,16 +62,16 @@ namespace BB
 	const uint32_t LatestOSError();
 
 	//Load a dynamic library
-	LibHandle LoadLib(const wchar* a_LibName);
+	LibHandle LoadLib(const wchar* a_lib_name);
 	//Unload a dynamic library
 	void UnloadLib(const LibHandle a_handle);
 	//Load dynamic library function
-	LibFuncPtr LibLoadFunc(const LibHandle a_handle, const char* a_FuncName);
+	LibFuncPtr LibLoadFunc(const LibHandle a_handle, const char* a_func_name);
 
 	//Write to the standard C++ console if it's available.
-	void WriteToConsole(const char* a_String, uint32_t a_StrLength);
+	void WriteToConsole(const char* a_string, uint32_t a_str_length);
 	//Write to the standard C++ console if it's available.
-	void WriteToConsole(const wchar_t* a_String, uint32_t a_StrLength);
+	void WriteToConsole(const wchar_t* a_string, uint32_t a_str_length);
 
 	void OSCreateDirectory(const char* a_path_name);
 	
@@ -88,25 +88,25 @@ namespace BB
 	void WriteToOSFile(const OSFileHandle a_file_handle, const void* a_data, const size_t a_size);
 	//Reads a loaded file.
 	//Buffer.data will have a dynamic allocation from the given allocator.
-	Buffer ReadOSFile(Allocator a_system_allocator, const OSFileHandle a_FileHandle);
+	Buffer ReadOSFile(Allocator a_system_allocator, const OSFileHandle a_file_handle);
 	//Reads an external file from path.
 	//Buffer.data will have a dynamic allocation from the given allocator.
 	Buffer ReadOSFile(Allocator a_system_allocator, const char* a_path);
 	Buffer ReadOSFile(Allocator a_system_allocator, const wchar* a_path);
 	//Get a file's size in bytes.
-	uint64_t GetOSFileSize(const OSFileHandle a_FileHandle);
-	//Set the file position, a_Offset can be 0 if you just want to move it to BEGIN or END.
-	void SetOSFilePosition(const OSFileHandle a_FileHandle, const uint32_t a_Offset, const OS_FILE_READ_POINT a_FileReadPoint);
+	uint64_t GetOSFileSize(const OSFileHandle a_file_handle);
+	//Set the file position, a_offset can be 0 if you just want to move it to BEGIN or END.
+	void SetOSFilePosition(const OSFileHandle a_file_handle, const uint32_t a_offset, const OS_FILE_READ_POINT a_file_read_point);
 
-	void CloseOSFile(const OSFileHandle a_FileHandle);
+	void CloseOSFile(const OSFileHandle a_file_handle);
 
-	OSThreadHandle OSCreateThread(void(*a_Func)(void*), const unsigned int a_StackSize, void* a_ArgList);
-	void OSWaitThreadfinish(const OSThreadHandle a_Thread);
+	OSThreadHandle OSCreateThread(void(*a_func)(void*), const unsigned int a_stack_size, void* a_arg_list);
+	void OSWaitThreadfinish(const OSThreadHandle a_thread);
 
 	BBMutex OSCreateMutex();
-	void OSWaitAndLockMutex(const BBMutex a_Mutex);
-	void OSUnlockMutex(const BBMutex a_Mutex);
-	void OSDestroyMutex(const BBMutex a_Mutex);
+	void OSWaitAndLockMutex(const BBMutex a_mutex);
+	void OSUnlockMutex(const BBMutex a_mutex);
+	void OSDestroyMutex(const BBMutex a_mutex);
 
 	BBSemaphore OSCreateSemaphore(const uint32_t a_initial_count, const uint32_t a_maximum_count);
 	void OSWaitSemaphore(const BBSemaphore a_semaphore);
@@ -124,7 +124,7 @@ namespace BB
 	void OSWaitConditionalVariableExclusive(BBConditionalVariable* a_condition, BBRWLock* a_lock);
 	void OSWakeConditionVariable(BBConditionalVariable* a_condition);
 
-	WindowHandle CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, const int a_Y, const int a_Width, const int a_Height, const wchar* a_WindowName);
+	WindowHandle CreateOSWindow(const OS_WINDOW_STYLE a_style, const int a_X, const int a_Y, const int a_width, const int a_height, const wchar* a_window_name);
 	//Get the OS window handle (hwnd for windows as en example. Reinterpret_cast the void* to the hwnd).
 	void* GetOSWindowHandle(const WindowHandle a_handle);
 	void GetWindowSize(const WindowHandle a_handle, int& a_X, int& a_Y);
@@ -133,15 +133,15 @@ namespace BB
 	void UnfreezeMouseOnWindow();
 
 	//The function that will be called when a window is closed.
-	void SetCloseWindowPtr(PFN_WindowCloseEvent a_Func);
+	void SetCloseWindowPtr(PFN_WindowCloseEvent a_func);
 	//The function that will be called when a window is resized.
-	void SetResizeEventPtr(PFN_WindowResizeEvent a_Func);
+	void SetResizeEventPtr(PFN_WindowResizeEvent a_func);
 
 	//Exits the application.
 	void ExitApp();
 
 	//Process the OS (or window) messages
-	bool ProcessMessages(const WindowHandle a_WindowHandle);
+	bool ProcessMessages(const WindowHandle a_window_handle);
 
 	//Get the program name.
 	const wchar* ProgramName();

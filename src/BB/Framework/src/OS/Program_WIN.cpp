@@ -15,17 +15,21 @@
 
 #include <mutex>
 
+
+#define NULL nullptr
+
 using namespace BB;
 
-void DefaultClose(WindowHandle a_WindowHandle) {}
-void DefaultResize(WindowHandle a_WindowHandle, uint32_t a_X, uint32_t a_Y) {}
+void DefaultClose(WindowHandle a_window_handle) {}
+void DefaultResize(WindowHandle a_window_handle, uint32_t a_x, uint32_t a_y) {}
 
-static PFN_WindowCloseEvent sPFN_CloseEvent = DefaultClose;
-static PFN_WindowResizeEvent sPFN_ResizeEvent = DefaultResize;
+static PFN_WindowCloseEvent s_pfn_close_event = DefaultClose;
+static PFN_WindowResizeEvent s_pfn_resize_event = DefaultResize;
 
 struct InputBuffer
 {
-	InputEvent inputBuff[INPUT_EVENT_BUFFER_MAX];
+	std::mutex input_mutex{};
+	InputEvent input_buffer[INPUT_EVENT_BUFFER_MAX];
 	uint32_t start = 0;
 	uint16_t pos = 0;
 	uint16_t used = 0;
@@ -33,45 +37,44 @@ struct InputBuffer
 
 struct GlobalProgramInfo
 {
-	bool trackingMouse = true;
+	bool tracking_mouse = true;
 };
 
-static GlobalProgramInfo s_ProgramInfo{};
-static InputBuffer s_InputBuffer{};
-static std::mutex s_InputMutex{};
+static GlobalProgramInfo s_program_info{};
+static InputBuffer s_input_buffer{};
 
 void PushInput(const InputEvent& a_Input)
 {
-	s_InputMutex.lock();
-	if (s_InputBuffer.pos + 1 > INPUT_EVENT_BUFFER_MAX)
-		s_InputBuffer.pos = 0;
+	s_input_buffer.input_mutex.lock();
+	if (s_input_buffer.pos + 1 > INPUT_EVENT_BUFFER_MAX)
+		s_input_buffer.pos = 0;
 
-	s_InputBuffer.inputBuff[s_InputBuffer.pos++] = a_Input;
+	s_input_buffer.input_buffer[s_input_buffer.pos++] = a_Input;
 
 	//Since when we get the input we get all of it. 
-	if (s_InputBuffer.used < INPUT_EVENT_BUFFER_MAX)
+	if (s_input_buffer.used < INPUT_EVENT_BUFFER_MAX)
 	{
-		++s_InputBuffer.used;
+		++s_input_buffer.used;
 	}
-	s_InputMutex.unlock();
+	s_input_buffer.input_mutex.unlock();
 }
 
 //Returns false if no input is left.
 void GetAllInput(InputEvent* a_InputBuffer)
 {
-	s_InputMutex.lock();
-	int t_FirstIndex = s_InputBuffer.start;
-	for (size_t i = 0; i < s_InputBuffer.used; i++)
+	s_input_buffer.input_mutex.lock();
+	int first_index = s_input_buffer.start;
+	for (size_t i = 0; i < s_input_buffer.used; i++)
 	{
-		a_InputBuffer[i] = s_InputBuffer.inputBuff[t_FirstIndex];
+		a_InputBuffer[i] = s_input_buffer.input_buffer[first_index];
 		//We go back to zero the read the data.
-		if (++t_FirstIndex > INPUT_EVENT_BUFFER_MAX)
-			t_FirstIndex = 0;
+		if (++first_index > INPUT_EVENT_BUFFER_MAX)
+			first_index = 0;
 	}
 
-	s_InputBuffer.start = s_InputBuffer.pos;
-	s_InputBuffer.used = 0;
-	s_InputMutex.unlock();
+	s_input_buffer.start = s_input_buffer.pos;
+	s_input_buffer.used = 0;
+	s_input_buffer.input_mutex.unlock();
 }
 
 void BB::InitProgram()
@@ -82,61 +85,61 @@ void BB::InitProgram()
 //Custom callback for the Windows proc.
 LRESULT wm_input(HWND a_Hwnd, WPARAM a_WParam, LPARAM a_LParam)
 {
-	HRAWINPUT t_HRawInput = reinterpret_cast<HRAWINPUT>(a_LParam);
+	HRAWINPUT h_raw_input = reinterpret_cast<HRAWINPUT>(a_LParam);
 
 	//Allocate an input event.
-	InputEvent t_Event{};
+	InputEvent event{};
 
-	UINT t_Size = sizeof(RAWINPUT);
-	RAWINPUT t_Input{};
-	GetRawInputData(t_HRawInput, RID_INPUT, &t_Input, &t_Size, sizeof(RAWINPUTHEADER));
+	UINT size = sizeof(RAWINPUT);
+	RAWINPUT input{};
+	GetRawInputData(h_raw_input, RID_INPUT, &input, &size, sizeof(RAWINPUTHEADER));
 
-	if (t_Input.header.dwType == RIM_TYPEKEYBOARD)
+	if (input.header.dwType == RIM_TYPEKEYBOARD)
 	{
-		t_Event.input_type = INPUT_TYPE::KEYBOARD;
-		uint16_t scanCode = t_Input.data.keyboard.MakeCode;
+		event.input_type = INPUT_TYPE::KEYBOARD;
+		uint16_t scan_code = input.data.keyboard.MakeCode;
 
 		// Scan codes could contain 0xe0 or 0xe1 one-byte prefix.
-		//scanCode |= (t_Input->data.keyboard.Flags & RI_KEY_E0) ? 0xe000 : 0;
-		//scanCode |= (t_Raw->data.keyboard.Flags & RI_KEY_E1) ? 0xe100 : 0;
+		//scan_code |= (input->data.keyboard.Flags & RI_KEY_E0) ? 0xe000 : 0;
+		//scan_code |= (t_Raw->data.keyboard.Flags & RI_KEY_E1) ? 0xe100 : 0;
 
-		t_Event.key_info.scancode = s_translate_key[scanCode];
-		t_Event.key_info.key_pressed = !(t_Input.data.keyboard.Flags & RI_KEY_BREAK);
-		PushInput(t_Event);
+		event.key_info.scan_code = s_translate_key[scan_code];
+		event.key_info.key_pressed = !(input.data.keyboard.Flags & RI_KEY_BREAK);
+		PushInput(event);
 	}
-	else if (t_Input.header.dwType == RIM_TYPEMOUSE && s_ProgramInfo.trackingMouse)
+	else if (input.header.dwType == RIM_TYPEMOUSE && s_program_info.tracking_mouse)
 	{
-		t_Event.input_type = INPUT_TYPE::MOUSE;
-		const float2 t_MoveInput{ 
-			static_cast<float>(t_Input.data.mouse.lLastX), 
-			static_cast<float>(t_Input.data.mouse.lLastY) };
-		if (t_Input.data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE)
+		event.input_type = INPUT_TYPE::MOUSE;
+		const float2 move_input{ 
+			static_cast<float>(input.data.mouse.lLastX), 
+			static_cast<float>(input.data.mouse.lLastY) };
+		if (input.data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE)
 		{
 			BB_ASSERT(false, "Windows Input, not using MOUSE_MOVE_ABSOLUTE currently.");
-			//t_Event.mouse_info.move_offset = t_MoveInput - s_InputInfo.mouse.oldPos;
-			//s_InputInfo.mouse.oldPos = t_MoveInput;
+			//event.mouse_info.move_offset = move_input - s_InputInfo.mouse.oldPos;
+			//s_InputInfo.mouse.oldPos = move_input;
 		}
 		else
 		{
-			t_Event.mouse_info.move_offset = t_MoveInput;
-			POINT t_Point;
-			GetCursorPos(&t_Point);
-			ScreenToClient(a_Hwnd, &t_Point);
-			t_Event.mouse_info.mouse_pos = { (float)t_Point.x, (float)t_Point.y };
+			event.mouse_info.move_offset = move_input;
+			POINT point;
+			GetCursorPos(&point);
+			ScreenToClient(a_Hwnd, &point);
+			event.mouse_info.mouse_pos = { (float)point.x, (float)point.y };
 		}
 
-		t_Event.mouse_info.left_pressed = t_Input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN;
-		t_Event.mouse_info.left_released = t_Input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_UP;
-		t_Event.mouse_info.right_pressed = t_Input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_DOWN;
-		t_Event.mouse_info.right_released = t_Input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_UP;
-		t_Event.mouse_info.middle_pressed = t_Input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_DOWN;
-		t_Event.mouse_info.middle_released = t_Input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_UP;
-		if (t_Input.data.mouse.usButtonFlags & (RI_MOUSE_WHEEL | WM_MOUSEHWHEEL))
+		event.mouse_info.left_pressed = input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN;
+		event.mouse_info.left_released = input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_UP;
+		event.mouse_info.right_pressed = input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_DOWN;
+		event.mouse_info.right_released = input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_UP;
+		event.mouse_info.middle_pressed = input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_DOWN;
+		event.mouse_info.middle_released = input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_3_UP;
+		if (input.data.mouse.usButtonFlags & (RI_MOUSE_WHEEL | WM_MOUSEHWHEEL))
 		{
-			const int16_t t_MouseMove = *reinterpret_cast<const int16_t*>(&t_Input.data.mouse.usButtonData);
-			t_Event.mouse_info.wheel_move = t_MouseMove / WHEEL_DELTA;
+			const int16_t mouse_move = *reinterpret_cast<const int16_t*>(&input.data.mouse.usButtonData);
+			event.mouse_info.wheel_move = mouse_move / WHEEL_DELTA;
 		}
-		PushInput(t_Event);
+		PushInput(event);
 	}
 
 
@@ -152,20 +155,20 @@ LRESULT CALLBACK WindowProc(HWND a_Hwnd, UINT a_Msg, WPARAM a_WParam, LPARAM a_L
 	case WM_QUIT:
 		break;
 	case WM_DESTROY:
-		sPFN_CloseEvent((uintptr_t)a_Hwnd);
+		s_pfn_close_event((uintptr_t)a_Hwnd);
 		break;
 	case WM_SIZE:
 	{
 		int t_X = static_cast<uint32_t>(LOWORD(a_LParam));
 		int t_Y = static_cast<uint32_t>(HIWORD(a_LParam));
-		sPFN_ResizeEvent((uintptr_t)a_Hwnd, t_X, t_Y);
+		s_pfn_resize_event((uintptr_t)a_Hwnd, t_X, t_Y);
 		break;
 	}
 	case WM_MOUSELEAVE:
-		s_ProgramInfo.trackingMouse = false;
+		s_program_info.tracking_mouse = false;
 		break;
 	case WM_MOUSEMOVE:
-		s_ProgramInfo.trackingMouse = true;
+		s_program_info.tracking_mouse = true;
 		break;
 	case WM_INPUT:
 		return wm_input(a_Hwnd, a_WParam, a_LParam);
@@ -199,8 +202,8 @@ void* BB::ReserveVirtualMemory(const size_t a_size)
 
 bool BB::CommitVirtualMemory(void* a_ptr, const size_t a_size)
 {
-	void* t_Ptr = VirtualAlloc(a_ptr, a_size, MEM_COMMIT, PAGE_READWRITE);
-	return t_Ptr;
+	void* ptr = VirtualAlloc(a_ptr, a_size, MEM_COMMIT, PAGE_READWRITE);
+	return ptr;
 }
 
 bool BB::ReleaseVirtualMemory(void* a_ptr)
@@ -210,40 +213,40 @@ bool BB::ReleaseVirtualMemory(void* a_ptr)
 
 const uint32_t BB::LatestOSError()
 {
-	DWORD t_ErrorMsg = GetLastError();
-	if (t_ErrorMsg == 0)
+	DWORD error_msg = GetLastError();
+	if (error_msg == 0)
 		return 0;
-	LPSTR t_Message = nullptr;
+	LPSTR message = nullptr;
 	
 	FormatMessageA(
 		FORMAT_MESSAGE_ALLOCATE_BUFFER | 
 		FORMAT_MESSAGE_FROM_SYSTEM |
 		FORMAT_MESSAGE_IGNORE_INSERTS,
 		NULL,
-		t_ErrorMsg,
+		error_msg,
 		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), 
-		(LPSTR)&t_Message,
+		(LPSTR)&message,
 		0, NULL);
 
-	if (t_Message == nullptr)
+	if (message == nullptr)
 		LatestOSError();
 
-	BB_WARNING(false, t_Message, WarningType::HIGH);
+	BB_WARNING(false, message, WarningType::HIGH);
 
-	LocalFree(t_Message);
+	LocalFree(message);
 
-	return static_cast<uint32_t>(t_ErrorMsg);
+	return static_cast<uint32_t>(error_msg);
 }
 
-LibHandle BB::LoadLib(const wchar* a_LibName)
+LibHandle BB::LoadLib(const wchar* a_lib_name)
 {
-	HMODULE t_Mod = LoadLibraryW(a_LibName);
-	if (t_Mod == NULL)
+	HMODULE mod = LoadLibraryW(a_lib_name);
+	if (mod == NULL)
 	{
 		LatestOSError();
 		BB_ASSERT(false, "Failed to load .DLL");
 	}
-	return LibHandle((uintptr_t)t_Mod);
+	return LibHandle((uintptr_t)mod);
 }
 
 void BB::UnloadLib(const LibHandle a_handle)
@@ -251,25 +254,25 @@ void BB::UnloadLib(const LibHandle a_handle)
 	FreeLibrary(reinterpret_cast<HMODULE>(a_handle.ptr_handle));
 }
 
-LibFuncPtr BB::LibLoadFunc(const LibHandle a_handle, const char* a_FuncName)
+LibFuncPtr BB::LibLoadFunc(const LibHandle a_handle, const char* a_func_name)
 {
-	LibFuncPtr t_Func = GetProcAddress(reinterpret_cast<HMODULE>(a_handle.ptr_handle), a_FuncName);
-	if (t_Func == NULL)
+	LibFuncPtr func = reinterpret_cast<LibFuncPtr>(GetProcAddress(reinterpret_cast<HMODULE>(a_handle.ptr_handle), a_func_name));
+	if (func == NULL)
 	{
 		LatestOSError();
 		BB_ASSERT(false, "Failed to load function from .dll");
 	}
-	return t_Func;
+	return func;
 }
 
-void BB::WriteToConsole(const char* a_String, uint32_t a_StrLength)
+void BB::WriteToConsole(const char* a_string, uint32_t a_str_length)
 {
-	DWORD t_Written = 0;
+	DWORD written = 0;
 	//Maybe check if a console is available, it could be null.
 	if (FALSE == WriteConsoleA(GetStdHandle(STD_OUTPUT_HANDLE),
-		a_String,
-		a_StrLength,
-		&t_Written,
+		a_string,
+		a_str_length,
+		&written,
 		NULL))
 	{
 		BB_WARNING(false,
@@ -279,14 +282,14 @@ void BB::WriteToConsole(const char* a_String, uint32_t a_StrLength)
 	}
 }
 
-void BB::WriteToConsole(const wchar_t* a_String, uint32_t a_StrLength)
+void BB::WriteToConsole(const wchar_t* a_string, uint32_t a_str_length)
 {
-	DWORD t_Written = 0;
+	DWORD written = 0;
 	//Maybe check if a console is available, it could be null.
 	if (FALSE == WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE),
-		a_String,
-		a_StrLength,
-		&t_Written,
+		a_string,
+		a_str_length,
+		&written,
 		NULL))
 	{
 		BB_WARNING(false,
@@ -395,15 +398,15 @@ OSFileHandle BB::LoadOSFile(const wchar* a_file_name)
 
 //Reads a loaded file.
 //Buffer.data will have a dynamic allocation from the given allocator.
-Buffer BB::ReadOSFile(Allocator a_system_allocator, const OSFileHandle a_FileHandle)
+Buffer BB::ReadOSFile(Allocator a_system_allocator, const OSFileHandle a_file_handle)
 {
 	Buffer file_buffer{};
 
-	file_buffer.size = GetOSFileSize(a_FileHandle);
+	file_buffer.size = GetOSFileSize(a_file_handle);
 	file_buffer.data = reinterpret_cast<char*>(BBalloc(a_system_allocator, file_buffer.size));
 	DWORD bytes_read = 0;
 
-	if (FALSE == ReadFile(reinterpret_cast<HANDLE>(a_FileHandle.ptr_handle),
+	if (FALSE == ReadFile(reinterpret_cast<HANDLE>(a_file_handle.ptr_handle),
 		file_buffer.data,
 		static_cast<DWORD>(file_buffer.size),
 		&bytes_read,
@@ -473,11 +476,11 @@ Buffer BB::ReadOSFile(Allocator a_system_allocator, const wchar* a_path)
 //char replaced with string view later on.
 void BB::WriteToOSFile(const OSFileHandle a_file_handle, const void* a_data, const size_t a_size)
 {
-	DWORD t_BytesWriten = 0;
+	DWORD bytes_written = 0;
 	if (FALSE == WriteFile(reinterpret_cast<HANDLE>(a_file_handle.ptr_handle),
 		a_data,
 		static_cast<const DWORD>(a_size),
-		&t_BytesWriten,
+		&bytes_written,
 		NULL))
 	{
 		LatestOSError();
@@ -488,16 +491,16 @@ void BB::WriteToOSFile(const OSFileHandle a_file_handle, const void* a_data, con
 }
 
 //Get a file's size in bytes.
-uint64_t BB::GetOSFileSize(const OSFileHandle a_FileHandle)
+uint64_t BB::GetOSFileSize(const OSFileHandle a_file_handle)
 {
-	return GetFileSize(reinterpret_cast<HANDLE>(a_FileHandle.ptr_handle), NULL);
+	return GetFileSize(reinterpret_cast<HANDLE>(a_file_handle.ptr_handle), NULL);
 }
 
-void BB::SetOSFilePosition(const OSFileHandle a_FileHandle, const uint32_t a_Offset, const OS_FILE_READ_POINT a_FileReadPoint)
+void BB::SetOSFilePosition(const OSFileHandle a_file_handle, const uint32_t a_offset, const OS_FILE_READ_POINT a_file_read_point)
 {
-	DWORD t_Err = SetFilePointer(reinterpret_cast<HANDLE>(a_FileHandle.ptr_handle), a_Offset, NULL, static_cast<DWORD>(a_FileReadPoint));
+	DWORD err = SetFilePointer(reinterpret_cast<HANDLE>(a_file_handle.ptr_handle), a_offset, NULL, static_cast<DWORD>(a_file_read_point));
 #ifdef _DEBUG
-	if (t_Err == INVALID_SET_FILE_POINTER && 
+	if (err == INVALID_SET_FILE_POINTER && 
 		LatestOSError() == ERROR_NEGATIVE_SEEK)
 	{
 		BB_WARNING(false,
@@ -507,19 +510,19 @@ void BB::SetOSFilePosition(const OSFileHandle a_FileHandle, const uint32_t a_Off
 #endif
 }
 
-void BB::CloseOSFile(const OSFileHandle a_FileHandle)
+void BB::CloseOSFile(const OSFileHandle a_file_handle)
 {
-	CloseHandle(reinterpret_cast<HANDLE>(a_FileHandle.ptr_handle));
+	CloseHandle(reinterpret_cast<HANDLE>(a_file_handle.ptr_handle));
 }
 
-OSThreadHandle BB::OSCreateThread(void(*a_Func)(void*), const unsigned int a_StackSize, void* a_ArgList)
+OSThreadHandle BB::OSCreateThread(void(*a_func)(void*), const unsigned int a_stack_size, void* a_arg_list)
 {
-	return OSThreadHandle(_beginthread(a_Func, a_StackSize, a_ArgList));
+	return OSThreadHandle(_beginthread(a_func, a_stack_size, a_arg_list));
 }
 
-void BB::OSWaitThreadfinish(const OSThreadHandle a_Thread)
+void BB::OSWaitThreadfinish(const OSThreadHandle a_thread)
 {
-	WaitForSingleObject((HANDLE)a_Thread.handle, INFINITE);
+	WaitForSingleObject((HANDLE)a_thread.handle, INFINITE);
 }
 
 BBMutex BB::OSCreateMutex()
@@ -527,19 +530,19 @@ BBMutex BB::OSCreateMutex()
 	return BBMutex((uintptr_t)CreateMutex(NULL, false, NULL));
 }
 
-void BB::OSWaitAndLockMutex(const BBMutex a_Mutex)
+void BB::OSWaitAndLockMutex(const BBMutex a_mutex)
 {
-	WaitForSingleObject((HANDLE)a_Mutex.handle, INFINITE);
+	WaitForSingleObject((HANDLE)a_mutex.handle, INFINITE);
 }
 
-void BB::OSUnlockMutex(const BBMutex a_Mutex)
+void BB::OSUnlockMutex(const BBMutex a_mutex)
 {
-	ReleaseMutex((HANDLE)a_Mutex.handle);
+	ReleaseMutex((HANDLE)a_mutex.handle);
 }
 
-void BB::OSDestroyMutex(const BBMutex a_Mutex)
+void BB::OSDestroyMutex(const BBMutex a_mutex)
 {
-	CloseHandle((HANDLE)a_Mutex.handle);
+	CloseHandle((HANDLE)a_mutex.handle);
 }
 
 BBSemaphore BB::OSCreateSemaphore(const uint32_t a_initial_count, const uint32_t a_maximum_count)
@@ -564,7 +567,7 @@ void BB::OSDestroySemaphore(const BBSemaphore a_semaphore)
 
 BBRWLock BB::OSCreateRWLock()
 {
-	return BBRWLock(SRWLOCK_INIT);
+	return SRWLOCK_INIT;
 }
 
 void BB::OSAcquireSRWLockRead(BBRWLock* a_lock)
@@ -589,7 +592,7 @@ void BB::OSReleaseSRWLockWrite(BBRWLock* a_lock)
 
 BBConditionalVariable BB::OSCreateConditionalVariable()
 {
-	return BBConditionalVariable(CONDITION_VARIABLE_INIT);
+	return CONDITION_VARIABLE_INIT;
 }
 
 void BB::OSWaitConditionalVariableShared(BBConditionalVariable* a_condition, BBRWLock* a_lock)
@@ -602,7 +605,7 @@ void BB::OSWaitConditionalVariableShared(BBConditionalVariable* a_condition, BBR
 		LatestOSError();
 		BB_ASSERT(false, "failed to wait on condition variable, extended info above");
 	}
-#endif _DEBUG
+#endif //_DEBUG
 }
 
 void BB::OSWaitConditionalVariableExclusive(BBConditionalVariable* a_condition, BBRWLock* a_lock)
@@ -615,7 +618,7 @@ void BB::OSWaitConditionalVariableExclusive(BBConditionalVariable* a_condition, 
 		LatestOSError();
 		BB_ASSERT(false, "failed to wait on condition variable, extended info above");
 	}
-#endif _DEBUG
+#endif //_DEBUG
 }
 
 void BB::OSWakeConditionVariable(BBConditionalVariable* a_condition)
@@ -623,110 +626,110 @@ void BB::OSWakeConditionVariable(BBConditionalVariable* a_condition)
 	WakeConditionVariable(reinterpret_cast<CONDITION_VARIABLE*>(a_condition));
 }
 
-WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_Style, const int a_X, const int a_Y, const int a_Width, const int a_Height, const wchar* a_WindowName)
+WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_style, const int a_x, const int a_y, const int a_width, const int a_height, const wchar* a_window_name)
 {
-	HWND t_Window;
-	HINSTANCE t_HInstance{};
+	HWND window;
+	HINSTANCE hinstance{};
 
-	WNDCLASSW t_WndClass = {};
-	t_WndClass.lpszClassName = a_WindowName;
-	t_WndClass.hInstance = t_HInstance;
-	t_WndClass.hIcon = LoadIconW(NULL, IDI_WINLOGO);
-	t_WndClass.hCursor = LoadCursorW(NULL, IDC_ARROW);
-	t_WndClass.lpfnWndProc = WindowProc;
+	WNDCLASSW wnd_class = {};
+	wnd_class.lpszClassName = a_window_name;
+	wnd_class.hInstance = hinstance;
+	wnd_class.hIcon = LoadIconW(NULL, IDI_WINLOGO);
+	wnd_class.hCursor = LoadCursorW(NULL, IDC_ARROW);
+	wnd_class.lpfnWndProc = WindowProc;
 
-	RegisterClassW(&t_WndClass);
-	//DWORD t_Style = WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU;
+	RegisterClassW(&wnd_class);
+	//DWORD style = WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU;
 
-	DWORD t_Style;
-	switch (a_Style)
+	DWORD style;
+	switch (a_style)
 	{
 	case OS_WINDOW_STYLE::MAIN:
-		t_Style = WS_OVERLAPPEDWINDOW;
+		style = WS_OVERLAPPEDWINDOW;
 		break;
 	case OS_WINDOW_STYLE::CHILD:
-		t_Style = WS_OVERLAPPED | WS_THICKFRAME;
+		style = WS_OVERLAPPED | WS_THICKFRAME;
 		break;
 	default:
-		t_Style = 0;
+		style = 0;
 		BB_ASSERT(false, "Tried to create a window with a OS_WINDOW_STYLE it does not accept.");
 		break;
 	}
 
-	RECT t_Rect{};
-	t_Rect.left = a_X;
-	t_Rect.top = a_Y;
-	t_Rect.right = t_Rect.left + a_Width;
-	t_Rect.bottom = t_Rect.top + a_Height;
+	RECT rect{};
+	rect.left = a_x;
+	rect.top = a_y;
+	rect.right = rect.left + a_width;
+	rect.bottom = rect.top + a_height;
 
-	AdjustWindowRect(&t_Rect, t_Style, false);
+	AdjustWindowRect(&rect, style, false);
 
-	t_Window = CreateWindowEx(
+	window = CreateWindowEx(
 		0,
-		a_WindowName,
-		g_ProgramName,
-		t_Style,
-		t_Rect.left,
-		t_Rect.top,
-		t_Rect.right - t_Rect.left,
-		t_Rect.bottom - t_Rect.top,
+		a_window_name,
+		g_program_name,
+		style,
+		rect.left,
+		rect.top,
+		rect.right - rect.left,
+		rect.bottom - rect.top,
 		NULL,
 		NULL,
-		t_HInstance,
-		NULL);
-	ShowWindow(t_Window, SW_SHOW);
+		hinstance,
+		nullptr);
+	ShowWindow(window, SW_SHOW);
 
 	//Get the mouse and keyboard.
-	RAWINPUTDEVICE t_Rid[2]{};
+	RAWINPUTDEVICE rid[2]{};
 
-	t_Rid[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
-	t_Rid[0].usUsage = HID_USAGE_GENERIC_KEYBOARD;
-	t_Rid[0].dwFlags = RIDEV_NOLEGACY;
-	t_Rid[0].hwndTarget = t_Window;
+	rid[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
+	rid[0].usUsage = HID_USAGE_GENERIC_KEYBOARD;
+	rid[0].dwFlags = RIDEV_NOLEGACY;
+	rid[0].hwndTarget = window;
 
-	t_Rid[1].usUsagePage = HID_USAGE_PAGE_GENERIC;
-	t_Rid[1].usUsage = HID_USAGE_GENERIC_MOUSE;
-	t_Rid[1].dwFlags = 0;
-	t_Rid[1].hwndTarget = t_Window;
+	rid[1].usUsagePage = HID_USAGE_PAGE_GENERIC;
+	rid[1].usUsage = HID_USAGE_GENERIC_MOUSE;
+	rid[1].dwFlags = 0;
+	rid[1].hwndTarget = window;
 
-	BB_ASSERT(RegisterRawInputDevices(t_Rid, 2, sizeof(RAWINPUTDEVICE)),
+	BB_ASSERT(RegisterRawInputDevices(rid, 2, sizeof(RAWINPUTDEVICE)),
 		"Failed to register raw input devices!");
 
-	uint32_t t_NumConnectedDevices = 0;
-	UINT t_ErrCheck = GetRawInputDeviceList(nullptr, &t_NumConnectedDevices, sizeof(RAWINPUTDEVICELIST));
-	BB_ASSERT(t_ErrCheck != -1, "Failed to get the size of raw input devices!");
-	BB_ASSERT(t_NumConnectedDevices > 0, "Failed to get the size of raw input devices!");
+	uint32_t num_connected_devices = 0;
+	UINT err_check = GetRawInputDeviceList(nullptr, &num_connected_devices, sizeof(RAWINPUTDEVICELIST));
+	BB_ASSERT(err_check != -1, "Failed to get the size of raw input devices!");
+	BB_ASSERT(num_connected_devices > 0, "Failed to get the size of raw input devices!");
 
-	RAWINPUTDEVICELIST* t_ConnectedDevices = BBstackAlloc(
-		t_NumConnectedDevices,
+	RAWINPUTDEVICELIST* connected_devices = BBstackAlloc(
+		num_connected_devices,
 		RAWINPUTDEVICELIST);
 
-	t_ErrCheck = GetRawInputDeviceList(t_ConnectedDevices, &t_NumConnectedDevices, sizeof(RAWINPUTDEVICELIST));
-	BB_ASSERT(t_ErrCheck != -1, "Failed to get the raw input devices!");
+	err_check = GetRawInputDeviceList(connected_devices, &num_connected_devices, sizeof(RAWINPUTDEVICELIST));
+	BB_ASSERT(err_check != -1, "Failed to get the raw input devices!");
 	
 	constexpr size_t MAX_HID_STRING_LENGTH = 126;
-	wchar_t* t_ProductNameString = BBstackAlloc(
+	wchar_t* product_name_str = BBstackAlloc(
 		MAX_HID_STRING_LENGTH,
 		wchar_t);
 
 	//Lets log the devices, maybe do this better.
-	for (size_t i = 0; i < t_NumConnectedDevices; i++)
+	for (size_t i = 0; i < num_connected_devices; i++)
 	{
-		RID_DEVICE_INFO t_DeviceInfo{};
-		UINT t_RidDeviceSize = sizeof(RID_DEVICE_INFO);
-		UINT t_It = GetRawInputDeviceInfo(t_ConnectedDevices[i].hDevice, RIDI_DEVICEINFO, &t_DeviceInfo, &t_RidDeviceSize);
+		RID_DEVICE_INFO device_info{};
+		UINT rid_device_size = sizeof(RID_DEVICE_INFO);
+		UINT it = GetRawInputDeviceInfo(connected_devices[i].hDevice, RIDI_DEVICEINFO, &device_info, &rid_device_size);
 
-		if (t_DeviceInfo.dwType == RIM_TYPEMOUSE)
+		if (device_info.dwType == RIM_TYPEMOUSE)
 		{
 			
 		}
-		else if (t_DeviceInfo.dwType == RIM_TYPEMOUSE)
+		else if (device_info.dwType == RIM_TYPEMOUSE)
 		{
 
 		}
 	}
 
-	return WindowHandle((uintptr_t)t_Window);
+	return WindowHandle((uintptr_t)window);
 }
 
 void* BB::GetOSWindowHandle(const WindowHandle a_handle)
@@ -734,13 +737,13 @@ void* BB::GetOSWindowHandle(const WindowHandle a_handle)
 	return reinterpret_cast<HWND>(a_handle.handle);
 }
 
-void BB::GetWindowSize(const WindowHandle a_handle, int& a_X, int& a_Y)
+void BB::GetWindowSize(const WindowHandle a_handle, int& a_x, int& a_y)
 {
-	RECT t_Rect;
-	GetClientRect(reinterpret_cast<HWND>(a_handle.handle), &t_Rect);
+	RECT rect;
+	GetClientRect(reinterpret_cast<HWND>(a_handle.handle), &rect);
 
-	a_X = t_Rect.right;
-	a_Y = t_Rect.bottom;
+	a_x = rect.right;
+	a_y = rect.bottom;
 }
 
 void BB::DirectDestroyOSWindow(const WindowHandle a_handle)
@@ -750,24 +753,24 @@ void BB::DirectDestroyOSWindow(const WindowHandle a_handle)
 
 void BB::FreezeMouseOnWindow(const WindowHandle a_handle)
 {
-	RECT t_Rect;
-	GetClientRect(reinterpret_cast<HWND>(a_handle.ptr_handle), &t_Rect);
+	RECT rect;
+	GetClientRect(reinterpret_cast<HWND>(a_handle.ptr_handle), &rect);
 
-	POINT t_LeftRightUpDown[2]{};
-	t_LeftRightUpDown[0].x = t_Rect.left;
-	t_LeftRightUpDown[0].y = t_Rect.top;
-	t_LeftRightUpDown[1].x = t_Rect.right;
-	t_LeftRightUpDown[1].y = t_Rect.bottom;
+	POINT left_right_up_down[2]{};
+	left_right_up_down[0].x = rect.left;
+	left_right_up_down[0].y = rect.top;
+	left_right_up_down[1].x = rect.right;
+	left_right_up_down[1].y = rect.bottom;
 
-	MapWindowPoints(reinterpret_cast<HWND>(a_handle.ptr_handle), nullptr, t_LeftRightUpDown, _countof(t_LeftRightUpDown));
+	MapWindowPoints(reinterpret_cast<HWND>(a_handle.ptr_handle), nullptr, left_right_up_down, _countof(left_right_up_down));
 
-	t_Rect.left = t_LeftRightUpDown[0].x;
-	t_Rect.top = t_LeftRightUpDown[0].y;
+	rect.left = left_right_up_down[0].x;
+	rect.top = left_right_up_down[0].y;
 
-	t_Rect.right = t_LeftRightUpDown[1].x;
-	t_Rect.bottom = t_LeftRightUpDown[1].y;
+	rect.right = left_right_up_down[1].x;
+	rect.bottom = left_right_up_down[1].y;
 
-	ClipCursor(&t_Rect);
+	ClipCursor(&rect);
 }
 
 void BB::UnfreezeMouseOnWindow()
@@ -775,14 +778,14 @@ void BB::UnfreezeMouseOnWindow()
 	ClipCursor(nullptr);
 }
 
-void BB::SetCloseWindowPtr(PFN_WindowCloseEvent a_Func)
+void BB::SetCloseWindowPtr(PFN_WindowCloseEvent a_func)
 {
-	sPFN_CloseEvent = a_Func;
+	s_pfn_close_event = a_func;
 }
 
-void BB::SetResizeEventPtr(PFN_WindowResizeEvent a_Func)
+void BB::SetResizeEventPtr(PFN_WindowResizeEvent a_func)
 {
-	sPFN_ResizeEvent = a_Func;
+	s_pfn_resize_event = a_func;
 }
 
 void BB::ExitApp()
@@ -790,32 +793,32 @@ void BB::ExitApp()
 	exit(EXIT_SUCCESS);
 }
 
-bool BB::ProcessMessages(const WindowHandle a_WindowHandle)
+bool BB::ProcessMessages(const WindowHandle a_window_handle)
 {
 	//TRACKMOUSEEVENT t_MouseTrackE{};
 	//t_MouseTrackE.cbSize = sizeof(TRACKMOUSEEVENT);
 	//t_MouseTrackE.dwFlags = TME_LEAVE;
-	//t_MouseTrackE.hwndTrack = reinterpret_cast<HWND>(a_WindowHandle.ptr_handle);
+	//t_MouseTrackE.hwndTrack = reinterpret_cast<HWND>(a_window_handle.ptr_handle);
 	//TrackMouseEvent(&t_MouseTrackE);
 
 
-	MSG t_Msg{};
+	MSG msg{};
 
-	while (PeekMessage(&t_Msg, reinterpret_cast<HWND>(a_WindowHandle.ptr_handle), 0u, 0u, PM_REMOVE))
+	while (PeekMessage(&msg, reinterpret_cast<HWND>(a_window_handle.ptr_handle), 0u, 0u, PM_REMOVE))
 	{
-		TranslateMessage(&t_Msg);
-		DispatchMessage(&t_Msg);
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
 	}
 
 	return true;
 }
 
-void BB::PollInputEvents(InputEvent* a_EventBuffers, size_t& a_InputEventAmount)
+void BB::PollInputEvents(InputEvent* a_event_buffers, size_t& input_event_amount)
 {
-	a_InputEventAmount = s_InputBuffer.used;
-	if (a_EventBuffers == nullptr)
+	input_event_amount = s_input_buffer.used;
+	if (a_event_buffers == nullptr)
 		return;
 	
 	//Overwrite could happen! But this is user's responsibility.
-	GetAllInput(a_EventBuffers);
+	GetAllInput(a_event_buffers);
 }

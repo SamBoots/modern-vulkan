@@ -165,7 +165,7 @@ TEST(ArrayDataStructure, Array_emplace_back)
 	//Unaligned big struct with a union to test the value.
 	struct size2593bytes { 
 		size2593bytes() { value = 0; }
-		size2593bytes(size_t a_Value) : value(a_Value) {}
+		size2593bytes(size_t a_value) : value(a_value) {}
 		union { char data[2593]; size_t value; }; 
 	};
 

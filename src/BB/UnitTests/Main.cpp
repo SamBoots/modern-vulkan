@@ -37,31 +37,31 @@ int main(int argc, char** argv)
 		BB::PollInputEvents(t_InputEvents, t_InputEventCount);
 		for (size_t i = 0; i < t_InputEventCount; i++)
 		{
-			InputEvent& t_Event = t_InputEvents[i];
-			if (t_Event.input_type == INPUT_TYPE::KEYBOARD)
+			InputEvent& event = t_InputEvents[i];
+			if (event.input_type == INPUT_TYPE::KEYBOARD)
 			{
-				switch (t_Event.key_info.scancode)
+				switch (event.key_info.scan_code)
 				{
 				case KEYBOARD_KEY::_W:
-					if (t_Event.key_info.key_pressed)
+					if (event.key_info.key_pressed)
 						BB_LOG("W pressed!");
 					else
 						BB_LOG("W released!");
 					break;
 				case KEYBOARD_KEY::_A:
-					if (t_Event.key_info.key_pressed)
+					if (event.key_info.key_pressed)
 						BB_LOG("A pressed!");
 					else
 						BB_LOG("A released!");
 					break;
 				case KEYBOARD_KEY::_S:
-					if (t_Event.key_info.key_pressed)
+					if (event.key_info.key_pressed)
 						BB_LOG("S pressed!");
 					else
 						BB_LOG("S released!");
 					break;
 				case KEYBOARD_KEY::_D:
-					if (t_Event.key_info.key_pressed)
+					if (event.key_info.key_pressed)
 						BB_LOG("D pressed!");
 					else
 						BB_LOG("D released!");

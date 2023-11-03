@@ -184,7 +184,7 @@ namespace BB
 			return emplace(a_obj);
 		}
 		template <class... Args>
-		SlotmapHandle emplace(Args&&... a_Args)
+		SlotmapHandle emplace(Args&&... a_args)
 		{
 			if (m_size >= m_capacity)
 				grow();
@@ -195,7 +195,7 @@ namespace BB
 			m_next_free = m_id_arr[id.index].index;
 			m_id_arr[id.index].index = static_cast<uint32_t>(m_size);
 
-			new (&m_obj_arr[m_size]) T(std::forward<Args>(a_Args)...);
+			new (&m_obj_arr[m_size]) T(std::forward<Args>(a_args)...);
 			m_erase_arr[m_size++] = id.index;
 
 			return id;
@@ -385,7 +385,7 @@ namespace BB
 		}
 
 		template <class... Args>
-		SlotmapHandle emplace(Args&&... a_Args)
+		SlotmapHandle emplace(Args&&... a_args)
 		{
 			BB_ASSERT(m_size < m_capacity, "static slotmap over capacity!")
 
@@ -395,7 +395,7 @@ namespace BB
 			m_next_free = m_id_arr[id.index].index;
 			m_id_arr[id.index].index = static_cast<uint32_t>(m_size);
 
-			new (&m_obj_arr[m_size]) T(std::forward<Args>(a_Args)...);
+			new (&m_obj_arr[m_size]) T(std::forward<Args>(a_args)...);
 			m_erase_arr[m_size++] = id.index;
 
 			return id;

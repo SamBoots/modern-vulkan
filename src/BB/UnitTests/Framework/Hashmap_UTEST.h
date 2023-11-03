@@ -120,9 +120,9 @@ TEST(Hashmap_Datastructure, UM_Hashmap_Range_Based_Loop)
 	}
 
 	//Not supporting range based loops.
-	//for (auto& t_It : t_Map)
+	//for (auto& it : t_Map)
 	//{
-	//	ASSERT_EQ(t_Map.find(*t_It.key)->value, t_It.value->value) << "Iterator found an pair that the hashmap couldn't find.";
+	//	ASSERT_EQ(t_Map.find(*it.key)->value, it.value->value) << "Iterator found an pair that the hashmap couldn't find.";
 	//}
 }
 
@@ -262,9 +262,9 @@ TEST(Hashmap_Datastructure, OL_Hashmap_Range_Based_Loop)
 	}
 
 	//Not supporting range based loops.
-	//for (auto& t_It : t_Map)
+	//for (auto& it : t_Map)
 	//{
-	//	ASSERT_EQ(t_Map.find(*t_It.key)->value, t_It.value->value) << "Iterator found an pair that the hashmap couldn't find.";
+	//	ASSERT_EQ(t_Map.find(*it.key)->value, it.value->value) << "Iterator found an pair that the hashmap couldn't find.";
 	//}
 }
 

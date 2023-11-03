@@ -9,9 +9,9 @@ using namespace BB;
 
 #ifdef _64BIT
 constexpr size_t VIRTUAL_HEADER_TYPE_CHECK = 0xB0AFB0AFB0AFB0AF;
-#elif _32BIT
+#elif //_32BIT
 constexpr size_t VIRTUAL_HEADER_TYPE_CHECK = 0xB0AFB0AF;
-#endif _32BIT
+#endif //_32BIT
 
 struct VirtualHeader
 {

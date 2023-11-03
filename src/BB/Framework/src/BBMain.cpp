@@ -4,7 +4,7 @@
 
 using namespace BB;
 
-const wchar* BB::g_ProgramName;
+const wchar* BB::g_program_name;
 const char* BB::g_ExePath;
 
 #ifdef _DEBUG
@@ -13,7 +13,7 @@ OSFileHandle BB::g_AllocationLogFile;
 
 void BB::InitBB(const BBInitInfo& a_BBInfo)
 {
-	g_ProgramName = a_BBInfo.programName;
+	g_program_name = a_BBInfo.programName;
 	g_ExePath = a_BBInfo.exePath;
 
 #ifdef _DEBUG
@@ -25,7 +25,7 @@ void BB::InitBB(const BBInitInfo& a_BBInfo)
 
 const wchar* BB::GetProgramName()
 {
-	return g_ProgramName;
+	return g_program_name;
 }
 
 const char* BB::GetProgramPath()

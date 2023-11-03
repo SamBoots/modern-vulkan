@@ -3,7 +3,6 @@
 #include "BBThreadScheduler.hpp"
 
 #include "Math.inl"
-#include <immintrin.h>
 
 #define PACK_RGBA(r, g, b, a) (uint32_t)(static_cast<uint32_t>(r)<<24|static_cast<uint32_t>(g)<<16|static_cast<uint32_t>(b)<<8|static_cast<uint32_t>(a))
 
@@ -186,10 +185,10 @@ void FilterImagePart(void* a_param)
 				simd_rgba = _mm_min_ps(_mm_max_ps(_mm_add_ps(simd_rgba, simd_bias), simd_rgba_min), simd_rgba_max);
 
 				const uint32_t packed = PACK_RGBA(
-					static_cast<uint32_t>(simd_rgba.m128_f32[0]),
-					static_cast<uint32_t>(simd_rgba.m128_f32[1]),
-					static_cast<uint32_t>(simd_rgba.m128_f32[2]),
-					static_cast<uint32_t>(simd_rgba.m128_f32[3]));
+					reinterpret_cast<uint32_t*>(&simd_rgba)[0],
+					reinterpret_cast<uint32_t*>(&simd_rgba)[1],
+					reinterpret_cast<uint32_t*>(&simd_rgba)[2],
+					reinterpret_cast<uint32_t*>(&simd_rgba)[3]);
 				reinterpret_cast<uint32_t*>(params.img_start_new_pixel)[y * params.img_width + x] = packed;
 			}
 	}
@@ -275,15 +274,15 @@ void BBImage::FilterImage(Allocator a_temp_allocator, const float* a_filter, con
 	}
 	else if (a_thread_count == 1)
 	{
-		const __m128 simd_factor = _mm_set_ps1(a_factor);
-		const __m128 simd_bias = _mm_set_ps1(a_bias);
-		const __m128 simd_rgba_min = _mm_setzero_ps();
-		const __m128 simd_rgba_max = _mm_set_ps1(255.f);
+		const VecFloat4 simd_factor = LoadFloat4(a_factor);
+		const VecFloat4 simd_bias = LoadFloat4(a_bias);
+		const VecFloat4 simd_rgba_min = LoadFloat4Zero();
+		const VecFloat4 simd_rgba_max = LoadFloat4(255.f);
 
 		for (uint32_t y = 0; y < m_height; y++)
 			for (uint32_t x = 0; x < m_width; x++)
 			{
-				__m128 simd_rgba = _mm_setzero_ps();
+				VecFloat4 simd_rgba = LoadFloat4Zero();
 
 				for (uint32_t filterY = 0; filterY < a_filter_height; filterY++)
 					for (uint32_t filterX = 0; filterX < a_filter_width; filterX++)
@@ -292,23 +291,24 @@ void BBImage::FilterImage(Allocator a_temp_allocator, const float* a_filter, con
 						const uint32_t imageY = (y - a_filter_height / 2 + filterY + m_height) % m_height;
 						const uint32_t pixel = reinterpret_cast<uint32_t*>(old_data)[imageY * m_width + imageX];
 
-						const __m128 simd_filter = _mm_set_ps1(a_filter[filterY * a_filter_width + filterX]);
-						const __m128 rgba_mod = _mm_set_ps(
+						const VecFloat4 simd_filter = LoadFloat4(a_filter[filterY * a_filter_width + filterX]);
+						const VecFloat4 rgba_mod = LoadFloat4(
 							static_cast<float>((pixel & 0x000000ff) >> 0),
 							static_cast<float>((pixel & 0x0000ff00) >> 8),
 							static_cast<float>((pixel & 0x00ff0000) >> 16),
 							static_cast<float>((pixel & 0xff000000) >> 24));
 
-						simd_rgba = _mm_add_ps(simd_rgba, _mm_mul_ps(rgba_mod, simd_filter));
+						simd_rgba = MulFloat4(AddFloat4(simd_rgba, rgba_mod), simd_filter);
 					}
-				simd_rgba = _mm_mul_ps(simd_factor, simd_rgba);
-				simd_rgba = _mm_min_ps(_mm_max_ps(_mm_add_ps(simd_rgba, simd_bias), simd_rgba_min), simd_rgba_max);
+
+				simd_rgba = MulFloat4(simd_factor, simd_rgba);
+				simd_rgba = MinFloat4(MaxFloat4(AddFloat4(simd_rgba, simd_bias), simd_rgba_min), simd_rgba_max);
 
 				const uint32_t packed = PACK_RGBA(
-					simd_rgba.m128_f32[0],
-					simd_rgba.m128_f32[1],
-					simd_rgba.m128_f32[2],
-					simd_rgba.m128_f32[3]);
+					reinterpret_cast<uint32_t*>(&simd_rgba)[0],
+					reinterpret_cast<uint32_t*>(&simd_rgba)[1],
+					reinterpret_cast<uint32_t*>(&simd_rgba)[2],
+					reinterpret_cast<uint32_t*>(&simd_rgba)[3]);
 				reinterpret_cast<uint32_t*>(m_pixels)[y * m_width + x] = packed;
 			}
 	}

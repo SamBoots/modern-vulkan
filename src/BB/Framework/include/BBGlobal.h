@@ -3,7 +3,7 @@
 
 namespace BB
 {
-	extern const wchar* g_ProgramName;
+	extern const wchar* g_program_name;
 	extern const char* g_ExePath;
 
 #ifdef _DEBUG

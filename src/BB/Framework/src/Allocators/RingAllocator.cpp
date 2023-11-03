@@ -3,12 +3,12 @@
 
 using namespace BB;
 
-void* ReallocRing(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, size_t a_Alignment, void*)
+void* ReallocRing(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, size_t a_alignment, void*)
 {
 	if (a_size == 0)
 		return nullptr;
 
-	return reinterpret_cast<RingAllocator*>(a_allocator)->Alloc(a_size, a_Alignment);
+	return reinterpret_cast<RingAllocator*>(a_allocator)->Alloc(a_size, a_alignment);
 }
 
 RingAllocator::operator BB::Allocator()
@@ -35,10 +35,10 @@ RingAllocator::~RingAllocator()
 	BBfree(m_BackingAllocator, m_BufferPos);
 }
 
-void* RingAllocator::Alloc(size_t a_size, size_t a_Alignment)
+void* RingAllocator::Alloc(size_t a_size, size_t a_alignment)
 {
-	size_t t_Adjustment = Pointer::AlignForwardAdjustment(m_BufferPos, a_Alignment);
-	size_t t_AdjustedSize = a_size + a_Alignment;
+	size_t t_Adjustment = Pointer::AlignForwardAdjustment(m_BufferPos, a_alignment);
+	size_t t_AdjustedSize = a_size + a_alignment;
 	//Go back to the buffer start if we cannot fill this allocation.
 	if (m_Used + t_AdjustedSize > m_size)
 	{
@@ -47,7 +47,7 @@ void* RingAllocator::Alloc(size_t a_size, size_t a_Alignment)
 
 		m_BufferPos = Pointer::Subtract(m_BufferPos, m_Used);
 		m_Used = 0;
-		return Alloc(a_size, a_Alignment);
+		return Alloc(a_size, a_alignment);
 	}
 
 	void* t_ReturnPtr = Pointer::Add(m_BufferPos, t_Adjustment);
@@ -60,12 +60,12 @@ void* RingAllocator::Alloc(size_t a_size, size_t a_Alignment)
 
 
 
-void* ReallocLocalRing(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, size_t a_Alignment, void*)
+void* ReallocLocalRing(BB_MEMORY_DEBUG_UNUSED void* a_allocator, size_t a_size, size_t a_alignment, void*)
 {
 	if (a_size == 0)
 		return nullptr;
 
-	return reinterpret_cast<LocalRingAllocator*>(a_allocator)->Alloc(a_size, a_Alignment);
+	return reinterpret_cast<LocalRingAllocator*>(a_allocator)->Alloc(a_size, a_alignment);
 }
 
 LocalRingAllocator::operator BB::Allocator()
@@ -90,10 +90,10 @@ LocalRingAllocator::~LocalRingAllocator()
 	freeVirtual(m_BufferPos);
 }
 
-void* LocalRingAllocator::Alloc(size_t a_size, size_t a_Alignment)
+void* LocalRingAllocator::Alloc(size_t a_size, size_t a_alignment)
 {
-	size_t t_Adjustment = Pointer::AlignForwardAdjustment(m_BufferPos, a_Alignment);
-	size_t t_AdjustedSize = a_size + a_Alignment;
+	size_t t_Adjustment = Pointer::AlignForwardAdjustment(m_BufferPos, a_alignment);
+	size_t t_AdjustedSize = a_size + a_alignment;
 	//Go back to the buffer start if we cannot fill this allocation.
 	if (m_Used + t_AdjustedSize > m_size)
 	{
@@ -102,7 +102,7 @@ void* LocalRingAllocator::Alloc(size_t a_size, size_t a_Alignment)
 
 		m_BufferPos = Pointer::Subtract(m_BufferPos, m_Used);
 		m_Used = 0;
-		return Alloc(a_size, a_Alignment);
+		return Alloc(a_size, a_alignment);
 	}
 
 	void* t_ReturnPtr = Pointer::Add(m_BufferPos, t_Adjustment);

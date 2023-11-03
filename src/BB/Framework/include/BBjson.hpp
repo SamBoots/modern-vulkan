@@ -85,7 +85,7 @@ namespace BB
 		uint32_t pos = 0;
 	};
 
-	void JsonNodeToString(const JsonNode* t_Node, String& a_String);
+	void JsonNodeToString(const JsonNode* t_Node, String& a_string);
 	struct Token;
 	class JsonParser
 	{

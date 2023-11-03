@@ -19,7 +19,7 @@ namespace BB
 		RingAllocator& operator =(const RingAllocator&) = delete;
 		RingAllocator& operator =(RingAllocator&&) = delete;
 
-		void* Alloc(size_t a_size, size_t a_Alignment);
+		void* Alloc(size_t a_size, size_t a_alignment);
 
 	private:
 		//use uint32_t so that the class size becomes 32 bytes. 
@@ -50,7 +50,7 @@ namespace BB
 		LocalRingAllocator& operator =(const LocalRingAllocator&) = delete;
 		LocalRingAllocator& operator =(LocalRingAllocator&&) = delete;
 
-		void* Alloc(size_t a_size, size_t a_Alignment);
+		void* Alloc(size_t a_size, size_t a_alignment);
 
 	private:
 		void* m_BufferPos;

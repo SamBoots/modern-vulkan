@@ -24,9 +24,9 @@ static OSDevice osDevice;
 class OSWindow
 {
 public:
-	OSWindow(OS_WINDOW_STYLE a_Style, int a_X, int a_Y, int a_Width, int a_Height, const char* a_WindowName)
+	OSWindow(OS_WINDOW_STYLE a_style, int a_X, int a_Y, int a_width, int a_height, const char* a_window_name)
 	{
-		windowName = a_WindowName;
+		windowName = a_window_name;
 
 		display = XOpenDisplay(NULL);
 		BB_ASSERT(display != NULL, "Linux XOpenDisplay failed!");
@@ -40,13 +40,13 @@ public:
 			DefaultRootWindow(display),
 			a_X,
 			a_Y,
-			a_Width,
-			a_Height,
+			a_width,
+			a_height,
 			5,
 			t_Foreground_color,
 			t_Background_color);
 
-		switch (a_Style)
+		switch (a_style)
 		{
 		case BB::OS_WINDOW_STYLE::MAIN:
 			// TO DO
@@ -60,7 +60,7 @@ public:
 		}
 
 		//Set window properties
-		XSetStandardProperties(display, window, a_WindowName, "EXAMPLE", None, NULL, 0, NULL);
+		XSetStandardProperties(display, window, a_window_name, "EXAMPLE", None, NULL, 0, NULL);
 
 		//The input rules on what is allowed in the input.
 		XSelectInput(display, window, ExposureMask | ButtonPressMask | KeyPressMask);
@@ -128,9 +128,9 @@ const uint32_t OSDevice::LatestOSError() const
 	return static_cast<uint32_t>(errno);
 }
 
-WindowHandle OSDevice::CreateOSWindow(OS_WINDOW_STYLE a_Style, int a_X, int a_Y, int a_Width, int a_Height, const char* a_WindowName)
+WindowHandle OSDevice::CreateOSWindow(OS_WINDOW_STYLE a_style, int a_X, int a_Y, int a_width, int a_height, const char* a_window_name)
 {
-	return WindowHandle(static_cast<uint32_t>(m_OSDevice->OSWindows.emplace(a_Style, a_X, a_Y, a_Width, a_Height, a_WindowName)));
+	return WindowHandle(static_cast<uint32_t>(m_OSDevice->OSWindows.emplace(a_style, a_X, a_Y, a_width, a_height, a_window_name)));
 }
 
 void BB::OSDevice::DestroyOSWindow(WindowHandle a_handle)
@@ -148,19 +148,19 @@ bool BB::OSDevice::ProcessMessages() const
 	KeySym t_Key;
 	char t_Text[255];
 
-	for (auto t_It = m_OSDevice->OSWindows.begin(); t_It < m_OSDevice->OSWindows.end(); t_It++)
+	for (auto it = m_OSDevice->OSWindows.begin(); it < m_OSDevice->OSWindows.end(); it++)
 	{
-		if (t_It->value.display == nullptr)
+		if (it->value.display == nullptr)
 		{
 			continue;
 		}
 
-		while (XPending(t_It->value.display))
+		while (XPending(it->value.display))
 		{
-			XEvent t_Event;
-			XNextEvent(t_It->value.display, &t_Event);
+			XEvent event;
+			XNextEvent(it->value.display, &event);
 
-			switch (t_Event.type)
+			switch (event.type)
 			{
 			case Expose:
 

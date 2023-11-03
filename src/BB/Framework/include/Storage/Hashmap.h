@@ -26,18 +26,18 @@ namespace BB
 
 	struct String_KeyComp
 	{
-		bool operator()(const char* a_A, const char* a_B) const
+		bool operator()(const char* a_a, const char* a_b) const
 		{
-			return strcmp(a_A, a_B) == 0;
+			return strcmp(a_a, a_b) == 0;
 		}
 	};
 
 	template<typename Key>
 	struct Standard_KeyComp
 	{
-		inline bool operator()(const Key a_A, const Key a_B) const
+		inline bool operator()(const Key a_a, const Key a_b) const
 		{
-			return a_A == a_B;
+			return a_a == a_b;
 		}
 	};
 

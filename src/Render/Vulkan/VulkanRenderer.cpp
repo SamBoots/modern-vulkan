@@ -145,15 +145,15 @@ static bool CheckExtensionSupport(Allocator a_temp_allocator, Slice<const char*>
 	VkExtensionProperties* extensions = BBnewArr(a_temp_allocator, extension_count, VkExtensionProperties);
 	vkEnumerateInstanceExtensionProperties(nullptr, &extension_count, extensions);
 
-	for (auto t_It = a_extensions.begin(); t_It < a_extensions.end(); t_It++)
+	for (auto it = a_extensions.begin(); it < a_extensions.end(); it++)
 	{
 		for (size_t i = 0; i < extension_count; i++)
 		{
 
-			if (strcmp(*t_It, extensions[i].extensionName) == 0)
+			if (strcmp(*it, extensions[i].extensionName) == 0)
 				break;
 
-			if (t_It == a_extensions.end())
+			if (it == a_extensions.end())
 				return false;
 		}
 	}
