@@ -74,22 +74,6 @@ int main(int argc, char** argv)
 	Threads::InitThreads(sys_info.processor_num);
 
 	StackAllocator_t allocator{ mbSize * 6 };
-	
-	if (false)
-	{
-		BBImage image1{ allocator, "../resources/filter_textures/bmpimage.bmp" };
-		BBImage image2{ allocator, image1 };
-		BBImage image3{ allocator, image1 };
-		BBImage image4{ allocator, image1 };
-		image1.FilterImage(allocator, blur5x5_filter, 5, 5, blur5x5_factor, blur5x5_bias, 1);
-		image2.FilterImage(allocator, blur5x5_filter, 5, 5, blur5x5_factor, blur5x5_bias, 2);
-		image3.FilterImage(allocator, blur5x5_filter, 5, 5, blur5x5_factor, blur5x5_bias, 4);
-		image4.FilterImage(allocator, blur5x5_filter, 5, 5, blur5x5_factor, blur5x5_bias, 8);
-		image1.WriteAsBMP("1.bmp");
-		image2.WriteAsBMP("2.bmp");
-		image3.WriteAsBMP("4.bmp");
-		image4.WriteAsBMP("8.bmp");
-	}
 
 	BBImage image{ allocator, "../resources/filter_textures/bmpimage.bmp" };
 	const BBImage image_backup{ allocator, image };

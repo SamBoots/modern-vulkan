@@ -96,7 +96,7 @@ public:
 
 	bool IsLogEnabled(const WarningType a_type)
 	{
-		return (m_enabled_warning_flags & (WarningTypeFlags)a_type) == (WarningTypeFlags)a_type;
+		return (m_enabled_warning_flags & static_cast<WarningTypeFlags>(a_type)) == static_cast<WarningTypeFlags>(a_type);
 	}
 };
 LoggerSingleton* LoggerSingleton::LoggerSingleton::m_logger_inst = nullptr;
@@ -132,7 +132,7 @@ static void Log_to_Console(const char* a_file_name, int a_line, const char* a_wa
 	}
 	{ //Get the message(s).
 		string.append(LOG_MESSAGE_MESSAGE_TXT_2, sizeof(LOG_MESSAGE_MESSAGE_TXT_2) - 1);
-		for (size_t i = 0; i < a_formats[i] != '\0'; i++)
+		for (size_t i = 0; i < static_cast<size_t>(a_formats[i] != '\0'); i++)
 		{
 			switch (a_formats[i])
 			{
@@ -141,14 +141,14 @@ static void Log_to_Console(const char* a_file_name, int a_line, const char* a_wa
 				break;
 			case 'S': //convert it to a char first.
 			{
-				const wchar_t* t_wChar = va_arg(a_args, const wchar_t*);
-				const size_t t_CharSize = wcslen(t_wChar);
+				const wchar_t* w_char = va_arg(a_args, const wchar_t*);
+				const size_t char_size = wcslen(w_char);
 				//check to see if we do not go over bounds, largly to deal with non-null-terminated wchar strings.
-				BB_ASSERT(t_CharSize < string.capacity() - string.size(), "error log string size exceeds 1024 characters!");
-				char* t_Char = BBstackAlloc_s(t_CharSize, char);
-				wcstombs(t_Char, t_wChar, t_CharSize);
-				string.append(t_Char);
-				BBstackFree_s(t_Char);
+				BB_ASSERT(char_size < string.capacity() - string.size(), "error log string size exceeds 1024 characters!");
+				char* character = BBstackAlloc_s(char_size, char);
+				wcstombs(character, w_char, char_size);
+				string.append(character);
+				BBstackFree_s(character);
 			}
 				break;
 			default:

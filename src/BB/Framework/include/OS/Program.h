@@ -59,7 +59,7 @@ namespace BB
 	bool ReleaseVirtualMemory(void* a_ptr);
 
 	//Prints the latest OS error and returns the error code, if it has no error code it returns 0.
-	const uint32_t LatestOSError();
+	uint32_t LatestOSError();
 
 	//Load a dynamic library
 	LibHandle LoadLib(const wchar* a_lib_name);

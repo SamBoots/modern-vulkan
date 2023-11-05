@@ -10,6 +10,6 @@ TEST(MemoryTesting, Create_Memory_Leak_and_tag)
 	BB::LinearAllocator_t t_LinearAllocator(allocatorSize, "Leak tester");
 
 	void* ptr = BBalloc(t_LinearAllocator, allocationSize);
-	BB::BBTagAlloc(t_LinearAllocator, ptr, "memory leak tag");
+	BB::BBTagAlloc(ptr, "memory leak tag");
 	//Leak will accur.
 }

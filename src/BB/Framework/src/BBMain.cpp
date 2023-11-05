@@ -1,5 +1,5 @@
 #include "BBGlobal.h"
-#include "BBmain.h"
+#include "BBMain.h"
 #include "Program.h"
 
 using namespace BB;
@@ -8,7 +8,7 @@ const wchar* BB::g_program_name;
 const char* BB::g_ExePath;
 
 #ifdef _DEBUG
-OSFileHandle BB::g_AllocationLogFile;
+OSFileHandle BB::g_AllocationLogFile = BB_INVALID_HANDLE;
 #endif //_DEBUG
 
 void BB::InitBB(const BBInitInfo& a_BBInfo)

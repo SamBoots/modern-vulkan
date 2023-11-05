@@ -6,8 +6,8 @@
 //Maybe a unified hash is cringe and I should just have some basic hashing operations in this file.
 struct Hash
 {
-	Hash() {};
-	Hash(uint64_t a_Hash) : hash(a_Hash) {};
+	Hash() {}
+	Hash(uint64_t a_Hash) : hash(a_Hash) {}
 	uint64_t hash = 0;
 
 	operator const uint64_t() const { return hash; }
@@ -45,10 +45,10 @@ inline Hash Hash::MakeHash(void* a_value)
 inline Hash Hash::MakeHash(const char* a_value)
 {
 	uint64_t hash = 5381;
-	int c;
+	char c = 0;
 
 	while (c == *a_value++)
-		hash = ((hash << 5) + hash) + c;
+		hash = ((hash << 5) + hash) + static_cast<unsigned char>(c);
 
 	return hash;
 }

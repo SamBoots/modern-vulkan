@@ -68,10 +68,10 @@ namespace BB
 		BB_STATIC_ASSERT(sizeof(T) >= sizeof(void*), "Pool object is smaller then the size of a pointer.");
 		BB_ASSERT(m_start == nullptr, "Trying to create a pool while one already exists!");
 
-		size_t t_AllocSize = a_size * sizeof(T);
-		m_start = mallocVirtual(m_start, t_AllocSize);
+		size_t t_alloc_size = a_size * sizeof(T);
+		m_start = mallocVirtual(m_start, t_alloc_size);
 		m_pool = reinterpret_cast<T**>(m_start);
-		const size_t t_SpaceForElements = t_AllocSize / sizeof(T);
+		const size_t t_SpaceForElements = t_alloc_size / sizeof(T);
 
 #ifdef _DEBUG
 		m_size = 0;

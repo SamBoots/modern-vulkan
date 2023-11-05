@@ -42,25 +42,25 @@ int main(int argc, char** argv)
 			{
 				switch (event.key_info.scan_code)
 				{
-				case KEYBOARD_KEY::_W:
+				case KEYBOARD_KEY::W:
 					if (event.key_info.key_pressed)
 						BB_LOG("W pressed!");
 					else
 						BB_LOG("W released!");
 					break;
-				case KEYBOARD_KEY::_A:
+				case KEYBOARD_KEY::A:
 					if (event.key_info.key_pressed)
 						BB_LOG("A pressed!");
 					else
 						BB_LOG("A released!");
 					break;
-				case KEYBOARD_KEY::_S:
+				case KEYBOARD_KEY::S:
 					if (event.key_info.key_pressed)
 						BB_LOG("S pressed!");
 					else
 						BB_LOG("S released!");
 					break;
-				case KEYBOARD_KEY::_D:
+				case KEYBOARD_KEY::D:
 					if (event.key_info.key_pressed)
 						BB_LOG("D pressed!");
 					else

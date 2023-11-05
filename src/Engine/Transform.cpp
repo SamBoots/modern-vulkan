@@ -101,37 +101,37 @@ TransformPool::~TransformPool()
 TransformHandle TransformPool::CreateTransform(const float3 a_Position)
 {
 	const uint32_t t_TransformIndex = inst->nextFreeTransform;
-	TransformNode* t_Node = &inst->transforms[t_TransformIndex];
-	inst->nextFreeTransform = t_Node->next;
+	TransformNode* node = &inst->transforms[t_TransformIndex];
+	inst->nextFreeTransform = node->next;
 
-	//WILL OVERWRITE t_Node->next due to it being a union.
-	new (&t_Node->transform) Transform(a_Position);
+	//WILL OVERWRITE node->next due to it being a union.
+	new (&node->transform) Transform(a_Position);
 
-	return TransformHandle(t_TransformIndex, t_Node->generation);
+	return TransformHandle(t_TransformIndex, node->generation);
 }
 
 TransformHandle TransformPool::CreateTransform(const float3 a_Position, const float3 a_Axis, const float a_Radians)
 {
 	const uint32_t t_TransformIndex = inst->nextFreeTransform;
-	TransformNode* t_Node = &inst->transforms[t_TransformIndex];
-	inst->nextFreeTransform = t_Node->next;
+	TransformNode* node = &inst->transforms[t_TransformIndex];
+	inst->nextFreeTransform = node->next;
 
-	//WILL OVERWRITE t_Node->next due to it being a union.
-	new (&t_Node->transform) Transform(a_Position, a_Axis, a_Radians);
+	//WILL OVERWRITE node->next due to it being a union.
+	new (&node->transform) Transform(a_Position, a_Axis, a_Radians);
 
-	return TransformHandle(t_TransformIndex, t_Node->generation);
+	return TransformHandle(t_TransformIndex, node->generation);
 }
 
 TransformHandle TransformPool::CreateTransform(const float3 a_Position, const float3 a_Axis, const float a_Radians, const float3 a_Scale)
 {
 	const uint32_t t_TransformIndex = inst->nextFreeTransform;
-	TransformNode* t_Node = &inst->transforms[t_TransformIndex];
-	inst->nextFreeTransform = t_Node->next;
+	TransformNode* node = &inst->transforms[t_TransformIndex];
+	inst->nextFreeTransform = node->next;
 
-	//WILL OVERWRITE t_Node->next due to it being a union.
-	new (&t_Node->transform) Transform(a_Position, a_Axis, a_Radians, a_Scale);
+	//WILL OVERWRITE node->next due to it being a union.
+	new (&node->transform) Transform(a_Position, a_Axis, a_Radians, a_Scale);
 
-	return TransformHandle(t_TransformIndex, t_Node->generation);
+	return TransformHandle(t_TransformIndex, node->generation);
 }
 
 void TransformPool::FreeTransform(const TransformHandle a_handle)

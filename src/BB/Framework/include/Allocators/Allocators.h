@@ -13,7 +13,7 @@ namespace BB
 			BaseAllocator(const char* a_Name = "unnamed") { name = a_Name; }
 
 			//realloc is the single allocation call that we make.
-			virtual void Clear();
+			void ClearDebugList();
 
 			//just delete these for safety, copies might cause errors.
 			BaseAllocator(const BaseAllocator&) = delete;
@@ -29,10 +29,10 @@ namespace BB
 				const char* file; //32 bytes
 				int line; //36 bytes
 				//maybe not safe due to possibly allocating more then 4 gb.
-				uint32_t allocSize; //40 bytes
+				uint32_t alloc_size; //40 bytes
 				const char* tagName; //48 bytes
 				bool is_array; //52 bytes
-			}* frontLog = nullptr;
+			}* front_log = nullptr;
 			const char* name;
 
 		protected:
@@ -55,7 +55,7 @@ namespace BB
 
 			void* Alloc(size_t a_size, size_t a_alignment);
 			void Free(void*);
-			void Clear() override;
+			void Clear();
 
 		private:
 			void* m_start;
@@ -78,7 +78,7 @@ namespace BB
 
 			void* Alloc(size_t a_size, size_t a_alignment);
 			void Free(void*);
-			void Clear() override;
+			void Clear();
 
 		private:
 			void* m_start;
@@ -105,7 +105,7 @@ namespace BB
 
 			void* Alloc(size_t a_size, size_t a_alignment);
 			void Free(void*);
-			void Clear() override;
+			void Clear();
 
 			void SetMarker(const StackMarker a_pos);
 			StackMarker GetMarker()
@@ -134,7 +134,7 @@ namespace BB
 
 			void* Alloc(size_t a_size, size_t a_alignment);
 			void Free(void* a_ptr);
-			void Clear() override;
+			void Clear();
 
 			struct AllocHeader 
 			{
@@ -149,7 +149,7 @@ namespace BB
 
 			uint8_t* m_start = nullptr;
 			FreeBlock* m_FreeBlocks;
-			size_t m_TotalAllocSize;
+			size_t m_Totalalloc_size;
 		};
 
 		struct POW_FreelistAllocator : public BaseAllocator
@@ -167,7 +167,7 @@ namespace BB
 
 			void* Alloc(size_t a_size, size_t);
 			void Free(void* a_ptr);
-			void Clear() override;
+			void Clear();
 
 			struct FreeBlock
 			{
@@ -177,7 +177,7 @@ namespace BB
 
 			struct FreeList
 			{
-				size_t allocSize;
+				size_t alloc_size;
 				size_t fullSize;
 				void* start;
 				FreeBlock* freeBlock;

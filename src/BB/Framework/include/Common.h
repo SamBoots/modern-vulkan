@@ -4,6 +4,12 @@
 
 namespace BB
 {
+#if defined(__GNUC__) || defined(__MINGW32__) || defined(__clang__) 
+#define BB_NO_RETURN __attribute__((noreturn))
+#elif _MSC_VER
+#define BB_NO_RETURN __declspec(noreturn)
+#endif
+
 	namespace allocators
 	{
 		struct LinearAllocator;
@@ -76,7 +82,7 @@ namespace BB
 		FrameworkHandle32Bit(uint32_t a_handle)
 		{
 			handle = a_handle;
-		};
+		}
 		uint32_t handle{};
 
 		inline bool operator ==(FrameworkHandle32Bit a_rhs) const { return handle == a_rhs.handle; }
@@ -94,6 +100,7 @@ namespace BB
 
 #ifdef _DEBUG
 #define BB_MEMORY_DEBUG const char* a_file, int a_line, bool a_is_array,
+#define BB_MEMORY_DEBUG_VOID_ARRAY (void)a_is_array
 #define BB_MEMORY_DEBUG_UNUSED const char*, int, bool,
 #define BB_MEMORY_DEBUG_ARGS __FILE__, __LINE__, false,
 #define BB_MEMORY_DEBUG_SEND a_file, a_line, false,
@@ -241,7 +248,7 @@ namespace BB
 	union Quat
 	{
 		Quat() { vec = LoadFloat4Zero(); }
-		Quat(const float a_x, const float a_y, const float a_z, const float a_w) { vec = LoadFloat4(a_x, a_y, a_z, a_w); };
+		Quat(const float a_x, const float a_y, const float a_z, const float a_w) { vec = LoadFloat4(a_x, a_y, a_z, a_w); }
 		Quat(const VecFloat4 a_vec) { vec = a_vec; }
 		struct 
 		{

@@ -21,8 +21,8 @@ TEST(BBjson, Small_Local_Memory_JSON)
 	{
 		BB::JsonParser t_Parser(t_JsonBuffer);
 		t_Parser.Parse();
-		BB::JsonNode* t_Node = t_Parser.GetRootNode();
-		JsonNodeToString(t_Node, t_JsonString);
+		BB::JsonNode* node = t_Parser.GetRootNode();
+		JsonNodeToString(node, t_JsonString);
 		BB_LOG(t_JsonString.c_str());
 	}
 
@@ -33,8 +33,8 @@ TEST(BBjson, Small_Local_Memory_JSON)
 	{
 		BB::JsonParser t_Parser(t_JsonBuffer);
 		t_Parser.Parse();
-		BB::JsonNode* t_Node = t_Parser.GetRootNode();
-		JsonNodeToString(t_Node, t_JsonString);
+		BB::JsonNode* node = t_Parser.GetRootNode();
+		JsonNodeToString(node, t_JsonString);
 		BB_LOG(t_JsonString.c_str());
 	}
 	//call the destructor as I want to clear the allocator.
@@ -52,8 +52,8 @@ TEST(BBjson, Big_Disk_JSON)
 	{
 		BB::JsonParser t_Parser(a_JsonPath);
 		t_Parser.Parse();
-		BB::JsonNode* t_Node = t_Parser.GetRootNode();
-		JsonNodeToString(t_Node, t_JsonString);
+		BB::JsonNode* node = t_Parser.GetRootNode();
+		JsonNodeToString(node, t_JsonString);
 		BB_LOG(t_JsonString.c_str());
 	}
 
@@ -64,8 +64,8 @@ TEST(BBjson, Big_Disk_JSON)
 	{
 		BB::JsonParser t_Parser(t_JsonBuffer);
 		t_Parser.Parse();
-		BB::JsonNode* t_Node = t_Parser.GetRootNode();
-		JsonNodeToString(t_Node, t_JsonString);
+		BB::JsonNode* node = t_Parser.GetRootNode();
+		JsonNodeToString(node, t_JsonString);
 		BB_LOG(t_JsonString.c_str());
 	}
 

@@ -40,14 +40,6 @@ elseif(CMAKE_SIZEOF_VOID_P EQUAL 4)
     add_compile_definitions(PUBLIC _32BIT)
 endif()
 
-if (MSVC)
-    # warning level 4 and all warnings as errors
-    add_compile_definitions(PUBLIC /W4 /WX)
-elseif(CMAKE_COMPILER_IS_GNUCXX)
-    # lots of warnings and all warnings as errors
-    add_compile_definitions(PUBLIC -Wall -Wextra)
-endif()
-
 #compile Definitions.
 if (WIN32)
 add_compile_definitions(PUBLIC _WIN32)

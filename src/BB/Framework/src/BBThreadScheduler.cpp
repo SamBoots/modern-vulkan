@@ -13,8 +13,8 @@ enum class THREAD_STATUS : uint32_t
 struct ThreadInfo
 {
 	void(*function)(void*);
-	void* functionParameter;
-	THREAD_STATUS threadStatus;
+	void* function_parameter;
+	THREAD_STATUS thread_status;
 	//debug value for the ThreadHandle extra_index;
 	BBConditionalVariable condition;
 	uint32_t generation;
@@ -27,31 +27,31 @@ static void ThreadStartFunc(void* a_args)
 	BBRWLock lock = OSCreateRWLock();
 	OSAcquireSRWLockWrite(&lock);
 
-	while (thread_info->threadStatus != THREAD_STATUS::DESTROY)
+	while (thread_info->thread_status != THREAD_STATUS::DESTROY)
 	{
 		OSWaitConditionalVariableExclusive(&thread_info->condition, &lock);
-		thread_info->function(thread_info->functionParameter);
+		thread_info->function(thread_info->function_parameter);
 		++thread_info->generation;
 		thread_info->function = nullptr;
-		thread_info->functionParameter = nullptr;
-		thread_info->threadStatus = THREAD_STATUS::IDLE;
+		thread_info->function_parameter = nullptr;
+		thread_info->thread_status = THREAD_STATUS::IDLE;
 	}
 }
 #pragma optimize( "", on )
 
 struct Thread
 {
-	OSThreadHandle osThreadHandle;
-	ThreadInfo threadInfo; //used to send functions to threads
+	OSThreadHandle  os_thread_handle;
+	ThreadInfo thread_info; //used to send functions to threads
 };
 
 struct ThreadScheduler
 {
-	uint32_t threadCount = 0;
+	uint32_t thread_count = 0;
 	Thread threads[32]{};
 };
 
-static ThreadScheduler s_ThreadScheduler;
+static ThreadScheduler s_ThreadScheduler{};
 
 BB::Threads::Barrier::Barrier(const uint32_t a_thread_count)
 	: thread_count(a_thread_count)
@@ -77,43 +77,43 @@ void BB::Threads::Barrier::Signal()
 }
 
 
-void BB::Threads::InitThreads(const uint32_t a_ThreadCount)
+void BB::Threads::InitThreads(const uint32_t a_thread_count)
 {
-	BB_ASSERT(a_ThreadCount < _countof(s_ThreadScheduler.threads), "Trying to create too many threads!");
-	s_ThreadScheduler.threadCount = a_ThreadCount;
+	BB_ASSERT(a_thread_count < _countof(s_ThreadScheduler.threads), "Trying to create too many threads!");
+	s_ThreadScheduler.thread_count = a_thread_count;
 
-	for (uint32_t i = 0; i < s_ThreadScheduler.threadCount; i++)
+	for (uint32_t i = 0; i < s_ThreadScheduler.thread_count; i++)
 	{
-		s_ThreadScheduler.threads[i].threadInfo.function = nullptr;
-		s_ThreadScheduler.threads[i].threadInfo.functionParameter = nullptr;
-		s_ThreadScheduler.threads[i].threadInfo.threadStatus = THREAD_STATUS::IDLE;
-		s_ThreadScheduler.threads[i].threadInfo.generation = 0;
-		s_ThreadScheduler.threads[i].threadInfo.condition = OSCreateConditionalVariable();
-		s_ThreadScheduler.threads[i].osThreadHandle = OSCreateThread(ThreadStartFunc,
+		s_ThreadScheduler.threads[i].thread_info.function = nullptr;
+		s_ThreadScheduler.threads[i].thread_info.function_parameter = nullptr;
+		s_ThreadScheduler.threads[i].thread_info.thread_status = THREAD_STATUS::IDLE;
+		s_ThreadScheduler.threads[i].thread_info.generation = 0;
+		s_ThreadScheduler.threads[i].thread_info.condition = OSCreateConditionalVariable();
+		s_ThreadScheduler.threads[i].os_thread_handle = OSCreateThread(ThreadStartFunc,
 			0,
-			&s_ThreadScheduler.threads[i].threadInfo);
+			&s_ThreadScheduler.threads[i].thread_info);
 	}
 }
 
 void BB::Threads::DestroyThreads()
 {
-	for (uint32_t i = 0; i < s_ThreadScheduler.threadCount; i++)
+	for (uint32_t i = 0; i < s_ThreadScheduler.thread_count; i++)
 	{
-		s_ThreadScheduler.threads[i].threadInfo.threadStatus = THREAD_STATUS::DESTROY;
+		s_ThreadScheduler.threads[i].thread_info.thread_status = THREAD_STATUS::DESTROY;
 	}
 }
 
 ThreadTask BB::Threads::StartTaskThread(void(*a_Function)(void*), void* a_FuncParameter)
 {
-	for (uint32_t i = 0; i < s_ThreadScheduler.threadCount; i++)
+	for (uint32_t i = 0; i < s_ThreadScheduler.thread_count; i++)
 	{
-		if (s_ThreadScheduler.threads[i].threadInfo.threadStatus == THREAD_STATUS::IDLE)
+		if (s_ThreadScheduler.threads[i].thread_info.thread_status == THREAD_STATUS::IDLE)
 		{
-			s_ThreadScheduler.threads[i].threadInfo.function = a_Function;
-			s_ThreadScheduler.threads[i].threadInfo.functionParameter = a_FuncParameter;
-			s_ThreadScheduler.threads[i].threadInfo.threadStatus = THREAD_STATUS::BUSY;
-			OSWakeConditionVariable(&s_ThreadScheduler.threads[i].threadInfo.condition);
-			return ThreadTask(i, s_ThreadScheduler.threads[i].threadInfo.generation + 1);
+			s_ThreadScheduler.threads[i].thread_info.function = a_Function;
+			s_ThreadScheduler.threads[i].thread_info.function_parameter = a_FuncParameter;
+			s_ThreadScheduler.threads[i].thread_info.thread_status = THREAD_STATUS::BUSY;
+			OSWakeConditionVariable(&s_ThreadScheduler.threads[i].thread_info.condition);
+			return ThreadTask(i, s_ThreadScheduler.threads[i].thread_info.generation + 1);
 		}
 	}
 	BB_ASSERT(false, "No free threads! Maybe implement a way to just re-iterate over the list again.");
@@ -122,12 +122,12 @@ ThreadTask BB::Threads::StartTaskThread(void(*a_Function)(void*), void* a_FuncPa
 
 void BB::Threads::WaitForTask(const ThreadTask a_handle)
 {
-	while (s_ThreadScheduler.threads[a_handle.index].threadInfo.generation < a_handle.extra_index) {};
+	while (s_ThreadScheduler.threads[a_handle.index].thread_info.generation < a_handle.extra_index) {}
 }
 
 bool BB::Threads::TaskFinished(const ThreadTask a_handle)
 {
-	if (s_ThreadScheduler.threads[a_handle.index].threadInfo.generation <= a_handle.extra_index)
+	if (s_ThreadScheduler.threads[a_handle.index].thread_info.generation <= a_handle.extra_index)
 		return true;
 
 	return false;

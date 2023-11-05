@@ -15,13 +15,10 @@
 
 #include <mutex>
 
-
-#define NULL nullptr
-
 using namespace BB;
 
-void DefaultClose(WindowHandle a_window_handle) {}
-void DefaultResize(WindowHandle a_window_handle, uint32_t a_x, uint32_t a_y) {}
+static void DefaultClose(WindowHandle) {}
+static void DefaultResize(WindowHandle, uint32_t, uint32_t) {}
 
 static PFN_WindowCloseEvent s_pfn_close_event = DefaultClose;
 static PFN_WindowResizeEvent s_pfn_resize_event = DefaultResize;
@@ -43,7 +40,7 @@ struct GlobalProgramInfo
 static GlobalProgramInfo s_program_info{};
 static InputBuffer s_input_buffer{};
 
-void PushInput(const InputEvent& a_Input)
+static void PushInput(const InputEvent& a_Input)
 {
 	s_input_buffer.input_mutex.lock();
 	if (s_input_buffer.pos + 1 > INPUT_EVENT_BUFFER_MAX)
@@ -60,10 +57,10 @@ void PushInput(const InputEvent& a_Input)
 }
 
 //Returns false if no input is left.
-void GetAllInput(InputEvent* a_InputBuffer)
+static void GetAllInput(InputEvent* a_InputBuffer)
 {
 	s_input_buffer.input_mutex.lock();
-	int first_index = s_input_buffer.start;
+	size_t first_index = s_input_buffer.start;
 	for (size_t i = 0; i < s_input_buffer.used; i++)
 	{
 		a_InputBuffer[i] = s_input_buffer.input_buffer[first_index];
@@ -83,9 +80,9 @@ void BB::InitProgram()
 }
 
 //Custom callback for the Windows proc.
-LRESULT wm_input(HWND a_Hwnd, WPARAM a_WParam, LPARAM a_LParam)
+static LRESULT wm_input(HWND a_hwnd, WPARAM a_wparam, LPARAM a_lparam)
 {
-	HRAWINPUT h_raw_input = reinterpret_cast<HRAWINPUT>(a_LParam);
+	HRAWINPUT h_raw_input = reinterpret_cast<HRAWINPUT>(a_lparam);
 
 	//Allocate an input event.
 	InputEvent event{};
@@ -124,8 +121,8 @@ LRESULT wm_input(HWND a_Hwnd, WPARAM a_WParam, LPARAM a_LParam)
 			event.mouse_info.move_offset = move_input;
 			POINT point;
 			GetCursorPos(&point);
-			ScreenToClient(a_Hwnd, &point);
-			event.mouse_info.mouse_pos = { (float)point.x, (float)point.y };
+			ScreenToClient(a_hwnd, &point);
+			event.mouse_info.mouse_pos = { static_cast<float>(point.x), static_cast<float>(point.y) };
 		}
 
 		event.mouse_info.left_pressed = input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN;
@@ -143,25 +140,25 @@ LRESULT wm_input(HWND a_Hwnd, WPARAM a_WParam, LPARAM a_LParam)
 	}
 
 
-	return DefWindowProcW(a_Hwnd, WM_INPUT, a_WParam, a_LParam);
+	return DefWindowProcW(a_hwnd, WM_INPUT, a_wparam, a_lparam);
 }
 
 //Custom callback for the Windows proc.
-LRESULT CALLBACK WindowProc(HWND a_Hwnd, UINT a_Msg, WPARAM a_WParam, LPARAM a_LParam)
+static LRESULT CALLBACK WindowProc(HWND a_hwnd, UINT a_msg, WPARAM a_wparam, LPARAM a_lparam)
 {
 
-	switch (a_Msg)
+	switch (a_msg)
 	{
 	case WM_QUIT:
 		break;
 	case WM_DESTROY:
-		s_pfn_close_event((uintptr_t)a_Hwnd);
+		s_pfn_close_event(reinterpret_cast<uintptr_t>(a_hwnd));
 		break;
 	case WM_SIZE:
 	{
-		int t_X = static_cast<uint32_t>(LOWORD(a_LParam));
-		int t_Y = static_cast<uint32_t>(HIWORD(a_LParam));
-		s_pfn_resize_event((uintptr_t)a_Hwnd, t_X, t_Y);
+		uint32_t x = static_cast<uint32_t>(LOWORD(a_lparam));
+		uint32_t y = static_cast<uint32_t>(HIWORD(a_lparam));
+		s_pfn_resize_event(reinterpret_cast<uintptr_t>(a_hwnd), x, y);
 		break;
 	}
 	case WM_MOUSELEAVE:
@@ -171,11 +168,10 @@ LRESULT CALLBACK WindowProc(HWND a_Hwnd, UINT a_Msg, WPARAM a_WParam, LPARAM a_L
 		s_program_info.tracking_mouse = true;
 		break;
 	case WM_INPUT:
-		return wm_input(a_Hwnd, a_WParam, a_LParam);
-		break;
+		return wm_input(a_hwnd, a_wparam, a_lparam);
 	}
 
-	return DefWindowProcW(a_Hwnd, a_Msg, a_WParam, a_LParam);
+	return DefWindowProcW(a_hwnd, a_msg, a_wparam, a_lparam);
 }
 
 void BB::OSSystemInfo(SystemInfo& a_system_info)
@@ -211,7 +207,7 @@ bool BB::ReleaseVirtualMemory(void* a_ptr)
 	return VirtualFree(a_ptr, 0, MEM_RELEASE);
 }
 
-const uint32_t BB::LatestOSError()
+uint32_t BB::LatestOSError()
 {
 	DWORD error_msg = GetLastError();
 	if (error_msg == 0)
@@ -222,11 +218,11 @@ const uint32_t BB::LatestOSError()
 		FORMAT_MESSAGE_ALLOCATE_BUFFER | 
 		FORMAT_MESSAGE_FROM_SYSTEM |
 		FORMAT_MESSAGE_IGNORE_INSERTS,
-		NULL,
+		nullptr,
 		error_msg,
 		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), 
-		(LPSTR)&message,
-		0, NULL);
+		message,
+		0, nullptr);
 
 	if (message == nullptr)
 		LatestOSError();
@@ -241,12 +237,12 @@ const uint32_t BB::LatestOSError()
 LibHandle BB::LoadLib(const wchar* a_lib_name)
 {
 	HMODULE mod = LoadLibraryW(a_lib_name);
-	if (mod == NULL)
+	if (mod == nullptr)
 	{
 		LatestOSError();
 		BB_ASSERT(false, "Failed to load .DLL");
 	}
-	return LibHandle((uintptr_t)mod);
+	return LibHandle(reinterpret_cast<uintptr_t>(mod));
 }
 
 void BB::UnloadLib(const LibHandle a_handle)
@@ -257,7 +253,7 @@ void BB::UnloadLib(const LibHandle a_handle)
 LibFuncPtr BB::LibLoadFunc(const LibHandle a_handle, const char* a_func_name)
 {
 	LibFuncPtr func = reinterpret_cast<LibFuncPtr>(GetProcAddress(reinterpret_cast<HMODULE>(a_handle.ptr_handle), a_func_name));
-	if (func == NULL)
+	if (func == nullptr)
 	{
 		LatestOSError();
 		BB_ASSERT(false, "Failed to load function from .dll");
@@ -268,12 +264,12 @@ LibFuncPtr BB::LibLoadFunc(const LibHandle a_handle, const char* a_func_name)
 void BB::WriteToConsole(const char* a_string, uint32_t a_str_length)
 {
 	DWORD written = 0;
-	//Maybe check if a console is available, it could be null.
+	//Maybe check if a console is available, it could be nullptr.
 	if (FALSE == WriteConsoleA(GetStdHandle(STD_OUTPUT_HANDLE),
 		a_string,
 		a_str_length,
 		&written,
-		NULL))
+		nullptr))
 	{
 		BB_WARNING(false,
 			"OS, failed to write to console! This can be severe.",
@@ -285,12 +281,12 @@ void BB::WriteToConsole(const char* a_string, uint32_t a_str_length)
 void BB::WriteToConsole(const wchar_t* a_string, uint32_t a_str_length)
 {
 	DWORD written = 0;
-	//Maybe check if a console is available, it could be null.
+	//Maybe check if a console is available, it could be nullptr.
 	if (FALSE == WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE),
 		a_string,
 		a_str_length,
 		&written,
-		NULL))
+		nullptr))
 	{
 		BB_WARNING(false,
 			"OS, failed to write to console! This can be severe.",
@@ -301,7 +297,7 @@ void BB::WriteToConsole(const wchar_t* a_string, uint32_t a_str_length)
 
 void BB::OSCreateDirectory(const char* a_path_name)
 {
-	const BOOL result = CreateDirectoryA(a_path_name, NULL);
+	const BOOL result = CreateDirectoryA(a_path_name, nullptr);
 #ifdef _DEBUG
 	if (result == ERROR_PATH_NOT_FOUND)
 	{
@@ -313,7 +309,7 @@ void BB::OSCreateDirectory(const char* a_path_name)
 
 bool BB::OSFileIsValid(const OSFileHandle a_file_handle)
 {
-	return a_file_handle.handle != (uintptr_t)INVALID_HANDLE_VALUE;
+	return a_file_handle.handle != reinterpret_cast<uint64_t>(INVALID_HANDLE_VALUE);
 }
 
 OSFileHandle BB::CreateOSFile(const char* a_file_name)
@@ -321,10 +317,10 @@ OSFileHandle BB::CreateOSFile(const char* a_file_name)
 	const HANDLE created_file = CreateFileA(a_file_name,
 		GENERIC_WRITE | GENERIC_READ,
 		0,
-		NULL,
+		nullptr,
 		CREATE_ALWAYS,
 		FILE_ATTRIBUTE_NORMAL,
-		NULL);
+		nullptr);
 
 	if (created_file == INVALID_HANDLE_VALUE)
 	{
@@ -334,7 +330,7 @@ OSFileHandle BB::CreateOSFile(const char* a_file_name)
 			WarningType::HIGH);
 	}
 
-	return OSFileHandle((uintptr_t)created_file);
+	return OSFileHandle(reinterpret_cast<uintptr_t>(created_file));
 }
 
 OSFileHandle BB::CreateOSFile(const wchar* a_file_name)
@@ -342,10 +338,10 @@ OSFileHandle BB::CreateOSFile(const wchar* a_file_name)
 	const HANDLE created_file = CreateFileW(a_file_name,
 		GENERIC_WRITE | GENERIC_READ,
 		0,
-		NULL,
+		nullptr,
 		CREATE_ALWAYS,
 		FILE_ATTRIBUTE_NORMAL,
-		NULL);
+		nullptr);
 
 	if (created_file == INVALID_HANDLE_VALUE)
 	{
@@ -355,7 +351,7 @@ OSFileHandle BB::CreateOSFile(const wchar* a_file_name)
 			WarningType::HIGH);
 	}
 	
-	return OSFileHandle((uintptr_t)created_file);
+	return OSFileHandle(reinterpret_cast<uintptr_t>(created_file));
 }
 
 OSFileHandle BB::LoadOSFile(const char* a_file_name)
@@ -363,15 +359,15 @@ OSFileHandle BB::LoadOSFile(const char* a_file_name)
 	const HANDLE load_file = CreateFileA(a_file_name,
 		GENERIC_WRITE | GENERIC_READ,
 		0,
-		NULL,
+		nullptr,
 		OPEN_EXISTING,
 		FILE_ATTRIBUTE_NORMAL,
-		NULL);
+		nullptr);
 
 	if (load_file == INVALID_HANDLE_VALUE)
 		LatestOSError();
 
-	return OSFileHandle((uintptr_t)load_file);
+	return OSFileHandle(reinterpret_cast<uintptr_t>(load_file));
 }
 
 //char replaced with string view later on.
@@ -380,10 +376,10 @@ OSFileHandle BB::LoadOSFile(const wchar* a_file_name)
 	const HANDLE load_file = CreateFileW(a_file_name,
 		GENERIC_WRITE | GENERIC_READ,
 		0,
-		NULL,
+		nullptr,
 		OPEN_EXISTING,
 		FILE_ATTRIBUTE_NORMAL,
-		NULL);
+		nullptr);
 
 	if (load_file == INVALID_HANDLE_VALUE)
 	{
@@ -393,7 +389,7 @@ OSFileHandle BB::LoadOSFile(const wchar* a_file_name)
 			WarningType::HIGH);
 	}
 
-	return OSFileHandle((uintptr_t)load_file);
+	return OSFileHandle(reinterpret_cast<uintptr_t>(load_file));
 }
 
 //Reads a loaded file.
@@ -410,7 +406,7 @@ Buffer BB::ReadOSFile(Allocator a_system_allocator, const OSFileHandle a_file_ha
 		file_buffer.data,
 		static_cast<DWORD>(file_buffer.size),
 		&bytes_read,
-		NULL))
+		nullptr))
 	{
 		LatestOSError();
 		BB_WARNING(false,
@@ -434,7 +430,7 @@ Buffer BB::ReadOSFile(Allocator a_system_allocator, const char* a_path)
 		file_buffer.data,
 		static_cast<DWORD>(file_buffer.size),
 		&bytes_read,
-		NULL))
+		nullptr))
 	{
 		BB_WARNING(false,
 			"OS, failed to load file! This can be severe.",
@@ -460,7 +456,7 @@ Buffer BB::ReadOSFile(Allocator a_system_allocator, const wchar* a_path)
 		file_buffer.data,
 		static_cast<DWORD>(file_buffer.size),
 		&bytes_read,
-		NULL))
+		nullptr))
 	{
 		BB_WARNING(false,
 			"OS, failed to load file! This can be severe.",
@@ -481,7 +477,7 @@ void BB::WriteToOSFile(const OSFileHandle a_file_handle, const void* a_data, con
 		a_data,
 		static_cast<const DWORD>(a_size),
 		&bytes_written,
-		NULL))
+		nullptr))
 	{
 		LatestOSError();
 		BB_WARNING(false,
@@ -493,12 +489,12 @@ void BB::WriteToOSFile(const OSFileHandle a_file_handle, const void* a_data, con
 //Get a file's size in bytes.
 uint64_t BB::GetOSFileSize(const OSFileHandle a_file_handle)
 {
-	return GetFileSize(reinterpret_cast<HANDLE>(a_file_handle.ptr_handle), NULL);
+	return GetFileSize(reinterpret_cast<HANDLE>(a_file_handle.ptr_handle), nullptr);
 }
 
 void BB::SetOSFilePosition(const OSFileHandle a_file_handle, const uint32_t a_offset, const OS_FILE_READ_POINT a_file_read_point)
 {
-	DWORD err = SetFilePointer(reinterpret_cast<HANDLE>(a_file_handle.ptr_handle), a_offset, NULL, static_cast<DWORD>(a_file_read_point));
+	DWORD err = SetFilePointer(reinterpret_cast<HANDLE>(a_file_handle.ptr_handle), static_cast<LONG>(a_offset), nullptr, static_cast<DWORD>(a_file_read_point));
 #ifdef _DEBUG
 	if (err == INVALID_SET_FILE_POINTER && 
 		LatestOSError() == ERROR_NEGATIVE_SEEK)
@@ -507,7 +503,7 @@ void BB::SetOSFilePosition(const OSFileHandle a_file_handle, const uint32_t a_of
 			"OS, Setting the file position failed by putting it in negative! WIN ERROR: ERROR_NEGATIVE_SEEK.",
 			WarningType::HIGH);
 	}
-#endif
+#endif //_DEBUG
 }
 
 void BB::CloseOSFile(const OSFileHandle a_file_handle)
@@ -522,47 +518,47 @@ OSThreadHandle BB::OSCreateThread(void(*a_func)(void*), const unsigned int a_sta
 
 void BB::OSWaitThreadfinish(const OSThreadHandle a_thread)
 {
-	WaitForSingleObject((HANDLE)a_thread.handle, INFINITE);
+	WaitForSingleObject(reinterpret_cast<HANDLE>(a_thread.handle), INFINITE);
 }
 
 BBMutex BB::OSCreateMutex()
 {
-	return BBMutex((uintptr_t)CreateMutex(NULL, false, NULL));
+	return BBMutex(reinterpret_cast<uintptr_t>(CreateMutex(nullptr, false, nullptr)));
 }
 
 void BB::OSWaitAndLockMutex(const BBMutex a_mutex)
 {
-	WaitForSingleObject((HANDLE)a_mutex.handle, INFINITE);
+	WaitForSingleObject(reinterpret_cast<HANDLE>(a_mutex.handle), INFINITE);
 }
 
 void BB::OSUnlockMutex(const BBMutex a_mutex)
 {
-	ReleaseMutex((HANDLE)a_mutex.handle);
+	ReleaseMutex(reinterpret_cast<HANDLE>(a_mutex.handle));
 }
 
 void BB::OSDestroyMutex(const BBMutex a_mutex)
 {
-	CloseHandle((HANDLE)a_mutex.handle);
+	CloseHandle(reinterpret_cast<HANDLE>(a_mutex.handle));
 }
 
 BBSemaphore BB::OSCreateSemaphore(const uint32_t a_initial_count, const uint32_t a_maximum_count)
 {
-	return BBSemaphore((uintptr_t)CreateSemaphore(NULL, a_initial_count, a_maximum_count, NULL));
+	return BBSemaphore(reinterpret_cast<uintptr_t>(CreateSemaphore(nullptr, static_cast<LONG>(a_initial_count), static_cast<LONG>(a_maximum_count), nullptr)));
 }
 
 void BB::OSWaitSemaphore(const BBSemaphore a_semaphore)
 {
-	WaitForSingleObject((HANDLE)a_semaphore.handle, INFINITE);
+	WaitForSingleObject(reinterpret_cast<HANDLE>(a_semaphore.handle), INFINITE);
 }
 
 void BB::OSSignalSemaphore(const BBSemaphore a_semaphore, const uint32_t a_signal_count)
 {
-	ReleaseSemaphore((HANDLE)a_semaphore.handle, a_signal_count, NULL);
+	ReleaseSemaphore(reinterpret_cast<HANDLE>(a_semaphore.handle), static_cast<LONG>(a_signal_count), nullptr);
 }
 
 void BB::OSDestroySemaphore(const BBSemaphore a_semaphore)
 {
-	CloseHandle((HANDLE)a_semaphore.handle);
+	CloseHandle(reinterpret_cast<HANDLE>(a_semaphore.handle));
 }
 
 BBRWLock BB::OSCreateRWLock()
@@ -634,8 +630,8 @@ WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_style, const int a_x, co
 	WNDCLASSW wnd_class = {};
 	wnd_class.lpszClassName = a_window_name;
 	wnd_class.hInstance = hinstance;
-	wnd_class.hIcon = LoadIconW(NULL, IDI_WINLOGO);
-	wnd_class.hCursor = LoadCursorW(NULL, IDC_ARROW);
+	wnd_class.hIcon = LoadIconW(nullptr, IDI_WINLOGO);
+	wnd_class.hCursor = LoadCursorW(nullptr, IDC_ARROW);
 	wnd_class.lpfnWndProc = WindowProc;
 
 	RegisterClassW(&wnd_class);
@@ -649,10 +645,6 @@ WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_style, const int a_x, co
 		break;
 	case OS_WINDOW_STYLE::CHILD:
 		style = WS_OVERLAPPED | WS_THICKFRAME;
-		break;
-	default:
-		style = 0;
-		BB_ASSERT(false, "Tried to create a window with a OS_WINDOW_STYLE it does not accept.");
 		break;
 	}
 
@@ -673,8 +665,8 @@ WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_style, const int a_x, co
 		rect.top,
 		rect.right - rect.left,
 		rect.bottom - rect.top,
-		NULL,
-		NULL,
+		nullptr,
+		nullptr,
 		hinstance,
 		nullptr);
 	ShowWindow(window, SW_SHOW);
@@ -697,7 +689,7 @@ WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_style, const int a_x, co
 
 	uint32_t num_connected_devices = 0;
 	UINT err_check = GetRawInputDeviceList(nullptr, &num_connected_devices, sizeof(RAWINPUTDEVICELIST));
-	BB_ASSERT(err_check != -1, "Failed to get the size of raw input devices!");
+	BB_ASSERT(err_check != static_cast<UINT>(-1), "Failed to get the size of raw input devices!");
 	BB_ASSERT(num_connected_devices > 0, "Failed to get the size of raw input devices!");
 
 	RAWINPUTDEVICELIST* connected_devices = BBstackAlloc(
@@ -705,31 +697,31 @@ WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_style, const int a_x, co
 		RAWINPUTDEVICELIST);
 
 	err_check = GetRawInputDeviceList(connected_devices, &num_connected_devices, sizeof(RAWINPUTDEVICELIST));
-	BB_ASSERT(err_check != -1, "Failed to get the raw input devices!");
+	BB_ASSERT(err_check != static_cast<UINT>(-1), "Failed to get the raw input devices!");
 	
-	constexpr size_t MAX_HID_STRING_LENGTH = 126;
-	wchar_t* product_name_str = BBstackAlloc(
-		MAX_HID_STRING_LENGTH,
-		wchar_t);
+	//constexpr size_t MAX_HID_STRING_LENGTH = 126;
+	//wchar_t* product_name_str = BBstackAlloc(
+	//	MAX_HID_STRING_LENGTH,
+	//	wchar_t);
 
-	//Lets log the devices, maybe do this better.
-	for (size_t i = 0; i < num_connected_devices; i++)
-	{
-		RID_DEVICE_INFO device_info{};
-		UINT rid_device_size = sizeof(RID_DEVICE_INFO);
-		UINT it = GetRawInputDeviceInfo(connected_devices[i].hDevice, RIDI_DEVICEINFO, &device_info, &rid_device_size);
+	////Lets log the devices, maybe do this better.
+	//for (size_t i = 0; i < num_connected_devices; i++)
+	//{
+	//	RID_DEVICE_INFO device_info{};
+	//	UINT rid_device_size = sizeof(RID_DEVICE_INFO);
+	//	UINT it = GetRawInputDeviceInfo(connected_devices[i].hDevice, RIDI_DEVICEINFO, &device_info, &rid_device_size);
 
-		if (device_info.dwType == RIM_TYPEMOUSE)
-		{
-			
-		}
-		else if (device_info.dwType == RIM_TYPEMOUSE)
-		{
+	//	if (device_info.dwType == RIM_TYPEMOUSE)
+	//	{
+	//		
+	//	}
+	//	else if (device_info.dwType == RIM_TYPEMOUSE)
+	//	{
 
-		}
-	}
+	//	}
+	//}
 
-	return WindowHandle((uintptr_t)window);
+	return WindowHandle(reinterpret_cast<uintptr_t>(window));
 }
 
 void* BB::GetOSWindowHandle(const WindowHandle a_handle)
@@ -788,7 +780,7 @@ void BB::SetResizeEventPtr(PFN_WindowResizeEvent a_func)
 	s_pfn_resize_event = a_func;
 }
 
-void BB::ExitApp()
+BB_NO_RETURN void BB::ExitApp()
 {
 	exit(EXIT_SUCCESS);
 }

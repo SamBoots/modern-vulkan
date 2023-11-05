@@ -767,5 +767,4 @@ namespace BB
 		Allocator m_allocator;
 	};
 }
-
 #pragma endregion

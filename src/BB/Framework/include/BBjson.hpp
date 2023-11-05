@@ -71,9 +71,9 @@ namespace BB
 			Pair* next = nullptr;
 		};
 
-		JsonObject(Allocator a_allocator, const uint32_t a_mapSize, Pair* a_PairHead)
-			: map(a_allocator, a_mapSize), pairLL(a_PairHead)
-		{};
+		JsonObject(Allocator a_allocator, const uint32_t a_mapSize, Pair* a_pair_head)
+			: map(a_allocator, a_mapSize), pairLL(a_pair_head)
+		{}
 		OL_HashMap<char*, JsonNode*, String_KeyComp> map;
 		Pair* pairLL;
 	};
@@ -85,7 +85,7 @@ namespace BB
 		uint32_t pos = 0;
 	};
 
-	void JsonNodeToString(const JsonNode* t_Node, String& a_string);
+	void JsonNodeToString(const JsonNode* node, String& a_string);
 	struct Token;
 	class JsonParser
 	{
@@ -102,16 +102,16 @@ namespace BB
 
 		JsonNode* ParseObject();
 		JsonNode* ParseList();
-		JsonNode* ParseString(const Token& a_Token);
-		JsonNode* ParseNumber(const Token& a_Token);
-		JsonNode* ParseBoolean(const Token& a_Token);
+		JsonNode* ParseString(const Token& a_token);
+		JsonNode* ParseNumber(const Token& a_token);
+		JsonNode* ParseBoolean(const Token& a_token);
 		JsonNode* ParseNull();
 	private:
 		
 		//jank
-		JsonNode* PraseSingleToken(const Token& a_Token);
+		JsonNode* PraseSingleToken(const Token& a_token);
 		LinearAllocator_t m_allocator;
-		JsonFile m_JsonFile;
+		JsonFile m_json_file;
 
 		JsonNode* m_RootNode = nullptr;
 	};

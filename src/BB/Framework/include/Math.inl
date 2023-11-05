@@ -264,7 +264,7 @@ namespace BB
 		return mat;
 	}
 
-	static float4x4 Float4x4Perspective(const float fov, const float aspect, const float nearField, const float farField)
+	static inline float4x4 Float4x4Perspective(const float fov, const float aspect, const float nearField, const float farField)
 	{
 		const float tanHalfFov = tan(fov / 2.f);
 

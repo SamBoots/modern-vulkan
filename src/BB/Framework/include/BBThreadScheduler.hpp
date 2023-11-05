@@ -21,7 +21,7 @@ namespace BB
 			BBSemaphore barrier;
 		};
 
-		void InitThreads(const uint32_t a_ThreadCount);
+		void InitThreads(const uint32_t a_thread_count);
 		void DestroyThreads();
 		ThreadTask StartTaskThread(void(*a_Function)(void*), void* a_FuncParameter);
 

@@ -3,7 +3,7 @@
 
 using namespace BB;
 
-void* ReallocRing(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, size_t a_alignment, void*)
+static void* ReallocRing(BB_MEMORY_DEBUG_UNUSED void* a_allocator, size_t a_size, size_t a_alignment, void*)
 {
 	if (a_size == 0)
 		return nullptr;
@@ -13,10 +13,10 @@ void* ReallocRing(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, size_t a_ali
 
 RingAllocator::operator BB::Allocator()
 {
-	Allocator t_AllocatorInterface;
-	t_AllocatorInterface.allocator = this;
-	t_AllocatorInterface.func = ReallocRing;
-	return t_AllocatorInterface;
+	Allocator allocator_interface;
+	allocator_interface.allocator = this;
+	allocator_interface.func = ReallocRing;
+	return allocator_interface;
 }
 
 RingAllocator::RingAllocator(const Allocator a_BackingAllocator, const size_t a_size)
@@ -57,10 +57,7 @@ void* RingAllocator::Alloc(size_t a_size, size_t a_alignment)
 	return t_ReturnPtr;
 }
 
-
-
-
-void* ReallocLocalRing(BB_MEMORY_DEBUG_UNUSED void* a_allocator, size_t a_size, size_t a_alignment, void*)
+static void* ReallocLocalRing(BB_MEMORY_DEBUG_UNUSED void* a_allocator, size_t a_size, size_t a_alignment, void*)
 {
 	if (a_size == 0)
 		return nullptr;
@@ -70,10 +67,10 @@ void* ReallocLocalRing(BB_MEMORY_DEBUG_UNUSED void* a_allocator, size_t a_size, 
 
 LocalRingAllocator::operator BB::Allocator()
 {
-	Allocator t_AllocatorInterface;
-	t_AllocatorInterface.allocator = this;
-	t_AllocatorInterface.func = ReallocLocalRing;
-	return t_AllocatorInterface;
+	Allocator allocator_interface;
+	allocator_interface.allocator = this;
+	allocator_interface.func = ReallocLocalRing;
+	return allocator_interface;
 }
 
 LocalRingAllocator::LocalRingAllocator(size_t& a_size)

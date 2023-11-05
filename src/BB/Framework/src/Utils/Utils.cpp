@@ -108,7 +108,7 @@ namespace BB
 		}
 	}
 
-	void BB::Memory::MemSet(void* __restrict a_destination, const int32_t a_value, size_t a_size)
+	void BB::Memory::MemSet(void* __restrict a_destination, const size_t a_value, size_t a_size)
 	{
 		//Get the registry size for most optimal memcpy.
 		size_t* __restrict  dest = reinterpret_cast<size_t*>(a_destination);
@@ -128,14 +128,14 @@ namespace BB
 		}
 	}
 
-	void BB::Memory::MemSetSIMD128(void* __restrict  a_destination, const int32_t a_value, size_t a_size)
+	void BB::Memory::MemSetSIMD128(void* __restrict  a_destination, const size_t a_value, size_t a_size)
 	{
 		//Get the registry size for most optimal memcpy.
 		__m128i* __restrict  dest = reinterpret_cast<__m128i*>(a_destination);
 
 		while (a_size >= sizeof(__m128i))
 		{
-			*dest++ = _mm_set1_epi32(a_value);
+			*dest++ = _mm_set1_epi64x(static_cast<long long>(a_value));
 			a_size -= sizeof(__m128i);
 		}
 
@@ -156,14 +156,14 @@ namespace BB
 		}
 	}
 
-	void BB::Memory::MemSetSIMD256(void* __restrict a_destination, const int32_t a_value, size_t a_size)
+	void BB::Memory::MemSetSIMD256(void* __restrict a_destination, const size_t a_value, size_t a_size)
 	{
 		//Get the registry size for most optimal memcpy.
 		__m256i* __restrict  dest = reinterpret_cast<__m256i*>(a_destination);
 
 		while (a_size > sizeof(__m256i))
 		{
-			*dest++ = _mm256_set1_epi32(a_value);
+			*dest++ = _mm256_set1_epi64x(static_cast<long long>(a_value));
 			a_size -= sizeof(__m256i);
 		}
 		
@@ -295,7 +295,7 @@ namespace BB
 			const __m256i loadLeft = _mm256_loadu_si256(t_Left);
 			const __m256i loadRight = _mm256_loadu_si256(t_Right);
 			const __m256i result = _mm256_cmpeq_epi64(loadLeft, loadRight);
-			if (!(unsigned int)_mm256_testc_si256(result, _mm256_set1_epi64x(0xFFFFFFFFFFFFFFFF)))
+			if (!static_cast<unsigned int>(_mm256_testc_si256(result, _mm256_set1_epi64x(static_cast<long long>(0xFFFFFFFFFFFFFFFF)))))
 			{
 				return false;
 			}

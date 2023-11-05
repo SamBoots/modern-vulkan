@@ -25,48 +25,48 @@ enum class TOKEN_TYPE : uint32_t
 struct BB::Token
 {
 	TOKEN_TYPE type = TOKEN_TYPE::OUT_OF_TOKENS;
-	uint32_t strSize = 0;
+	uint32_t str_size = 0;
 	char* str = nullptr;
 };
 
 static char ignoreWhiteSpace(JsonFile& a_JsonFile)
 {
-	char t_C = a_JsonFile.data[a_JsonFile.pos++];
-	while ((t_C == ' ' || t_C == '\n' || t_C == '\r'))
+	char character = a_JsonFile.data[a_JsonFile.pos++];
+	while ((character == ' ' || character == '\n' || character == '\r'))
 	{
 		BB_ASSERT(a_JsonFile.pos <= a_JsonFile.size, "out of tokens");
-		t_C = a_JsonFile.data[a_JsonFile.pos++];
+		character = a_JsonFile.data[a_JsonFile.pos++];
 	}
 
-	return t_C;
+	return character;
 }
 
-Token GetToken(JsonFile& a_JsonFile)
+static Token GetToken(JsonFile& a_JsonFile)
 {
-	Token t_Token;
+	Token token;
 
 	if (a_JsonFile.pos > a_JsonFile.size) //If we are at the end of the file, we will produce no more tokens.
 	{
-		t_Token.type = TOKEN_TYPE::OUT_OF_TOKENS;
-		return t_Token;
+		token.type = TOKEN_TYPE::OUT_OF_TOKENS;
+		return token;
 	}
 
-	char t_C = ignoreWhiteSpace(a_JsonFile);
+	char character = ignoreWhiteSpace(a_JsonFile);
 
-	if (t_C == '"') //is string
+	if (character == '"') //is string
 	{
 		//get string length
 		size_t t_StrLen = 0;
 		while (a_JsonFile.data[a_JsonFile.pos + t_StrLen] != '"')
 			++t_StrLen;
 
-		t_Token.type = TOKEN_TYPE::STRING;
-		t_Token.strSize = static_cast<uint32_t>(t_StrLen);
-		t_Token.str = &a_JsonFile.data[a_JsonFile.pos];
+		token.type = TOKEN_TYPE::STRING;
+		token.str_size = static_cast<uint32_t>(t_StrLen);
+		token.str = &a_JsonFile.data[a_JsonFile.pos];
 
 		a_JsonFile.pos += static_cast<uint32_t>(t_StrLen) + 1; //includes the last "
 	}
-	else if (t_C == '-' || (t_C >= '0' && t_C <= '9')) //is number
+	else if (character == '-' || (character >= '0' && character <= '9')) //is number
 	{
 		//get string length which are numbers
 		size_t t_StrLen = 1;
@@ -74,65 +74,65 @@ Token GetToken(JsonFile& a_JsonFile)
 		while (t_Num == '-' || (t_Num >= '0' && t_Num <= '9') || t_Num == '.')
 			t_Num = a_JsonFile.data[a_JsonFile.pos + t_StrLen++];
 
-		t_Token.type = TOKEN_TYPE::NUMBER;
-		t_Token.strSize = static_cast<uint32_t>(t_StrLen);
-		t_Token.str = &a_JsonFile.data[a_JsonFile.pos - 1];
+		token.type = TOKEN_TYPE::NUMBER;
+		token.str_size = static_cast<uint32_t>(t_StrLen);
+		token.str = &a_JsonFile.data[a_JsonFile.pos - 1];
 
 		a_JsonFile.pos += static_cast<uint32_t>(t_StrLen) - 1; //includes the last
 	}
-	else if (t_C == 'f') {
-		t_Token.type = TOKEN_TYPE::BOOLEAN;
-		t_Token.strSize = 5;
-		t_Token.str = &a_JsonFile.data[a_JsonFile.pos - 1];
+	else if (character == 'f') {
+		token.type = TOKEN_TYPE::BOOLEAN;
+		token.str_size = 5;
+		token.str = &a_JsonFile.data[a_JsonFile.pos - 1];
 		//Do a janky check to see if False was actually correctly written.
 		BB_WARNING(Memory::Compare("false", &a_JsonFile.data[a_JsonFile.pos - 1], 5) == 0,
 			"JSON file tried to read a boolean that was set to True but it's not written as True!",
 			WarningType::MEDIUM);
 		a_JsonFile.pos += 4;
 	}
-	else if (t_C == 't') {
-		t_Token.type = TOKEN_TYPE::BOOLEAN;
-		t_Token.strSize = 4;
-		t_Token.str = &a_JsonFile.data[a_JsonFile.pos - 1];
+	else if (character == 't') {
+		token.type = TOKEN_TYPE::BOOLEAN;
+		token.str_size = 4;
+		token.str = &a_JsonFile.data[a_JsonFile.pos - 1];
 		//Do a janky check to see if True was actually correctly written.
 		BB_WARNING(Memory::Compare("true", &a_JsonFile.data[a_JsonFile.pos - 1], 4) == 0,
 			"JSON file tried to read a boolean that was set to True but it's not written as True!",
 			WarningType::MEDIUM);
 		a_JsonFile.pos += 3;
 	}
-	else if (t_C == 'n') {
-		t_Token.type = TOKEN_TYPE::NULL_TYPE;
+	else if (character == 'n') {
+		token.type = TOKEN_TYPE::NULL_TYPE;
 		BB_WARNING(Memory::Compare("null", &a_JsonFile.data[a_JsonFile.pos - 1], 4) == 0,
 			"JSON file tried to read a boolean that was set to True but it's not written as True!",
 			WarningType::MEDIUM);
 		a_JsonFile.pos += 3;
 	}
-	else if (t_C == '{')
+	else if (character == '{')
 	{
-		t_Token.type = TOKEN_TYPE::CURLY_OPEN;
+		token.type = TOKEN_TYPE::CURLY_OPEN;
 	}
-	else if (t_C == '}')
+	else if (character == '}')
 	{
-		t_Token.type = TOKEN_TYPE::CURLY_CLOSE;
+		token.type = TOKEN_TYPE::CURLY_CLOSE;
 	}
-	else if (t_C == '[')
+	else if (character == '[')
 	{
-		t_Token.type = TOKEN_TYPE::ARRAY_OPEN;
+		token.type = TOKEN_TYPE::ARRAY_OPEN;
 	}
-	else if (t_C == ']')
+	else if (character == ']')
 	{
-		t_Token.type = TOKEN_TYPE::ARRAY_CLOSE;
+		token.type = TOKEN_TYPE::ARRAY_CLOSE;
 	}
-	else if (t_C == ':')
+	else if (character == ':')
 	{
-		t_Token.type = TOKEN_TYPE::COLON;
+		token.type = TOKEN_TYPE::COLON;
 	}
-	else if (t_C == ',')
+	else if (character == ',')
 	{
-		t_Token.type = TOKEN_TYPE::COMMA;
+		token.type = TOKEN_TYPE::COMMA;
 	}
 
-	return t_Token;
+	return token;
 }
 
 void BB::JsonNodeToString(const JsonNode* a_Node, String& a_string)
@@ -144,20 +144,20 @@ void BB::JsonNodeToString(const JsonNode* a_Node, String& a_string)
 		a_string.append("{");
 		a_string.append("\n");
 
-		const JsonObject::Pair* t_Pair = a_Node->object->pairLL;
-		while (t_Pair != nullptr)
+		const JsonObject::Pair* pair = a_Node->object->pairLL;
+		while (pair != nullptr)
 		{
 			a_string.append("\"");
-			a_string.append(t_Pair->name);
+			a_string.append(pair->name);
 			a_string.append("\"");
 			a_string.append(" : ");
-			JsonNodeToString(t_Pair->node, a_string);
+			JsonNodeToString(pair->node, a_string);
 
-			if (t_Pair->next != nullptr)
+			if (pair->next != nullptr)
 				a_string.append(",\n");
 			else
 				a_string.append("\n");
-			t_Pair = t_Pair->next;
+			pair = pair->next;
 		}
 
 		a_string.append("}\n");
@@ -182,7 +182,7 @@ void BB::JsonNodeToString(const JsonNode* a_Node, String& a_string)
 	case BB::JSON_TYPE::NUMBER:
 		BB_WARNING(false, "Not supporting number to string yet.", WarningType::LOW);
 		a_string.append("\"");
-		//t_JsonString.append(t_Node->number);
+		//t_JsonString.append(node->number);
 		a_string.append("\"");
 		break;
 	case BB::JSON_TYPE::BOOL:
@@ -194,8 +194,6 @@ void BB::JsonNodeToString(const JsonNode* a_Node, String& a_string)
 	case BB::JSON_TYPE::NULL_TYPE:
 		a_string.append("null");
 		break;
-	default:
-		break;
 	}
 }
 
@@ -203,15 +201,15 @@ JsonParser::JsonParser(const char* a_path)
 	: m_allocator(mbSize * 8, a_path)
 {
 	Buffer buffer = ReadOSFile(m_allocator, a_path);
-	m_JsonFile.data = reinterpret_cast<char*>(buffer.data);
-	m_JsonFile.size = static_cast<uint32_t>(buffer.size);
+	m_json_file.data = reinterpret_cast<char*>(buffer.data);
+	m_json_file.size = static_cast<uint32_t>(buffer.size);
 }
 
 JsonParser::JsonParser(const Buffer& a_Buffer)
 	: m_allocator(mbSize * 8, "Json from memory read")
 {
-	m_JsonFile.data = reinterpret_cast<char*>(a_Buffer.data);
-	m_JsonFile.size = static_cast<uint32_t>(a_Buffer.size);
+	m_json_file.data = reinterpret_cast<char*>(a_Buffer.data);
+	m_json_file.size = static_cast<uint32_t>(a_Buffer.size);
 }
 
 JsonParser::~JsonParser()
@@ -219,45 +217,46 @@ JsonParser::~JsonParser()
 	m_allocator.Clear();
 }
 
-JsonNode* JsonParser::PraseSingleToken(const Token& a_Token)
+JsonNode* JsonParser::PraseSingleToken(const Token& a_token)
 {
-	JsonNode* t_Node;
-	switch (a_Token.type)
+	JsonNode* node;
+	switch (a_token.type)
 	{
 	case TOKEN_TYPE::CURLY_OPEN:
-		t_Node = ParseObject();
+		node = ParseObject();
 		break;
 	case TOKEN_TYPE::ARRAY_OPEN:
-		t_Node = ParseList();
+		node = ParseList();
 		break;
 	case TOKEN_TYPE::STRING:
-		t_Node = ParseString(a_Token);
+		node = ParseString(a_token);
 		break;
 	case TOKEN_TYPE::NUMBER:
-		t_Node = ParseNumber(a_Token);
+		node = ParseNumber(a_token);
 		break;
 	case TOKEN_TYPE::BOOLEAN:
-		t_Node = ParseBoolean(a_Token);
+		node = ParseBoolean(a_token);
 		break;
 	default:
 		BB_WARNING(false, "unknown json token found.", WarningType::HIGH);
+		node = nullptr;
 		break;
 	}
-	return t_Node;
+	return node;
 }
 
 void JsonParser::Parse()
 {
-	Token t_Token = GetToken(m_JsonFile);
-	m_RootNode = PraseSingleToken(t_Token);
+	Token token = GetToken(m_json_file);
+	m_RootNode = PraseSingleToken(token);
 
 	//ignore?
-	/*t_Token = GetToken(m_JsonFile);
+	/*token = GetToken(m_json_file);
 	JsonNode* t_NextRoot = m_RootNode;
-	while (t_Token.type != TOKEN_TYPE::OUT_OF_TOKENS)
+	while (token.type != TOKEN_TYPE::OUT_OF_TOKENS)
 	{
-		t_NextRoot->next = PraseSingleToken(t_Token);
-		t_Token = GetToken(m_JsonFile);
+		t_NextRoot->next = PraseSingleToken(token);
+		token = GetToken(m_json_file);
 		t_NextRoot = m_RootNode->next;
 	}
 	t_NextRoot->next = nullptr;*/
@@ -265,176 +264,182 @@ void JsonParser::Parse()
 
 JsonNode* JsonParser::ParseObject()
 {
-	JsonNode* t_ObjectNode = BBnew(m_allocator, JsonNode);
-	t_ObjectNode->type = JSON_TYPE::OBJECT;
+	JsonNode* object_node = BBnew(m_allocator, JsonNode);
+	object_node->type = JSON_TYPE::OBJECT;
 
-	JsonObject::Pair* t_PairHead = BBnew(m_allocator, JsonObject::Pair);
-	uint32_t t_PairCount = 0;
+	JsonObject::Pair* pair_head = BBnew(m_allocator, JsonObject::Pair);
+	uint32_t pair_count = 0;
 
-	Token t_NextToken = GetToken(m_JsonFile);
+	Token next_token = GetToken(m_json_file);
 
-	JsonObject::Pair* t_Pair = t_PairHead;
-	bool t_ContinueLoop = true;
-	while (t_ContinueLoop)
+	JsonObject::Pair* pair = pair_head;
+	bool continue_loop = true;
+	while (continue_loop)
 	{
-		BB_WARNING(t_NextToken.type == TOKEN_TYPE::STRING, "Object does not start with a string!", WarningType::HIGH);
-		char* t_ElementName = BBnewArr(m_allocator, t_NextToken.strSize + 1, char);
-		Memory::Copy(t_ElementName, t_NextToken.str, t_NextToken.strSize);
-		t_ElementName[t_NextToken.strSize] = '\0';
+		BB_WARNING(next_token.type == TOKEN_TYPE::STRING, "Object does not start with a string!", WarningType::HIGH);
+		char* element_name = BBnewArr(m_allocator, next_token.str_size + 1, char);
+		Memory::Copy(element_name, next_token.str, next_token.str_size);
+		element_name[next_token.str_size] = '\0';
 
-		t_NextToken = GetToken(m_JsonFile);
-		BB_WARNING(t_NextToken.type == TOKEN_TYPE::COLON, "token after string is not a :", WarningType::HIGH);
-		t_NextToken = GetToken(m_JsonFile); //the value
+		next_token = GetToken(m_json_file);
+		BB_WARNING(next_token.type == TOKEN_TYPE::COLON, "token after string is not a :", WarningType::HIGH);
+		next_token = GetToken(m_json_file); //the value
 
-		t_Pair->name = t_ElementName;
-		switch (t_NextToken.type)
+		pair->name = element_name;
+		switch (next_token.type)
 		{
 		case TOKEN_TYPE::CURLY_OPEN:
-			t_Pair->node = ParseObject();
+			pair->node = ParseObject();
 			break;
 		case TOKEN_TYPE::ARRAY_OPEN:
-			t_Pair->node = ParseList();
+			pair->node = ParseList();
 			break;
 		case TOKEN_TYPE::STRING:
-			t_Pair->node = ParseString(t_NextToken);
+			pair->node = ParseString(next_token);
 			break;
 		case TOKEN_TYPE::NUMBER:
-			t_Pair->node = ParseNumber(t_NextToken);
+			pair->node = ParseNumber(next_token);
 			break;
 		case TOKEN_TYPE::BOOLEAN:
-			t_Pair->node = ParseBoolean(t_NextToken);
+			pair->node = ParseBoolean(next_token);
 			break;
 		case TOKEN_TYPE::NULL_TYPE:
-			t_Pair->node = ParseNull();
+			pair->node = ParseNull();
 			break;
 		case TOKEN_TYPE::OUT_OF_TOKENS:
 			BB_ASSERT(false, "OUT_OF_TOKENS while reading a list in JSON");
 			break;
+		case TOKEN_TYPE::COLON:
+		case TOKEN_TYPE::CURLY_CLOSE:
+		case TOKEN_TYPE::ARRAY_CLOSE:
+		case TOKEN_TYPE::COMMA:
+			break;
 		}
 
-		t_NextToken = GetToken(m_JsonFile);
+		next_token = GetToken(m_json_file);
 
-		++t_PairCount;
-		if (t_NextToken.type == TOKEN_TYPE::CURLY_CLOSE)
-			t_ContinueLoop = false;
+		++pair_count;
+		if (next_token.type == TOKEN_TYPE::CURLY_CLOSE)
+			continue_loop = false;
 		else
 		{
-			BB_ASSERT(t_NextToken.type == TOKEN_TYPE::COMMA, "the token after a object pair should be a } or ,");
-			t_NextToken = GetToken(m_JsonFile);
-			t_Pair->next = BBnew(m_allocator, JsonObject::Pair);
-			t_Pair = t_Pair->next;
+			BB_ASSERT(next_token.type == TOKEN_TYPE::COMMA, "the token after a object pair should be a } or ,");
+			next_token = GetToken(m_json_file);
+			pair->next = BBnew(m_allocator, JsonObject::Pair);
+			pair = pair->next;
 		}
 	}
-	t_ObjectNode->object = BBnew(m_allocator, JsonObject)(m_allocator, t_PairCount, t_PairHead);
-	t_Pair = t_PairHead;
-	for (size_t i = 0; i < t_PairCount; i++)
+	object_node->object = BBnew(m_allocator, JsonObject)(m_allocator, pair_count, pair_head);
+	pair = pair_head;
+	for (size_t i = 0; i < pair_count; i++)
 	{
-		t_ObjectNode->object->map.insert(t_Pair->name, t_Pair->node);
-		t_Pair = t_Pair->next;
+		object_node->object->map.insert(pair->name, pair->node);
+		pair = pair->next;
 	}
 
-	return t_ObjectNode;
+	return object_node;
 }
 
 JsonNode* JsonParser::ParseList()
 {
-	JsonNode* t_Node = BBnew(m_allocator, JsonNode);
-	t_Node->type = JSON_TYPE::LIST;
+	JsonNode* node = BBnew(m_allocator, JsonNode);
+	node->type = JSON_TYPE::LIST;
 
-	uint32_t t_ListSize = 0;
-	const uint32_t t_ListStartPos = static_cast<uint32_t>(m_JsonFile.pos);
-	Token t_NextToken = GetToken(m_JsonFile);
-	while (t_NextToken.type != TOKEN_TYPE::ARRAY_CLOSE) //get how many tokens we need to allocate
+	uint32_t list_size = 0;
+	const uint32_t list_start_pos = static_cast<uint32_t>(m_json_file.pos);
+	Token next_token = GetToken(m_json_file);
+	while (next_token.type != TOKEN_TYPE::ARRAY_CLOSE) //get how many tokens we need to allocate
 	{
-		switch (t_NextToken.type)
+		switch (next_token.type)
 		{
 		case TOKEN_TYPE::CURLY_OPEN:
 		{
-			uint32_t t_ObjectStack = 1;
-			bool t_LocalLoop = true;
-			t_NextToken = GetToken(m_JsonFile);
-			while (t_LocalLoop)
+			uint32_t object_stack = 1;
+			bool local_loop = true;
+			next_token = GetToken(m_json_file);
+			while (local_loop)
 			{
-				if (t_NextToken.type == TOKEN_TYPE::CURLY_OPEN)
+				if (next_token.type == TOKEN_TYPE::CURLY_OPEN)
 				{
-					++t_ObjectStack;
+					++object_stack;
 				}
-				else if (t_NextToken.type == TOKEN_TYPE::CURLY_CLOSE)
+				else if (next_token.type == TOKEN_TYPE::CURLY_CLOSE)
 				{
-					if (--t_ObjectStack == 0)
-						t_LocalLoop = false;
+					if (--object_stack == 0)
+						local_loop = false;
 				}
 				else
-					t_NextToken = GetToken(m_JsonFile);
+					next_token = GetToken(m_json_file);
 			}
-			++t_ListSize;
+			++list_size;
 		}
 		break;
 		case TOKEN_TYPE::ARRAY_OPEN:
 		{
-			uint32_t t_ArrayStack = 1;
-			t_NextToken = GetToken(m_JsonFile);
-			bool t_LocalLoop = true;
-			while (t_LocalLoop)
+			uint32_t array_stack = 1;
+			next_token = GetToken(m_json_file);
+			bool local_loop = true;
+			while (local_loop)
 			{
-				if (t_NextToken.type == TOKEN_TYPE::ARRAY_OPEN)
+				if (next_token.type == TOKEN_TYPE::ARRAY_OPEN)
 				{
-					++t_ArrayStack;
+					++array_stack;
 				}
-				else if (t_NextToken.type == TOKEN_TYPE::ARRAY_CLOSE)
+				else if (next_token.type == TOKEN_TYPE::ARRAY_CLOSE)
 				{
-					if (--t_ArrayStack == 0)
-						t_LocalLoop = false;
+					if (--array_stack == 0)
+						local_loop = false;
 				}
 				else
-					t_NextToken = GetToken(m_JsonFile);
+					next_token = GetToken(m_json_file);
 			}
-			++t_ListSize;
+			++list_size;
 		}
 		break;
 		case TOKEN_TYPE::STRING:
 		case TOKEN_TYPE::NUMBER:
 		case TOKEN_TYPE::BOOLEAN:
 		case TOKEN_TYPE::NULL_TYPE:
-			++t_ListSize;
+			++list_size;
 			break;
 		case TOKEN_TYPE::OUT_OF_TOKENS:
 			BB_ASSERT(false, "OUT_OF_TOKENS while reading a list in JSON");
 			break;
+		default: break;
 		}
 
-		t_NextToken = GetToken(m_JsonFile);
+		next_token = GetToken(m_json_file);
 	}
 	//reset position back to the start of the list and iterate again
-	m_JsonFile.pos = t_ListStartPos;
+	m_json_file.pos = list_start_pos;
 
-	t_Node->list.nodeCount = t_ListSize;
-	t_Node->list.nodes = BBnewArr(m_allocator, t_Node->list.nodeCount, JsonNode*);
+	node->list.nodeCount = list_size;
+	node->list.nodes = BBnewArr(m_allocator, node->list.nodeCount, JsonNode*);
 
-	t_NextToken = GetToken(m_JsonFile);
+	next_token = GetToken(m_json_file);
 
-	uint32_t t_NodeIndex = 0;
-	while(t_NextToken.type != TOKEN_TYPE::ARRAY_CLOSE)
+	uint32_t node_index = 0;
+	while(next_token.type != TOKEN_TYPE::ARRAY_CLOSE)
 	{
-		switch (t_NextToken.type)
+		switch (next_token.type)
 		{
 		case TOKEN_TYPE::CURLY_OPEN:
-			t_Node->list.nodes[t_NodeIndex++] = ParseObject();
+			node->list.nodes[node_index++] = ParseObject();
 			break;
 		case TOKEN_TYPE::ARRAY_OPEN:
-			t_Node->list.nodes[t_NodeIndex++] = ParseList();
+			node->list.nodes[node_index++] = ParseList();
 			break;
 		case TOKEN_TYPE::STRING:
-			t_Node->list.nodes[t_NodeIndex++] = ParseString(t_NextToken);
+			node->list.nodes[node_index++] = ParseString(next_token);
 			break;
 		case TOKEN_TYPE::NUMBER:
-			t_Node->list.nodes[t_NodeIndex++] = ParseNumber(t_NextToken);
+			node->list.nodes[node_index++] = ParseNumber(next_token);
 			break;
 		case TOKEN_TYPE::BOOLEAN:
-			t_Node->list.nodes[t_NodeIndex++] = ParseBoolean(t_NextToken);
+			node->list.nodes[node_index++] = ParseBoolean(next_token);
 			break;
 		case TOKEN_TYPE::NULL_TYPE:
-			t_Node->list.nodes[t_NodeIndex++] = ParseNull();
+			node->list.nodes[node_index++] = ParseNull();
 			break;
 		case TOKEN_TYPE::CURLY_CLOSE:
 			BB_ASSERT(false, "We should not reach this, algorithm mistake happened.");
@@ -442,57 +447,57 @@ JsonNode* JsonParser::ParseList()
 		case TOKEN_TYPE::OUT_OF_TOKENS:
 			BB_ASSERT(false, "OUT_OF_TOKENS while reading a list in JSON");
 			break;
-		default:
-				break;
+		default: break;
 		}
 
-		t_NextToken = GetToken(m_JsonFile);
+		next_token = GetToken(m_json_file);
 	}
-	return t_Node;
+	return node;
 }
 
-JsonNode* JsonParser::ParseString(const Token& a_Token)
+JsonNode* JsonParser::ParseString(const Token& a_token)
 {
-	JsonNode* t_Node = BBnew(m_allocator, JsonNode);
-	t_Node->type = JSON_TYPE::STRING;
+	JsonNode* node = BBnew(m_allocator, JsonNode);
+	node->type = JSON_TYPE::STRING;
 
-	t_Node->string = BBnewArr(m_allocator, a_Token.strSize + 1, char);
-	Memory::Copy(t_Node->string, a_Token.str, a_Token.strSize);
-	t_Node->string[a_Token.strSize] = '\0';
+	node->string = BBnewArr(m_allocator, a_token.str_size + 1, char);
+	Memory::Copy(node->string, a_token.str, a_token.str_size);
+	node->string[a_token.str_size] = '\0';
 
-	return t_Node;
+	return node;
 }
 
-JsonNode* JsonParser::ParseNumber(const Token& a_Token)
+JsonNode* JsonParser::ParseNumber(const Token& a_token)
 {
-	JsonNode* t_Node = BBnew(m_allocator, JsonNode);
-	t_Node->type = JSON_TYPE::NUMBER;
+	JsonNode* node = BBnew(m_allocator, JsonNode);
+	node->type = JSON_TYPE::NUMBER;
 
-	t_Node->number = std::stof(a_Token.str);
+	node->number = std::stof(a_token.str);
 
-	return t_Node;
+	return node;
 }
 
-JsonNode* JsonParser::ParseBoolean(const Token& a_Token)
+JsonNode* JsonParser::ParseBoolean(const Token& a_token)
 {
-	JsonNode* t_Node = BBnew(m_allocator, JsonNode);
-	t_Node->type = JSON_TYPE::BOOL;
+	(void)a_token;
+	JsonNode* node = BBnew(m_allocator, JsonNode);
+	node->type = JSON_TYPE::BOOL;
 
-	const Token t_Token = GetToken(m_JsonFile);
-	if (strcmp(t_Token.str, "False") == 0)
-		t_Node->boolean = false;
-	else if (strcmp(t_Token.str, "True") == 0)
-		t_Node->boolean = true;
+	const Token token = GetToken(m_json_file);
+	if (strcmp(token.str, "False") == 0)
+		node->boolean = false;
+	else if (strcmp(token.str, "True") == 0)
+		node->boolean = true;
 	else
 		BB_ASSERT(false, "JSON bool is wrongly typed, this assert should never be hit even with a wrong json anyway.");
 
-	return t_Node;
+	return node;
 }
 
 JsonNode* JsonParser::ParseNull()
 {
-	JsonNode* t_Node = BBnew(m_allocator, JsonNode);
-	t_Node->type = JSON_TYPE::NULL_TYPE;
+	JsonNode* node = BBnew(m_allocator, JsonNode);
+	node->type = JSON_TYPE::NULL_TYPE;
 
-	return t_Node;
+	return node;
 }

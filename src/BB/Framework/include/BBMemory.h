@@ -38,6 +38,7 @@ namespace BB
 	//Use the BBnew or BBalloc function instead of this.
 	inline void* BBalloc_f(BB_MEMORY_DEBUG Allocator a_allocator, const size_t a_size, const size_t a_alignment)
 	{
+		BB_MEMORY_DEBUG_VOID_ARRAY;
 		return a_allocator.func(BB_MEMORY_DEBUG_SEND a_allocator.allocator, a_size, a_alignment, nullptr);
 	}
 
@@ -45,6 +46,7 @@ namespace BB
 	template <typename T>
 	inline T* BBnewArr_f(BB_MEMORY_DEBUG Allocator a_allocator, size_t a_length)
 	{
+		BB_MEMORY_DEBUG_VOID_ARRAY;
 		BB_ASSERT(a_length != 0, "Trying to allocate an array with a length of 0.");
 
 		if constexpr (std::is_trivially_constructible_v<T> && std::is_trivially_destructible_v<T>)
@@ -115,7 +117,7 @@ namespace BB
 		}
 	}
 
-	inline void BBTagAlloc(Allocator a_allocator, const void* a_ptr, const char* a_TagName)
+	inline void BBTagAlloc(const void* a_ptr, const char* a_TagName)
 	{
 		typedef allocators::BaseAllocator::AllocationLog AllocationLog;
 		AllocationLog* log = reinterpret_cast<AllocationLog*>(Pointer::Subtract(a_ptr, sizeof(AllocationLog)));
@@ -123,7 +125,7 @@ namespace BB
 		//not the same allocator tho, so bad usage of this will still bite you in the ass.
 		const uintptr_t back = reinterpret_cast<uintptr_t>(log->back) + MEMORY_BOUNDRY_FRONT;
 		const uintptr_t front = reinterpret_cast<uintptr_t>(log->front);
-		BB_ASSERT((back - front) == log->allocSize, "BBTagAlloc is not tagging a memory space allocated by a BB allocator");
+		BB_ASSERT((back - front) == log->alloc_size, "BBTagAlloc is not tagging a memory space allocated by a BB allocator");
 
 		log->tagName = a_TagName;
 	}

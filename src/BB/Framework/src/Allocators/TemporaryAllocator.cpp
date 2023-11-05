@@ -2,7 +2,7 @@
 
 namespace BB
 {
-	void* ReallocTemp(BB_MEMORY_DEBUG_UNUSED void* a_allocator, size_t a_size, size_t a_alignment, void*)
+	static void* ReallocTemp(BB_MEMORY_DEBUG_UNUSED void* a_allocator, size_t a_size, size_t a_alignment, void*)
 	{
 		if (a_size == 0)
 			return nullptr;
@@ -19,10 +19,10 @@ namespace BB
 
 	BB::TemporaryAllocator::operator BB::Allocator()
 	{
-		Allocator t_AllocatorInterface;
-		t_AllocatorInterface.allocator = this;
-		t_AllocatorInterface.func = ReallocTemp;
-		return t_AllocatorInterface;
+		Allocator allocator_interface;
+		allocator_interface.allocator = this;
+		allocator_interface.func = ReallocTemp;
+		return allocator_interface;
 	}
 
 	BB::TemporaryAllocator::TemporaryAllocator(Allocator a_BackingAllocator)
