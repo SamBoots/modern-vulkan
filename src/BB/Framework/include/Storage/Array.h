@@ -44,13 +44,13 @@ namespace BB
 				return t_Tmp;
 			}
 
-			friend bool operator== (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_ptr == a_rhs.m_ptr; };
-			friend bool operator!= (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_ptr != a_rhs.m_ptr; };
+			friend bool operator== (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_ptr == a_rhs.m_ptr; }
+			friend bool operator!= (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_ptr != a_rhs.m_ptr; }
 
-			friend bool operator< (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_ptr < a_rhs.m_ptr; };
-			friend bool operator> (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_ptr > a_rhs.m_ptr; };
-			friend bool operator<= (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_ptr <= a_rhs.m_ptr; };
-			friend bool operator>= (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_ptr >= a_rhs.m_ptr; };
+			friend bool operator< (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_ptr < a_rhs.m_ptr; }
+			friend bool operator> (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_ptr > a_rhs.m_ptr; }
+			friend bool operator<= (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_ptr <= a_rhs.m_ptr; }
+			friend bool operator>= (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_ptr >= a_rhs.m_ptr; }
 
 
 		private:
@@ -82,9 +82,9 @@ namespace BB
 		void pop();
 		void clear();
 
-		const size_t size() const { return m_size; };
-		const size_t capacity() const { return m_capacity; }
-		T* data() const { return m_Arr; };
+		size_t size() const { return m_size; }
+		size_t capacity() const { return m_capacity; }
+		T* data() const { return m_Arr; }
 
 		Iterator begin() { return Iterator(m_Arr); }
 		Iterator end() { return Iterator(&m_Arr[m_size + 1]); } //Get an out of bounds Iterator.

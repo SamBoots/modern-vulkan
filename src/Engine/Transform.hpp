@@ -45,10 +45,9 @@ namespace BB
 		void FreeTransform(const TransformHandle a_handle);
 		Transform& GetTransform(const TransformHandle a_handle) const;
 
-		const uint32_t PoolSize() const;
+		uint32_t PoolSize() const;
 			
 	private:
 		struct TransformPool_inst* inst;
 	};
-
 }

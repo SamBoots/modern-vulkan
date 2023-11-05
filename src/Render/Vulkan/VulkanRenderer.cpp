@@ -4,14 +4,15 @@
 #define VK_USE_PLATFORM_WIN32_KHR
 #endif //_WIN32
 
+BB_WARNINGS_OFF
 #include <Vulkan/vulkan.h>
-
 #define VMA_STATIC_VULKAN_FUNCTIONS 1
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 0
 #define VMA_VULKAN_VERSION 1003000 // Vulkan 1.3
 #define VMA_IMPLEMENTATION
 //interface library in Cmake does not seem to include this directory. WHY?!
 #include "../../../lib/VMA/vk_mem_alloc.h"
+BB_WARNINGS_ON
 
 #include "Storage/Slotmap.h"
 
@@ -78,9 +79,9 @@ public:
 	VulkanDescriptorLinearBuffer(const size_t a_buffer_size, const VkBufferUsageFlags a_buffer_usage);
 	~VulkanDescriptorLinearBuffer();
 
-	const DescriptorAllocation AllocateDescriptor(const RDescriptorLayout a_descriptor);
+	DescriptorAllocation AllocateDescriptor(const RDescriptorLayout a_descriptor);
 
-	const VkDeviceAddress GPUStartAddress() const { return m_start_address; }
+	VkDeviceAddress GPUStartAddress() const { return m_start_address; }
 
 private:
 	//using uint32_t since descriptor buffers on some drivers only spend 32-bits virtual address.
@@ -764,7 +765,7 @@ VulkanDescriptorLinearBuffer::~VulkanDescriptorLinearBuffer()
 	vmaDestroyBuffer(s_vulkan_inst->vma, m_buffer, m_allocation);
 }
 
-const DescriptorAllocation VulkanDescriptorLinearBuffer::AllocateDescriptor(const RDescriptorLayout a_descriptor)
+DescriptorAllocation VulkanDescriptorLinearBuffer::AllocateDescriptor(const RDescriptorLayout a_descriptor)
 {
 	DescriptorAllocation allocation;
 	const VkDescriptorSetLayout descriptor_set = reinterpret_cast<VkDescriptorSetLayout>(a_descriptor.handle);
@@ -774,6 +775,7 @@ const DescriptorAllocation VulkanDescriptorLinearBuffer::AllocateDescriptor(cons
 		descriptor_set,
 		&descriptors_size);
 
+	BB_ASSERT(m_size > descriptors_size + m_offset, "Not enough space in the descriptor buffer!");
 	allocation.descriptor = a_descriptor;
 	allocation.size = static_cast<uint32_t>(descriptors_size);
 	allocation.offset = m_offset;

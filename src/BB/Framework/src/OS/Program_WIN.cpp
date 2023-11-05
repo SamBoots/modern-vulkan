@@ -25,8 +25,9 @@ static PFN_WindowResizeEvent s_pfn_resize_event = DefaultResize;
 
 struct InputBuffer
 {
-	std::mutex input_mutex{};
-	InputEvent input_buffer[INPUT_EVENT_BUFFER_MAX];
+	InputBuffer() : lock(OSCreateRWLock()) {}
+	BBRWLock lock;
+	InputEvent input_buffer[INPUT_EVENT_BUFFER_MAX]{};
 	uint32_t start = 0;
 	uint16_t pos = 0;
 	uint16_t used = 0;
@@ -42,7 +43,7 @@ static InputBuffer s_input_buffer{};
 
 static void PushInput(const InputEvent& a_Input)
 {
-	s_input_buffer.input_mutex.lock();
+	OSAcquireSRWLockWrite(&s_input_buffer.lock);
 	if (s_input_buffer.pos + 1 > INPUT_EVENT_BUFFER_MAX)
 		s_input_buffer.pos = 0;
 
@@ -53,13 +54,13 @@ static void PushInput(const InputEvent& a_Input)
 	{
 		++s_input_buffer.used;
 	}
-	s_input_buffer.input_mutex.unlock();
+	OSReleaseSRWLockWrite(&s_input_buffer.lock);
 }
 
 //Returns false if no input is left.
 static void GetAllInput(InputEvent* a_InputBuffer)
 {
-	s_input_buffer.input_mutex.lock();
+	OSAcquireSRWLockWrite(&s_input_buffer.lock);
 	size_t first_index = s_input_buffer.start;
 	for (size_t i = 0; i < s_input_buffer.used; i++)
 	{
@@ -68,10 +69,9 @@ static void GetAllInput(InputEvent* a_InputBuffer)
 		if (++first_index > INPUT_EVENT_BUFFER_MAX)
 			first_index = 0;
 	}
-
 	s_input_buffer.start = s_input_buffer.pos;
 	s_input_buffer.used = 0;
-	s_input_buffer.input_mutex.unlock();
+	OSReleaseSRWLockWrite(&s_input_buffer.lock);
 }
 
 void BB::InitProgram()

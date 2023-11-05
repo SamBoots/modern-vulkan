@@ -5,8 +5,8 @@
 
 using namespace BB;
 
-constexpr float3 UP_VECTOR = float3{ 0, 1.f, 0 };
-constexpr float3 STANDARD_CAM_FRONT = float3{ 0, 0, -1 };
+constexpr float3 UP_VECTOR { 0, 1.f, 0 };
+constexpr float3 STANDARD_CAM_FRONT { 0, 0, -1 };
 
 Camera::Camera(const float3 a_Pos, const float a_CamSpeed)
 {
@@ -25,17 +25,17 @@ Camera::Camera(const float3 a_Pos, const float a_CamSpeed)
 
 void Camera::Move(const float3 a_Movement)
 {
-	float3 t_Velocity{0, 0, 0};
+	float3 velocity{0, 0, 0};
 	if (a_Movement.z != 0)
-		t_Velocity = t_Velocity + m_Forward * a_Movement.z;
+		velocity = velocity + m_Forward * a_Movement.z;
 	if (a_Movement.x != 0)
-		t_Velocity = t_Velocity + Float3Normalize(Float3Cross(m_Forward, m_Up)) * a_Movement.x; //glm::normalize(glm::cross(m_Forward, m_Up)) * a_Movement.x;
+		velocity = velocity + Float3Normalize(Float3Cross(m_Forward, m_Up)) * a_Movement.x; //glm::normalize(glm::cross(m_Forward, m_Up)) * a_Movement.x;
 	if (a_Movement.y != 0)
-		t_Velocity = t_Velocity + UP_VECTOR * a_Movement.y;
+		velocity = velocity + UP_VECTOR * a_Movement.y;
 
-	t_Velocity = t_Velocity * m_Speed;
+	velocity = velocity * m_Speed;
 
-	m_Pos = m_Pos + t_Velocity;
+	m_Pos = m_Pos + velocity;
 }
 
 void Camera::Rotate(const float a_Yaw, const float a_Pitch)

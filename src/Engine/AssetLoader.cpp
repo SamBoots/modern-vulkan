@@ -8,15 +8,15 @@
 #include "shared_common.hlsl.h"
 #include "Renderer.hpp"
 
-#pragma warning(push, 0)
+BB_WARNINGS_OFF
 #define CGLTF_IMPLEMENTATION
 #include "cgltf/cgltf.h"
-#pragma warning (pop)
+BB_WARNINGS_ON
 
 using namespace BB;
 
 //crappy hash, don't care for now.
-const uint64_t StringHash(const char* a_string)
+static uint64_t StringHash(const char* a_string)
 {
 	uint64_t hash = 5381;
 	int c;
@@ -173,6 +173,8 @@ static void LoadglTFNode(Allocator a_temp_allocator, const cgltf_node& a_node, M
 
 						data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride));
 					}
+					break;
+				default:
 					break;
 				}
 			}

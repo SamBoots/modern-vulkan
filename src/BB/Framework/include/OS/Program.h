@@ -138,7 +138,7 @@ namespace BB
 	void SetResizeEventPtr(PFN_WindowResizeEvent a_func);
 
 	//Exits the application.
-	void ExitApp();
+	BB_NO_RETURN void ExitApp();
 
 	//Process the OS (or window) messages
 	bool ProcessMessages(const WindowHandle a_window_handle);

@@ -103,7 +103,7 @@ namespace BB
 		INPUT_TYPE input_type;
 		union
 		{
-			MouseInfo mouse_info;
+			MouseInfo mouse_info{};
 			KeyInfo key_info;
 		};
 	};

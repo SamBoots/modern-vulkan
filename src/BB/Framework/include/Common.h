@@ -4,10 +4,30 @@
 
 namespace BB
 {
-#if defined(__GNUC__) || defined(__MINGW32__) || defined(__clang__) 
-#define BB_NO_RETURN __attribute__((noreturn))
+#define BB_PRAGMA(X)			_Pragma(#X)
+#define BB_PRAGMA_PACK_PUSH(n)  BB_PRAGMA(pack(push,n))
+#define BB_PRAGMA_PACK_POP()    BB_PRAGMA(pack(pop))
+
+#define BB_CONCAT(a, b) a##b
+#define BB_PAD(n) unsigned char BB_CONCAT(_padding_, __LINE__)[n]
+
+#if defined(__GNUC__) || defined(__MINGW32__) || defined(__clang__) || defined(__clang_major__)
+#pragma message("CLANG BB compile commands")
+#define BB_NO_RETURN			__attribute__((noreturn))
+
+#define BB_WARNINGS_OFF			BB_PRAGMA(GCC diagnostic push) \
+								BB_PRAGMA(clang diagnostic ignored "-Wall")	\
+								BB_PRAGMA(clang diagnostic ignored "-Wextra") \
+								BB_PRAGMA(clang diagnostic ignored "-Weverything") \
+								BB_PRAGMA(clang diagnostic ignored "-Wpedantic")
+
+#define BB_WARNINGS_ON			BB_PRAGMA(clang diagnostic pop)
 #elif _MSC_VER
-#define BB_NO_RETURN __declspec(noreturn)
+#pragma message("MSVC BB compile commands")
+#define BB_NO_RETURN			__declspec(noreturn)
+
+#define BB_WARNINGS_OFF			BB_PRAGMA(warning(push, 0))
+#define BB_WARNINGS_ON			BB_PRAGMA(warning(pop, 0))
 #endif
 
 	namespace allocators
@@ -25,11 +45,6 @@ namespace BB
 	using StackAllocator_t = allocators::StackAllocator;
 	using FreelistAllocator_t = allocators::FreelistAllocator;
 	using POW_FreelistAllocator_t = allocators::POW_FreelistAllocator;
-
-	class BBImage;
-
-#define BB_CONCAT(a, b) a##b
-#define BB_PAD(n) unsigned char BB_CONCAT(_padding_, __LINE__)[n]
 
 //Thank you Descent Raytracer teammates great code that I can steal
 #define BB_SLL_PUSH(head, node) ((node)->next = (head), (head) = (node))
@@ -129,9 +144,9 @@ namespace BB
 
 	union float2
 	{
-		float2() { x = 0; y = 0; }
-		float2(const float a_value) { x = a_value; y = a_value; }
-		float2(const float a_x, const float a_y) { x = a_x; y = a_y; }
+		constexpr float2() : x(0), y(0) {}
+		constexpr float2(const float a_value) : x(a_value), y(a_value) {}
+		constexpr float2(const float a_x, const float a_y) : x(a_x), y(a_y) {}
 		float e[2];
 		struct
 		{
@@ -142,9 +157,9 @@ namespace BB
 
 	union float3
 	{
-		float3() { x = 0; y = 0; z = 0; }
-		float3(const float a_value) { x = a_value; y = a_value; z = a_value; }
-		float3(const float a_x, const float a_y, const float a_z) { x = a_x; y = a_y; z = a_z; }
+		constexpr float3() : x(0), y(0), z(0) {}
+		constexpr float3(const float a_value) : x(a_value), y(a_value), z(a_value) {}
+		constexpr float3(const float a_x, const float a_y, const float a_z) : x(a_x), y(a_y), z(a_z) {}
 		float e[3];
 		struct
 		{
@@ -154,6 +169,7 @@ namespace BB
 		};
 	};
 
+	//no constexpr constructors here, assembly ftw
 	union float4
 	{
 		float4() { vec = LoadFloat4Zero(); }

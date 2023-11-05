@@ -96,7 +96,7 @@ int main(int argc, char** argv)
 		gltf_model = Asset::LoadglTFModel(main_allocator, "../resources/models/Duck.gltf");
 	}
 
-	InputEvent input_events[INPUT_EVENT_BUFFER_MAX];
+	InputEvent input_events[INPUT_EVENT_BUFFER_MAX]{};
 	size_t input_event_count = 0;
 
 	bool freeze_cam = false;
@@ -122,25 +122,25 @@ int main(int argc, char** argv)
 				if (ki.key_pressed)
 					switch (ki.scan_code)
 					{
-					case KEYBOARD_KEY::_F:
+					case KEYBOARD_KEY::F:
 						freeze_cam = !freeze_cam;
 						break;
-					case KEYBOARD_KEY::_W:
+					case KEYBOARD_KEY::W:
 						cam_move.y = 1;
 						break;
-					case KEYBOARD_KEY::_S:
+					case KEYBOARD_KEY::S:
 						cam_move.y = -1;
 						break;
-					case KEYBOARD_KEY::_A:
+					case KEYBOARD_KEY::A:
 						cam_move.x = 1;
 						break;
-					case KEYBOARD_KEY::_D:
+					case KEYBOARD_KEY::D:
 						cam_move.x = -1;
 						break;
-					case KEYBOARD_KEY::_X:
+					case KEYBOARD_KEY::X:
 						cam_move.z = 1;
 						break;
-					case KEYBOARD_KEY::_Z:
+					case KEYBOARD_KEY::Z:
 						cam_move.z = -1;
 						break;
 					default:

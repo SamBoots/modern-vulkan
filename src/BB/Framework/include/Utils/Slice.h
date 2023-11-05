@@ -32,23 +32,23 @@ namespace BB
 				return t_Tmp;
 			}
 
-			friend bool operator== (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_Ptr == a_rhs.m_Ptr; };
-			friend bool operator!= (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_Ptr != a_rhs.m_Ptr; };
+			friend bool operator== (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_Ptr == a_rhs.m_Ptr; }
+			friend bool operator!= (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_Ptr != a_rhs.m_Ptr; }
 
-			friend bool operator< (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_Ptr < a_rhs.m_Ptr; };
-			friend bool operator> (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_Ptr > a_rhs.m_Ptr; };
-			friend bool operator<= (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_Ptr <= a_rhs.m_Ptr; };
-			friend bool operator>= (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_Ptr >= a_rhs.m_Ptr; };
+			friend bool operator< (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_Ptr < a_rhs.m_Ptr; }
+			friend bool operator> (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_Ptr > a_rhs.m_Ptr; }
+			friend bool operator<= (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_Ptr <= a_rhs.m_Ptr; }
+			friend bool operator>= (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_Ptr >= a_rhs.m_Ptr; }
 
 		private:
 			T* m_Ptr;
 		};
 
-		Slice() : m_Ptr(nullptr), m_size(0) {};
-		Slice(T* a_ptr, size_t a_Size) : m_Ptr(a_ptr), m_size(a_Size) {};
-		Slice(T* a_Begin, T* a_End) : m_Ptr(a_Begin), m_size(a_End - a_Begin) {};
-		Slice(Array<T>& a_Array) : m_Ptr(a_Array.data()), m_size(a_Array.size()) {};
-		Slice(Pool<T>& a_pool) : m_Ptr(a_pool.data()), m_size(a_pool.size()) {};
+		Slice() : m_Ptr(nullptr), m_size(0) {}
+		Slice(T* a_ptr, size_t a_Size) : m_Ptr(a_ptr), m_size(a_Size) {}
+		Slice(T* a_Begin, T* a_End) : m_Ptr(a_Begin), m_size(a_End - a_Begin) {}
+		Slice(Array<T>& a_Array) : m_Ptr(a_Array.data()), m_size(a_Array.size()) {}
+		Slice(Pool<T>& a_pool) : m_Ptr(a_pool.data()), m_size(a_pool.size()) {}
 
 		Slice<T>& operator=(const Slice<T>& a_Slice);
 		Slice<T>& operator=(const Array<T>& a_rhs);

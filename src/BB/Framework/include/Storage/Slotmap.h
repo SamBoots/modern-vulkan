@@ -387,7 +387,7 @@ namespace BB
 		template <class... Args>
 		SlotmapHandle emplace(Args&&... a_args)
 		{
-			BB_ASSERT(m_size < m_capacity, "static slotmap over capacity!")
+			BB_ASSERT(m_size < m_capacity, "static slotmap over capacity!");
 
 			SlotmapHandle id = m_id_arr[m_next_free];
 			id.index = m_next_free;
