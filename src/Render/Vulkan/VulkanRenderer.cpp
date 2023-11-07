@@ -10,8 +10,7 @@ BB_WARNINGS_OFF
 #define VMA_DYNAMIC_VULKAN_FUNCTIONS 0
 #define VMA_VULKAN_VERSION 1003000 // Vulkan 1.3
 #define VMA_IMPLEMENTATION
-//interface library in Cmake does not seem to include this directory. WHY?!
-#include "../../../lib/VMA/vk_mem_alloc.h"
+#include "vk_mem_alloc.h"
 BB_WARNINGS_ON
 
 #include "Storage/Slotmap.h"
@@ -25,6 +24,15 @@ using namespace BB;
 #else
 #define VKASSERT(vk_result, a_msg) vk_result
 #endif //_DEBUG
+
+#if defined(__GNUC__) || defined(__MINGW32__) || defined(__clang__) || defined(__clang_major__)
+//for vulkan I initialize the struct name only. So ignore this warning
+BB_PRAGMA(clang diagnostic push)
+BB_PRAGMA(clang diagnostic ignored "-Wmissing-field-initializers")
+BB_PRAGMA(clang diagnostic ignored "-Wcast-function-type-strict")
+#endif 
+
+#define VkGetFuncPtr(inst, func) reinterpret_cast<BB_CONCAT(PFN_, func)>(vkGetInstanceProcAddr(inst, #func))
 
 //for performance reasons this can be turned off. I need to profile this.
 #define ENUM_CONVERSATION_BY_ARRAY
@@ -68,8 +76,7 @@ struct VulkanDepth
 
 static inline VkDeviceSize GetBufferDeviceAddress(const VkDevice a_device, const VkBuffer a_buffer)
 {
-	VkBufferDeviceAddressInfoKHR buffer_address_info{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
-	buffer_address_info.buffer = a_buffer;
+	VkBufferDeviceAddressInfo buffer_address_info{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, a_buffer };
 	return vkGetBufferDeviceAddress(a_device, &buffer_address_info);
 }
 
@@ -101,6 +108,8 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 	const VkDebugUtilsMessengerCallbackDataEXT* a_pcallback_data,
 	void* a_puser_data)
 {
+	(void)a_puser_data;
+	(void)a_message_type;
 	switch (a_message_severity)
 	{
 	case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
@@ -114,6 +123,9 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 		break;
 	case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
 		BB_WARNING(false, a_pcallback_data->pMessage, WarningType::HIGH);
+		break;
+	default:
+		BB_ASSERT(false, "something weird happened");
 		break;
 	}
 	return VK_FALSE;
@@ -246,7 +258,7 @@ static VkPhysicalDevice FindPhysicalDevice(Allocator a_temp_allocator, const VkI
 	return VK_NULL_HANDLE;
 }
 
-VulkanQueueDeviceInfo FindQueueIndex(VkQueueFamilyProperties* a_queue_properties, uint32_t a_family_property_count, VkQueueFlags a_queue_flags)
+static VulkanQueueDeviceInfo FindQueueIndex(VkQueueFamilyProperties* a_queue_properties, uint32_t a_family_property_count, VkQueueFlags a_queue_flags)
 {
 	VulkanQueueDeviceInfo return_info{};
 
@@ -651,7 +663,7 @@ static inline VkFormat DepthFormat(const DEPTH_FORMAT a_depth_format)
 		return VK_FORMAT_D32_SFLOAT;
 		break;
 	}
-#endif ENUM_CONVERSATION_BY_ARRAY
+#endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
 static inline VkFormat ImageFormats(const IMAGE_FORMAT a_image_format)
@@ -668,7 +680,7 @@ static inline VkFormat ImageFormats(const IMAGE_FORMAT a_image_format)
 		return VK_FORMAT_R8G8B8A8_SRGB;
 		break;
 	}
-#endif ENUM_CONVERSATION_BY_ARRAY
+#endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
 static inline VkImageType ImageTypes(const IMAGE_TYPE a_image_types)
@@ -686,7 +698,7 @@ static inline VkImageType ImageTypes(const IMAGE_TYPE a_image_types)
 		return VK_IMAGE_TYPE_1D;
 		break;
 	}
-#endif ENUM_CONVERSATION_BY_ARRAY
+#endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
 static inline VkImageViewType ImageViewTypes(const IMAGE_TYPE a_image_types)
@@ -704,7 +716,7 @@ static inline VkImageViewType ImageViewTypes(const IMAGE_TYPE a_image_types)
 		return VK_IMAGE_TYPE_1D;
 		break;
 	}
-#endif ENUM_CONVERSATION_BY_ARRAY
+#endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
 static inline VkImageTiling ImageTilings(const IMAGE_TILING a_image_tiling)
@@ -721,7 +733,7 @@ static inline VkImageTiling ImageTilings(const IMAGE_TILING a_image_tiling)
 		return VK_IMAGE_TYPE_1D;
 		break;
 	}
-#endif ENUM_CONVERSATION_BY_ARRAY
+#endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
 static inline VkDescriptorAddressInfoEXT GetDescriptorAddressInfo(const VkDevice a_device, const BufferView& a_Buffer, const VkFormat a_Format = VK_FORMAT_UNDEFINED)
@@ -797,10 +809,10 @@ static inline void SetDebugName_f(const char* a_name, const uint64_t a_object_ha
 	s_vulkan_inst->pfn.SetDebugUtilsObjectNameEXT(s_vulkan_inst->device, &debug_name_info);
 }
 
-#define SetDebugName(a_name, a_object_handle, a_obj_type) SetDebugName_f(a_name, (uint64_t)a_object_handle, a_obj_type)
+#define SetDebugName(a_name, a_object_handle, a_obj_type) SetDebugName_f(a_name, reinterpret_cast<uintptr_t>(a_object_handle), a_obj_type)
 #else
 #define SetDebugName
-#endif _DEBUG
+#endif //_DEBUG
 
 bool Vulkan::InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a_app_name, const char* a_engine_name, const bool a_debug)
 {
@@ -869,24 +881,24 @@ bool Vulkan::InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a
 			nullptr,
 			&s_vulkan_inst->instance), "Failed to create Vulkan Instance!");
 
-		s_vulkan_inst->pfn.GetDescriptorSetLayoutSizeEXT = (PFN_vkGetDescriptorSetLayoutSizeEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkGetDescriptorSetLayoutSizeEXT");
-		s_vulkan_inst->pfn.GetDescriptorSetLayoutBindingOffsetEXT = (PFN_vkGetDescriptorSetLayoutBindingOffsetEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkGetDescriptorSetLayoutBindingOffsetEXT");
-		s_vulkan_inst->pfn.GetDescriptorEXT = (PFN_vkGetDescriptorEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkGetDescriptorEXT");
-		s_vulkan_inst->pfn.CmdBindDescriptorBuffersEXT = (PFN_vkCmdBindDescriptorBuffersEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdBindDescriptorBuffersEXT");
-		s_vulkan_inst->pfn.CmdBindDescriptorBufferEmbeddedSamplersEXT = (PFN_vkCmdBindDescriptorBufferEmbeddedSamplersEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdBindDescriptorBufferEmbeddedSamplersEXT");
-		s_vulkan_inst->pfn.CmdSetDescriptorBufferOffsetsEXT = (PFN_vkCmdSetDescriptorBufferOffsetsEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdSetDescriptorBufferOffsetsEXT");
-		s_vulkan_inst->pfn.SetDebugUtilsObjectNameEXT = (PFN_vkSetDebugUtilsObjectNameEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkSetDebugUtilsObjectNameEXT");
-		s_vulkan_inst->pfn.CreateShaderEXT = (PFN_vkCreateShadersEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCreateShadersEXT");
-		s_vulkan_inst->pfn.DestroyShaderEXT = (PFN_vkDestroyShaderEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkDestroyShaderEXT");
-		s_vulkan_inst->pfn.CmdBindShadersEXT = (PFN_vkCmdBindShadersEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdBindShadersEXT");
-		s_vulkan_inst->pfn.CmdSetPolygonModeEXT = (PFN_vkCmdSetPolygonModeEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdSetPolygonModeEXT");
-		s_vulkan_inst->pfn.CmdSetVertexInputEXT = (PFN_vkCmdSetVertexInputEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdSetVertexInputEXT");
-		s_vulkan_inst->pfn.CmdSetRasterizationSamplesEXT = (PFN_vkCmdSetRasterizationSamplesEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdSetRasterizationSamplesEXT");
-		s_vulkan_inst->pfn.CmdSetColorWriteMaskEXT = (PFN_vkCmdSetColorWriteMaskEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdSetColorWriteMaskEXT");
-		s_vulkan_inst->pfn.CmdSetColorBlendEnableEXT = (PFN_vkCmdSetColorBlendEnableEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdSetColorBlendEnableEXT");
-		s_vulkan_inst->pfn.CmdSetColorBlendEquationEXT = (PFN_vkCmdSetColorBlendEquationEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdSetColorBlendEquationEXT");
-		s_vulkan_inst->pfn.CmdSetAlphaToCoverageEnableEXT = (PFN_vkCmdSetAlphaToCoverageEnableEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdSetAlphaToCoverageEnableEXT");
-		s_vulkan_inst->pfn.CmdSetSampleMaskEXT = (PFN_vkCmdSetSampleMaskEXT)vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCmdSetSampleMaskEXT");
+		s_vulkan_inst->pfn.GetDescriptorSetLayoutSizeEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkGetDescriptorSetLayoutSizeEXT);
+		s_vulkan_inst->pfn.GetDescriptorSetLayoutBindingOffsetEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkGetDescriptorSetLayoutBindingOffsetEXT);
+		s_vulkan_inst->pfn.GetDescriptorEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkGetDescriptorEXT);
+		s_vulkan_inst->pfn.CmdBindDescriptorBuffersEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkCmdBindDescriptorBuffersEXT);
+		s_vulkan_inst->pfn.CmdBindDescriptorBufferEmbeddedSamplersEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkCmdBindDescriptorBufferEmbeddedSamplersEXT);
+		s_vulkan_inst->pfn.CmdSetDescriptorBufferOffsetsEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkCmdSetDescriptorBufferOffsetsEXT);
+		s_vulkan_inst->pfn.SetDebugUtilsObjectNameEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkSetDebugUtilsObjectNameEXT);
+		s_vulkan_inst->pfn.CreateShaderEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkCreateShadersEXT);
+		s_vulkan_inst->pfn.DestroyShaderEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkDestroyShaderEXT);
+		s_vulkan_inst->pfn.CmdBindShadersEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkCmdBindShadersEXT);
+		s_vulkan_inst->pfn.CmdSetPolygonModeEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkCmdSetPolygonModeEXT);
+		s_vulkan_inst->pfn.CmdSetVertexInputEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkCmdSetVertexInputEXT);
+		s_vulkan_inst->pfn.CmdSetRasterizationSamplesEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkCmdSetRasterizationSamplesEXT);
+		s_vulkan_inst->pfn.CmdSetColorWriteMaskEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkCmdSetColorWriteMaskEXT);
+		s_vulkan_inst->pfn.CmdSetColorBlendEnableEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkCmdSetColorBlendEnableEXT);
+		s_vulkan_inst->pfn.CmdSetColorBlendEquationEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkCmdSetColorBlendEquationEXT);
+		s_vulkan_inst->pfn.CmdSetAlphaToCoverageEnableEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkCmdSetAlphaToCoverageEnableEXT);
+		s_vulkan_inst->pfn.CmdSetSampleMaskEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkCmdSetSampleMaskEXT);
 
 		{	//device & queues
 			s_vulkan_inst->phys_device = FindPhysicalDevice(a_stack_allocator, s_vulkan_inst->instance);
@@ -1153,7 +1165,7 @@ void Vulkan::CreateCommandPool(const QUEUE_TYPE a_queue_type, const uint32_t a_c
 		"Vulkan: Failed to allocate command buffers!");
 
 
-	a_pool = (uintptr_t)command_pool;
+	a_pool = reinterpret_cast<uintptr_t>(command_pool);
 }
 
 void Vulkan::FreeCommandPool(const RCommandPool a_pool)
@@ -1405,7 +1417,7 @@ RDescriptorLayout Vulkan::CreateDescriptorLayout(Allocator a_temp_allocator, Sli
 			"Vulkan: Failed to create a descriptorsetlayout.");
 	}
 
-	return RDescriptorLayout((uintptr_t)set_layout);
+	return RDescriptorLayout(reinterpret_cast<uintptr_t>(set_layout));
 }
 
 DescriptorAllocation Vulkan::AllocateDescriptor(const RDescriptorLayout a_descriptor)
@@ -1448,11 +1460,13 @@ void Vulkan::WriteDescriptors(const WriteDescriptorInfos& a_write_info)
 			//data.image = GetDescriptorImageInfo(s_vulkan_inst->device, write_data.image);
 			//desc_info.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
 			//desc_info.data.pSampledImage = &data.image;
+			descriptor_size = s_vulkan_inst->descriptor_sizes.sampled_image;
 			BB_ASSERT(false, "Image not yet supported");
 			break;
 		default:
 			BB_ASSERT(false, "Vulkan: DESCRIPTOR_TYPE failed to convert to a VkDescriptorType.");
 			desc_info.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			descriptor_size = 0;
 			break;
 		}
 
@@ -1490,7 +1504,7 @@ RPipelineLayout Vulkan::CreatePipelineLayout(const RDescriptorLayout* a_descript
 		VkPipelineLayout pipe_layout;
 		vkCreatePipelineLayout(s_vulkan_inst->device, &create_info, nullptr, &pipe_layout);
 
-		return RPipelineLayout((uintptr_t)pipe_layout);
+		return RPipelineLayout(reinterpret_cast<uintptr_t>(pipe_layout));
 	}
 	else
 	{
@@ -1499,7 +1513,7 @@ RPipelineLayout Vulkan::CreatePipelineLayout(const RDescriptorLayout* a_descript
 		VkPipelineLayout pipe_layout;
 		vkCreatePipelineLayout(s_vulkan_inst->device, &create_info, nullptr, &pipe_layout);
 
-		return RPipelineLayout((uintptr_t)pipe_layout);
+		return RPipelineLayout(reinterpret_cast<uintptr_t>(pipe_layout));
 	}
 }
 
@@ -1510,7 +1524,7 @@ void Vulkan::FreePipelineLayout(const RPipelineLayout a_layout)
 		nullptr);
 }
 
-RPipeline Vulkan::CreatePipeline(Allocator a_temp_allocator, const CreatePipelineInfo& a_info)
+RPipeline Vulkan::CreatePipeline(const CreatePipelineInfo& a_info)
 {
 	VkShaderModule vertex_module;
 	VkShaderModuleCreateInfo shader_mod_info{ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
@@ -1529,14 +1543,14 @@ RPipeline Vulkan::CreatePipeline(Allocator a_temp_allocator, const CreatePipelin
 
 	VkPipelineShaderStageCreateInfo pipe_shader_info[2];
 	pipe_shader_info[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	pipe_shader_info[0].pNext = false;
+	pipe_shader_info[0].pNext = nullptr;
 	pipe_shader_info[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
 	pipe_shader_info[0].module = vertex_module;
 	pipe_shader_info[0].pName = a_info.vertex.shader_entry;
 	pipe_shader_info[0].pSpecializationInfo = nullptr;
 
 	pipe_shader_info[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	pipe_shader_info[1].pNext = false;
+	pipe_shader_info[1].pNext = nullptr;
 	pipe_shader_info[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
 	pipe_shader_info[1].module = fragment_module;
 	pipe_shader_info[1].pName = a_info.fragment.shader_entry;
@@ -1646,7 +1660,7 @@ RPipeline Vulkan::CreatePipeline(Allocator a_temp_allocator, const CreatePipelin
 	vkDestroyShaderModule(s_vulkan_inst->device, vertex_module, nullptr);
 	vkDestroyShaderModule(s_vulkan_inst->device, fragment_module, nullptr);
 
-	return RPipeline((uintptr_t)pipeline);
+	return RPipeline(reinterpret_cast<uintptr_t>(pipeline));
 }
 
 void Vulkan::CreateShaderObject(Allocator a_temp_allocator, Slice<ShaderObjectCreateInfo> a_shader_objects, ShaderObject* a_pshader_objects)
@@ -1669,21 +1683,20 @@ void Vulkan::CreateShaderObject(Allocator a_temp_allocator, Slice<ShaderObjectCr
 		create_inf.setLayoutCount = shad_info.descriptor_layout_count;
 		create_inf.pSetLayouts = reinterpret_cast<VkDescriptorSetLayout*>(shad_info.descriptor_layouts);
 
-		VkPushConstantRange* constant_ranges;
 		if (shad_info.push_constant_range_count)
 		{
-			constant_ranges = BBnewArr(a_temp_allocator, shad_info.push_constant_range_count, VkPushConstantRange);
-			for (size_t i = 0; i < shad_info.push_constant_range_count; i++)
+			VkPushConstantRange* constant_ranges = BBnewArr(a_temp_allocator, shad_info.push_constant_range_count, VkPushConstantRange);
+			for (size_t const_range = 0; const_range < shad_info.push_constant_range_count; const_range++)
 			{
-				constant_ranges[i].stageFlags = ShaderStageFlags(shad_info.push_constant_ranges[i].stages);
-				constant_ranges[i].size = shad_info.push_constant_ranges[i].size;
-				constant_ranges[i].offset = shad_info.push_constant_ranges[i].offset;
+				constant_ranges[const_range].stageFlags = ShaderStageFlags(shad_info.push_constant_ranges[const_range].stages);
+				constant_ranges[const_range].size = shad_info.push_constant_ranges[const_range].size;
+				constant_ranges[const_range].offset = shad_info.push_constant_ranges[const_range].offset;
 			}
+			create_inf.pPushConstantRanges = constant_ranges;
 		}
 		else
-			constant_ranges = nullptr;
+			create_inf.pPushConstantRanges = nullptr;
 		create_inf.pushConstantRangeCount = shad_info.push_constant_range_count;
-		create_inf.pPushConstantRanges = constant_ranges;
 		create_inf.pSpecializationInfo = nullptr;
 	}
 
@@ -1781,10 +1794,10 @@ void Vulkan::CopyBuffers(const RCommandList a_list, const RenderCopyBuffer* a_co
 		const VulkanBuffer& src_buf = s_vulkan_inst->buffers.find(cpy_buf.src.handle);
 
 		VkBufferCopy* copy_regions = BBstackAlloc(cpy_buf.regions.size(), VkBufferCopy);
-		for (size_t i = 0; i < cpy_buf.regions.size(); i++)
+		for (size_t cpy_reg_index = 0; cpy_reg_index < cpy_buf.regions.size(); cpy_reg_index++)
 		{
-			const RenderCopyBufferRegion& r_cpy_reg = cpy_buf.regions[i];
-			VkBufferCopy& cpy_reg = copy_regions[i];
+			const RenderCopyBufferRegion& r_cpy_reg = cpy_buf.regions[cpy_reg_index];
+			VkBufferCopy& cpy_reg = copy_regions[cpy_reg_index];
 
 			cpy_reg.size = r_cpy_reg.size;
 			cpy_reg.dstOffset = r_cpy_reg.dst_offset;
@@ -1990,12 +2003,11 @@ void Vulkan::BindVertexBuffer(const RCommandList a_list, const RBuffer a_buffer,
 {
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 
-	const size_t offsets = 0;
 	vkCmdBindVertexBuffers(cmd_buffer,
 		0,
 		1,
 		&s_vulkan_inst->buffers[a_buffer.handle].buffer,
-		&offsets);
+		&a_offset);
 }
 
 void Vulkan::BindIndexBuffer(const RCommandList a_list, const RBuffer a_buffer, const uint64_t a_offset)
@@ -2228,7 +2240,7 @@ RFence Vulkan::CreateFence(const uint64_t a_initial_value, const char* a_name)
 
 	SetDebugName(a_name, timeline_semaphore, VK_OBJECT_TYPE_SEMAPHORE);
 
-	return RFence((uintptr_t)timeline_semaphore);
+	return RFence(reinterpret_cast<uintptr_t>(timeline_semaphore));
 }
 
 void Vulkan::FreeFence(const RFence a_fence)
@@ -2281,6 +2293,7 @@ RQueue Vulkan::GetQueue(const QUEUE_TYPE a_queue_type, const char* a_name)
 		break;
 	default:
 		BB_ASSERT(false, "Vulkan: Trying to get a device queue that you didn't setup yet.");
+		queue_index = s_vulkan_inst->queue_indices.graphics;
 		break;
 	}
 	VkQueue queue;
@@ -2291,5 +2304,9 @@ RQueue Vulkan::GetQueue(const QUEUE_TYPE a_queue_type, const char* a_name)
 
 	SetDebugName(a_name, queue, VK_OBJECT_TYPE_QUEUE);
 
-	return RQueue((uint64_t)queue);
+	return RQueue(reinterpret_cast<uintptr_t>(queue));
 }
+#if defined(__GNUC__) || defined(__MINGW32__) || defined(__clang__) || defined(__clang_major__)
+//for vulkan I initialize the struct name only. So ignore this warning
+BB_PRAGMA(clang diagnostic pop)
+#endif

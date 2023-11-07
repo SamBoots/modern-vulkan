@@ -38,8 +38,8 @@ struct GlobalProgramInfo
 	bool tracking_mouse = true;
 };
 
-static GlobalProgramInfo s_program_info{};
-static InputBuffer s_input_buffer{};
+static GlobalProgramInfo s_program_info;
+static InputBuffer s_input_buffer;
 
 static void PushInput(const InputEvent& a_Input)
 {

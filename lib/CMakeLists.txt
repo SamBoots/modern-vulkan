@@ -11,6 +11,10 @@ target_include_directories(VMA INTERFACE VMA)
 add_library(DXCompiler INTERFACE
 "DXC/inc/dxcapi.h"
 "DXC/inc/d3d12shader.h")
-target_include_directories(DXCompiler INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(DXCompiler INTERFACE DXC)
+
+add_library(cgltf INTERFACE
+"cgltf/cgltf.h")
+target_include_directories(cgltf INTERFACE cgltf)
 
 add_subdirectory("imgui")

@@ -4,18 +4,20 @@
 
 namespace BB
 {
+#define BB_CONCAT(a, b) a##b
+
 #define BB_PRAGMA(X)			_Pragma(#X)
 #define BB_PRAGMA_PACK_PUSH(n)  BB_PRAGMA(pack(push,n))
 #define BB_PRAGMA_PACK_POP()    BB_PRAGMA(pack(pop))
-
-#define BB_CONCAT(a, b) a##b
-#define BB_PAD(n) unsigned char BB_CONCAT(_padding_, __LINE__)[n]
-
 #if defined(__GNUC__) || defined(__MINGW32__) || defined(__clang__) || defined(__clang_major__)
-#pragma message("CLANG BB compile commands")
+#define BB_PAD(n)   BB_PRAGMA(clang diagnostic push) \
+					BB_PRAGMA(clang diagnostic ignored "-Wunused-private-field") \
+	                unsigned char BB_CONCAT(_padding_, __LINE__)[n] \
+					BB_PRAGMA(clang diagnostic pop)
+
 #define BB_NO_RETURN			__attribute__((noreturn))
 
-#define BB_WARNINGS_OFF			BB_PRAGMA(GCC diagnostic push) \
+#define BB_WARNINGS_OFF			BB_PRAGMA(clang diagnostic push) \
 								BB_PRAGMA(clang diagnostic ignored "-Wall")	\
 								BB_PRAGMA(clang diagnostic ignored "-Wextra") \
 								BB_PRAGMA(clang diagnostic ignored "-Weverything") \
@@ -23,7 +25,8 @@ namespace BB
 
 #define BB_WARNINGS_ON			BB_PRAGMA(clang diagnostic pop)
 #elif _MSC_VER
-#pragma message("MSVC BB compile commands")
+#define BB_PAD(n) unsigned char BB_CONCAT(_padding_, __LINE__)[n]
+
 #define BB_NO_RETURN			__declspec(noreturn)
 
 #define BB_WARNINGS_OFF			BB_PRAGMA(warning(push, 0))
@@ -55,16 +58,9 @@ namespace BB
 	template<typename Tag>
 	union FrameworkHandle
 	{
-		FrameworkHandle() {}
-		FrameworkHandle(uint64_t a_handle)
-		{
-			handle = a_handle;
-		}
-		FrameworkHandle(unsigned int a_index, unsigned int a_extra_index)
-		{
-			index = a_index;
-			extra_index = a_extra_index;
-		}
+		constexpr FrameworkHandle() : handle(BB_INVALID_HANDLE) {}
+		constexpr FrameworkHandle(uint64_t a_handle) : handle(a_handle) {}
+		constexpr FrameworkHandle(unsigned int a_index, unsigned int a_extra_index) : index(a_index), extra_index(a_extra_index) {}
 		struct
 		{
 			//The handle's main index. Always used and is the main handle.
@@ -91,14 +87,11 @@ namespace BB
 	using ThreadTask = FrameworkHandle<struct ThreadTasktag>;
 
 	template<typename Tag>
-	union FrameworkHandle32Bit
+	struct FrameworkHandle32Bit
 	{
-		FrameworkHandle32Bit() {}
-		FrameworkHandle32Bit(uint32_t a_handle)
-		{
-			handle = a_handle;
-		}
-		uint32_t handle{};
+		constexpr FrameworkHandle32Bit() : handle(BB_INVALID_HANDLE) {}
+		constexpr FrameworkHandle32Bit(uint32_t a_handle) : handle(a_handle) {}
+		uint32_t handle;
 
 		inline bool operator ==(FrameworkHandle32Bit a_rhs) const { return handle == a_rhs.handle; }
 		inline bool operator !=(FrameworkHandle32Bit a_rhs) const { return handle != a_rhs.handle; }
@@ -111,7 +104,6 @@ namespace BB
 		void* data;
 		uint64_t size;
 	};
-
 
 #ifdef _DEBUG
 #define BB_MEMORY_DEBUG const char* a_file, int a_line, bool a_is_array,
@@ -134,6 +126,7 @@ namespace BB
 #define BB_MEMORY_DEBUG_SEND_ARR
 #define BB_MEMORY_DEBUG_FREE_ARR
 #endif //_DEBUG
+
 	typedef void* (*AllocateFunc)(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, const size_t a_alignment, void* a_old_ptr);
 	struct Allocator
 	{

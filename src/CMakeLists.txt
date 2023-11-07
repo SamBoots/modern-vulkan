@@ -59,6 +59,7 @@ target_include_directories(Engine PUBLIC
 	"Engine")
 
 target_link_libraries(Engine 
+	cgltf
 	Renderer)
 
 add_executable(image_filter_test

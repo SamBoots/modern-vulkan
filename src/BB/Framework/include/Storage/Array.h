@@ -26,14 +26,14 @@ namespace BB
 			using pointer = T*;
 			using reference = T&;
 
-			Iterator(pointer a_ptr) : m_Ptr(a_ptr) {}
+			Iterator(pointer a_ptr) : m_ptr(a_ptr) {}
 
-			reference operator*() const { return *m_Ptr; }
-			pointer operator->() { return m_Ptr; }
+			reference operator*() const { return *m_ptr; }
+			pointer operator->() { return m_ptr; }
 
 			Iterator& operator++() 
 			{ 
-				m_Ptr++;  
+				m_ptr++;  
 				return *this;
 			}
 
@@ -54,7 +54,7 @@ namespace BB
 
 
 		private:
-			pointer m_Ptr;
+			pointer m_ptr;
 		};
 
 		Array(Allocator a_allocator);
@@ -69,12 +69,12 @@ namespace BB
 
 		void push_back(T& a_Element);
 		void push_back(const T* a_Elements, size_t a_count);
-		void insert(size_t a_Position, const T& a_Element);
-		void insert(size_t a_Position, const T* a_Elements, size_t a_count);
+		void insert(size_t a_position, const T& a_Element);
+		void insert(size_t a_position, const T* a_Elements, size_t a_count);
 		template <class... Args>
 		void emplace_back(Args&&... a_args);
 		template <class... Args>
-		void emplace(size_t a_Position, Args&&... a_args);
+		void emplace(size_t a_position, Args&&... a_args);
 
 		void reserve(size_t a_size);
 		void resize(size_t a_size);
@@ -217,9 +217,9 @@ namespace BB
 	}
 
 	template<typename T>
-	inline void BB::Array<T>::insert(size_t a_Position, const T& a_Element)
+	inline void BB::Array<T>::insert(size_t a_position, const T& a_Element)
 	{
-		emplace(a_Position, a_Element);
+		emplace(a_position, a_Element);
 	}
 
 	template<typename T>
@@ -235,16 +235,16 @@ namespace BB
 
 	template<typename T>
 	template<class ...Args>
-	inline void BB::Array<T>::emplace(size_t a_Position, Args&&... a_args)
+	inline void BB::Array<T>::emplace(size_t a_position, Args&&... a_args)
 	{
-		BB_ASSERT(m_size >= a_Position, "trying to insert in a position that is bigger then the current Dynamic_Array size!");
+		BB_ASSERT(m_size >= a_position, "trying to insert in a position that is bigger then the current Dynamic_Array size!");
 		if (m_size >= m_capacity)
 			grow();
 
 		if constexpr (!trivialDestructible_T)
 		{
-			//Move all elements after a_Position 1 to the front.
-			for (size_t i = m_size; i > a_Position; i--)
+			//Move all elements after a_position 1 to the front.
+			for (size_t i = m_size; i > a_position; i--)
 			{
 				new (&m_Arr[i]) T(m_Arr[i - 1]);
 				m_Arr[i - 1].~T();
@@ -252,12 +252,12 @@ namespace BB
 		}
 		else
 		{
-			//Move all elements after a_Position 1 to the front.
+			//Move all elements after a_position 1 to the front.
 			//Using memmove for more safety.
-			memmove(&m_Arr[a_Position + 1], &m_Arr[a_Position], sizeof(T) * (m_size - a_Position));
+			memmove(&m_Arr[a_position + 1], &m_Arr[a_position], sizeof(T) * (m_size - a_position));
 		}
 
-		new (&m_Arr[a_Position]) T(std::forward<Args>(a_args)...);
+		new (&m_Arr[a_position]) T(std::forward<Args>(a_args)...);
 		m_size++;
 	}
 

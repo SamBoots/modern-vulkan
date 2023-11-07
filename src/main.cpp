@@ -15,7 +15,7 @@
 #include "Renderer.hpp"
 #include "Math.inl"
 
-void DrawglTFNode(BB::Model::Node& a_node, const BB::float4x4& a_transform)
+static void DrawglTFNode(BB::Model::Node& a_node, const BB::float4x4& a_transform)
 {
 	BB::float4x4 local_transform = a_transform * a_node.transform;
 
@@ -29,6 +29,7 @@ void DrawglTFNode(BB::Model::Node& a_node, const BB::float4x4& a_transform)
 
 int main(int argc, char** argv)
 {
+	(void)argc;
 	using namespace BB;
 
 	BBInitInfo bb_init;
@@ -68,7 +69,7 @@ int main(int argc, char** argv)
 
 	{
 		const float4x4 t_ProjMat = Float4x4Perspective(ToRadians(60.0f),
-			render_create_info.swapchain_width / (float)render_create_info.swapchain_height,
+			static_cast<float>(render_create_info.swapchain_width) / static_cast<float>(render_create_info.swapchain_height),
 			.001f, 10000.0f);
 		BB::SetProjection(t_ProjMat);
 	}

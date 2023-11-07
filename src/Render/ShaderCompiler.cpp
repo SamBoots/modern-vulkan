@@ -2,12 +2,18 @@
 
 #include <Windows.h>
 #include <combaseapi.h>
-#include "DXC/dxcapi.h"
+#include "dxcapi.h"
 
 #include "Logger.h"
 #include "BBMemory.h"
 
 //https://simoncoenen.com/blog/programming/graphics/DxcCompiling Guide used, I'll also use this as reference to remind myself.
+
+#if defined(__GNUC__) || defined(__MINGW32__) || defined(__clang__) || defined(__clang_major__)
+//ignore warning related to using IID_PPV_ARGS
+BB_PRAGMA(clang diagnostic push)
+BB_PRAGMA(clang diagnostic ignored "-Wlanguage-extension-token")
+#endif 
 
 using namespace BB;
 
@@ -26,7 +32,7 @@ ShaderCompiler BB::CreateShaderCompiler(Allocator a_system_allocator)
 	DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&inst->compiler));
 	inst->utils->CreateDefaultIncludeHandler(&inst->include_header);
 
-	return ShaderCompiler((uintptr_t)inst);
+	return ShaderCompiler(reinterpret_cast<uintptr_t>(inst));
 }
 void BB::DestroyShaderCompiler(const ShaderCompiler a_shader_compiler)
 {
@@ -47,6 +53,10 @@ const ShaderCode BB::CompileShader(Allocator a_temp_allocator, const ShaderCompi
 		break;
 	case SHADER_STAGE::FRAGMENT_PIXEL:
 		shader_type = L"ps_6_4";
+		break;
+	default:
+		shader_type = L"ERROR_NO_STAGE";
+		BB_ASSERT(false, "not yet supported shader stage");
 		break;
 	}
 
@@ -128,7 +138,7 @@ const ShaderCode BB::CompileShader(Allocator a_temp_allocator, const ShaderCompi
 	source_blob->Release();
 	result->Release();
 
-	return ShaderCode((uintptr_t)shader_code);
+	return ShaderCode(reinterpret_cast<uintptr_t>(shader_code));
 }
 
 void BB::ReleaseShaderCode(const ShaderCode a_handle)
@@ -144,3 +154,7 @@ Buffer BB::GetShaderCodeBuffer(const ShaderCode a_handle)
 		reinterpret_cast<IDxcBlob*>(a_handle.handle)->GetBufferSize()
 	};
 }
+
+#if defined(__GNUC__) || defined(__MINGW32__) || defined(__clang__) || defined(__clang_major__)
+BB_PRAGMA(clang diagnostic pop)
+#endif 

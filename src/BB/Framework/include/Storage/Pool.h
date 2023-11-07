@@ -17,9 +17,9 @@ namespace BB
 	public:
 #ifdef _DEBUG
 		//Must have a constructor because of the debug destructor
-		Pool() {};
+		Pool() {}
 		~Pool();
-#endif _DEBUG
+#endif //_DEBUG
 
 		//We do no copying
 		Pool(const Pool&) = delete;

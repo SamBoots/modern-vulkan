@@ -34,14 +34,14 @@ namespace BB
 	public:
 		struct Iterator
 		{
-			Iterator(T* a_ptr) : m_Ptr(a_ptr) {}
+			Iterator(T* a_ptr) : m_ptr(a_ptr) {}
 
-			T& operator*() const { return *m_Ptr; }
-			T* operator->() { return m_Ptr; }
+			T& operator*() const { return *m_ptr; }
+			T* operator->() { return m_ptr; }
 
 			Iterator& operator++()
 			{
-				++m_Ptr;
+				++m_ptr;
 				return *this;
 			}
 
@@ -52,13 +52,13 @@ namespace BB
 				return t_Tmp;
 			}
 
-			friend bool operator< (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_Ptr < a_rhs.m_Ptr; };
-			friend bool operator> (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_Ptr > a_rhs.m_Ptr; };
-			friend bool operator<= (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_Ptr <= a_rhs.m_Ptr; };
-			friend bool operator>= (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_Ptr >= a_rhs.m_Ptr; };
+			friend bool operator< (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_ptr < a_rhs.m_ptr; }
+			friend bool operator> (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_ptr > a_rhs.m_ptr; }
+			friend bool operator<= (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_ptr <= a_rhs.m_ptr; }
+			friend bool operator>= (const Iterator& a_lhs, const Iterator& a_rhs) { return a_lhs.m_ptr >= a_rhs.m_ptr; }
 
 		private:
-			T* m_Ptr;
+			T* m_ptr;
 		};
 
 		Slotmap(Allocator a_allocator)
@@ -333,7 +333,7 @@ namespace BB
 			BB_WARNING(m_id_arr == nullptr, 
 				"static slotmap destructor called while Destroy was not called, possible memory leak.", 
 				WarningType::INFO);
-		};
+		}
 
 		Slotmap<T>& operator=(const Slotmap<T>& a_rhs) = delete;
 		Slotmap<T>& operator=(Slotmap<T>&& a_rhs) = delete;

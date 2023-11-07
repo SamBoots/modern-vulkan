@@ -3,48 +3,48 @@
 
 using namespace BB;
 
-Transform::Transform(const float3 a_Position)
-	: Transform(a_Position, float3{0,0,0}, 0, float3{1,1,1}) {}
+Transform::Transform(const float3 a_position)
+	: Transform(a_position, float3{0,0,0}, 0, float3{1,1,1}) {}
 
-Transform::Transform(const float3 a_Position, const float3 a_Axis, const float a_Radians)
-	: Transform(a_Position, a_Axis, a_Radians, float3{1,1,1}) {}
+Transform::Transform(const float3 a_position, const float3 a_axis, const float a_radians)
+	: Transform(a_position, a_axis, a_radians, float3{1,1,1}) {}
 
-Transform::Transform(const float3 a_Position, const float3 a_Axis, const float a_Radians, const float3 a_Scale)
-	: m_Pos(a_Position), m_Scale(a_Scale) 
+Transform::Transform(const float3 a_position, const float3 a_axis, const float a_radians, const float3 a_scale)
+	: m_pos(a_position), m_Scale(a_scale) 
 {
-	m_Rot = QuatFromAxisAngle(a_Axis, a_Radians); //glm::angleAxis(glm::radians(a_Radians), a_Axis);
+	m_rot = QuatFromAxisAngle(a_axis, a_radians); //glm::angleAxis(glm::radians(a_radians), a_axis);
 }
 
-void Transform::Translate(const float3 a_Translation)
+void Transform::Translate(const float3 a_translation)
 {
-	m_Pos = m_Pos + a_Translation;
+	m_pos = m_pos + a_translation;
 }
 
-void Transform::Rotate(const float3 a_Axis, const float a_Radians)
+void Transform::Rotate(const float3 a_axis, const float a_radians)
 {
-	//m_Rot = m_Rot * Quat{ a_Axis.x,a_Axis.y,a_Axis.z, a_Radians }; //glm::rotate(m_Rot, a_Radians, a_Axis);
+	m_rot = m_rot * Quat{ a_axis.x,a_axis.y,a_axis.z, a_radians }; //glm::rotate(m_rot, a_radians, a_axis);
 }
 
-void Transform::SetPosition(const float3 a_Position)
+void Transform::SetPosition(const float3 a_position)
 {
-	m_Pos = a_Position;
+	m_pos = a_position;
 }
 
-void Transform::SetRotation(const float3 a_Axis, const float a_Radians)
+void Transform::SetRotation(const float3 a_axis, const float a_radians)
 {
-	m_Rot = QuatFromAxisAngle(a_Axis, a_Radians); //glm::angleAxis(a_Radians, a_Axis);
+	m_rot = QuatFromAxisAngle(a_axis, a_radians); //glm::angleAxis(a_radians, a_axis);
 }
 
-void Transform::SetScale(const float3 a_Scale)
+void Transform::SetScale(const float3 a_scale)
 {
-	m_Scale = a_Scale;
+	m_Scale = a_scale;
 }
 
 const float4x4 Transform::CreateMatrix()
 {
 	float4x4 t_Matrix = Float4x4Identity();
-	t_Matrix = t_Matrix * Float4x4FromTranslation(m_Pos);
-	t_Matrix = t_Matrix * Float4x4FromQuat(m_Rot);
+	t_Matrix = t_Matrix * Float4x4FromTranslation(m_pos);
+	t_Matrix = t_Matrix * Float4x4FromQuat(m_rot);
 	t_Matrix = Float4x4Scale(t_Matrix, m_Scale);
 	return t_Matrix;
 }
@@ -63,75 +63,75 @@ struct TransformNode
 
 struct BB::TransformPool_inst
 {
-	TransformPool_inst(Allocator a_system_allocator, const uint32_t a_TransformCount)
-		:	systemAllocator(a_system_allocator)
+	TransformPool_inst(Allocator a_system_allocator, const uint32_t a_transform_count)
+		:	system_allocator(a_system_allocator)
 	{
-		transformCount = a_TransformCount;
-		nextFreeTransform = 0;
-		transforms = reinterpret_cast<TransformNode*>(BBalloc(a_system_allocator, sizeof(TransformNode) * a_TransformCount));
-		for (size_t i = 0; i < static_cast<size_t>(transformCount - 1); i++)
+		transform_count = a_transform_count;
+		next_free_transform = 0;
+		transforms = reinterpret_cast<TransformNode*>(BBalloc(a_system_allocator, sizeof(TransformNode) * a_transform_count));
+		for (size_t i = 0; i < static_cast<size_t>(transform_count - 1); i++)
 		{
 			transforms[i].next = static_cast<uint32_t>(i + 1);
 			transforms[i].generation = 1;
 		}
 
-		transforms[transformCount - 1].next = UINT32_MAX;
-		transforms[transformCount - 1].generation = 1;
-	};
+		transforms[transform_count - 1].next = UINT32_MAX;
+		transforms[transform_count - 1].generation = 1;
+	}
 
-	Allocator systemAllocator;
+	Allocator system_allocator;
 
-	uint32_t transformCount;
-	uint32_t nextFreeTransform;
+	uint32_t transform_count;
+	uint32_t next_free_transform;
 
 	TransformNode* transforms;
 };
 
-TransformPool::TransformPool(Allocator a_system_allocator, const uint32_t a_MatrixSize)
+TransformPool::TransformPool(Allocator a_system_allocator, const uint32_t a_matrix_size)
 {
-	inst = BBnew(a_system_allocator, TransformPool_inst)(a_system_allocator, a_MatrixSize);
+	inst = BBnew(a_system_allocator, TransformPool_inst)(a_system_allocator, a_matrix_size);
 }
 
 TransformPool::~TransformPool()
 {
-	Allocator t_Allocator = inst->systemAllocator;
+	Allocator t_Allocator = inst->system_allocator;
 	BBfree(t_Allocator, inst);
 }
 
-TransformHandle TransformPool::CreateTransform(const float3 a_Position)
+TransformHandle TransformPool::CreateTransform(const float3 a_position)
 {
-	const uint32_t t_TransformIndex = inst->nextFreeTransform;
-	TransformNode* node = &inst->transforms[t_TransformIndex];
-	inst->nextFreeTransform = node->next;
+	const uint32_t transform_index = inst->next_free_transform;
+	TransformNode* node = &inst->transforms[transform_index];
+	inst->next_free_transform = node->next;
 
 	//WILL OVERWRITE node->next due to it being a union.
-	new (&node->transform) Transform(a_Position);
+	new (&node->transform) Transform(a_position);
 
-	return TransformHandle(t_TransformIndex, node->generation);
+	return TransformHandle(transform_index, node->generation);
 }
 
-TransformHandle TransformPool::CreateTransform(const float3 a_Position, const float3 a_Axis, const float a_Radians)
+TransformHandle TransformPool::CreateTransform(const float3 a_position, const float3 a_axis, const float a_radians)
 {
-	const uint32_t t_TransformIndex = inst->nextFreeTransform;
-	TransformNode* node = &inst->transforms[t_TransformIndex];
-	inst->nextFreeTransform = node->next;
+	const uint32_t transform_index = inst->next_free_transform;
+	TransformNode* node = &inst->transforms[transform_index];
+	inst->next_free_transform = node->next;
 
 	//WILL OVERWRITE node->next due to it being a union.
-	new (&node->transform) Transform(a_Position, a_Axis, a_Radians);
+	new (&node->transform) Transform(a_position, a_axis, a_radians);
 
-	return TransformHandle(t_TransformIndex, node->generation);
+	return TransformHandle(transform_index, node->generation);
 }
 
-TransformHandle TransformPool::CreateTransform(const float3 a_Position, const float3 a_Axis, const float a_Radians, const float3 a_Scale)
+TransformHandle TransformPool::CreateTransform(const float3 a_position, const float3 a_axis, const float a_radians, const float3 a_scale)
 {
-	const uint32_t t_TransformIndex = inst->nextFreeTransform;
-	TransformNode* node = &inst->transforms[t_TransformIndex];
-	inst->nextFreeTransform = node->next;
+	const uint32_t transform_index = inst->next_free_transform;
+	TransformNode* node = &inst->transforms[transform_index];
+	inst->next_free_transform = node->next;
 
 	//WILL OVERWRITE node->next due to it being a union.
-	new (&node->transform) Transform(a_Position, a_Axis, a_Radians, a_Scale);
+	new (&node->transform) Transform(a_position, a_axis, a_radians, a_scale);
 
-	return TransformHandle(t_TransformIndex, node->generation);
+	return TransformHandle(transform_index, node->generation);
 }
 
 void TransformPool::FreeTransform(const TransformHandle a_handle)
@@ -152,5 +152,5 @@ Transform& TransformPool::GetTransform(const TransformHandle a_handle) const
 
 uint32_t TransformPool::PoolSize() const
 {
-	return inst->transformCount;
+	return inst->transform_count;
 }

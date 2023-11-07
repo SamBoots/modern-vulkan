@@ -8,7 +8,7 @@ const wchar* BB::g_program_name;
 const char* BB::g_ExePath;
 
 #ifdef _DEBUG
-OSFileHandle BB::g_AllocationLogFile = BB_INVALID_HANDLE;
+OSFileHandle BB::g_AllocationLogFile;
 #endif //_DEBUG
 
 void BB::InitBB(const BBInitInfo& a_BBInfo)

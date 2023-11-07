@@ -7,22 +7,22 @@ namespace BB
 	class Transform
 	{
 	public:
-		Transform(const float3 a_Position);
-		Transform(const float3 a_Position, const float3 a_Axis, const float a_Radians);
-		Transform(const float3 a_Position, const float3 a_Axis, const float a_Radians, const float3 a_Scale);
+		Transform(const float3 a_position);
+		Transform(const float3 a_position, const float3 a_axis, const float a_radians);
+		Transform(const float3 a_position, const float3 a_axis, const float a_radians, const float3 a_scale);
 
-		void Translate(const float3 a_Translation);
-		void Rotate(const float3 a_Axis, const float a_Radians);
+		void Translate(const float3 a_translation);
+		void Rotate(const float3 a_axis, const float a_radians);
 
-		void SetPosition(const float3 a_Position);
-		void SetRotation(const float3 a_Axis, const float a_Radians);
-		void SetScale(const float3 a_Scale);
+		void SetPosition(const float3 a_position);
+		void SetRotation(const float3 a_axis, const float a_radians);
+		void SetScale(const float3 a_scale);
 
 		const float4x4 CreateMatrix();
 
 		//44 bytes class
-		float3 m_Pos; //12
-		Quat m_Rot; //28
+		float3 m_pos; //12
+		Quat m_rot; //28
 		float3 m_Scale; //40
 	};
 
@@ -39,9 +39,9 @@ namespace BB
 		TransformPool(Allocator a_system_allocator, const uint32_t a_MatrixSize);
 		~TransformPool();
 
-		TransformHandle CreateTransform(const float3 a_Position);
-		TransformHandle CreateTransform(const float3 a_Position, const float3 a_Axis, const float a_Radians);
-		TransformHandle CreateTransform(const float3 a_Position, const float3 a_Axis, const float a_Radians, const float3 a_Scale);
+		TransformHandle CreateTransform(const float3 a_position);
+		TransformHandle CreateTransform(const float3 a_position, const float3 a_axis, const float a_radians);
+		TransformHandle CreateTransform(const float3 a_position, const float3 a_axis, const float a_radians, const float3 a_scale);
 		void FreeTransform(const TransformHandle a_handle);
 		Transform& GetTransform(const TransformHandle a_handle) const;
 

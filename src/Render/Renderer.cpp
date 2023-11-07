@@ -41,7 +41,7 @@ class GPUTextureManager
 public:
 	GPUTextureManager()
 	{
-		const uint32_t purple = (209 << 24) | (106 << 16) | (255 << 8) | (255 << 0);
+		const uint32_t purple = (209u << 24u) | (106u << 16u) | (255u << 8u) | (255u << 0u);
 
 
 		//texture 0 is always the debug texture.
@@ -89,6 +89,8 @@ public:
 				break;
 			default:
 				BB_ASSERT(false, "Unsupported bit_count for upload image");
+				image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+				byte_per_pixel = 4;
 				break;
 			}
 
@@ -593,18 +595,18 @@ struct RenderInterface_inst
 
 static RenderInterface_inst* s_render_inst;
 
-CommandPool* current_use_pool;
-RCommandList current_command_list;
+static CommandPool* current_use_pool;
+static RCommandList current_command_list;
 
-RPipeline test_pipeline;
-ShaderObject vertex_object;
-ShaderObject fragment_object;
-RDescriptorLayout global_descriptor_layout;
-RDescriptorLayout frame_descriptor_layout;
-RPipelineLayout pipeline_layout;
-RDepthBuffer depth_buffer;
+static RPipeline test_pipeline;
+static ShaderObject vertex_object;
+static ShaderObject fragment_object;
+static RDescriptorLayout global_descriptor_layout;
+static RDescriptorLayout frame_descriptor_layout;
+static RPipelineLayout pipeline_layout;
+static RDepthBuffer depth_buffer;
 
-BufferView AllocateFromVertexBuffer(const size_t a_size_in_bytes)
+static BufferView AllocateFromVertexBuffer(const size_t a_size_in_bytes)
 {
 	BufferView view;
 
@@ -617,7 +619,7 @@ BufferView AllocateFromVertexBuffer(const size_t a_size_in_bytes)
 	return view;
 }
 
-BufferView AllocateFromIndexBuffer(const size_t a_size_in_bytes)
+static BufferView AllocateFromIndexBuffer(const size_t a_size_in_bytes)
 {
 	BufferView view;
 

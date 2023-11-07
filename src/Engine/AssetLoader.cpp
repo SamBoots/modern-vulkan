@@ -10,7 +10,7 @@
 
 BB_WARNINGS_OFF
 #define CGLTF_IMPLEMENTATION
-#include "cgltf/cgltf.h"
+#include "cgltf.h"
 BB_WARNINGS_ON
 
 using namespace BB;
@@ -208,7 +208,7 @@ static void LoadglTFNode(Allocator a_temp_allocator, const cgltf_node& a_node, M
 const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const char* a_path)
 {
 	cgltf_options gltf_option = {};
-	cgltf_data* gltf_data = { 0 };
+	cgltf_data* gltf_data = nullptr;
 
 	BB_ASSERT(cgltf_parse_file(&gltf_option, a_path, &gltf_data) == cgltf_result_success, "Failed to load glTF model, cgltf_parse_file.");
 

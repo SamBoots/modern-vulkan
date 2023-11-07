@@ -11,4 +11,4 @@ add_library(IMGUI STATIC
     "imgui_widgets.cpp"
 	"imgui_tables.cpp")
 
-target_include_directories(IMGUI PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(IMGUI SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
