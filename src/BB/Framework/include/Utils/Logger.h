@@ -35,13 +35,13 @@ namespace BB
 	}
 }
 
-#define BB_LOG(a_msg) BB::Logger::Log_Message(__FILE__, __LINE__, "s", a_msg) \
+#define BB_LOG(a_msg) BB::Logger::Log_Message(__FILE__, __LINE__, "s", a_msg) 
 
 #ifdef _DEBUG
 		/*  Check for unintented behaviour at compile time, if a_Check is false the program will stop and post a message.
 			@param a_Check, If false the program will print the message and assert.
 			@param a_msg, The message that will be printed. */
-#define BB_STATIC_ASSERT(a_Check, a_msg) static_assert(a_Check, a_msg)\
+#define BB_STATIC_ASSERT(a_Check, a_msg) static_assert(a_Check, a_msg)
 
 			/*  Check for unintented behaviour at runetime, if a_Check is false the program will stop and post a message.
 			@param a_Check, If false the program will print the message and assert.

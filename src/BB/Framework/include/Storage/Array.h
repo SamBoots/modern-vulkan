@@ -13,10 +13,11 @@ namespace BB
 	};
 
 	template<typename T>
-	struct Array
+	class Array
 	{
 		static constexpr bool trivialDestructible_T = std::is_trivially_destructible_v<T>;
 
+	public:
 		struct Iterator
 		{
 			//Iterator idea from:

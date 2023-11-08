@@ -6,6 +6,8 @@
 
 #include "ShaderCompiler.h"
 
+#include "Storage/LinkedList.h"
+
 #include "Math.inl"
 
 using namespace BB;
@@ -17,7 +19,7 @@ struct RenderFence
 	RFence fence;
 };
 
-struct UploadBufferView
+struct UploadBufferView : public LinkedListNode<UploadBufferView>
 {
 	friend class UploadBufferPool;
 	RBuffer upload_buffer_handle;	//8
@@ -26,7 +28,7 @@ struct UploadBufferView
 	uint32_t offset;				//20
 	uint32_t size;					//24
 	uint64_t fence_value;			//32
-	UploadBufferView* next;			//40
+	//LinkedListNode holds next, so //40
 
 	void MemoryCopy(void* a_src, const uint32_t a_byte_offset, const uint32_t a_byte_size) const
 	{
@@ -213,7 +215,7 @@ public:
 	UploadBufferView* GetUploadView(const char* a_pool_name = "")
 	{
 		OSAcquireSRWLockWrite(&m_lock);
-		UploadBufferView* view = BB_SLL_POP(m_free_views);
+		UploadBufferView* view = m_free_views.Pop();
 		//TODO, handle nullptr, maybe just wait or do the reset here?
 		OSReleaseSRWLockWrite(&m_lock);
 		return view;
@@ -237,20 +239,20 @@ public:
 	{
 		a_view->fence_value = a_fence_value;
 		OSAcquireSRWLockWrite(&m_in_flight_lock);
-		BB_SLL_PUSH(m_in_flight_views, a_view);
+		m_in_flight_views.Push(a_view);
 		OSReleaseSRWLockWrite(&m_in_flight_lock);
 	}
 
 	void CheckIfInFlightDone()
 	{
-		UploadBufferView* local_view_free = nullptr;
+		LinkedList<UploadBufferView> local_view_free{};
 
 		//lock as a write can be attempetd in m_in_flight_pools.
 		OSAcquireSRWLockWrite(&m_in_flight_lock);
 		m_last_completed_fence_value = Vulkan::GetCurrentFenceValue(m_fence);
 
-		//Thank you Descent Raytracer teammates great code that I can steal
-		for (UploadBufferView** in_flight_views = &m_in_flight_views; *in_flight_views;)
+		//Thank you Descent Raytracer teammates for the great code that I can steal
+		for (UploadBufferView** in_flight_views = &m_in_flight_views.head; *in_flight_views;)
 		{
 			UploadBufferView* view = *in_flight_views;
 
@@ -258,7 +260,7 @@ public:
 			{
 				//Get next in-flight commandlist
 				*in_flight_views = view->next;
-				BB_SLL_PUSH(local_view_free, view);
+				local_view_free.Push(view);
 			}
 			else
 			{
@@ -266,17 +268,9 @@ public:
 			}
 		}
 
-		if (local_view_free)
-		{
-			//jank, find better way to do this.
-			UploadBufferView* local_view_end = local_view_free;
-			while (local_view_end->next != nullptr)
-			{
-				local_view_end = local_view_end->next;
-			}
-			local_view_end->next = m_free_views;
-			m_free_views = local_view_free;
-		}
+		if (local_view_free.HasEntry())
+			m_free_views.MergeList(local_view_free);
+
 		OSReleaseSRWLockWrite(&m_in_flight_lock);
 	}
 
@@ -286,8 +280,8 @@ private:
 
 	const uint32_t m_upload_view_count;	  //24
 	UploadBufferView* m_views;			  //32
-	UploadBufferView* m_free_views;		  //40
-	UploadBufferView* m_in_flight_views;  //48
+	LinkedList<UploadBufferView> m_free_views;		  //40
+	LinkedList<UploadBufferView> m_in_flight_views;  //48
 	BBRWLock m_in_flight_lock;		      //56
 	BBRWLock m_lock;					  //64
 
@@ -298,7 +292,7 @@ private:
 };
 
 //get one pool per thread
-class CommandPool
+class CommandPool : public LinkedListNode<CommandPool>
 {
 	friend class RenderQueue;
 	uint32_t m_list_count; //4 
@@ -306,7 +300,7 @@ class CommandPool
 	RCommandList* m_lists; //16
 	uint64_t m_fence_value; //24
 	RCommandPool m_api_cmd_pool; //32
-	CommandPool* next; //40 
+	//LinkedListNode has next ptr value //40 
 	bool m_recording; //44
 	BB_PAD(4); //48
 public:
@@ -383,8 +377,7 @@ public:
 	CommandPool* GetCommandPool(const char* a_pool_name = "")
 	{
 		OSAcquireSRWLockWrite(&m_lock);
-		BB_ASSERT(m_free_pools, "pool is a nullptr, no more pools left!");
-		CommandPool* pool = BB_SLL_POP(m_free_pools);
+		CommandPool* pool = m_free_pools.Pop();
 		OSReleaseSRWLockWrite(&m_lock);
 		return pool;
 	}
@@ -393,7 +386,7 @@ public:
 	{
 		OSAcquireSRWLockWrite(&m_in_flight_lock);
 		a_pool->m_fence_value = m_fence.next_fence_value;
-		BB_SLL_PUSH(m_in_flight_pools, a_pool);
+		m_in_flight_pools.Push(a_pool);
 		OSReleaseSRWLockWrite(&m_in_flight_lock);
 	}
 
@@ -456,15 +449,14 @@ public:
 	//void ExecutePresentCommands(CommandList* a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const RENDER_PIPELINE_STAGE* a_WaitStages, const uint32_t a_FenceCount);
 	void WaitFenceValue(const uint64_t a_fence_value)
 	{
-		CommandPool* local_list_free = nullptr;
-
-		//lock as a write can be attempetd in m_in_flight_pools.
+		LinkedList<CommandPool> local_list_free;
 
 		Vulkan::WaitFence(m_fence.fence, a_fence_value);
 
+		//lock as a write can be attempetd in m_in_flight_pools.
 		OSAcquireSRWLockWrite(&m_in_flight_lock);
 		//Thank you Descent Raytracer teammates great code that I can steal
-		for (CommandPool** in_flight_command_polls = &m_in_flight_pools; *in_flight_command_polls;)
+		for (CommandPool** in_flight_command_polls = &m_in_flight_pools.head; *in_flight_command_polls;)
 		{
 			CommandPool* command_pool = *in_flight_command_polls;
 
@@ -474,7 +466,7 @@ public:
 
 				//Get next in-flight commandlist
 				*in_flight_command_polls = command_pool->next;
-				BB_SLL_PUSH(local_list_free, command_pool);
+				local_list_free.Push(command_pool);
 			}
 			else
 			{
@@ -482,17 +474,9 @@ public:
 			}
 		}
 
-		if (local_list_free)
-		{
-			//jank, find better way to do this.
-			CommandPool* local_list_end = local_list_free;
-			while (local_list_end->next != nullptr)
-			{
-				local_list_end = local_list_end->next;
-			}
-			local_list_end->next = m_free_pools;
-			m_free_pools = local_list_free;
-		}
+		if (local_list_free.HasEntry())
+			m_free_pools.MergeList(local_list_free);
+
 		OSReleaseSRWLockWrite(&m_in_flight_lock);
 	}
 
@@ -510,8 +494,8 @@ private:
 	BBRWLock m_lock; //12
 	const uint32_t m_pool_count; //16
 	CommandPool* m_pools; //24
-	CommandPool* m_free_pools; //32 
-	CommandPool* m_in_flight_pools = nullptr; //40
+	LinkedList<CommandPool> m_free_pools; //32 
+	LinkedList<CommandPool> m_in_flight_pools; //40
 	BBRWLock m_in_flight_lock; //48
 
 	RQueue m_queue;//56 
@@ -734,7 +718,7 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		pipe_info.fragment.shader_entry = "FragmentMain";
 
 		pipe_info.depth_format = DEPTH_FORMAT::D24_UNORM_S8_UINT;
-		test_pipeline = Vulkan::CreatePipeline(a_stack_allocator, pipe_info);
+		test_pipeline = Vulkan::CreatePipeline(pipe_info);
 
 		ReleaseShaderCode(vertex_shader);
 		ReleaseShaderCode(fragment_shader);
@@ -1006,7 +990,8 @@ void BB::FreeMesh(const MeshHandle a_mesh)
 
 const RTexture BB::UploadTexture(const UploadImageInfo& a_upload_info)
 {
-	return s_render_inst->texture_manager.UploadTexture(a_upload_info);
+	UploadBufferView view; //COMPILE HACK
+	return s_render_inst->texture_manager.UploadTexture(a_upload_info, 0, view, 0);
 }
 
 void BB::FreeTexture(const RTexture a_texture)

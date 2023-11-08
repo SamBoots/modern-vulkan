@@ -49,11 +49,7 @@ namespace BB
 	using FreelistAllocator_t = allocators::FreelistAllocator;
 	using POW_FreelistAllocator_t = allocators::POW_FreelistAllocator;
 
-//Thank you Descent Raytracer teammates great code that I can steal
-#define BB_SLL_PUSH(head, node) ((node)->next = (head), (head) = (node))
-#define BB_SLL_POP(head) head; do { (head) = (head)->next; } while(0)
-
-	constexpr const uint64_t BB_INVALID_HANDLE = 0;
+	constexpr const uint64_t BB_INVALID_HANDLE = UINT64_MAX;
 
 	template<typename Tag>
 	union FrameworkHandle
