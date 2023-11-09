@@ -11,6 +11,8 @@ namespace BB
 		_InterlockedIncrement64(a_value);
 	}
 
+#define BB_USE_SIMD
+
 #ifdef BB_USE_SIMD
 	using VecFloat4 = __m128;
 	using VecInt4 = __m128;
@@ -52,7 +54,7 @@ namespace BB
 	static inline VecFloat4 LoadFloat4(const float a_x, const float a_y, const float a_z, const float a_w)
 	{
 #ifdef BB_USE_SIMD
-		return _mm_set_ps(a_x, a_y, a_z, a_w);
+		return _mm_setr_ps(a_x, a_y, a_z, a_w);
 #else
 		return VecFloat4{ a_x, a_y, a_z, a_w };
 #endif
