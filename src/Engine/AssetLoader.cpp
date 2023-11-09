@@ -49,7 +49,7 @@ struct AssetManager
 	FreelistAllocator_t allocator{ mbSize * 64, "asset manager allocator" };
 
 	OL_HashMap<uint64_t, AssetSlot> asset_map{ allocator, 64 };
-	OL_HashMap<uint64_t, char*> stringMap{ allocator, 128 };
+	OL_HashMap<uint64_t, char*> string_map{ allocator, 128 };
 };
 static AssetManager s_asset_manager{};
 
@@ -58,7 +58,7 @@ using namespace BB;
 char* Asset::FindOrCreateString(const char* a_string)
 {
 	const uint64_t stringHash = StringHash(a_string);
-	char** stringPtr = s_asset_manager.stringMap.find(stringHash);
+	char** stringPtr = s_asset_manager.string_map.find(stringHash);
 	if (stringPtr != nullptr)
 		return *stringPtr;
 
@@ -66,7 +66,7 @@ char* Asset::FindOrCreateString(const char* a_string)
 	char* string = BBnewArr(s_asset_manager.allocator, stringSize, char);
 	memcpy(string, a_string, stringSize);
 	string[stringSize - 1] = '\0';
-	s_asset_manager.stringMap.emplace(stringHash, string);
+	s_asset_manager.string_map.emplace(stringHash, string);
 	return string;
 }
 

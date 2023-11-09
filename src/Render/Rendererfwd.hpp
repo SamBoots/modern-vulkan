@@ -9,6 +9,7 @@ namespace BB
 
 	using RCommandPool = FrameworkHandle<struct RCommandPoolTag>;
 	using RCommandList = FrameworkHandle<struct RCommandListTag>;
+	using RUploadView = FrameworkHandle<struct RUploadViewTag>;
 
 	using ShaderCode = FrameworkHandle<struct ShdaerCodeTag>;
 	using ShaderObject = FrameworkHandle<struct ShaderObjectTag>;

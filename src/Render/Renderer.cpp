@@ -62,7 +62,7 @@ public:
 		textures[MAX_TEXTURES - 1].next_free = UINT32_MAX;
 	}
 
-	const RTexture UploadTexture(const UploadImageInfo& a_upload_info, const RCommandList a_list, const UploadBufferView& a_upload_buffer, uint32_t a_upload_buffer_offset)
+	const RTexture UploadTexture(const UploadImageInfo& a_upload_info, const RCommandList a_list, const UploadBufferView* a_upload_buffer, uint32_t a_upload_buffer_offset)
 	{
 		OSAcquireSRWLockWrite(&lock);
 		const RTexture texture_slot = next_free;
@@ -109,12 +109,12 @@ public:
 
 		//now upload the image.
 
-		a_upload_buffer.MemoryCopy(a_upload_info.pixels, a_upload_buffer_offset, byte_per_pixel);
+		a_upload_buffer->MemoryCopy(a_upload_info.pixels, a_upload_buffer_offset, byte_per_pixel);
 
 
 		RenderCopyBufferToImageInfo buffer_to_image;
-		buffer_to_image.src_buffer = a_upload_buffer.upload_buffer_handle;
-		buffer_to_image.src_offset = a_upload_buffer.offset + a_upload_buffer_offset;
+		buffer_to_image.src_buffer = a_upload_buffer->upload_buffer_handle;
+		buffer_to_image.src_offset = a_upload_buffer->offset + a_upload_buffer_offset;
 		a_upload_buffer_offset += byte_per_pixel;
 
 		buffer_to_image.dst_image = slot.image;
@@ -946,6 +946,12 @@ void BB::SetProjection(const float4x4& a_proj)
 	s_render_inst->scene_info.proj = a_proj;
 }
 
+RUploadView BB::GetUploadView(const size_t a_upload_size)
+{
+	UploadBufferView* view = s_render_inst->upload_buffers.GetUploadView();
+	return RUploadView(reinterpret_cast<uintptr_t>(view));
+}
+
 const MeshHandle BB::CreateMesh(const CreateMeshInfo& a_create_info)
 {
 	Mesh mesh;
@@ -988,10 +994,11 @@ void BB::FreeMesh(const MeshHandle a_mesh)
 	s_render_inst->mesh_map.erase(a_mesh.handle);
 }
 
-const RTexture BB::UploadTexture(const UploadImageInfo& a_upload_info)
+//maybe not handle a_upload_view_offset
+const RTexture BB::UploadTexture(const UploadImageInfo& a_upload_info, const RCommandList a_list, const RUploadView a_upload_view, const uint32_t a_upload_view_offset)
 {
 	UploadBufferView view; //COMPILE HACK
-	return s_render_inst->texture_manager.UploadTexture(a_upload_info, 0, view, 0);
+	return s_render_inst->texture_manager.UploadTexture(a_upload_info, a_list, reinterpret_cast<const UploadBufferView*>(a_upload_view.handle), a_upload_view_offset);
 }
 
 void BB::FreeTexture(const RTexture a_texture)

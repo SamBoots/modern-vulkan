@@ -43,10 +43,12 @@ namespace BB
 	void SetView(const float4x4& a_view);
 	void SetProjection(const float4x4& a_projection);
 
+	RUploadView GetUploadView(const size_t a_upload_size);
+
 	const MeshHandle CreateMesh(const CreateMeshInfo& a_create_info);
 	void FreeMesh(const MeshHandle a_mesh);
 
-	const RTexture UploadTexture(const UploadImageInfo& a_upload_info);
+	const RTexture UploadTexture(const UploadImageInfo& a_upload_info, const RCommandList a_list, const RUploadView a_upload_view, const uint32_t a_upload_view_offset);
 	void FreeTexture(const RTexture a_texture);
 
 	void DrawMesh(const MeshHandle a_mesh, const float4x4& a_transform);
