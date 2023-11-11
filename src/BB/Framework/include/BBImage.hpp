@@ -24,6 +24,11 @@ namespace BB
 		void WriteAsBMP(const char* a_file_path);
 		void WriteAsTARGA(const char* a_file_path);
 
+		uint32_t GetWidth() const { return m_width; }
+		uint32_t GetHeight() const { return m_height; }
+		uint32_t GetBitCount() const { return m_bit_count; }
+		const void* GetPixels() const { return reinterpret_cast<const void*>(m_pixels); }
+
 	private:
 		static const uint32_t m_bit_count = 32;
 		uint32_t m_width;

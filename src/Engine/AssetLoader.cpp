@@ -3,10 +3,14 @@
 
 #include "Storage/Hashmap.h"
 
+#include "BBImage.hpp"
+
 #include "Math.inl"
 
 #include "shared_common.hlsl.h"
 #include "Renderer.hpp"
+
+#include "BBIntrin.h"
 
 BB_WARNINGS_OFF
 #define CGLTF_IMPLEMENTATION
@@ -19,12 +23,33 @@ using namespace BB;
 static uint64_t StringHash(const char* a_string)
 {
 	uint64_t hash = 5381;
-	int c;
+	uint32_t c;
 
-	while (c = *a_string++)
+	while ((c = *reinterpret_cast<const uint8_t*>(a_string++)))
 		hash = ((hash << 5) + hash) + c;
 
 	return hash;
+}
+
+static uint64_t TurboCrappyImageHash(const void* a_pixels, const size_t a_byte_size)
+{
+	size_t remaining = a_byte_size;
+	VecUint4 b128_hash = LoadUint4Zero();
+
+	const size_t diff = Pointer::AlignForwardAdjustment(a_pixels, sizeof(VecUint4));
+	a_pixels = Pointer::Add(a_pixels, diff);
+
+	while (remaining >= sizeof(VecUint4))
+	{
+		b128_hash = AddUint4(b128_hash, LoadUint4(reinterpret_cast<const uint32_t*>(a_pixels)));
+
+		a_pixels = Pointer::Add(a_pixels, sizeof(VecUint4));
+		remaining -= sizeof(VecUint4);
+	}
+
+	const uint64_t* b128_to_b64 = reinterpret_cast<const uint64_t*>(&b128_hash);
+
+	return b128_to_b64[0] + b128_to_b64[1];
 }
 
 enum class ASSET_TYPE : uint32_t
@@ -41,6 +66,7 @@ struct AssetSlot
 	union
 	{
 		Model* model;
+		Image* image;
 	};
 };
 
@@ -68,6 +94,35 @@ char* Asset::FindOrCreateString(const char* a_string)
 	string[stringSize - 1] = '\0';
 	s_asset_manager.string_map.emplace(stringHash, string);
 	return string;
+}
+
+const Image* Asset::LoadImage(const BB::BBImage& a_image, const char* a_name)
+{
+	UploadImageInfo upload_image_info;
+	upload_image_info.name = a_name;
+	upload_image_info.pixels = a_image.GetPixels();
+	upload_image_info.width = a_image.GetWidth();
+	upload_image_info.height = a_image.GetWidth();
+	upload_image_info.bit_count = a_image.GetBitCount();
+
+	RImage gpu_image = UploadTexture(upload_image_info, );
+
+	Image* image = BBnew(s_asset_manager.allocator, Image);
+	image->width = upload_image_info.width;
+	image->height = upload_image_info.height;
+	image->pixels = upload_image_info.pixels;
+	image->gpu_image = gpu_image;
+
+	AssetSlot asset;
+	asset.type = ASSET_TYPE::TEXTURE;
+	asset.path = nullptr;//FindOrCreateString(a_path);
+	asset.hash = TurboCrappyImageHash(image->pixels, image->width + image->height + (a_image.GetBitCount() / 8));
+	asset.image = image;
+
+	BB_ASSERT(asset.hash != 0, "Image hashing failed");
+	s_asset_manager.asset_map.insert(asset.hash, asset);
+
+	image->asset_handle = asset.hash;
 }
 
 static inline void* GetAccessorDataPtr(const cgltf_accessor* a_Accessor)
