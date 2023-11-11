@@ -1,7 +1,5 @@
 #pragma once
 
-//don't care about uninitialized variable warnings
-#pragma warning(suppress : 26495) 
 #include "Rendererfwd.hpp"
 #include "Slice.h"
 
@@ -283,5 +281,3 @@ namespace BB
 		BB::Slice<WriteDescriptorData> data;
 	};
 }
-
-#pragma warning(default : 26495) 

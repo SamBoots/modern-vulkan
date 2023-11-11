@@ -30,7 +30,7 @@ struct UploadBufferView : public LinkedListNode<UploadBufferView>
 	uint64_t fence_value;			//32
 	//LinkedListNode holds next, so //40
 
-	void MemoryCopy(void* a_src, const uint32_t a_byte_offset, const uint32_t a_byte_size) const
+	void MemoryCopy(const void* a_src, const uint32_t a_byte_offset, const uint32_t a_byte_size) const
 	{
 		memcpy(Pointer::Add(view_mem_start, a_byte_offset), a_src, a_byte_size);
 	}
@@ -44,7 +44,6 @@ public:
 	GPUTextureManager()
 	{
 		const uint32_t purple = (209u << 24u) | (106u << 16u) | (255u << 8u) | (255u << 0u);
-
 
 		//texture 0 is always the debug texture.
 		textures[0].image = debug_texture;
@@ -65,7 +64,7 @@ public:
 	const RTexture UploadTexture(const UploadImageInfo& a_upload_info, const RCommandList a_list, const UploadBufferView* a_upload_buffer, uint32_t a_upload_buffer_offset)
 	{
 		OSAcquireSRWLockWrite(&lock);
-		const RTexture texture_slot = next_free;
+		const RTexture texture_slot = RTexture(next_free);
 		TextureSlot& slot = textures[texture_slot.handle];
 		next_free = slot.next_free;
 		OSReleaseSRWLockWrite(&lock);

@@ -41,7 +41,7 @@ static void ThreadStartFunc(void* a_args)
 
 struct Thread
 {
-	OSThreadHandle  os_thread_handle;
+	OSThreadHandle os_thread_handle{};
 	ThreadInfo thread_info; //used to send functions to threads
 };
 
@@ -117,7 +117,7 @@ ThreadTask BB::Threads::StartTaskThread(void(*a_Function)(void*), void* a_FuncPa
 		}
 	}
 	BB_ASSERT(false, "No free threads! Maybe implement a way to just re-iterate over the list again.");
-	return 0;
+	return ThreadTask(BB_INVALID_HANDLE);
 }
 
 void BB::Threads::WaitForTask(const ThreadTask a_handle)

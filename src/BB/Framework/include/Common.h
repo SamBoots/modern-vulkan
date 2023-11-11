@@ -55,8 +55,15 @@ namespace BB
 	union FrameworkHandle
 	{
 		constexpr FrameworkHandle() : handle(BB_INVALID_HANDLE) {}
-		constexpr FrameworkHandle(uint64_t a_handle) : handle(a_handle) {}
-		constexpr FrameworkHandle(unsigned int a_index, unsigned int a_extra_index) : index(a_index), extra_index(a_extra_index) {}
+		constexpr explicit FrameworkHandle(const uint64_t a_handle) : handle(a_handle) {}
+		constexpr explicit FrameworkHandle(unsigned int a_index, unsigned int a_extra_index) : index(a_index), extra_index(a_extra_index) {}
+
+		FrameworkHandle operator=(const uint64_t a_handle)
+		{
+			handle = a_handle;
+			return *this;
+		}
+
 		struct
 		{
 			//The handle's main index. Always used and is the main handle.
@@ -86,7 +93,7 @@ namespace BB
 	struct FrameworkHandle32Bit
 	{
 		constexpr FrameworkHandle32Bit() : handle(BB_INVALID_HANDLE) {}
-		constexpr FrameworkHandle32Bit(uint32_t a_handle) : handle(a_handle) {}
+		constexpr explicit FrameworkHandle32Bit(uint32_t a_handle) : handle(a_handle) {}
 		uint32_t handle;
 
 		inline bool operator ==(FrameworkHandle32Bit a_rhs) const { return handle == a_rhs.handle; }

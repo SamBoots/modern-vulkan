@@ -1,7 +1,5 @@
 #pragma once
 
-//don't care about uninitialized variable warnings
-#pragma warning(suppress : 26495) 
 #include "Common.h"
 #include "Rendererfwd.hpp"
 #include "Slice.h"
@@ -29,7 +27,7 @@ namespace BB
 	struct UploadImageInfo
 	{
 		const char* name;
-		void* pixels;
+		const void* pixels;
 		uint32_t bit_count;
 		uint32_t width;
 		uint32_t height;
@@ -53,5 +51,3 @@ namespace BB
 
 	void DrawMesh(const MeshHandle a_mesh, const float4x4& a_transform);
 }
-
-#pragma warning(default : 26495) 

@@ -152,13 +152,13 @@ static LRESULT CALLBACK WindowProc(HWND a_hwnd, UINT a_msg, WPARAM a_wparam, LPA
 	case WM_QUIT:
 		break;
 	case WM_DESTROY:
-		s_pfn_close_event(reinterpret_cast<uintptr_t>(a_hwnd));
+		s_pfn_close_event(WindowHandle(reinterpret_cast<uint64_t>(a_hwnd)));
 		break;
 	case WM_SIZE:
 	{
 		uint32_t x = static_cast<uint32_t>(LOWORD(a_lparam));
 		uint32_t y = static_cast<uint32_t>(HIWORD(a_lparam));
-		s_pfn_resize_event(reinterpret_cast<uintptr_t>(a_hwnd), x, y);
+		s_pfn_resize_event(WindowHandle(reinterpret_cast<uint64_t>(a_hwnd)), x, y);
 		break;
 	}
 	case WM_MOUSELEAVE:
@@ -563,7 +563,7 @@ void BB::OSDestroySemaphore(const BBSemaphore a_semaphore)
 
 BBRWLock BB::OSCreateRWLock()
 {
-	return SRWLOCK_INIT;
+	return BBRWLock(SRWLOCK_INIT);
 }
 
 void BB::OSAcquireSRWLockRead(BBRWLock* a_lock)
@@ -588,7 +588,7 @@ void BB::OSReleaseSRWLockWrite(BBRWLock* a_lock)
 
 BBConditionalVariable BB::OSCreateConditionalVariable()
 {
-	return CONDITION_VARIABLE_INIT;
+	return BBConditionalVariable(CONDITION_VARIABLE_INIT);
 }
 
 void BB::OSWaitConditionalVariableShared(BBConditionalVariable* a_condition, BBRWLock* a_lock)
