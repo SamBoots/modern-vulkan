@@ -1868,7 +1868,7 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 	VkRenderingAttachmentInfo depth_attachment;
 
 	//If we handle the depth stencil we do that here. 
-	if (a_render_info.depth_buffer.handle != BB_INVALID_HANDLE)
+	if (a_render_info.depth_buffer.handle != BB_INVALID_HANDLE_64)
 	{
 		const VulkanDepth& depth_buffer = s_vulkan_inst->depth_images.find(a_render_info.depth_buffer.handle);
 

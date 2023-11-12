@@ -117,7 +117,7 @@ ThreadTask BB::Threads::StartTaskThread(void(*a_Function)(void*), void* a_FuncPa
 		}
 	}
 	BB_ASSERT(false, "No free threads! Maybe implement a way to just re-iterate over the list again.");
-	return ThreadTask(BB_INVALID_HANDLE);
+	return ThreadTask(BB_INVALID_HANDLE_64);
 }
 
 void BB::Threads::WaitForTask(const ThreadTask a_handle)

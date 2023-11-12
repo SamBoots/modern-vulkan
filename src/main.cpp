@@ -19,7 +19,7 @@ static void DrawglTFNode(BB::Model::Node& a_node, const BB::float4x4& a_transfor
 {
 	BB::float4x4 local_transform = a_transform * a_node.transform;
 
-	if (a_node.mesh_handle.handle != BB::BB_INVALID_HANDLE)
+	if (a_node.mesh_handle.handle != BB::BB_INVALID_HANDLE_64)
 		BB::DrawMesh(a_node.mesh_handle, local_transform);
 	for (size_t i = 0; i < a_node.child_count; i++)
 	{

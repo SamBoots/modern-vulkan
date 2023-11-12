@@ -69,7 +69,7 @@ union AssetHash
 	};
 };
 
-AssetHash CreateAssetHash(const uint64_t a_hash, const ASSET_TYPE a_type)
+static AssetHash CreateAssetHash(const uint64_t a_hash, const ASSET_TYPE a_type)
 {
 	AssetHash hash;
 	hash.full_hash = a_hash;
@@ -267,7 +267,7 @@ static void LoadglTFNode(Allocator a_temp_allocator, const cgltf_node& a_node, M
 		mod_node.mesh_handle = CreateMesh(create_mesh);
 	}
 	else
-		mod_node.mesh_handle = MeshHandle(BB_INVALID_HANDLE);
+		mod_node.mesh_handle = MeshHandle(BB_INVALID_HANDLE_64);
 
 	mod_node.child_count = static_cast<uint32_t>(a_node.children_count);
 	if (mod_node.child_count != 0)

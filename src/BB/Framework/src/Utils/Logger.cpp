@@ -23,7 +23,7 @@ private:
 	String m_cache_string;
 	//create a fixed string class for this.
 	String m_upload_string;
-	ThreadTask m_last_thread_task = ThreadTask(BB_INVALID_HANDLE);
+	ThreadTask m_last_thread_task = ThreadTask(BB_INVALID_HANDLE_64);
 	const BBMutex m_write_to_file_mutex;
 	const OSFileHandle m_log_file;
 

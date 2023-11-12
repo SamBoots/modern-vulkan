@@ -2,6 +2,11 @@
 #include <intrin.h>
 #include <Utils.h>
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wsign-conversion"
+#endif
+
 namespace BB
 {
 	static inline void BBInterlockedIncrement64(volatile long long* a_value)
@@ -254,3 +259,7 @@ namespace BB
 #endif
 	}
 }
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif

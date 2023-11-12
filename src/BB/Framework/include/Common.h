@@ -9,7 +9,7 @@ namespace BB
 #define BB_PRAGMA(X)			_Pragma(#X)
 #define BB_PRAGMA_PACK_PUSH(n)  BB_PRAGMA(pack(push,n))
 #define BB_PRAGMA_PACK_POP()    BB_PRAGMA(pack(pop))
-#if defined(__GNUC__) || defined(__MINGW32__) || defined(__clang__) || defined(__clang_major__)
+#ifdef __clang__
 #define BB_PAD(n)   BB_PRAGMA(clang diagnostic push) \
 					BB_PRAGMA(clang diagnostic ignored "-Wunused-private-field") \
 	                unsigned char BB_CONCAT(_padding_, __LINE__)[n] \
@@ -49,16 +49,16 @@ namespace BB
 	using FreelistAllocator_t = allocators::FreelistAllocator;
 	using POW_FreelistAllocator_t = allocators::POW_FreelistAllocator;
 
-	constexpr const uint64_t BB_INVALID_HANDLE = UINT64_MAX;
+	constexpr const uint64_t BB_INVALID_HANDLE_64 = UINT64_MAX;
 
 	template<typename Tag>
 	union FrameworkHandle
 	{
-		constexpr FrameworkHandle() : handle(BB_INVALID_HANDLE) {}
+		constexpr FrameworkHandle() : handle(BB_INVALID_HANDLE_64) {}
 		constexpr explicit FrameworkHandle(const uint64_t a_handle) : handle(a_handle) {}
 		constexpr explicit FrameworkHandle(const uint32_t a_index, const uint32_t a_extra_index) : index(a_index), extra_index(a_extra_index) {}
 
-		bool IsValid() const { return handle != BB_INVALID_HANDLE; }
+		bool IsValid() const { return handle != BB_INVALID_HANDLE_64; }
 		struct
 		{
 			//The handle's main index. Always used and is the main handle.
@@ -82,10 +82,12 @@ namespace BB
 	using BBConditionalVariable = FrameworkHandle<struct BBConditionalVariableTag>;
 	using ThreadTask = FrameworkHandle<struct ThreadTasktag>;
 
+	constexpr const uint32_t BB_INVALID_HANDLE_32 = UINT32_MAX;
+
 	template<typename Tag>
 	struct FrameworkHandle32Bit
 	{
-		constexpr FrameworkHandle32Bit() : handle(BB_INVALID_HANDLE) {}
+		constexpr FrameworkHandle32Bit() : handle(BB_INVALID_HANDLE_32) {}
 		constexpr explicit FrameworkHandle32Bit(uint32_t a_handle) : handle(a_handle) {}
 		uint32_t handle;
 

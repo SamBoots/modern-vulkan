@@ -162,7 +162,7 @@ public:
 		m_upload_mem_start = Vulkan::MapBufferMemory(m_upload_buffer);
 
 		m_views = BBnewArr(a_sys_allocator, m_upload_view_count, UploadBufferView);
-		for (size_t i = 0; i < m_upload_view_count; i++)
+		for (uint32_t i = 0; i < m_upload_view_count; i++)
 		{
 			m_views[i].upload_buffer_handle = m_upload_buffer;
 			m_views[i].size = static_cast<uint32_t>(a_size_per_pool);
