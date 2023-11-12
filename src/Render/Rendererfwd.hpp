@@ -9,17 +9,11 @@ namespace BB
 
 	using RCommandPool = FrameworkHandle<struct RCommandPoolTag>;
 	using RCommandList = FrameworkHandle<struct RCommandListTag>;
-	using RUploadView = FrameworkHandle<struct RUploadViewTag>;
+
+	using RBuffer = FrameworkHandle<struct RBufferTag>;
+	using RTexture = FrameworkHandle32Bit<struct RTextureTag>;
 
 	using ShaderCode = FrameworkHandle<struct ShdaerCodeTag>;
-	using ShaderObject = FrameworkHandle<struct ShaderObjectTag>;
-	using RPipeline = FrameworkHandle<struct RPipelineTag>;
-	using RDescriptorLayout = FrameworkHandle<struct RDescriptorLayoutTag>;
-	using RPipelineLayout = FrameworkHandle<struct RPipelineLayoutTag>;
-	using RBuffer = FrameworkHandle<struct RBufferTag>;
-	using RImage = FrameworkHandle<struct RImageTag>;
-	using RImageView = FrameworkHandle<struct RImageViewTag>;
-	using RDepthBuffer = FrameworkHandle<struct RDepthBufferTag>;
 	using MeshHandle = FrameworkHandle<struct MeshHandleTag>;
 
 	enum class SHADER_STAGE : uint32_t

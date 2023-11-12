@@ -5,6 +5,14 @@
 
 namespace BB
 {
+	using ShaderObject = FrameworkHandle<struct ShaderObjectTag>;
+	using RPipeline = FrameworkHandle<struct RPipelineTag>;
+	using RDescriptorLayout = FrameworkHandle<struct RDescriptorLayoutTag>;
+	using RPipelineLayout = FrameworkHandle<struct RPipelineLayoutTag>;
+	using RImage = FrameworkHandle<struct RImageTag>;
+	using RImageView = FrameworkHandle<struct RImageViewTag>;
+	using RDepthBuffer = FrameworkHandle<struct RDepthBufferTag>;
+
 	enum class QUEUE_TYPE : uint32_t
 	{
 		GRAPHICS,

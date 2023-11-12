@@ -247,12 +247,12 @@ LibHandle BB::LoadLib(const wchar* a_lib_name)
 
 void BB::UnloadLib(const LibHandle a_handle)
 {
-	FreeLibrary(reinterpret_cast<HMODULE>(a_handle.ptr_handle));
+	FreeLibrary(reinterpret_cast<HMODULE>(a_handle.handle));
 }
 
 LibFuncPtr BB::LibLoadFunc(const LibHandle a_handle, const char* a_func_name)
 {
-	LibFuncPtr func = reinterpret_cast<LibFuncPtr>(GetProcAddress(reinterpret_cast<HMODULE>(a_handle.ptr_handle), a_func_name));
+	LibFuncPtr func = reinterpret_cast<LibFuncPtr>(GetProcAddress(reinterpret_cast<HMODULE>(a_handle.handle), a_func_name));
 	if (func == nullptr)
 	{
 		LatestOSError();
@@ -402,7 +402,7 @@ Buffer BB::ReadOSFile(Allocator a_system_allocator, const OSFileHandle a_file_ha
 	file_buffer.data = reinterpret_cast<char*>(BBalloc(a_system_allocator, file_buffer.size));
 	DWORD bytes_read = 0;
 
-	if (FALSE == ReadFile(reinterpret_cast<HANDLE>(a_file_handle.ptr_handle),
+	if (FALSE == ReadFile(reinterpret_cast<HANDLE>(a_file_handle.handle),
 		file_buffer.data,
 		static_cast<DWORD>(file_buffer.size),
 		&bytes_read,
@@ -426,7 +426,7 @@ Buffer BB::ReadOSFile(Allocator a_system_allocator, const char* a_path)
 	file_buffer.data = reinterpret_cast<char*>(BBalloc(a_system_allocator, file_buffer.size));
 	DWORD bytes_read = 0;
 
-	if (FALSE == ReadFile(reinterpret_cast<HANDLE>(read_file.ptr_handle),
+	if (FALSE == ReadFile(reinterpret_cast<HANDLE>(read_file.handle),
 		file_buffer.data,
 		static_cast<DWORD>(file_buffer.size),
 		&bytes_read,
@@ -452,7 +452,7 @@ Buffer BB::ReadOSFile(Allocator a_system_allocator, const wchar* a_path)
 	file_buffer.data = reinterpret_cast<char*>(BBalloc(a_system_allocator, file_buffer.size));
 	DWORD bytes_read = 0;
 
-	if (FALSE == ReadFile(reinterpret_cast<HANDLE>(read_file.ptr_handle),
+	if (FALSE == ReadFile(reinterpret_cast<HANDLE>(read_file.handle),
 		file_buffer.data,
 		static_cast<DWORD>(file_buffer.size),
 		&bytes_read,
@@ -473,7 +473,7 @@ Buffer BB::ReadOSFile(Allocator a_system_allocator, const wchar* a_path)
 void BB::WriteToOSFile(const OSFileHandle a_file_handle, const void* a_data, const size_t a_size)
 {
 	DWORD bytes_written = 0;
-	if (FALSE == WriteFile(reinterpret_cast<HANDLE>(a_file_handle.ptr_handle),
+	if (FALSE == WriteFile(reinterpret_cast<HANDLE>(a_file_handle.handle),
 		a_data,
 		static_cast<const DWORD>(a_size),
 		&bytes_written,
@@ -489,12 +489,12 @@ void BB::WriteToOSFile(const OSFileHandle a_file_handle, const void* a_data, con
 //Get a file's size in bytes.
 uint64_t BB::GetOSFileSize(const OSFileHandle a_file_handle)
 {
-	return GetFileSize(reinterpret_cast<HANDLE>(a_file_handle.ptr_handle), nullptr);
+	return GetFileSize(reinterpret_cast<HANDLE>(a_file_handle.handle), nullptr);
 }
 
 void BB::SetOSFilePosition(const OSFileHandle a_file_handle, const uint32_t a_offset, const OS_FILE_READ_POINT a_file_read_point)
 {
-	DWORD err = SetFilePointer(reinterpret_cast<HANDLE>(a_file_handle.ptr_handle), static_cast<LONG>(a_offset), nullptr, static_cast<DWORD>(a_file_read_point));
+	DWORD err = SetFilePointer(reinterpret_cast<HANDLE>(a_file_handle.handle), static_cast<LONG>(a_offset), nullptr, static_cast<DWORD>(a_file_read_point));
 #ifdef _DEBUG
 	if (err == INVALID_SET_FILE_POINTER && 
 		LatestOSError() == ERROR_NEGATIVE_SEEK)
@@ -508,7 +508,7 @@ void BB::SetOSFilePosition(const OSFileHandle a_file_handle, const uint32_t a_of
 
 void BB::CloseOSFile(const OSFileHandle a_file_handle)
 {
-	CloseHandle(reinterpret_cast<HANDLE>(a_file_handle.ptr_handle));
+	CloseHandle(reinterpret_cast<HANDLE>(a_file_handle.handle));
 }
 
 OSThreadHandle BB::OSCreateThread(void(*a_func)(void*), const unsigned int a_stack_size, void* a_arg_list)
@@ -740,13 +740,13 @@ void BB::GetWindowSize(const WindowHandle a_handle, int& a_x, int& a_y)
 
 void BB::DirectDestroyOSWindow(const WindowHandle a_handle)
 {
-	DestroyWindow(reinterpret_cast<HWND>(a_handle.ptr_handle));
+	DestroyWindow(reinterpret_cast<HWND>(a_handle.handle));
 }
 
 void BB::FreezeMouseOnWindow(const WindowHandle a_handle)
 {
 	RECT rect;
-	GetClientRect(reinterpret_cast<HWND>(a_handle.ptr_handle), &rect);
+	GetClientRect(reinterpret_cast<HWND>(a_handle.handle), &rect);
 
 	POINT left_right_up_down[2]{};
 	left_right_up_down[0].x = rect.left;
@@ -754,7 +754,7 @@ void BB::FreezeMouseOnWindow(const WindowHandle a_handle)
 	left_right_up_down[1].x = rect.right;
 	left_right_up_down[1].y = rect.bottom;
 
-	MapWindowPoints(reinterpret_cast<HWND>(a_handle.ptr_handle), nullptr, left_right_up_down, _countof(left_right_up_down));
+	MapWindowPoints(reinterpret_cast<HWND>(a_handle.handle), nullptr, left_right_up_down, _countof(left_right_up_down));
 
 	rect.left = left_right_up_down[0].x;
 	rect.top = left_right_up_down[0].y;
@@ -790,13 +790,13 @@ bool BB::ProcessMessages(const WindowHandle a_window_handle)
 	//TRACKMOUSEEVENT t_MouseTrackE{};
 	//t_MouseTrackE.cbSize = sizeof(TRACKMOUSEEVENT);
 	//t_MouseTrackE.dwFlags = TME_LEAVE;
-	//t_MouseTrackE.hwndTrack = reinterpret_cast<HWND>(a_window_handle.ptr_handle);
+	//t_MouseTrackE.hwndTrack = reinterpret_cast<HWND>(a_window_handle.handle);
 	//TrackMouseEvent(&t_MouseTrackE);
 
 
 	MSG msg{};
 
-	while (PeekMessage(&msg, reinterpret_cast<HWND>(a_window_handle.ptr_handle), 0u, 0u, PM_REMOVE))
+	while (PeekMessage(&msg, reinterpret_cast<HWND>(a_window_handle.handle), 0u, 0u, PM_REMOVE))
 	{
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);

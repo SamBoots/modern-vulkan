@@ -6,8 +6,6 @@
 
 #include "ShaderCompiler.h"
 
-#include "Storage/LinkedList.h"
-
 #include "Math.inl"
 
 using namespace BB;
@@ -19,24 +17,7 @@ struct RenderFence
 	RFence fence;
 };
 
-struct UploadBufferView : public LinkedListNode<UploadBufferView>
-{
-	friend class UploadBufferPool;
-	RBuffer upload_buffer_handle;	//8
-	void* view_mem_start;			//16
-	//I suppose we never make an upload buffer bigger then 2-4 gb? test for it on uploadbufferpool creation
-	uint32_t offset;				//20
-	uint32_t size;					//24
-	uint64_t fence_value;			//32
-	//LinkedListNode holds next, so //40
-
-	void MemoryCopy(const void* a_src, const uint32_t a_byte_offset, const uint32_t a_byte_size) const
-	{
-		memcpy(Pointer::Add(view_mem_start, a_byte_offset), a_src, a_byte_size);
-	}
-};
-
-#define MAX_TEXTURES 1024
+constexpr uint32_t MAX_TEXTURES = 1024;
 
 class GPUTextureManager
 {
@@ -61,7 +42,7 @@ public:
 		textures[MAX_TEXTURES - 1].next_free = UINT32_MAX;
 	}
 
-	const RTexture UploadTexture(const UploadImageInfo& a_upload_info, const RCommandList a_list, const UploadBufferView* a_upload_buffer, uint32_t a_upload_buffer_offset)
+	const RTexture UploadTexture(const UploadImageInfo& a_upload_info, const RCommandList a_list, UploadBufferView& a_upload_buffer)
 	{
 		OSAcquireSRWLockWrite(&lock);
 		const RTexture texture_slot = RTexture(next_free);
@@ -107,14 +88,13 @@ public:
 		}
 
 		//now upload the image.
-
-		a_upload_buffer->MemoryCopy(a_upload_info.pixels, a_upload_buffer_offset, byte_per_pixel);
+		uint32_t allocation_offset;
+		a_upload_buffer.AllocateAndMemoryCopy(a_upload_info.pixels, byte_per_pixel, allocation_offset);
 
 
 		RenderCopyBufferToImageInfo buffer_to_image;
-		buffer_to_image.src_buffer = a_upload_buffer->upload_buffer_handle;
-		buffer_to_image.src_offset = a_upload_buffer->offset + a_upload_buffer_offset;
-		a_upload_buffer_offset += byte_per_pixel;
+		buffer_to_image.src_buffer = a_upload_buffer.GetBufferHandle();
+		buffer_to_image.src_offset = allocation_offset;
 
 		buffer_to_image.dst_image = slot.image;
 		buffer_to_image.dst_image_info.size_x = a_upload_info.width;
@@ -164,7 +144,7 @@ private:
 /// <summary>
 /// Handles one large upload buffer and handles it as if it's seperate buffers by handling chunks.
 /// </summary>
-class UploadBufferPool
+class BB::UploadBufferPool
 {
 public:
 	UploadBufferPool(Allocator a_sys_allocator, const size_t a_size_per_pool, const uint32_t a_pool_count)
@@ -187,6 +167,8 @@ public:
 			m_views[i].upload_buffer_handle = m_upload_buffer;
 			m_views[i].size = static_cast<uint32_t>(a_size_per_pool);
 			m_views[i].offset = static_cast<uint32_t>(i * a_size_per_pool);
+			m_views[i].used = 0;
+			m_views[i].pool_index = i;
 			m_views[i].view_mem_start = Pointer::Add(m_upload_mem_start, m_views[i].offset);
 			m_views[i].fence_value = 0;
 		}
@@ -211,10 +193,10 @@ public:
 		Vulkan::FreeBuffer(m_upload_buffer);
 	}
 
-	UploadBufferView* GetUploadView(const char* a_pool_name = "")
+	UploadBufferView& GetUploadView(const char* a_pool_name = "")
 	{
 		OSAcquireSRWLockWrite(&m_lock);
-		UploadBufferView* view = m_free_views.Pop();
+		UploadBufferView& view = *m_free_views.Pop();
 		//TODO, handle nullptr, maybe just wait or do the reset here?
 		OSReleaseSRWLockWrite(&m_lock);
 		return view;
@@ -227,18 +209,18 @@ public:
 		BBInterlockedIncrement64(reinterpret_cast<volatile long long*>(&m_next_fence_value));
 	}
 
-	void GetFence(RFence* a_fence, uint64_t* a_next_fence_value)
+	void GetFence(RFence& a_fence, uint64_t& a_next_fence_value)
 	{
-		*a_fence = m_fence;
-		*a_next_fence_value = m_next_fence_value;
+		a_fence = m_fence;
+		a_next_fence_value = m_next_fence_value;
 	}
 
 	//return a upload view and give it a fence value that you get from UploadBufferPool::GetFence
-	void ReturnUploadView(UploadBufferView* a_view, const uint64_t a_fence_value)
+	void ReturnUploadView(UploadBufferView& a_view, const uint64_t a_fence_value)
 	{
-		a_view->fence_value = a_fence_value;
+		a_view.fence_value = a_fence_value;
 		OSAcquireSRWLockWrite(&m_in_flight_lock);
-		m_in_flight_views.Push(a_view);
+		m_in_flight_views.Push(&m_views[a_view.pool_index]);
 		OSReleaseSRWLockWrite(&m_in_flight_lock);
 	}
 
@@ -277,17 +259,18 @@ private:
 	RBuffer m_upload_buffer;			  //8
 	void* m_upload_mem_start;			  //16
 
-	const uint32_t m_upload_view_count;	  //24
-	UploadBufferView* m_views;			  //32
-	LinkedList<UploadBufferView> m_free_views;		  //40
-	LinkedList<UploadBufferView> m_in_flight_views;  //48
-	BBRWLock m_in_flight_lock;		      //56
-	BBRWLock m_lock;					  //64
+	UploadBufferView* m_views;			  //24
+	LinkedList<UploadBufferView> m_free_views;		 //32
+	LinkedList<UploadBufferView> m_in_flight_views;  //40
+	BBRWLock m_in_flight_lock;		      //48
+	BBRWLock m_lock;					  //56
 
 	//this fence should be send to all execute commandlists when they include a upload buffer from here.
-	RFence m_fence;						  //72
-	volatile uint64_t m_next_fence_value; //80
-	uint64_t m_last_completed_fence_value;//88
+	RFence m_fence;						  //64
+	volatile uint64_t m_next_fence_value; //72
+	uint64_t m_last_completed_fence_value;//80
+
+	const uint32_t m_upload_view_count;	  //84
 };
 
 //get one pool per thread
@@ -850,23 +833,26 @@ void BB::EndFrame()
 
 	//upload matrices
 	//optimalization, upload previous frame matrices when using transfer buffer?
-	UploadBufferView* pmatrix_upload_view = s_render_inst->upload_buffers.GetUploadView();
-	uint32_t upload_used = 0;
-	pmatrix_upload_view->MemoryCopy(&s_render_inst->scene_info, upload_used, sizeof(SceneInfo));
-	upload_used += sizeof(SceneInfo);
-	uint32_t matrix_offset = upload_used;
-	pmatrix_upload_view->MemoryCopy(s_render_inst->draw_list_data.transform, upload_used, sizeof(ShaderTransform) * s_render_inst->draw_list_count);
+	UploadBufferView& matrix_upload_view = s_render_inst->upload_buffers.GetUploadView();
+
+	uint32_t scene_offset = 0;
+	matrix_upload_view.AllocateAndMemoryCopy(&s_render_inst->scene_info, sizeof(SceneInfo), scene_offset);
+	uint32_t matrix_offset = 0;
+	matrix_upload_view.AllocateAndMemoryCopy(
+		s_render_inst->draw_list_data.transform, 
+		sizeof(ShaderTransform) * s_render_inst->draw_list_count, 
+		matrix_offset);
 
 	//upload to some GPU buffer here.
 	RenderCopyBuffer matrix_buffer_copy;
-	matrix_buffer_copy.src = pmatrix_upload_view->upload_buffer_handle;
+	matrix_buffer_copy.src = matrix_upload_view.GetBufferHandle();
 	matrix_buffer_copy.dst = cur_frame.per_frame_buffer.buffer;
 	RenderCopyBufferRegion buffer_regions[2]; // 0 = scene, 1 = matrix
-	buffer_regions[0].src_offset = pmatrix_upload_view->offset;
+	buffer_regions[0].src_offset = scene_offset;
 	buffer_regions[0].dst_offset = cur_frame.scene_buffer.offset;
 	buffer_regions[0].size = cur_frame.scene_buffer.size;
 
-	buffer_regions[1].src_offset = pmatrix_upload_view->offset + matrix_offset;
+	buffer_regions[1].src_offset = matrix_offset;
 	buffer_regions[1].dst_offset = cur_frame.transform_buffer.offset;
 	buffer_regions[1].size = s_render_inst->draw_list_count * sizeof(ShaderTransform);
 	matrix_buffer_copy.regions = Slice(buffer_regions, _countof(buffer_regions));
@@ -874,8 +860,8 @@ void BB::EndFrame()
 
 	RFence upload_fence;
 	uint64_t upload_fence_value;
-	s_render_inst->upload_buffers.GetFence(&upload_fence, &upload_fence_value);
-	s_render_inst->upload_buffers.ReturnUploadView(pmatrix_upload_view, upload_fence_value);
+	s_render_inst->upload_buffers.GetFence(upload_fence, upload_fence_value);
+	s_render_inst->upload_buffers.ReturnUploadView(matrix_upload_view, upload_fence_value);
 	s_render_inst->upload_buffers.IncrementNextFenceValue();
 
 	//render
@@ -945,10 +931,9 @@ void BB::SetProjection(const float4x4& a_proj)
 	s_render_inst->scene_info.proj = a_proj;
 }
 
-RUploadView BB::GetUploadView(const size_t a_upload_size)
+UploadBufferView& BB::GetUploadView(const size_t a_upload_size)
 {
-	UploadBufferView* view = s_render_inst->upload_buffers.GetUploadView();
-	return RUploadView(reinterpret_cast<uintptr_t>(view));
+	return s_render_inst->upload_buffers.GetUploadView();
 }
 
 const MeshHandle BB::CreateMesh(const CreateMeshInfo& a_create_info)
@@ -994,10 +979,9 @@ void BB::FreeMesh(const MeshHandle a_mesh)
 }
 
 //maybe not handle a_upload_view_offset
-const RTexture BB::UploadTexture(const UploadImageInfo& a_upload_info, const RCommandList a_list, const RUploadView a_upload_view, const uint32_t a_upload_view_offset)
+const RTexture BB::UploadTexture(const UploadImageInfo& a_upload_info, const RCommandList a_list, UploadBufferView& a_upload_view)
 {
-	UploadBufferView view; //COMPILE HACK
-	return s_render_inst->texture_manager.UploadTexture(a_upload_info, a_list, reinterpret_cast<const UploadBufferView*>(a_upload_view.handle), a_upload_view_offset);
+	return s_render_inst->texture_manager.UploadTexture(a_upload_info, a_list, a_upload_view);
 }
 
 void BB::FreeTexture(const RTexture a_texture)

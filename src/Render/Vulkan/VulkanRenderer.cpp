@@ -970,7 +970,7 @@ bool Vulkan::CreateSwapchain(StackAllocator_t& a_stack_allocator, const WindowHa
 		//Surface
 		VkWin32SurfaceCreateInfoKHR surface_create_info{};
 		surface_create_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-		surface_create_info.hwnd = reinterpret_cast<HWND>(a_window_handle.ptr_handle);
+		surface_create_info.hwnd = reinterpret_cast<HWND>(a_window_handle.handle);
 		surface_create_info.hinstance = GetModuleHandle(nullptr);
 		VKASSERT(vkCreateWin32SurfaceKHR(s_vulkan_inst->instance,
 			&surface_create_info,
@@ -1165,7 +1165,7 @@ void Vulkan::CreateCommandPool(const QUEUE_TYPE a_queue_type, const uint32_t a_c
 		"Vulkan: Failed to allocate command buffers!");
 
 
-	a_pool = reinterpret_cast<uintptr_t>(command_pool);
+	a_pool = RCommandPool(reinterpret_cast<uintptr_t>(command_pool));
 }
 
 void Vulkan::FreeCommandPool(const RCommandPool a_pool)

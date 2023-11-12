@@ -56,24 +56,17 @@ namespace BB
 	{
 		constexpr FrameworkHandle() : handle(BB_INVALID_HANDLE) {}
 		constexpr explicit FrameworkHandle(const uint64_t a_handle) : handle(a_handle) {}
-		constexpr explicit FrameworkHandle(unsigned int a_index, unsigned int a_extra_index) : index(a_index), extra_index(a_extra_index) {}
+		constexpr explicit FrameworkHandle(const uint32_t a_index, const uint32_t a_extra_index) : index(a_index), extra_index(a_extra_index) {}
 
-		FrameworkHandle operator=(const uint64_t a_handle)
-		{
-			handle = a_handle;
-			return *this;
-		}
-
+		bool IsValid() const { return handle != BB_INVALID_HANDLE; }
 		struct
 		{
 			//The handle's main index. Always used and is the main handle.
-			unsigned int index;
+			uint32_t index;
 			//A extra handle index, can be used to track something else. Usually this value is 0 or is part of a pointer.
-			unsigned int extra_index;
+			uint32_t extra_index;
 		};
-		//Some handles work with pointers.
-		void* ptr_handle;
-		uint64_t handle{};
+		uint64_t handle;
 
 		inline bool operator ==(const FrameworkHandle a_rhs) const { return handle == a_rhs.handle; }
 		inline bool operator !=(const FrameworkHandle a_rhs) const { return handle != a_rhs.handle; }

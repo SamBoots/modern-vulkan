@@ -68,7 +68,8 @@ public:
 			m_upload_string.clear();
 			m_upload_string.append(m_cache_string);
 			//async upload to file.
-			Threads::WaitForTask(m_last_thread_task);
+			if (m_last_thread_task.IsValid())
+				Threads::WaitForTask(m_last_thread_task);
 			m_last_thread_task = Threads::StartTaskThread(WriteLoggerToFile, nullptr);
 			//clear the cache string for new logging infos
 			m_cache_string.clear();

@@ -91,9 +91,10 @@ struct AssetSlot
 struct AssetManager
 {
 	FreelistAllocator_t allocator{ mbSize * 64, "asset manager allocator" };
+	OL_HashMap<uint64_t, AssetSlot> asset_map{ allocator, 128 };
 
-	OL_HashMap<AssetHash, AssetSlot> asset_map{ allocator, 64 };
-	OL_HashMap<uint64_t, char*> string_map{ allocator, 128 };
+	LinearAllocator_t string_allocator{ mbSize * 16, "asset string allocator" };
+	OL_HashMap<uint64_t, char*> string_map{ string_allocator, 1024 };
 };
 static AssetManager s_asset_manager{};
 
@@ -101,20 +102,20 @@ using namespace BB;
 
 char* Asset::FindOrCreateString(const char* a_string)
 {
-	const uint64_t stringHash = StringHash(a_string);
-	char** stringPtr = s_asset_manager.string_map.find(stringHash);
-	if (stringPtr != nullptr)
-		return *stringPtr;
+	const uint64_t string_hash = StringHash(a_string);
+	char** string_ptr = s_asset_manager.string_map.find(string_hash);
+	if (string_ptr != nullptr)
+		return *string_ptr;
 
-	const uint32_t stringSize = static_cast<uint32_t>(strlen(a_string) + 1);
-	char* string = BBnewArr(s_asset_manager.allocator, stringSize, char);
-	memcpy(string, a_string, stringSize);
-	string[stringSize - 1] = '\0';
-	s_asset_manager.string_map.emplace(stringHash, string);
+	const uint32_t string_size = static_cast<uint32_t>(strlen(a_string) + 1);
+	char* string = BBnewArr(s_asset_manager.string_allocator, string_size, char);
+	memcpy(string, a_string, string_size);
+	string[string_size - 1] = '\0';
+	s_asset_manager.string_map.emplace(string_hash, string);
 	return string;
 }
 
-const Image* Asset::LoadImage(const BB::BBImage& a_image, const char* a_name)
+const Image* Asset::LoadImage(const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view)
 {
 	UploadImageInfo upload_image_info;
 	upload_image_info.name = a_name;
@@ -123,15 +124,14 @@ const Image* Asset::LoadImage(const BB::BBImage& a_image, const char* a_name)
 	upload_image_info.height = a_image.GetWidth();
 	upload_image_info.bit_count = a_image.GetBitCount();
 
-	const RImage gpu_image = UploadTexture(upload_image_info, );
+	const RTexture gpu_image = UploadTexture(upload_image_info, a_list, a_upload_view);
 
 	Image* image = BBnew(s_asset_manager.allocator, Image);
 	image->width = upload_image_info.width;
 	image->height = upload_image_info.height;
-	image->pixels = upload_image_info.pixels;
 	image->gpu_image = gpu_image;
 
-	const uint64_t hash = TurboCrappyImageHash(image->pixels, image->width + image->height + (a_image.GetBitCount() / 8));
+	const uint64_t hash = TurboCrappyImageHash(a_image.GetPixels(), static_cast<size_t>(image->width) + image->height + (a_image.GetBitCount() / 8));
 	BB_ASSERT(hash != 0, "Image hashing failed");
 
 	AssetSlot asset;
@@ -139,7 +139,7 @@ const Image* Asset::LoadImage(const BB::BBImage& a_image, const char* a_name)
 	asset.path = nullptr; //memory loads have nullptr has path.
 	asset.image = image;
 
-	s_asset_manager.asset_map.insert(asset.hash, asset);
+	s_asset_manager.asset_map.insert(asset.hash.full_hash, asset);
 	image->asset_handle = AssetHandle(asset.hash.full_hash);
 
 	return image;
@@ -267,7 +267,7 @@ static void LoadglTFNode(Allocator a_temp_allocator, const cgltf_node& a_node, M
 		mod_node.mesh_handle = CreateMesh(create_mesh);
 	}
 	else
-		mod_node.mesh_handle = BB_INVALID_HANDLE;
+		mod_node.mesh_handle = MeshHandle(BB_INVALID_HANDLE);
 
 	mod_node.child_count = static_cast<uint32_t>(a_node.children_count);
 	if (mod_node.child_count != 0)
@@ -317,8 +317,26 @@ const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const char* a_path
 	asset.path = FindOrCreateString(a_path);
 	asset.model = model;
 
-	s_asset_manager.asset_map.insert(asset.hash, asset);
+	s_asset_manager.asset_map.insert(asset.hash.full_hash, asset);
 
 	model->asset_handle = AssetHandle(asset.hash.full_hash);
 	return model;
+}
+
+void Asset::FreeAsset(const AssetHandle a_asset_handle)
+{
+	AssetSlot* slot = s_asset_manager.asset_map.find(a_asset_handle.handle);
+
+	switch (slot->hash.type)
+	{
+	case ASSET_TYPE::MODEL:
+		BBfreeArr(s_asset_manager.allocator, slot->model->linear_nodes);
+		BBfree(s_asset_manager.allocator, slot->model);
+		break;
+	case ASSET_TYPE::TEXTURE:
+		BBfree(s_asset_manager.allocator, slot->image);
+		break;
+	}
+
+	s_asset_manager.asset_map.erase(a_asset_handle.handle);
 }
