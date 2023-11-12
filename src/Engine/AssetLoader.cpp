@@ -62,7 +62,7 @@ enum class ASSET_TYPE : uint8_t
 union AssetHash
 {
 	uint64_t full_hash;
-	union
+	struct
 	{
 		uint8_t hash[7];	// 7
 		ASSET_TYPE type;	// 8
@@ -81,7 +81,7 @@ struct AssetSlot
 {
 	AssetHash hash;
 	const char* path;
-	struct
+	union
 	{
 		Model* model;
 		Image* image;
