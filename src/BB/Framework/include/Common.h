@@ -75,8 +75,8 @@ namespace BB
 		void* ptr_handle;
 		uint64_t handle{};
 
-		inline bool operator ==(FrameworkHandle a_rhs) const { return handle == a_rhs.handle; }
-		inline bool operator !=(FrameworkHandle a_rhs) const { return handle != a_rhs.handle; }
+		inline bool operator ==(const FrameworkHandle a_rhs) const { return handle == a_rhs.handle; }
+		inline bool operator !=(const FrameworkHandle a_rhs) const { return handle != a_rhs.handle; }
 	};
 
 	using WindowHandle = FrameworkHandle<struct WindowHandleTag>;
@@ -96,8 +96,8 @@ namespace BB
 		constexpr explicit FrameworkHandle32Bit(uint32_t a_handle) : handle(a_handle) {}
 		uint32_t handle;
 
-		inline bool operator ==(FrameworkHandle32Bit a_rhs) const { return handle == a_rhs.handle; }
-		inline bool operator !=(FrameworkHandle32Bit a_rhs) const { return handle != a_rhs.handle; }
+		inline bool operator ==(const FrameworkHandle32Bit a_rhs) const { return handle == a_rhs.handle; }
+		inline bool operator !=(const FrameworkHandle32Bit a_rhs) const { return handle != a_rhs.handle; }
 	};
 
 	using wchar = wchar_t;

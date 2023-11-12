@@ -52,18 +52,36 @@ static uint64_t TurboCrappyImageHash(const void* a_pixels, const size_t a_byte_s
 	return b128_to_b64[0] + b128_to_b64[1];
 }
 
-enum class ASSET_TYPE : uint32_t
+enum class ASSET_TYPE : uint8_t
 {
 	MODEL,
 	TEXTURE
 };
 
+//this hash works by setting a 64 bit hash, then overwriting the last byte to show which asset type it is.
+union AssetHash
+{
+	uint64_t full_hash;
+	union
+	{
+		uint8_t hash[7];	// 7
+		ASSET_TYPE type;	// 8
+	};
+};
+
+AssetHash CreateAssetHash(const uint64_t a_hash, const ASSET_TYPE a_type)
+{
+	AssetHash hash;
+	hash.full_hash = a_hash;
+	hash.type = a_type;
+	return hash;
+}
+
 struct AssetSlot
 {
-	ASSET_TYPE type;
-	uint64_t hash;
+	AssetHash hash;
 	const char* path;
-	union
+	struct
 	{
 		Model* model;
 		Image* image;
@@ -74,7 +92,7 @@ struct AssetManager
 {
 	FreelistAllocator_t allocator{ mbSize * 64, "asset manager allocator" };
 
-	OL_HashMap<uint64_t, AssetSlot> asset_map{ allocator, 64 };
+	OL_HashMap<AssetHash, AssetSlot> asset_map{ allocator, 64 };
 	OL_HashMap<uint64_t, char*> string_map{ allocator, 128 };
 };
 static AssetManager s_asset_manager{};
@@ -105,7 +123,7 @@ const Image* Asset::LoadImage(const BB::BBImage& a_image, const char* a_name)
 	upload_image_info.height = a_image.GetWidth();
 	upload_image_info.bit_count = a_image.GetBitCount();
 
-	RImage gpu_image = UploadTexture(upload_image_info, );
+	const RImage gpu_image = UploadTexture(upload_image_info, );
 
 	Image* image = BBnew(s_asset_manager.allocator, Image);
 	image->width = upload_image_info.width;
@@ -113,16 +131,18 @@ const Image* Asset::LoadImage(const BB::BBImage& a_image, const char* a_name)
 	image->pixels = upload_image_info.pixels;
 	image->gpu_image = gpu_image;
 
+	const uint64_t hash = TurboCrappyImageHash(image->pixels, image->width + image->height + (a_image.GetBitCount() / 8));
+	BB_ASSERT(hash != 0, "Image hashing failed");
+
 	AssetSlot asset;
-	asset.type = ASSET_TYPE::TEXTURE;
-	asset.path = nullptr;//FindOrCreateString(a_path);
-	asset.hash = TurboCrappyImageHash(image->pixels, image->width + image->height + (a_image.GetBitCount() / 8));
+	asset.hash = CreateAssetHash(hash, ASSET_TYPE::TEXTURE);
+	asset.path = nullptr; //memory loads have nullptr has path.
 	asset.image = image;
 
-	BB_ASSERT(asset.hash != 0, "Image hashing failed");
 	s_asset_manager.asset_map.insert(asset.hash, asset);
+	image->asset_handle = AssetHandle(asset.hash.full_hash);
 
-	image->asset_handle = asset.hash;
+	return image;
 }
 
 static inline void* GetAccessorDataPtr(const cgltf_accessor* a_Accessor)
@@ -293,13 +313,12 @@ const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const char* a_path
 	cgltf_free(gltf_data);
 
 	AssetSlot asset;
-	asset.type = ASSET_TYPE::MODEL;
+	asset.hash = CreateAssetHash(StringHash(a_path), ASSET_TYPE::MODEL);
 	asset.path = FindOrCreateString(a_path);
-	asset.hash = StringHash(a_path);
 	asset.model = model;
 
 	s_asset_manager.asset_map.insert(asset.hash, asset);
 
-	model->asset_handle = asset.hash;
+	model->asset_handle = AssetHandle(asset.hash.full_hash);
 	return model;
 }
