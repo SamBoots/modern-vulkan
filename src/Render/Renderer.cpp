@@ -193,8 +193,9 @@ public:
 		Vulkan::FreeBuffer(m_upload_buffer);
 	}
 
-	UploadBufferView& GetUploadView(const char* a_pool_name = "")
+	UploadBufferView& GetUploadView(const size_t a_upload_size)
 	{
+		(void)a_upload_size; //not used yet.
 		OSAcquireSRWLockWrite(&m_lock);
 		UploadBufferView& view = *m_free_views.Pop();
 		//TODO, handle nullptr, maybe just wait or do the reset here?
@@ -831,17 +832,17 @@ void BB::EndFrame()
 {
 	const auto& cur_frame = s_render_inst->frames[s_render_inst->backbuffer_pos];
 
+	const uint32_t scene_upload_size = sizeof(SceneInfo);
+	const uint32_t matrices_upload_size = sizeof(ShaderTransform) * s_render_inst->draw_list_count;
+
 	//upload matrices
 	//optimalization, upload previous frame matrices when using transfer buffer?
-	UploadBufferView& matrix_upload_view = s_render_inst->upload_buffers.GetUploadView();
+	UploadBufferView& matrix_upload_view = s_render_inst->upload_buffers.GetUploadView(static_cast<size_t>(scene_upload_size) + matrices_upload_size);
 
 	uint32_t scene_offset = 0;
-	matrix_upload_view.AllocateAndMemoryCopy(&s_render_inst->scene_info, sizeof(SceneInfo), scene_offset);
+	matrix_upload_view.AllocateAndMemoryCopy(&s_render_inst->scene_info, scene_upload_size, scene_offset);
 	uint32_t matrix_offset = 0;
-	matrix_upload_view.AllocateAndMemoryCopy(
-		s_render_inst->draw_list_data.transform, 
-		sizeof(ShaderTransform) * s_render_inst->draw_list_count, 
-		matrix_offset);
+	matrix_upload_view.AllocateAndMemoryCopy(s_render_inst->draw_list_data.transform, matrices_upload_size, matrix_offset);
 
 	//upload to some GPU buffer here.
 	RenderCopyBuffer matrix_buffer_copy;
@@ -933,7 +934,7 @@ void BB::SetProjection(const float4x4& a_proj)
 
 UploadBufferView& BB::GetUploadView(const size_t a_upload_size)
 {
-	return s_render_inst->upload_buffers.GetUploadView();
+	return s_render_inst->upload_buffers.GetUploadView(a_upload_size);
 }
 
 const MeshHandle BB::CreateMesh(const CreateMeshInfo& a_create_info)
