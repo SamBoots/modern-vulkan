@@ -115,6 +115,50 @@ char* Asset::FindOrCreateString(const char* a_string)
 	return string;
 }
 
+void Asset::LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_task_name)
+{
+	LinearAllocator_t load_async_allocator = { 8 * mbSize, a_task_name };
+
+	UploadBufferView& upload_buffer_view = GetUploadView(0);
+	CommandPool& cmd_pool = GetTransferCommandPool();
+	const RCommandList cmd_list = cmd_pool.StartCommandList();
+
+	for (size_t i = 0; i < a_asyn_assets.size(); i++)
+	{
+		const AsyncAsset& task = a_asyn_assets[i];
+		switch (task.asset_type)
+		{
+		case ASYNC_ASSET_TYPE::MODEL:
+		{
+			switch (task.load_type)
+			{
+			case ASYNC_LOAD_TYPE::DISK:
+				LoadglTFModel(load_async_allocator, task.mesh_disk.path);
+				break;
+			case ASYNC_LOAD_TYPE::MEMORY:
+				BB_ASSERT(false, "no memory load for meshes yet.");
+				break;
+			}
+		}
+			break;
+		case ASYNC_ASSET_TYPE::TEXTURE:
+		{
+			switch (task.load_type)
+			{
+			case ASYNC_LOAD_TYPE::DISK:
+				BB_ASSERT(false, "no disk load for textures yet.");
+				break;
+			case ASYNC_LOAD_TYPE::MEMORY:
+				LoadImage(task.texture_memory.image, task.texture_memory.name, cmd_list, upload_buffer_view);
+				break;
+			}
+		}
+			break;
+		}
+	}
+	cmd_pool.EndCommandList(cmd_list);
+}
+
 const Image* Asset::LoadImage(const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view)
 {
 	UploadImageInfo upload_image_info;

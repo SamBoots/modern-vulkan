@@ -33,6 +33,25 @@ namespace BB
 		uint32_t height;
 	};
 
+	//get one pool per thread
+	class CommandPool : public LinkedListNode<CommandPool>
+	{
+		friend class RenderQueue;
+		uint32_t m_list_count; //4 
+		uint32_t m_list_current_free; //8
+		RCommandList* m_lists; //16
+		uint64_t m_fence_value; //24
+		RCommandPool m_api_cmd_pool; //32
+		//LinkedListNode has next ptr value //40 
+		bool m_recording; //44
+		BB_PAD(4); //48
+
+		void ResetPool();
+	public:
+		RCommandList StartCommandList(const char* a_name = nullptr);
+		void EndCommandList(RCommandList a_list);
+	};
+
 	class UploadBufferView : public LinkedListNode<UploadBufferView>
 	{
 		friend class UploadBufferPool;
@@ -73,6 +92,21 @@ namespace BB
 	void SetProjection(const float4x4& a_projection);
 
 	UploadBufferView& GetUploadView(const size_t a_upload_size);
+	void ReturnUploadView(const UploadBufferView& a_upload_view);
+
+	CommandPool& GetGraphicsCommandPool();
+	CommandPool& GetTransferCommandPool();
+	void ReturnCommandPool(const CommandPool& a_pool);
+
+	struct TransferCommandsInfo
+	{
+		CommandPool* pools;
+		uint32_t pool_count;
+		UploadBufferView* upload_views;
+		uint32_t upload_view_count;
+	};
+
+	void ExecuteTransferCommands();
 
 	const MeshHandle CreateMesh(const CreateMeshInfo& a_create_info);
 	void FreeMesh(const MeshHandle a_mesh);

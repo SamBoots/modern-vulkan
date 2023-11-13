@@ -17,4 +17,8 @@ add_library(cgltf INTERFACE
 "cgltf/cgltf.h")
 target_include_directories(cgltf INTERFACE cgltf)
 
+add_library(stb_image INTERFACE
+"stb/stb_image.h")
+target_include_directories(stb_image INTERFACE stb_image)
+
 add_subdirectory("imgui")

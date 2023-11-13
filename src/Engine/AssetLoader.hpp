@@ -1,5 +1,6 @@
 #include "BBMemory.h"
 #include "Rendererfwd.hpp"
+#include "Utils/Slice.h"
 
 namespace BB
 {
@@ -39,6 +40,50 @@ namespace BB
 	namespace Asset
 	{
 		char* FindOrCreateString(const char* a_string);
+
+		enum class ASYNC_ASSET_TYPE : uint32_t
+		{
+			MODEL,
+			TEXTURE
+		};
+
+		enum class ASYNC_LOAD_TYPE : uint32_t
+		{
+			DISK,
+			MEMORY
+		};
+
+		struct TextureLoadFromMemory
+		{
+			const char* name;
+			BBImage& image;
+		};
+
+		struct TextureLoadFromDisk
+		{
+			const char* name;
+			const char* path;
+		};
+
+		struct MeshLoadFromDisk
+		{
+			const char* name;
+			const char* path;
+		};
+
+		struct AsyncAsset
+		{
+			ASYNC_ASSET_TYPE asset_type;
+			ASYNC_LOAD_TYPE load_type;
+			union
+			{
+				TextureLoadFromMemory texture_memory;
+				TextureLoadFromDisk texture_disk;
+				MeshLoadFromDisk mesh_disk;
+			};
+		};
+
+		void LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_task_name = "upload asset task");
 
 		const Image* LoadImage(const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view);
 		const Model* LoadglTFModel(Allocator a_temp_allocator, const char* a_Path);

@@ -274,46 +274,32 @@ private:
 	const uint32_t m_upload_view_count;	  //84
 };
 
-//get one pool per thread
-class CommandPool : public LinkedListNode<CommandPool>
+RCommandList CommandPool::StartCommandList(const char* a_name = nullptr)
 {
-	friend class RenderQueue;
-	uint32_t m_list_count; //4 
-	uint32_t m_list_current_free; //8
-	RCommandList* m_lists; //16
-	uint64_t m_fence_value; //24
-	RCommandPool m_api_cmd_pool; //32
-	//LinkedListNode has next ptr value //40 
-	bool m_recording; //44
-	BB_PAD(4); //48
-public:
-	RCommandList StartCommandList(const char* a_name = nullptr)
-	{
-		BB_ASSERT(m_recording == false, "already recording a commandlist from this commandpool!");
-		BB_ASSERT(m_list_current_free < m_list_count, "command pool out of lists!");
-		RCommandList list{ m_lists[m_list_current_free++] };
-		Vulkan::StartCommandList(list, a_name);
-		m_recording = true;
-		return list;
-	}
+	BB_ASSERT(m_recording == false, "already recording a commandlist from this commandpool!");
+	BB_ASSERT(m_list_current_free < m_list_count, "command pool out of lists!");
+	RCommandList list{ m_lists[m_list_current_free++] };
+	Vulkan::StartCommandList(list, a_name);
+	m_recording = true;
+	return list;
+}
 
-	void EndCommandList(RCommandList a_list)
-	{
-		BB_ASSERT(m_recording == true, "trying to end a commandlist while the pool is not recording any list");
-		BB_ASSERT(a_list == m_lists[m_list_current_free - 1], "commandlist that was submitted is not from this pool or was already closed!");
-		Vulkan::EndCommandList(a_list);
-		m_recording = false;
-	}
-	void ResetPool()
-	{
-		BB_ASSERT(m_recording == false, "trying to reset a pool while still recording");
-		Vulkan::ResetCommandPool(m_api_cmd_pool);
-		m_list_current_free = 0;
-	}
-};
+void CommandPool::EndCommandList(RCommandList a_list)
+{
+	BB_ASSERT(m_recording == true, "trying to end a commandlist while the pool is not recording any list");
+	BB_ASSERT(a_list == m_lists[m_list_current_free - 1], "commandlist that was submitted is not from this pool or was already closed!");
+	Vulkan::EndCommandList(a_list);
+	m_recording = false;
+}
+void CommandPool::ResetPool()
+{
+	BB_ASSERT(m_recording == false, "trying to reset a pool while still recording");
+	Vulkan::ResetCommandPool(m_api_cmd_pool);
+	m_list_current_free = 0;
+}
 
 //THREAD SAFE: TRUE
-class RenderQueue
+class BB::RenderQueue
 {
 public:
 
@@ -935,6 +921,17 @@ void BB::SetProjection(const float4x4& a_proj)
 UploadBufferView& BB::GetUploadView(const size_t a_upload_size)
 {
 	return s_render_inst->upload_buffers.GetUploadView(a_upload_size);
+}
+
+CommandPool& BB::GetGraphicsCommandPool()
+{
+	return s_render_inst->graphics_queue.GetCommandPool();
+}
+
+//MOCK, todo.
+CommandPool& BB::GetTransferCommandPool()
+{
+	return s_render_inst->graphics_queue.GetCommandPool();
 }
 
 const MeshHandle BB::CreateMesh(const CreateMeshInfo& a_create_info)
