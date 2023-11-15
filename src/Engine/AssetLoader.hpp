@@ -85,7 +85,8 @@ namespace BB
 
 		void LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_task_name = "upload asset task");
 
-		const Image* LoadImage(const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view);
+		const Image* LoadImageDisk(const char* a_path, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view);
+		const Image* LoadImageMemory(const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view);
 		const Model* LoadglTFModel(Allocator a_temp_allocator, const char* a_Path);
 
 		void FreeAsset(const AssetHandle a_asset_handle);

@@ -65,8 +65,10 @@ const ShaderCode BB::CompileShader(Allocator a_temp_allocator, const ShaderCompi
 	wchar_t* full_path_w = BBnewArr(a_temp_allocator, full_path_str_size + 1, wchar_t);
 	wchar_t* entry_w = BBnewArr(a_temp_allocator, entry_str_size + 1, wchar_t);
 
-	BB_ASSERT(mbstowcs(full_path_w, a_full_path, full_path_str_size) == full_path_str_size, "8 bit char to 16 bit wide char for a_full_path failed");
-	BB_ASSERT(mbstowcs(entry_w, a_entry, entry_str_size) == entry_str_size, "8 bit char to 16 bit wide char for a_entry failed");
+	size_t conv_chars = 0;
+	BB_ASSERT(mbstowcs_s(&conv_chars, full_path_w, full_path_str_size, a_full_path, _TRUNCATE) == 0, "8 bit char to 16 bit wide char for a_full_path failed");
+	conv_chars = 0;
+	BB_ASSERT(mbstowcs_s(&conv_chars, entry_w, entry_str_size, a_entry, _TRUNCATE) == 0 , "8 bit char to 16 bit wide char for a_entry failed");
 
 	full_path_w[full_path_str_size] = L'\0';
 	entry_w[entry_str_size] = L'\0';

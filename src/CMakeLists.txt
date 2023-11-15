@@ -60,6 +60,7 @@ target_include_directories(Engine PUBLIC
 
 target_link_libraries(Engine 
 	cgltf
+	stb_image
 	Renderer)
 
 add_executable(image_filter_test

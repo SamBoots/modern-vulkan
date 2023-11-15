@@ -44,7 +44,7 @@ namespace BB
 		RCommandPool m_api_cmd_pool; //32
 		//LinkedListNode has next ptr value //40 
 		bool m_recording; //44
-		BB_PAD(4); //48
+		uint32_t pool_index; //48
 
 		void ResetPool();
 	public:

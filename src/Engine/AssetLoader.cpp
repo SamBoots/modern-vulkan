@@ -15,6 +15,9 @@
 BB_WARNINGS_OFF
 #define CGLTF_IMPLEMENTATION
 #include "cgltf.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 BB_WARNINGS_ON
 
 using namespace BB;
@@ -149,7 +152,7 @@ void Asset::LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_t
 				BB_ASSERT(false, "no disk load for textures yet.");
 				break;
 			case ASYNC_LOAD_TYPE::MEMORY:
-				LoadImage(task.texture_memory.image, task.texture_memory.name, cmd_list, upload_buffer_view);
+				LoadImageMemory(task.texture_memory.image, task.texture_memory.name, cmd_list, upload_buffer_view);
 				break;
 			}
 		}
@@ -159,7 +162,43 @@ void Asset::LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_t
 	cmd_pool.EndCommandList(cmd_list);
 }
 
-const Image* Asset::LoadImage(const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view)
+const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view)
+{
+	int x, y, channels = 0;
+	//hacky way, whatever we do it for now.
+	stbi_uc* pixels = stbi_load(a_path, &x, &y, &channels, 4);
+
+	UploadImageInfo upload_image_info;
+	upload_image_info.name = a_name;
+	upload_image_info.pixels = pixels;
+	upload_image_info.width = x;
+	upload_image_info.height = y;
+	upload_image_info.bit_count = channels * 8;
+
+	const RTexture gpu_image = UploadTexture(upload_image_info, a_list, a_upload_view);
+
+	STBI_FREE(pixels);
+
+	Image* image = BBnew(s_asset_manager.allocator, Image);
+	image->width = upload_image_info.width;
+	image->height = upload_image_info.height;
+	image->gpu_image = gpu_image;
+
+	const uint64_t hash = TurboCrappyImageHash(pixels, static_cast<size_t>(image->width) + image->height + channels);
+	BB_ASSERT(hash != 0, "Image hashing failed");
+
+	AssetSlot asset;
+	asset.hash = CreateAssetHash(hash, ASSET_TYPE::TEXTURE);
+	asset.path = nullptr; //memory loads have nullptr has path.
+	asset.image = image;
+
+	s_asset_manager.asset_map.insert(asset.hash.full_hash, asset);
+	image->asset_handle = AssetHandle(asset.hash.full_hash);
+
+	return image;
+}
+
+const Image* Asset::LoadImageMemory(const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view)
 {
 	UploadImageInfo upload_image_info;
 	upload_image_info.name = a_name;
@@ -329,11 +368,19 @@ const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const char* a_path
 	cgltf_options gltf_option = {};
 	cgltf_data* gltf_data = nullptr;
 
-	BB_ASSERT(cgltf_parse_file(&gltf_option, a_path, &gltf_data) == cgltf_result_success, "Failed to load glTF model, cgltf_parse_file.");
+	if (!cgltf_parse_file(&gltf_option, a_path, &gltf_data) == cgltf_result_success)
+	{
+		BB_ASSERT(false, "Failed to load glTF model, cgltf_parse_file.");
+		return nullptr;
+	}
 
 	cgltf_load_buffers(&gltf_option, gltf_data, a_path);
 
-	BB_ASSERT(cgltf_validate(gltf_data) == cgltf_result_success, "GLTF model validation failed!");
+	if (!cgltf_validate(gltf_data) == cgltf_result_success)
+	{
+		BB_ASSERT(false, "GLTF model validation failed!");
+		return nullptr;
+	}
 
 	const uint32_t linear_node_count = static_cast<uint32_t>(gltf_data->nodes_count);
 

@@ -39,7 +39,7 @@ struct GlobalProgramInfo
 };
 
 static GlobalProgramInfo s_program_info;
-static InputBuffer s_input_buffer;
+static InputBuffer s_input_buffer{};
 
 static void PushInput(const InputEvent& a_Input)
 {
@@ -221,7 +221,7 @@ uint32_t BB::LatestOSError()
 		nullptr,
 		error_msg,
 		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), 
-		message,
+		(LPSTR)&message,
 		0, nullptr);
 
 	if (message == nullptr)
@@ -563,7 +563,10 @@ void BB::OSDestroySemaphore(const BBSemaphore a_semaphore)
 
 BBRWLock BB::OSCreateRWLock()
 {
+	//-Wbraced-scalar-init warning, lazy ignore.
+BB_WARNINGS_OFF
 	return BBRWLock(SRWLOCK_INIT);
+BB_WARNINGS_ON
 }
 
 void BB::OSAcquireSRWLockRead(BBRWLock* a_lock)
@@ -588,7 +591,10 @@ void BB::OSReleaseSRWLockWrite(BBRWLock* a_lock)
 
 BBConditionalVariable BB::OSCreateConditionalVariable()
 {
+	//-Wbraced-scalar-init warning, lazy ignore
+	BB_WARNINGS_OFF
 	return BBConditionalVariable(CONDITION_VARIABLE_INIT);
+	BB_WARNINGS_ON
 }
 
 void BB::OSWaitConditionalVariableShared(BBConditionalVariable* a_condition, BBRWLock* a_lock)

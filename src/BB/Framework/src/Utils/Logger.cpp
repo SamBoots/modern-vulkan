@@ -147,7 +147,8 @@ static void Log_to_Console(const char* a_file_name, int a_line, const char* a_wa
 				//check to see if we do not go over bounds, largly to deal with non-null-terminated wchar strings.
 				BB_ASSERT(char_size < string.capacity() - string.size(), "error log string size exceeds 1024 characters!");
 				char* character = BBstackAlloc_s(char_size, char);
-				wcstombs(character, w_char, char_size);
+				size_t conv_chars = 0;
+				wcstombs_s(&conv_chars, character, char_size, w_char, _TRUNCATE);
 				string.append(character);
 				BBstackFree_s(character);
 			}

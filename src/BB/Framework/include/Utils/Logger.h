@@ -35,7 +35,7 @@ namespace BB
 	}
 }
 
-#define BB_LOG(a_msg) BB::Logger::Log_Message(__FILE__, __LINE__, "s", a_msg) 
+#define BB_LOG(a_msg) BB::Logger::Log_Message(__FILE__, __LINE__, "s", a_msg)
 
 #ifdef _DEBUG
 		/*  Check for unintented behaviour at compile time, if a_Check is false the program will stop and post a message.
@@ -46,16 +46,15 @@ namespace BB
 			/*  Check for unintented behaviour at runetime, if a_Check is false the program will stop and post a message.
 			@param a_Check, If false the program will print the message and assert.
 			@param a_msg, The message that will be printed. */
-#define BB_ASSERT(a_Check, a_msg)	\
+#define BB_ASSERT(a_check, a_msg)	\
 			do						\
 			{						\
-				if (!(a_Check))		\
+				if (!(a_check))		\
 				{					\
 					BB::Logger::Log_Assert(__FILE__, __LINE__, "s", a_msg); \
 					assert(false);	\
 				}					\
 			} while (0)
-
 
 			/*  Check for unintented behaviour at runtime, if a_Check is false the program will post a warning message.
 			@param a_Check, If false the program will print the message and assert.
@@ -92,14 +91,14 @@ namespace BB
 /*  Check for unintented behaviour at compile time, if a_Check is false the program will stop and post a message.
 	@param a_Check, If false the program will print the message and assert.
 	@param a_msg, The message that will be printed. */
-#define BB_STATIC_ASSERT(a_Check, a_msg) a_Check
+#define BB_STATIC_ASSERT(a_Check, a_msg)
 /*  Check for unintented behaviour at runtime, if a_Check is false the program will post a warning message.
 @param a_Check, If false the program will print the message and assert.
 @param a_msg, The message that will be printed. */
-#define BB_ASSERT(a_Check, a_msg) a_Check
+#define BB_ASSERT(a_check, a_msg)
 /*  Check for unintented behaviour at runtime, if a_Check is false the program will post a warning message.
 @param a_Check, If false the program will print the message and assert.
 @param a_msg, The message that will be printed.
 @param a_WarningType, The warning level, enum found at WarningType. */
-#define BB_WARNING(a_Check, a_msg, a_WarningType) a_Check
+#define BB_WARNING(a_Check, a_msg, a_WarningType)
 #endif //_DEBUG

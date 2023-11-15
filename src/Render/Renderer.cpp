@@ -25,7 +25,7 @@ public:
 	GPUTextureManager()
 	{
 		const uint32_t purple = (209u << 24u) | (106u << 16u) | (255u << 8u) | (255u << 0u);
-
+		(void)purple;
 		//texture 0 is always the debug texture.
 		textures[0].image = debug_texture;
 		textures[0].next_free = UINT32_MAX;
@@ -274,7 +274,7 @@ private:
 	const uint32_t m_upload_view_count;	  //84
 };
 
-RCommandList CommandPool::StartCommandList(const char* a_name = nullptr)
+RCommandList CommandPool::StartCommandList(const char* a_name)
 {
 	BB_ASSERT(m_recording == false, "already recording a commandlist from this commandpool!");
 	BB_ASSERT(m_list_current_free < m_list_count, "command pool out of lists!");
@@ -315,6 +315,7 @@ public:
 		m_pools = BBnewArr(a_system_allocator, a_command_pool_count, CommandPool);
 		for (uint32_t i = 0; i < a_command_pool_count; i++)
 		{
+			m_pools[i].pool_index = i;
 			m_pools[i].m_recording = false;
 			m_pools[i].m_fence_value = 0;
 			m_pools[i].m_list_count = a_command_lists_per_pool;
@@ -343,19 +344,21 @@ public:
 		}
 	}
 
-	CommandPool* GetCommandPool(const char* a_pool_name = "")
+	CommandPool& GetCommandPool(const char* a_pool_name = "")
 	{
+		(void)a_pool_name; //not used yet.
 		OSAcquireSRWLockWrite(&m_lock);
-		CommandPool* pool = m_free_pools.Pop();
+		CommandPool& pool = *m_free_pools.Pop();
+		//TODO, handle nullptr, maybe just wait or do the reset here?
 		OSReleaseSRWLockWrite(&m_lock);
 		return pool;
 	}
 
-	void ReturnPool(CommandPool* a_pool)
+	void ReturnPool(CommandPool& a_pool)
 	{
 		OSAcquireSRWLockWrite(&m_in_flight_lock);
-		a_pool->m_fence_value = m_fence.next_fence_value;
-		m_in_flight_pools.Push(a_pool);
+		a_pool.m_fence_value = m_fence.next_fence_value;
+		m_in_flight_pools.Push(&m_pools[a_pool.pool_index]);
 		OSReleaseSRWLockWrite(&m_in_flight_lock);
 	}
 
@@ -810,7 +813,7 @@ void BB::StartFrame()
 	//setup rendering
 	Vulkan::StartFrame(s_render_inst->backbuffer_pos);
 
-	current_use_pool = s_render_inst->graphics_queue.GetCommandPool("test getting thing command pool");
+	current_use_pool = &s_render_inst->graphics_queue.GetCommandPool("test getting thing command pool");
 	current_command_list = current_use_pool->StartCommandList("test getting thing command list");
 }
 
@@ -901,7 +904,7 @@ void BB::EndFrame()
 
 	s_render_inst->frames[s_render_inst->backbuffer_pos].fence_value = s_render_inst->graphics_queue.GetNextFenceValue();
 	s_render_inst->graphics_queue.ExecutePresentCommands(&current_command_list, &upload_fence, &upload_fence_value, 1, nullptr, nullptr, 0, s_render_inst->backbuffer_pos);
-	s_render_inst->graphics_queue.ReturnPool(current_use_pool);
+	s_render_inst->graphics_queue.ReturnPool(*current_use_pool);
 
 	//swap images
 	Vulkan::EndFrame(s_render_inst->backbuffer_pos);
