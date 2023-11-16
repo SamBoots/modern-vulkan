@@ -141,138 +141,146 @@ private:
 	RImage debug_texture;
 };
 
-/// <summary>
-/// Handles one large upload buffer and handles it as if it's seperate buffers by handling chunks.
-/// </summary>
-class BB::UploadBufferPool
+namespace BB
 {
-public:
-	UploadBufferPool(Allocator a_sys_allocator, const size_t a_size_per_pool, const uint32_t a_pool_count)
-		:	m_upload_view_count(a_pool_count)
+	/// <summary>
+	/// Handles one large upload buffer and handles it as if it's seperate buffers by handling chunks.
+	/// </summary>
+	class UploadBufferPool
 	{
-		const size_t upload_buffer_size = a_size_per_pool * m_upload_view_count;
-		BB_ASSERT(upload_buffer_size < UINT32_MAX, "we use uint32_t for offset and size but the uploadbuffer size is bigger then UINT32_MAX");
-
-		BufferCreateInfo buffer_info;
-		buffer_info.type = BUFFER_TYPE::UPLOAD;
-		buffer_info.size = upload_buffer_size;
-		buffer_info.host_writable = true;
-		buffer_info.name = "upload_buffer_pool";
-		m_upload_buffer = Vulkan::CreateBuffer(buffer_info);
-		m_upload_mem_start = Vulkan::MapBufferMemory(m_upload_buffer);
-
-		m_views = BBnewArr(a_sys_allocator, m_upload_view_count, UploadBufferView);
-		for (uint32_t i = 0; i < m_upload_view_count; i++)
+	public:
+		UploadBufferPool(Allocator a_sys_allocator, const size_t a_size_per_pool, const uint32_t a_pool_count)
+			: m_upload_view_count(a_pool_count)
 		{
-			m_views[i].upload_buffer_handle = m_upload_buffer;
-			m_views[i].size = static_cast<uint32_t>(a_size_per_pool);
-			m_views[i].offset = static_cast<uint32_t>(i * a_size_per_pool);
-			m_views[i].used = 0;
-			m_views[i].pool_index = i;
-			m_views[i].view_mem_start = Pointer::Add(m_upload_mem_start, m_views[i].offset);
-			m_views[i].fence_value = 0;
-		}
+			const size_t upload_buffer_size = a_size_per_pool * m_upload_view_count;
+			BB_ASSERT(upload_buffer_size < UINT32_MAX, "we use uint32_t for offset and size but the uploadbuffer size is bigger then UINT32_MAX");
 
-		for (uint32_t i = 0; i < m_upload_view_count - 1; i++)
-		{
-			m_views[i].next = &m_views[i + 1];
-		}
+			BufferCreateInfo buffer_info;
+			buffer_info.type = BUFFER_TYPE::UPLOAD;
+			buffer_info.size = upload_buffer_size;
+			buffer_info.host_writable = true;
+			buffer_info.name = "upload_buffer_pool";
+			m_upload_buffer = Vulkan::CreateBuffer(buffer_info);
+			m_upload_mem_start = Vulkan::MapBufferMemory(m_upload_buffer);
 
-		m_free_views = m_views;
-		m_in_flight_views = nullptr;
-		m_lock = OSCreateRWLock();
-		m_in_flight_lock = OSCreateRWLock();
-
-		m_fence = Vulkan::CreateFence(0, "upload buffer fence");
-		m_last_completed_fence_value = 0;
-		m_next_fence_value = 1;
-	}
-	~UploadBufferPool()
-	{
-		Vulkan::UnmapBufferMemory(m_upload_buffer);
-		Vulkan::FreeBuffer(m_upload_buffer);
-	}
-
-	UploadBufferView& GetUploadView(const size_t a_upload_size)
-	{
-		(void)a_upload_size; //not used yet.
-		OSAcquireSRWLockWrite(&m_lock);
-		UploadBufferView& view = *m_free_views.Pop();
-		//TODO, handle nullptr, maybe just wait or do the reset here?
-		OSReleaseSRWLockWrite(&m_lock);
-		return view;
-	}
-
-	void IncrementNextFenceValue()
-	{
-		//yes
-		//maybe a lock is faster as it can be uncontested. Which may often be the case.
-		BBInterlockedIncrement64(reinterpret_cast<volatile long long*>(&m_next_fence_value));
-	}
-
-	void GetFence(RFence& a_fence, uint64_t& a_next_fence_value)
-	{
-		a_fence = m_fence;
-		a_next_fence_value = m_next_fence_value;
-	}
-
-	//return a upload view and give it a fence value that you get from UploadBufferPool::GetFence
-	void ReturnUploadView(UploadBufferView& a_view, const uint64_t a_fence_value)
-	{
-		a_view.fence_value = a_fence_value;
-		OSAcquireSRWLockWrite(&m_in_flight_lock);
-		m_in_flight_views.Push(&m_views[a_view.pool_index]);
-		OSReleaseSRWLockWrite(&m_in_flight_lock);
-	}
-
-	void CheckIfInFlightDone()
-	{
-		LinkedList<UploadBufferView> local_view_free{};
-
-		//lock as a write can be attempetd in m_in_flight_pools.
-		OSAcquireSRWLockWrite(&m_in_flight_lock);
-		m_last_completed_fence_value = Vulkan::GetCurrentFenceValue(m_fence);
-
-		//Thank you Descent Raytracer teammates for the great code that I can steal
-		for (UploadBufferView** in_flight_views = &m_in_flight_views.head; *in_flight_views;)
-		{
-			UploadBufferView* view = *in_flight_views;
-
-			if (view->fence_value <= m_last_completed_fence_value)
+			m_views = BBnewArr(a_sys_allocator, m_upload_view_count, UploadBufferView);
+			for (uint32_t i = 0; i < m_upload_view_count; i++)
 			{
-				//Get next in-flight commandlist
-				*in_flight_views = view->next;
-				local_view_free.Push(view);
+				m_views[i].upload_buffer_handle = m_upload_buffer;
+				m_views[i].size = static_cast<uint32_t>(a_size_per_pool);
+				m_views[i].offset = static_cast<uint32_t>(i * a_size_per_pool);
+				m_views[i].used = 0;
+				m_views[i].pool_index = i;
+				m_views[i].view_mem_start = Pointer::Add(m_upload_mem_start, m_views[i].offset);
+				m_views[i].fence_value = 0;
 			}
-			else
+
+			for (uint32_t i = 0; i < m_upload_view_count - 1; i++)
 			{
-				in_flight_views = &view->next;
+				m_views[i].next = &m_views[i + 1];
 			}
+
+			m_free_views = m_views;
+			m_in_flight_views = nullptr;
+			m_lock = OSCreateRWLock();
+			m_in_flight_lock = OSCreateRWLock();
+
+			m_fence = Vulkan::CreateFence(0, "upload buffer fence");
+			m_last_completed_fence_value = 0;
+			m_next_fence_value = 1;
+		}
+		~UploadBufferPool()
+		{
+			Vulkan::UnmapBufferMemory(m_upload_buffer);
+			Vulkan::FreeBuffer(m_upload_buffer);
 		}
 
-		if (local_view_free.HasEntry())
-			m_free_views.MergeList(local_view_free);
+		UploadBufferView& GetUploadView(const size_t a_upload_size)
+		{
+			(void)a_upload_size; //not used yet.
+			OSAcquireSRWLockWrite(&m_lock);
+			UploadBufferView& view = *m_free_views.Pop();
+			//TODO, handle nullptr, maybe just wait or do the reset here?
+			OSReleaseSRWLockWrite(&m_lock);
+			return view;
+		}
 
-		OSReleaseSRWLockWrite(&m_in_flight_lock);
-	}
+		void IncrementNextFenceValue()
+		{
+			//yes
+			//maybe a lock is faster as it can be uncontested. Which may often be the case.
+			BBInterlockedIncrement64(reinterpret_cast<volatile long long*>(&m_next_fence_value));
+		}
 
-private:
-	RBuffer m_upload_buffer;			  //8
-	void* m_upload_mem_start;			  //16
+		void GetFence(RFence& a_fence, uint64_t& a_next_fence_value)
+		{
+			a_fence = m_fence;
+			a_next_fence_value = m_next_fence_value;
+		}
 
-	UploadBufferView* m_views;			  //24
-	LinkedList<UploadBufferView> m_free_views;		 //32
-	LinkedList<UploadBufferView> m_in_flight_views;  //40
-	BBRWLock m_in_flight_lock;		      //48
-	BBRWLock m_lock;					  //56
+		//return a upload view and set the fence value to the next fence value.
+		void ReturnUploadViews(const BB::Slice<UploadBufferView> a_views, RFence& a_out_fence, uint64_t& a_out_next_fence_value)
+		{
+			OSAcquireSRWLockWrite(&m_in_flight_lock);
+			for (size_t i = 0; i < a_views.size(); i++)
+			{
+				a_views[i].fence_value = m_next_fence_value;
+				m_in_flight_views.Push(&m_views[a_views[i].pool_index]);
+			}
+			a_out_fence = m_fence;
+			a_out_next_fence_value = m_next_fence_value;
+			OSReleaseSRWLockWrite(&m_in_flight_lock);
+		}
 
-	//this fence should be send to all execute commandlists when they include a upload buffer from here.
-	RFence m_fence;						  //64
-	volatile uint64_t m_next_fence_value; //72
-	uint64_t m_last_completed_fence_value;//80
+		void CheckIfInFlightDone()
+		{
+			LinkedList<UploadBufferView> local_view_free{};
 
-	const uint32_t m_upload_view_count;	  //84
-};
+			//lock as a write can be attempetd in m_in_flight_pools.
+			OSAcquireSRWLockWrite(&m_in_flight_lock);
+			m_last_completed_fence_value = Vulkan::GetCurrentFenceValue(m_fence);
+
+			//Thank you Descent Raytracer teammates for the great code that I can steal
+			for (UploadBufferView** in_flight_views = &m_in_flight_views.head; *in_flight_views;)
+			{
+				UploadBufferView* view = *in_flight_views;
+
+				if (view->fence_value <= m_last_completed_fence_value)
+				{
+					//Get next in-flight commandlist
+					*in_flight_views = view->next;
+					local_view_free.Push(view);
+				}
+				else
+				{
+					in_flight_views = &view->next;
+				}
+			}
+
+			if (local_view_free.HasEntry())
+				m_free_views.MergeList(local_view_free);
+
+			OSReleaseSRWLockWrite(&m_in_flight_lock);
+		}
+
+	private:
+		RBuffer m_upload_buffer;			  //8
+		void* m_upload_mem_start;			  //16
+
+		UploadBufferView* m_views;			  //24
+		LinkedList<UploadBufferView> m_free_views;		 //32
+		LinkedList<UploadBufferView> m_in_flight_views;  //40
+		BBRWLock m_in_flight_lock;		      //48
+		BBRWLock m_lock;					  //56
+
+		//this fence should be send to all execute commandlists when they include a upload buffer from here.
+		RFence m_fence;						  //64
+		volatile uint64_t m_next_fence_value; //72
+		uint64_t m_last_completed_fence_value;//80
+
+		const uint32_t m_upload_view_count;	  //84
+	};
+}
 
 RCommandList CommandPool::StartCommandList(const char* a_name)
 {
@@ -362,35 +370,39 @@ public:
 		OSReleaseSRWLockWrite(&m_in_flight_lock);
 	}
 
-	void ExecutePresentCommands(RCommandList* a_lists, const uint32_t a_list_count, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const uint32_t a_wait_count, const uint32_t a_backbuffer_index)
+	void ReturnPools(const Slice<CommandPool> a_pools)
+	{
+		OSAcquireSRWLockWrite(&m_in_flight_lock);
+		for (size_t i = 0; i < a_pools.size(); i++)
+		{
+			a_pools[i].m_fence_value = m_fence.next_fence_value;
+			m_in_flight_pools.Push(&m_pools[a_pools[i].pool_index]);
+		}
+
+		OSReleaseSRWLockWrite(&m_in_flight_lock);
+	}
+
+	void ExecuteCommands(RCommandList* a_lists, const uint32_t a_list_count, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const uint32_t a_wait_count)
 	{
 		BB_ASSERT(m_queue_type == QUEUE_TYPE::GRAPHICS, "calling a present commands on a non-graphics command queue is not valid");
-		
-		const uint32_t signal_fence_count = 1 + a_signal_count;
-		RFence* signal_fences = BBstackAlloc(signal_fence_count, RFence);
-		uint64_t* signal_values = BBstackAlloc(signal_fence_count, uint64_t);
-		Memory::Copy(signal_fences, a_signal_fences, a_signal_count);
-		signal_fences[a_signal_count] = m_fence.fence;
-		Memory::Copy(signal_values, a_signal_values, a_signal_count);
-		signal_values[a_signal_count] = m_fence.next_fence_value;
 
 		ExecuteCommandsInfo execute_info;
 		execute_info.lists = a_lists;
 		execute_info.list_count = a_list_count;
-		execute_info.signal_fences = signal_fences;
-		execute_info.signal_values = signal_values;
-		execute_info.signal_count = signal_fence_count;
+		execute_info.signal_fences = a_signal_fences;
+		execute_info.signal_values = a_signal_values;
+		execute_info.signal_count = a_signal_count;
 		execute_info.wait_fences = a_wait_fences;
 		execute_info.wait_values = a_wait_values;
 		execute_info.wait_count = a_wait_count;
 
 		OSAcquireSRWLockWrite(&m_lock);
-		Vulkan::ExecutePresentCommandList(m_queue, execute_info, a_backbuffer_index);
+		Vulkan::ExecuteCommandLists(m_queue, &execute_info, 1);
 		++m_fence.next_fence_value;
 		OSReleaseSRWLockWrite(&m_lock);
 	}
 
-	void ExecutePresentCommands(RCommandList* a_lists, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const uint32_t a_wait_count, const uint32_t a_backbuffer_index)
+	void ExecutePresentCommands(const RCommandList a_list, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const uint32_t a_wait_count, const uint32_t a_backbuffer_index)
 	{
 		BB_ASSERT(m_queue_type == QUEUE_TYPE::GRAPHICS, "calling a present commands on a non-graphics command queue is not valid");
 		
@@ -403,7 +415,7 @@ public:
 		signal_values[a_signal_count] = m_fence.next_fence_value;
 
 		ExecuteCommandsInfo execute_info;
-		execute_info.lists = a_lists;
+		execute_info.lists = &a_list;
 		execute_info.list_count = 1;
 		execute_info.signal_fences = signal_fences;
 		execute_info.signal_values = signal_values;
@@ -480,9 +492,16 @@ struct Mesh
 	BufferView index_buffer;
 };
 
+struct MeshDrawCall
+{
+	MeshHandle mesh;
+	uint32_t index_start;
+	uint32_t index_count;
+};
+
 struct DrawList
 {
-	MeshHandle* mesh;
+	MeshDrawCall* mesh_draw_call;
 	ShaderTransform* transform;
 };
 
@@ -604,7 +623,7 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 
 	s_render_inst->draw_list_max = 128;
 	s_render_inst->draw_list_count = 0;
-	s_render_inst->draw_list_data.mesh = BBnewArr(a_stack_allocator, s_render_inst->draw_list_max, MeshHandle);
+	s_render_inst->draw_list_data.mesh_draw_call = BBnewArr(a_stack_allocator, s_render_inst->draw_list_max, MeshDrawCall);
 	s_render_inst->draw_list_data.transform = BBnewArr(a_stack_allocator, s_render_inst->draw_list_max, ShaderTransform);
 
 	s_render_inst->mesh_map.Init(a_stack_allocator, 32);
@@ -850,8 +869,7 @@ void BB::EndFrame()
 
 	RFence upload_fence;
 	uint64_t upload_fence_value;
-	s_render_inst->upload_buffers.GetFence(upload_fence, upload_fence_value);
-	s_render_inst->upload_buffers.ReturnUploadView(matrix_upload_view, upload_fence_value);
+	s_render_inst->upload_buffers.ReturnUploadViews(Slice(&matrix_upload_view, 1), upload_fence, upload_fence_value);
 	s_render_inst->upload_buffers.IncrementNextFenceValue();
 
 	//render
@@ -880,7 +898,8 @@ void BB::EndFrame()
 
 	for (uint32_t i = 0; i < s_render_inst->draw_list_count; i++)
 	{
-		const Mesh& mesh = s_render_inst->mesh_map.find(s_render_inst->draw_list_data.mesh[i].handle);
+		const MeshDrawCall& mesh_draw_call = s_render_inst->draw_list_data.mesh_draw_call[i];
+		const Mesh& mesh = s_render_inst->mesh_map.find(mesh_draw_call.mesh.handle);
 
 		ShaderIndices shader_indices;
 		shader_indices.transform_index = i;
@@ -888,9 +907,9 @@ void BB::EndFrame()
 		Vulkan::SetPushConstants(current_command_list, pipeline_layout, 0, sizeof(ShaderIndices), &shader_indices);
 
 		Vulkan::DrawIndexed(current_command_list,
-			static_cast<uint32_t>(mesh.index_buffer.size / sizeof(uint32_t)),
+			static_cast<uint32_t>(mesh.index_buffer.size / sizeof(uint32_t)) + mesh_draw_call.index_count,
 			1,
-			static_cast<uint32_t>(mesh.index_buffer.offset / sizeof(uint32_t)),
+			static_cast<uint32_t>(mesh.index_buffer.offset / sizeof(uint32_t)) + mesh_draw_call.index_start,
 			0,
 			0);
 	}
@@ -903,7 +922,7 @@ void BB::EndFrame()
 	current_use_pool->EndCommandList(current_command_list);
 
 	s_render_inst->frames[s_render_inst->backbuffer_pos].fence_value = s_render_inst->graphics_queue.GetNextFenceValue();
-	s_render_inst->graphics_queue.ExecutePresentCommands(&current_command_list, &upload_fence, &upload_fence_value, 1, nullptr, nullptr, 0, s_render_inst->backbuffer_pos);
+	s_render_inst->graphics_queue.ExecutePresentCommands(current_command_list, &upload_fence, &upload_fence_value, 1, nullptr, nullptr, 0, s_render_inst->backbuffer_pos);
 	s_render_inst->graphics_queue.ReturnPool(*current_use_pool);
 
 	//swap images
@@ -931,10 +950,42 @@ CommandPool& BB::GetGraphicsCommandPool()
 	return s_render_inst->graphics_queue.GetCommandPool();
 }
 
-//MOCK, todo.
+//MOCK, todo, uses graphics queue
 CommandPool& BB::GetTransferCommandPool()
 {
 	return s_render_inst->graphics_queue.GetCommandPool();
+}
+
+bool BB::ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<UploadBufferView> a_upload_views)
+{
+	uint32_t list_count = 0;
+	for (size_t i = 0; i < a_cmd_pools.size(); i++)
+		list_count + a_cmd_pools[i].GetListsRecorded();
+
+	RCommandList* lists = BBstackAlloc(list_count, RCommandList);
+	list_count = 0;
+	for (size_t i = 0; i < a_cmd_pools.size(); i++)
+	{
+		Memory::Copy(&lists[list_count],
+			a_cmd_pools[i].GetLists(),
+			a_cmd_pools[i].GetListsRecorded());
+		list_count += a_cmd_pools[i].GetListsRecorded();
+	}
+
+	RFence upload_fence;
+	uint64_t upload_fence_value;
+	s_render_inst->upload_buffers.ReturnUploadViews(a_upload_views, upload_fence, upload_fence_value);
+	s_render_inst->upload_buffers.IncrementNextFenceValue();
+
+	s_render_inst->graphics_queue.ExecuteCommands(lists, list_count, &upload_fence, &upload_fence_value, 1, nullptr, nullptr, 0);
+	s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
+	return true;
+}
+
+//MOCK, todo, uses graphics queue
+bool BB::ExecuteTransferCommands(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<UploadBufferView> a_upload_views)
+{
+	return ExecuteGraphicCommands(a_cmd_pools, a_upload_views);
 }
 
 const MeshHandle BB::CreateMesh(const CreateMeshInfo& a_create_info)
@@ -990,9 +1041,11 @@ void BB::FreeTexture(const RTexture a_texture)
 	return s_render_inst->texture_manager.FreeTexture(a_texture);
 }
 
-void BB::DrawMesh(const MeshHandle a_mesh, const float4x4& a_transform)
+void BB::DrawMesh(const MeshHandle a_mesh, const float4x4& a_transform, const uint32_t a_index_start, const uint32_t a_index_count)
 {
-	s_render_inst->draw_list_data.mesh[s_render_inst->draw_list_count] = a_mesh;
+	s_render_inst->draw_list_data.mesh_draw_call[s_render_inst->draw_list_count].mesh = a_mesh;
+	s_render_inst->draw_list_data.mesh_draw_call[s_render_inst->draw_list_count].index_start = a_index_start;
+	s_render_inst->draw_list_data.mesh_draw_call[s_render_inst->draw_list_count].index_count = a_index_count;
 	s_render_inst->draw_list_data.transform[s_render_inst->draw_list_count].transform = a_transform;
 	s_render_inst->draw_list_data.transform[s_render_inst->draw_list_count++].inverse = Float4x4Inverse(a_transform);
 }

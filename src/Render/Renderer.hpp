@@ -48,6 +48,9 @@ namespace BB
 
 		void ResetPool();
 	public:
+		const RCommandList* GetLists() const { return m_lists; }
+		const uint32_t GetListsRecorded() const { return m_list_current_free; }
+ 
 		RCommandList StartCommandList(const char* a_name = nullptr);
 		void EndCommandList(RCommandList a_list);
 	};
@@ -92,11 +95,11 @@ namespace BB
 	void SetProjection(const float4x4& a_projection);
 
 	UploadBufferView& GetUploadView(const size_t a_upload_size);
-	void ReturnUploadView(const UploadBufferView& a_upload_view);
-
 	CommandPool& GetGraphicsCommandPool();
 	CommandPool& GetTransferCommandPool();
-	void ReturnCommandPool(const CommandPool& a_pool);
+
+	bool ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<UploadBufferView> a_upload_views);
+	bool ExecuteTransferCommands(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<UploadBufferView> a_upload_views);
 
 	struct TransferCommandsInfo
 	{
@@ -114,5 +117,5 @@ namespace BB
 	const RTexture UploadTexture(const UploadImageInfo& a_upload_info, const RCommandList a_list, UploadBufferView& a_upload_view);
 	void FreeTexture(const RTexture a_texture);
 
-	void DrawMesh(const MeshHandle a_mesh, const float4x4& a_transform);
+	void DrawMesh(const MeshHandle a_mesh, const float4x4& a_transform, const uint32_t a_index_start, const uint32_t a_index_count);
 }

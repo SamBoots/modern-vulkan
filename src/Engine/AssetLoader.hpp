@@ -5,9 +5,6 @@
 namespace BB
 {
 	using AssetHandle = FrameworkHandle<struct AssetHandleTag>;
-	constexpr const char MODELS_DIRECTORY[] = "Resources/models/";
-	constexpr const char SHADERS_DIRECTORY[] = "Resources/shaders/";
-	constexpr const char TEXTURE_DIRECTORY[] = "resources/textures/";
 
 	class BBImage;
 	class UploadBufferView;
@@ -22,13 +19,27 @@ namespace BB
 
 	struct Model
 	{
+		struct Primitive
+		{
+			//change this with material.
+			uint32_t start_index;	//4
+			uint32_t index_count;	//8
+			RTexture base_color;    //12
+			RTexture normal_texture;//16
+		};
+
 		struct Node
 		{
-			float4x4 transform;		//64
-			MeshHandle mesh_handle; //72
-			Model::Node* childeren; //80
-			uint32_t child_count;	//84
+			float4x4 transform;			 //64
+			MeshHandle mesh_handle;		 //72
+			Model::Node* childeren;		 //80
+			uint32_t child_count;		 //84
+			Model::Primitive* primitives;//92
+			uint32_t primitive_count;    //96
 		};
+
+		Primitive* primitives;
+		uint32_t primitive_count;
 
 		Node* linear_nodes;
 		Node* root_nodes;
@@ -87,7 +98,7 @@ namespace BB
 
 		const Image* LoadImageDisk(const char* a_path, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view);
 		const Image* LoadImageMemory(const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view);
-		const Model* LoadglTFModel(Allocator a_temp_allocator, const char* a_Path);
+		const Model* LoadglTFModel(Allocator a_temp_allocator, const char* a_path, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view);
 
 		void FreeAsset(const AssetHandle a_asset_handle);
 	};

@@ -22,6 +22,23 @@ BB_WARNINGS_ON
 
 using namespace BB;
 
+//constexpr const char JSON_DIRECTORY[] = "Resources/Json/";
+//constexpr const char MODELS_DIRECTORY[] = "Resources/Models/";
+//constexpr const char SHADERS_DIRECTORY[] = "Resources/Shaders/";
+constexpr const char TEXTURE_DIRECTORY[] = "Resources/Textures/";
+
+static char* CreateGLTFImagePath(Allocator a_temp_allocator, const char* a_image_path)
+{
+	const size_t image_path_size = strlen(a_image_path);
+	char* new_path = BBnewArr(a_temp_allocator, sizeof(TEXTURE_DIRECTORY) + image_path_size, char);
+
+	Memory::Copy(new_path, TEXTURE_DIRECTORY, sizeof(TEXTURE_DIRECTORY));
+	Memory::Copy(&new_path[sizeof(TEXTURE_DIRECTORY) - 1], a_image_path, image_path_size);
+	new_path[sizeof(TEXTURE_DIRECTORY) - 1 + image_path_size] = '\0';
+
+	return new_path;
+}
+
 //crappy hash, don't care for now.
 static uint64_t StringHash(const char* a_string)
 {
@@ -136,7 +153,7 @@ void Asset::LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_t
 			switch (task.load_type)
 			{
 			case ASYNC_LOAD_TYPE::DISK:
-				LoadglTFModel(load_async_allocator, task.mesh_disk.path);
+				LoadglTFModel(load_async_allocator, task.mesh_disk.path, task.mesh_disk.name, cmd_list, upload_buffer_view);
 				break;
 			case ASYNC_LOAD_TYPE::MEMORY:
 				BB_ASSERT(false, "no memory load for meshes yet.");
@@ -171,9 +188,9 @@ const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const 
 	UploadImageInfo upload_image_info;
 	upload_image_info.name = a_name;
 	upload_image_info.pixels = pixels;
-	upload_image_info.width = x;
-	upload_image_info.height = y;
-	upload_image_info.bit_count = channels * 8;
+	upload_image_info.width = static_cast<uint32_t>(x);
+	upload_image_info.height = static_cast<uint32_t>(y);
+	upload_image_info.bit_count = static_cast<uint32_t>(channels * 8);
 
 	const RTexture gpu_image = UploadTexture(upload_image_info, a_list, a_upload_view);
 
@@ -184,7 +201,7 @@ const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const 
 	image->height = upload_image_info.height;
 	image->gpu_image = gpu_image;
 
-	const uint64_t hash = TurboCrappyImageHash(pixels, static_cast<size_t>(image->width) + image->height + channels);
+	const uint64_t hash = TurboCrappyImageHash(pixels, static_cast<size_t>(image->width) + image->height + static_cast<uint32_t>(channels));
 	BB_ASSERT(hash != 0, "Image hashing failed");
 
 	AssetSlot asset;
@@ -234,7 +251,7 @@ static inline void* GetAccessorDataPtr(const cgltf_accessor* a_Accessor)
 	return Pointer::Add(a_Accessor->buffer_view->buffer->data, accessor_offset);
 }
 
-static void LoadglTFNode(Allocator a_temp_allocator, const cgltf_node& a_node, Model& a_model, uint32_t& a_node_index)
+static void LoadglTFNode(Allocator a_temp_allocator, const RCommandList a_list, UploadBufferView& a_upload_view, const cgltf_node& a_node, Model& a_model, uint32_t& a_node_index, uint32_t& a_primitive_index)
 {
 	Model::Node& mod_node = a_model.linear_nodes[a_node_index++];
 
@@ -246,6 +263,9 @@ static void LoadglTFNode(Allocator a_temp_allocator, const cgltf_node& a_node, M
 	if (a_node.mesh != nullptr)
 	{
 		const cgltf_mesh& mesh = *a_node.mesh;
+
+		mod_node.primitives = &a_model.primitives[a_primitive_index];
+		mod_node.primitive_count = static_cast<uint32_t>(mesh.primitives_count);
 
 		uint32_t index_count = 0;
 		uint32_t vertex_count = 0;
@@ -267,27 +287,47 @@ static void LoadglTFNode(Allocator a_temp_allocator, const cgltf_node& a_node, M
 
 		uint32_t* indices = BBnewArr(a_temp_allocator, index_count, uint32_t);
 		Vertex* vertices = BBnewArr(a_temp_allocator, vertex_count, Vertex);
-		uint32_t* index_offset = indices;
-		Vertex* vertex_offset = vertices;
+		uint32_t index_offset = 0;
+		uint32_t vertex_offset = 0;
 
 		for (size_t prim_index = 0; prim_index < mesh.primitives_count; prim_index++)
 		{
 			const cgltf_primitive& prim = mesh.primitives[prim_index];
+			Model::Primitive& model_prim = a_model.primitives[a_primitive_index++];
+			model_prim.start_index = index_offset;
+			model_prim.index_count = static_cast<uint32_t>(prim.indices->count);
 
-			//do images here.... 
+			if (prim.material->pbr_metallic_roughness.base_color_texture.texture)
+			{
+				const cgltf_image& image = *prim.material->pbr_metallic_roughness.base_color_texture.texture->image;
+				
+				const char* full_image_path = CreateGLTFImagePath(a_temp_allocator, image.uri);
+				const Image* img = Asset::LoadImageDisk(full_image_path, image.name, a_list, a_upload_view);
+				
+				model_prim.base_color = img->gpu_image;
+			}
 
+			if (prim.material->normal_texture.texture)
+			{
+				const cgltf_image& image = *prim.material->normal_texture.texture->image;
+
+				const char* full_image_path = CreateGLTFImagePath(a_temp_allocator, image.uri);
+				const Image* img = Asset::LoadImageDisk(full_image_path, image.name, a_list, a_upload_view);
+	
+				model_prim.normal_texture = img->gpu_image;
+			}
 
 			{	//get indices
 				void* index_data = GetAccessorDataPtr(prim.indices);
 				if (prim.indices->component_type == cgltf_component_type_r_32u)
 				{
-					Memory::Copy(&index_offset, index_data, prim.indices->count);
+					Memory::Copy(&indices[index_offset], index_data, prim.indices->count);
 					index_offset += prim.indices->count;
 				}
 				else if (prim.indices->component_type == cgltf_component_type_r_16u)
 				{
 					for (size_t i = 0; i < prim.indices->count; i++)
-						indices[i] = reinterpret_cast<uint16_t*>(index_data)[i];
+						indices[index_offset + i] = reinterpret_cast<uint16_t*>(index_data)[i];
 					index_offset += prim.indices->count;
 				}
 				else
@@ -304,9 +344,9 @@ static void LoadglTFNode(Allocator a_temp_allocator, const cgltf_node& a_node, M
 				case cgltf_attribute_type_position:
 					for (size_t i = 0; i < attrib.data->count; i++)
 					{
-						vertex_offset[i].position.x = data_pos[0];
-						vertex_offset[i].position.y = data_pos[1];
-						vertex_offset[i].position.z = data_pos[2];
+						vertices[vertex_offset + i].position.x = data_pos[0];
+						vertices[vertex_offset + i].position.y = data_pos[1];
+						vertices[vertex_offset + i].position.z = data_pos[2];
 
 						data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride));
 						//increment the main vertices, jank.
@@ -316,9 +356,9 @@ static void LoadglTFNode(Allocator a_temp_allocator, const cgltf_node& a_node, M
 				case cgltf_attribute_type_normal:
 					for (size_t i = 0; i < attrib.data->count; i++)
 					{
-						vertex_offset[i].normal.x = data_pos[0];
-						vertex_offset[i].normal.y = data_pos[1];
-						vertex_offset[i].normal.z = data_pos[2];
+						vertices[vertex_offset + i].normal.x = data_pos[0];
+						vertices[vertex_offset + i].normal.y = data_pos[1];
+						vertices[vertex_offset + i].normal.z = data_pos[2];
 
 						data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride));
 					}
@@ -326,8 +366,8 @@ static void LoadglTFNode(Allocator a_temp_allocator, const cgltf_node& a_node, M
 				case cgltf_attribute_type_texcoord:
 					for (size_t i = 0; i < attrib.data->count; i++)
 					{
-						vertex_offset[i].uv.x = data_pos[0];
-						vertex_offset[i].uv.y = data_pos[1];
+						vertices[vertex_offset + i].uv.x = data_pos[0];
+						vertices[vertex_offset + i].uv.y = data_pos[1];
 
 						data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride));
 					}
@@ -358,17 +398,17 @@ static void LoadglTFNode(Allocator a_temp_allocator, const cgltf_node& a_node, M
 		mod_node.childeren = &a_model.linear_nodes[a_node_index]; //childeren are loaded linearly, i'm quite sure.
 		for (size_t i = 0; i < mod_node.child_count; i++)
 		{
-			LoadglTFNode(a_temp_allocator, *a_node.children[i], a_model, a_node_index);
+			LoadglTFNode(a_temp_allocator, a_list, a_upload_view, *a_node.children[i], a_model, a_node_index, a_primitive_index);
 		}
 	}
 }
 
-const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const char* a_path)
+const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const char* a_path, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view)
 {
 	cgltf_options gltf_option = {};
 	cgltf_data* gltf_data = nullptr;
 
-	if (!cgltf_parse_file(&gltf_option, a_path, &gltf_data) == cgltf_result_success)
+	if (cgltf_parse_file(&gltf_option, a_path, &gltf_data) != cgltf_result_success)
 	{
 		BB_ASSERT(false, "Failed to load glTF model, cgltf_parse_file.");
 		return nullptr;
@@ -376,10 +416,17 @@ const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const char* a_path
 
 	cgltf_load_buffers(&gltf_option, gltf_data, a_path);
 
-	if (!cgltf_validate(gltf_data) == cgltf_result_success)
+	if (cgltf_validate(gltf_data) != cgltf_result_success)
 	{
 		BB_ASSERT(false, "GLTF model validation failed!");
 		return nullptr;
+	}
+
+	uint32_t primitive_count = 0;
+	for (size_t mesh_index = 0; mesh_index < gltf_data->meshes_count; mesh_index++)
+	{
+		const cgltf_mesh& mesh = gltf_data->meshes[mesh_index];
+		primitive_count += mesh.primitives_count;
 	}
 
 	const uint32_t linear_node_count = static_cast<uint32_t>(gltf_data->nodes_count);
@@ -387,18 +434,20 @@ const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const char* a_path
 	//optimize the memory space with one allocation for the entire model
 	Model* model = BBnew(s_asset_manager.allocator, Model);
 	model->linear_nodes = BBnewArr(s_asset_manager.allocator, linear_node_count, Model::Node);
-
+	model->primitives = BBnewArr(s_asset_manager.allocator, primitive_count, Model::Primitive);
 	//for now this is going to be the root node, which is 0.
 	//This is not accurate on all GLTF models
+	model->primitive_count = primitive_count;
 	model->root_node_count = static_cast<uint32_t>(gltf_data->scene->nodes_count);
 	BB_ASSERT(model->root_node_count == 1, "not supporting more then 1 root node for gltf yet.");
 	model->root_nodes = &model->linear_nodes[0];
 
 	uint32_t current_node = 0;
+	uint32_t current_primitive = 0;
 
 	for (size_t i = 0; i < gltf_data->scene->nodes_count; i++)
 	{
-		LoadglTFNode(a_temp_allocator , *gltf_data->scene->nodes[i], *model, current_node);
+		LoadglTFNode(a_temp_allocator, a_list, a_upload_view, *gltf_data->scene->nodes[i], *model, current_node, current_primitive);
 	}
 
 	cgltf_free(gltf_data);
