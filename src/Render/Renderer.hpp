@@ -24,6 +24,12 @@ namespace BB
 		Slice<uint32_t> indices;
 	};
 
+	struct CreateMaterialInfo
+	{
+		RTexture base_color;
+		RTexture normal_texture;
+	};
+
 	struct UploadImageInfo
 	{
 		const char* name;
@@ -114,8 +120,11 @@ namespace BB
 	const MeshHandle CreateMesh(const CreateMeshInfo& a_create_info);
 	void FreeMesh(const MeshHandle a_mesh);
 
+	const MaterialHandle CreateMaterial(const CreateMaterialInfo& a_create_info);
+	void FreeMaterial(const MaterialHandle a_material);
+
 	const RTexture UploadTexture(const UploadImageInfo& a_upload_info, const RCommandList a_list, UploadBufferView& a_upload_view);
 	void FreeTexture(const RTexture a_texture);
 
-	void DrawMesh(const MeshHandle a_mesh, const float4x4& a_transform, const uint32_t a_index_start, const uint32_t a_index_count);
+	void DrawMesh(const MeshHandle a_mesh, const float4x4& a_transform, const uint32_t a_index_start, const uint32_t a_index_count, const MaterialHandle a_material);
 }

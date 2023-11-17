@@ -492,9 +492,16 @@ struct Mesh
 	BufferView index_buffer;
 };
 
+struct Material
+{
+	RTexture base_color;
+	RTexture normal_texture;
+};
+
 struct MeshDrawCall
 {
 	MeshHandle mesh;
+	MaterialHandle material;
 	uint32_t index_start;
 	uint32_t index_count;
 };
@@ -558,6 +565,7 @@ struct RenderInterface_inst
 	SceneInfo scene_info;
 
 	StaticSlotmap<Mesh> mesh_map{};
+	StaticSlotmap<Material> material_map{};
 
 	uint32_t draw_list_count;
 	uint32_t draw_list_max;
@@ -627,6 +635,7 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 	s_render_inst->draw_list_data.transform = BBnewArr(a_stack_allocator, s_render_inst->draw_list_max, ShaderTransform);
 
 	s_render_inst->mesh_map.Init(a_stack_allocator, 32);
+	s_render_inst->material_map.Init(a_stack_allocator, 64);
 
 	s_render_inst->shader_compiler = CreateShaderCompiler(a_stack_allocator);
 
@@ -953,7 +962,7 @@ CommandPool& BB::GetGraphicsCommandPool()
 //MOCK, todo, uses graphics queue
 CommandPool& BB::GetTransferCommandPool()
 {
-	return s_render_inst->graphics_queue.GetCommandPool();
+	return GetGraphicsCommandPool();
 }
 
 bool BB::ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<UploadBufferView> a_upload_views)
@@ -1030,6 +1039,21 @@ void BB::FreeMesh(const MeshHandle a_mesh)
 	s_render_inst->mesh_map.erase(a_mesh.handle);
 }
 
+const MaterialHandle BB::CreateMaterial(const CreateMaterialInfo& a_create_info)
+{
+	Material mat;
+	mat.base_color = a_create_info.base_color;
+	mat.normal_texture = a_create_info.normal_texture;
+
+	return MaterialHandle(s_render_inst->material_map.insert(mat).handle);
+}
+
+void BB::FreeMaterial(const MaterialHandle a_material)
+{
+	//maybe go and check the refcount of the textures to possibly free them.
+	s_render_inst->material_map.erase(a_material.handle);
+}
+
 //maybe not handle a_upload_view_offset
 const RTexture BB::UploadTexture(const UploadImageInfo& a_upload_info, const RCommandList a_list, UploadBufferView& a_upload_view)
 {
@@ -1041,9 +1065,10 @@ void BB::FreeTexture(const RTexture a_texture)
 	return s_render_inst->texture_manager.FreeTexture(a_texture);
 }
 
-void BB::DrawMesh(const MeshHandle a_mesh, const float4x4& a_transform, const uint32_t a_index_start, const uint32_t a_index_count)
+void BB::DrawMesh(const MeshHandle a_mesh, const float4x4& a_transform, const uint32_t a_index_start, const uint32_t a_index_count, const MaterialHandle a_material)
 {
 	s_render_inst->draw_list_data.mesh_draw_call[s_render_inst->draw_list_count].mesh = a_mesh;
+	s_render_inst->draw_list_data.mesh_draw_call[s_render_inst->draw_list_count].material = a_material;
 	s_render_inst->draw_list_data.mesh_draw_call[s_render_inst->draw_list_count].index_start = a_index_start;
 	s_render_inst->draw_list_data.mesh_draw_call[s_render_inst->draw_list_count].index_count = a_index_count;
 	s_render_inst->draw_list_data.transform[s_render_inst->draw_list_count].transform = a_transform;
