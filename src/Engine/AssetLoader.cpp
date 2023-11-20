@@ -169,7 +169,7 @@ void Asset::LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_t
 				BB_ASSERT(false, "no disk load for textures yet.");
 				break;
 			case ASYNC_LOAD_TYPE::MEMORY:
-				LoadImageMemory(task.texture_memory.image, task.texture_memory.name, cmd_list, upload_buffer_view);
+				LoadImageMemory(*task.texture_memory.image, task.texture_memory.name, cmd_list, upload_buffer_view);
 				break;
 			}
 		}
@@ -297,6 +297,9 @@ static void LoadglTFNode(Allocator a_temp_allocator, const RCommandList a_list, 
 			model_prim.start_index = index_offset;
 			model_prim.index_count = static_cast<uint32_t>(prim.indices->count);
 
+			CreateMaterialInfo material_info;
+
+
 			if (prim.material->pbr_metallic_roughness.base_color_texture.texture)
 			{
 				const cgltf_image& image = *prim.material->pbr_metallic_roughness.base_color_texture.texture->image;
@@ -304,7 +307,7 @@ static void LoadglTFNode(Allocator a_temp_allocator, const RCommandList a_list, 
 				const char* full_image_path = CreateGLTFImagePath(a_temp_allocator, image.uri);
 				const Image* img = Asset::LoadImageDisk(full_image_path, image.name, a_list, a_upload_view);
 				
-				model_prim.base_color = img->gpu_image;
+				material_info.base_color = img->gpu_image;
 			}
 
 			if (prim.material->normal_texture.texture)
@@ -314,8 +317,10 @@ static void LoadglTFNode(Allocator a_temp_allocator, const RCommandList a_list, 
 				const char* full_image_path = CreateGLTFImagePath(a_temp_allocator, image.uri);
 				const Image* img = Asset::LoadImageDisk(full_image_path, image.name, a_list, a_upload_view);
 	
-				model_prim.normal_texture = img->gpu_image;
+				material_info.normal_texture = img->gpu_image;
 			}
+
+			model_prim.material = CreateMaterial(material_info);
 
 			{	//get indices
 				void* index_data = GetAccessorDataPtr(prim.indices);
@@ -405,6 +410,16 @@ static void LoadglTFNode(Allocator a_temp_allocator, const RCommandList a_list, 
 
 const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const char* a_path, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view)
 {
+	AssetHash asset_hash = CreateAssetHash(StringHash(a_path), ASSET_TYPE::MODEL);
+
+	Model* model = nullptr;
+	
+	if (AssetSlot* slot = s_asset_manager.asset_map.find(asset_hash.full_hash))
+	{
+		return slot->model;
+	}
+
+
 	cgltf_options gltf_option = {};
 	cgltf_data* gltf_data = nullptr;
 
@@ -432,7 +447,7 @@ const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const char* a_path
 	const uint32_t linear_node_count = static_cast<uint32_t>(gltf_data->nodes_count);
 
 	//optimize the memory space with one allocation for the entire model
-	Model* model = BBnew(s_asset_manager.allocator, Model);
+	model = BBnew(s_asset_manager.allocator, Model);
 	model->linear_nodes = BBnewArr(s_asset_manager.allocator, linear_node_count, Model::Node);
 	model->primitives = BBnewArr(s_asset_manager.allocator, primitive_count, Model::Primitive);
 	//for now this is going to be the root node, which is 0.
@@ -453,7 +468,7 @@ const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const char* a_path
 	cgltf_free(gltf_data);
 
 	AssetSlot asset;
-	asset.hash = CreateAssetHash(StringHash(a_path), ASSET_TYPE::MODEL);
+	asset.hash = asset_hash;
 	asset.path = FindOrCreateString(a_path);
 	asset.model = model;
 
@@ -461,6 +476,16 @@ const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const char* a_path
 
 	model->asset_handle = AssetHandle(asset.hash.full_hash);
 	return model;
+}
+
+const Model* Asset::FindModel(const char* a_path)
+{
+	AssetHash asset_hash = CreateAssetHash(StringHash(a_path), ASSET_TYPE::MODEL);
+	if (AssetSlot* slot = s_asset_manager.asset_map.find(asset_hash.full_hash))
+	{
+		return slot->model;
+	}
+	return nullptr;
 }
 
 void Asset::FreeAsset(const AssetHandle a_asset_handle)

@@ -24,8 +24,7 @@ namespace BB
 			//change this with material.
 			uint32_t start_index;	//4
 			uint32_t index_count;	//8
-			RTexture base_color;    //12
-			RTexture normal_texture;//16
+			MaterialHandle material; //16
 		};
 
 		struct Node
@@ -67,7 +66,7 @@ namespace BB
 		struct TextureLoadFromMemory
 		{
 			const char* name;
-			BBImage& image;
+			BBImage* image;
 		};
 
 		struct TextureLoadFromDisk
@@ -99,6 +98,8 @@ namespace BB
 		const Image* LoadImageDisk(const char* a_path, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view);
 		const Image* LoadImageMemory(const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view);
 		const Model* LoadglTFModel(Allocator a_temp_allocator, const char* a_path, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view);
+
+		const Model* FindModel(const char* a_path);
 
 		void FreeAsset(const AssetHandle a_asset_handle);
 	};

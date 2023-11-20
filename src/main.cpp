@@ -21,7 +21,7 @@ static void DrawglTFNode(BB::Model::Node& a_node, const BB::float4x4& a_transfor
 
 	if (a_node.mesh_handle.handle != BB::BB_INVALID_HANDLE_64)
 		for (uint32_t i = 0; i < a_node.primitive_count; i++)
-			BB::DrawMesh(a_node.mesh_handle, local_transform, a_node.primitives[i].start_index, a_node.primitives[i].index_count);
+			BB::DrawMesh(a_node.mesh_handle, local_transform, a_node.primitives[i].start_index, a_node.primitives[i].index_count, a_node.primitives[i].material);
 
 	for (size_t i = 0; i < a_node.child_count; i++)
 	{
@@ -93,10 +93,18 @@ int main(int argc, char** argv)
 		quad_create_info.indices = Slice(indices, _countof(indices));
 		quad_mesh = CreateMesh(quad_create_info);
 	}
+
 	const Model* gltf_model;
 	BBStackAllocatorScope(main_allocator)
 	{
-		gltf_model = Asset::LoadglTFModel(main_allocator, "../resources/models/Duck.gltf");
+		Asset::AsyncAsset async_assets[1]{};
+		async_assets[0].asset_type = Asset::ASYNC_ASSET_TYPE::MODEL;
+		async_assets[0].load_type = Asset::ASYNC_LOAD_TYPE::DISK;
+		async_assets[0].mesh_disk.name = "duck gltf";
+		async_assets[0].mesh_disk.path = "../resources/models/Duck.gltf";
+		Asset::LoadASync(Slice(async_assets, 1));
+
+		gltf_model = Asset::FindModel("../resources/models/Duck.gltf");
 	}
 
 	InputEvent input_events[INPUT_EVENT_BUFFER_MAX]{};
