@@ -116,6 +116,7 @@ namespace BB
 	{
 		const char* name = nullptr;
 
+		RImage image;
 		uint16_t array_layers = 0;
 		uint16_t mip_levels = 0;
 		IMAGE_TYPE type{};

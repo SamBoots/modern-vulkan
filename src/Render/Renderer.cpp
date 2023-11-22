@@ -26,6 +26,8 @@ public:
 	{
 		const uint32_t purple = (209u << 24u) | (106u << 16u) | (255u << 8u) | (255u << 0u);
 		(void)purple;
+
+		lock = OSCreateRWLock();
 		//texture 0 is always the debug texture.
 		textures[0].image = debug_texture;
 		textures[0].next_free = UINT32_MAX;
@@ -79,6 +81,7 @@ public:
 			slot.image = Vulkan::CreateImage(image_info);
 
 			ImageViewCreateInfo image_view_info;
+			image_view_info.image = slot.image;
 			image_view_info.name = a_upload_info.name;
 			image_view_info.array_layers = 1;
 			image_view_info.mip_levels = 1;
@@ -969,7 +972,7 @@ bool BB::ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const 
 {
 	uint32_t list_count = 0;
 	for (size_t i = 0; i < a_cmd_pools.size(); i++)
-		list_count + a_cmd_pools[i].GetListsRecorded();
+		list_count += a_cmd_pools[i].GetListsRecorded();
 
 	RCommandList* lists = BBstackAlloc(list_count, RCommandList);
 	list_count = 0;

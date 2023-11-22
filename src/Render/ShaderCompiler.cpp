@@ -60,18 +60,19 @@ const ShaderCode BB::CompileShader(Allocator a_temp_allocator, const ShaderCompi
 		break;
 	}
 
-	size_t full_path_str_size = strlen(a_full_path);
-	size_t entry_str_size = strlen(a_entry);
-	wchar_t* full_path_w = BBnewArr(a_temp_allocator, full_path_str_size + 1, wchar_t);
-	wchar_t* entry_w = BBnewArr(a_temp_allocator, entry_str_size + 1, wchar_t);
+	size_t full_path_str_size = strlen(a_full_path) + 1;
+	size_t entry_str_size = strlen(a_entry) + 1;
+	wchar_t* full_path_w = BBnewArr(a_temp_allocator, full_path_str_size, wchar_t);
+	wchar_t* entry_w = BBnewArr(a_temp_allocator, entry_str_size, wchar_t);
 
 	size_t conv_chars = 0;
 	BB_ASSERT(mbstowcs_s(&conv_chars, full_path_w, full_path_str_size, a_full_path, _TRUNCATE) == 0, "8 bit char to 16 bit wide char for a_full_path failed");
 	conv_chars = 0;
 	BB_ASSERT(mbstowcs_s(&conv_chars, entry_w, entry_str_size, a_entry, _TRUNCATE) == 0 , "8 bit char to 16 bit wide char for a_entry failed");
 
-	full_path_w[full_path_str_size] = L'\0';
-	entry_w[entry_str_size] = L'\0';
+	//mbstowcs_s already handles the null terminator.
+	//full_path_w[full_path_str_size] = L'\0';
+	//entry_w[entry_str_size] = L'\0';
 
 	//Lots of arguments, since we will add some extra.
 	LPCWSTR shader_compile_args[] =

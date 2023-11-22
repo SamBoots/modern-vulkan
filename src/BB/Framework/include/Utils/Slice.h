@@ -48,8 +48,9 @@ namespace BB
 		Slice() : m_ptr(nullptr), m_size(0) {}
 		Slice(DataType* a_ptr, size_t a_Size): m_ptr(a_ptr), m_size(a_Size) {}
 		Slice(DataType* a_Begin, DataType* a_End) : m_ptr(a_Begin), m_size(a_End - a_Begin) {}
-		Slice(Array<DataType>& a_Array) : m_ptr(a_Array.data()), m_size(a_Array.size()) {}
-		Slice(Pool<DataType>& a_pool) : m_ptr(a_pool.data()), m_size(a_pool.size()) {}
+		Slice(const Slice<DataType>& a_slice) : m_ptr(a_slice.m_ptr), m_size(a_slice.m_size) {}
+		Slice(const Array<DataType>& a_Array) : m_ptr(a_Array.data()), m_size(a_Array.size()) {}
+		Slice(const Pool<DataType>& a_pool) : m_ptr(a_pool.data()), m_size(a_pool.size()) {}
 
 		Slice<DataType>& operator=(const Slice<DataType>& a_rhs)
 		{

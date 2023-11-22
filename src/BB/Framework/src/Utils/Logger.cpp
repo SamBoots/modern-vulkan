@@ -133,7 +133,7 @@ static void Log_to_Console(const char* a_file_name, int a_line, const char* a_wa
 	}
 	{ //Get the message(s).
 		string.append(LOG_MESSAGE_MESSAGE_TXT_2, sizeof(LOG_MESSAGE_MESSAGE_TXT_2) - 1);
-		for (size_t i = 0; i < static_cast<size_t>(a_formats[i] != '\0'); i++)
+		for (size_t i = 0; static_cast<size_t>(a_formats[i] != '\0'); i++)
 		{
 			switch (a_formats[i])
 			{

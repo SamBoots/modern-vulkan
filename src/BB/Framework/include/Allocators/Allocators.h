@@ -5,7 +5,6 @@ namespace BB
 {	
 	constexpr const size_t MEMORY_BOUNDRY_FRONT = sizeof(size_t);
 	constexpr const size_t MEMORY_BOUNDRY_BACK = sizeof(size_t);
-
 	namespace allocators
 	{
 		struct BaseAllocator
@@ -30,9 +29,9 @@ namespace BB
 				int line; //36 bytes
 				//maybe not safe due to possibly allocating more then 4 gb.
 				uint32_t alloc_size; //40 bytes
-				const char* tagName; //48 bytes
+				const char* tag_name; //48 bytes
 				bool is_array; //52 bytes
-			}* front_log = nullptr;
+			}* m_front_log = nullptr;
 			const char* name;
 
 		protected:

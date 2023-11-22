@@ -64,16 +64,16 @@ static void* AllocDebug(BB_MEMORY_DEBUG BaseAllocator* a_allocator, const size_t
 	BaseAllocator::AllocationLog* alloc_log = reinterpret_cast<BaseAllocator::AllocationLog*>(
 		Pointer::Add(a_allocated_ptr, MEMORY_BOUNDRY_FRONT));
 
-	alloc_log->prev = a_allocator->front_log;
+	alloc_log->prev = a_allocator->m_front_log;
 	alloc_log->front = a_allocated_ptr;
 	alloc_log->back = Memory_AddBoundries(a_allocated_ptr, a_size);
 	alloc_log->alloc_size = static_cast<uint32_t>(a_size);
 	alloc_log->file = a_file;
 	alloc_log->line = a_line;
 	alloc_log->is_array = a_is_array;
-	alloc_log->tagName = "";
+	alloc_log->tag_name = nullptr;
 	//set the new front log.
-	a_allocator->front_log = alloc_log;
+	a_allocator->m_front_log = alloc_log;
 	return Pointer::Add(a_allocated_ptr, MEMORY_BOUNDRY_FRONT + sizeof(BaseAllocator::AllocationLog));
 }
 
@@ -97,13 +97,13 @@ static void* FreeDebug(BaseAllocator* a_allocator, bool a_is_array, void* a_ptr)
 	case BOUNDRY_ERROR::FRONT:
 		//We call it explictally since we can avoid the macro and pull in the file + name directly to Log_Error. 
 		Logger::Log_Assert(alloc_log->file, alloc_log->line, "ss",
-			alloc_log->tagName,
+			alloc_log->tag_name,
 			"Memory Boundry overwritten at the front of memory block");
 		break;
 	case BOUNDRY_ERROR::BACK:
 		//We call it explictally since we can avoid the macro and pull in the file + name directly to Log_Error. 
 		Logger::Log_Assert(alloc_log->file, alloc_log->line, "ss",
-			alloc_log->tagName,
+			alloc_log->tag_name,
 			"Memory Boundry overwritten at the back of memory block");
 		break;
 	case BOUNDRY_ERROR::NONE: break;
@@ -111,12 +111,12 @@ static void* FreeDebug(BaseAllocator* a_allocator, bool a_is_array, void* a_ptr)
 
 	a_ptr = Pointer::Subtract(a_ptr, MEMORY_BOUNDRY_FRONT + sizeof(BaseAllocator::AllocationLog));
 
-	BaseAllocator::AllocationLog* t_front_log = a_allocator->front_log;
+	BaseAllocator::AllocationLog* front_log = a_allocator->m_front_log;
 
-	if (alloc_log != a_allocator->front_log)
-		DeleteEntry(t_front_log, alloc_log);
+	if (alloc_log != a_allocator->m_front_log)
+		DeleteEntry(front_log, alloc_log);
 	else
-		a_allocator->front_log = t_front_log->prev;
+		a_allocator->m_front_log = front_log->prev;
 
 	return a_ptr;
 }
@@ -126,31 +126,44 @@ static void* FreeDebug(BaseAllocator* a_allocator, bool a_is_array, void* a_ptr)
 void BB::allocators::BaseAllocator::Validate() const
 {
 #ifdef _DEBUG
-	AllocationLog* t_front_log = front_log;
-	while (t_front_log != nullptr)
+	AllocationLog* front_log = m_front_log;
+	while (front_log != nullptr)
 	{
 		Memory_CheckBoundries(front_log->front, front_log->back);
 
-		BB::StackString<256> t_TempString;
+		BB::StackString<256> temp_string;
 		{
-			char t_AllocBegin[]{ "Memory leak accured! Check file and line number for leak location \nAllocator name:" };
-			t_TempString.append(t_AllocBegin, sizeof(t_AllocBegin) - 1);
-			t_TempString.append(name);
+			char alloc_begin[]{ "Memory leak accured! Check file and line number for leak location \nAllocator name: " };
+			temp_string.append(alloc_begin, sizeof(alloc_begin) - 1);
+			temp_string.append(name);
 		}
+
 		{
-			char t_Begin[]{ "\nLeak size:" };
-			t_TempString.append(t_Begin, sizeof(t_Begin) - 1);
+			char memory_tag_name[]{ "\nMemory tag name: " };
+			temp_string.append(memory_tag_name, sizeof(memory_tag_name) - 1);
+			if (front_log->tag_name == nullptr)
+			{
+				char untagged[]{ "untagged" };
+				temp_string.append(untagged, sizeof(untagged) - 1);
+			}
+			else
+			{
+				temp_string.append(front_log->tag_name);
+			}
+		}
+
+		{
+			char begin[]{ "\nLeak size:" };
+			temp_string.append(begin, sizeof(begin) - 1);
 			
-			char t_LeakSize[16]{};
-			sprintf_s(t_LeakSize, 15, "%u", static_cast<uint32_t>(t_front_log->alloc_size));
-			t_TempString.append(t_LeakSize);
+			char leak_size[16]{};
+			sprintf_s(leak_size, 15, "%u", static_cast<uint32_t>(front_log->alloc_size));
+			temp_string.append(leak_size);
 		}
 	
+		Logger::Log_Assert(front_log->file, front_log->line, "s", temp_string.c_str());
 
-		Logger::Log_Assert(t_front_log->file, t_front_log->line, "ss",
-			t_front_log->tagName, t_TempString.c_str());
-
-		t_front_log = t_front_log->prev;
+		front_log = front_log->prev;
 	}
 #endif //_DEBUG
 }
@@ -158,10 +171,10 @@ void BB::allocators::BaseAllocator::Validate() const
 void BB::allocators::BaseAllocator::ClearDebugList()
 {
 #ifdef _DEBUG
-	while (front_log != nullptr)
+	while (m_front_log != nullptr)
 	{
-		Memory_CheckBoundries(front_log->front, front_log->back);
-		front_log = front_log->prev;
+		Memory_CheckBoundries(m_front_log->front, m_front_log->back);
+		m_front_log = m_front_log->prev;
 	}
 #endif //_DEBUG
 }
@@ -173,11 +186,11 @@ static void* LinearRealloc(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, con
 #ifdef _DEBUG
 	a_size += MEMORY_BOUNDRY_FRONT + MEMORY_BOUNDRY_BACK + sizeof(BaseAllocator::AllocationLog);
 #endif //_DEBUG
-	void* t_AllocatedPtr = t_Linear->Alloc(a_size, a_alignment);
+	void* allocated_ptr = t_Linear->Alloc(a_size, a_alignment);
 #ifdef _DEBUG
-	t_AllocatedPtr = AllocDebug(a_file, a_line, a_is_array, t_Linear, a_size, t_AllocatedPtr);
+	allocated_ptr = AllocDebug(a_file, a_line, a_is_array, t_Linear, a_size, allocated_ptr);
 #endif //_DEBUG
-	return t_AllocatedPtr;
+	return allocated_ptr;
 };
 
 LinearAllocator::LinearAllocator(const size_t a_size, const char* a_name)
@@ -344,7 +357,7 @@ void StackAllocator::SetMarker(const StackMarker a_marker)
 	if (a_marker == reinterpret_cast<uintptr_t>(m_buffer))
 		return;
 	//jank, but remove logs that are after a_pos;
-	AllocationLog* cur_list = front_log;
+	AllocationLog* cur_list = m_front_log;
 	AllocationLog* prev_list = nullptr;
 	uintptr_t front = reinterpret_cast<uintptr_t>(cur_list->front);
 	while (front > a_marker)
@@ -354,7 +367,7 @@ void StackAllocator::SetMarker(const StackMarker a_marker)
 		front = reinterpret_cast<uintptr_t>(cur_list->front);
 	}
 	BB_ASSERT(a_marker == front, "SetPosition points to a invalid address that holds no allocation");
-	front_log = cur_list->prev;
+	m_front_log = cur_list->prev;
 #endif
 	m_buffer = reinterpret_cast<void*>(a_marker);
 }

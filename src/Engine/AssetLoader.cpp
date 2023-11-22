@@ -22,19 +22,20 @@ BB_WARNINGS_ON
 
 using namespace BB;
 
-//constexpr const char JSON_DIRECTORY[] = "Resources/Json/";
-//constexpr const char MODELS_DIRECTORY[] = "Resources/Models/";
-//constexpr const char SHADERS_DIRECTORY[] = "Resources/Shaders/";
-constexpr const char TEXTURE_DIRECTORY[] = "Resources/Textures/";
+//constexpr const char JSON_DIRECTORY[] = "../Resources/Json/";
+//constexpr const char MODELS_DIRECTORY[] = "../Resources/Models/";
+//constexpr const char SHADERS_DIRECTORY[] = "../Resources/Shaders/";
+constexpr const char TEXTURE_DIRECTORY[] = "../Resources/Textures/";
 
 static char* CreateGLTFImagePath(Allocator a_temp_allocator, const char* a_image_path)
 {
 	const size_t image_path_size = strlen(a_image_path);
-	char* new_path = BBnewArr(a_temp_allocator, sizeof(TEXTURE_DIRECTORY) + image_path_size, char);
+	const size_t texture_directory_size = sizeof(TEXTURE_DIRECTORY);
+	char* new_path = BBnewArr(a_temp_allocator, texture_directory_size + image_path_size, char);
 
 	Memory::Copy(new_path, TEXTURE_DIRECTORY, sizeof(TEXTURE_DIRECTORY));
 	Memory::Copy(&new_path[sizeof(TEXTURE_DIRECTORY) - 1], a_image_path, image_path_size);
-	new_path[sizeof(TEXTURE_DIRECTORY) - 1 + image_path_size] = '\0';
+	new_path[sizeof(TEXTURE_DIRECTORY) + image_path_size - 1] = '\0';
 
 	return new_path;
 }
@@ -181,20 +182,24 @@ void Asset::LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_t
 
 const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view)
 {
-	int x, y, channels = 0;
+	int x = 0, y = 0, channels = 0;
 	//hacky way, whatever we do it for now.
 	stbi_uc* pixels = stbi_load(a_path, &x, &y, &channels, 4);
+
+	if (!pixels)
+	{
+		BB_ASSERT(false, "failed to load image!");
+		return nullptr;
+	}
 
 	UploadImageInfo upload_image_info;
 	upload_image_info.name = a_name;
 	upload_image_info.pixels = pixels;
 	upload_image_info.width = static_cast<uint32_t>(x);
 	upload_image_info.height = static_cast<uint32_t>(y);
-	upload_image_info.bit_count = static_cast<uint32_t>(channels * 8);
+	upload_image_info.bit_count = 32;
 
 	const RTexture gpu_image = UploadTexture(upload_image_info, a_list, a_upload_view);
-
-	STBI_FREE(pixels);
 
 	Image* image = BBnew(s_asset_manager.allocator, Image);
 	image->width = upload_image_info.width;
@@ -203,6 +208,8 @@ const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const 
 
 	const uint64_t hash = TurboCrappyImageHash(pixels, static_cast<size_t>(image->width) + image->height + static_cast<uint32_t>(channels));
 	BB_ASSERT(hash != 0, "Image hashing failed");
+
+	STBI_FREE(pixels);
 
 	AssetSlot asset;
 	asset.hash = CreateAssetHash(hash, ASSET_TYPE::TEXTURE);
@@ -288,7 +295,9 @@ static void LoadglTFNode(Allocator a_temp_allocator, const RCommandList a_list, 
 		uint32_t* indices = BBnewArr(a_temp_allocator, index_count, uint32_t);
 		Vertex* vertices = BBnewArr(a_temp_allocator, vertex_count, Vertex);
 		uint32_t index_offset = 0;
-		uint32_t vertex_offset = 0;
+		uint32_t vertex_pos_offset = 0;
+		uint32_t vertex_normal_offset = 0;
+		uint32_t vertex_uv_offset = 0;
 
 		for (size_t prim_index = 0; prim_index < mesh.primitives_count; prim_index++)
 		{
@@ -297,16 +306,14 @@ static void LoadglTFNode(Allocator a_temp_allocator, const RCommandList a_list, 
 			model_prim.start_index = index_offset;
 			model_prim.index_count = static_cast<uint32_t>(prim.indices->count);
 
-			CreateMaterialInfo material_info;
-
-
+			CreateMaterialInfo material_info{};
 			if (prim.material->pbr_metallic_roughness.base_color_texture.texture)
 			{
 				const cgltf_image& image = *prim.material->pbr_metallic_roughness.base_color_texture.texture->image;
-				
+
 				const char* full_image_path = CreateGLTFImagePath(a_temp_allocator, image.uri);
 				const Image* img = Asset::LoadImageDisk(full_image_path, image.name, a_list, a_upload_view);
-				
+
 				material_info.base_color = img->gpu_image;
 			}
 
@@ -349,37 +356,42 @@ static void LoadglTFNode(Allocator a_temp_allocator, const RCommandList a_list, 
 				case cgltf_attribute_type_position:
 					for (size_t i = 0; i < attrib.data->count; i++)
 					{
-						vertices[vertex_offset + i].position.x = data_pos[0];
-						vertices[vertex_offset + i].position.y = data_pos[1];
-						vertices[vertex_offset + i].position.z = data_pos[2];
+						vertices[vertex_pos_offset].position.x = data_pos[0];
+						vertices[vertex_pos_offset].position.y = data_pos[1];
+						vertices[vertex_pos_offset].position.z = data_pos[2];
 
 						data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride));
-						//increment the main vertices, jank.
-						++vertex_offset;
+						++vertex_pos_offset;
 					}
 					break;
 				case cgltf_attribute_type_normal:
 					for (size_t i = 0; i < attrib.data->count; i++)
 					{
-						vertices[vertex_offset + i].normal.x = data_pos[0];
-						vertices[vertex_offset + i].normal.y = data_pos[1];
-						vertices[vertex_offset + i].normal.z = data_pos[2];
+						vertices[vertex_normal_offset].normal.x = data_pos[0];
+						vertices[vertex_normal_offset].normal.y = data_pos[1];
+						vertices[vertex_normal_offset].normal.z = data_pos[2];
 
 						data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride));
+						++vertex_normal_offset;
 					}
 					break;
 				case cgltf_attribute_type_texcoord:
 					for (size_t i = 0; i < attrib.data->count; i++)
 					{
-						vertices[vertex_offset + i].uv.x = data_pos[0];
-						vertices[vertex_offset + i].uv.y = data_pos[1];
+						vertices[vertex_uv_offset].uv.x = data_pos[0];
+						vertices[vertex_uv_offset].uv.y = data_pos[1];
 
 						data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride));
+						++vertex_uv_offset;
 					}
 					break;
 				default:
 					break;
 				}
+				BB_ASSERT(index_count + 1 > index_offset, "overwriting gltf Index Memory!");
+				BB_ASSERT(vertex_count + 1 > vertex_pos_offset, "overwriting gltf Vertex Memory!");
+				BB_ASSERT(vertex_count + 1 > vertex_normal_offset, "overwriting gltf Vertex Memory!");
+				BB_ASSERT(vertex_count + 1 > vertex_uv_offset, "overwriting gltf Vertex Memory!");
 			}
 		}
 

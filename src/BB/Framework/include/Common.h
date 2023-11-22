@@ -88,7 +88,7 @@ namespace BB
 	struct FrameworkHandle32Bit
 	{
 		constexpr FrameworkHandle32Bit() : handle(BB_INVALID_HANDLE_32) {}
-		constexpr explicit FrameworkHandle32Bit(uint32_t a_handle) : handle(a_handle) {}
+		constexpr explicit FrameworkHandle32Bit(const uint32_t a_handle) : handle(a_handle) {}
 		uint32_t handle;
 
 		inline bool operator ==(const FrameworkHandle32Bit a_rhs) const { return handle == a_rhs.handle; }

@@ -55,7 +55,7 @@ namespace BB
 		void ResetPool();
 	public:
 		const RCommandList* GetLists() const { return m_lists; }
-		const uint32_t GetListsRecorded() const { return m_list_current_free; }
+		uint32_t GetListsRecorded() const { return m_list_current_free; }
  
 		RCommandList StartCommandList(const char* a_name = nullptr);
 		void EndCommandList(RCommandList a_list);

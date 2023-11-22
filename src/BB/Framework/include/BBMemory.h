@@ -55,15 +55,8 @@ namespace BB
 		}
 		else
 		{
-			size_t header_size;
-
-			if constexpr (sizeof(size_t) % sizeof(T) > 0)
-				header_size = sizeof(size_t) / sizeof(T) + 1;
-			else
-				header_size = sizeof(size_t) / sizeof(T);
-
 			//Allocate the array, but shift it by sizeof(size_t) bytes forward to allow the size of the header to be put in as well.
-			T* ptr = (reinterpret_cast<T*>(a_allocator.func(BB_MEMORY_DEBUG_SEND_ARR a_allocator.allocator, sizeof(T) * (a_length + header_size), __alignof(T), nullptr))) + header_size;
+			T* ptr = (reinterpret_cast<T*>(Pointer::Add(a_allocator.func(BB_MEMORY_DEBUG_SEND_ARR a_allocator.allocator, (sizeof(T) * a_length) + sizeof(size_t), __alignof(T), nullptr), sizeof(size_t))));
 
 			//Store the size of the array inside the first element of the pointer.
 			*(reinterpret_cast<size_t*>(ptr) - 1) = a_length;
@@ -117,17 +110,30 @@ namespace BB
 		}
 	}
 
-	inline void BBTagAlloc(const void* a_ptr, const char* a_TagName)
+	//if a_tag_name is nullptr then it resets the tag name.
+	template <typename T>
+	inline void BBTagAlloc(const T* a_ptr, const char* a_tag_name)
 	{
 		typedef allocators::BaseAllocator::AllocationLog AllocationLog;
 		AllocationLog* log = reinterpret_cast<AllocationLog*>(Pointer::Subtract(a_ptr, sizeof(AllocationLog)));
 		//do a check to see if the boundries are there, if yes. Then it's a 99.99999% chance this is a existing allocation using BB.
-		//not the same allocator tho, so bad usage of this will still bite you in the ass.
-		const uintptr_t back = reinterpret_cast<uintptr_t>(log->back) + MEMORY_BOUNDRY_FRONT;
-		const uintptr_t front = reinterpret_cast<uintptr_t>(log->front);
-		BB_ASSERT((back - front) == log->alloc_size, "BBTagAlloc is not tagging a memory space allocated by a BB allocator");
+		uintptr_t back = reinterpret_cast<uintptr_t>(log->back) + MEMORY_BOUNDRY_FRONT;
+		uintptr_t front = reinterpret_cast<uintptr_t>(log->front);
+		if ((back - front) != log->alloc_size)
+		{
+			//try again, this time we may have a array.
+			//SPECIAL NOTE: I hate this code, tagging is a not-essential debug tool anyway but goddamn wtf did I make here.
 
-		log->tagName = a_TagName;
+
+			log = reinterpret_cast<AllocationLog*>(Pointer::Subtract(log, sizeof(size_t)));
+			back = reinterpret_cast<uintptr_t>(log->back) + MEMORY_BOUNDRY_FRONT;
+			front = reinterpret_cast<uintptr_t>(log->front);
+
+			BB_ASSERT(((back - front) == log->alloc_size), "BBTagAlloc is not tagging a memory space allocated by a BB allocator");
+			BB_ASSERT(log->is_array, "BBTagAlloc tries to correct for an array write but the memory is not an array!");
+		}
+
+		log->tagName = a_tag_name;
 	}
 }
 #pragma endregion // AllocationFunctions

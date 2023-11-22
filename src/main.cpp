@@ -94,7 +94,7 @@ int main(int argc, char** argv)
 		quad_mesh = CreateMesh(quad_create_info);
 	}
 
-	const Model* gltf_model;
+	const Model* gltf_model = nullptr;
 	BBStackAllocatorScope(main_allocator)
 	{
 		Asset::AsyncAsset async_assets[1]{};
@@ -184,7 +184,7 @@ int main(int argc, char** argv)
 				DrawglTFNode(gltf_model->root_nodes[i], root_matrix);
 			}
 			//draw stuff here!
-			DrawMesh(quad_mesh, transform_pool.GetTransform(transform_test).CreateMatrix());
+			//DrawMesh(quad_mesh, transform_pool.GetTransform(transform_test).CreateMatrix());
 
 			EndFrame();
 		}

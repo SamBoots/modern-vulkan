@@ -1276,8 +1276,10 @@ void Vulkan::FreeImage(const RImage a_image)
 
 const RImageView Vulkan::CreateViewImage(const ImageViewCreateInfo& a_create_info)
 {
-	VkImageViewCreateInfo view_info{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+	const VulkanImage image = s_vulkan_inst->images.find(a_create_info.image.handle);
 
+	VkImageViewCreateInfo view_info{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+	view_info.image = image.image;
 	view_info.viewType = ImageViewTypes(a_create_info.type);
 	view_info.format = ImageFormats(a_create_info.format);
 	view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -1289,7 +1291,7 @@ const RImageView Vulkan::CreateViewImage(const ImageViewCreateInfo& a_create_inf
 	VkImageView view;
 	VKASSERT(vkCreateImageView(s_vulkan_inst->device, 
 		&view_info, 
-		nullptr, 
+		nullptr,
 		&view),
 		"Vulkan: Failed to create image view.");
 
