@@ -564,11 +564,9 @@ struct Vulkan_inst
 		VkImageViewType image_view_types[static_cast<uint32_t>(IMAGE_TYPE::ENUM_SIZE)];
 		VkImageTiling image_tilings[static_cast<uint32_t>(IMAGE_TILING::ENUM_SIZE)];
 		VkSamplerAddressMode sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::ENUM_SIZE)];
-
 		VkPipelineStageFlags2 pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::ENUM_SIZE)];
 		VkAccessFlags2 access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::ENUM_SIZE)];
-	};
-	EnumConversions enum_conv;
+	} enum_conv;
 #endif //ENUM_CONVERSATION_BY_ARRAY
 
 	struct Pfn

@@ -178,6 +178,7 @@ void Asset::LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_t
 		}
 	}
 	cmd_pool.EndCommandList(cmd_list);
+	BB_ASSERT(ExecuteTransferCommands(Slice(&cmd_pool, 1), Slice(&upload_buffer_view, 1)), "Failed to execute async gpu transfer commands");
 	load_async_allocator.Clear();
 }
 
