@@ -587,6 +587,7 @@ static RCommandList current_command_list;
 static RPipeline test_pipeline;
 static ShaderObject vertex_object;
 static ShaderObject fragment_object;
+static RDescriptorLayout static_sampler_layout;
 static RDescriptorLayout global_descriptor_layout;
 static RDescriptorLayout frame_descriptor_layout;
 static RPipelineLayout pipeline_layout;
@@ -644,8 +645,20 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 
 	BBStackAllocatorScope(a_stack_allocator)
 	{
+		{	//static sampler descriptor set 0
+			SamplerCreateInfo immutable_sampler{};
+			immutable_sampler.name = "standard sampler";
+			immutable_sampler.mode_u = SAMPLER_ADDRESS_MODE::REPEAT;
+			immutable_sampler.mode_v = SAMPLER_ADDRESS_MODE::REPEAT;
+			immutable_sampler.mode_w = SAMPLER_ADDRESS_MODE::REPEAT;
+			immutable_sampler.filter = SAMPLER_FILTER::LINEAR;
+			immutable_sampler.max_anistoropy = 1.0f;
+			immutable_sampler.max_lod = 100.f;
+			immutable_sampler.min_lod = -100.f;
+			static_sampler_layout = Vulkan::CreateDescriptorSamplerLayout(Slice(&immutable_sampler, 1));
+		}
 		{
-			//global descriptor set 0
+			//global descriptor set 1
 			DescriptorBindingInfo descriptor_bindings[2];
 			descriptor_bindings[0].binding = 0;
 			descriptor_bindings[0].count = 1;
@@ -673,22 +686,13 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 			frame_descriptor_layout = Vulkan::CreateDescriptorLayout(a_stack_allocator, Slice(descriptor_bindings, _countof(descriptor_bindings)));
 		}
 
-		RDescriptorLayout desc_layouts[] = { global_descriptor_layout, frame_descriptor_layout };
+		RDescriptorLayout desc_layouts[] = { static_sampler_layout, global_descriptor_layout, frame_descriptor_layout };
 		PushConstantRange push_constant;
 		push_constant.stages = SHADER_STAGE::ALL;
 		push_constant.offset = 0;
 		push_constant.size = sizeof(ShaderIndices);
 
-		SamplerCreateInfo immutable_sampler{};
-		immutable_sampler.name = "standard sampler";
-		immutable_sampler.mode_u = SAMPLER_ADDRESS_MODE::REPEAT;
-		immutable_sampler.mode_v = SAMPLER_ADDRESS_MODE::REPEAT;
-		immutable_sampler.mode_w = SAMPLER_ADDRESS_MODE::REPEAT;
-		immutable_sampler.filter = SAMPLER_FILTER::LINEAR;
-		immutable_sampler.max_anistoropy = 1.0f;
-		immutable_sampler.max_lod = 100.f;
-		immutable_sampler.min_lod = -100.f;
-		pipeline_layout = Vulkan::CreatePipelineLayout(desc_layouts, _countof(desc_layouts), &push_constant, 1, &immutable_sampler, 1);
+		pipeline_layout = Vulkan::CreatePipelineLayout(desc_layouts, _countof(desc_layouts), &push_constant, 1);
 
 		const ShaderCode vertex_shader = CompileShader(a_stack_allocator, s_render_inst->shader_compiler, "../resources/shaders/hlsl/Debug.hlsl", "VertexMain", SHADER_STAGE::VERTEX);
 		const ShaderCode fragment_shader = CompileShader(a_stack_allocator, s_render_inst->shader_compiler, "../resources/shaders/hlsl/Debug.hlsl", "FragmentMain", SHADER_STAGE::FRAGMENT_PIXEL);
@@ -701,7 +705,7 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		shader_objects_info[0].shader_code_size = shader_buffer.size;
 		shader_objects_info[0].shader_code = shader_buffer.data;
 		shader_objects_info[0].shader_entry = "VertexMain";
-		MAKE SAMPLER DESCRIPTOR CREATABLE FROM HERE
+
 		shader_objects_info[0].descriptor_layout_count = _countof(desc_layouts);
 		shader_objects_info[0].descriptor_layouts = desc_layouts;
 		shader_objects_info[0].push_constant_range_count = 1;

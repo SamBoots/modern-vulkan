@@ -1455,10 +1455,10 @@ RDescriptorLayout Vulkan::CreateDescriptorLayout(Allocator a_temp_allocator, Sli
 			bindless_flags[i] = 0;
 	}
 
-	VkDescriptorSetLayoutCreateInfo layouinfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
-	layouinfo.pBindings = layout_binds;
-	layouinfo.bindingCount = static_cast<uint32_t>(a_bindings.size());
-	layouinfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
+	VkDescriptorSetLayoutCreateInfo layout_info{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+	layout_info.pBindings = layout_binds;
+	layout_info.bindingCount = static_cast<uint32_t>(a_bindings.size());
+	layout_info.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
 
 	if (is_bindless) //if bindless add another struct and return here.
 	{
@@ -1466,21 +1466,49 @@ RDescriptorLayout Vulkan::CreateDescriptorLayout(Allocator a_temp_allocator, Sli
 		t_LayoutExtInfo.bindingCount = static_cast<uint32_t>(a_bindings.size());
 		t_LayoutExtInfo.pBindingFlags = bindless_flags;
 
-		layouinfo.pNext = &t_LayoutExtInfo;
+		layout_info.pNext = &t_LayoutExtInfo;
 
 		//Do some algorithm to see if I already made a descriptorlayout like this one.
 		VKASSERT(vkCreateDescriptorSetLayout(s_vulkan_inst->device,
-			&layouinfo, nullptr, &set_layout),
+			&layout_info, nullptr, &set_layout),
 			"Vulkan: Failed to create a descriptorsetlayout.");
 	}
 	else
 	{
 		//Do some algorithm to see if I already made a descriptorlayout like this one.
 		VKASSERT(vkCreateDescriptorSetLayout(s_vulkan_inst->device,
-			&layouinfo, nullptr, &set_layout),
+			&layout_info, nullptr, &set_layout),
 			"Vulkan: Failed to create a descriptorsetlayout.");
 	}
 
+	return RDescriptorLayout(reinterpret_cast<uintptr_t>(set_layout));
+}
+
+RDescriptorLayout Vulkan::CreateDescriptorSamplerLayout(const Slice<SamplerCreateInfo> a_static_samplers)
+{
+	BB_ASSERT(a_static_samplers.size() <= STATIC_SAMPLER_MAX, "too many static samplers on pipeline!");
+
+	VkDescriptorSetLayoutBinding layout_binds[STATIC_SAMPLER_MAX];
+	VkSampler samplers[STATIC_SAMPLER_MAX];
+	for (uint32_t i = 0; i < a_static_samplers.size(); i++)
+	{
+		samplers[i] = CreateSampler(a_static_samplers[i]);
+		layout_binds[i].binding = i;
+		layout_binds[i].descriptorCount = 1;
+		layout_binds[i].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+		layout_binds[i].pImmutableSamplers = &samplers[i];
+		layout_binds[i].stageFlags = VK_SHADER_STAGE_ALL;
+	}
+	VkDescriptorSetLayoutCreateInfo layout_info{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+	layout_info.pBindings = layout_binds;
+	layout_info.bindingCount = static_cast<uint32_t>(a_static_samplers.size());
+	layout_info.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_EMBEDDED_IMMUTABLE_SAMPLERS_BIT_EXT | VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
+
+	VkDescriptorSetLayout set_layout;
+	//Do some algorithm to see if I already made a descriptorlayout like this one.
+	VKASSERT(vkCreateDescriptorSetLayout(s_vulkan_inst->device,
+		&layout_info, nullptr, &set_layout),
+		"Vulkan: Failed to create a descriptorsetlayout for immutable samplers in pipeline init.");
 	return RDescriptorLayout(reinterpret_cast<uintptr_t>(set_layout));
 }
 
@@ -1547,47 +1575,12 @@ void Vulkan::WriteDescriptors(const WriteDescriptorInfos& a_write_info)
 	}
 }
 
-RPipelineLayout Vulkan::CreatePipelineLayout(const RDescriptorLayout* a_descriptor_layouts, const uint32_t a_layout_count, const PushConstantRange* a_constant_ranges, const uint32_t a_constant_range_count, const SamplerCreateInfo* a_static_samplers, const uint32_t a_static_sampler_count)
+RPipelineLayout Vulkan::CreatePipelineLayout(const RDescriptorLayout* a_descriptor_layouts, const uint32_t a_layout_count, const PushConstantRange* a_constant_ranges, const uint32_t a_constant_range_count)
 {
-	VkDescriptorSetLayout set_layouts[SPACE_AMOUNT]{};
-
 	VkPipelineLayoutCreateInfo create_info{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
 	create_info.setLayoutCount = a_layout_count;
-	if (a_static_sampler_count > 0)
-	{
-		BB_ASSERT(a_static_sampler_count <= STATIC_SAMPLER_MAX, "too many static samplers on pipeline!");
-		++create_info.setLayoutCount;
-
-		VkDescriptorSetLayoutBinding layout_binds[STATIC_SAMPLER_MAX];
-		VkSampler samplers[STATIC_SAMPLER_MAX];
-		for (uint32_t i = 0; i < a_static_sampler_count; i++)
-		{
-			samplers[i] = CreateSampler(a_static_samplers[i]);
-			layout_binds[i].binding = i;
-			layout_binds[i].descriptorCount = 1;
-			layout_binds[i].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-			layout_binds[i].pImmutableSamplers = &samplers[i];
-			layout_binds[i].stageFlags = VK_SHADER_STAGE_ALL;
-		}
-		VkDescriptorSetLayoutCreateInfo t_LayoutInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
-		t_LayoutInfo.pBindings = layout_binds;
-		t_LayoutInfo.bindingCount = static_cast<uint32_t>(a_static_sampler_count);
-		t_LayoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_EMBEDDED_IMMUTABLE_SAMPLERS_BIT_EXT | VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
-
-		//Do some algorithm to see if I already made a descriptorlayout like this one.
-		VKASSERT(vkCreateDescriptorSetLayout(s_vulkan_inst->device,
-			&t_LayoutInfo, nullptr, &set_layouts[0]),
-			"Vulkan: Failed to create a descriptorsetlayout for immutable samplers in pipeline init.");
-
-		Memory::Copy(&set_layouts[1], reinterpret_cast<const VkDescriptorSetLayout*>(a_descriptor_layouts), a_layout_count);
-		create_info.pSetLayouts = set_layouts;
-	}
-	else
-	{
-		create_info.pSetLayouts = reinterpret_cast<const VkDescriptorSetLayout*>(a_descriptor_layouts);
-	}
-
-
+	create_info.pSetLayouts = reinterpret_cast<const VkDescriptorSetLayout*>(a_descriptor_layouts);
+	
 	if (a_constant_range_count)
 	{
 		VkPushConstantRange* constant_ranges = BBstackAlloc(a_constant_range_count, VkPushConstantRange);
