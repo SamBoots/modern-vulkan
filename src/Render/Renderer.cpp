@@ -990,7 +990,7 @@ void BB::EndFrame()
 	for (uint32_t i = 0; i < s_render_inst->draw_list_count; i++)
 	{
 		const MeshDrawCall& mesh_draw_call = s_render_inst->draw_list_data.mesh_draw_call[i];
-		const Material& material = s_render_inst->material_map.find(mesh_draw_call.mesh.handle);
+		const Material& material = s_render_inst->material_map.find(mesh_draw_call.material.handle);
 		const Mesh& mesh = s_render_inst->mesh_map.find(mesh_draw_call.mesh.handle);
 
 		ShaderIndices shader_indices;

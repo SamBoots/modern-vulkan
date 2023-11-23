@@ -32,6 +32,8 @@ BB_PRAGMA(clang diagnostic ignored "-Wmissing-field-initializers")
 BB_PRAGMA(clang diagnostic ignored "-Wcast-function-type-strict")
 #endif 
 
+
+//vulkan's function pointers all have the prefix PFN_<functionname>, so this works perfectly.
 #define VkGetFuncPtr(inst, func) reinterpret_cast<BB_CONCAT(PFN_, func)>(vkGetInstanceProcAddr(inst, #func))
 
 //for performance reasons this can be turned off. I need to profile this.
