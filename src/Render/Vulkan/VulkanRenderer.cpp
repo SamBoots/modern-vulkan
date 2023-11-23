@@ -502,6 +502,23 @@ struct Vulkan_inst
 		enum_conv.sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::MIRROR)] = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
 		enum_conv.sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::BORDER)] = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 		enum_conv.sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::CLAMP)] = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+
+
+		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE)] = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::TRANSFER)] = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::VERTEX_INPUT)] = VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT;
+		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::VERTEX_SHADER)] = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
+		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::EARLY_FRAG_TEST)] = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
+		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER)] = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::END_OF_PIPELINE)] = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
+
+		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::NONE)] = VK_ACCESS_2_NONE;
+		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::TRANSFER_WRITE)] = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE)] = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;;
+		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::SHADER_READ)] = VK_ACCESS_2_SHADER_READ_BIT;
+
+		VkPipelineStageFlags2 pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::ENUM_SIZE)];
+		VkAccessFlags2 access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::ENUM_SIZE)];
 #endif //ENUM_CONVERSATION_BY_ARRAY
 	}
 
@@ -545,6 +562,9 @@ struct Vulkan_inst
 		VkImageViewType image_view_types[static_cast<uint32_t>(IMAGE_TYPE::ENUM_SIZE)];
 		VkImageTiling image_tilings[static_cast<uint32_t>(IMAGE_TILING::ENUM_SIZE)];
 		VkSamplerAddressMode sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::ENUM_SIZE)];
+
+		VkPipelineStageFlags2 pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::ENUM_SIZE)];
+		VkAccessFlags2 access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::ENUM_SIZE)];
 	};
 	EnumConversions enum_conv;
 #endif //ENUM_CONVERSATION_BY_ARRAY
@@ -616,10 +636,10 @@ static inline VkDescriptorType DescriptorBufferType(const DESCRIPTOR_TYPE a_type
 	switch (a_type)
 	{
 	case DESCRIPTOR_TYPE::READONLY_CONSTANT:	return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	case DESCRIPTOR_TYPE::READONLY_BUFFER:	return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	case DESCRIPTOR_TYPE::READONLY_BUFFER:		return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	case DESCRIPTOR_TYPE::READWRITE:			return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 	case DESCRIPTOR_TYPE::IMAGE:				return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-	case DESCRIPTOR_TYPE::SAMPLER:			return VK_DESCRIPTOR_TYPE_SAMPLER;
+	case DESCRIPTOR_TYPE::SAMPLER:				return VK_DESCRIPTOR_TYPE_SAMPLER;
 	default:
 		BB_ASSERT(false, "Vulkan: DESCRIPTOR_TYPE failed to convert to a VkDescriptorType.");
 		return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -750,7 +770,7 @@ static inline VkImageTiling ImageTilings(const IMAGE_TILING a_image_tiling)
 	case IMAGE_TILING::LINEAR:		return VK_IMAGE_TILING_LINEAR;
 	case IMAGE_TILING::OPTIMAL:		return VK_IMAGE_TILING_OPTIMAL;
 	default:
-		BB_ASSERT(false, "Vulkan: IMAGE_TILING failed to convert to a VkImageType.");
+		BB_ASSERT(false, "Vulkan: IMAGE_TILING failed to convert to a VkImageTiling.");
 		return VK_IMAGE_TYPE_1D;
 		break;
 	}
@@ -769,8 +789,49 @@ static inline VkSamplerAddressMode SamplerAddressModes(const SAMPLER_ADDRESS_MOD
 	case SAMPLER_ADDRESS_MODE::BORDER:		return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 	case SAMPLER_ADDRESS_MODE::CLAMP:		return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 	default:
-		BB_ASSERT(false, "Vulkan: SAMPLER_ADDRESS_MODE failed to convert to a VkImageType.");
+		BB_ASSERT(false, "Vulkan: SAMPLER_ADDRESS_MODE failed to convert to a VkSamplerAddressMode.");
 		return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		break;
+	}
+#endif //ENUM_CONVERSATION_BY_ARRAY
+}
+
+static inline VkPipelineStageFlags2 PipelineStage(const BARRIER_PIPELINE_STAGE a_stage)
+{
+#ifdef ENUM_CONVERSATION_BY_ARRAY
+	return s_vulkan_inst->enum_conv.pipeline_stage_flags[static_cast<uint32_t>(a_stage)];
+#else
+	switch (a_stage)
+	{
+	case BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE:		return VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+	case BARRIER_PIPELINE_STAGE::TRANSFER:				return VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+	case BARRIER_PIPELINE_STAGE::VERTEX_INPUT:			return VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT;
+	case BARRIER_PIPELINE_STAGE::VERTEX_SHADER:			return VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
+	case BARRIER_PIPELINE_STAGE::EARLY_FRAG_TEST:		return VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
+	case BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER:		return VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+	case BARRIER_PIPELINE_STAGE::END_OF_PIPELINE:		return VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
+	default:
+		BB_ASSERT(false, "Vulkan: RENDER_PIPELINE_STAGE failed to convert to a VkPipelineStageFlags2.");
+		return VK_PIPELINE_STAGE_2_NONE;
+		break;
+	}
+#endif //ENUM_CONVERSATION_BY_ARRAY
+}
+
+static inline VkAccessFlags2 AccessMask(const BARRIER_ACCESS_MASK a_type)
+{
+#ifdef ENUM_CONVERSATION_BY_ARRAY
+	return s_vulkan_inst->enum_conv.access_flags[static_cast<uint32_t>(a_type)];
+#else
+	switch (a_type)
+	{
+	case BARRIER_ACCESS_MASK::NONE:						return VK_ACCESS_2_NONE;
+	case BARRIER_ACCESS_MASK::TRANSFER_WRITE:			return VK_ACCESS_2_TRANSFER_WRITE_BIT;
+	case BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE:	return VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	case BARRIER_ACCESS_MASK::SHADER_READ:				return VK_ACCESS_2_SHADER_READ_BIT;
+	default:
+		BB_ASSERT(false, "Vulkan: RENDER_ACCESS_MASK failed to convert to a VkAccessFlags2.");
+		return VK_ACCESS_2_NONE;
 		break;
 	}
 #endif //ENUM_CONVERSATION_BY_ARRAY
@@ -792,9 +853,6 @@ static VkSampler CreateSampler(const SamplerCreateInfo& a_CreateInfo)
 		sampler_info.magFilter = VK_FILTER_LINEAR;
 		sampler_info.minFilter = VK_FILTER_LINEAR;
 		break;
-	default:
-		BB_ASSERT(false, "Vulkan, does not support this type of sampler filter!");
-		break;
 	}
 	sampler_info.minLod = a_CreateInfo.min_lod;
 	sampler_info.maxLod = a_CreateInfo.max_lod;
@@ -812,7 +870,6 @@ static VkSampler CreateSampler(const SamplerCreateInfo& a_CreateInfo)
 
 	return sampler;
 }
-
 
 static inline VkDescriptorAddressInfoEXT GetDescriptorAddressInfo(const VkDevice a_device, const BufferView& a_Buffer, const VkFormat a_Format = VK_FORMAT_UNDEFINED)
 {
@@ -1549,11 +1606,12 @@ void Vulkan::WriteDescriptors(const WriteDescriptorInfos& a_write_info)
 			descriptor_size = s_vulkan_inst->descriptor_sizes.storage_buffer;
 			break;
 		case DESCRIPTOR_TYPE::IMAGE:
-			//data.image = GetDescriptorImageInfo(s_vulkan_inst->device, write_data.image);
-			//desc_info.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-			//desc_info.data.pSampledImage = &data.image;
+			data.image.imageView = reinterpret_cast<VkImageView>(write_data.image_view.view.handle);
+			data.image.imageLayout = ImageLayout(write_data.image_view.layout);
+			data.image.sampler = VK_NULL_HANDLE; //we only do static samplers :)
+			desc_info.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+			desc_info.data.pSampledImage = &data.image;
 			descriptor_size = s_vulkan_inst->descriptor_sizes.sampled_image;
-			BB_ASSERT(false, "Image not yet supported");
 			break;
 		default:
 			BB_ASSERT(false, "Vulkan: DESCRIPTOR_TYPE failed to convert to a VkDescriptorType.");
@@ -1935,6 +1993,117 @@ void Vulkan::CopyBufferImage(const RCommandList a_list, const RenderCopyBufferTo
 		ImageLayout(a_copy_info.dst_image_info.layout),
 		1,
 		&copy_image);
+}
+
+static inline uint32_t QueueTransitionIndex(const QUEUE_TRANSITION a_Transition)
+{
+	switch (a_Transition)
+	{
+	case QUEUE_TRANSITION::GRAPHICS:
+		return s_vulkan_inst->queue_indices.graphics;
+		break;
+	case QUEUE_TRANSITION::TRANSFER:
+		return s_vulkan_inst->queue_indices.transfer;
+		break;
+	case QUEUE_TRANSITION::COMPUTE:
+		return s_vulkan_inst->queue_indices.compute;
+		break;
+	default:
+		BB_ASSERT(false, "Vulkan: queue transition not supported!");
+		return VK_QUEUE_FAMILY_IGNORED;
+		break;
+	}
+}
+
+void Vulkan::PipelineBarriers(const RCommandList a_list, const PipelineBarrierInfo& a_BarrierInfo)
+{
+	VkMemoryBarrier2* global_barriers = BBstackAlloc(a_BarrierInfo.global_info_count, VkMemoryBarrier2);
+	VkBufferMemoryBarrier2* buffer_barriers = BBstackAlloc(a_BarrierInfo.buffer_info_count, VkBufferMemoryBarrier2);
+	VkImageMemoryBarrier2* image_barriers = BBstackAlloc(a_BarrierInfo.image_info_count, VkImageMemoryBarrier2);
+
+	for (size_t i = 0; i < a_BarrierInfo.global_info_count; i++)
+	{
+		const PipelineBarrierGlobalInfo& barrier_info = a_BarrierInfo.global_infos[i];
+
+		global_barriers[i].sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
+		global_barriers[i].pNext = nullptr;
+		global_barriers[i].srcAccessMask = AccessMask(barrier_info.src_mask);
+		global_barriers[i].dstAccessMask = AccessMask(barrier_info.dst_mask);
+		global_barriers[i].srcStageMask = PipelineStage(barrier_info.src_stage);
+		global_barriers[i].dstStageMask = PipelineStage(barrier_info.dst_stage);
+	}
+
+	for (size_t i = 0; i < a_BarrierInfo.buffer_info_count; i++)
+	{
+		const PipelineBarrierBufferInfo& barrier_info = a_BarrierInfo.buffer_infos[i];
+
+		buffer_barriers[i].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+		buffer_barriers[i].pNext = nullptr;
+		buffer_barriers[i].srcAccessMask = AccessMask(barrier_info.src_mask);
+		buffer_barriers[i].dstAccessMask = AccessMask(barrier_info.dst_mask);
+		buffer_barriers[i].srcStageMask = PipelineStage(barrier_info.src_stage);
+		buffer_barriers[i].dstStageMask = PipelineStage(barrier_info.dst_stage);
+		//if we do no transition on the source queue. Then set it all to false.
+		if (barrier_info.src_queue == QUEUE_TRANSITION::NO_TRANSITION)
+		{
+			buffer_barriers[i].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			buffer_barriers[i].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		}
+		else
+		{
+			buffer_barriers[i].srcQueueFamilyIndex = QueueTransitionIndex(barrier_info.src_queue);
+			buffer_barriers[i].dstQueueFamilyIndex = QueueTransitionIndex(barrier_info.dst_queue);
+		}
+		buffer_barriers[i].buffer = reinterpret_cast<VulkanBuffer*>(barrier_info.buffer.handle)->buffer;
+		buffer_barriers[i].offset = barrier_info.offset;
+		buffer_barriers[i].size = barrier_info.size;
+	}
+
+	for (size_t i = 0; i < a_BarrierInfo.image_info_count; i++)
+	{
+		const PipelineBarrierImageInfo& barrier_info = a_BarrierInfo.image_infos[i];
+
+		image_barriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		image_barriers[i].pNext = nullptr;
+		image_barriers[i].srcAccessMask = AccessMask(barrier_info.src_mask);
+		image_barriers[i].dstAccessMask = AccessMask(barrier_info.dst_mask);
+		image_barriers[i].srcStageMask = PipelineStage(barrier_info.src_stage);
+		image_barriers[i].dstStageMask = PipelineStage(barrier_info.dst_stage);
+		//if we do no transition on the source queue. Then set it all to false.
+		if (barrier_info.src_queue == QUEUE_TRANSITION::NO_TRANSITION)
+		{
+			image_barriers[i].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+			image_barriers[i].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		}
+		else
+		{
+			image_barriers[i].srcQueueFamilyIndex = QueueTransitionIndex(barrier_info.src_queue);
+			image_barriers[i].dstQueueFamilyIndex = QueueTransitionIndex(barrier_info.dst_queue);
+		}
+		image_barriers[i].oldLayout = ImageLayout(barrier_info.old_layout);
+		image_barriers[i].newLayout = ImageLayout(barrier_info.new_layout);
+		image_barriers[i].image =  s_vulkan_inst->images.find(barrier_info.image.handle).image;
+		if (barrier_info.new_layout == IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT ||
+			barrier_info.old_layout == IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT)
+			image_barriers[i].subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+		else
+			image_barriers[i].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		image_barriers[i].subresourceRange.baseMipLevel = barrier_info.base_mip_level;
+		image_barriers[i].subresourceRange.levelCount = barrier_info.level_count;
+		image_barriers[i].subresourceRange.baseArrayLayer = barrier_info.base_array_layer;
+		image_barriers[i].subresourceRange.layerCount = barrier_info.layer_count;
+	}
+
+	VkDependencyInfo dependency_info{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+	dependency_info.memoryBarrierCount = a_BarrierInfo.global_info_count;
+	dependency_info.pMemoryBarriers = global_barriers;
+	dependency_info.bufferMemoryBarrierCount = a_BarrierInfo.buffer_info_count;
+	dependency_info.pBufferMemoryBarriers = buffer_barriers;
+	dependency_info.imageMemoryBarrierCount = a_BarrierInfo.image_info_count;
+	dependency_info.pImageMemoryBarriers = image_barriers;
+
+	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+	vkCmdPipelineBarrier2(cmd_buffer, &dependency_info);
 }
 
 void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo& a_render_info, const uint32_t a_backbuffer_index)

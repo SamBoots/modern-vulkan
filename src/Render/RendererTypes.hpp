@@ -208,6 +208,90 @@ namespace BB
 		IMAGE_LAYOUT layout;
 	};
 
+	enum class QUEUE_TRANSITION : uint32_t
+	{
+		NO_TRANSITION,
+		GRAPHICS,
+		TRANSFER,
+		COMPUTE,
+
+		ENUM_SIZE
+	};
+
+	enum class BARRIER_PIPELINE_STAGE : uint32_t
+	{
+		TOP_OF_PIPELINE,
+		TRANSFER,
+		VERTEX_INPUT,
+		VERTEX_SHADER,
+		EARLY_FRAG_TEST,
+		FRAGMENT_SHADER,
+		END_OF_PIPELINE,
+
+		ENUM_SIZE
+	};
+
+	enum class BARRIER_ACCESS_MASK : uint32_t
+	{
+		NONE = 0,
+		TRANSFER_WRITE,
+		DEPTH_STENCIL_READ_WRITE,
+		SHADER_READ,
+
+		ENUM_SIZE
+	};
+
+	struct PipelineBarrierGlobalInfo
+	{
+		BARRIER_PIPELINE_STAGE src_stage{};
+		BARRIER_PIPELINE_STAGE dst_stage{};
+		BARRIER_ACCESS_MASK src_mask{};
+		BARRIER_ACCESS_MASK dst_mask{};
+	};
+
+	struct PipelineBarrierBufferInfo
+	{
+		RBuffer buffer{};
+		uint32_t size = 0;
+		uint32_t offset = 0;
+		BARRIER_PIPELINE_STAGE src_stage{};
+		BARRIER_PIPELINE_STAGE dst_stage{};
+		BARRIER_ACCESS_MASK src_mask{};
+		BARRIER_ACCESS_MASK dst_mask{};
+
+		QUEUE_TRANSITION src_queue = QUEUE_TRANSITION::NO_TRANSITION;
+		QUEUE_TRANSITION dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
+	};
+
+	struct PipelineBarrierImageInfo
+	{
+		RImage image{};
+		IMAGE_LAYOUT old_layout{};
+		IMAGE_LAYOUT new_layout{};
+		BARRIER_PIPELINE_STAGE src_stage{};
+		BARRIER_PIPELINE_STAGE dst_stage{};
+		BARRIER_ACCESS_MASK src_mask{};
+		BARRIER_ACCESS_MASK dst_mask{};
+
+		QUEUE_TRANSITION src_queue = QUEUE_TRANSITION::NO_TRANSITION;
+		QUEUE_TRANSITION dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
+
+		uint32_t base_mip_level = 0;
+		uint32_t level_count = 0;
+		uint32_t base_array_layer = 0;
+		uint32_t layer_count = 0;
+	};
+
+	struct PipelineBarrierInfo
+	{
+		uint32_t global_info_count = 0;
+		const PipelineBarrierGlobalInfo* global_infos = nullptr;
+		uint32_t buffer_info_count = 0;
+		const PipelineBarrierBufferInfo* buffer_infos = nullptr;
+		uint32_t image_info_count = 0;
+		const PipelineBarrierImageInfo* image_infos = nullptr;
+	};
+
 	struct RenderCopyBufferToImageInfo
 	{
 		RBuffer src_buffer;
@@ -300,6 +384,12 @@ namespace BB
 		PushConstantRange* push_constant_ranges;
 	};
 
+	struct WriteDescriptorImage
+	{
+		RImageView view;
+		IMAGE_LAYOUT layout;
+	};
+
 	struct WriteDescriptorData
 	{
 		uint32_t binding;
@@ -308,7 +398,7 @@ namespace BB
 		union
 		{
 			BufferView buffer_view{};
-			//WriteDescriptorImage image;
+			WriteDescriptorImage image_view;
 		};
 	};
 

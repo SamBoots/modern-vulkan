@@ -107,16 +107,6 @@ namespace BB
 	bool ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<UploadBufferView> a_upload_views);
 	bool ExecuteTransferCommands(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<UploadBufferView> a_upload_views);
 
-	struct TransferCommandsInfo
-	{
-		CommandPool* pools;
-		uint32_t pool_count;
-		UploadBufferView* upload_views;
-		uint32_t upload_view_count;
-	};
-
-	void ExecuteTransferCommands();
-
 	const MeshHandle CreateMesh(const CreateMeshInfo& a_create_info);
 	void FreeMesh(const MeshHandle a_mesh);
 

@@ -11,8 +11,8 @@ namespace BB
 			return m_arr[a_index];
 		}
 
-		constexpr size_t size() const { return arr_size; };
-		T* data() { return m_arr; };
+		constexpr size_t size() const { return arr_size; }
+		T* data() { return m_arr; }
 
 		T m_arr[arr_size]{};
 	};

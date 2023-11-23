@@ -22,111 +22,10 @@ constexpr uint32_t MAX_TEXTURES = 1024;
 class GPUTextureManager
 {
 public:
-	GPUTextureManager()
-	{
-		const uint32_t purple = (209u << 24u) | (106u << 16u) | (255u << 8u) | (255u << 0u);
-		(void)purple;
+	GPUTextureManager();
 
-		lock = OSCreateRWLock();
-		//texture 0 is always the debug texture.
-		textures[0].image = debug_texture;
-		textures[0].next_free = UINT32_MAX;
-
-		next_free = 1;
-
-		for (uint32_t i = 1; i < MAX_TEXTURES - 1; i++)
-		{
-			textures[i].image = debug_texture;
-			textures[i].next_free = i + 1;
-		}
-
-		textures[MAX_TEXTURES - 1].image = debug_texture;
-		textures[MAX_TEXTURES - 1].next_free = UINT32_MAX;
-	}
-
-	const RTexture UploadTexture(const UploadImageInfo& a_upload_info, const RCommandList a_list, UploadBufferView& a_upload_buffer)
-	{
-		OSAcquireSRWLockWrite(&lock);
-		const RTexture texture_slot = RTexture(next_free);
-		TextureSlot& slot = textures[texture_slot.handle];
-		next_free = slot.next_free;
-		OSReleaseSRWLockWrite(&lock);
-
-		uint32_t byte_per_pixel;
-		{
-			ImageCreateInfo image_info;
-			image_info.name = a_upload_info.name;
-			image_info.width = a_upload_info.width;
-			image_info.height = a_upload_info.height;
-			image_info.depth = 1;
-			image_info.array_layers = 1;
-			image_info.mip_levels = 1;
-
-			image_info.type = IMAGE_TYPE::TYPE_2D;
-			image_info.tiling = IMAGE_TILING::OPTIMAL;
-
-			switch (a_upload_info.bit_count)
-			{
-			case 32:
-				image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
-				byte_per_pixel = 4;
-				break;
-			default:
-				BB_ASSERT(false, "Unsupported bit_count for upload image");
-				image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
-				byte_per_pixel = 4;
-				break;
-			}
-
-			slot.image = Vulkan::CreateImage(image_info);
-
-			ImageViewCreateInfo image_view_info;
-			image_view_info.image = slot.image;
-			image_view_info.name = a_upload_info.name;
-			image_view_info.array_layers = 1;
-			image_view_info.mip_levels = 1;
-			image_view_info.type = image_info.type;
-			image_view_info.format = image_info.format;
-			slot.view = Vulkan::CreateViewImage(image_view_info);
-		}
-
-		//now upload the image.
-		uint32_t allocation_offset;
-		a_upload_buffer.AllocateAndMemoryCopy(a_upload_info.pixels, byte_per_pixel, allocation_offset);
-
-
-		RenderCopyBufferToImageInfo buffer_to_image;
-		buffer_to_image.src_buffer = a_upload_buffer.GetBufferHandle();
-		buffer_to_image.src_offset = allocation_offset;
-
-		buffer_to_image.dst_image = slot.image;
-		buffer_to_image.dst_image_info.size_x = a_upload_info.width;
-		buffer_to_image.dst_image_info.size_y = a_upload_info.height;
-		buffer_to_image.dst_image_info.size_z = 1;
-		buffer_to_image.dst_image_info.offset_x = 0;
-		buffer_to_image.dst_image_info.offset_y = 0;
-		buffer_to_image.dst_image_info.offset_z = 0;
-		buffer_to_image.dst_image_info.layout = IMAGE_LAYOUT::TRANSFER_DST;
-		buffer_to_image.dst_image_info.mip_level = 0;
-		buffer_to_image.dst_image_info.layer_count = 1;
-		buffer_to_image.dst_image_info.base_array_layer = 0;
-
-		Vulkan::CopyBufferImage(a_list, buffer_to_image);
-
-		return texture_slot;
-	}
-
-	void FreeTexture(const RTexture a_texture)
-	{
-		TextureSlot& slot = textures[a_texture.handle];
-		Vulkan::FreeImage(slot.image);
-		Vulkan::FreeViewImage(slot.view);
-
-		OSAcquireSRWLockWrite(&lock);
-		slot.next_free = next_free;
-		next_free = a_texture.handle;
-		OSReleaseSRWLockWrite(&lock);
-	}
+	const RTexture UploadTexture(const UploadImageInfo& a_upload_info, const RCommandList a_list, UploadBufferView& a_upload_buffer);
+	void FreeTexture(const RTexture a_texture);
 
 private:
 	struct TextureSlot
@@ -433,7 +332,7 @@ public:
 		OSReleaseSRWLockWrite(&m_lock);
 	}
 
-	//void ExecutePresentCommands(CommandList* a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const RENDER_PIPELINE_STAGE* a_WaitStages, const uint32_t a_FenceCount);
+	//void ExecutePresentCommands(CommandList* a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const PIPELINE_STAGE* a_WaitStages, const uint32_t a_FenceCount);
 	void WaitFenceValue(const uint64_t a_fence_value)
 	{
 		LinkedList<CommandPool> local_list_free;
@@ -534,12 +433,13 @@ struct RenderInterface_inst
 
 	GPUTextureManager texture_manager;
 
+	RDescriptorLayout global_descriptor_set;
+	DescriptorAllocation global_descriptor_allocation;
 	struct VertexBuffer
 	{
 		RBuffer buffer;
 		uint32_t size;
 		uint32_t used;
-		DescriptorAllocation descriptor_allocation;
 	} vertex_buffer;
 	struct IndexBuffer
 	{
@@ -588,7 +488,7 @@ static RPipeline test_pipeline;
 static ShaderObject vertex_object;
 static ShaderObject fragment_object;
 static RDescriptorLayout static_sampler_layout;
-static RDescriptorLayout global_descriptor_layout;
+//static RDescriptorLayout global_descriptor_layout;
 static RDescriptorLayout frame_descriptor_layout;
 static RPipelineLayout pipeline_layout;
 static RDepthBuffer depth_buffer;
@@ -617,6 +517,165 @@ static BufferView AllocateFromIndexBuffer(const size_t a_size_in_bytes)
 	s_render_inst->index_buffer.used += static_cast<uint32_t>(a_size_in_bytes);
 
 	return view;
+}
+
+GPUTextureManager::GPUTextureManager()
+{
+	const uint32_t purple = (209u << 24u) | (106u << 16u) | (255u << 8u) | (255u << 0u);
+	(void)purple;
+
+	lock = OSCreateRWLock();
+	//texture 0 is always the debug texture.
+	textures[0].image = debug_texture;
+	textures[0].next_free = UINT32_MAX;
+
+	next_free = 1;
+
+	for (uint32_t i = 1; i < MAX_TEXTURES - 1; i++)
+	{
+		textures[i].image = debug_texture;
+		textures[i].next_free = i + 1;
+	}
+
+	textures[MAX_TEXTURES - 1].image = debug_texture;
+	textures[MAX_TEXTURES - 1].next_free = UINT32_MAX;
+}
+
+const RTexture GPUTextureManager::UploadTexture(const UploadImageInfo& a_upload_info, const RCommandList a_list, UploadBufferView& a_upload_buffer)
+{
+	OSAcquireSRWLockWrite(&lock);
+	const RTexture texture_slot = RTexture(next_free);
+	TextureSlot& slot = textures[texture_slot.handle];
+	next_free = slot.next_free;
+	OSReleaseSRWLockWrite(&lock);
+
+	uint32_t byte_per_pixel;
+	{
+		ImageCreateInfo image_info;
+		image_info.name = a_upload_info.name;
+		image_info.width = a_upload_info.width;
+		image_info.height = a_upload_info.height;
+		image_info.depth = 1;
+		image_info.array_layers = 1;
+		image_info.mip_levels = 1;
+
+		image_info.type = IMAGE_TYPE::TYPE_2D;
+		image_info.tiling = IMAGE_TILING::OPTIMAL;
+
+		switch (a_upload_info.bit_count)
+		{
+		case 32:
+			image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+			byte_per_pixel = 4;
+			break;
+		default:
+			BB_ASSERT(false, "Unsupported bit_count for upload image");
+			image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+			byte_per_pixel = 4;
+			break;
+		}
+
+		slot.image = Vulkan::CreateImage(image_info);
+
+		ImageViewCreateInfo image_view_info;
+		image_view_info.image = slot.image;
+		image_view_info.name = a_upload_info.name;
+		image_view_info.array_layers = 1;
+		image_view_info.mip_levels = 1;
+		image_view_info.type = image_info.type;
+		image_view_info.format = image_info.format;
+		slot.view = Vulkan::CreateViewImage(image_view_info);
+
+		//pipeline barrier
+		PipelineBarrierImageInfo image_write_transition;
+		image_write_transition.src_mask = BARRIER_ACCESS_MASK::NONE;
+		image_write_transition.dst_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
+		image_write_transition.image = slot.image;
+		image_write_transition.old_layout = IMAGE_LAYOUT::UNDEFINED;
+		image_write_transition.new_layout = IMAGE_LAYOUT::TRANSFER_DST;
+		image_write_transition.layer_count = 1;
+		image_write_transition.level_count = 1;
+		image_write_transition.base_array_layer = 0;
+		image_write_transition.base_mip_level = 0;
+		image_write_transition.src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
+		image_write_transition.dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
+
+		PipelineBarrierInfo pipeline_info{};
+		pipeline_info.image_info_count = 1;
+		pipeline_info.image_infos = &image_write_transition;
+		Vulkan::PipelineBarriers(a_list, pipeline_info);
+	}
+
+	//now upload the image.
+	uint32_t allocation_offset;
+	a_upload_buffer.AllocateAndMemoryCopy(a_upload_info.pixels, byte_per_pixel, allocation_offset);
+
+
+	RenderCopyBufferToImageInfo buffer_to_image;
+	buffer_to_image.src_buffer = a_upload_buffer.GetBufferHandle();
+	buffer_to_image.src_offset = allocation_offset;
+
+	buffer_to_image.dst_image = slot.image;
+	buffer_to_image.dst_image_info.size_x = a_upload_info.width;
+	buffer_to_image.dst_image_info.size_y = a_upload_info.height;
+	buffer_to_image.dst_image_info.size_z = 1;
+	buffer_to_image.dst_image_info.offset_x = 0;
+	buffer_to_image.dst_image_info.offset_y = 0;
+	buffer_to_image.dst_image_info.offset_z = 0;
+	buffer_to_image.dst_image_info.layout = IMAGE_LAYOUT::TRANSFER_DST;
+	buffer_to_image.dst_image_info.mip_level = 0;
+	buffer_to_image.dst_image_info.layer_count = 1;
+	buffer_to_image.dst_image_info.base_array_layer = 0;
+
+	Vulkan::CopyBufferImage(a_list, buffer_to_image);
+
+	{
+		PipelineBarrierImageInfo image_shader_transition;
+		image_shader_transition.src_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
+		image_shader_transition.dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
+		image_shader_transition.image = slot.image;
+		image_shader_transition.old_layout = IMAGE_LAYOUT::TRANSFER_DST;
+		image_shader_transition.new_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+		image_shader_transition.layer_count = 1;
+		image_shader_transition.level_count = 1;
+		image_shader_transition.base_array_layer = 0;
+		image_shader_transition.base_mip_level = 0;
+		image_shader_transition.src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
+		image_shader_transition.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
+
+		PipelineBarrierInfo pipeline_info{};
+		pipeline_info.image_info_count = 1;
+		pipeline_info.image_infos = &image_shader_transition;
+		Vulkan::PipelineBarriers(a_list, pipeline_info);
+	}
+
+	WriteDescriptorData write_desc{};
+	write_desc.binding = 1;
+	write_desc.descriptor_index = texture_slot.handle; //handle is also the descriptor index
+	write_desc.type = DESCRIPTOR_TYPE::IMAGE;
+	write_desc.image_view.view = slot.view;
+	write_desc.image_view.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+
+	WriteDescriptorInfos image_write_infos;
+	image_write_infos.allocation = s_render_inst->global_descriptor_allocation;
+	image_write_infos.descriptor_layout = s_render_inst->global_descriptor_set;
+	image_write_infos.data = Slice(&write_desc, 1);
+
+	Vulkan::WriteDescriptors(image_write_infos);
+
+	return texture_slot;
+}
+
+void GPUTextureManager::FreeTexture(const RTexture a_texture)
+{
+	TextureSlot& slot = textures[a_texture.handle];
+	Vulkan::FreeImage(slot.image);
+	Vulkan::FreeViewImage(slot.view);
+
+	OSAcquireSRWLockWrite(&lock);
+	slot.next_free = next_free;
+	next_free = a_texture.handle;
+	OSReleaseSRWLockWrite(&lock);
 }
 
 void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererCreateInfo& a_render_create_info)
@@ -669,7 +728,8 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 			descriptor_bindings[1].count = MAX_TEXTURES;
 			descriptor_bindings[1].shader_stage = SHADER_STAGE::FRAGMENT_PIXEL;
 			descriptor_bindings[1].type = DESCRIPTOR_TYPE::IMAGE;
-			global_descriptor_layout = Vulkan::CreateDescriptorLayout(a_stack_allocator, Slice(descriptor_bindings, _countof(descriptor_bindings)));
+			s_render_inst->global_descriptor_set = Vulkan::CreateDescriptorLayout(a_stack_allocator, Slice(descriptor_bindings, _countof(descriptor_bindings)));
+			s_render_inst->global_descriptor_allocation = Vulkan::AllocateDescriptor(s_render_inst->global_descriptor_set);
 		}
 		{
 			//per-frame descriptor set 1
@@ -686,7 +746,7 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 			frame_descriptor_layout = Vulkan::CreateDescriptorLayout(a_stack_allocator, Slice(descriptor_bindings, _countof(descriptor_bindings)));
 		}
 
-		RDescriptorLayout desc_layouts[] = { static_sampler_layout, global_descriptor_layout, frame_descriptor_layout };
+		RDescriptorLayout desc_layouts[] = { static_sampler_layout, s_render_inst->global_descriptor_set, frame_descriptor_layout };
 		PushConstantRange push_constant;
 		push_constant.stages = SHADER_STAGE::ALL;
 		push_constant.offset = 0;
@@ -766,7 +826,6 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		s_render_inst->vertex_buffer.buffer = Vulkan::CreateBuffer(vertex_buffer);
 		s_render_inst->vertex_buffer.size = static_cast<uint32_t>(vertex_buffer.size);
 		s_render_inst->vertex_buffer.used = 0;
-		s_render_inst->vertex_buffer.descriptor_allocation = Vulkan::AllocateDescriptor(global_descriptor_layout);
 
 		BufferView view;
 		view.buffer = s_render_inst->vertex_buffer.buffer;
@@ -780,8 +839,8 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		vertex_descriptor_write.buffer_view = view;
 
 		WriteDescriptorInfos vertex_descriptor_info;
-		vertex_descriptor_info.allocation = s_render_inst->vertex_buffer.descriptor_allocation;
-		vertex_descriptor_info.descriptor_layout = global_descriptor_layout;
+		vertex_descriptor_info.allocation = s_render_inst->global_descriptor_allocation;
+		vertex_descriptor_info.descriptor_layout = s_render_inst->global_descriptor_set;
 		vertex_descriptor_info.data = Slice(&vertex_descriptor_write, 1);
 
 		Vulkan::WriteDescriptors(vertex_descriptor_info);
@@ -925,17 +984,20 @@ void BB::EndFrame()
 #endif //_USE_G_PIPELINE
 	Vulkan::BindIndexBuffer(current_command_list, s_render_inst->index_buffer.buffer, 0);
 	const uint32_t buffer_indices[] = { 0, 0 };
-	const size_t buffer_offsets[]{ s_render_inst->vertex_buffer.descriptor_allocation.offset, cur_frame.desc_alloc.offset };
+	const size_t buffer_offsets[]{ s_render_inst->global_descriptor_allocation.offset, cur_frame.desc_alloc.offset };
 	Vulkan::SetDescriptorBufferOffset(current_command_list, pipeline_layout, SPACE_GLOBAL, _countof(buffer_offsets), buffer_indices, buffer_offsets);
 
 	for (uint32_t i = 0; i < s_render_inst->draw_list_count; i++)
 	{
 		const MeshDrawCall& mesh_draw_call = s_render_inst->draw_list_data.mesh_draw_call[i];
+		const Material& material = s_render_inst->material_map.find(mesh_draw_call.mesh.handle);
 		const Mesh& mesh = s_render_inst->mesh_map.find(mesh_draw_call.mesh.handle);
 
 		ShaderIndices shader_indices;
 		shader_indices.transform_index = i;
 		shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh.vertex_buffer.offset);
+		shader_indices.albedo_texture = material.base_color.handle;
+
 		Vulkan::SetPushConstants(current_command_list, pipeline_layout, 0, sizeof(ShaderIndices), &shader_indices);
 
 		Vulkan::DrawIndexed(current_command_list,

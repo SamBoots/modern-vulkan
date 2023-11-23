@@ -55,6 +55,8 @@ namespace BB
     {
         uint vertex_buffer_offset;
         uint transform_index;
+        uint albedo_texture;
+        uint normal_texture;
     };
 #ifndef __HLSL_VERSION
 }
