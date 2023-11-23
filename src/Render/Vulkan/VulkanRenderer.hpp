@@ -2,6 +2,7 @@
 #include "Common.h"
 #include "RendererTypes.hpp"
 #include "Slice.h"
+#include "Storage/FixedArray.h"
 
 namespace BB
 {
@@ -32,7 +33,7 @@ namespace BB
 		DescriptorAllocation AllocateDescriptor(const RDescriptorLayout a_descriptor);
 		void WriteDescriptors(const WriteDescriptorInfos& a_write_info);
 
-		RPipelineLayout CreatePipelineLayout(const RDescriptorLayout* a_descriptor_layouts, const uint32_t a_layout_count, const PushConstantRange* a_constant_ranges, const uint32_t a_constant_range_count);
+		RPipelineLayout CreatePipelineLayout(const RDescriptorLayout* a_descriptor_layouts, const uint32_t a_layout_count, const PushConstantRange* a_constant_ranges, const uint32_t a_constant_range_count, const SamplerCreateInfo* a_static_samplers, const uint32_t a_static_sampler_count);
 		void FreePipelineLayout(const RPipelineLayout a_layout);
 
 		RPipeline CreatePipeline(const CreatePipelineInfo& a_info);

@@ -34,5 +34,8 @@ VSOutput VertexMain(uint VertexIndex : SV_VertexID)
 
 float4 FragmentMain(VSOutput input) : SV_Target
 {
-    return float4(input.color.xyz, 1.f);
+    //float4 texture_color = textures_data[shader_indices.albedo].Sample(samplerColor, input.uv);
+    //float4 color = texture_color * float4(input.color.xyz, 1.0f);
+    
+    return float4(input.color.xyz, 1.0f);
 }

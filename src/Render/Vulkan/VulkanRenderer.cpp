@@ -73,7 +73,6 @@ struct VulkanDepth
 	VkImageView view;
 };
 
-
 static inline VkDeviceSize GetBufferDeviceAddress(const VkDevice a_device, const VkBuffer a_buffer)
 {
 	VkBufferDeviceAddressInfo buffer_address_info{ VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, a_buffer };
@@ -498,6 +497,11 @@ struct Vulkan_inst
 
 		enum_conv.image_tilings[static_cast<uint32_t>(IMAGE_TILING::LINEAR)] = VK_IMAGE_TILING_LINEAR;
 		enum_conv.image_tilings[static_cast<uint32_t>(IMAGE_TILING::OPTIMAL)] = VK_IMAGE_TILING_OPTIMAL;
+
+		enum_conv.sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::REPEAT)] = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		enum_conv.sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::MIRROR)] = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+		enum_conv.sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::BORDER)] = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+		enum_conv.sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::CLAMP)] = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 #endif //ENUM_CONVERSATION_BY_ARRAY
 	}
 
@@ -540,6 +544,7 @@ struct Vulkan_inst
 		VkImageType image_types[static_cast<uint32_t>(IMAGE_TYPE::ENUM_SIZE)];
 		VkImageViewType image_view_types[static_cast<uint32_t>(IMAGE_TYPE::ENUM_SIZE)];
 		VkImageTiling image_tilings[static_cast<uint32_t>(IMAGE_TILING::ENUM_SIZE)];
+		VkSamplerAddressMode sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::ENUM_SIZE)];
 	};
 	EnumConversions enum_conv;
 #endif //ENUM_CONVERSATION_BY_ARRAY
@@ -586,6 +591,22 @@ struct Vulkan_swapchain
 
 static Vulkan_inst* s_vulkan_inst = nullptr;
 static Vulkan_swapchain* s_vulkan_swapchain = nullptr;
+
+#ifdef _DEBUG
+static inline void SetDebugName_f(const char* a_name, const uint64_t a_object_handle, const VkObjectType a_obj_type)
+{
+	VkDebugUtilsObjectNameInfoEXT debug_name_info{ VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT };
+	debug_name_info.pNext = nullptr;
+	debug_name_info.objectType = a_obj_type;
+	debug_name_info.objectHandle = a_object_handle;
+	debug_name_info.pObjectName = a_name;
+	s_vulkan_inst->pfn.SetDebugUtilsObjectNameEXT(s_vulkan_inst->device, &debug_name_info);
+}
+
+#define SetDebugName(a_name, a_object_handle, a_obj_type) SetDebugName_f(a_name, reinterpret_cast<uintptr_t>(a_object_handle), a_obj_type)
+#else
+#define SetDebugName
+#endif //_DEBUG
 
 static inline VkDescriptorType DescriptorBufferType(const DESCRIPTOR_TYPE a_type)
 {
@@ -736,6 +757,63 @@ static inline VkImageTiling ImageTilings(const IMAGE_TILING a_image_tiling)
 #endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
+static inline VkSamplerAddressMode SamplerAddressModes(const SAMPLER_ADDRESS_MODE a_address_mode)
+{
+#ifdef ENUM_CONVERSATION_BY_ARRAY
+	return s_vulkan_inst->enum_conv.sampler_address_modes[static_cast<uint32_t>(a_address_mode)];
+#else
+	switch (a_address_mode)
+	{
+	case SAMPLER_ADDRESS_MODE::REPEAT:		return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	case SAMPLER_ADDRESS_MODE::MIRROR:		return VK_SAMPLER_ADDRESS_MODE_MIRROR;
+	case SAMPLER_ADDRESS_MODE::BORDER:		return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	case SAMPLER_ADDRESS_MODE::CLAMP:		return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+	default:
+		BB_ASSERT(false, "Vulkan: SAMPLER_ADDRESS_MODE failed to convert to a VkImageType.");
+		return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		break;
+	}
+#endif //ENUM_CONVERSATION_BY_ARRAY
+}
+
+static VkSampler CreateSampler(const SamplerCreateInfo& a_CreateInfo)
+{
+	VkSamplerCreateInfo sampler_info{ VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+	sampler_info.addressModeU = SamplerAddressModes(a_CreateInfo.mode_u);
+	sampler_info.addressModeV = SamplerAddressModes(a_CreateInfo.mode_v);
+	sampler_info.addressModeW = SamplerAddressModes(a_CreateInfo.mode_w);
+	switch (a_CreateInfo.filter)
+	{
+	case SAMPLER_FILTER::NEAREST:
+		sampler_info.magFilter = VK_FILTER_NEAREST;
+		sampler_info.minFilter = VK_FILTER_NEAREST;
+		break;
+	case SAMPLER_FILTER::LINEAR:
+		sampler_info.magFilter = VK_FILTER_LINEAR;
+		sampler_info.minFilter = VK_FILTER_LINEAR;
+		break;
+	default:
+		BB_ASSERT(false, "Vulkan, does not support this type of sampler filter!");
+		break;
+	}
+	sampler_info.minLod = a_CreateInfo.min_lod;
+	sampler_info.maxLod = a_CreateInfo.max_lod;
+	sampler_info.mipLodBias = 0;
+	if (a_CreateInfo.max_anistoropy > 0)
+	{
+		sampler_info.anisotropyEnable = VK_TRUE;
+		sampler_info.maxAnisotropy = a_CreateInfo.max_anistoropy;
+	}
+
+	VkSampler sampler;
+	VKASSERT(vkCreateSampler(s_vulkan_inst->device, &sampler_info, nullptr, &sampler),
+		"Vulkan: Failed to create image sampler!");
+	SetDebugName(a_CreateInfo.name, sampler, VK_OBJECT_TYPE_SAMPLER);
+
+	return sampler;
+}
+
+
 static inline VkDescriptorAddressInfoEXT GetDescriptorAddressInfo(const VkDevice a_device, const BufferView& a_Buffer, const VkFormat a_Format = VK_FORMAT_UNDEFINED)
 {
 	VkDescriptorAddressInfoEXT info{ VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT };
@@ -797,22 +875,6 @@ DescriptorAllocation VulkanDescriptorLinearBuffer::AllocateDescriptor(const RDes
 
 	return allocation;
 }
-
-#ifdef _DEBUG
-static inline void SetDebugName_f(const char* a_name, const uint64_t a_object_handle, const VkObjectType a_obj_type)
-{
-	VkDebugUtilsObjectNameInfoEXT debug_name_info{ VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT };
-	debug_name_info.pNext = nullptr;
-	debug_name_info.objectType = a_obj_type;
-	debug_name_info.objectHandle = a_object_handle;
-	debug_name_info.pObjectName = a_name;
-	s_vulkan_inst->pfn.SetDebugUtilsObjectNameEXT(s_vulkan_inst->device, &debug_name_info);
-}
-
-#define SetDebugName(a_name, a_object_handle, a_obj_type) SetDebugName_f(a_name, reinterpret_cast<uintptr_t>(a_object_handle), a_obj_type)
-#else
-#define SetDebugName
-#endif //_DEBUG
 
 bool Vulkan::InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a_app_name, const char* a_engine_name, const bool a_debug)
 {
@@ -1485,12 +1547,47 @@ void Vulkan::WriteDescriptors(const WriteDescriptorInfos& a_write_info)
 	}
 }
 
-RPipelineLayout Vulkan::CreatePipelineLayout(const RDescriptorLayout* a_descriptor_layouts, const uint32_t a_layout_count, const PushConstantRange* a_constant_ranges, const uint32_t a_constant_range_count)
+RPipelineLayout Vulkan::CreatePipelineLayout(const RDescriptorLayout* a_descriptor_layouts, const uint32_t a_layout_count, const PushConstantRange* a_constant_ranges, const uint32_t a_constant_range_count, const SamplerCreateInfo* a_static_samplers, const uint32_t a_static_sampler_count)
 {
+	VkDescriptorSetLayout set_layouts[SPACE_AMOUNT]{};
+
 	VkPipelineLayoutCreateInfo create_info{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
 	create_info.setLayoutCount = a_layout_count;
-	create_info.pSetLayouts = reinterpret_cast<const VkDescriptorSetLayout*>(a_descriptor_layouts);
-	
+	if (a_static_sampler_count > 0)
+	{
+		BB_ASSERT(a_static_sampler_count <= STATIC_SAMPLER_MAX, "too many static samplers on pipeline!");
+		++create_info.setLayoutCount;
+
+		VkDescriptorSetLayoutBinding layout_binds[STATIC_SAMPLER_MAX];
+		VkSampler samplers[STATIC_SAMPLER_MAX];
+		for (uint32_t i = 0; i < a_static_sampler_count; i++)
+		{
+			samplers[i] = CreateSampler(a_static_samplers[i]);
+			layout_binds[i].binding = i;
+			layout_binds[i].descriptorCount = 1;
+			layout_binds[i].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+			layout_binds[i].pImmutableSamplers = &samplers[i];
+			layout_binds[i].stageFlags = VK_SHADER_STAGE_ALL;
+		}
+		VkDescriptorSetLayoutCreateInfo t_LayoutInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+		t_LayoutInfo.pBindings = layout_binds;
+		t_LayoutInfo.bindingCount = static_cast<uint32_t>(a_static_sampler_count);
+		t_LayoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_EMBEDDED_IMMUTABLE_SAMPLERS_BIT_EXT | VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
+
+		//Do some algorithm to see if I already made a descriptorlayout like this one.
+		VKASSERT(vkCreateDescriptorSetLayout(s_vulkan_inst->device,
+			&t_LayoutInfo, nullptr, &set_layouts[0]),
+			"Vulkan: Failed to create a descriptorsetlayout for immutable samplers in pipeline init.");
+
+		Memory::Copy(&set_layouts[1], reinterpret_cast<const VkDescriptorSetLayout*>(a_descriptor_layouts), a_layout_count);
+		create_info.pSetLayouts = set_layouts;
+	}
+	else
+	{
+		create_info.pSetLayouts = reinterpret_cast<const VkDescriptorSetLayout*>(a_descriptor_layouts);
+	}
+
+
 	if (a_constant_range_count)
 	{
 		VkPushConstantRange* constant_ranges = BBstackAlloc(a_constant_range_count, VkPushConstantRange);

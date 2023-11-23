@@ -109,7 +109,7 @@ public:
 		buffer_to_image.dst_image_info.layout = IMAGE_LAYOUT::TRANSFER_DST;
 		buffer_to_image.dst_image_info.mip_level = 0;
 		buffer_to_image.dst_image_info.layer_count = 1;
-		buffer_to_image.dst_image_info.base_array_layer = 1;
+		buffer_to_image.dst_image_info.base_array_layer = 0;
 
 		Vulkan::CopyBufferImage(a_list, buffer_to_image);
 
@@ -646,11 +646,16 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 	{
 		{
 			//global descriptor set 0
-			DescriptorBindingInfo descriptor_bindings[1];
+			DescriptorBindingInfo descriptor_bindings[2];
 			descriptor_bindings[0].binding = 0;
 			descriptor_bindings[0].count = 1;
 			descriptor_bindings[0].shader_stage = SHADER_STAGE::VERTEX;
 			descriptor_bindings[0].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
+
+			descriptor_bindings[1].binding = 1;
+			descriptor_bindings[1].count = MAX_TEXTURES;
+			descriptor_bindings[1].shader_stage = SHADER_STAGE::FRAGMENT_PIXEL;
+			descriptor_bindings[1].type = DESCRIPTOR_TYPE::IMAGE;
 			global_descriptor_layout = Vulkan::CreateDescriptorLayout(a_stack_allocator, Slice(descriptor_bindings, _countof(descriptor_bindings)));
 		}
 		{
@@ -673,7 +678,17 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		push_constant.stages = SHADER_STAGE::ALL;
 		push_constant.offset = 0;
 		push_constant.size = sizeof(ShaderIndices);
-		pipeline_layout = Vulkan::CreatePipelineLayout(desc_layouts, _countof(desc_layouts), &push_constant, 1);
+
+		SamplerCreateInfo immutable_sampler{};
+		immutable_sampler.name = "standard sampler";
+		immutable_sampler.mode_u = SAMPLER_ADDRESS_MODE::REPEAT;
+		immutable_sampler.mode_v = SAMPLER_ADDRESS_MODE::REPEAT;
+		immutable_sampler.mode_w = SAMPLER_ADDRESS_MODE::REPEAT;
+		immutable_sampler.filter = SAMPLER_FILTER::LINEAR;
+		immutable_sampler.max_anistoropy = 1.0f;
+		immutable_sampler.max_lod = 100.f;
+		immutable_sampler.min_lod = -100.f;
+		pipeline_layout = Vulkan::CreatePipelineLayout(desc_layouts, _countof(desc_layouts), &push_constant, 1, &immutable_sampler, 1);
 
 		const ShaderCode vertex_shader = CompileShader(a_stack_allocator, s_render_inst->shader_compiler, "../resources/shaders/hlsl/Debug.hlsl", "VertexMain", SHADER_STAGE::VERTEX);
 		const ShaderCode fragment_shader = CompileShader(a_stack_allocator, s_render_inst->shader_compiler, "../resources/shaders/hlsl/Debug.hlsl", "FragmentMain", SHADER_STAGE::FRAGMENT_PIXEL);
@@ -686,6 +701,7 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		shader_objects_info[0].shader_code_size = shader_buffer.size;
 		shader_objects_info[0].shader_code = shader_buffer.data;
 		shader_objects_info[0].shader_entry = "VertexMain";
+		MAKE SAMPLER DESCRIPTOR CREATABLE FROM HERE
 		shader_objects_info[0].descriptor_layout_count = _countof(desc_layouts);
 		shader_objects_info[0].descriptor_layouts = desc_layouts;
 		shader_objects_info[0].push_constant_range_count = 1;
@@ -906,7 +922,7 @@ void BB::EndFrame()
 	Vulkan::BindIndexBuffer(current_command_list, s_render_inst->index_buffer.buffer, 0);
 	const uint32_t buffer_indices[] = { 0, 0 };
 	const size_t buffer_offsets[]{ s_render_inst->vertex_buffer.descriptor_allocation.offset, cur_frame.desc_alloc.offset };
-	Vulkan::SetDescriptorBufferOffset(current_command_list, pipeline_layout, 0, _countof(buffer_offsets), buffer_indices, buffer_offsets);
+	Vulkan::SetDescriptorBufferOffset(current_command_list, pipeline_layout, SPACE_GLOBAL, _countof(buffer_offsets), buffer_indices, buffer_offsets);
 
 	for (uint32_t i = 0; i < s_render_inst->draw_list_count; i++)
 	{

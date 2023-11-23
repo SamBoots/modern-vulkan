@@ -6,6 +6,25 @@
 namespace BB
 {
 #endif//__HLSL_VERSION
+
+    //defined for HLSL and constexpr for the cpp
+#ifdef __HLSL_VERSION
+#define SPACE_IMMUTABLE_SAMPLER 0
+#define SPACE_GLOBAL 1
+#define SPACE_PER_SCENE 2
+#define SPACE_PER_MATERIAL 3
+#define SPACE_PER_MESH 4
+#else
+    constexpr uint32_t SPACE_IMMUTABLE_SAMPLER = 0;
+    constexpr uint32_t SPACE_GLOBAL = 1;
+    constexpr uint32_t SPACE_PER_SCENE = 2;
+    constexpr uint32_t SPACE_PER_MATERIAL = 3;
+    constexpr uint32_t SPACE_PER_MESH = 4;
+    constexpr uint32_t SPACE_AMOUNT = 5;
+
+    constexpr uint32_t STATIC_SAMPLER_MAX = 3;
+#endif //__HLSL_VERSION
+
     struct Vertex
     {
         float3 position; //12

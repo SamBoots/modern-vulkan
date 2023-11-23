@@ -123,6 +123,36 @@ namespace BB
 		IMAGE_FORMAT format{};
 	};
 
+	enum class SAMPLER_ADDRESS_MODE : uint32_t
+	{
+		REPEAT,
+		MIRROR,
+		BORDER,
+		CLAMP,
+
+		ENUM_SIZE
+	};
+
+	enum class SAMPLER_FILTER : uint32_t
+	{
+		NEAREST,
+		LINEAR
+	};
+
+	struct SamplerCreateInfo
+	{
+		const char* name;
+		SAMPLER_ADDRESS_MODE mode_u{};
+		SAMPLER_ADDRESS_MODE mode_v{};
+		SAMPLER_ADDRESS_MODE mode_w{};
+
+		SAMPLER_FILTER filter{};
+		float max_anistoropy;
+
+		float min_lod;
+		float max_lod;
+	};
+
 	struct RenderDepthCreateInfo
 	{
 		const char* name = nullptr;

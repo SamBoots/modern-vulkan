@@ -178,6 +178,7 @@ void Asset::LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_t
 		}
 	}
 	cmd_pool.EndCommandList(cmd_list);
+	load_async_allocator.Clear();
 }
 
 const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view)
