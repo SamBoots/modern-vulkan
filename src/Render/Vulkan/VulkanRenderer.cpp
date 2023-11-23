@@ -533,9 +533,9 @@ struct Vulkan_inst
 	//jank pointer
 	VulkanDescriptorLinearBuffer* pdescriptor_buffer;
 
-	StaticSlotmap<VulkanBuffer> buffers;
-	StaticSlotmap<VulkanImage> images;
-	StaticSlotmap<VulkanDepth> depth_images;
+	StaticSlotmap<VulkanBuffer, RBuffer> buffers;
+	StaticSlotmap<VulkanImage, RImage> images;
+	StaticSlotmap<VulkanDepth, RDepthBuffer> depth_images;
 	
 	VulkanQueuesIndices queue_indices;
 	struct DeviceInfo
@@ -877,7 +877,7 @@ static inline VkDescriptorAddressInfoEXT GetDescriptorAddressInfo(const VkDevice
 {
 	VkDescriptorAddressInfoEXT info{ VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT };
 	info.range = a_Buffer.size;
-	info.address = GetBufferDeviceAddress(a_device, s_vulkan_inst->buffers[a_Buffer.buffer.handle].buffer);
+	info.address = GetBufferDeviceAddress(a_device, s_vulkan_inst->buffers[a_Buffer.buffer].buffer);
 	//offset the address.
 	info.address += a_Buffer.offset;
 	info.format = a_Format;
@@ -1341,14 +1341,14 @@ const RBuffer Vulkan::CreateBuffer(const BufferCreateInfo& a_create_info)
 
 	SetDebugName(a_create_info.name, buffer.buffer, VK_OBJECT_TYPE_BUFFER);
 
-	return RBuffer(s_vulkan_inst->buffers.insert(buffer).handle);
+	return RBuffer(s_vulkan_inst->buffers.insert(buffer));
 }
 
 void Vulkan::FreeBuffer(const RBuffer a_buffer)
 {
-	const VulkanBuffer& buf = s_vulkan_inst->buffers.find(a_buffer.handle);
+	const VulkanBuffer& buf = s_vulkan_inst->buffers.find(a_buffer);
 	vmaDestroyBuffer(s_vulkan_inst->vma, buf.buffer, buf.allocation);
-	s_vulkan_inst->buffers.erase(a_buffer.handle);
+	s_vulkan_inst->buffers.erase(a_buffer);
 }
 
 const RImage Vulkan::CreateImage(const ImageCreateInfo& a_create_info)
@@ -1390,14 +1390,14 @@ const RImage Vulkan::CreateImage(const ImageCreateInfo& a_create_info)
 
 void Vulkan::FreeImage(const RImage a_image)
 {
-	const VulkanImage& image = s_vulkan_inst->images.find(a_image.handle);
+	const VulkanImage& image = s_vulkan_inst->images.find(a_image);
 	vmaDestroyImage(s_vulkan_inst->vma, image.image, image.allocation);
-	s_vulkan_inst->images.erase(a_image.handle);
+	s_vulkan_inst->images.erase(a_image);
 }
 
 const RImageView Vulkan::CreateViewImage(const ImageViewCreateInfo& a_create_info)
 {
-	const VulkanImage image = s_vulkan_inst->images.find(a_create_info.image.handle);
+	const VulkanImage image = s_vulkan_inst->images.find(a_create_info.image);
 
 	VkImageViewCreateInfo view_info{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
 	view_info.image = image.image;
@@ -1475,10 +1475,10 @@ const RDepthBuffer Vulkan::CreateDepthBuffer(const RenderDepthCreateInfo& a_crea
 
 void Vulkan::FreeDepthBuffer(const RDepthBuffer a_depth_buffer)
 {
-	const VulkanDepth& image = s_vulkan_inst->depth_images.find(a_depth_buffer.handle);
+	const VulkanDepth& image = s_vulkan_inst->depth_images.find(a_depth_buffer);
 	vkDestroyImageView(s_vulkan_inst->device, image.view, nullptr);
 	vmaDestroyImage(s_vulkan_inst->vma, image.image, image.allocation);
-	s_vulkan_inst->depth_images.erase(a_depth_buffer.handle);
+	s_vulkan_inst->depth_images.erase(a_depth_buffer);
 }
 
 RDescriptorLayout Vulkan::CreateDescriptorLayout(Allocator a_temp_allocator, Slice<DescriptorBindingInfo> a_bindings)
@@ -1869,7 +1869,7 @@ void Vulkan::DestroyShaderObject(const ShaderObject a_shader_object)
 
 void* Vulkan::MapBufferMemory(const RBuffer a_buffer)
 {
-	const VulkanBuffer& buffer = s_vulkan_inst->buffers.find(a_buffer.handle);
+	const VulkanBuffer& buffer = s_vulkan_inst->buffers.find(a_buffer);
 	void* mapped;
 	vmaMapMemory(s_vulkan_inst->vma, buffer.allocation, &mapped);
 	return mapped;
@@ -1877,7 +1877,7 @@ void* Vulkan::MapBufferMemory(const RBuffer a_buffer)
 
 void Vulkan::UnmapBufferMemory(const RBuffer a_buffer)
 {
-	const VulkanBuffer& buffer = s_vulkan_inst->buffers.find(a_buffer.handle);
+	const VulkanBuffer& buffer = s_vulkan_inst->buffers.find(a_buffer);
 	vmaUnmapMemory(s_vulkan_inst->vma, buffer.allocation);
 }
 
@@ -1914,8 +1914,8 @@ void Vulkan::EndCommandList(const RCommandList a_list)
 void Vulkan::CopyBuffer(const RCommandList a_list, const RenderCopyBuffer& a_copy_buffer)
 {
 	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
-	const VkBuffer dst_buf = s_vulkan_inst->buffers.find(a_copy_buffer.dst.handle).buffer;
-	const VkBuffer src_buf = s_vulkan_inst->buffers.find(a_copy_buffer.src.handle).buffer;
+	const VkBuffer dst_buf = s_vulkan_inst->buffers.find(a_copy_buffer.dst).buffer;
+	const VkBuffer src_buf = s_vulkan_inst->buffers.find(a_copy_buffer.src).buffer;
 
 	VkBufferCopy* copy_regions = BBstackAlloc(a_copy_buffer.regions.size(), VkBufferCopy);
 	for (size_t i = 0; i < a_copy_buffer.regions.size(); i++)
@@ -1942,8 +1942,8 @@ void Vulkan::CopyBuffers(const RCommandList a_list, const RenderCopyBuffer* a_co
 	for (size_t i = 0; i < a_copy_buffer_count; i++)
 	{
 		const RenderCopyBuffer& cpy_buf = a_copy_buffers[i];
-		const VulkanBuffer& dst_buf = s_vulkan_inst->buffers.find(cpy_buf.dst.handle);
-		const VulkanBuffer& src_buf = s_vulkan_inst->buffers.find(cpy_buf.src.handle);
+		const VulkanBuffer& dst_buf = s_vulkan_inst->buffers.find(cpy_buf.dst);
+		const VulkanBuffer& src_buf = s_vulkan_inst->buffers.find(cpy_buf.src);
 
 		VkBufferCopy* copy_regions = BBstackAlloc(cpy_buf.regions.size(), VkBufferCopy);
 		for (size_t cpy_reg_index = 0; cpy_reg_index < cpy_buf.regions.size(); cpy_reg_index++)
@@ -1968,8 +1968,8 @@ void Vulkan::CopyBufferImage(const RCommandList a_list, const RenderCopyBufferTo
 {
 	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 
-	const VulkanBuffer& src_buf = s_vulkan_inst->buffers.find(a_copy_info.src_buffer.handle);
-	const VulkanImage& dst_image = s_vulkan_inst->images.find(a_copy_info.dst_image.handle);
+	const VulkanBuffer& src_buf = s_vulkan_inst->buffers.find(a_copy_info.src_buffer);
+	const VulkanImage& dst_image = s_vulkan_inst->images.find(a_copy_info.dst_image);
 
 	VkBufferImageCopy copy_image;
 	copy_image.bufferOffset = a_copy_info.src_offset;
@@ -2084,7 +2084,7 @@ void Vulkan::PipelineBarriers(const RCommandList a_list, const PipelineBarrierIn
 		}
 		image_barriers[i].oldLayout = ImageLayout(barrier_info.old_layout);
 		image_barriers[i].newLayout = ImageLayout(barrier_info.new_layout);
-		image_barriers[i].image =  s_vulkan_inst->images.find(barrier_info.image.handle).image;
+		image_barriers[i].image =  s_vulkan_inst->images.find(barrier_info.image).image;
 		if (barrier_info.new_layout == IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT ||
 			barrier_info.old_layout == IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT)
 			image_barriers[i].subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
@@ -2133,7 +2133,7 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 	//If we handle the depth stencil we do that here. 
 	if (a_render_info.depth_buffer.handle != BB_INVALID_HANDLE_64)
 	{
-		const VulkanDepth& depth_buffer = s_vulkan_inst->depth_images.find(a_render_info.depth_buffer.handle);
+		const VulkanDepth& depth_buffer = s_vulkan_inst->depth_images.find(a_render_info.depth_buffer);
 
 		image_barriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 		image_barriers[1].dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
@@ -2269,7 +2269,7 @@ void Vulkan::BindVertexBuffer(const RCommandList a_list, const RBuffer a_buffer,
 	vkCmdBindVertexBuffers(cmd_buffer,
 		0,
 		1,
-		&s_vulkan_inst->buffers[a_buffer.handle].buffer,
+		&s_vulkan_inst->buffers[a_buffer].buffer,
 		&a_offset);
 }
 
@@ -2278,7 +2278,7 @@ void Vulkan::BindIndexBuffer(const RCommandList a_list, const RBuffer a_buffer, 
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 
 	vkCmdBindIndexBuffer(cmd_buffer,
-		s_vulkan_inst->buffers[a_buffer.handle].buffer,
+		s_vulkan_inst->buffers[a_buffer].buffer,
 		a_offset,
 		VK_INDEX_TYPE_UINT32);
 }

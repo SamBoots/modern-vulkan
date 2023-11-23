@@ -467,8 +467,8 @@ struct RenderInterface_inst
 
 	SceneInfo scene_info;
 
-	StaticSlotmap<Mesh> mesh_map{};
-	StaticSlotmap<Material> material_map{};
+	StaticSlotmap<Mesh, MeshHandle> mesh_map{};
+	StaticSlotmap<Material, MaterialHandle> material_map{};
 
 	uint32_t draw_list_count;
 	uint32_t draw_list_max;
@@ -990,8 +990,8 @@ void BB::EndFrame()
 	for (uint32_t i = 0; i < s_render_inst->draw_list_count; i++)
 	{
 		const MeshDrawCall& mesh_draw_call = s_render_inst->draw_list_data.mesh_draw_call[i];
-		const Material& material = s_render_inst->material_map.find(mesh_draw_call.material.handle);
-		const Mesh& mesh = s_render_inst->mesh_map.find(mesh_draw_call.mesh.handle);
+		const Material& material = s_render_inst->material_map.find(mesh_draw_call.material);
+		const Mesh& mesh = s_render_inst->mesh_map.find(mesh_draw_call.mesh);
 
 		ShaderIndices shader_indices;
 		shader_indices.transform_index = i;
@@ -1121,7 +1121,7 @@ const MeshHandle BB::CreateMesh(const CreateMeshInfo& a_create_info)
 
 void BB::FreeMesh(const MeshHandle a_mesh)
 {
-	s_render_inst->mesh_map.erase(a_mesh.handle);
+	s_render_inst->mesh_map.erase(a_mesh);
 }
 
 const MaterialHandle BB::CreateMaterial(const CreateMaterialInfo& a_create_info)
@@ -1136,7 +1136,7 @@ const MaterialHandle BB::CreateMaterial(const CreateMaterialInfo& a_create_info)
 void BB::FreeMaterial(const MaterialHandle a_material)
 {
 	//maybe go and check the refcount of the textures to possibly free them.
-	s_render_inst->material_map.erase(a_material.handle);
+	s_render_inst->material_map.erase(a_material);
 }
 
 //maybe not handle a_upload_view_offset
