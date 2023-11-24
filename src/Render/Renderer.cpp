@@ -983,6 +983,7 @@ void BB::EndFrame()
 	Vulkan::BindShaders(current_command_list, 2, shader_stages, shader_objects);
 #endif //_USE_G_PIPELINE
 	Vulkan::BindIndexBuffer(current_command_list, s_render_inst->index_buffer.buffer, 0);
+	Vulkan::SetDescriptorImmutableSamplers(current_command_list, pipeline_layout);
 	const uint32_t buffer_indices[] = { 0, 0 };
 	const size_t buffer_offsets[]{ s_render_inst->global_descriptor_allocation.offset, cur_frame.desc_alloc.offset };
 	Vulkan::SetDescriptorBufferOffset(current_command_list, pipeline_layout, SPACE_GLOBAL, _countof(buffer_offsets), buffer_indices, buffer_offsets);

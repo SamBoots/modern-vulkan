@@ -8,6 +8,10 @@
 #include "OS/Program.h"
 #include "BBGlobal.h"
 
+#ifdef BB_USE_ADDRESS_SANITIZER
+#include <sanitizer/asan_interface.h>
+#endif
+
 using namespace BB;
 using namespace BB::allocators;
 
@@ -34,18 +38,32 @@ static BaseAllocator::AllocationLog* DeleteEntry(BaseAllocator::AllocationLog* a
 }
 
 //Checks Adds memory boundry to an allocation log.
-static void* Memory_AddBoundries(void* a_Front, const size_t a_alloc_size)
+static void* Memory_AddBoundries(void* a_front, const size_t a_alloc_size)
 {
+	void* back = Pointer::Add(a_front, a_alloc_size - MEMORY_BOUNDRY_BACK);
+
+#ifdef BB_USE_ADDRESS_SANITIZER
+	__asan_poison_memory_region(a_front, MEMORY_BOUNDRY_FRONT);
+	__asan_poison_memory_region(back, MEMORY_BOUNDRY_BACK);
+#else
 	//Set the begin bound value
-	*reinterpret_cast<size_t*>(a_Front) = MEMORY_BOUNDRY_CHECK_VALUE;
+	* reinterpret_cast<size_t*>(a_front) = MEMORY_BOUNDRY_CHECK_VALUE;
 
 	//Set the back bytes.
-	void* a_Back = Pointer::Add(a_Front, a_alloc_size - MEMORY_BOUNDRY_BACK);
-	*reinterpret_cast<size_t*>(a_Back) = MEMORY_BOUNDRY_CHECK_VALUE;
-
-	return a_Back;
+	*reinterpret_cast<size_t*>(back) = MEMORY_BOUNDRY_CHECK_VALUE;
+#endif //USE_ADDRESS_SANITIZER
+	return back;
 }
 
+#ifdef BB_USE_ADDRESS_SANITIZER
+static void Memory_FreeBoundies(void* a_front, void* a_back)
+{
+	__asan_unpoison_memory_region(a_front, MEMORY_BOUNDRY_FRONT);
+	__asan_unpoison_memory_region(a_back, MEMORY_BOUNDRY_BACK);
+}
+#endif //USE_ADDRESS_SANITIZER
+
+#ifndef BB_USE_ADDRESS_SANITIZER
 //Checks the memory boundries, 
 static BOUNDRY_ERROR Memory_CheckBoundries(void* a_Front, void* a_Back)
 {
@@ -57,6 +75,7 @@ static BOUNDRY_ERROR Memory_CheckBoundries(void* a_Front, void* a_Back)
 
 	return BOUNDRY_ERROR::NONE;
 }
+#endif //USE_ADDRESS_SANITIZER
 
 static void* AllocDebug(BB_MEMORY_DEBUG BaseAllocator* a_allocator, const size_t a_size, void* a_allocated_ptr)
 {
@@ -90,7 +109,9 @@ static void* FreeDebug(BaseAllocator* a_allocator, bool a_is_array, void* a_ptr)
 	{
 		BB_ASSERT(a_is_array == false, "Called BBFreeArr instead of BBFree, this may indicate wrong use of allocation functions");
 	}
-	
+#ifdef BB_USE_ADDRESS_SANITIZER
+	Memory_FreeBoundies(alloc_log->front, alloc_log->back);
+#else
 	const BOUNDRY_ERROR t_HasError = Memory_CheckBoundries(alloc_log->front, alloc_log->back);
 	switch (t_HasError)
 	{
@@ -108,6 +129,7 @@ static void* FreeDebug(BaseAllocator* a_allocator, bool a_is_array, void* a_ptr)
 		break;
 	case BOUNDRY_ERROR::NONE: break;
 	}
+#endif //BB_USE_ADDRESS_SANITIZER
 
 	a_ptr = Pointer::Subtract(a_ptr, MEMORY_BOUNDRY_FRONT + sizeof(BaseAllocator::AllocationLog));
 
@@ -129,8 +151,9 @@ void BB::allocators::BaseAllocator::Validate() const
 	AllocationLog* front_log = m_front_log;
 	while (front_log != nullptr)
 	{
+#ifndef BB_USE_ADDRESS_SANITIZER
 		Memory_CheckBoundries(front_log->front, front_log->back);
-
+#endif //BB_USE_ADDRESS_SANITIZER
 		BB::StackString<256> temp_string;
 		{
 			char alloc_begin[]{ "Memory leak accured! Check file and line number for leak location \nAllocator name: " };
@@ -173,7 +196,11 @@ void BB::allocators::BaseAllocator::ClearDebugList()
 #ifdef _DEBUG
 	while (m_front_log != nullptr)
 	{
+#ifdef BB_USE_ADDRESS_SANITIZER
+		Memory_FreeBoundies(m_front_log->front, m_front_log->back);
+#else
 		Memory_CheckBoundries(m_front_log->front, m_front_log->back);
+#endif //BB_USE_ADDRESS_SANITIZER
 		m_front_log = m_front_log->prev;
 	}
 #endif //_DEBUG
@@ -206,6 +233,7 @@ LinearAllocator::LinearAllocator(const size_t a_size, const char* a_name)
 LinearAllocator::~LinearAllocator()
 {
 	Validate();
+	ClearDebugList();
 	freeVirtual(reinterpret_cast<void*>(m_start));
 }
 
@@ -260,6 +288,7 @@ FixedLinearAllocator::FixedLinearAllocator(const size_t a_size, const char* a_Na
 FixedLinearAllocator::~FixedLinearAllocator()
 {
 	Validate();
+	ClearDebugList();
 	freeVirtual(reinterpret_cast<void*>(m_start));
 }
 
@@ -311,6 +340,7 @@ StackAllocator::StackAllocator(const size_t a_size, const char* a_name)
 StackAllocator::~StackAllocator()
 {
 	Validate();
+	ClearDebugList();
 	freeVirtual(reinterpret_cast<void*>(m_start));
 }
 
@@ -359,14 +389,16 @@ void StackAllocator::SetMarker(const StackMarker a_marker)
 	//jank, but remove logs that are after a_pos;
 	AllocationLog* cur_list = m_front_log;
 	AllocationLog* prev_list = nullptr;
-	uintptr_t front = reinterpret_cast<uintptr_t>(cur_list->front);
-	while (front > a_marker)
+	uintptr_t back = reinterpret_cast<uintptr_t>(cur_list->back) + MEMORY_BOUNDRY_BACK;
+	while (back > a_marker)
 	{
+		Memory_FreeBoundies(cur_list->front, cur_list->back);
 		prev_list = cur_list;
 		cur_list = prev_list->prev;
-		front = reinterpret_cast<uintptr_t>(cur_list->front);
+
+		back = reinterpret_cast<uintptr_t>(cur_list->back) + MEMORY_BOUNDRY_BACK;;
 	}
-	BB_ASSERT(a_marker == front, "SetPosition points to a invalid address that holds no allocation");
+	BB_ASSERT(a_marker == back, "SetPosition points to a invalid address that holds no allocation");
 	m_front_log = cur_list->prev;
 #endif
 	m_buffer = reinterpret_cast<void*>(a_marker);
@@ -411,6 +443,7 @@ FreelistAllocator::FreelistAllocator(const size_t a_size, const char* a_Name)
 FreelistAllocator::~FreelistAllocator()
 {
 	Validate();
+	ClearDebugList();
 	freeVirtual(m_start);
 }
 
@@ -574,6 +607,7 @@ BB::allocators::POW_FreelistAllocator::POW_FreelistAllocator(const size_t, const
 BB::allocators::POW_FreelistAllocator::~POW_FreelistAllocator()
 {
 	Validate();
+	ClearDebugList();
 	for (size_t i = 0; i < m_FreeBlocksAmount; i++)
 	{
 		//Free all the free lists

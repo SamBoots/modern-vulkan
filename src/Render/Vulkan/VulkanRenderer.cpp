@@ -2332,6 +2332,16 @@ void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stag
 	vkCmdSetPrimitiveRestartEnable(cmd_buffer, VK_FALSE);
 }
 
+void Vulkan::SetDescriptorImmutableSamplers(const RCommandList a_list, const RPipelineLayout a_pipe_layout)
+{
+	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+
+	s_vulkan_inst->pfn.CmdBindDescriptorBufferEmbeddedSamplersEXT(cmd_buffer,
+		VK_PIPELINE_BIND_POINT_GRAPHICS,
+		reinterpret_cast<VkPipelineLayout>(a_pipe_layout.handle),
+		SPACE_IMMUTABLE_SAMPLER);
+}
+
 void Vulkan::SetDescriptorBufferOffset(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_first_set, const uint32_t a_set_count, const uint32_t* a_buffer_indices, const size_t* a_offsets)
 {
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);

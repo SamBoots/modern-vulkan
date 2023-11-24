@@ -22,7 +22,7 @@ namespace BB
 #define BBstackAlloc_s(a_count, a_type) reinterpret_cast<a_type*>(_malloca(a_count * sizeof(a_type)))
 #define BBstackFree_s(a_ptr) _freea(a_ptr)
 
-#define BBalloc(a_allocator, a_size) BB::BBalloc_f(BB_MEMORY_DEBUG_ARGS a_allocator, a_size, 1)
+#define BBalloc(a_allocator, a_size) BB::BBalloc_f(BB_MEMORY_DEBUG_ARGS a_allocator, a_size, sizeof(size_t))
 #define BBnew(a_allocator, a_type) new (BB::BBalloc_f(BB_MEMORY_DEBUG_ARGS a_allocator, sizeof(a_type), __alignof(a_type))) a_type
 #define BBnewArr(a_allocator, a_length, a_type) (BB::BBnewArr_f<a_type>(BB_MEMORY_DEBUG_ARGS_ARR a_allocator, a_length))
 
