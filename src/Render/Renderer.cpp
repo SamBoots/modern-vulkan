@@ -608,7 +608,7 @@ const RTexture GPUTextureManager::UploadTexture(const UploadImageInfo& a_upload_
 
 	//now upload the image.
 	uint32_t allocation_offset;
-	a_upload_buffer.AllocateAndMemoryCopy(a_upload_info.pixels, byte_per_pixel, allocation_offset);
+	a_upload_buffer.AllocateAndMemoryCopy(a_upload_info.pixels, byte_per_pixel * a_upload_info.width * a_upload_info.height, allocation_offset);
 
 
 	RenderCopyBufferToImageInfo buffer_to_image;
@@ -972,7 +972,7 @@ void BB::EndFrame()
 	start_rendering_info.depth_buffer = depth_buffer;
 	start_rendering_info.load_color = false;
 	start_rendering_info.store_color = true;
-	start_rendering_info.clear_color_rgba = float4{ 0.f, 0.f, 0.f, 1.f };
+	start_rendering_info.clear_color_rgba = float4{ 0.f, 0.5f, 0.f, 1.f };
 	Vulkan::StartRendering(current_command_list, start_rendering_info, s_render_inst->backbuffer_pos);
 
 #ifdef _USE_G_PIPELINE

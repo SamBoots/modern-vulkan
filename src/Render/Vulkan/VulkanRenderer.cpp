@@ -1977,7 +1977,7 @@ void Vulkan::CopyBufferImage(const RCommandList a_list, const RenderCopyBufferTo
 	copy_image.imageExtent.width = a_copy_info.dst_image_info.size_x;
 	copy_image.imageExtent.height = a_copy_info.dst_image_info.size_y;
 	copy_image.imageExtent.depth = a_copy_info.dst_image_info.size_z;
-
+	
 	copy_image.imageOffset.x = a_copy_info.dst_image_info.offset_x;
 	copy_image.imageOffset.y = a_copy_info.dst_image_info.offset_y;
 	copy_image.imageOffset.z = a_copy_info.dst_image_info.offset_z;
