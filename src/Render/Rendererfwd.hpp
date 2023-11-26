@@ -15,6 +15,7 @@ namespace BB
 
 	using ShaderCode = FrameworkHandle<struct ShdaerCodeTag>;
 	using MeshHandle = FrameworkHandle<struct MeshHandleTag>;
+	using ShaderEffectHandle = FrameworkHandle<struct ShaderEffectHandleTag>;
 	using MaterialHandle = FrameworkHandle<struct MaterialHandleTag>;
 
 	enum class SHADER_STAGE : uint32_t

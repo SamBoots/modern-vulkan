@@ -24,6 +24,14 @@ namespace BB
 		Slice<uint32_t> indices;
 	};
 
+	struct CreateShaderEffectInfo
+	{
+		const char* a_shader_path;
+		const char* a_shader_entry;
+		SHADER_STAGE stage;
+		SHADER_STAGE next_stage; //maybe do bitflags
+	};
+
 	struct CreateMaterialInfo
 	{
 		RTexture base_color;
@@ -109,6 +117,9 @@ namespace BB
 
 	const MeshHandle CreateMesh(const CreateMeshInfo& a_create_info);
 	void FreeMesh(const MeshHandle a_mesh);
+
+	bool CreateShaderEffect(Allocator a_temp_allocator, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* a_handles);
+	void FreeShaderEffect(const ShaderEffectHandle a_shader_effect);
 
 	const MaterialHandle CreateMaterial(const CreateMaterialInfo& a_create_info);
 	void FreeMaterial(const MaterialHandle a_material);

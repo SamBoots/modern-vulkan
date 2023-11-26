@@ -394,8 +394,16 @@ struct Mesh
 	BufferView index_buffer;
 };
 
+struct ShaderEffect
+{
+	ShaderObject shader_object;
+	RPipelineLayout pipeline_layout;
+};
+
 struct Material
 {
+	ShaderEffect* effect;
+
 	RTexture base_color;
 	RTexture normal_texture;
 };
@@ -433,6 +441,7 @@ struct RenderInterface_inst
 
 	GPUTextureManager texture_manager;
 
+	RDescriptorLayout static_sampler_descriptor_set;
 	RDescriptorLayout global_descriptor_set;
 	DescriptorAllocation global_descriptor_allocation;
 	struct VertexBuffer
@@ -468,6 +477,7 @@ struct RenderInterface_inst
 	SceneInfo scene_info;
 
 	StaticSlotmap<Mesh, MeshHandle> mesh_map{};
+	StaticSlotmap<ShaderEffect, ShaderEffectHandle> shader_effect_map{};
 	StaticSlotmap<Material, MaterialHandle> material_map{};
 
 	uint32_t draw_list_count;
@@ -484,13 +494,9 @@ static RenderInterface_inst* s_render_inst;
 static CommandPool* current_use_pool;
 static RCommandList current_command_list;
 
-static RPipeline test_pipeline;
-static ShaderObject vertex_object;
-static ShaderObject fragment_object;
-static RDescriptorLayout static_sampler_layout;
-//static RDescriptorLayout global_descriptor_layout;
+
 static RDescriptorLayout frame_descriptor_layout;
-static RPipelineLayout pipeline_layout;
+
 static RDepthBuffer depth_buffer;
 
 static BufferView AllocateFromVertexBuffer(const size_t a_size_in_bytes)
@@ -698,6 +704,7 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 	s_render_inst->draw_list_data.transform = BBnewArr(a_stack_allocator, s_render_inst->draw_list_max, ShaderTransform);
 
 	s_render_inst->mesh_map.Init(a_stack_allocator, 32);
+	s_render_inst->shader_effect_map.Init(a_stack_allocator, 32);
 	s_render_inst->material_map.Init(a_stack_allocator, 64);
 
 	s_render_inst->shader_compiler = CreateShaderCompiler(a_stack_allocator);
@@ -714,7 +721,7 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 			immutable_sampler.max_anistoropy = 1.0f;
 			immutable_sampler.max_lod = 100.f;
 			immutable_sampler.min_lod = -100.f;
-			static_sampler_layout = Vulkan::CreateDescriptorSamplerLayout(Slice(&immutable_sampler, 1));
+			s_render_inst->static_sampler_descriptor_set = Vulkan::CreateDescriptorSamplerLayout(Slice(&immutable_sampler, 1));
 		}
 		{
 			//global descriptor set 1
@@ -745,66 +752,6 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 			descriptor_bindings[1].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
 			frame_descriptor_layout = Vulkan::CreateDescriptorLayout(a_stack_allocator, Slice(descriptor_bindings, _countof(descriptor_bindings)));
 		}
-
-		RDescriptorLayout desc_layouts[] = { static_sampler_layout, s_render_inst->global_descriptor_set, frame_descriptor_layout };
-		PushConstantRange push_constant;
-		push_constant.stages = SHADER_STAGE::ALL;
-		push_constant.offset = 0;
-		push_constant.size = sizeof(ShaderIndices);
-
-		pipeline_layout = Vulkan::CreatePipelineLayout(desc_layouts, _countof(desc_layouts), &push_constant, 1);
-
-		const ShaderCode vertex_shader = CompileShader(a_stack_allocator, s_render_inst->shader_compiler, "../resources/shaders/hlsl/Debug.hlsl", "VertexMain", SHADER_STAGE::VERTEX);
-		const ShaderCode fragment_shader = CompileShader(a_stack_allocator, s_render_inst->shader_compiler, "../resources/shaders/hlsl/Debug.hlsl", "FragmentMain", SHADER_STAGE::FRAGMENT_PIXEL);
-
-		Buffer shader_buffer = GetShaderCodeBuffer(vertex_shader);
-
-		ShaderObjectCreateInfo shader_objects_info[2];
-		shader_objects_info[0].stage = SHADER_STAGE::VERTEX;
-		shader_objects_info[0].next_stages = SHADER_STAGE::FRAGMENT_PIXEL;
-		shader_objects_info[0].shader_code_size = shader_buffer.size;
-		shader_objects_info[0].shader_code = shader_buffer.data;
-		shader_objects_info[0].shader_entry = "VertexMain";
-
-		shader_objects_info[0].descriptor_layout_count = _countof(desc_layouts);
-		shader_objects_info[0].descriptor_layouts = desc_layouts;
-		shader_objects_info[0].push_constant_range_count = 1;
-		shader_objects_info[0].push_constant_ranges = &push_constant;
-
-		shader_buffer = GetShaderCodeBuffer(fragment_shader);
-		shader_objects_info[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
-		shader_objects_info[1].next_stages = SHADER_STAGE::NONE;
-		shader_objects_info[1].shader_code_size = shader_buffer.size;
-		shader_objects_info[1].shader_code = shader_buffer.data;
-		shader_objects_info[1].shader_entry = "FragmentMain";
-		shader_objects_info[1].descriptor_layout_count = _countof(desc_layouts);
-		shader_objects_info[1].descriptor_layouts = desc_layouts;
-		shader_objects_info[1].push_constant_range_count = 1;
-		shader_objects_info[1].push_constant_ranges = &push_constant;
-
-		ShaderObject shader_objects[2];
-		Vulkan::CreateShaderObject(a_stack_allocator, Slice(shader_objects_info, _countof(shader_objects_info)), shader_objects);
-
-		vertex_object = shader_objects[0];
-		fragment_object = shader_objects[1];
-
-		CreatePipelineInfo pipe_info;
-		pipe_info.layout = pipeline_layout;
-		shader_buffer = GetShaderCodeBuffer(vertex_shader);
-		pipe_info.vertex.shader_code_size = shader_buffer.size;
-		pipe_info.vertex.shader_code = shader_buffer.data;
-		pipe_info.vertex.shader_entry = "VertexMain";
-
-		shader_buffer = GetShaderCodeBuffer(fragment_shader);
-		pipe_info.fragment.shader_code_size = shader_buffer.size;
-		pipe_info.fragment.shader_code = shader_buffer.data;
-		pipe_info.fragment.shader_entry = "FragmentMain";
-
-		pipe_info.depth_format = DEPTH_FORMAT::D24_UNORM_S8_UINT;
-		test_pipeline = Vulkan::CreatePipeline(pipe_info);
-
-		ReleaseShaderCode(vertex_shader);
-		ReleaseShaderCode(fragment_shader);
 	}
 
 	RenderDepthCreateInfo depth_create_info;
@@ -975,13 +922,10 @@ void BB::EndFrame()
 	start_rendering_info.clear_color_rgba = float4{ 0.f, 0.5f, 0.f, 1.f };
 	Vulkan::StartRendering(current_command_list, start_rendering_info, s_render_inst->backbuffer_pos);
 
-#ifdef _USE_G_PIPELINE
-	Vulkan::BindPipeline(current_command_list, test_pipeline);
-#else
 	const SHADER_STAGE shader_stages[]{ SHADER_STAGE::VERTEX, SHADER_STAGE::FRAGMENT_PIXEL };
 	const ShaderObject shader_objects[]{ vertex_object, fragment_object };
 	Vulkan::BindShaders(current_command_list, 2, shader_stages, shader_objects);
-#endif //_USE_G_PIPELINE
+
 	Vulkan::BindIndexBuffer(current_command_list, s_render_inst->index_buffer.buffer, 0);
 	Vulkan::SetDescriptorImmutableSamplers(current_command_list, pipeline_layout);
 	const uint32_t buffer_indices[] = { 0, 0 };
@@ -1123,6 +1067,70 @@ const MeshHandle BB::CreateMesh(const CreateMeshInfo& a_create_info)
 void BB::FreeMesh(const MeshHandle a_mesh)
 {
 	s_render_inst->mesh_map.erase(a_mesh);
+}
+
+bool BB::CreateShaderEffect(Allocator a_temp_allocator, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* a_handles)
+{
+	//our default layouts
+	RDescriptorLayout desc_layouts[] = {
+			s_render_inst->static_sampler_descriptor_set,
+			s_render_inst->global_descriptor_set,
+			frame_descriptor_layout };
+
+	//all of them use this push constant for the shader indices.
+	PushConstantRange push_constant;
+	push_constant.stages = SHADER_STAGE::ALL;
+	push_constant.offset = 0;
+	push_constant.size = sizeof(ShaderIndices);
+
+
+	ShaderEffect* shader_effects = BBnewArr(a_temp_allocator, a_create_infos.size(), ShaderEffect);
+	ShaderCode* shader_codes = BBnewArr(a_temp_allocator, a_create_infos.size(), ShaderCode);
+
+	ShaderObjectCreateInfo* shader_object_infos = BBnewArr(a_temp_allocator, a_create_infos.size(), ShaderObjectCreateInfo);
+
+	for (size_t i = 0; i < a_create_infos.size(); i++)
+	{
+		shader_effects[i].pipeline_layout = Vulkan::CreatePipelineLayout(desc_layouts, _countof(desc_layouts), &push_constant, 1);
+
+		shader_codes[i] = CompileShader(
+			a_temp_allocator,
+			s_render_inst->shader_compiler,
+			a_create_infos[i].a_shader_path,
+			a_create_infos[i].a_shader_entry,
+			a_create_infos[i].stage);
+		Buffer shader_buffer = GetShaderCodeBuffer(shader_codes[i]);
+
+		shader_object_infos[i].stage = a_create_infos[i].stage;
+		shader_object_infos[i].next_stages = a_create_infos[i].next_stage;
+		shader_object_infos[i].shader_code_size = shader_buffer.size;
+		shader_object_infos[i].shader_code = shader_buffer.data;
+		shader_object_infos[i].shader_entry = a_create_infos[i].a_shader_entry;
+
+		shader_object_infos[i].descriptor_layout_count = _countof(desc_layouts);
+		shader_object_infos[i].descriptor_layouts = desc_layouts;
+		shader_object_infos[i].push_constant_range_count = 1;
+		shader_object_infos[i].push_constant_ranges = &push_constant;
+	}
+
+	ShaderObject* shader_objects = BBnewArr(a_temp_allocator, a_create_infos.size(), ShaderObject);
+	Vulkan::CreateShaderObject(a_temp_allocator, Slice(shader_object_infos, a_create_infos.size()), shader_objects);
+
+	for (size_t i = 0; i < a_create_infos.size(); i++)
+	{
+		shader_effects[i].shader_object = shader_objects[i];
+		a_handles[i] = s_render_inst->shader_effect_map.insert(shader_effects[i]);
+		ReleaseShaderCode(shader_codes[i]);
+	}
+	return true;
+}
+
+void BB::FreeShaderEffect(const ShaderEffectHandle a_shader_effect)
+{
+	ShaderEffect shader_effect = s_render_inst->shader_effect_map.find(a_shader_effect);
+	Vulkan::DestroyShaderObject(shader_effect.shader_object);
+	Vulkan::FreePipelineLayout(shader_effect.pipeline_layout);
+	s_render_inst->shader_effect_map.erase(a_shader_effect);
 }
 
 const MaterialHandle BB::CreateMaterial(const CreateMaterialInfo& a_create_info)

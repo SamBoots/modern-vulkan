@@ -320,24 +320,24 @@ static VulkanQueuesIndices GetQueueIndices(Allocator a_temp_allocator, const VkP
 	vkGetPhysicalDeviceQueueFamilyProperties(a_phys_device, &queue_family_count, queue_families);
 
 	{
-		VulkanQueueDeviceInfo t_GraphicQueue = FindQueueIndex(queue_families,
+		VulkanQueueDeviceInfo graphic_queue = FindQueueIndex(queue_families,
 			queue_family_count,
 			VK_QUEUE_GRAPHICS_BIT);
 
-		return_value.graphics = t_GraphicQueue.index;
-		return_value.graphics_count = t_GraphicQueue.queueCount;
-		return_value.present = t_GraphicQueue.index;
+		return_value.graphics = graphic_queue.index;
+		return_value.graphics_count = graphic_queue.queueCount;
+		return_value.present = graphic_queue.index;
 	}
 
 	{
-		VulkanQueueDeviceInfo t_TransferQueue = FindQueueIndex(queue_families,
+		VulkanQueueDeviceInfo transfer_queue = FindQueueIndex(queue_families,
 			queue_family_count,
 			VK_QUEUE_TRANSFER_BIT);
 		//Check if the queueindex is the same as graphics.
-		if (t_TransferQueue.index != return_value.graphics)
+		if (transfer_queue.index != return_value.graphics)
 		{
-			return_value.transfer = t_TransferQueue.index;
-			return_value.transfer_count = t_TransferQueue.queueCount;
+			return_value.transfer = transfer_queue.index;
+			return_value.transfer_count = transfer_queue.queueCount;
 		}
 		else
 		{
@@ -347,15 +347,15 @@ static VulkanQueuesIndices GetQueueIndices(Allocator a_temp_allocator, const VkP
 	}
 
 	{
-		VulkanQueueDeviceInfo t_ComputeQueue = FindQueueIndex(queue_families,
+		VulkanQueueDeviceInfo compute_queue = FindQueueIndex(queue_families,
 			queue_family_count,
 			VK_QUEUE_COMPUTE_BIT);
 		//Check if the queueindex is the same as graphics.
-		if ((t_ComputeQueue.index != return_value.graphics) &&
-			(t_ComputeQueue.index != return_value.compute))
+		if ((compute_queue.index != return_value.graphics) &&
+			(compute_queue.index != return_value.compute))
 		{
-			return_value.compute = t_ComputeQueue.index;
-			return_value.compute = t_ComputeQueue.queueCount;
+			return_value.compute = compute_queue.index;
+			return_value.compute = compute_queue.queueCount;
 		}
 		else
 		{
@@ -376,7 +376,6 @@ static VkDevice CreateLogicalDevice(Allocator a_temp_allocator, const VkPhysical
 	timeline_sem_features.pNext = nullptr;
 
 	VkPhysicalDeviceShaderDrawParametersFeatures shader_draw_features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETERS_FEATURES };
-	shader_draw_features.pNext = nullptr;
 	shader_draw_features.shaderDrawParameters = VK_TRUE;
 	shader_draw_features.pNext = &timeline_sem_features;
 
@@ -518,9 +517,6 @@ struct Vulkan_inst
 		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::TRANSFER_WRITE)] = VK_ACCESS_2_TRANSFER_WRITE_BIT;
 		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE)] = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;;
 		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::SHADER_READ)] = VK_ACCESS_2_SHADER_READ_BIT;
-
-		VkPipelineStageFlags2 pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::ENUM_SIZE)];
-		VkAccessFlags2 access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::ENUM_SIZE)];
 #endif //ENUM_CONVERSATION_BY_ARRAY
 	}
 

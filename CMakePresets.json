@@ -48,14 +48,6 @@
 
     //msvc
     {
-      "name": "vulkan-debug-use-graphic-pipelines",
-      "inherits": "default-msvc",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "USE_GRAPHIC_PIPELINES": "TRUE"
-      }
-    },
-    {
       "name": "vulkan-debug",
       "inherits": "default-msvc",
       "cacheVariables": {
@@ -80,14 +72,6 @@
     },
 
     //CLANG
-    {
-      "name": "vulkan-clang-debug-use-graphic-pipelines",
-      "inherits": "default-clang",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "USE_GRAPHIC_PIPELINES": "TRUE"
-      }
-    },
     {
       "name": "vulkan-clang-debug",
       "inherits": "default-clang",
