@@ -26,16 +26,16 @@ namespace BB
 
 	struct CreateShaderEffectInfo
 	{
-		const char* a_shader_path;
-		const char* a_shader_entry;
+		const char* name;
+		const char* shader_path;
+		const char* shader_entry;
 		SHADER_STAGE stage;
-		SHADER_STAGE next_stage; //maybe do bitflags
+		SHADER_STAGE_FLAGS next_stages;
 	};
 
 	struct CreateMaterialInfo
 	{
-		ShaderEffectHandle vertex_shader;
-		ShaderEffectHandle fragment_shader;
+		Slice<ShaderEffectHandle> shader_effects;
 		RTexture base_color;
 		RTexture normal_texture;
 	};

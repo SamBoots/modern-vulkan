@@ -396,14 +396,24 @@ struct Mesh
 
 struct ShaderEffect
 {
-	ShaderObject shader_object;
-	RPipelineLayout pipeline_layout;
+	const char* name;				//8
+	ShaderObject shader_object;		//16
+	RPipelineLayout pipeline_layout;//24
+	SHADER_STAGE shader_stage;		//28
+	SHADER_STAGE_FLAGS shader_stages_next; //32
 };
 
 struct Material
 {
-	uint32_t shader_effect_count;
-	ShaderEffect shader_effects[SHADER_STAGE_COUNT];
+	struct Shader
+	{
+		RPipelineLayout pipeline_layout;
+		
+		ShaderObject shader_objects[UNIQUE_SHADER_STAGE_COUNT];
+		SHADER_STAGE shader_stages[UNIQUE_SHADER_STAGE_COUNT];
+		uint32_t shader_effect_count;
+	} shader;
+
 
 	RTexture base_color;
 	RTexture normal_texture;
@@ -923,15 +933,25 @@ void BB::EndFrame()
 	start_rendering_info.clear_color_rgba = float4{ 0.f, 0.5f, 0.f, 1.f };
 	Vulkan::StartRendering(current_command_list, start_rendering_info, s_render_inst->backbuffer_pos);
 
-	const SHADER_STAGE shader_stages[]{ SHADER_STAGE::VERTEX, SHADER_STAGE::FRAGMENT_PIXEL };
-	const ShaderObject shader_objects[]{ vertex_object, fragment_object };
-	Vulkan::BindShaders(current_command_list, 2, shader_stages, shader_objects);
+	{
+		//set the first data to get the first 3 descriptor sets.
+		const MeshDrawCall& mesh_draw_call = s_render_inst->draw_list_data.mesh_draw_call[0];
+		const Material& material = s_render_inst->material_map.find(mesh_draw_call.material);
+
+		//set 0
+		Vulkan::SetDescriptorImmutableSamplers(current_command_list, material.shader.pipeline_layout);
+		const uint32_t buffer_indices[] = { 0, 0 };
+		const size_t buffer_offsets[]{ s_render_inst->global_descriptor_allocation.offset, cur_frame.desc_alloc.offset };
+		//set 1-2
+		Vulkan::SetDescriptorBufferOffset(current_command_list,
+			material.shader.pipeline_layout,
+			SPACE_GLOBAL,
+			_countof(buffer_offsets),
+			buffer_indices,
+			buffer_offsets);
+	}
 
 	Vulkan::BindIndexBuffer(current_command_list, s_render_inst->index_buffer.buffer, 0);
-	Vulkan::SetDescriptorImmutableSamplers(current_command_list, pipeline_layout);
-	const uint32_t buffer_indices[] = { 0, 0 };
-	const size_t buffer_offsets[]{ s_render_inst->global_descriptor_allocation.offset, cur_frame.desc_alloc.offset };
-	Vulkan::SetDescriptorBufferOffset(current_command_list, pipeline_layout, SPACE_GLOBAL, _countof(buffer_offsets), buffer_indices, buffer_offsets);
 
 	for (uint32_t i = 0; i < s_render_inst->draw_list_count; i++)
 	{
@@ -939,12 +959,17 @@ void BB::EndFrame()
 		const Material& material = s_render_inst->material_map.find(mesh_draw_call.material);
 		const Mesh& mesh = s_render_inst->mesh_map.find(mesh_draw_call.mesh);
 
+		Vulkan::BindShaders(current_command_list, 
+			material.shader.shader_effect_count, 
+			material.shader.shader_stages, 
+			material.shader.shader_objects);
+
 		ShaderIndices shader_indices;
 		shader_indices.transform_index = i;
 		shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh.vertex_buffer.offset);
 		shader_indices.albedo_texture = material.base_color.handle;
 
-		Vulkan::SetPushConstants(current_command_list, pipeline_layout, 0, sizeof(ShaderIndices), &shader_indices);
+		Vulkan::SetPushConstants(current_command_list, material.shader.pipeline_layout, 0, sizeof(ShaderIndices), &shader_indices);
 
 		Vulkan::DrawIndexed(current_command_list,
 			static_cast<uint32_t>(mesh.index_buffer.size / sizeof(uint32_t)) + mesh_draw_call.index_count,
@@ -1084,10 +1109,8 @@ bool BB::CreateShaderEffect(Allocator a_temp_allocator, const Slice<CreateShader
 	push_constant.offset = 0;
 	push_constant.size = sizeof(ShaderIndices);
 
-
 	ShaderEffect* shader_effects = BBnewArr(a_temp_allocator, a_create_infos.size(), ShaderEffect);
 	ShaderCode* shader_codes = BBnewArr(a_temp_allocator, a_create_infos.size(), ShaderCode);
-
 	ShaderObjectCreateInfo* shader_object_infos = BBnewArr(a_temp_allocator, a_create_infos.size(), ShaderObjectCreateInfo);
 
 	for (size_t i = 0; i < a_create_infos.size(); i++)
@@ -1097,16 +1120,16 @@ bool BB::CreateShaderEffect(Allocator a_temp_allocator, const Slice<CreateShader
 		shader_codes[i] = CompileShader(
 			a_temp_allocator,
 			s_render_inst->shader_compiler,
-			a_create_infos[i].a_shader_path,
-			a_create_infos[i].a_shader_entry,
+			a_create_infos[i].shader_path,
+			a_create_infos[i].shader_entry,
 			a_create_infos[i].stage);
 		Buffer shader_buffer = GetShaderCodeBuffer(shader_codes[i]);
 
 		shader_object_infos[i].stage = a_create_infos[i].stage;
-		shader_object_infos[i].next_stages = a_create_infos[i].next_stage;
+		shader_object_infos[i].next_stages = a_create_infos[i].next_stages;
 		shader_object_infos[i].shader_code_size = shader_buffer.size;
 		shader_object_infos[i].shader_code = shader_buffer.data;
-		shader_object_infos[i].shader_entry = a_create_infos[i].a_shader_entry;
+		shader_object_infos[i].shader_entry = a_create_infos[i].shader_entry;
 
 		shader_object_infos[i].descriptor_layout_count = _countof(desc_layouts);
 		shader_object_infos[i].descriptor_layouts = desc_layouts;
@@ -1119,7 +1142,10 @@ bool BB::CreateShaderEffect(Allocator a_temp_allocator, const Slice<CreateShader
 
 	for (size_t i = 0; i < a_create_infos.size(); i++)
 	{
+		shader_effects[i].name = shader_effects[i].name;
 		shader_effects[i].shader_object = shader_objects[i];
+		shader_effects[i].shader_stage = a_create_infos[i].stage;
+		shader_effects[i].shader_stages_next = a_create_infos[i].next_stages;
 		a_handles[i] = s_render_inst->shader_effect_map.insert(shader_effects[i]);
 		ReleaseShaderCode(shader_codes[i]);
 	}
@@ -1136,7 +1162,32 @@ void BB::FreeShaderEffect(const ShaderEffectHandle a_shader_effect)
 
 const MaterialHandle BB::CreateMaterial(const CreateMaterialInfo& a_create_info)
 {
+	BB_ASSERT(UNIQUE_SHADER_STAGE_COUNT > a_create_info.shader_effects.size(), "too many shader stages!");
+	BB_ASSERT(UNIQUE_SHADER_STAGE_COUNT != 0, "no shader effects in material!");
+
 	Material mat;
+	//get the first pipeline layout, compare it with all of the ones in the other shaders.
+	RPipelineLayout chosen_layout = s_render_inst->shader_effect_map.find(a_create_info.shader_effects[0]).pipeline_layout;
+	
+	SHADER_STAGE_FLAGS valid_next_stages = static_cast<uint32_t>(SHADER_STAGE::ALL);
+	for (size_t i = 0; i < a_create_info.shader_effects.size(); i++)
+	{
+		//maybe check if we have duplicate shader stages;
+		const ShaderEffect& effect = s_render_inst->shader_effect_map.find(a_create_info.shader_effects[i]);
+		BB_ASSERT(chosen_layout == effect.pipeline_layout, "pipeline layouts are not the same for the shader effects");
+		
+		if (i < a_create_info.shader_effects.size())
+		{
+			BB_ASSERT((valid_next_stages & static_cast<SHADER_STAGE_FLAGS>(effect.shader_stage)) == static_cast<SHADER_STAGE_FLAGS>(effect.shader_stage), 
+				"shader stage is not valid for the next shader stage of the previous shader object");
+			valid_next_stages = effect.shader_stages_next;
+		}
+
+		mat.shader.shader_objects[i] = effect.shader_object;
+		mat.shader.shader_stages[i] = effect.shader_stage;
+	}
+	mat.shader.shader_effect_count = static_cast<uint32_t>(a_create_info.shader_effects.size());
+	mat.shader.pipeline_layout = chosen_layout;
 	mat.base_color = a_create_info.base_color;
 	mat.normal_texture = a_create_info.normal_texture;
 

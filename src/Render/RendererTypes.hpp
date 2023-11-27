@@ -374,7 +374,7 @@ namespace BB
 	{
 		//maybe flags.
 		SHADER_STAGE stage;
-		SHADER_STAGE next_stages;
+		SHADER_STAGE_FLAGS next_stages;
 		size_t shader_code_size;
 		const void* shader_code;
 		const char* shader_entry;

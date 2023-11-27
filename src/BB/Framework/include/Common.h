@@ -116,6 +116,8 @@ namespace BB
 #define BB_MEMORY_DEBUG_FREE_ARR nullptr, 0, true,
 #else //No debug
 #define BB_MEMORY_DEBUG 
+#define BB_MEMORY_DEBUG_VOID_ARRAY
+#define BB_MEMORY_DEBUG_UNUSED
 #define BB_MEMORY_DEBUG_ARGS
 #define BB_MEMORY_DEBUG_SEND
 #define BB_MEMORY_DEBUG_FREE

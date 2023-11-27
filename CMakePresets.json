@@ -42,7 +42,7 @@
       },
       "cacheVariables": {
         "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
-        "CMAKE_CXX_FLAGS_INIT": "-fsanitize=address -mavx -mavx2 -ferror-limit=0 -Wall -Wextra -Wpedantic -Wno-ctad-maybe-unsupported -Wno-unsafe-buffer-usage -Wno-switch-enum -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-nested-anon-types -Wno-gnu-anonymous-struct -Wno-reserved-identifier"
+        "CMAKE_CXX_FLAGS_INIT": "-mavx -mavx2 -ferror-limit=0 -Wall -Wextra -Wpedantic -Wno-ctad-maybe-unsupported -Wno-unsafe-buffer-usage -Wno-switch-enum -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-nested-anon-types -Wno-gnu-anonymous-struct -Wno-reserved-identifier"
       }
     },
 

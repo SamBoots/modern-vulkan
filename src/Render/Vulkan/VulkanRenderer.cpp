@@ -662,6 +662,26 @@ static inline VkShaderStageFlags ShaderStageFlags(const SHADER_STAGE a_stage)
 #endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
+static inline VkShaderStageFlags ShaderStageFlagsFromFlags(const SHADER_STAGE_FLAGS a_stages)
+{
+	if ((static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::ALL) & a_stages) == a_stages)
+	{
+		return VK_SHADER_STAGE_ALL;
+	}
+	if ((static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::NONE) & a_stages) == a_stages)
+	{
+		return 0;
+	}
+
+	VkShaderStageFlags stage_flags = 0;
+
+	if ((static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::VERTEX) & a_stages) == a_stages)
+		return stage_flags |= VK_SHADER_STAGE_VERTEX_BIT;
+	if ((static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::FRAGMENT_PIXEL) & a_stages) == a_stages)
+		return stage_flags |= VK_SHADER_STAGE_FRAGMENT_BIT;
+	return stage_flags;
+}
+
 static inline VkImageLayout ImageLayout(const IMAGE_LAYOUT a_image_layout)
 {
 #ifdef ENUM_CONVERSATION_BY_ARRAY
@@ -1821,7 +1841,7 @@ void Vulkan::CreateShaderObject(Allocator a_temp_allocator, Slice<ShaderObjectCr
 		create_inf.pNext = nullptr;
 		create_inf.flags = VK_SHADER_CREATE_LINK_STAGE_BIT_EXT;
 		create_inf.stage = static_cast<VkShaderStageFlagBits>(ShaderStageFlags(shad_info.stage));
-		create_inf.nextStage = ShaderStageFlags(shad_info.next_stages);
+		create_inf.nextStage = ShaderStageFlagsFromFlags(shad_info.next_stages);
 		create_inf.codeType = VK_SHADER_CODE_TYPE_SPIRV_EXT; //for now always SPIR-V
 		create_inf.codeSize = shad_info.shader_code_size;
 		create_inf.pCode = shad_info.shader_code;
@@ -1995,19 +2015,12 @@ static inline uint32_t QueueTransitionIndex(const QUEUE_TRANSITION a_Transition)
 {
 	switch (a_Transition)
 	{
-	case QUEUE_TRANSITION::GRAPHICS:
-		return s_vulkan_inst->queue_indices.graphics;
-		break;
-	case QUEUE_TRANSITION::TRANSFER:
-		return s_vulkan_inst->queue_indices.transfer;
-		break;
-	case QUEUE_TRANSITION::COMPUTE:
-		return s_vulkan_inst->queue_indices.compute;
-		break;
+	case QUEUE_TRANSITION::GRAPHICS:	return s_vulkan_inst->queue_indices.graphics;
+	case QUEUE_TRANSITION::TRANSFER:	return s_vulkan_inst->queue_indices.transfer;
+	case QUEUE_TRANSITION::COMPUTE:		return s_vulkan_inst->queue_indices.compute;
 	default:
 		BB_ASSERT(false, "Vulkan: queue transition not supported!");
 		return VK_QUEUE_FAMILY_IGNORED;
-		break;
 	}
 }
 
@@ -2285,15 +2298,15 @@ void Vulkan::BindPipeline(const RCommandList a_list, const RPipeline a_pipeline)
 	vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 }
 
-void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stage_count, const SHADER_STAGE* a_shader_stages, const ShaderObject* a_shader_objects)
+void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_UNIQUE_SHADER_STAGE_COUNT, const SHADER_STAGE* a_shader_stages, const ShaderObject* a_shader_objects)
 {
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 
-	VkShaderStageFlagBits* shader_stages = BBstackAlloc(a_shader_stage_count, VkShaderStageFlagBits);
-	for (size_t i = 0; i < a_shader_stage_count; i++)
+	VkShaderStageFlagBits* shader_stages = BBstackAlloc(a_UNIQUE_SHADER_STAGE_COUNT, VkShaderStageFlagBits);
+	for (size_t i = 0; i < a_UNIQUE_SHADER_STAGE_COUNT; i++)
 		shader_stages[i] = static_cast<VkShaderStageFlagBits>(ShaderStageFlags(a_shader_stages[i]));
 
-	s_vulkan_inst->pfn.CmdBindShadersEXT(cmd_buffer, a_shader_stage_count, shader_stages, reinterpret_cast<const VkShaderEXT*>(a_shader_objects));
+	s_vulkan_inst->pfn.CmdBindShadersEXT(cmd_buffer, a_UNIQUE_SHADER_STAGE_COUNT, shader_stages, reinterpret_cast<const VkShaderEXT*>(a_shader_objects));
 
 	vkCmdSetRasterizerDiscardEnable(cmd_buffer, VK_FALSE);
 

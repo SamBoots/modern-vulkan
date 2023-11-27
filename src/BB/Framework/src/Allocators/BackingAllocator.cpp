@@ -15,7 +15,7 @@ constexpr size_t VIRTUAL_HEADER_TYPE_CHECK = 0xB0AFB0AF;
 
 struct VirtualHeader
 {
-#if _DEBUG
+#ifdef _DEBUG
 	size_t check_value;
 #endif //_DEBUG
 	size_t bytes_commited;
@@ -35,7 +35,7 @@ void* BB::mallocVirtual(void* a_start, size_t& a_size, const size_t a_reserve_si
 	{
 		//Get the header for preperation to resize it.
 		VirtualHeader* page_header = reinterpret_cast<VirtualHeader*>(Pointer::Subtract(a_start, sizeof(VirtualHeader)));
-#if _DEBUG
+#ifdef _DEBUG
 		BB_ASSERT(page_header->check_value == VIRTUAL_HEADER_TYPE_CHECK, "Send a pointer that is NOT a start of a virtual allocation!");
 #endif //_DEBUG
 		//Commit more memory if there is enough reserved.
@@ -60,7 +60,7 @@ void* BB::mallocVirtual(void* a_start, size_t& a_size, const size_t a_reserve_si
 	BB_ASSERT(CommitVirtualMemory(address, page_adjusted_size) != NULL, "Error commiting right after a reserve virtual memory");
 
 	//Set the header of the allocator, used for later resizes and when you need to free it.
-#if _DEBUG
+#ifdef _DEBUG
 	reinterpret_cast<VirtualHeader*>(address)->check_value = VIRTUAL_HEADER_TYPE_CHECK;
 #endif //_DEBUG
 	reinterpret_cast<VirtualHeader*>(address)->bytes_commited = page_adjusted_size;

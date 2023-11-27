@@ -55,13 +55,15 @@ static void* Memory_AddBoundries(void* a_front, const size_t a_alloc_size)
 	return back;
 }
 
-#ifdef BB_USE_ADDRESS_SANITIZER
+
 static void Memory_FreeBoundies(void* a_front, void* a_back)
 {
+#ifdef BB_USE_ADDRESS_SANITIZER
 	__asan_unpoison_memory_region(a_front, MEMORY_BOUNDRY_FRONT);
 	__asan_unpoison_memory_region(a_back, MEMORY_BOUNDRY_BACK);
-}
 #endif //USE_ADDRESS_SANITIZER
+}
+
 
 #ifndef BB_USE_ADDRESS_SANITIZER
 //Checks the memory boundries, 

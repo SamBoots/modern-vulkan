@@ -18,15 +18,16 @@ namespace BB
 	using ShaderEffectHandle = FrameworkHandle<struct ShaderEffectHandleTag>;
 	using MaterialHandle = FrameworkHandle<struct MaterialHandleTag>;
 
-	constexpr uint32_t SHADER_STAGE_COUNT = 2;
-	enum class SHADER_STAGE : uint32_t
+	constexpr uint32_t UNIQUE_SHADER_STAGE_COUNT = 2;
+	using SHADER_STAGE_FLAGS = uint32_t;
+	enum class SHADER_STAGE : SHADER_STAGE_FLAGS
 	{
-		VERTEX = 0,
-		FRAGMENT_PIXEL = 1,
-		NONE,
-		ALL,
+		NONE			= 0,
+		ALL				= UINT32_MAX,
+		VERTEX			= 1 << 1,
+		FRAGMENT_PIXEL	= 1 << 2,
 
-		ENUM_SIZE
+		ENUM_SIZE		= 4
 	};
 
 	enum class IMAGE_FORMAT : uint32_t
