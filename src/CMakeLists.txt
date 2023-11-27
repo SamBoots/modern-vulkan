@@ -53,6 +53,7 @@ add_executable(Engine
 	"Engine/Camera.cpp"
 	"Engine/Transform.cpp"
 	"Engine/AssetLoader.cpp"
+	"Engine/imgui_impl_bb.cpp"
 	"main.cpp")
 
 target_include_directories(Engine PUBLIC

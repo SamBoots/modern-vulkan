@@ -44,9 +44,6 @@ int main(int argc, char** argv)
 	Threads::InitThreads(sys_info.processor_num);
 
 	StackAllocator_t main_allocator{ mbSize * 32 };
-	TransformPool transform_pool{ main_allocator, 32 };
-	const TransformHandle transform_test = transform_pool.CreateTransform(float3{ 0, -1, 1 });
-	const TransformHandle transform_gltf = transform_pool.CreateTransform(float3{ 0, 1, 1 });
 
 	int window_width = 1280;
 	int window_height = 720;
@@ -68,6 +65,10 @@ int main(int argc, char** argv)
 	InitializeRenderer(main_allocator, render_create_info);
 
 	Camera camera{ float3{2.0f, 2.0f, 2.0f}, 0.35f };
+
+	TransformPool transform_pool{ main_allocator, 32 };
+	const TransformHandle transform_test = transform_pool.CreateTransform(float3{ 0, -1, 1 });
+	const TransformHandle transform_gltf = transform_pool.CreateTransform(float3{ 0, 1, 1 });
 
 	{
 		const float4x4 t_ProjMat = Float4x4Perspective(ToRadians(60.0f),
