@@ -34,6 +34,8 @@ namespace BB
 
 	struct CreateMaterialInfo
 	{
+		ShaderEffectHandle vertex_shader;
+		ShaderEffectHandle fragment_shader;
 		RTexture base_color;
 		RTexture normal_texture;
 	};

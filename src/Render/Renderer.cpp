@@ -402,7 +402,8 @@ struct ShaderEffect
 
 struct Material
 {
-	ShaderEffect* effect;
+	uint32_t shader_effect_count;
+	ShaderEffect shader_effects[SHADER_STAGE_COUNT];
 
 	RTexture base_color;
 	RTexture normal_texture;
