@@ -1470,7 +1470,6 @@ const RDepthBuffer Vulkan::CreateDepthBuffer(const RenderDepthCreateInfo& a_crea
 	alloc_info.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
 	VulkanDepth depth;
-
 	VKASSERT(vmaCreateImage(s_vulkan_inst->vma, &image_create_info, &alloc_info, &depth.image, &depth.allocation, nullptr), "Vulkan: Failed to create image");
 	view_info.image = depth.image;
 	VKASSERT(vkCreateImageView(s_vulkan_inst->device, &view_info, nullptr, &depth.view), "Vulkan: Failed to create image view.");

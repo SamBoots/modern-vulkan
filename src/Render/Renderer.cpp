@@ -22,7 +22,7 @@ constexpr uint32_t MAX_TEXTURES = 1024;
 class GPUTextureManager
 {
 public:
-	GPUTextureManager();
+	void Init(const RCommandList a_list, UploadBufferView& a_upload_view);
 
 	const RTexture UploadTexture(const UploadImageInfo& a_upload_info, const RCommandList a_list, UploadBufferView& a_upload_buffer);
 	void FreeTexture(const RTexture a_texture);
@@ -40,7 +40,11 @@ private:
 	BBRWLock lock;
 
 	//purple color
-	RImage debug_texture;
+	struct DebugTexture
+	{
+		RImage img;
+		RImageView view;
+	} debug_texture;
 };
 
 namespace BB
@@ -440,7 +444,7 @@ struct RenderInterface_inst
 {
 	RenderInterface_inst(Allocator a_system_allocator)
 		: graphics_queue(a_system_allocator, QUEUE_TYPE::GRAPHICS, "graphics queue", 8, 8),
-		  upload_buffers(a_system_allocator, UPLOAD_BUFFER_POOL_SIZE, UPLOAD_BUFFER_POOL_COUNT)
+		upload_buffers(a_system_allocator, UPLOAD_BUFFER_POOL_SIZE, UPLOAD_BUFFER_POOL_COUNT)
 	{}
 
 	WindowHandle swapchain_window;
@@ -450,7 +454,12 @@ struct RenderInterface_inst
 
 	ShaderCompiler shader_compiler;
 
+	RenderQueue graphics_queue;
+	UploadBufferPool upload_buffers;
 	GPUTextureManager texture_manager;
+
+	RTexture white;
+	RTexture black;
 
 	RDescriptorLayout static_sampler_descriptor_set;
 	RDescriptorLayout global_descriptor_set;
@@ -494,10 +503,6 @@ struct RenderInterface_inst
 	uint32_t draw_list_count;
 	uint32_t draw_list_max;
 	DrawList draw_list_data;
-
-	RenderQueue graphics_queue;
-
-	UploadBufferPool upload_buffers;
 };
 
 static RenderInterface_inst* s_render_inst;
@@ -536,25 +541,126 @@ static BufferView AllocateFromIndexBuffer(const size_t a_size_in_bytes)
 	return view;
 }
 
-GPUTextureManager::GPUTextureManager()
+void GPUTextureManager::Init(const RCommandList a_list, UploadBufferView& a_upload_view)
 {
-	const uint32_t purple = (209u << 24u) | (106u << 16u) | (255u << 8u) | (255u << 0u);
-	(void)purple;
+	{	//special debug image that gets placed on ALL empty or fried texture slots.
+		ImageCreateInfo image_info;
+		image_info.name = "debug purple";
+		image_info.width = 1;
+		image_info.height = 1;
+		image_info.depth = 1;
+		image_info.array_layers = 1;
+		image_info.mip_levels = 1;
+		image_info.type = IMAGE_TYPE::TYPE_2D;
+		image_info.tiling = IMAGE_TILING::OPTIMAL;
+		image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+		debug_texture.img = Vulkan::CreateImage(image_info);
+
+		ImageViewCreateInfo image_view_info;
+		image_view_info.image = debug_texture.img;
+		image_view_info.name = image_info.name;
+		image_view_info.array_layers = 1;
+		image_view_info.mip_levels = 1;
+		image_view_info.type = image_info.type;
+		image_view_info.format = image_info.format;
+		debug_texture.view = Vulkan::CreateViewImage(image_view_info);
+
+		{
+			//pipeline barrier
+			PipelineBarrierImageInfo image_write_transition;
+			image_write_transition.src_mask = BARRIER_ACCESS_MASK::NONE;
+			image_write_transition.dst_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
+			image_write_transition.image = debug_texture.img;
+			image_write_transition.old_layout = IMAGE_LAYOUT::UNDEFINED;
+			image_write_transition.new_layout = IMAGE_LAYOUT::TRANSFER_DST;
+			image_write_transition.layer_count = 1;
+			image_write_transition.level_count = 1;
+			image_write_transition.base_array_layer = 0;
+			image_write_transition.base_mip_level = 0;
+			image_write_transition.src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
+			image_write_transition.dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
+
+			PipelineBarrierInfo pipeline_info{};
+			pipeline_info.image_info_count = 1;
+			pipeline_info.image_infos = &image_write_transition;
+			Vulkan::PipelineBarriers(a_list, pipeline_info);
+		}
+		const uint32_t debug_purple = (209u << 24u) | (106u << 16u) | (255u << 8u) | (255u << 0u);
+
+		//now upload the image.
+		uint32_t allocation_offset;
+		a_upload_view.AllocateAndMemoryCopy(&debug_purple, sizeof(debug_purple), allocation_offset);
+
+		RenderCopyBufferToImageInfo buffer_to_image;
+		buffer_to_image.src_buffer = a_upload_view.GetBufferHandle();
+		buffer_to_image.src_offset = allocation_offset;
+
+		buffer_to_image.dst_image = debug_texture.img;
+		buffer_to_image.dst_image_info.size_x = 1;
+		buffer_to_image.dst_image_info.size_y = 1;
+		buffer_to_image.dst_image_info.size_z = 1;
+		buffer_to_image.dst_image_info.offset_x = 0;
+		buffer_to_image.dst_image_info.offset_y = 0;
+		buffer_to_image.dst_image_info.offset_z = 0;
+		buffer_to_image.dst_image_info.layout = IMAGE_LAYOUT::TRANSFER_DST;
+		buffer_to_image.dst_image_info.mip_level = 0;
+		buffer_to_image.dst_image_info.layer_count = 1;
+		buffer_to_image.dst_image_info.base_array_layer = 0;
+
+		Vulkan::CopyBufferImage(a_list, buffer_to_image);
+
+		{
+			PipelineBarrierImageInfo image_shader_transition;
+			image_shader_transition.src_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
+			image_shader_transition.dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
+			image_shader_transition.image = debug_texture.img;
+			image_shader_transition.old_layout = IMAGE_LAYOUT::TRANSFER_DST;
+			image_shader_transition.new_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+			image_shader_transition.layer_count = 1;
+			image_shader_transition.level_count = 1;
+			image_shader_transition.base_array_layer = 0;
+			image_shader_transition.base_mip_level = 0;
+			image_shader_transition.src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
+			image_shader_transition.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
+
+			PipelineBarrierInfo pipeline_info{};
+			pipeline_info.image_info_count = 1;
+			pipeline_info.image_infos = &image_shader_transition;
+			Vulkan::PipelineBarriers(a_list, pipeline_info);
+		}
+
+		WriteDescriptorData write_desc{};
+		write_desc.binding = 1;
+		write_desc.descriptor_index = 0; //handle is also the descriptor index
+		write_desc.type = DESCRIPTOR_TYPE::IMAGE;
+		write_desc.image_view.view = debug_texture.view;
+		write_desc.image_view.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+
+		WriteDescriptorInfos image_write_infos;
+		image_write_infos.allocation = s_render_inst->global_descriptor_allocation;
+		image_write_infos.descriptor_layout = s_render_inst->global_descriptor_set;
+		image_write_infos.data = Slice(&write_desc, 1);
+
+		Vulkan::WriteDescriptors(image_write_infos);
+	}
 
 	lock = OSCreateRWLock();
 	//texture 0 is always the debug texture.
-	textures[0].image = debug_texture;
+	textures[0].image = debug_texture.img;
+	textures[0].view = debug_texture.view;
 	textures[0].next_free = UINT32_MAX;
 
 	next_free = 1;
 
 	for (uint32_t i = 1; i < MAX_TEXTURES - 1; i++)
 	{
-		textures[i].image = debug_texture;
+		textures[i].image = debug_texture.img;
+		textures[i].view = debug_texture.view;
 		textures[i].next_free = i + 1;
 	}
 
-	textures[MAX_TEXTURES - 1].image = debug_texture;
+	textures[MAX_TEXTURES - 1].image = debug_texture.img;
+	textures[MAX_TEXTURES - 1].view = debug_texture.view;
 	textures[MAX_TEXTURES - 1].next_free = UINT32_MAX;
 }
 
@@ -695,7 +801,7 @@ void GPUTextureManager::FreeTexture(const RTexture a_texture)
 	OSReleaseSRWLockWrite(&lock);
 }
 
-void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererCreateInfo& a_render_create_info)
+bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererCreateInfo& a_render_create_info)
 {
 	Vulkan::InitializeVulkan(a_stack_allocator, a_render_create_info.app_name, a_render_create_info.engine_name, a_render_create_info.debug);
 	s_render_inst = BBnew(a_stack_allocator, RenderInterface_inst)(a_stack_allocator);
@@ -868,6 +974,37 @@ void BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 			Vulkan::WriteDescriptors(frame_desc_write);
 		}
 	}
+
+	//do some basic CPU-GPU upload that we need.
+
+	CommandPool& start_up_pool = s_render_inst->graphics_queue.GetCommandPool("startup pool");
+	UploadBufferView& startup_upload_view = s_render_inst->upload_buffers.GetUploadView(mbSize * 4);
+	const RCommandList list = start_up_pool.StartCommandList();
+	//initialize texture system
+	{
+		s_render_inst->texture_manager.Init(list, startup_upload_view);
+
+		//some basic colors
+		const uint32_t white = UINT32_MAX;
+		const uint32_t black = 0;
+
+		UploadImageInfo image_info;
+		image_info.name = "white";
+		image_info.width = 1;
+		image_info.height = 1;
+		image_info.bit_count = 32;
+		image_info.pixels = &white;
+
+		s_render_inst->white = UploadTexture(image_info, list, startup_upload_view);
+
+		image_info.name = "black";
+		image_info.pixels = &black;
+		s_render_inst->black = UploadTexture(image_info, list, startup_upload_view);
+	}
+
+
+	start_up_pool.EndCommandList(list);
+	return ExecuteGraphicCommands(Slice(&start_up_pool, 1), Slice(&startup_upload_view, 1));
 }
 
 void BB::StartFrame()
@@ -1219,4 +1356,14 @@ void BB::DrawMesh(const MeshHandle a_mesh, const float4x4& a_transform, const ui
 	s_render_inst->draw_list_data.mesh_draw_call[s_render_inst->draw_list_count].index_count = a_index_count;
 	s_render_inst->draw_list_data.transform[s_render_inst->draw_list_count].transform = a_transform;
 	s_render_inst->draw_list_data.transform[s_render_inst->draw_list_count++].inverse = Float4x4Inverse(a_transform);
+}
+
+RTexture BB::GetWhiteTexture()
+{
+	return s_render_inst->white;
+}
+
+RTexture BB::GetBlackTexture()
+{
+	return s_render_inst->black;
 }

@@ -102,7 +102,7 @@ namespace BB
 		//LinkedListNode holds next, so //48
 	};
 
-	void InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererCreateInfo& a_render_create_info);
+	bool InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererCreateInfo& a_render_create_info);
 
 	void StartFrame();
 	void EndFrame();
@@ -130,4 +130,7 @@ namespace BB
 	void FreeTexture(const RTexture a_texture);
 
 	void DrawMesh(const MeshHandle a_mesh, const float4x4& a_transform, const uint32_t a_index_start, const uint32_t a_index_count, const MaterialHandle a_material);
+
+	RTexture GetWhiteTexture();
+	RTexture GetBlackTexture();
 }

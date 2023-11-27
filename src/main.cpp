@@ -76,21 +76,6 @@ int main(int argc, char** argv)
 		BB::SetProjection(t_ProjMat);
 	}
 
-	MeshHandle quad_mesh;
-	//Do some simpel model loading and drawing.
-	Vertex vertices[4];
-	vertices[0] = { {-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 0.0f, 0.0f} };
-	vertices[1] = { {0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 1.0f, 0.0f} };
-	vertices[2] = { {0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 1.0f} };
-	vertices[3] = { {-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}, {1.0f, 1.0f, 1.0f} };
-
-	uint32_t indices[] = { 0, 1, 2, 2, 3, 0 };
-
-	CreateMeshInfo quad_create_info{};
-	quad_create_info.vertices = Slice(vertices, _countof(vertices));
-	quad_create_info.indices = Slice(indices, _countof(indices));
-	quad_mesh = CreateMesh(quad_create_info);
-
 	ShaderEffectHandle shader_effects[2];
 	BBStackAllocatorScope(main_allocator)
 	{
@@ -112,6 +97,32 @@ int main(int argc, char** argv)
 			shader_effects), "Failed to create shader objects");
 	}
 
+	//create material
+	MaterialHandle default_mat;
+	{
+		CreateMaterialInfo material_info{};
+		material_info.base_color = GetWhiteTexture();
+		material_info.shader_effects = Slice(shader_effects, _countof(shader_effects));
+		default_mat = CreateMaterial(material_info);
+	}
+
+	MeshHandle quad_mesh;
+	{
+		//Do some simpel model loading and drawing.
+		Vertex vertices[4];
+		vertices[0] = { {-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 0.0f, 0.0f} };
+		vertices[1] = { {0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 1.0f, 0.0f} };
+		vertices[2] = { {0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 1.0f} };
+		vertices[3] = { {-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}, {1.0f, 1.0f, 1.0f} };
+
+		uint32_t indices[] = { 0, 1, 2, 2, 3, 0 };
+
+
+		CreateMeshInfo quad_create_info{};
+		quad_create_info.vertices = Slice(vertices, _countof(vertices));
+		quad_create_info.indices = Slice(indices, _countof(indices));
+		quad_mesh = CreateMesh(quad_create_info);
+	}
 
 	const Model* gltf_model = nullptr;
 	BBStackAllocatorScope(main_allocator)
@@ -204,7 +215,7 @@ int main(int argc, char** argv)
 				DrawglTFNode(gltf_model->root_nodes[i], root_matrix);
 			}
 			//draw stuff here!
-			//DrawMesh(quad_mesh, transform_pool.GetTransform(transform_test).CreateMatrix());
+			DrawMesh(quad_mesh, transform_pool.GetTransform(transform_test).CreateMatrix(), 0, 6, default_mat);
 
 			EndFrame();
 		}

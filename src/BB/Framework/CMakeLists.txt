@@ -33,7 +33,7 @@ target_include_directories(BBFramework PUBLIC
 "include/Utils"
 "include/OS")
 
-option(ADDRESS_SANITIZER_ENABLE "Build BB Framework with AddressSanitizer" ON)
+option(ADDRESS_SANITIZER_ENABLE "Build BB Framework with AddressSanitizer" OFF)
 
 if(ADDRESS_SANITIZER_ENABLE)
   target_compile_definitions(BBFramework PUBLIC BB_USE_ADDRESS_SANITIZER)
