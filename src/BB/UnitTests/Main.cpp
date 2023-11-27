@@ -30,7 +30,7 @@ int main(int argc, char** argv)
 	Logger::EnableLogTypes(UINT32_MAX);
 
 	bool hasWindows = true;
-	InputEvent t_InputEvents[INPUT_EVENT_BUFFER_MAX]{};
+	InputEvent t_InputEvents[INPUT_EVENbuffer_MAX]{};
 	size_t t_InputEventCount = 0;
 	while (hasWindows)
 	{

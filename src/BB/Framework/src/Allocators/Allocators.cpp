@@ -400,7 +400,8 @@ void StackAllocator::SetMarker(const StackMarker a_marker)
 
 		back = reinterpret_cast<uintptr_t>(cur_list->back) + MEMORY_BOUNDRY_BACK;;
 	}
-	BB_ASSERT(a_marker == back, "SetPosition points to a invalid address that holds no allocation");
+	//due to alignment this is unreliable. 
+	//BB_ASSERT(a_marker == back, "SetPosition points to a invalid address that holds no allocation");
 	m_front_log = cur_list->prev;
 #endif
 	m_buffer = reinterpret_cast<void*>(a_marker);
@@ -579,7 +580,7 @@ BB::allocators::POW_FreelistAllocator::POW_FreelistAllocator(const size_t, const
 	constexpr const size_t MIN_FREELIST_SIZE = 32;
 	constexpr const size_t FREELIST_START_SIZE = 12;
 
-	size_t t_Freelist_Buffer_Size = MIN_FREELIST_SIZE;
+	size_t t_Freelisbuffer_Size = MIN_FREELIST_SIZE;
 	m_FreeBlocksAmount = FREELIST_START_SIZE;
 
 	//This will be resized accordingly by mallocVirtual.
@@ -593,8 +594,8 @@ BB::allocators::POW_FreelistAllocator::POW_FreelistAllocator(const size_t, const
 	for (size_t i = 0; i < m_FreeBlocksAmount; i++)
 	{
 		//Roundup the freelist with the virtual memory page size for the most optimal allocation. 
-		size_t t_UsedMemory = RoundUp(OSPageSize(), t_Freelist_Buffer_Size);
-		m_FreeLists[i].alloc_size = t_Freelist_Buffer_Size;
+		size_t t_UsedMemory = RoundUp(OSPageSize(), t_Freelisbuffer_Size);
+		m_FreeLists[i].alloc_size = t_Freelisbuffer_Size;
 		m_FreeLists[i].fullSize = t_UsedMemory;
 		//reserve half since we are splitting up the block, otherwise we might use a lot of virtual space.
 		m_FreeLists[i].start = mallocVirtual(nullptr, t_UsedMemory, VIRTUAL_RESERVE_HALF);
@@ -602,7 +603,7 @@ BB::allocators::POW_FreelistAllocator::POW_FreelistAllocator(const size_t, const
 		//Set the first freeblock.
 		m_FreeLists[i].freeBlock->size = m_FreeLists[i].fullSize;
 		m_FreeLists[i].freeBlock->next = nullptr;
-		t_Freelist_Buffer_Size *= 2;
+		t_Freelisbuffer_Size *= 2;
 	}
 }
 

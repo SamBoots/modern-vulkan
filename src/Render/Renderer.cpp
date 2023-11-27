@@ -1162,7 +1162,7 @@ void BB::FreeShaderEffect(const ShaderEffectHandle a_shader_effect)
 
 const MaterialHandle BB::CreateMaterial(const CreateMaterialInfo& a_create_info)
 {
-	BB_ASSERT(UNIQUE_SHADER_STAGE_COUNT > a_create_info.shader_effects.size(), "too many shader stages!");
+	BB_ASSERT(UNIQUE_SHADER_STAGE_COUNT >= a_create_info.shader_effects.size(), "too many shader stages!");
 	BB_ASSERT(UNIQUE_SHADER_STAGE_COUNT != 0, "no shader effects in material!");
 
 	Material mat;

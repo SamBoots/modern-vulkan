@@ -14,6 +14,7 @@ BB_WARNINGS_OFF
 BB_WARNINGS_ON
 
 #include "Storage/Slotmap.h"
+#include "Storage/Hashmap.h"
 
 using namespace BB;
 
@@ -467,11 +468,6 @@ struct Vulkan_inst
 		enum_conv.descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::IMAGE)] = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
 		enum_conv.descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::SAMPLER)] = VK_DESCRIPTOR_TYPE_SAMPLER;
 
-		enum_conv.shader_stages[static_cast<uint32_t>(SHADER_STAGE::ALL)] = VK_SHADER_STAGE_ALL;
-		enum_conv.shader_stages[static_cast<uint32_t>(SHADER_STAGE::VERTEX)] = VK_SHADER_STAGE_VERTEX_BIT;
-		enum_conv.shader_stages[static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL)] = VK_SHADER_STAGE_FRAGMENT_BIT;
-		enum_conv.shader_stages[static_cast<uint32_t>(SHADER_STAGE::NONE)] = 0;
-
 		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::UNDEFINED)] = VK_IMAGE_LAYOUT_UNDEFINED;
 		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::GENERAL)] = VK_IMAGE_LAYOUT_GENERAL;
 		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::TRANSFER_SRC)] = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
@@ -529,6 +525,7 @@ struct Vulkan_inst
 	//jank pointer
 	VulkanDescriptorLinearBuffer* pdescriptor_buffer;
 
+	StaticOL_HashMap<uint64_t, VkPipelineLayout> pipeline_layout_cache;
 	StaticSlotmap<VulkanBuffer, RBuffer> buffers;
 	StaticSlotmap<VulkanImage, RImage> images;
 	StaticSlotmap<VulkanDepth, RDepthBuffer> depth_images;
@@ -552,7 +549,6 @@ struct Vulkan_inst
 	struct EnumConversions
 	{
 		VkDescriptorType descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::ENUM_SIZE)];
-		VkShaderStageFlags shader_stages[static_cast<uint32_t>(SHADER_STAGE::ENUM_SIZE)];
 		VkImageLayout image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::ENUM_SIZE)];
 		VkFormat depth_formats[static_cast<uint32_t>(DEPTH_FORMAT::ENUM_SIZE)];
 		VkFormat image_formats[static_cast<uint32_t>(IMAGE_FORMAT::ENUM_SIZE)];
@@ -646,9 +642,6 @@ static inline VkDescriptorType DescriptorBufferType(const DESCRIPTOR_TYPE a_type
 
 static inline VkShaderStageFlags ShaderStageFlags(const SHADER_STAGE a_stage)
 {
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.shader_stages[static_cast<uint32_t>(a_stage)];
-#else
 	switch (a_stage)
 	{
 	case SHADER_STAGE::ALL:					return VK_SHADER_STAGE_ALL;
@@ -659,7 +652,6 @@ static inline VkShaderStageFlags ShaderStageFlags(const SHADER_STAGE a_stage)
 		return VK_SHADER_STAGE_ALL;
 		break;
 	}
-#endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
 static inline VkShaderStageFlags ShaderStageFlagsFromFlags(const SHADER_STAGE_FLAGS a_stages)
@@ -1084,6 +1076,8 @@ bool Vulkan::InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a
 	s_vulkan_inst->pdescriptor_buffer = BBnew(a_stack_allocator, VulkanDescriptorLinearBuffer)(
 		mbSize * 4,
 		VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
+
+	s_vulkan_inst->pipeline_layout_cache.Init(a_stack_allocator, 64);
 
 	//Get the present queue.
 	vkGetDeviceQueue(s_vulkan_inst->device,
@@ -1649,6 +1643,18 @@ void Vulkan::WriteDescriptors(const WriteDescriptorInfos& a_write_info)
 	}
 }
 
+//we won't have that many pipeline layouts, so make a basic one.
+static uint64_t PipelineLayoutCreateInfoHash(const VkPipelineLayoutCreateInfo& a_info)
+{
+	uint64_t hash = static_cast<uint64_t>(a_info.pushConstantRangeCount + a_info.setLayoutCount);
+	
+	for (size_t i = 0; i < a_info.setLayoutCount; i++)
+	{
+		hash *= reinterpret_cast<uint64_t>(a_info.pSetLayouts[i]);
+	}
+	return hash;
+}
+
 RPipelineLayout Vulkan::CreatePipelineLayout(const RDescriptorLayout* a_descriptor_layouts, const uint32_t a_layout_count, const PushConstantRange* a_constant_ranges, const uint32_t a_constant_range_count)
 {
 	VkPipelineLayoutCreateInfo create_info{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
@@ -1667,19 +1673,37 @@ RPipelineLayout Vulkan::CreatePipelineLayout(const RDescriptorLayout* a_descript
 
 		create_info.pushConstantRangeCount = a_constant_range_count;
 		create_info.pPushConstantRanges = constant_ranges;
-		VkPipelineLayout pipe_layout;
-		vkCreatePipelineLayout(s_vulkan_inst->device, &create_info, nullptr, &pipe_layout);
 
-		return RPipelineLayout(reinterpret_cast<uintptr_t>(pipe_layout));
+		const uint64_t pipeline_hash = PipelineLayoutCreateInfoHash(create_info);
+		if (VkPipelineLayout* layout = s_vulkan_inst->pipeline_layout_cache.find(pipeline_hash))
+			return RPipelineLayout(reinterpret_cast<uintptr_t>(*layout));
+		else
+		{
+			VkPipelineLayout pipe_layout;
+			vkCreatePipelineLayout(s_vulkan_inst->device, &create_info, nullptr, &pipe_layout);
+
+			s_vulkan_inst->pipeline_layout_cache.insert(pipeline_hash, pipe_layout);
+
+			return RPipelineLayout(reinterpret_cast<uintptr_t>(pipe_layout));
+		}
 	}
 	else
 	{
 		create_info.pushConstantRangeCount = 0;
 		create_info.pPushConstantRanges = nullptr;
-		VkPipelineLayout pipe_layout;
-		vkCreatePipelineLayout(s_vulkan_inst->device, &create_info, nullptr, &pipe_layout);
 
-		return RPipelineLayout(reinterpret_cast<uintptr_t>(pipe_layout));
+		const uint64_t pipeline_hash = PipelineLayoutCreateInfoHash(create_info);
+		if (VkPipelineLayout* layout = s_vulkan_inst->pipeline_layout_cache.find(pipeline_hash))
+			return RPipelineLayout(reinterpret_cast<uintptr_t>(*layout));
+		else
+		{
+			VkPipelineLayout pipe_layout;
+			vkCreatePipelineLayout(s_vulkan_inst->device, &create_info, nullptr, &pipe_layout);
+
+			s_vulkan_inst->pipeline_layout_cache.insert(pipeline_hash, pipe_layout);
+
+			return RPipelineLayout(reinterpret_cast<uintptr_t>(pipe_layout));
+		}
 	}
 }
 

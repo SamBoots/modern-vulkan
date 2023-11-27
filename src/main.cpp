@@ -77,22 +77,41 @@ int main(int argc, char** argv)
 	}
 
 	MeshHandle quad_mesh;
+	//Do some simpel model loading and drawing.
+	Vertex vertices[4];
+	vertices[0] = { {-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 0.0f, 0.0f} };
+	vertices[1] = { {0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 1.0f, 0.0f} };
+	vertices[2] = { {0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 1.0f} };
+	vertices[3] = { {-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}, {1.0f, 1.0f, 1.0f} };
+
+	uint32_t indices[] = { 0, 1, 2, 2, 3, 0 };
+
+	CreateMeshInfo quad_create_info{};
+	quad_create_info.vertices = Slice(vertices, _countof(vertices));
+	quad_create_info.indices = Slice(indices, _countof(indices));
+	quad_mesh = CreateMesh(quad_create_info);
+
+	ShaderEffectHandle shader_effects[2];
 	BBStackAllocatorScope(main_allocator)
 	{
-		//Do some simpel model loading and drawing.
-		Vertex vertices[4];
-		vertices[0] = { {-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 0.0f, 0.0f} };
-		vertices[1] = { {0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 1.0f, 0.0f} };
-		vertices[2] = { {0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {0.0f, 1.0f}, {0.0f, 0.0f, 1.0f} };
-		vertices[3] = { {-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}, {1.0f, 1.0f, 1.0f} };
+		CreateShaderEffectInfo shader_effect_create_infos[2];
+		shader_effect_create_infos[0].name = "debug vertex shader";
+		shader_effect_create_infos[0].stage = SHADER_STAGE::VERTEX;
+		shader_effect_create_infos[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
+		shader_effect_create_infos[0].shader_path = "../resources/shaders/hlsl/Debug.hlsl";
+		shader_effect_create_infos[0].shader_entry = "VertexMain";
 
-		uint32_t indices[] = { 0, 1, 2, 2, 3, 0 };
+		shader_effect_create_infos[1].name = "debug fragment shader";
+		shader_effect_create_infos[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
+		shader_effect_create_infos[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
+		shader_effect_create_infos[1].shader_path = "../resources/shaders/hlsl/Debug.hlsl";
+		shader_effect_create_infos[1].shader_entry = "FragmentMain";
 
-		CreateMeshInfo quad_create_info{};
-		quad_create_info.vertices = Slice(vertices, _countof(vertices));
-		quad_create_info.indices = Slice(indices, _countof(indices));
-		quad_mesh = CreateMesh(quad_create_info);
+		BB_ASSERT(CreateShaderEffect(main_allocator,
+			Slice(shader_effect_create_infos, _countof(shader_effect_create_infos)),
+			shader_effects), "Failed to create shader objects");
 	}
+
 
 	const Model* gltf_model = nullptr;
 	BBStackAllocatorScope(main_allocator)
@@ -102,12 +121,13 @@ int main(int argc, char** argv)
 		async_assets[0].load_type = Asset::ASYNC_LOAD_TYPE::DISK;
 		async_assets[0].mesh_disk.name = "duck gltf";
 		async_assets[0].mesh_disk.path = "../resources/models/Duck.gltf";
+		async_assets[0].mesh_disk.shader_effects = Slice(shader_effects, _countof(shader_effects));
 		Asset::LoadASync(Slice(async_assets, 1));
 
 		gltf_model = Asset::FindModel("../resources/models/Duck.gltf");
 	}
 
-	InputEvent input_events[INPUT_EVENT_BUFFER_MAX]{};
+	InputEvent input_events[INPUT_EVENbuffer_MAX]{};
 	size_t input_event_count = 0;
 
 	bool freeze_cam = false;

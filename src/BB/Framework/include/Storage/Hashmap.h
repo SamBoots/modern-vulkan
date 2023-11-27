@@ -195,23 +195,23 @@ namespace BB
 			return *this;
 		}
 
-		void insert(const Key& a_Key, Value& a_Res)
+		void insert(const Key& a_key, Value& a_res)
 		{
-			emplace(a_Key, a_Res);
+			emplace(a_key, a_res);
 		}
 		template <class... Args>
-		void emplace(const Key& a_Key, Args&&... a_ValueArgs)
+		void emplace(const Key& a_key, Args&&... a_value_args)
 		{
 			if (m_size > m_LoadCapacity)
 				grow();
 
-			const Hash t_Hash = Hash::MakeHash(a_Key) % m_capacity;
+			const Hash hash = Hash::MakeHash(a_key) % m_capacity;
 
-			HashEntry* t_Entry = &m_Entries[t_Hash.hash];
+			HashEntry* t_Entry = &m_Entries[hash.hash];
 			if (t_Entry->state == Hashmap_Specs::UM_EMPTYNODE)
 			{
-				t_Entry->key = a_Key;
-				new (&t_Entry->value) Value(std::forward<Args>(a_ValueArgs)...);
+				t_Entry->key = a_key;
+				new (&t_Entry->value) Value(std::forward<Args>(a_value_args)...);
 				t_Entry->next_Entry = nullptr;
 				return;
 			}
@@ -222,8 +222,8 @@ namespace BB
 				if (t_Entry->next_Entry == nullptr)
 				{
 					HashEntry* t_NewEntry = BBnew(m_allocator, HashEntry);
-					t_NewEntry->key = a_Key;
-					new (&t_NewEntry->value) Value(std::forward<Args>(a_ValueArgs)...);
+					t_NewEntry->key = a_key;
+					new (&t_NewEntry->value) Value(std::forward<Args>(a_value_args)...);
 					t_NewEntry->next_Entry = nullptr;
 					t_Entry->next_Entry = t_NewEntry;
 					return;
@@ -231,18 +231,18 @@ namespace BB
 				t_Entry = t_Entry->next_Entry;
 			}
 		}
-		Value* find(const Key& a_Key) const
+		Value* find(const Key& a_key) const
 		{
-			const Hash t_Hash = Hash::MakeHash(a_Key) % m_capacity;
+			const Hash hash = Hash::MakeHash(a_key) % m_capacity;
 
-			HashEntry* t_Entry = &m_Entries[t_Hash];
+			HashEntry* t_Entry = &m_Entries[hash];
 
 			if (t_Entry->state == Hashmap_Specs::UM_EMPTYNODE)
 				return nullptr;
 
 			while (t_Entry)
 			{
-				if (Match(t_Entry, a_Key))
+				if (Match(t_Entry, a_key))
 				{
 					return &t_Entry->value;
 				}
@@ -250,12 +250,12 @@ namespace BB
 			}
 			return nullptr;
 		}
-		void erase(const Key& a_Key)
+		void erase(const Key& a_key)
 		{
-			const Hash t_Hash = Hash::MakeHash(a_Key) % m_capacity;;
+			const Hash hash = Hash::MakeHash(a_key) % m_capacity;;
 
-			HashEntry* t_Entry = &m_Entries[t_Hash];
-			if (Match(t_Entry, a_Key))
+			HashEntry* t_Entry = &m_Entries[hash];
+			if (Match(t_Entry, a_key))
 			{
 				t_Entry->~HashEntry();
 
@@ -275,7 +275,7 @@ namespace BB
 
 			while (t_Entry)
 			{
-				if (Match(t_Entry, a_Key))
+				if (Match(t_Entry, a_key))
 				{
 					t_PreviousEntry = t_Entry->next_Entry;
 					BBfree(m_allocator, t_Entry);
@@ -353,9 +353,9 @@ namespace BB
 			{
 				if (m_Entries[i].state != Hashmap_Specs::UM_EMPTYNODE)
 				{
-					const Hash t_Hash = Hash::MakeHash(m_Entries[i].key) % t_NewCapacity;
+					const Hash hash = Hash::MakeHash(m_Entries[i].key) % t_NewCapacity;
 
-					HashEntry* t_Entry = &t_NewEntries[t_Hash.hash];
+					HashEntry* t_Entry = &t_NewEntries[hash.hash];
 					if (t_Entry->state == Hashmap_Specs::UM_EMPTYNODE)
 					{
 						*t_Entry = m_Entries[i];
@@ -389,9 +389,9 @@ namespace BB
 		Allocator m_allocator;
 
 	private:
-		bool Match(const HashEntry* a_Entry, const Key& a_Key) const
+		bool Match(const HashEntry* a_Entry, const Key& a_key) const
 		{
-			return KeyComp()(a_Entry->key, a_Key);
+			return KeyComp()(a_Entry->key, a_key);
 		}
 	};
 
@@ -417,15 +417,15 @@ namespace BB
 			m_size = 0;
 			m_LoadCapacity = a_size;
 
-			const size_t t_MemorySize = (sizeof(Hash) + sizeof(Key) + sizeof(Value)) * m_capacity;
+			const size_t memory_size = (sizeof(Hash) + sizeof(Key) + sizeof(Value)) * m_capacity;
 
-			void* t_Buffer = BBalloc(m_allocator, t_MemorySize);
-			m_Hashes = reinterpret_cast<Hash*>(t_Buffer);
-			m_Keys = reinterpret_cast<Key*>(Pointer::Add(t_Buffer, sizeof(Hash) * m_capacity));
-			m_Values = reinterpret_cast<Value*>(Pointer::Add(t_Buffer, (sizeof(Hash) + sizeof(Key)) * m_capacity));
+			void* buffer = BBalloc(m_allocator, memory_size);
+			m_hashes = reinterpret_cast<Hash*>(buffer);
+			m_keys = reinterpret_cast<Key*>(Pointer::Add(buffer, sizeof(Hash) * m_capacity));
+			m_values = reinterpret_cast<Value*>(Pointer::Add(buffer, (sizeof(Hash) + sizeof(Key)) * m_capacity));
 			for (size_t i = 0; i < m_capacity; i++)
 			{
-				m_Hashes[i] = Hashmap_Specs::OL_EMPTY;
+				m_hashes[i] = Hashmap_Specs::OL_EMPTY;
 			}
 		}
 		OL_HashMap(const OL_HashMap<Key, Value>& a_map)
@@ -436,22 +436,22 @@ namespace BB
 
 			m_allocator = a_map.m_allocator;
 
-			const size_t t_MemorySize = (sizeof(Hash) + sizeof(Key) + sizeof(Value)) * m_capacity;
+			const size_t memory_size = (sizeof(Hash) + sizeof(Key) + sizeof(Value)) * m_capacity;
 
-			void* t_Buffer = BBalloc(m_allocator, t_MemorySize);
-			m_Hashes = reinterpret_cast<Hash*>(t_Buffer);
-			m_Keys = reinterpret_cast<Key*>(Pointer::Add(t_Buffer, sizeof(Hash) * m_capacity));
-			m_Values = reinterpret_cast<Value*>(Pointer::Add(t_Buffer, (sizeof(Hash) + sizeof(Key)) * m_capacity));
+			void* buffer = BBalloc(m_allocator, memory_size);
+			m_hashes = reinterpret_cast<Hash*>(buffer);
+			m_keys = reinterpret_cast<Key*>(Pointer::Add(buffer, sizeof(Hash) * m_capacity));
+			m_values = reinterpret_cast<Value*>(Pointer::Add(buffer, (sizeof(Hash) + sizeof(Key)) * m_capacity));
 			for (size_t i = 0; i < m_capacity; i++)
 			{
-				m_Hashes[i] = Hashmap_Specs::OL_EMPTY;
+				m_hashes[i] = Hashmap_Specs::OL_EMPTY;
 			}
 
 			for (size_t i = 0; i < m_capacity; i++)
 			{
-				if (a_map.m_Hashes[i] != Hashmap_Specs::OL_EMPTY && a_map.m_Hashes[i] != Hashmap_Specs::OL_TOMBSTONE)
+				if (a_map.m_hashes[i] != Hashmap_Specs::OL_EMPTY && a_map.m_hashes[i] != Hashmap_Specs::OL_TOMBSTONE)
 				{
-					insert(a_map.m_Keys[i], a_map.m_Values[i]);
+					insert(a_map.m_keys[i], a_map.m_values[i]);
 				}
 			}
 		}
@@ -461,38 +461,38 @@ namespace BB
 			m_size = a_map.m_size;
 			m_LoadCapacity = a_map.m_LoadCapacity;
 
-			m_Hashes = a_map.m_Hashes;
-			m_Keys = a_map.m_Keys;
-			m_Values = a_map.m_Values;
+			m_hashes = a_map.m_hashes;
+			m_keys = a_map.m_keys;
+			m_values = a_map.m_values;
 
 			m_allocator = a_map.m_allocator;
 
 			a_map.m_capacity = 0;
 			a_map.m_size = 0;
 			a_map.m_LoadCapacity = 0;
-			a_map.m_Hashes = nullptr;
-			a_map.m_Keys = nullptr;
-			a_map.m_Values = nullptr;
+			a_map.m_hashes = nullptr;
+			a_map.m_keys = nullptr;
+			a_map.m_values = nullptr;
 
 			a_map.m_allocator.allocator = nullptr;
 			a_map.m_allocator.func = nullptr;
 		}
 		~OL_HashMap()
 		{
-			if (m_Hashes != nullptr)
+			if (m_hashes != nullptr)
 			{
 				//Call the destructor if it has one for the value.
 				if constexpr (!trivalDestructableValue)
 					for (size_t i = 0; i < m_capacity; i++)
-						if (m_Hashes[i] != 0)
-							m_Values[i].~Value();
+						if (m_hashes[i] != 0)
+							m_values[i].~Value();
 				//Call the destructor if it has one for the key.
 				if constexpr (!trivalDestructableKey)
 					for (size_t i = 0; i < m_capacity; i++)
-						if (m_Hashes[i] != 0)
-							m_Keys[i].~Key();
+						if (m_hashes[i] != 0)
+							m_keys[i].~Key();
 
-				BBfree(m_allocator, m_Hashes);
+				BBfree(m_allocator, m_hashes);
 			}
 		}
 
@@ -506,22 +506,22 @@ namespace BB
 
 			m_allocator = a_rhs.m_allocator;
 
-			const size_t t_MemorySize = (sizeof(Hash) + sizeof(Key) + sizeof(Value)) * m_capacity;
+			const size_t memory_size = (sizeof(Hash) + sizeof(Key) + sizeof(Value)) * m_capacity;
 
-			void* t_Buffer = BBalloc(m_allocator, t_MemorySize);
-			m_Hashes = reinterpret_cast<Hash*>(t_Buffer);
-			m_Keys = reinterpret_cast<Key*>(Pointer::Add(t_Buffer, sizeof(Hash) * m_capacity));
-			m_Values = reinterpret_cast<Value*>(Pointer::Add(t_Buffer, (sizeof(Hash) + sizeof(Key)) * m_capacity));
+			void* buffer = BBalloc(m_allocator, memory_size);
+			m_hashes = reinterpret_cast<Hash*>(buffer);
+			m_keys = reinterpret_cast<Key*>(Pointer::Add(buffer, sizeof(Hash) * m_capacity));
+			m_values = reinterpret_cast<Value*>(Pointer::Add(buffer, (sizeof(Hash) + sizeof(Key)) * m_capacity));
 			for (size_t i = 0; i < m_capacity; i++)
 			{
-				m_Hashes[i] = Hashmap_Specs::OL_EMPTY;
+				m_hashes[i] = Hashmap_Specs::OL_EMPTY;
 			}
 
 			for (size_t i = 0; i < m_capacity; i++)
 			{
-				if (a_rhs.m_Hashes[i] != Hashmap_Specs::OL_EMPTY && a_rhs.m_Hashes[i] != Hashmap_Specs::OL_TOMBSTONE)
+				if (a_rhs.m_hashes[i] != Hashmap_Specs::OL_EMPTY && a_rhs.m_hashes[i] != Hashmap_Specs::OL_TOMBSTONE)
 				{
-					insert(a_rhs.m_Keys[i], a_rhs.m_Values[i]);
+					insert(a_rhs.m_keys[i], a_rhs.m_values[i]);
 				}
 			}
 
@@ -537,9 +537,9 @@ namespace BB
 
 			m_allocator = a_rhs.m_allocator;
 
-			m_Hashes = a_rhs.m_Hashes;
-			m_Keys = a_rhs.m_Keys;
-			m_Values = a_rhs.m_Values;
+			m_hashes = a_rhs.m_hashes;
+			m_keys = a_rhs.m_keys;
+			m_values = a_rhs.m_values;
 
 			a_rhs.m_capacity = 0;
 			a_rhs.m_size = 0;
@@ -548,76 +548,76 @@ namespace BB
 			a_rhs.m_allocator.allocator = nullptr;
 			a_rhs.m_allocator.func = nullptr;
 
-			a_rhs.m_Hashes = nullptr;
-			a_rhs.m_Keys = nullptr;
-			a_rhs.m_Values = nullptr;
+			a_rhs.m_hashes = nullptr;
+			a_rhs.m_keys = nullptr;
+			a_rhs.m_values = nullptr;
 
 			return *this;
 		}
 
-		void insert(const Key& a_Key, Value& a_Res)
+		void insert(const Key& a_key, Value& a_res)
 		{
-			emplace(a_Key, a_Res);
+			emplace(a_key, a_res);
 		}
 		template <class... Args>
-		void emplace(const Key& a_Key, Args&&... a_ValueArgs)
+		void emplace(const Key& a_key, Args&&... a_value_args)
 		{
 			if (m_size > m_LoadCapacity)
 				grow();
 
 			m_size++;
-			const Hash t_Hash = Hash::MakeHash(a_Key) % m_capacity;
+			const Hash hash = Hash::MakeHash(a_key) % m_capacity;
 
 
-			for (size_t i = t_Hash; i < m_capacity; i++)
+			for (size_t i = hash; i < m_capacity; i++)
 			{
-				if (m_Hashes[i] == Hashmap_Specs::OL_EMPTY || m_Hashes[i] == Hashmap_Specs::OL_TOMBSTONE)
+				if (m_hashes[i] == Hashmap_Specs::OL_EMPTY || m_hashes[i] == Hashmap_Specs::OL_TOMBSTONE)
 				{
-					m_Hashes[i] = t_Hash;
-					m_Keys[i] = a_Key;
-					new (&m_Values[i]) Value(std::forward<Args>(a_ValueArgs)...);
+					m_hashes[i] = hash;
+					m_keys[i] = a_key;
+					new (&m_values[i]) Value(std::forward<Args>(a_value_args)...);
 					return;
 				}
 			}
 
 			//Loop again but then from the start and stop at the hash. 
-			for (size_t i = 0; i < t_Hash; i++)
+			for (size_t i = 0; i < hash; i++)
 			{
-				if (m_Hashes[i] == Hashmap_Specs::OL_EMPTY || m_Hashes[i] == Hashmap_Specs::OL_TOMBSTONE)
+				if (m_hashes[i] == Hashmap_Specs::OL_EMPTY || m_hashes[i] == Hashmap_Specs::OL_TOMBSTONE)
 				{
-					m_Hashes[i] = t_Hash;
-					m_Keys[i] = a_Key;
-					new (&m_Values[i]) Value(std::forward<Args>(a_ValueArgs)...);
+					m_hashes[i] = hash;
+					m_keys[i] = a_key;
+					new (&m_values[i]) Value(std::forward<Args>(a_value_args)...);
 					return;
 				}
 			}
 		}
-		Value* find(const Key& a_Key) const
+		Value* find(const Key& a_key) const
 		{
-			const Hash t_Hash = Hash::MakeHash(a_Key) % m_capacity;
+			const Hash hash = Hash::MakeHash(a_key) % m_capacity;
 
-			for (size_t i = t_Hash; i < m_capacity; i++)
+			for (size_t i = hash; i < m_capacity; i++)
 			{
-				if (m_Hashes[i] != Hashmap_Specs::OL_TOMBSTONE && KeyComp()(m_Keys[i], a_Key))
+				if (m_hashes[i] != Hashmap_Specs::OL_TOMBSTONE && KeyComp()(m_keys[i], a_key))
 				{
-					return &m_Values[i];
+					return &m_values[i];
 				}
 				//If you hit an empty return a nullptr.
-				if (m_Hashes[i] == Hashmap_Specs::OL_EMPTY)
+				if (m_hashes[i] == Hashmap_Specs::OL_EMPTY)
 				{
 					return nullptr;
 				}
 			}
 
 			//Loop again but then from the start and stop at the hash. 
-			for (size_t i = 0; i < t_Hash; i++)
+			for (size_t i = 0; i < hash; i++)
 			{
-				if (m_Hashes[i] != Hashmap_Specs::OL_TOMBSTONE && KeyComp()(m_Keys[i], a_Key))
+				if (m_hashes[i] != Hashmap_Specs::OL_TOMBSTONE && KeyComp()(m_keys[i], a_key))
 				{
-					return &m_Values[i];
+					return &m_values[i];
 				}
 				//If you hit an empty return a nullptr.
-				if (m_Hashes[i] == Hashmap_Specs::OL_EMPTY)
+				if (m_hashes[i] == Hashmap_Specs::OL_EMPTY)
 				{
 					return nullptr;
 				}
@@ -626,22 +626,22 @@ namespace BB
 			//Key does not exist.
 			return nullptr;
 		}
-		void erase(const Key& a_Key)
+		void erase(const Key& a_key)
 		{
-			const Hash t_Hash = Hash::MakeHash(a_Key) % m_capacity;
+			const Hash hash = Hash::MakeHash(a_key) % m_capacity;
 
-			for (size_t i = t_Hash; i < m_capacity; i++)
+			for (size_t i = hash; i < m_capacity; i++)
 			{
-				if (KeyComp()(m_Keys[i], a_Key))
+				if (KeyComp()(m_keys[i], a_key))
 				{
-					m_Hashes[i] = Hashmap_Specs::OL_TOMBSTONE;
+					m_hashes[i] = Hashmap_Specs::OL_TOMBSTONE;
 					//Call the destructor if it has one for the value.
 					if constexpr (!trivalDestructableValue)
-						m_Values[i].~Value();
+						m_values[i].~Value();
 					//Call the destructor if it has one for the key.
 					if constexpr (!trivalDestructableKey)
-						m_Keys[i].~Key();
-					m_Keys[i] = 0;
+						m_keys[i].~Key();
+					m_keys[i] = 0;
 
 					m_size--;
 					return;
@@ -649,18 +649,18 @@ namespace BB
 			}
 
 			//Loop again but then from the start and stop at the hash. 
-			for (size_t i = 0; i < t_Hash; i++)
+			for (size_t i = 0; i < hash; i++)
 			{
-				if (KeyComp()(m_Keys[i], a_Key))
+				if (KeyComp()(m_keys[i], a_key))
 				{
-					m_Hashes[i] = Hashmap_Specs::OL_TOMBSTONE;
+					m_hashes[i] = Hashmap_Specs::OL_TOMBSTONE;
 					//Call the destructor if it has one for the value.
 					if constexpr (!trivalDestructableValue)
-						m_Values[i].~Value();
+						m_values[i].~Value();
 					//Call the destructor if it has one for the key.
 					if constexpr (!trivalDestructableKey)
-						m_Keys[i].~Key();
-					m_Keys[i] = 0;
+						m_keys[i].~Key();
+					m_keys[i] = 0;
 
 					m_size--;
 					return;
@@ -672,14 +672,14 @@ namespace BB
 		{
 			for (size_t i = 0; i < m_capacity; i++)
 			{
-				if (m_Hashes[i] != Hashmap_Specs::OL_EMPTY)
+				if (m_hashes[i] != Hashmap_Specs::OL_EMPTY)
 				{
-					m_Hashes[i] = Hashmap_Specs::OL_EMPTY;
+					m_hashes[i] = Hashmap_Specs::OL_EMPTY;
 					if constexpr (!trivalDestructableValue)
-						m_Values[i].~Value();
+						m_values[i].~Value();
 					if constexpr (!trivalDestructableKey)
-						m_Keys[i].~Key();
-					m_Keys[i] = 0;
+						m_keys[i].~Key();
+					m_keys[i] = 0;
 				}
 			}
 			m_size = 0;
@@ -713,12 +713,12 @@ namespace BB
 			const size_t t_NewCapacity = LFCalculation(a_NewLoadCapacity, Hashmap_Specs::OL_LoadFactor);
 
 			//Allocate the new buffer.
-			const size_t t_MemorySize = (sizeof(Hash) + sizeof(Key) + sizeof(Value)) * t_NewCapacity;
-			void* t_Buffer = BBalloc(m_allocator, t_MemorySize);
+			const size_t memory_size = (sizeof(Hash) + sizeof(Key) + sizeof(Value)) * t_NewCapacity;
+			void* buffer = BBalloc(m_allocator, memory_size);
 
-			Hash* t_NewHashes = reinterpret_cast<Hash*>(t_Buffer);
-			Key* t_NewKeys = reinterpret_cast<Key*>(Pointer::Add(t_Buffer, sizeof(Hash) * t_NewCapacity));
-			Value* t_NewValues = reinterpret_cast<Value*>(Pointer::Add(t_Buffer, (sizeof(Hash) + sizeof(Key)) * t_NewCapacity));
+			Hash* t_NewHashes = reinterpret_cast<Hash*>(buffer);
+			Key* t_NewKeys = reinterpret_cast<Key*>(Pointer::Add(buffer, sizeof(Hash) * t_NewCapacity));
+			Value* t_NewValues = reinterpret_cast<Value*>(Pointer::Add(buffer, (sizeof(Hash) + sizeof(Key)) * t_NewCapacity));
 			for (size_t i = 0; i < t_NewCapacity; i++)
 			{
 				t_NewHashes[i] = Hashmap_Specs::OL_EMPTY;
@@ -726,29 +726,29 @@ namespace BB
 
 			for (size_t i = 0; i < m_capacity; i++)
 			{
-				if (m_Hashes[i] == i)
+				if (m_hashes[i] == i)
 				{
-					Key t_Key = m_Keys[i];
-					Hash t_Hash = Hash::MakeHash(t_Key) % t_NewCapacity;
+					Key t_Key = m_keys[i];
+					Hash hash = Hash::MakeHash(t_Key) % t_NewCapacity;
 
-					while (t_NewHashes[t_Hash] != Hashmap_Specs::OL_EMPTY)
+					while (t_NewHashes[hash] != Hashmap_Specs::OL_EMPTY)
 					{
-						t_Hash++;
-						if (t_Hash > t_NewCapacity)
-							t_Hash = 0;
+						hash++;
+						if (hash > t_NewCapacity)
+							hash = 0;
 					}
-					t_NewHashes[t_Hash] = t_Hash;
-					t_NewKeys[t_Hash] = t_Key;
-					t_NewValues[t_Hash] = m_Values[i];
+					t_NewHashes[hash] = hash;
+					t_NewKeys[hash] = t_Key;
+					t_NewValues[hash] = m_values[i];
 				}
 			}
 
 			//Remove all the elements and free the memory.
 			this->~OL_HashMap();
 
-			m_Hashes = t_NewHashes;
-			m_Keys = t_NewKeys;
-			m_Values = t_NewValues;
+			m_hashes = t_NewHashes;
+			m_keys = t_NewKeys;
+			m_values = t_NewValues;
 
 			m_capacity = t_NewCapacity;
 			m_LoadCapacity = a_NewLoadCapacity;
@@ -760,11 +760,209 @@ namespace BB
 		size_t m_LoadCapacity;
 
 		//All the elements.
-		Hash* m_Hashes;
-		Key* m_Keys;
-		Value* m_Values;
+		Hash* m_hashes;
+		Key* m_keys;
+		Value* m_values;
 
 		Allocator m_allocator;
 	};
-}
+
 #pragma endregion
+
+#pragma region Static Open Addressing Linear Probing (OL)
+	//Open addressing with Linear probing.
+	template<typename Key, typename Value, typename KeyComp = Standard_KeyComp<Key>>
+	class StaticOL_HashMap
+	{
+		static constexpr bool trivalDestructableValue = std::is_trivially_destructible_v<Value>;
+		static constexpr bool trivalDestructableKey = std::is_trivially_destructible_v<Key>;
+
+	public:
+		StaticOL_HashMap()
+		{
+			m_hashes = nullptr;
+			m_keys = nullptr;
+			m_values = nullptr;
+
+			m_capacity = 0;
+			m_size = 0;
+		}
+
+		void Init(Allocator a_allocator, const size_t a_size)
+		{
+			m_capacity = a_size;
+			m_size = 0;
+
+			const size_t memory_size = (sizeof(Hash) + sizeof(Key) + sizeof(Value)) * m_capacity;
+
+			void* buffer = BBalloc(a_allocator, memory_size);
+			m_hashes = reinterpret_cast<Hash*>(buffer);
+			m_keys = reinterpret_cast<Key*>(Pointer::Add(buffer, sizeof(Hash) * m_capacity));
+			m_values = reinterpret_cast<Value*>(Pointer::Add(buffer, (sizeof(Hash) + sizeof(Key)) * m_capacity));
+			for (size_t i = 0; i < m_capacity; i++)
+			{
+				m_hashes[i] = Hashmap_Specs::OL_EMPTY;
+			}
+		}
+		void Destroy()
+		{
+			if (m_hashes != nullptr)
+			{
+				//Call the destructor if it has one for the value.
+				if constexpr (!trivalDestructableValue)
+					for (size_t i = 0; i < m_capacity; i++)
+						if (m_hashes[i] != 0)
+							m_values[i].~Value();
+				//Call the destructor if it has one for the key.
+				if constexpr (!trivalDestructableKey)
+					for (size_t i = 0; i < m_capacity; i++)
+						if (m_hashes[i] != 0)
+							m_keys[i].~Key();
+			}
+		}
+
+		StaticOL_HashMap(const StaticOL_HashMap<Key, Value>& a_map) = delete;
+		StaticOL_HashMap(StaticOL_HashMap<Key, Value>&& a_map) = delete;
+		StaticOL_HashMap<Key, Value>& operator=(const StaticOL_HashMap<Key, Value>& a_rhs) = delete;
+		StaticOL_HashMap<Key, Value>& operator=(StaticOL_HashMap<Key, Value>&& a_rhs) = delete;
+
+		void insert(const Key& a_key, Value& a_res)
+		{
+			emplace(a_key, a_res);
+		}
+		template <class... Args>
+		void emplace(const Key& a_key, Args&&... a_value_args)
+		{
+			m_size++;
+			const Hash hash = Hash::MakeHash(a_key) % m_capacity;
+
+
+			for (size_t i = hash; i < m_capacity; i++)
+			{
+				if (m_hashes[i] == Hashmap_Specs::OL_EMPTY || m_hashes[i] == Hashmap_Specs::OL_TOMBSTONE)
+				{
+					m_hashes[i] = hash;
+					m_keys[i] = a_key;
+					new (&m_values[i]) Value(std::forward<Args>(a_value_args)...);
+					return;
+				}
+			}
+
+			//Loop again but then from the start and stop at the hash. 
+			for (size_t i = 0; i < hash; i++)
+			{
+				if (m_hashes[i] == Hashmap_Specs::OL_EMPTY || m_hashes[i] == Hashmap_Specs::OL_TOMBSTONE)
+				{
+					m_hashes[i] = hash;
+					m_keys[i] = a_key;
+					new (&m_values[i]) Value(std::forward<Args>(a_value_args)...);
+					return;
+				}
+			}
+		}
+		Value* find(const Key& a_key) const
+		{
+			const Hash hash = Hash::MakeHash(a_key) % m_capacity;
+
+			for (size_t i = hash; i < m_capacity; i++)
+			{
+				if (m_hashes[i] != Hashmap_Specs::OL_TOMBSTONE && KeyComp()(m_keys[i], a_key))
+				{
+					return &m_values[i];
+				}
+				//If you hit an empty return a nullptr.
+				if (m_hashes[i] == Hashmap_Specs::OL_EMPTY)
+				{
+					return nullptr;
+				}
+			}
+
+			//Loop again but then from the start and stop at the hash. 
+			for (size_t i = 0; i < hash; i++)
+			{
+				if (m_hashes[i] != Hashmap_Specs::OL_TOMBSTONE && KeyComp()(m_keys[i], a_key))
+				{
+					return &m_values[i];
+				}
+				//If you hit an empty return a nullptr.
+				if (m_hashes[i] == Hashmap_Specs::OL_EMPTY)
+				{
+					return nullptr;
+				}
+			}
+
+			//Key does not exist.
+			return nullptr;
+		}
+		void erase(const Key& a_key)
+		{
+			const Hash hash = Hash::MakeHash(a_key) % m_capacity;
+
+			for (size_t i = hash; i < m_capacity; i++)
+			{
+				if (KeyComp()(m_keys[i], a_key))
+				{
+					m_hashes[i] = Hashmap_Specs::OL_TOMBSTONE;
+					//Call the destructor if it has one for the value.
+					if constexpr (!trivalDestructableValue)
+						m_values[i].~Value();
+					//Call the destructor if it has one for the key.
+					if constexpr (!trivalDestructableKey)
+						m_keys[i].~Key();
+					m_keys[i] = 0;
+
+					m_size--;
+					return;
+				}
+			}
+
+			//Loop again but then from the start and stop at the hash. 
+			for (size_t i = 0; i < hash; i++)
+			{
+				if (KeyComp()(m_keys[i], a_key))
+				{
+					m_hashes[i] = Hashmap_Specs::OL_TOMBSTONE;
+					//Call the destructor if it has one for the value.
+					if constexpr (!trivalDestructableValue)
+						m_values[i].~Value();
+					//Call the destructor if it has one for the key.
+					if constexpr (!trivalDestructableKey)
+						m_keys[i].~Key();
+					m_keys[i] = 0;
+
+					m_size--;
+					return;
+				}
+			}
+			BB_ASSERT(false, "OL_Hashmap remove called but key not found!");
+		}
+		void clear()
+		{
+			for (size_t i = 0; i < m_capacity; i++)
+			{
+				if (m_hashes[i] != Hashmap_Specs::OL_EMPTY)
+				{
+					m_hashes[i] = Hashmap_Specs::OL_EMPTY;
+					if constexpr (!trivalDestructableValue)
+						m_values[i].~Value();
+					if constexpr (!trivalDestructableKey)
+						m_keys[i].~Key();
+					m_keys[i] = 0;
+				}
+			}
+			m_size = 0;
+		}
+
+		size_t size() const { return m_size; }
+	private:
+		//no load capacity here, we don't resize.
+		size_t m_size;
+		size_t m_capacity;
+
+		//All the elements.
+		Hash* m_hashes;
+		Key* m_keys;
+		Value* m_values;
+	};
+#pragma region //Static Open Addressing Linear Probing (OL)
+}

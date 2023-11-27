@@ -79,6 +79,7 @@ namespace BB
 		{
 			const char* name;
 			const char* path;
+			Slice<ShaderEffectHandle> shader_effects;
 		};
 
 		struct AsyncAsset
@@ -89,7 +90,7 @@ namespace BB
 			{
 				TextureLoadFromMemory texture_memory;
 				TextureLoadFromDisk texture_disk;
-				MeshLoadFromDisk mesh_disk;
+				MeshLoadFromDisk mesh_disk{};
 			};
 		};
 
@@ -97,7 +98,7 @@ namespace BB
 
 		const Image* LoadImageDisk(const char* a_path, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view);
 		const Image* LoadImageMemory(const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view);
-		const Model* LoadglTFModel(Allocator a_temp_allocator, const char* a_path, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view);
+		const Model* LoadglTFModel(Allocator a_temp_allocator, const MeshLoadFromDisk& a_mesh_op, const RCommandList a_list, UploadBufferView& a_upload_view);
 
 		const Model* FindModel(const char* a_path);
 
