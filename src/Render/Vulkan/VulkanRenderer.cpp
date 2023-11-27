@@ -656,7 +656,7 @@ static inline VkShaderStageFlags ShaderStageFlags(const SHADER_STAGE a_stage)
 
 static inline VkShaderStageFlags ShaderStageFlagsFromFlags(const SHADER_STAGE_FLAGS a_stages)
 {
-	if ((static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::ALL) & a_stages) == a_stages)
+	if (static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::ALL) == a_stages)
 	{
 		return VK_SHADER_STAGE_ALL;
 	}
@@ -1680,7 +1680,8 @@ RPipelineLayout Vulkan::CreatePipelineLayout(const RDescriptorLayout* a_descript
 		else
 		{
 			VkPipelineLayout pipe_layout;
-			vkCreatePipelineLayout(s_vulkan_inst->device, &create_info, nullptr, &pipe_layout);
+			VKASSERT(vkCreatePipelineLayout(s_vulkan_inst->device, &create_info, nullptr, &pipe_layout),
+				"Failed to create vulkan pipeline layout");
 
 			s_vulkan_inst->pipeline_layout_cache.insert(pipeline_hash, pipe_layout);
 
@@ -1698,7 +1699,8 @@ RPipelineLayout Vulkan::CreatePipelineLayout(const RDescriptorLayout* a_descript
 		else
 		{
 			VkPipelineLayout pipe_layout;
-			vkCreatePipelineLayout(s_vulkan_inst->device, &create_info, nullptr, &pipe_layout);
+			VKASSERT(vkCreatePipelineLayout(s_vulkan_inst->device, &create_info, nullptr, &pipe_layout),
+				"Failed to create vulkan pipeline layout");
 
 			s_vulkan_inst->pipeline_layout_cache.insert(pipeline_hash, pipe_layout);
 

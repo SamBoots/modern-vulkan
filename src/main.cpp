@@ -127,7 +127,7 @@ int main(int argc, char** argv)
 		gltf_model = Asset::FindModel("../resources/models/Duck.gltf");
 	}
 
-	InputEvent input_events[INPUT_EVENbuffer_MAX]{};
+	InputEvent input_events[INPUT_EVENT_BUFFER_MAX]{};
 	size_t input_event_count = 0;
 
 	bool freeze_cam = false;
