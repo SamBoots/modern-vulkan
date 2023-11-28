@@ -157,11 +157,11 @@ void Asset::LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_t
 				LoadglTFModel(load_async_allocator, task.mesh_disk, cmd_list, upload_buffer_view);
 				break;
 			case ASYNC_LOAD_TYPE::MEMORY:
-				BB_ASSERT(false, "no memory load for meshes yet.");
+				LoadMeshFromMemory(task.mesh_memory, cmd_list, upload_buffer_view);
 				break;
 			}
-		}
 			break;
+		}
 		case ASYNC_ASSET_TYPE::TEXTURE:
 		{
 			switch (task.load_type)
@@ -174,7 +174,7 @@ void Asset::LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_t
 				break;
 			}
 		}
-			break;
+		break;
 		}
 	}
 	cmd_pool.EndCommandList(cmd_list);
@@ -407,7 +407,7 @@ static void LoadglTFNode(Allocator a_temp_allocator, Slice<ShaderEffectHandle> a
 		create_mesh.vertices = Slice(vertices, vertex_count);
 		create_mesh.indices = Slice(indices, index_count);
 
-		mod_node.mesh_handle = CreateMesh(create_mesh);
+		mod_node.mesh_handle = CreateMesh(a_list, create_mesh, a_upload_view);
 	}
 	else
 		mod_node.mesh_handle = MeshHandle(BB_INVALID_HANDLE_64);
@@ -425,9 +425,7 @@ static void LoadglTFNode(Allocator a_temp_allocator, Slice<ShaderEffectHandle> a
 
 const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const MeshLoadFromDisk& a_mesh_op, const RCommandList a_list, UploadBufferView& a_upload_view)
 {
-	AssetHash asset_hash = CreateAssetHash(StringHash(a_mesh_op.path), ASSET_TYPE::MODEL);
-
-	Model* model = nullptr;
+	const AssetHash asset_hash = CreateAssetHash(StringHash(a_mesh_op.path), ASSET_TYPE::MODEL);
 	
 	if (AssetSlot* slot = s_asset_manager.asset_map.find(asset_hash.full_hash))
 	{
@@ -461,7 +459,7 @@ const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const MeshLoadFrom
 	const uint32_t linear_node_count = static_cast<uint32_t>(gltf_data->nodes_count);
 
 	//optimize the memory space with one allocation for the entire model
-	model = BBnew(s_asset_manager.allocator, Model);
+	Model* model = BBnew(s_asset_manager.allocator, Model);
 	model->linear_nodes = BBnewArr(s_asset_manager.allocator, linear_node_count, Model::Node);
 	model->primitives = BBnewArr(s_asset_manager.allocator, primitive_count, Model::Primitive);
 	//for now this is going to be the root node, which is 0.
@@ -492,9 +490,57 @@ const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const MeshLoadFrom
 	return model;
 }
 
-const Model* Asset::FindModel(const char* a_path)
+const Model* Asset::LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, const RCommandList a_list, UploadBufferView& a_upload_view)
+{
+	const AssetHash asset_hash = CreateAssetHash(StringHash(a_mesh_op.name), ASSET_TYPE::MODEL);
+
+	if (AssetSlot* slot = s_asset_manager.asset_map.find(asset_hash.full_hash))
+	{
+		return slot->model;
+	}
+
+	CreateMeshInfo mesh_info;
+	mesh_info.vertices = a_mesh_op.vertices;
+	mesh_info.indices = a_mesh_op.indices;
+
+	//hack shit way, but a single mesh just has one primitive to draw.
+	Model* model = BBnew(s_asset_manager.allocator, Model);
+	model->linear_nodes = BBnewArr(s_asset_manager.allocator, 1, Model::Node);
+	model->primitives = BBnewArr(s_asset_manager.allocator, 1, Model::Primitive);
+	model->primitive_count = 1;
+	model->root_node_count = 1;
+	model->root_nodes = &model->linear_nodes[0];
+
+	model->linear_nodes[0].child_count = 0;
+	model->linear_nodes[0].mesh_handle = CreateMesh(a_list, mesh_info, a_upload_view);
+	model->linear_nodes[0].primitives = model->primitives;
+	model->linear_nodes[0].primitive_count = model->primitive_count;
+	model->linear_nodes[0].transform = Float4x4Identity();
+
+	AssetSlot asset;
+	asset.hash = asset_hash;
+	asset.path = FindOrCreateString(a_mesh_op.name);
+	asset.model = model;
+
+	s_asset_manager.asset_map.insert(asset.hash.full_hash, asset);
+
+	model->asset_handle = AssetHandle(asset.hash.full_hash);
+	return model;
+}
+
+const Model* Asset::FindModelByPath(const char* a_path)
 {
 	AssetHash asset_hash = CreateAssetHash(StringHash(a_path), ASSET_TYPE::MODEL);
+	if (AssetSlot* slot = s_asset_manager.asset_map.find(asset_hash.full_hash))
+	{
+		return slot->model;
+	}
+	return nullptr;
+}
+
+const Model* Asset::FindModelByName(const char* a_name)
+{
+	AssetHash asset_hash = CreateAssetHash(StringHash(a_name), ASSET_TYPE::MODEL);
 	if (AssetSlot* slot = s_asset_manager.asset_map.find(asset_hash.full_hash))
 	{
 		return slot->model;

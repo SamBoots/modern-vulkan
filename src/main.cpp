@@ -112,7 +112,9 @@ int main(int argc, char** argv)
 		default_mat = CreateMaterial(material_info);
 	}
 
-	MeshHandle quad_mesh;
+	const Model* quad_mesh;
+	const Model* gltf_model = nullptr;
+	BBStackAllocatorScope(main_allocator)
 	{
 		//Do some simpel model loading and drawing.
 		Vertex vertices[4];
@@ -124,24 +126,23 @@ int main(int argc, char** argv)
 		uint32_t indices[] = { 0, 1, 2, 2, 3, 0 };
 
 
-		CreateMeshInfo quad_create_info{};
-		quad_create_info.vertices = Slice(vertices, _countof(vertices));
-		quad_create_info.indices = Slice(indices, _countof(indices));
-		quad_mesh = CreateMesh(quad_create_info);
-	}
-
-	const Model* gltf_model = nullptr;
-	BBStackAllocatorScope(main_allocator)
-	{
-		Asset::AsyncAsset async_assets[1]{};
+		Asset::AsyncAsset async_assets[2]{};
 		async_assets[0].asset_type = Asset::ASYNC_ASSET_TYPE::MODEL;
 		async_assets[0].load_type = Asset::ASYNC_LOAD_TYPE::DISK;
 		async_assets[0].mesh_disk.name = "duck gltf";
 		async_assets[0].mesh_disk.path = "../resources/models/Duck.gltf";
 		async_assets[0].mesh_disk.shader_effects = Slice(shader_effects, _countof(shader_effects));
-		Asset::LoadASync(Slice(async_assets, 1));
 
-		gltf_model = Asset::FindModel("../resources/models/Duck.gltf");
+		async_assets[1].asset_type = Asset::ASYNC_ASSET_TYPE::MODEL;
+		async_assets[1].load_type = Asset::ASYNC_LOAD_TYPE::MEMORY;
+		async_assets[1].mesh_memory.name = "basic quad";
+		async_assets[1].mesh_memory.vertices = Slice(vertices, _countof(vertices));
+		async_assets[1].mesh_memory.indices = Slice(indices, _countof(indices));
+		async_assets[1].mesh_memory.shader_effects = Slice(shader_effects, _countof(shader_effects));
+		Asset::LoadASync(Slice(async_assets, _countof(async_assets)));
+
+		gltf_model = Asset::FindModelByPath(async_assets[0].mesh_disk.path);
+		quad_mesh = Asset::FindModelByName(async_assets[1].mesh_memory.name);
 	}
 
 	InputEvent input_events[INPUT_EVENT_BUFFER_MAX]{};
@@ -224,8 +225,11 @@ int main(int argc, char** argv)
 				const float4x4 root_matrix = transform_pool.GetTransform(transform_gltf).CreateMatrix();
 				DrawglTFNode(gltf_model->root_nodes[i], root_matrix);
 			}
-			//draw stuff here!
-			DrawMesh(quad_mesh, transform_pool.GetTransform(transform_test).CreateMatrix(), 0, 6, default_mat);
+			{
+				const float4x4 root_matrix = transform_pool.GetTransform(transform_test).CreateMatrix();
+				DrawMesh(quad_mesh->root_nodes[0].mesh_handle, root_matrix, quad_mesh->primitives[0].start_index, quad_mesh->primitives[0].index_count, default_mat);
+			}
+
 
 			EndFrame();
 		}

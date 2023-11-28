@@ -125,7 +125,7 @@ namespace BB
 	WriteableGPUBufferView AllocateFromWritableVertexBuffer(const size_t a_size_in_bytes);
 	WriteableGPUBufferView AllocateFromWritableIndexBuffer(const size_t a_size_in_bytes);
 
-	const MeshHandle CreateMesh(const CreateMeshInfo& a_create_info);
+	const MeshHandle CreateMesh(const RCommandList a_list, const CreateMeshInfo& a_create_info, UploadBufferView& a_upload_view);
 	void FreeMesh(const MeshHandle a_mesh);
 
 	bool CreateShaderEffect(Allocator a_temp_allocator, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* a_handles);

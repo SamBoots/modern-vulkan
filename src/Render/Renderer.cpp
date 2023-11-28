@@ -961,7 +961,7 @@ bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		vertex_buffer.name = "global vertex buffer";
 		vertex_buffer.size = mbSize * 64;
 		vertex_buffer.type = BUFFER_TYPE::STORAGE; //using byteaddressbuffer to get the vertices
-		vertex_buffer.host_writable = true;
+		vertex_buffer.host_writable = false;
 
 		s_render_inst->vertex_buffer.buffer = Vulkan::CreateBuffer(vertex_buffer);
 		s_render_inst->vertex_buffer.size = static_cast<uint32_t>(vertex_buffer.size);
@@ -1006,7 +1006,7 @@ bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		index_buffer.name = "global index buffer";
 		index_buffer.size = mbSize * 64;
 		index_buffer.type = BUFFER_TYPE::INDEX;
-		index_buffer.host_writable = true;
+		index_buffer.host_writable = false;
 
 		s_render_inst->index_buffer.buffer = Vulkan::CreateBuffer(index_buffer);
 		s_render_inst->index_buffer.size = static_cast<uint32_t>(index_buffer.size);
@@ -1314,39 +1314,35 @@ bool BB::ExecuteTransferCommands(const BB::Slice<CommandPool> a_cmd_pools, const
 	return ExecuteGraphicCommands(a_cmd_pools, a_upload_views);
 }
 
-const MeshHandle BB::CreateMesh(const CreateMeshInfo& a_create_info)
+const MeshHandle BB::CreateMesh(const RCommandList a_list, const CreateMeshInfo& a_create_info, UploadBufferView& a_upload_view)
 {
 	Mesh mesh;
 	mesh.vertex_buffer = AllocateFromVertexBuffer(a_create_info.vertices.sizeInBytes());
 	mesh.index_buffer = AllocateFromIndexBuffer(a_create_info.indices.sizeInBytes());
 
-	void* vert = Vulkan::MapBufferMemory(mesh.vertex_buffer.buffer);
-	memcpy(Pointer::Add(vert, mesh.vertex_buffer.offset), a_create_info.vertices.data(), a_create_info.vertices.sizeInBytes());
-	Vulkan::UnmapBufferMemory(mesh.vertex_buffer.buffer);
+	uint32_t vertex_offset;
+	a_upload_view.AllocateAndMemoryCopy(a_create_info.vertices.data(), a_create_info.vertices.sizeInBytes(), vertex_offset);
+	uint32_t index_offset;
+	a_upload_view.AllocateAndMemoryCopy(a_create_info.indices.data(), a_create_info.indices.sizeInBytes(), index_offset);
 
-	void* indices = Vulkan::MapBufferMemory(mesh.index_buffer.buffer);
-	memcpy(Pointer::Add(indices, mesh.index_buffer.offset), a_create_info.indices.data(), a_create_info.indices.sizeInBytes());
-	Vulkan::UnmapBufferMemory(mesh.index_buffer.buffer);
+	RenderCopyBufferRegion copy_regions[2];
+	RenderCopyBuffer copy_buffer_infos[2];
 
-	//copy thing
-	//RenderCopyBufferRegion copy_regions[2];
-	//RenderCopyBuffer copy_buffer_infos[2];
+	copy_buffer_infos[0].dst = mesh.vertex_buffer.buffer;
+	copy_buffer_infos[0].src = a_upload_view.GetBufferHandle();
+	copy_regions[0].size = mesh.vertex_buffer.size;
+	copy_regions[0].dst_offset = mesh.vertex_buffer.offset;
+	copy_regions[0].src_offset = vertex_offset;
+	copy_buffer_infos[0].regions = Slice(&copy_regions[0], 1);
 
-	//copy_buffer_infos[0].dst = mesh.vertex_buffer.buffer;
-	//copy_buffer_infos[0].src = ;
-	//copy_regions[0].size = mesh.vertex_buffer.size;
-	//copy_regions[0].dst_offset = mesh.vertex_buffer.offset;
-	//copy_regions[0].src_offset;
-	//copy_buffer_infos[0].regions = Slice(&copy_regions[0], 1);
+	copy_buffer_infos[1].dst = mesh.index_buffer.buffer;
+	copy_buffer_infos[1].src = a_upload_view.GetBufferHandle();
+	copy_regions[1].size = mesh.index_buffer.size;
+	copy_regions[1].dst_offset = mesh.index_buffer.offset;
+	copy_regions[1].src_offset = index_offset;
+	copy_buffer_infos[1].regions = Slice(&copy_regions[1], 1);
 
-	//copy_buffer_infos[1].dst = mesh.index_buffer.buffer;
-	//copy_buffer_infos[1].src = ;
-	//copy_regions[1].size = mesh.index_buffer.size;
-	//copy_regions[1].dst_offset = mesh.index_buffer.offset;
-	//copy_regions[1].src_offset;
-	//copy_buffer_infos[1].regions = Slice(&copy_regions[1], 1);
-
-	//Vulkan::CopyBuffers(, copy_buffer_infos, 2);
+	Vulkan::CopyBuffers(a_list, copy_buffer_infos, 2);
 
 	return MeshHandle(s_render_inst->mesh_map.insert(mesh).handle);
 }

@@ -2,10 +2,11 @@
 #include "Rendererfwd.hpp"
 #include "Utils/Slice.h"
 
+//All this shit is jank, we return pointers of models and the model structs suck. Find a better way.
+
 namespace BB
 {
 	using AssetHandle = FrameworkHandle<struct AssetHandleTag>;
-
 	class BBImage;
 	class UploadBufferView;
 	struct Image
@@ -75,6 +76,14 @@ namespace BB
 			const char* path;
 		};
 
+		struct MeshLoadFromMemory
+		{
+			const char* name;
+			Slice<ShaderEffectHandle> shader_effects;
+			Slice<Vertex> vertices;
+			Slice<uint32_t> indices;
+		};
+
 		struct MeshLoadFromDisk
 		{
 			const char* name;
@@ -90,7 +99,9 @@ namespace BB
 			{
 				TextureLoadFromMemory texture_memory;
 				TextureLoadFromDisk texture_disk;
-				MeshLoadFromDisk mesh_disk{};
+				MeshLoadFromMemory mesh_memory{};
+				MeshLoadFromDisk mesh_disk;
+
 			};
 		};
 
@@ -99,8 +110,10 @@ namespace BB
 		const Image* LoadImageDisk(const char* a_path, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view);
 		const Image* LoadImageMemory(const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view);
 		const Model* LoadglTFModel(Allocator a_temp_allocator, const MeshLoadFromDisk& a_mesh_op, const RCommandList a_list, UploadBufferView& a_upload_view);
+		const Model* LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, const RCommandList a_list, UploadBufferView& a_upload_view);
 
-		const Model* FindModel(const char* a_path);
+		const Model* FindModelByPath(const char* a_path);
+		const Model* FindModelByName(const char* a_name);
 
 		void FreeAsset(const AssetHandle a_asset_handle);
 	};
