@@ -51,17 +51,6 @@ namespace BB
 		ENUM_SIZE
 	};
 
-	enum class BUFFER_TYPE : uint32_t
-	{
-		UPLOAD,
-		STORAGE,
-		UNIFORM,
-		VERTEX,
-		INDEX,
-
-		ENUM_SIZE
-	};
-
 	enum class DESCRIPTOR_TYPE : uint32_t
 	{
 		READONLY_CONSTANT, //CBV or uniform buffer
@@ -80,14 +69,6 @@ namespace BB
 		D24_UNORM_S8_UINT,
 
 		ENUM_SIZE
-	};
-
-	struct BufferCreateInfo
-	{
-		const char* name = nullptr;
-		uint64_t size = 0;
-		BUFFER_TYPE type{};
-		bool host_writable = false;
 	};
 
 	enum class IMAGE_TILING : uint32_t
@@ -172,7 +153,7 @@ namespace BB
 
 	struct BufferView
 	{
-		RBuffer buffer;
+		GPUBuffer buffer;
 		uint64_t size;
 		uint64_t offset;
 	};
@@ -186,8 +167,8 @@ namespace BB
 
 	struct RenderCopyBuffer
 	{
-		RBuffer dst;
-		RBuffer src;
+		GPUBuffer dst;
+		GPUBuffer src;
 		Slice<RenderCopyBufferRegion> regions;
 	};
 
@@ -251,7 +232,7 @@ namespace BB
 
 	struct PipelineBarrierBufferInfo
 	{
-		RBuffer buffer{};
+		GPUBuffer buffer{};
 		uint32_t size = 0;
 		uint32_t offset = 0;
 		BARRIER_PIPELINE_STAGE src_stage{};
@@ -294,7 +275,7 @@ namespace BB
 
 	struct RenderCopyBufferToImageInfo
 	{
-		RBuffer src_buffer;
+		GPUBuffer src_buffer;
 		uint32_t src_offset;
 
 		RImage dst_image;

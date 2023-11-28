@@ -24,7 +24,7 @@ class GPUTextureManager
 public:
 	void Init(const RCommandList a_list, UploadBufferView& a_upload_view);
 
-	const RTexture UploadTexture(const UploadImageInfo& a_upload_info, const RCommandList a_list, UploadBufferView& a_upload_buffer);
+	const RTexture UploadTexture(const RCommandList a_list, const UploadImageInfo& a_upload_info, UploadBufferView& a_upload_buffer);
 	void FreeTexture(const RTexture a_texture);
 
 private:
@@ -61,7 +61,7 @@ namespace BB
 			const size_t upload_buffer_size = a_size_per_pool * m_upload_view_count;
 			BB_ASSERT(upload_buffer_size < UINT32_MAX, "we use uint32_t for offset and size but the uploadbuffer size is bigger then UINT32_MAX");
 
-			BufferCreateInfo buffer_info;
+			GPUBufferCreateInfo buffer_info;
 			buffer_info.type = BUFFER_TYPE::UPLOAD;
 			buffer_info.size = upload_buffer_size;
 			buffer_info.host_writable = true;
@@ -170,7 +170,7 @@ namespace BB
 		}
 
 	private:
-		RBuffer m_upload_buffer;			  //8
+		GPUBuffer m_upload_buffer;			  //8
 		void* m_upload_mem_start;			  //16
 
 		UploadBufferView* m_views;			  //24
@@ -464,13 +464,13 @@ struct RenderInterface_inst
 	DescriptorAllocation global_descriptor_allocation;
 	struct VertexBuffer
 	{
-		RBuffer buffer;
+		GPUBuffer buffer;
 		uint32_t size;
 		uint32_t used;
 	} vertex_buffer;
 	struct IndexBuffer
 	{
-		RBuffer buffer;
+		GPUBuffer buffer;
 		uint32_t size;
 		uint32_t used;
 	} index_buffer;
@@ -479,7 +479,7 @@ struct RenderInterface_inst
 	{
 		struct UniformBuffer
 		{
-			RBuffer buffer;
+			GPUBuffer buffer;
 			uint32_t size;
 			uint32_t used;
 		} per_frame_buffer;
@@ -660,7 +660,7 @@ void GPUTextureManager::Init(const RCommandList a_list, UploadBufferView& a_uplo
 	textures[MAX_TEXTURES - 1].next_free = UINT32_MAX;
 }
 
-const RTexture GPUTextureManager::UploadTexture(const UploadImageInfo& a_upload_info, const RCommandList a_list, UploadBufferView& a_upload_buffer)
+const RTexture GPUTextureManager::UploadTexture(const RCommandList a_list, const UploadImageInfo& a_upload_info, UploadBufferView& a_upload_buffer)
 {
 	OSAcquireSRWLockWrite(&lock);
 	const RTexture texture_slot = RTexture(next_free);
@@ -877,7 +877,7 @@ bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 	depth_buffer = Vulkan::CreateDepthBuffer(depth_create_info);
 
 	{
-		BufferCreateInfo vertex_buffer;
+		GPUBufferCreateInfo vertex_buffer;
 		vertex_buffer.name = "global vertex buffer";
 		vertex_buffer.size = mbSize * 64;
 		vertex_buffer.type = BUFFER_TYPE::STORAGE; //using byteaddressbuffer to get the vertices
@@ -906,7 +906,7 @@ bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		Vulkan::WriteDescriptors(vertex_descriptor_info);
 	}
 	{
-		BufferCreateInfo index_buffer;
+		GPUBufferCreateInfo index_buffer;
 		index_buffer.name = "global index buffer";
 		index_buffer.size = mbSize * 64;
 		index_buffer.type = BUFFER_TYPE::INDEX;
@@ -921,7 +921,7 @@ bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 	BBStackAllocatorScope(a_stack_allocator)
 	{
 		//per frame stuff
-		BufferCreateInfo per_frame_buffer_info;
+		GPUBufferCreateInfo per_frame_buffer_info;
 		per_frame_buffer_info.name = "per_frame_buffer";
 		per_frame_buffer_info.size = mbSize * 4;
 		per_frame_buffer_info.type = BUFFER_TYPE::STORAGE;
@@ -991,11 +991,11 @@ bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		image_info.bit_count = 32;
 		image_info.pixels = &white;
 
-		s_render_inst->white = UploadTexture(image_info, list, startup_upload_view);
+		s_render_inst->white = UploadTexture(list, image_info, startup_upload_view);
 
 		image_info.name = "black";
 		image_info.pixels = &black;
-		s_render_inst->black = UploadTexture(image_info, list, startup_upload_view);
+		s_render_inst->black = UploadTexture(list, image_info, startup_upload_view);
 	}
 
 
@@ -1245,7 +1245,6 @@ bool BB::CreateShaderEffect(Allocator a_temp_allocator, const Slice<CreateShader
 	PushConstantRange push_constant;
 	push_constant.stages = SHADER_STAGE::ALL;
 	push_constant.offset = 0;
-	push_constant.size = sizeof(ShaderIndices);
 
 	ShaderEffect* shader_effects = BBnewArr(a_temp_allocator, a_create_infos.size(), ShaderEffect);
 	ShaderCode* shader_codes = BBnewArr(a_temp_allocator, a_create_infos.size(), ShaderCode);
@@ -1253,6 +1252,7 @@ bool BB::CreateShaderEffect(Allocator a_temp_allocator, const Slice<CreateShader
 
 	for (size_t i = 0; i < a_create_infos.size(); i++)
 	{
+		push_constant.size = a_create_infos[i].push_constant_space;
 		shader_effects[i].pipeline_layout = Vulkan::CreatePipelineLayout(desc_layouts, _countof(desc_layouts), &push_constant, 1);
 
 		shader_codes[i] = CompileShader(
@@ -1339,14 +1339,49 @@ void BB::FreeMaterial(const MaterialHandle a_material)
 }
 
 //maybe not handle a_upload_view_offset
-const RTexture BB::UploadTexture(const UploadImageInfo& a_upload_info, const RCommandList a_list, UploadBufferView& a_upload_view)
+const RTexture BB::UploadTexture(const RCommandList a_list, const UploadImageInfo& a_upload_info, UploadBufferView& a_upload_view)
 {
-	return s_render_inst->texture_manager.UploadTexture(a_upload_info, a_list, a_upload_view);
+	return s_render_inst->texture_manager.UploadTexture(a_list, a_upload_info, a_upload_view);
 }
 
 void BB::FreeTexture(const RTexture a_texture)
 {
 	return s_render_inst->texture_manager.FreeTexture(a_texture);
+}
+
+const GPUBuffer BB::CreateGPUBuffer(const GPUBufferCreateInfo& a_create_info)
+{
+	return Vulkan::CreateBuffer(a_create_info);
+}
+
+void BB::FreeGPUBuffer(const GPUBuffer a_buffer)
+{
+	Vulkan::FreeBuffer(a_buffer);
+}
+
+void* BB::MapGPUBuffer(const GPUBuffer a_buffer)
+{
+	return Vulkan::MapBufferMemory(a_buffer);
+}
+
+void BB::UnmapGPUBuffer(const GPUBuffer a_buffer)
+{
+	Vulkan::UnmapBufferMemory(a_buffer);
+}
+
+void BB::StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_start_pass)
+{
+	Vulkan::StartRendering(a_list, a_start_pass, s_render_inst->render_io.frame_index);
+}
+
+void BB::EndRenderPass(const RCommandList a_list, const EndRenderingInfo& a_end_pass)
+{
+	Vulkan::EndRendering(a_list, a_end_pass, s_render_inst->render_io.frame_index);
+}
+
+void BB::SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor)
+{
+	Vulkan::SetScissor(a_list, a_scissor);
 }
 
 void BB::DrawMesh(const MeshHandle a_mesh, const float4x4& a_transform, const uint32_t a_index_start, const uint32_t a_index_count, const MaterialHandle a_material)

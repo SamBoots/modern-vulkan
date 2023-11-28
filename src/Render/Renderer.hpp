@@ -31,6 +31,7 @@ namespace BB
 		const char* shader_entry;
 		SHADER_STAGE stage;
 		SHADER_STAGE_FLAGS next_stages;
+		uint32_t push_constant_space;
 	};
 
 	struct CreateMaterialInfo
@@ -87,11 +88,11 @@ namespace BB
 			return true;
 		}
 
-		RBuffer GetBufferHandle() const { return upload_buffer_handle; }
+		GPUBuffer GetBufferHandle() const { return upload_buffer_handle; }
 		uint32_t UploadBufferViewOffset() const { return offset; }
 
 	private:
-		RBuffer upload_buffer_handle;	//8
+		GPUBuffer upload_buffer_handle;	//8
 		void* view_mem_start;			//16
 		//I suppose we never make an upload buffer bigger then 2-4 gb? test for it on uploadbufferpool creation
 		uint32_t offset;				//20
@@ -128,8 +129,19 @@ namespace BB
 	const MaterialHandle CreateMaterial(const CreateMaterialInfo& a_create_info);
 	void FreeMaterial(const MaterialHandle a_material);
 
-	const RTexture UploadTexture(const UploadImageInfo& a_upload_info, const RCommandList a_list, UploadBufferView& a_upload_view);
+	const RTexture UploadTexture(const RCommandList a_list, const UploadImageInfo& a_upload_info, UploadBufferView& a_upload_view);
 	void FreeTexture(const RTexture a_texture);
+
+	const GPUBuffer CreateGPUBuffer(const GPUBufferCreateInfo& a_create_info);
+	void FreeGPUBuffer(const GPUBuffer a_buffer);
+	void* MapGPUBuffer(const GPUBuffer a_buffer);
+	void UnmapGPUBuffer(const GPUBuffer a_buffer);
+
+
+	void SetPushConstants(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_offset, const uint32_t a_size, const void* a_data);
+	void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_start_pass);
+	void EndRenderPass(const RCommandList a_list, const EndRenderingInfo& a_end_pass);
+	void SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor);
 
 	void DrawMesh(const MeshHandle a_mesh, const float4x4& a_transform, const uint32_t a_index_start, const uint32_t a_index_count, const MaterialHandle a_material);
 

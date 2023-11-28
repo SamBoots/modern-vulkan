@@ -33,6 +33,13 @@ namespace BB
         float3 color; //44 
     };
 
+    struct Vertex2D
+    {
+        float2 position;
+        float2 uv;
+        float4 color;
+    };
+
     struct SceneInfo
     {
         float4x4 view;
@@ -51,13 +58,23 @@ namespace BB
         float4x4 inverse;
     };
 
+    //could make the size the same for shaderindices and shaderindices2d so that the pushconstant pipelinelayout is the same.....
     struct ShaderIndices
     {
-        uint vertex_buffer_offset;
-        uint transform_index;
-        uint albedo_texture;
-        uint normal_texture;
+        uint vertex_buffer_offset;  //4
+        uint transform_index;       //8
+        uint albedo_texture;        //12
+        uint normal_texture;        //16
     };
+    
+    struct ShaderIndices2D
+    {
+        uint vertex_buffer_offset;  //4
+        uint albedo_texture;        //8
+        float2 rect_scale;          //16
+        float2 translate;           //24
+    };
+
 #ifndef __HLSL_VERSION
 }
 #endif //__HLSL_VERSION

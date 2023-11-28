@@ -20,7 +20,7 @@ namespace BB
 	using RCommandPool = FrameworkHandle<struct RCommandPoolTag>;
 	using RCommandList = FrameworkHandle<struct RCommandListTag>;
 
-	using RBuffer = FrameworkHandle<struct RBufferTag>;
+	using GPUBuffer = FrameworkHandle<struct RBufferTag>;
 	using RTexture = FrameworkHandle32Bit<struct RTextureTag>;
 	using RDepthBuffer = FrameworkHandle<struct RDepthBufferTag>;
 
@@ -97,5 +97,24 @@ namespace BB
 	{
 		int2 offset;
 		uint2 extent;
+	};
+
+	enum class BUFFER_TYPE : uint32_t
+	{
+		UPLOAD,
+		STORAGE,
+		UNIFORM,
+		VERTEX,
+		INDEX,
+
+		ENUM_SIZE
+	};
+
+	struct GPUBufferCreateInfo
+	{
+		const char* name = nullptr;
+		uint64_t size = 0;
+		BUFFER_TYPE type{};
+		bool host_writable = false;
 	};
 }

@@ -526,7 +526,7 @@ struct Vulkan_inst
 	VulkanDescriptorLinearBuffer* pdescriptor_buffer;
 
 	StaticOL_HashMap<uint64_t, VkPipelineLayout> pipeline_layout_cache;
-	StaticSlotmap<VulkanBuffer, RBuffer> buffers;
+	StaticSlotmap<VulkanBuffer, GPUBuffer> buffers;
 	StaticSlotmap<VulkanImage, RImage> images;
 	StaticSlotmap<VulkanDepth, RDepthBuffer> depth_images;
 	
@@ -1302,7 +1302,7 @@ void Vulkan::FreeCommandPool(const RCommandPool a_pool)
 	vkDestroyCommandPool(s_vulkan_inst->device, reinterpret_cast<VkCommandPool>(a_pool.handle), nullptr);
 }
 
-const RBuffer Vulkan::CreateBuffer(const BufferCreateInfo& a_create_info)
+const GPUBuffer Vulkan::CreateBuffer(const GPUBufferCreateInfo& a_create_info)
 {
 	VulkanBuffer buffer;
 
@@ -1349,10 +1349,10 @@ const RBuffer Vulkan::CreateBuffer(const BufferCreateInfo& a_create_info)
 
 	SetDebugName(a_create_info.name, buffer.buffer, VK_OBJECT_TYPE_BUFFER);
 
-	return RBuffer(s_vulkan_inst->buffers.insert(buffer));
+	return GPUBuffer(s_vulkan_inst->buffers.insert(buffer));
 }
 
-void Vulkan::FreeBuffer(const RBuffer a_buffer)
+void Vulkan::FreeBuffer(const GPUBuffer a_buffer)
 {
 	const VulkanBuffer& buf = s_vulkan_inst->buffers.find(a_buffer);
 	vmaDestroyBuffer(s_vulkan_inst->vma, buf.buffer, buf.allocation);
@@ -1646,6 +1646,11 @@ void Vulkan::WriteDescriptors(const WriteDescriptorInfos& a_write_info)
 static uint64_t PipelineLayoutCreateInfoHash(const VkPipelineLayoutCreateInfo& a_info)
 {
 	uint64_t hash = static_cast<uint64_t>(a_info.pushConstantRangeCount + a_info.setLayoutCount);
+
+	for (size_t i = 0; i < a_info.pushConstantRangeCount; i++)
+	{
+		hash *= a_info.pPushConstantRanges[i].size;
+	}
 	
 	for (size_t i = 0; i < a_info.setLayoutCount; i++)
 	{
@@ -1906,7 +1911,7 @@ void Vulkan::DestroyShaderObject(const ShaderObject a_shader_object)
 		nullptr);
 }
 
-void* Vulkan::MapBufferMemory(const RBuffer a_buffer)
+void* Vulkan::MapBufferMemory(const GPUBuffer a_buffer)
 {
 	const VulkanBuffer& buffer = s_vulkan_inst->buffers.find(a_buffer);
 	void* mapped;
@@ -1914,7 +1919,7 @@ void* Vulkan::MapBufferMemory(const RBuffer a_buffer)
 	return mapped;
 }
 
-void Vulkan::UnmapBufferMemory(const RBuffer a_buffer)
+void Vulkan::UnmapBufferMemory(const GPUBuffer a_buffer)
 {
 	const VulkanBuffer& buffer = s_vulkan_inst->buffers.find(a_buffer);
 	vmaUnmapMemory(s_vulkan_inst->vma, buffer.allocation);
@@ -2303,7 +2308,7 @@ void Vulkan::SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor)
 	vkCmdSetScissorWithCount(cmd_buffer, 1, &scissor);
 }
 
-void Vulkan::BindVertexBuffer(const RCommandList a_list, const RBuffer a_buffer, const uint64_t a_offset)
+void Vulkan::BindVertexBuffer(const RCommandList a_list, const GPUBuffer a_buffer, const uint64_t a_offset)
 {
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 
@@ -2314,7 +2319,7 @@ void Vulkan::BindVertexBuffer(const RCommandList a_list, const RBuffer a_buffer,
 		&a_offset);
 }
 
-void Vulkan::BindIndexBuffer(const RCommandList a_list, const RBuffer a_buffer, const uint64_t a_offset)
+void Vulkan::BindIndexBuffer(const RCommandList a_list, const GPUBuffer a_buffer, const uint64_t a_offset)
 {
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 

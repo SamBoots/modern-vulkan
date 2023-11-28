@@ -3,15 +3,22 @@
 #include "imgui_impl_bb.hpp"
 #include "Program.h"
 
+#include "shared_common.hlsl.h"
+
 using namespace BB;
+
+constexpr size_t INITIAL_VERTEX_SIZE = sizeof(Vertex2D) * 128;
+constexpr size_t INITIAL_INDEX_SIZE = sizeof(uint32_t) * 256;
 
 // Reusable buffers used for rendering 1 current in-flight frame
 struct ImGui_ImplBB_FrameRenderBuffers
 {
-    uint64_t vertexSize = 0;
-    uint64_t indexSize = 0;
-    RBuffer vertexBuffer;
-    RBuffer indexBuffer;
+    size_t vertex_size;
+    size_t index_size;
+    GPUBuffer vertex_buffer;
+    GPUBuffer index_buffer;
+    void* vertex_start;
+    void* index_start;
 };
 
 struct ImGui_ImplBBRenderer_Data
@@ -86,6 +93,34 @@ static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData,
     }
 }
 
+static void GrowFrameBufferGPUBuffers(ImGui_ImplBB_FrameRenderBuffers& a_rb, const size_t a_new_vertex_size, const size_t a_new_index_size)
+{
+    UnmapGPUBuffer(a_rb.vertex_buffer);
+    UnmapGPUBuffer(a_rb.index_buffer);
+
+    FreeGPUBuffer(a_rb.vertex_buffer);
+    FreeGPUBuffer(a_rb.index_buffer);
+
+    a_rb.vertex_size = a_new_vertex_size;
+    a_rb.index_size = a_new_index_size;
+
+    GPUBufferCreateInfo vertex_buffer;
+    vertex_buffer.name = "imgui vertex buffer";
+    vertex_buffer.type = BUFFER_TYPE::STORAGE;
+    vertex_buffer.size = a_rb.vertex_size;
+    vertex_buffer.host_writable = true;
+    a_rb.vertex_buffer = CreateGPUBuffer(vertex_buffer);
+    a_rb.vertex_start = MapGPUBuffer(a_rb.vertex_buffer);
+
+    GPUBufferCreateInfo index_buffer;
+    index_buffer.name = "imgui index buffer";
+    index_buffer.type = BUFFER_TYPE::INDEX;
+    index_buffer.size = a_rb.index_size;
+    index_buffer.host_writable = true;
+    a_rb.index_buffer = CreateGPUBuffer(index_buffer);
+    a_rb.index_start = MapGPUBuffer(a_rb.index_buffer);
+}
+
 // Render function
 void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RCommandList a_cmd_list)
 {
@@ -107,18 +142,12 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
         // Create or resize the vertex/index buffers
         const size_t vertex_size = a_DrawData.TotalVtxCount * sizeof(ImDrawVert);
         const size_t index_size = a_DrawData.TotalIdxCount * sizeof(ImDrawIdx);
-        if (rb.vertexBuffer.ptrHandle == nullptr || rb.vertexSize < vertex_size)
-            CreateOrResizeBuffer(rb.vertexBuffer, rb.vertexSize, vertex_size, RENDER_BUFFER_USAGE::VERTEX);
-        if (rb.indexBuffer.ptrHandle == nullptr || rb.indexSize < index_size)
-            CreateOrResizeBuffer(rb.indexBuffer, rb.indexSize, index_size, RENDER_BUFFER_USAGE::INDEX);
-
-
-        UploadBufferChunk t_UpVert = rb.uploadBuffer.Alloc(vertex_size);
-        UploadBufferChunk t_UpIndex = rb.uploadBuffer.Alloc(index_size);
+        if (rb.vertex_size < vertex_size || rb.index_size < index_size)
+            GrowFrameBufferGPUBuffers(rb, Max(rb.vertex_size * 2, vertex_size), Max(rb.index_size * 2, index_size));
 
         // Upload vertex/index data into a single contiguous GPU buffer
-        ImDrawVert* vtx_dst = reinterpret_cast<ImDrawVert*>(t_UpVert.memory);
-        ImDrawIdx* idx_dst = reinterpret_cast<ImDrawIdx*>(t_UpIndex.memory);
+        ImDrawVert* vtx_dst = reinterpret_cast<ImDrawVert*>(rb.vertex_start);
+        ImDrawIdx* idx_dst = reinterpret_cast<ImDrawIdx*>(rb.index_start);
        
         for (int n = 0; n < a_DrawData.CmdListsCount; n++)
         {
@@ -128,32 +157,16 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
             vtx_dst += cmd_list->VtxBuffer.Size;
             idx_dst += cmd_list->IdxBuffer.Size;
         }
-
-        //copy vertex
-        RenderCopyBufferInfo t_CopyInfo{};
-        t_CopyInfo.src = rb.uploadBuffer.Buffer();
-        t_CopyInfo.srcOffset = t_UpVert.offset;
-        t_CopyInfo.dst = rb.vertexBuffer;
-        t_CopyInfo.dstOffset = 0;
-        t_CopyInfo.size = vertex_size;
-        RenderBackend::CopyBuffer(a_CmdList, t_CopyInfo);
-
-        //copy index
-        t_CopyInfo.srcOffset = t_UpIndex.offset;
-        t_CopyInfo.dst = rb.indexBuffer;
-        t_CopyInfo.dstOffset = 0;
-        t_CopyInfo.size = index_size;
-        RenderBackend::CopyBuffer(a_CmdList, t_CopyInfo);
     }
 
     StartRenderingInfo imgui_pass_start{};
-    imgui_pass_start.viewport_width = t_RenderIO.swapchainWidth;
-    imgui_pass_start.viewport_height = t_RenderIO.swapchainHeight;
+    imgui_pass_start.viewport_width = static_cast<uint32_t>(fb_width);
+    imgui_pass_start.viewport_height = static_cast<uint32_t>(fb_height);
     imgui_pass_start.load_color = true;
     imgui_pass_start.store_color = true;
     imgui_pass_start.initial_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
     imgui_pass_start.final_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-    Vulkan::StartRendering(a_cmd_list, imgui_pass_start);
+    StartRenderPass(a_cmd_list, imgui_pass_start);
 
     // Setup desired CrossRenderer state
     ImGui_ImplCross_SetupRenderState(a_DrawData, a_cmd_list, rb, fb_width, fb_height);
@@ -194,12 +207,12 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
                 //offset = 2 vec2's. So 4 dwords
                 RenderBackend::BindConstant(a_CmdList, 0, 1, 4, &pcmd->TextureId);
                 // Apply scissor/clipping rectangle
-                ScissorInfo t_SciInfo;
-                t_SciInfo.offset.x = (int32_t)(clip_min.x);
-                t_SciInfo.offset.y = (int32_t)(clip_min.y);
-                t_SciInfo.extent.x = (uint32_t)(clip_max.x);
-                t_SciInfo.extent.y = (uint32_t)(clip_max.y);
-                RenderBackend::SetScissor(a_CmdList, t_SciInfo);
+                ScissorInfo scissor;
+                scissor.offset.x = (int32_t)(clip_min.x);
+                scissor.offset.y = (int32_t)(clip_min.y);
+                scissor.extent.x = (uint32_t)(clip_max.x);
+                scissor.extent.y = (uint32_t)(clip_max.y);
+                SetScissor(a_cmd_list, scissor);
 
                 // Draw
                 RenderBackend::DrawIndexed(a_CmdList, pcmd->ElemCount, 1, pcmd->IdxOffset + global_idx_offset, pcmd->VtxOffset + global_vtx_offset, 0);
@@ -211,15 +224,15 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
 
     // Since we dynamically set our scissor lets set it back to the full viewport. 
     // This might be bad to do since this can leak into different system's code. 
-    ScissorInfo t_SciInfo{};
-    t_SciInfo.offset = { 0, 0 };
-    t_SciInfo.extent = { (uint32_t)fb_width, (uint32_t)fb_height };
-    Vulkan::SetScissor(a_cmd_list, t_SciInfo);
+    ScissorInfo scissor{};
+    scissor.offset = { 0, 0 };
+    scissor.extent = { static_cast<uint32_t>(fb_width), static_cast<uint32_t>(fb_height) };
+    SetScissor(a_cmd_list, scissor);
 
     EndRenderingInfo imgui_pass_end;
     imgui_pass_end.initial_layout = imgui_pass_start.final_layout;
     imgui_pass_end.final_layout = IMAGE_LAYOUT::PRESENT;
-    Vulkan::End(a_cmd_list, imgui_pass_end, render_io.frame_index);
+    EndRenderPass(a_cmd_list, imgui_pass_end);
 }
 
 bool BB::ImGui_ImplBB_CreateFontsTexture(const RCommandList a_cmd_list, UploadBufferView& a_upload_view)
@@ -238,11 +251,11 @@ bool BB::ImGui_ImplBB_CreateFontsTexture(const RCommandList a_cmd_list, UploadBu
     font_info.height = static_cast<uint32_t>(height);
     font_info.bit_count = 32;
     font_info.pixels = pixels;
-    bd->font_image = UploadTexture(font_info, a_cmd_list, a_upload_view);
+    bd->font_image = UploadTexture(a_cmd_list, font_info, a_upload_view);
 
     io.Fonts->SetTexID(bd->font_image.handle);
 
-    return true;
+    return bd->font_image.IsValid();
 }
 
 void ImGui_ImplCross_DestroyFontUploadObjects()
@@ -289,12 +302,14 @@ bool ImGui_ImplCross_Init(Allocator a_temp_allocator, const ImGui_ImplBB_InitInf
         shaders[0].shader_entry = "VertexMain";
         shaders[0].stage = SHADER_STAGE::VERTEX;
         shaders[0].next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::FRAGMENT_PIXEL);
+        shaders[0].push_constant_space = sizeof(ShaderIndices2D);
 
         shaders[1].name = "imgui Fragment shader";
         shaders[1].shader_path = "../resources/shaders/hlsl/Imgui.hlsl";
         shaders[1].shader_entry = "FragmentMain";
         shaders[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
         shaders[1].next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::NONE);
+        shaders[1].push_constant_space = sizeof(ShaderIndices2D);
 
         ShaderEffectHandle shader_objects[2];
         BB_ASSERT(CreateShaderEffect(a_temp_allocator, Slice(shaders, _countof(shaders)), shader_objects),
@@ -313,6 +328,25 @@ bool ImGui_ImplCross_Init(Allocator a_temp_allocator, const ImGui_ImplBB_InitInf
         {
             //I love C++
             new (&bd->frame_buffers[i])(ImGui_ImplBB_FrameRenderBuffers);
+            ImGui_ImplBB_FrameRenderBuffers& rb = bd->frame_buffers[i];
+            rb.vertex_size = INITIAL_VERTEX_SIZE;
+            rb.index_size = INITIAL_INDEX_SIZE;
+
+            GPUBufferCreateInfo vertex_buffer;
+            vertex_buffer.name = "imgui vertex buffer";
+            vertex_buffer.type = BUFFER_TYPE::STORAGE;
+            vertex_buffer.size = rb.vertex_size;
+            vertex_buffer.host_writable = true;
+            rb.vertex_buffer = CreateGPUBuffer(vertex_buffer);
+            rb.vertex_start = MapGPUBuffer(rb.vertex_buffer);
+
+            GPUBufferCreateInfo index_buffer;
+            index_buffer.name = "imgui index buffer";
+            index_buffer.type = BUFFER_TYPE::INDEX;
+            index_buffer.size = rb.index_size;
+            index_buffer.host_writable = true;
+            rb.index_buffer = CreateGPUBuffer(index_buffer);
+            rb.index_start = MapGPUBuffer(rb.index_buffer);
         }
     }
 

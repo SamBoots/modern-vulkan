@@ -12,6 +12,8 @@
 
 #include <chrono>
 
+#include "shared_common.hlsl.h"
+
 #include "Renderer.hpp"
 #include "Math.inl"
 
@@ -86,12 +88,14 @@ int main(int argc, char** argv)
 		shader_effect_create_infos[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
 		shader_effect_create_infos[0].shader_path = "../resources/shaders/hlsl/Debug.hlsl";
 		shader_effect_create_infos[0].shader_entry = "VertexMain";
+		shader_effect_create_infos[0].push_constant_space = sizeof(ShaderIndices);
 
 		shader_effect_create_infos[1].name = "debug fragment shader";
 		shader_effect_create_infos[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
 		shader_effect_create_infos[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
 		shader_effect_create_infos[1].shader_path = "../resources/shaders/hlsl/Debug.hlsl";
 		shader_effect_create_infos[1].shader_entry = "FragmentMain";
+		shader_effect_create_infos[1].push_constant_space = sizeof(ShaderIndices);
 
 		BB_ASSERT(CreateShaderEffect(main_allocator,
 			Slice(shader_effect_create_infos, _countof(shader_effect_create_infos)),

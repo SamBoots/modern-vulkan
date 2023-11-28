@@ -91,6 +91,8 @@ namespace BB
 		constexpr explicit FrameworkHandle32Bit(const uint32_t a_handle) : handle(a_handle) {}
 		uint32_t handle;
 
+		bool IsValid() const { return handle != BB_INVALID_HANDLE_32; }
+
 		inline bool operator ==(const FrameworkHandle32Bit a_rhs) const { return handle == a_rhs.handle; }
 		inline bool operator !=(const FrameworkHandle32Bit a_rhs) const { return handle != a_rhs.handle; }
 	};

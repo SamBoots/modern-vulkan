@@ -15,8 +15,8 @@ namespace BB
 		void CreateCommandPool(const QUEUE_TYPE a_queue_type, const uint32_t a_command_list_count, RCommandPool& a_pool, RCommandList* a_plists);
 		void FreeCommandPool(const RCommandPool a_pool);
 
-		const RBuffer CreateBuffer(const BufferCreateInfo& a_create_info);
-		void FreeBuffer(const RBuffer a_buffer);
+		const GPUBuffer CreateBuffer(const GPUBufferCreateInfo& a_create_info);
+		void FreeBuffer(const GPUBuffer a_buffer);
 
 		const RImage CreateImage(const ImageCreateInfo& a_create_info);
 		void FreeImage(const RImage a_image);
@@ -41,8 +41,8 @@ namespace BB
 		void CreateShaderObject(Allocator a_temp_allocator, Slice<ShaderObjectCreateInfo> a_shader_objects, ShaderObject* a_pshader_objects);
 		void DestroyShaderObject(const ShaderObject a_shader_object);
 
-		void* MapBufferMemory(const RBuffer a_buffer);
-		void UnmapBufferMemory(const RBuffer a_buffer);
+		void* MapBufferMemory(const GPUBuffer a_buffer);
+		void UnmapBufferMemory(const GPUBuffer a_buffer);
 
 		void ResetCommandPool(const RCommandPool a_pool);
 		void StartCommandList(const RCommandList a_list, const char* a_name);
@@ -57,8 +57,8 @@ namespace BB
 		void EndRendering(const RCommandList a_list, const EndRenderingInfo& a_rendering_info, const uint32_t a_backbuffer_index);
 		void SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor);
 
-		void BindVertexBuffer(const RCommandList a_list, const RBuffer a_buffer, const uint64_t a_offset);
-		void BindIndexBuffer(const RCommandList a_list, const RBuffer a_buffer, const uint64_t a_offset);
+		void BindVertexBuffer(const RCommandList a_list, const GPUBuffer a_buffer, const uint64_t a_offset);
+		void BindIndexBuffer(const RCommandList a_list, const GPUBuffer a_buffer, const uint64_t a_offset);
 		void BindPipeline(const RCommandList a_list, const RPipeline a_pipeline);
 		void BindShaders(const RCommandList a_list, const uint32_t a_UNIQUE_SHADER_STAGE_COUNT, const SHADER_STAGE* a_shader_stages, const ShaderObject* a_shader_objects);
 		void SetDescriptorImmutableSamplers(const RCommandList a_list, const RPipelineLayout a_pipe_layout);
