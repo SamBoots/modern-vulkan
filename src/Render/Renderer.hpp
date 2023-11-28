@@ -103,10 +103,9 @@ namespace BB
 		//LinkedListNode holds next, so //48
 	};
 
-	const RenderIO& BB::GetRenderIO();
+	const RenderIO& GetRenderIO();
 
 	bool InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererCreateInfo& a_render_create_info);
-
 	void StartFrame();
 	void EndFrame();
 
@@ -119,6 +118,12 @@ namespace BB
 
 	bool ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<UploadBufferView> a_upload_views);
 	bool ExecuteTransferCommands(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<UploadBufferView> a_upload_views);
+
+	GPUBufferView AllocateFromVertexBuffer(const size_t a_size_in_bytes);
+	GPUBufferView AllocateFromIndexBuffer(const size_t a_size_in_bytes);
+
+	WriteableGPUBufferView AllocateFromWritableVertexBuffer(const size_t a_size_in_bytes);
+	WriteableGPUBufferView AllocateFromWritableIndexBuffer(const size_t a_size_in_bytes);
 
 	const MeshHandle CreateMesh(const CreateMeshInfo& a_create_info);
 	void FreeMesh(const MeshHandle a_mesh);
@@ -137,11 +142,12 @@ namespace BB
 	void* MapGPUBuffer(const GPUBuffer a_buffer);
 	void UnmapGPUBuffer(const GPUBuffer a_buffer);
 
-
-	void SetPushConstants(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_offset, const uint32_t a_size, const void* a_data);
+	void BindShaderEffects(const RCommandList a_list, const uint32_t a_shader_stage_count, const ShaderEffectHandle* a_shader_objects);
+	void SetPushConstants(const RCommandList a_list, const ShaderEffectHandle a_first_shader_handle, const uint32_t a_offset, const uint32_t a_size, const void* a_data);
 	void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_start_pass);
 	void EndRenderPass(const RCommandList a_list, const EndRenderingInfo& a_end_pass);
 	void SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor);
+	void DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance);
 
 	void DrawMesh(const MeshHandle a_mesh, const float4x4& a_transform, const uint32_t a_index_start, const uint32_t a_index_count, const MaterialHandle a_material);
 

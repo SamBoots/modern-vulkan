@@ -10,7 +10,8 @@ find_package(Vulkan REQUIRED)
 add_library(Renderer
 	"Render/Vulkan/VulkanRenderer.cpp"
 	"Render/ShaderCompiler.cpp"
-	"Render/Renderer.cpp")
+	"Render/Renderer.cpp"
+	"Render/imgui_impl_bb.cpp")
 
 target_link_libraries(Renderer BBFramework 
 	Vulkan::Vulkan
@@ -53,7 +54,6 @@ add_executable(Engine
 	"Engine/Camera.cpp"
 	"Engine/Transform.cpp"
 	"Engine/AssetLoader.cpp"
-	"Engine/imgui_impl_bb.cpp"
 	"main.cpp")
 
 target_include_directories(Engine PUBLIC

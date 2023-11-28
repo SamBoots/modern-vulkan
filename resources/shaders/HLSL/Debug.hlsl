@@ -9,6 +9,12 @@ struct VSOutput
     _BBEXT(3)float3 normal : NORMAL0;
 };
 
+#ifdef _VULKAN
+    [[vk::push_constant]] ShaderIndices shader_indices;
+#else
+    ConstantBuffer<ShaderIndices> shader_indices;
+#endif
+
 VSOutput VertexMain(uint VertexIndex : SV_VertexID)
 {
     SceneInfo scene_info = scene_data.Load<SceneInfo>(0);
@@ -34,7 +40,7 @@ VSOutput VertexMain(uint VertexIndex : SV_VertexID)
 
 float4 FragmentMain(VSOutput input) : SV_Target
 {
-    float4 texture_color = textures_data[shader_indices.albedo_texture].Sample(samplerColor, input.uv);
+    float4 texture_color = textures_data[shader_indices.albedo_texture].Sample(basic_3d_sampler, input.uv);
     float4 color = float4(texture_color.xyz * input.color.xyz, 1.0f);
     
     return color;

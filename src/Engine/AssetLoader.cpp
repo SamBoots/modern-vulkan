@@ -201,7 +201,7 @@ const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const 
 	upload_image_info.height = static_cast<uint32_t>(y);
 	upload_image_info.bit_count = 32;
 
-	const RTexture gpu_image = UploadTexture(upload_image_info, a_list, a_upload_view);
+	const RTexture gpu_image = UploadTexture(a_list, upload_image_info, a_upload_view);
 
 	Image* image = BBnew(s_asset_manager.allocator, Image);
 	image->width = upload_image_info.width;
@@ -233,7 +233,7 @@ const Image* Asset::LoadImageMemory(const BB::BBImage& a_image, const char* a_na
 	upload_image_info.height = a_image.GetWidth();
 	upload_image_info.bit_count = a_image.GetBitCount();
 
-	const RTexture gpu_image = UploadTexture(upload_image_info, a_list, a_upload_view);
+	const RTexture gpu_image = UploadTexture(a_list, upload_image_info, a_upload_view);
 
 	Image* image = BBnew(s_asset_manager.allocator, Image);
 	image->width = upload_image_info.width;

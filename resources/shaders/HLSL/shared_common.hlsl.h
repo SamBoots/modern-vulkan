@@ -14,6 +14,10 @@ namespace BB
 #define SPACE_PER_SCENE 2
 #define SPACE_PER_MATERIAL 3
 #define SPACE_PER_MESH 4
+
+#define GLOBAL_VERTEX_BUFFER_BINDING 0
+#define GLOBAL_CPU_VERTEX_BUFFER_BINDING 1
+#define GLOBAL_BINDLESS_TEXTURES_BINDING 2
 #else
     constexpr uint32_t SPACE_IMMUTABLE_SAMPLER = 0;
     constexpr uint32_t SPACE_GLOBAL = 1;
@@ -23,6 +27,10 @@ namespace BB
     constexpr uint32_t SPACE_AMOUNT = 5;
 
     constexpr uint32_t STATIC_SAMPLER_MAX = 3;
+
+    constexpr uint32_t GLOBAL_VERTEX_BUFFER_BINDING = 0;
+    constexpr uint32_t GLOBAL_CPU_VERTEX_BUFFER_BINDING = 1;
+    constexpr uint32_t GLOBAL_BINDLESS_TEXTURES_BINDING = 2;
 #endif //__HLSL_VERSION
 
     struct Vertex

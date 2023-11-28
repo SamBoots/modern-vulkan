@@ -13,12 +13,8 @@ constexpr size_t INITIAL_INDEX_SIZE = sizeof(uint32_t) * 256;
 // Reusable buffers used for rendering 1 current in-flight frame
 struct ImGui_ImplBB_FrameRenderBuffers
 {
-    size_t vertex_size;
-    size_t index_size;
-    GPUBuffer vertex_buffer;
-    GPUBuffer index_buffer;
-    void* vertex_start;
-    void* index_start;
+    WriteableGPUBufferView vertex_buffer;
+    WriteableGPUBufferView index_buffer;
 };
 
 struct ImGui_ImplBBRenderer_Data
@@ -36,7 +32,7 @@ struct ImGui_ImplBBRenderer_Data
     //follow imgui convention from different imgui source files.
     ImGui_ImplBBRenderer_Data()
     {
-        memset((void*)this, 0, sizeof(*this));
+        memset(this, 0, sizeof(*this));
         buffer_memory_alignment = 256;
     }
 };
@@ -50,7 +46,7 @@ struct ImGui_ImplBB_Data
     int64_t                     TicksPerSecond;
     ImGuiMouseCursor            LastMouseCursor;
 
-    ImGui_ImplBB_Data() { memset((void*)this, 0, sizeof(*this)); }
+    ImGui_ImplBB_Data() { memset(this, 0, sizeof(*this)); }
 };
 
 //-----------------------------------------------------------------------------
@@ -67,66 +63,72 @@ static ImGui_ImplBB_Data* ImGui_ImplBB_GetPlatformData()
     return ImGui::GetCurrentContext() ? reinterpret_cast<ImGui_ImplBB_Data*>(ImGui::GetIO().BackendPlatformUserData) : nullptr;
 }
 
-static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData, 
-    const RCommandList a_cmd_lists,
-    const ImGui_ImplBB_FrameRenderBuffers& a_render_buffers, 
-    const int a_fb_width, 
-    const int a_fb_height)
+static bool ImGui_ImplBB_CreateFontsTexture(const RCommandList a_cmd_list, UploadBufferView& a_upload_view)
+{
+    ImGuiIO& io = ImGui::GetIO();
+    ImGui_ImplBBRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
+
+    unsigned char* pixels;
+    int width, height;
+    io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+
+    UploadImageInfo font_info;
+    font_info.name = "imgui font";
+    font_info.width = static_cast<uint32_t>(width);
+    font_info.height = static_cast<uint32_t>(height);
+    font_info.bit_count = 32;
+    font_info.pixels = pixels;
+    bd->font_image = UploadTexture(a_cmd_list, font_info, a_upload_view);
+
+    io.Fonts->SetTexID(bd->font_image.handle);
+
+    return bd->font_image.IsValid();
+}
+
+static void ImGui_ImplBB_DestroyFontUploadObjects()
 {
     ImGui_ImplBBRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
+    FreeTexture(bd->font_image);
+    bd->font_image = RTexture(BB_INVALID_HANDLE_32);
+}
+
+static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData, const RCommandList a_cmd_list)
+{
+    ImGui_ImplBBRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
+
+    {
+        ShaderEffectHandle shaders[2]{ bd->vertex_shader, bd->fragment_shader };
+        BindShaderEffects(a_cmd_list, _countof(shaders), shaders);
+    }
 
     // Setup scale and translation:
     // Our visible imgui space lies from draw_data->DisplayPps (top left) to draw_data->DisplayPos+data_data->DisplaySize (bottom right). DisplayPos is (0,0) for single viewport apps.
     {
-        float scale[2];
-        scale[0] = 2.0f / a_DrawData.DisplaySize.x;
-        scale[1] = 2.0f / a_DrawData.DisplaySize.y;
-        float translate[2];
-        translate[0] = -1.0f - a_DrawData.DisplayPos.x * scale[0];
-        translate[1] = -1.0f - a_DrawData.DisplayPos.y * scale[1];
-        uint32_t texture_index = bd->font_image.index;
-        //Constant index will always be 0 if we use it. Imgui pipeline will always use it.
-        uint32_t t_Offset = 0;
-        RenderBackend::BindConstant(a_CmdList, 0, _countof(scale), t_Offset, &scale);
-        t_Offset += _countof(scale);
-        RenderBackend::BindConstant(a_CmdList, 0, _countof(translate), t_Offset, &translate);
+        ShaderIndices2D shader_indices;
+        shader_indices.albedo_texture = bd->font_image.handle;
+        shader_indices.rect_scale.x = 2.0f / a_DrawData.DisplaySize.x;
+        shader_indices.rect_scale.y = 2.0f / a_DrawData.DisplaySize.y;
+        shader_indices.translate.x = -1.0f - a_DrawData.DisplayPos.x * shader_indices.rect_scale.x;
+        shader_indices.translate.y = -1.0f - a_DrawData.DisplayPos.y * shader_indices.rect_scale.y;
+
+        SetPushConstants(a_cmd_list, bd->vertex_shader, 0, sizeof(shader_indices), &shader_indices);
     }
 }
 
 static void GrowFrameBufferGPUBuffers(ImGui_ImplBB_FrameRenderBuffers& a_rb, const size_t a_new_vertex_size, const size_t a_new_index_size)
 {
-    UnmapGPUBuffer(a_rb.vertex_buffer);
-    UnmapGPUBuffer(a_rb.index_buffer);
+    //free I guess, lol can't do that now XDDD
 
-    FreeGPUBuffer(a_rb.vertex_buffer);
-    FreeGPUBuffer(a_rb.index_buffer);
-
-    a_rb.vertex_size = a_new_vertex_size;
-    a_rb.index_size = a_new_index_size;
-
-    GPUBufferCreateInfo vertex_buffer;
-    vertex_buffer.name = "imgui vertex buffer";
-    vertex_buffer.type = BUFFER_TYPE::STORAGE;
-    vertex_buffer.size = a_rb.vertex_size;
-    vertex_buffer.host_writable = true;
-    a_rb.vertex_buffer = CreateGPUBuffer(vertex_buffer);
-    a_rb.vertex_start = MapGPUBuffer(a_rb.vertex_buffer);
-
-    GPUBufferCreateInfo index_buffer;
-    index_buffer.name = "imgui index buffer";
-    index_buffer.type = BUFFER_TYPE::INDEX;
-    index_buffer.size = a_rb.index_size;
-    index_buffer.host_writable = true;
-    a_rb.index_buffer = CreateGPUBuffer(index_buffer);
-    a_rb.index_start = MapGPUBuffer(a_rb.index_buffer);
+    a_rb.vertex_buffer = AllocateFromWritableVertexBuffer(a_new_vertex_size);
+    a_rb.index_buffer = AllocateFromWritableVertexBuffer(a_new_index_size);
 }
 
 // Render function
 void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RCommandList a_cmd_list)
 {
     // Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
-    int fb_width = (int)(a_DrawData.DisplaySize.x * a_DrawData.FramebufferScale.x);
-    int fb_height = (int)(a_DrawData.DisplaySize.y * a_DrawData.FramebufferScale.y);
+    int fb_width = static_cast<int>(a_DrawData.DisplaySize.x * a_DrawData.FramebufferScale.x);
+    int fb_height = static_cast<int>(a_DrawData.DisplaySize.y * a_DrawData.FramebufferScale.y);
     if (fb_width <= 0 || fb_height <= 0)
         return;
 
@@ -140,20 +142,20 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
     if (a_DrawData.TotalVtxCount > 0)
     {
         // Create or resize the vertex/index buffers
-        const size_t vertex_size = a_DrawData.TotalVtxCount * sizeof(ImDrawVert);
-        const size_t index_size = a_DrawData.TotalIdxCount * sizeof(ImDrawIdx);
-        if (rb.vertex_size < vertex_size || rb.index_size < index_size)
-            GrowFrameBufferGPUBuffers(rb, Max(rb.vertex_size * 2, vertex_size), Max(rb.index_size * 2, index_size));
+        const size_t vertex_size = static_cast<size_t>(a_DrawData.TotalVtxCount) * sizeof(ImDrawVert);
+        const size_t index_size = static_cast<size_t>(a_DrawData.TotalIdxCount) * sizeof(ImDrawIdx);
+        if (rb.vertex_buffer.size < vertex_size || rb.index_buffer.size < index_size)
+            GrowFrameBufferGPUBuffers(rb, Max(rb.vertex_buffer.size * 2, vertex_size), Max(rb.index_buffer.size * 2, index_size));
 
         // Upload vertex/index data into a single contiguous GPU buffer
-        ImDrawVert* vtx_dst = reinterpret_cast<ImDrawVert*>(rb.vertex_start);
-        ImDrawIdx* idx_dst = reinterpret_cast<ImDrawIdx*>(rb.index_start);
-       
+        ImDrawVert* vtx_dst = reinterpret_cast<ImDrawVert*>(rb.vertex_buffer.mapped);
+        ImDrawIdx* idx_dst = reinterpret_cast<ImDrawIdx*>(rb.vertex_buffer.mapped);
+
         for (int n = 0; n < a_DrawData.CmdListsCount; n++)
         {
             const ImDrawList* cmd_list = a_DrawData.CmdLists[n];
-            memcpy(vtx_dst, cmd_list->VtxBuffer.Data, cmd_list->VtxBuffer.Size * sizeof(ImDrawVert));
-            memcpy(idx_dst, cmd_list->IdxBuffer.Data, cmd_list->IdxBuffer.Size * sizeof(ImDrawIdx));
+            memcpy(vtx_dst, cmd_list->VtxBuffer.Data, static_cast<size_t>(cmd_list->VtxBuffer.Size) * sizeof(ImDrawVert));
+            memcpy(idx_dst, cmd_list->IdxBuffer.Data, static_cast<size_t>(cmd_list->IdxBuffer.Size) * sizeof(ImDrawIdx));
             vtx_dst += cmd_list->VtxBuffer.Size;
             idx_dst += cmd_list->IdxBuffer.Size;
         }
@@ -169,16 +171,17 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
     StartRenderPass(a_cmd_list, imgui_pass_start);
 
     // Setup desired CrossRenderer state
-    ImGui_ImplCross_SetupRenderState(a_DrawData, a_cmd_list, rb, fb_width, fb_height);
+    ImGui_ImplCross_SetupRenderState(a_DrawData, a_cmd_list);
 
     // Will project scissor/clipping rectangles into framebuffer space
     ImVec2 clip_off = a_DrawData.DisplayPos;         // (0,0) unless using multi-viewports
-    ImVec2 clip_scale = a_DrawData.FramebufferScale; // (1,1) unless using retina display which are often (2,2)
 
     // Render command lists
     // (Because we merged all buffers into a single one, we maintain our own offset into them)
     int global_vtx_offset = 0;
     int global_idx_offset = 0;
+
+    ImTextureID last_texture = 0;
     for (int n = 0; n < a_DrawData.CmdListsCount; n++)
     {
         const ImDrawList* cmd_list = a_DrawData.CmdLists[n];
@@ -190,7 +193,7 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
                 // User callback, registered via ImDrawList::AddCallback()
                 // (ImDrawCallback_ResetRenderState is a special callback value used by the user to request the renderer to reset render state.)
                 if (pcmd->UserCallback == ImDrawCallback_ResetRenderState)
-                    ImGui_ImplCross_SetupRenderState(a_DrawData, a_cmd_list, rb, fb_width, fb_height);
+                    ImGui_ImplCross_SetupRenderState(a_DrawData, a_cmd_list);
                 else
                     pcmd->UserCallback(cmd_list, pcmd);
             }
@@ -203,19 +206,24 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
                 // Clamp to viewport as vkCmdSetScissor() won't accept values that are off bounds
                 if (clip_max.x <= clip_min.x || clip_max.y <= clip_min.y)
                     continue;
-                
-                //offset = 2 vec2's. So 4 dwords
-                RenderBackend::BindConstant(a_CmdList, 0, 1, 4, &pcmd->TextureId);
+
+                const ImTextureID new_text = pcmd->TextureId;
+                if (new_text != last_texture)
+                {
+                    SetPushConstants(a_cmd_list, bd->vertex_shader, IM_OFFSETOF(ShaderIndices2D, albedo_texture), sizeof(new_text), &new_text);
+                }
+                uint32_t vertex_offset = pcmd->VtxOffset + static_cast<uint32_t>(global_vtx_offset);
+                SetPushConstants(a_cmd_list, bd->vertex_shader, IM_OFFSETOF(ShaderIndices2D, vertex_buffer_offset), sizeof(vertex_offset), &vertex_offset);
                 // Apply scissor/clipping rectangle
                 ScissorInfo scissor;
-                scissor.offset.x = (int32_t)(clip_min.x);
-                scissor.offset.y = (int32_t)(clip_min.y);
-                scissor.extent.x = (uint32_t)(clip_max.x);
-                scissor.extent.y = (uint32_t)(clip_max.y);
+                scissor.offset.x = static_cast<int32_t>(clip_min.x);
+                scissor.offset.y = static_cast<int32_t>(clip_min.y);
+                scissor.extent.x = static_cast<uint32_t>(clip_max.x);
+                scissor.extent.y = static_cast<uint32_t>(clip_max.y);
                 SetScissor(a_cmd_list, scissor);
 
                 // Draw
-                RenderBackend::DrawIndexed(a_CmdList, pcmd->ElemCount, 1, pcmd->IdxOffset + global_idx_offset, pcmd->VtxOffset + global_vtx_offset, 0);
+                DrawIndexed(a_cmd_list, pcmd->ElemCount, 1, pcmd->IdxOffset + static_cast<uint32_t>(global_idx_offset), 0, 0);
             }
         }
         global_idx_offset += cmd_list->IdxBuffer.Size;
@@ -235,37 +243,7 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
     EndRenderPass(a_cmd_list, imgui_pass_end);
 }
 
-bool BB::ImGui_ImplBB_CreateFontsTexture(const RCommandList a_cmd_list, UploadBufferView& a_upload_view)
-{
-    ImGuiIO& io = ImGui::GetIO();
-    ImGui_ImplBBRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
-
-    unsigned char* pixels;
-    int width, height;
-    io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
-    size_t upload_size = static_cast<size_t>(width) * height * 4;
-
-    UploadImageInfo font_info;
-    font_info.name = "imgui font";
-    font_info.width = static_cast<uint32_t>(width);
-    font_info.height = static_cast<uint32_t>(height);
-    font_info.bit_count = 32;
-    font_info.pixels = pixels;
-    bd->font_image = UploadTexture(a_cmd_list, font_info, a_upload_view);
-
-    io.Fonts->SetTexID(bd->font_image.handle);
-
-    return bd->font_image.IsValid();
-}
-
-void ImGui_ImplCross_DestroyFontUploadObjects()
-{
-    ImGui_ImplBBRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
-    FreeTexture(bd->font_image);
-    bd->font_image = RTexture(BB_INVALID_HANDLE_32);
-}
-
-bool ImGui_ImplCross_Init(Allocator a_temp_allocator, const ImGui_ImplBB_InitInfo& a_info)
+bool BB::ImGui_ImplBB_Init(Allocator a_temp_allocator, const RCommandList a_cmd_list, const ImGui_ImplBB_InitInfo& a_info, UploadBufferView& a_upload_view)
 {
     ImGuiIO& io = ImGui::GetIO();
     IM_ASSERT(io.BackendRendererUserData == nullptr && "Already initialized a renderer backend!");
@@ -273,7 +251,7 @@ bool ImGui_ImplCross_Init(Allocator a_temp_allocator, const ImGui_ImplBB_InitInf
     { // WIN implementation
         // Setup backend capabilities flags
         ImGui_ImplBB_Data* bdWin = IM_NEW(ImGui_ImplBB_Data)();
-        io.BackendPlatformUserData = (void*)bdWin;
+        io.BackendPlatformUserData = reinterpret_cast<void*>(bdWin);
         io.BackendPlatformName = "imgui_impl_BB";
         io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;         // We can honor GetMouseCursor() values (optional)
         io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;          // We can honor io.WantSetMousePos requests (optional, rarely used)
@@ -288,7 +266,7 @@ bool ImGui_ImplCross_Init(Allocator a_temp_allocator, const ImGui_ImplBB_InitInf
     }
     // Setup backend capabilities flags
     ImGui_ImplBBRenderer_Data* bd = IM_NEW(ImGui_ImplBBRenderer_Data)();
-    io.BackendRendererUserData = (void*)bd;
+    io.BackendRendererUserData = reinterpret_cast<void*>(bd);
     io.BackendRendererName = "imgui_impl_crossrenderer";
     io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;  // We can honor the ImDrawCmd::VtxOffset field, allowing for large meshes.
 
@@ -322,47 +300,34 @@ bool ImGui_ImplCross_Init(Allocator a_temp_allocator, const ImGui_ImplBB_InitInf
     {
         const RenderIO render_io = GetRenderIO();
         bd->frame_index = 0;
-        bd->frame_buffers = (ImGui_ImplBB_FrameRenderBuffers*)IM_ALLOC(sizeof(ImGui_ImplBB_FrameRenderBuffers) * render_io.frame_count);
+        bd->frame_buffers = reinterpret_cast<ImGui_ImplBB_FrameRenderBuffers*>(IM_ALLOC(sizeof(ImGui_ImplBB_FrameRenderBuffers) * render_io.frame_count));
 
         for (size_t i = 0; i < render_io.frame_count; i++)
         {
             //I love C++
             new (&bd->frame_buffers[i])(ImGui_ImplBB_FrameRenderBuffers);
             ImGui_ImplBB_FrameRenderBuffers& rb = bd->frame_buffers[i];
-            rb.vertex_size = INITIAL_VERTEX_SIZE;
-            rb.index_size = INITIAL_INDEX_SIZE;
 
-            GPUBufferCreateInfo vertex_buffer;
-            vertex_buffer.name = "imgui vertex buffer";
-            vertex_buffer.type = BUFFER_TYPE::STORAGE;
-            vertex_buffer.size = rb.vertex_size;
-            vertex_buffer.host_writable = true;
-            rb.vertex_buffer = CreateGPUBuffer(vertex_buffer);
-            rb.vertex_start = MapGPUBuffer(rb.vertex_buffer);
-
-            GPUBufferCreateInfo index_buffer;
-            index_buffer.name = "imgui index buffer";
-            index_buffer.type = BUFFER_TYPE::INDEX;
-            index_buffer.size = rb.index_size;
-            index_buffer.host_writable = true;
-            rb.index_buffer = CreateGPUBuffer(index_buffer);
-            rb.index_start = MapGPUBuffer(rb.index_buffer);
+            rb.vertex_buffer = AllocateFromWritableVertexBuffer(INITIAL_VERTEX_SIZE);
+            rb.index_buffer = AllocateFromWritableVertexBuffer(INITIAL_INDEX_SIZE);
         }
     }
 
-    return true;
+    return ImGui_ImplBB_CreateFontsTexture(a_cmd_list, a_upload_view);
 }
 
-void ImGui_ImplCross_Shutdown()
+void BB::ImGui_ImplBB_Shutdown()
 {
     ImGui_ImplBBRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
-    IM_ASSERT(bd != nullptr && "No renderer backend to shutdown, or already shutdown?");
+    BB_ASSERT(bd != nullptr, "No renderer backend to shutdown, or already shutdown?");
     ImGuiIO& io = ImGui::GetIO();
 
     //delete my things here.
 
     ImGui_ImplBB_Data* pd = ImGui_ImplBB_GetPlatformData();
-    IM_ASSERT(pd != nullptr && "No platform backend to shutdown, or already shutdown?");
+    BB_ASSERT(pd != nullptr, "No platform backend to shutdown, or already shutdown?");
+
+    ImGui_ImplBB_DestroyFontUploadObjects();
 
     io.BackendPlatformName = nullptr;
     io.BackendPlatformUserData = nullptr;
@@ -370,15 +335,15 @@ void ImGui_ImplCross_Shutdown()
     IM_DELETE(pd);
 }
 
-void ImGui_ImplCross_NewFrame()
+void BB::ImGui_ImplBB_NewFrame()
 {
     ImGui_ImplBB_Data* bd = ImGui_ImplBB_GetPlatformData();
-    IM_ASSERT(bd != nullptr && "Did you call ImGui_ImplCross_Init()?");
+    BB_ASSERT(bd != nullptr, "Did you call ImGui_ImplBB_Init()?");
     ImGuiIO& io = ImGui::GetIO();
 
     int x, y;
     GetWindowSize(bd->window, x, y);
-    io.DisplaySize = ImVec2((float)(x), (float)(y));
+    io.DisplaySize = ImVec2(static_cast<float>(x), static_cast<float>(y));
 
     IM_UNUSED(bd);
 }
@@ -451,7 +416,7 @@ static ImGuiKey ImGui_ImplBB_KEYBOARD_KEYToImGuiKey(const KEYBOARD_KEY a_Key)
 }
 
 //On true means that imgui takes the input and doesn't give it to the engine.
-bool ImGui_ImplCross_ProcessInput(const BB::InputEvent& a_input_event)
+bool BB::ImGui_ImplBB_ProcessInput(const BB::InputEvent& a_input_event)
 {
     ImGuiIO& io = ImGui::GetIO();
     if (a_input_event.input_type == INPUT_TYPE::MOUSE)
@@ -460,7 +425,7 @@ bool ImGui_ImplCross_ProcessInput(const BB::InputEvent& a_input_event)
         io.AddMousePosEvent(mouse_info.mouse_pos.x, mouse_info.mouse_pos.y);
         if (a_input_event.mouse_info.wheel_move != 0)
         {
-            io.AddMouseWheelEvent(0.0f, (float)a_input_event.mouse_info.wheel_move);
+            io.AddMouseWheelEvent(0.0f, static_cast<float>(a_input_event.mouse_info.wheel_move));
         }
 
         constexpr int left_button = 0;
@@ -491,9 +456,7 @@ bool ImGui_ImplCross_ProcessInput(const BB::InputEvent& a_input_event)
         io.AddKeyEvent(imgui_key, key_info.key_pressed);
         //THIS IS WRONG! It gives no UTF16 character.
         //But i'll keep it in here to test if imgui input actually works.
-        io.AddInputCharacterUTF16((ImWchar16)key_info.scan_code);
-        //We want unused warnings.
-        //IM_UNUSED(t_ImguiKey);
+        io.AddInputCharacterUTF16(static_cast<ImWchar16>(key_info.scan_code));
 
         return io.WantCaptureKeyboard;
     }

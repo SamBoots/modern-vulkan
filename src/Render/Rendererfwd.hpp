@@ -15,7 +15,7 @@ namespace BB
 		uint32_t frame_count;
 	};
 
-	struct BufferView;
+	struct GPUBufferView;
 
 	using RCommandPool = FrameworkHandle<struct RCommandPoolTag>;
 	using RCommandList = FrameworkHandle<struct RCommandListTag>;
@@ -116,5 +116,20 @@ namespace BB
 		uint64_t size = 0;
 		BUFFER_TYPE type{};
 		bool host_writable = false;
+	};
+
+	struct GPUBufferView
+	{
+		GPUBuffer buffer;
+		uint64_t size;
+		uint64_t offset;
+	};
+
+	struct WriteableGPUBufferView
+	{
+		GPUBuffer buffer;
+		uint64_t size;
+		uint64_t offset;
+		void* mapped;
 	};
 }

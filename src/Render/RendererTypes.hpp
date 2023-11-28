@@ -37,20 +37,6 @@ namespace BB
 		ENUM_SIZE
 	};
 
-	enum class IMAGE_LAYOUT : uint32_t
-	{
-		UNDEFINED,
-		GENERAL,
-		TRANSFER_SRC,
-		TRANSFER_DST,
-		COLOR_ATTACHMENT_OPTIMAL,
-		DEPTH_STENCIL_ATTACHMENT,
-		SHADER_READ_ONLY,
-		PRESENT,
-
-		ENUM_SIZE
-	};
-
 	enum class DESCRIPTOR_TYPE : uint32_t
 	{
 		READONLY_CONSTANT, //CBV or uniform buffer
@@ -149,13 +135,6 @@ namespace BB
 		uint32_t count;
 		DESCRIPTOR_TYPE type;
 		SHADER_STAGE shader_stage;
-	};
-
-	struct BufferView
-	{
-		GPUBuffer buffer;
-		uint64_t size;
-		uint64_t offset;
 	};
 
 	struct RenderCopyBufferRegion
@@ -357,7 +336,7 @@ namespace BB
 		DESCRIPTOR_TYPE type{};
 		union
 		{
-			BufferView buffer_view{};
+			GPUBufferView buffer_view{};
 			WriteDescriptorImage image_view;
 		};
 	};

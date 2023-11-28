@@ -42,7 +42,7 @@ void BB::DestroyShaderCompiler(const ShaderCompiler a_shader_compiler)
 	inst->utils->Release();
 }
 
-const ShaderCode BB::CompileShader(Allocator a_temp_allocator, const ShaderCompiler a_shader_compiler, const char* a_full_path, const char* a_entry, const SHADER_STAGE a_shader_stage)
+const ShaderCode BB::CompileShader(const ShaderCompiler a_shader_compiler, const char* a_full_path, const char* a_entry, const SHADER_STAGE a_shader_stage)
 {
 	const ShaderCompiler_inst* inst = reinterpret_cast<ShaderCompiler_inst*>(a_shader_compiler.handle);
 	LPCWSTR shader_type;
@@ -59,16 +59,17 @@ const ShaderCode BB::CompileShader(Allocator a_temp_allocator, const ShaderCompi
 		BB_ASSERT(false, "not yet supported shader stage");
 		break;
 	}
+	constexpr size_t MAX_FILE_PATH = MAX_PATH;
 
 	size_t full_path_str_size = strlen(a_full_path) + 1;
 	size_t entry_str_size = strlen(a_entry) + 1;
-	wchar_t* full_path_w = BBnewArr(a_temp_allocator, full_path_str_size, wchar_t);
-	wchar_t* entry_w = BBnewArr(a_temp_allocator, entry_str_size, wchar_t);
+	wchar_t full_path_w[MAX_FILE_PATH];
+	wchar_t entry_w[MAX_FILE_PATH];
 
 	size_t conv_chars = 0;
-	BB_ASSERT(mbstowcs_s(&conv_chars, full_path_w, full_path_str_size, a_full_path, _TRUNCATE) == 0, "8 bit char to 16 bit wide char for a_full_path failed");
+	BB_ASSERT(mbstowcs_s(&conv_chars, full_path_w, full_path_str_size, a_full_path, MAX_FILE_PATH) == 0, "8 bit char to 16 bit wide char for a_full_path failed");
 	conv_chars = 0;
-	BB_ASSERT(mbstowcs_s(&conv_chars, entry_w, entry_str_size, a_entry, _TRUNCATE) == 0 , "8 bit char to 16 bit wide char for a_entry failed");
+	BB_ASSERT(mbstowcs_s(&conv_chars, entry_w, entry_str_size, a_entry, MAX_FILE_PATH) == 0 , "8 bit char to 16 bit wide char for a_entry failed");
 
 	//mbstowcs_s already handles the null terminator.
 	//full_path_w[full_path_str_size] = L'\0';

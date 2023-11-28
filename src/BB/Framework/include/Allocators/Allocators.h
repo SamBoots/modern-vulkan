@@ -34,7 +34,6 @@ namespace BB
 			}* m_front_log = nullptr;
 			const char* name;
 
-		protected:
 			//Validate the allocator by cheaking for leaks and boundry writes.
 			void Validate() const;
 		};

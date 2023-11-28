@@ -10,16 +10,12 @@
 #define _BBBIND(bind, set) [[vk::binding(bind, set)]]
 #endif
 
-_BBBIND(0, SPACE_IMMUTABLE_SAMPLER) SamplerState samplerColor;
-_BBBIND(0, SPACE_GLOBAL)ByteAddressBuffer vertex_data;
-_BBBIND(1, SPACE_GLOBAL)Texture2D textures_data[];
 _BBBIND(0, SPACE_PER_SCENE)ByteAddressBuffer scene_data;
 _BBBIND(1, SPACE_PER_SCENE)ByteAddressBuffer transform_data;
 
-#ifdef _VULKAN
-    [[vk::push_constant]] ShaderIndices shader_indices;
-#else
-    ConstantBuffer<ShaderIndices> shader_indices;
-#endif
+_BBBIND(0, SPACE_IMMUTABLE_SAMPLER) SamplerState basic_3d_sampler;
+_BBBIND(GLOBAL_VERTEX_BUFFER_BINDING, SPACE_GLOBAL)ByteAddressBuffer vertex_data;
+_BBBIND(GLOBAL_CPU_VERTEX_BUFFER_BINDING, SPACE_GLOBAL)ByteAddressBuffer cpu_writable_vertex_data;
+_BBBIND(GLOBAL_BINDLESS_TEXTURES_BINDING, SPACE_GLOBAL)Texture2D textures_data[];
 
 #endif //COMMON_HLSL

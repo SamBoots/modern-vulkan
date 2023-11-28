@@ -15,6 +15,7 @@
 #include "shared_common.hlsl.h"
 
 #include "Renderer.hpp"
+#include "imgui_impl_bb.hpp"
 #include "Math.inl"
 
 static void DrawglTFNode(BB::Model::Node& a_node, const BB::float4x4& a_transform)
@@ -65,7 +66,7 @@ int main(int argc, char** argv)
 	render_create_info.swapchain_height = static_cast<uint32_t>(window_height);
 	render_create_info.debug = true;
 	InitializeRenderer(main_allocator, render_create_info);
-
+	main_allocator.Validate();
 	Camera camera{ float3{2.0f, 2.0f, 2.0f}, 0.35f };
 
 	TransformPool transform_pool{ main_allocator, 32 };
@@ -161,6 +162,9 @@ int main(int argc, char** argv)
 		for (size_t i = 0; i < input_event_count; i++)
 		{
 			const InputEvent& ip = input_events[i];
+			//imgui can deny our normal input
+			if (ImGui_ImplBB_ProcessInput(ip))
+				continue;
 
 			if (ip.input_type == INPUT_TYPE::KEYBOARD)
 			{
@@ -213,6 +217,7 @@ int main(int argc, char** argv)
 		{
 			BB::SetView(camera.CalculateView());
 			StartFrame();
+
 
 			for (size_t i = 0; i < gltf_model->root_node_count; i++)
 			{

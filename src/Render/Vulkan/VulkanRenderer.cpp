@@ -511,7 +511,7 @@ struct Vulkan_inst
 
 		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::NONE)] = VK_ACCESS_2_NONE;
 		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::TRANSFER_WRITE)] = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE)] = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;;
+		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE)] = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::SHADER_READ)] = VK_ACCESS_2_SHADER_READ_BIT;
 #endif //ENUM_CONVERSATION_BY_ARRAY
 	}
@@ -650,7 +650,6 @@ static inline VkShaderStageFlags ShaderStageFlags(const SHADER_STAGE a_stage)
 	default:
 		BB_ASSERT(false, "Vulkan: SHADER_STAGE failed to convert to a VkShaderStageFlagBits.");
 		return VK_SHADER_STAGE_ALL;
-		break;
 	}
 }
 
@@ -879,7 +878,7 @@ static VkSampler CreateSampler(const SamplerCreateInfo& a_CreateInfo)
 	return sampler;
 }
 
-static inline VkDescriptorAddressInfoEXT GetDescriptorAddressInfo(const VkDevice a_device, const BufferView& a_Buffer, const VkFormat a_Format = VK_FORMAT_UNDEFINED)
+static inline VkDescriptorAddressInfoEXT GetDescriptorAddressInfo(const VkDevice a_device, const GPUBufferView& a_Buffer, const VkFormat a_Format = VK_FORMAT_UNDEFINED)
 {
 	VkDescriptorAddressInfoEXT info{ VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT };
 	info.range = a_Buffer.size;
@@ -2337,15 +2336,15 @@ void Vulkan::BindPipeline(const RCommandList a_list, const RPipeline a_pipeline)
 	vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 }
 
-void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_UNIQUE_SHADER_STAGE_COUNT, const SHADER_STAGE* a_shader_stages, const ShaderObject* a_shader_objects)
+void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stage_count, const SHADER_STAGE* a_shader_stages, const ShaderObject* a_shader_objects)
 {
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 
-	VkShaderStageFlagBits* shader_stages = BBstackAlloc(a_UNIQUE_SHADER_STAGE_COUNT, VkShaderStageFlagBits);
-	for (size_t i = 0; i < a_UNIQUE_SHADER_STAGE_COUNT; i++)
+	VkShaderStageFlagBits* shader_stages = BBstackAlloc(a_shader_stage_count, VkShaderStageFlagBits);
+	for (size_t i = 0; i < a_shader_stage_count; i++)
 		shader_stages[i] = static_cast<VkShaderStageFlagBits>(ShaderStageFlags(a_shader_stages[i]));
 
-	s_vulkan_inst->pfn.CmdBindShadersEXT(cmd_buffer, a_UNIQUE_SHADER_STAGE_COUNT, shader_stages, reinterpret_cast<const VkShaderEXT*>(a_shader_objects));
+	s_vulkan_inst->pfn.CmdBindShadersEXT(cmd_buffer, a_shader_stage_count, shader_stages, reinterpret_cast<const VkShaderEXT*>(a_shader_objects));
 
 	vkCmdSetRasterizerDiscardEnable(cmd_buffer, VK_FALSE);
 
