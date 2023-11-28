@@ -5,6 +5,16 @@
 
 namespace BB
 {
+	struct RenderIO
+	{
+		WindowHandle window_handle;
+		uint32_t screen_width;
+		uint32_t screen_height;
+
+		uint32_t frame_index;
+		uint32_t frame_count;
+	};
+
 	struct BufferView;
 
 	using RCommandPool = FrameworkHandle<struct RCommandPoolTag>;
@@ -12,6 +22,7 @@ namespace BB
 
 	using RBuffer = FrameworkHandle<struct RBufferTag>;
 	using RTexture = FrameworkHandle32Bit<struct RTextureTag>;
+	using RDepthBuffer = FrameworkHandle<struct RDepthBufferTag>;
 
 	using ShaderCode = FrameworkHandle<struct ShdaerCodeTag>;
 	using MeshHandle = FrameworkHandle<struct MeshHandleTag>;
@@ -45,5 +56,46 @@ namespace BB
 		TYPE_3D,
 
 		ENUM_SIZE
+	};
+
+	enum class IMAGE_LAYOUT : uint32_t
+	{
+		UNDEFINED,
+		GENERAL,
+		TRANSFER_SRC,
+		TRANSFER_DST,
+		COLOR_ATTACHMENT_OPTIMAL,
+		DEPTH_STENCIL_ATTACHMENT,
+		SHADER_READ_ONLY,
+		PRESENT,
+
+		ENUM_SIZE
+	};
+
+	struct StartRenderingInfo
+	{
+		uint32_t viewport_width;
+		uint32_t viewport_height;
+
+		bool load_color;
+		bool store_color;
+		IMAGE_LAYOUT initial_layout;
+		IMAGE_LAYOUT final_layout;
+
+		RDepthBuffer depth_buffer;
+
+		float4 clear_color_rgba;
+	};
+
+	struct EndRenderingInfo
+	{
+		IMAGE_LAYOUT initial_layout;
+		IMAGE_LAYOUT final_layout;
+	};
+
+	struct ScissorInfo
+	{
+		int2 offset;
+		uint2 extent;
 	};
 }

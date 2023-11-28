@@ -447,9 +447,7 @@ struct RenderInterface_inst
 		upload_buffers(a_system_allocator, UPLOAD_BUFFER_POOL_SIZE, UPLOAD_BUFFER_POOL_COUNT)
 	{}
 
-	WindowHandle swapchain_window;
-	uint32_t swapchain_width;
-	uint32_t swapchain_height;
+	RenderIO render_io;
 	bool debug;
 
 	ShaderCompiler shader_compiler;
@@ -477,8 +475,6 @@ struct RenderInterface_inst
 		uint32_t used;
 	} index_buffer;
 
-	uint32_t backbuffer_count;
-	uint32_t backbuffer_pos;
 	struct Frame
 	{
 		struct UniformBuffer
@@ -805,14 +801,14 @@ bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 {
 	Vulkan::InitializeVulkan(a_stack_allocator, a_render_create_info.app_name, a_render_create_info.engine_name, a_render_create_info.debug);
 	s_render_inst = BBnew(a_stack_allocator, RenderInterface_inst)(a_stack_allocator);
-	s_render_inst->backbuffer_count = 3;
-	s_render_inst->backbuffer_pos = 0;
-	Vulkan::CreateSwapchain(a_stack_allocator, a_render_create_info.window_handle, a_render_create_info.swapchain_width, a_render_create_info.swapchain_height, s_render_inst->backbuffer_count);
-	s_render_inst->frames = BBnewArr(a_stack_allocator, s_render_inst->backbuffer_count, RenderInterface_inst::Frame);
+	s_render_inst->render_io.frame_count = 3;
+	s_render_inst->render_io.frame_index = 0;
+	Vulkan::CreateSwapchain(a_stack_allocator, a_render_create_info.window_handle, a_render_create_info.swapchain_width, a_render_create_info.swapchain_height, s_render_inst->render_io.frame_index);
+	s_render_inst->frames = BBnewArr(a_stack_allocator, s_render_inst->render_io.frame_count, RenderInterface_inst::Frame);
 
-	s_render_inst->swapchain_window = a_render_create_info.window_handle;
-	s_render_inst->swapchain_width = a_render_create_info.swapchain_width;
-	s_render_inst->swapchain_height = a_render_create_info.swapchain_height;
+	s_render_inst->render_io.window_handle = a_render_create_info.window_handle;
+	s_render_inst->render_io.screen_width = a_render_create_info.swapchain_width;
+	s_render_inst->render_io.screen_height = a_render_create_info.swapchain_height;
 	s_render_inst->debug = a_render_create_info.debug;
 
 	s_render_inst->draw_list_max = 128;
@@ -929,7 +925,7 @@ bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		per_frame_buffer_info.name = "per_frame_buffer";
 		per_frame_buffer_info.size = mbSize * 4;
 		per_frame_buffer_info.type = BUFFER_TYPE::STORAGE;
-		for (uint32_t i = 0; i < s_render_inst->backbuffer_count; i++)
+		for (uint32_t i = 0; i < s_render_inst->render_io.frame_count; i++)
 		{
 			auto& pf = s_render_inst->frames[i];
 			{
@@ -1007,16 +1003,21 @@ bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 	return ExecuteGraphicCommands(Slice(&start_up_pool, 1), Slice(&startup_upload_view, 1));
 }
 
+const RenderIO& BB::GetRenderIO()
+{
+	return s_render_inst->render_io;
+}
+
 void BB::StartFrame()
 {
-	s_render_inst->graphics_queue.WaitFenceValue(s_render_inst->frames[s_render_inst->backbuffer_pos].fence_value);
+	s_render_inst->graphics_queue.WaitFenceValue(s_render_inst->frames[s_render_inst->render_io.frame_index].fence_value);
 	s_render_inst->upload_buffers.CheckIfInFlightDone();
 
 	//clear the drawlist, maybe do this on a per-frame basis of we do GPU upload?
 	s_render_inst->draw_list_count = 0;
 
 	//setup rendering
-	Vulkan::StartFrame(s_render_inst->backbuffer_pos);
+	Vulkan::StartFrame(s_render_inst->render_io.frame_index);
 
 	current_use_pool = &s_render_inst->graphics_queue.GetCommandPool("test getting thing command pool");
 	current_command_list = current_use_pool->StartCommandList("test getting thing command list");
@@ -1024,7 +1025,7 @@ void BB::StartFrame()
 
 void BB::EndFrame()
 {
-	const auto& cur_frame = s_render_inst->frames[s_render_inst->backbuffer_pos];
+	const auto& cur_frame = s_render_inst->frames[s_render_inst->render_io.frame_index];
 
 	const uint32_t scene_upload_size = sizeof(SceneInfo);
 	const uint32_t matrices_upload_size = sizeof(ShaderTransform) * s_render_inst->draw_list_count;
@@ -1060,15 +1061,15 @@ void BB::EndFrame()
 
 	//render
 	StartRenderingInfo start_rendering_info;
-	start_rendering_info.viewport_width = s_render_inst->swapchain_width;
-	start_rendering_info.viewport_height = s_render_inst->swapchain_height;
+	start_rendering_info.viewport_width = s_render_inst->render_io.screen_width;
+	start_rendering_info.viewport_height = s_render_inst->render_io.screen_height;
 	start_rendering_info.initial_layout = IMAGE_LAYOUT::UNDEFINED;
 	start_rendering_info.final_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 	start_rendering_info.depth_buffer = depth_buffer;
 	start_rendering_info.load_color = false;
 	start_rendering_info.store_color = true;
 	start_rendering_info.clear_color_rgba = float4{ 0.f, 0.5f, 0.f, 1.f };
-	Vulkan::StartRendering(current_command_list, start_rendering_info, s_render_inst->backbuffer_pos);
+	Vulkan::StartRendering(current_command_list, start_rendering_info, s_render_inst->render_io.frame_index);
 
 	{
 		//set the first data to get the first 3 descriptor sets.
@@ -1120,16 +1121,16 @@ void BB::EndFrame()
 	EndRenderingInfo end_rendering_info;
 	end_rendering_info.initial_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 	end_rendering_info.final_layout = IMAGE_LAYOUT::PRESENT;
-	Vulkan::EndRendering(current_command_list, end_rendering_info, s_render_inst->backbuffer_pos);
+	Vulkan::EndRendering(current_command_list, end_rendering_info, s_render_inst->render_io.frame_index);
 	current_use_pool->EndCommandList(current_command_list);
 
-	s_render_inst->frames[s_render_inst->backbuffer_pos].fence_value = s_render_inst->graphics_queue.GetNextFenceValue();
-	s_render_inst->graphics_queue.ExecutePresentCommands(current_command_list, &upload_fence, &upload_fence_value, 1, nullptr, nullptr, 0, s_render_inst->backbuffer_pos);
+	s_render_inst->frames[s_render_inst->render_io.frame_index].fence_value = s_render_inst->graphics_queue.GetNextFenceValue();
+	s_render_inst->graphics_queue.ExecutePresentCommands(current_command_list, &upload_fence, &upload_fence_value, 1, nullptr, nullptr, 0, s_render_inst->render_io.frame_index);
 	s_render_inst->graphics_queue.ReturnPool(*current_use_pool);
 
 	//swap images
-	Vulkan::EndFrame(s_render_inst->backbuffer_pos);
-	s_render_inst->backbuffer_pos = (s_render_inst->backbuffer_pos + 1) % s_render_inst->backbuffer_count;
+	Vulkan::EndFrame(s_render_inst->render_io.frame_index);
+	s_render_inst->render_io.frame_index = (s_render_inst->render_io.frame_index + 1) % s_render_inst->render_io.frame_count;
 }
 
 void BB::SetView(const float4x4& a_view)

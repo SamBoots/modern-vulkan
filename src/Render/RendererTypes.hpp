@@ -326,27 +326,6 @@ namespace BB
 		uint32_t signal_count;
 	};
 
-	struct StartRenderingInfo
-	{
-		uint32_t viewport_width;
-		uint32_t viewport_height;
-
-		bool load_color;
-		bool store_color;
-		IMAGE_LAYOUT initial_layout;
-		IMAGE_LAYOUT final_layout;
-
-		RDepthBuffer depth_buffer{};
-
-		float4 clear_color_rgba;
-	};
-
-	struct EndRenderingInfo
-	{
-		IMAGE_LAYOUT initial_layout;
-		IMAGE_LAYOUT final_layout;
-	};
-
 	struct PushConstantRange
 	{
 		SHADER_STAGE stages;

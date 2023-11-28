@@ -2,12 +2,10 @@
 
 #include "imgui_impl_bb.hpp"
 #include "Program.h"
+
 using namespace BB;
 
-constexpr size_t IMGUI_ALLOCATOR_SIZE = 1028;
-constexpr size_t IMGUI_FRAME_UPLOAD_BUFFER = mbSize * 4;
-
-// Reusable buffers used for rendering 1 current in-flight frame, for ImGui_ImplCross_RenderDrawData()
+// Reusable buffers used for rendering 1 current in-flight frame
 struct ImGui_ImplBB_FrameRenderBuffers
 {
     uint64_t vertexSize = 0;
@@ -16,7 +14,6 @@ struct ImGui_ImplBB_FrameRenderBuffers
     RBuffer indexBuffer;
 };
 
-// CrossRenderer data
 struct ImGui_ImplBBRenderer_Data
 {
     uint64_t                    buffer_memory_alignment;
@@ -26,7 +23,7 @@ struct ImGui_ImplBBRenderer_Data
     RTexture                    font_image;
 
     // Render buffers for main window
-    uint32_t frame_buffer_index;
+    uint32_t frame_index;
     ImGui_ImplBB_FrameRenderBuffers* frame_buffers;
 
     //follow imgui convention from different imgui source files.
@@ -55,12 +52,12 @@ struct ImGui_ImplBB_Data
 
 static ImGui_ImplBBRenderer_Data* ImGui_ImplCross_GetBackendData()
 {
-    return ImGui::GetCurrentContext() ? (ImGui_ImplBBRenderer_Data*)ImGui::GetIO().BackendRendererUserData : nullptr;
+    return ImGui::GetCurrentContext() ? reinterpret_cast<ImGui_ImplBBRenderer_Data*>(ImGui::GetIO().BackendRendererUserData) : nullptr;
 }
 
 static ImGui_ImplBB_Data* ImGui_ImplBB_GetPlatformData()
 {
-    return ImGui::GetCurrentContext() ? (ImGui_ImplBB_Data*)ImGui::GetIO().BackendPlatformUserData : nullptr;
+    return ImGui::GetCurrentContext() ? reinterpret_cast<ImGui_ImplBB_Data*>(ImGui::GetIO().BackendPlatformUserData) : nullptr;
 }
 
 static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData, 
@@ -90,7 +87,7 @@ static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData,
 }
 
 // Render function
-void BB::ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const RCommandList a_cmd_list)
+void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RCommandList a_cmd_list)
 {
     // Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
     int fb_width = (int)(a_DrawData.DisplaySize.x * a_DrawData.FramebufferScale.x);
@@ -98,16 +95,12 @@ void BB::ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const RCom
     if (fb_width <= 0 || fb_height <= 0)
         return;
 
-
     ImGui_ImplBBRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
-    if (t_UsedPipeline == BB_INVALID_HANDLE)
-        t_UsedPipeline = bd->Pipeline;
+    const RenderIO render_io = GetRenderIO();
 
-    BB_ASSERT(bd->framebufferIndex < t_RenderIO.frameBufferAmount, "Frame index is higher then the framebuffer amount! Forgot to resize the imgui window info.");
-    bd->framebufferIndex = (bd->framebufferIndex + 1) % t_RenderIO.frameBufferAmount;
-    ImGui_ImplCross_FrameRenderBuffers& rb = bd->frameRenderBuffers[bd->framebufferIndex];
-
-    rb.uploadBuffer.Clear();
+    BB_ASSERT(bd->frame_index < render_io.frame_count, "Frame index is higher then the framebuffer amount! Forgot to resize the imgui window info.");
+    bd->frame_index = (bd->frame_index + 1) % render_io.frame_count;
+    ImGui_ImplBB_FrameRenderBuffers& rb = bd->frame_buffers[bd->frame_index];
 
     if (a_DrawData.TotalVtxCount > 0)
     {
@@ -153,17 +146,17 @@ void BB::ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const RCom
         RenderBackend::CopyBuffer(a_CmdList, t_CopyInfo);
     }
 
-    StartRendering t_ImguiStart;
-    t_ImguiStart.viewportWidth = t_RenderIO.swapchainWidth;
-    t_ImguiStart.viewportHeight = t_RenderIO.swapchainHeight;
-    t_ImguiStart.colorLoadOp = RENDER_LOAD_OP::LOAD;
-    t_ImguiStart.colorStoreOp = RENDER_STORE_OP::STORE;
-    t_ImguiStart.colorInitialLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-    t_ImguiStart.colorFinalLayout = RENDER_IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-    RenderBackend::StartRendering(a_CmdList, t_ImguiStart);
+    StartRenderingInfo imgui_pass_start{};
+    imgui_pass_start.viewport_width = t_RenderIO.swapchainWidth;
+    imgui_pass_start.viewport_height = t_RenderIO.swapchainHeight;
+    imgui_pass_start.load_color = true;
+    imgui_pass_start.store_color = true;
+    imgui_pass_start.initial_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+    imgui_pass_start.final_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+    Vulkan::StartRendering(a_cmd_list, imgui_pass_start);
 
     // Setup desired CrossRenderer state
-    ImGui_ImplCross_SetupRenderState(a_DrawData, t_UsedPipeline, a_CmdList, rb, fb_width, fb_height);
+    ImGui_ImplCross_SetupRenderState(a_DrawData, a_cmd_list, rb, fb_width, fb_height);
 
     // Will project scissor/clipping rectangles into framebuffer space
     ImVec2 clip_off = a_DrawData.DisplayPos;         // (0,0) unless using multi-viewports
@@ -184,7 +177,7 @@ void BB::ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const RCom
                 // User callback, registered via ImDrawList::AddCallback()
                 // (ImDrawCallback_ResetRenderState is a special callback value used by the user to request the renderer to reset render state.)
                 if (pcmd->UserCallback == ImDrawCallback_ResetRenderState)
-                    ImGui_ImplCross_SetupRenderState(a_DrawData, t_UsedPipeline, a_CmdList, rb, fb_width, fb_height);
+                    ImGui_ImplCross_SetupRenderState(a_DrawData, a_cmd_list, rb, fb_width, fb_height);
                 else
                     pcmd->UserCallback(cmd_list, pcmd);
             }
@@ -221,12 +214,12 @@ void BB::ImGui_ImplCross_RenderDrawData(const ImDrawData& a_DrawData, const RCom
     ScissorInfo t_SciInfo{};
     t_SciInfo.offset = { 0, 0 };
     t_SciInfo.extent = { (uint32_t)fb_width, (uint32_t)fb_height };
-    RenderBackend::SetScissor(a_CmdList, t_SciInfo);
+    Vulkan::SetScissor(a_cmd_list, t_SciInfo);
 
-    EndRenderingInfo t_ImguiEnd;
-    t_ImguiEnd.colorInitialLayout = t_ImguiStart.colorFinalLayout;
-    t_ImguiEnd.colorFinalLayout = RENDER_IMAGE_LAYOUT::PRESENT;
-    RenderBackend::EndRendering(a_CmdList, t_ImguiEnd);
+    EndRenderingInfo imgui_pass_end;
+    imgui_pass_end.initial_layout = imgui_pass_start.final_layout;
+    imgui_pass_end.final_layout = IMAGE_LAYOUT::PRESENT;
+    Vulkan::End(a_cmd_list, imgui_pass_end, render_io.frame_index);
 }
 
 bool BB::ImGui_ImplBB_CreateFontsTexture(const RCommandList a_cmd_list, UploadBufferView& a_upload_view)
@@ -259,7 +252,7 @@ void ImGui_ImplCross_DestroyFontUploadObjects()
     bd->font_image = RTexture(BB_INVALID_HANDLE_32);
 }
 
-bool ImGui_ImplCross_Init(const ImGui_ImplBB_InitInfo& a_info)
+bool ImGui_ImplCross_Init(Allocator a_temp_allocator, const ImGui_ImplBB_InitInfo& a_info)
 {
     ImGuiIO& io = ImGui::GetIO();
     IM_ASSERT(io.BackendRendererUserData == nullptr && "Already initialized a renderer backend!");
@@ -289,19 +282,37 @@ bool ImGui_ImplCross_Init(const ImGui_ImplBB_InitInfo& a_info)
     IM_ASSERT(a_info.min_image_count >= 2);
     IM_ASSERT(a_info.image_count >= a_info.min_image_count);
 
-    CreateShaderEffectInfo vertex_shader;
-    vertex_shader.name = "imgui vertex shader";
-    vertex_shader.shader_entry =- 
+    {
+        CreateShaderEffectInfo shaders[2];
+        shaders[0].name = "imgui vertex shader";
+        shaders[0].shader_path = "../resources/shaders/hlsl/Imgui.hlsl";
+        shaders[0].shader_entry = "VertexMain";
+        shaders[0].stage = SHADER_STAGE::VERTEX;
+        shaders[0].next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::FRAGMENT_PIXEL);
+
+        shaders[1].name = "imgui Fragment shader";
+        shaders[1].shader_path = "../resources/shaders/hlsl/Imgui.hlsl";
+        shaders[1].shader_entry = "FragmentMain";
+        shaders[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
+        shaders[1].next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::NONE);
+
+        ShaderEffectHandle shader_objects[2];
+        BB_ASSERT(CreateShaderEffect(a_temp_allocator, Slice(shaders, _countof(shaders)), shader_objects),
+            "Failed to create imgui shaders");
+        bd->vertex_shader = shader_objects[0];
+        bd->fragment_shader = shader_objects[1];
+    }
 
     //create framebuffers.
     {
-        bd->frame_buffer_index = 0;
-        bd->frame_buffers = (ImGui_ImplBB_FrameRenderBuffers*)IM_ALLOC(sizeof(ImGui_ImplBB_FrameRenderBuffers) * t_RenderIO.frameBufferAmount);
+        const RenderIO render_io = GetRenderIO();
+        bd->frame_index = 0;
+        bd->frame_buffers = (ImGui_ImplBB_FrameRenderBuffers*)IM_ALLOC(sizeof(ImGui_ImplBB_FrameRenderBuffers) * render_io.frame_count);
 
-        for (size_t i = 0; i < t_RenderIO.frameBufferAmount; i++)
+        for (size_t i = 0; i < render_io.frame_count; i++)
         {
             //I love C++
-            new (&bd->frameRenderBuffers[i])(ImGui_ImplBB_FrameRenderBuffers);
+            new (&bd->frame_buffers[i])(ImGui_ImplBB_FrameRenderBuffers);
         }
     }
 

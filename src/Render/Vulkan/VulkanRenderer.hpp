@@ -55,6 +55,7 @@ namespace BB
 
 		void StartRendering(const RCommandList a_list, const StartRenderingInfo& a_render_info, const uint32_t a_backbuffer_index);
 		void EndRendering(const RCommandList a_list, const EndRenderingInfo& a_rendering_info, const uint32_t a_backbuffer_index);
+		void SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor);
 
 		void BindVertexBuffer(const RCommandList a_list, const RBuffer a_buffer, const uint64_t a_offset);
 		void BindIndexBuffer(const RCommandList a_list, const RBuffer a_buffer, const uint64_t a_offset);

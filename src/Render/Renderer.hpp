@@ -102,6 +102,8 @@ namespace BB
 		//LinkedListNode holds next, so //48
 	};
 
+	const RenderIO& BB::GetRenderIO();
+
 	bool InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererCreateInfo& a_render_create_info);
 
 	void StartFrame();

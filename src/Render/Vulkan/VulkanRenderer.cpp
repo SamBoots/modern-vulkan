@@ -2265,8 +2265,6 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 	vkCmdSetViewportWithCount(cmd_buffer, 1, &viewport);
 
 	vkCmdSetScissorWithCount(cmd_buffer, 1, &scissor);
-	//set more due to shader objects
-
 }
 
 void Vulkan::EndRendering(const RCommandList a_list, const EndRenderingInfo& a_rendering_info, const uint32_t a_backbuffer_index)
@@ -2292,6 +2290,17 @@ void Vulkan::EndRendering(const RCommandList a_list, const EndRenderingInfo& a_r
 	barrier_info.imageMemoryBarrierCount = 1;
 
 	vkCmdPipelineBarrier2(cmd_buffer, &barrier_info);
+}
+
+void Vulkan::SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor)
+{
+	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+
+	VkRect2D scissor;
+	scissor.offset = { a_scissor.offset.x, a_scissor.offset.y };
+	scissor.extent = { a_scissor.extent.x, a_scissor.extent.y };
+
+	vkCmdSetScissorWithCount(cmd_buffer, 1, &scissor);
 }
 
 void Vulkan::BindVertexBuffer(const RCommandList a_list, const RBuffer a_buffer, const uint64_t a_offset)
