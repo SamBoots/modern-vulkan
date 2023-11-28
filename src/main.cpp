@@ -66,7 +66,6 @@ int main(int argc, char** argv)
 	render_create_info.swapchain_height = static_cast<uint32_t>(window_height);
 	render_create_info.debug = true;
 	InitializeRenderer(main_allocator, render_create_info);
-	main_allocator.Validate();
 	Camera camera{ float3{2.0f, 2.0f, 2.0f}, 0.35f };
 
 	TransformPool transform_pool{ main_allocator, 32 };

@@ -901,7 +901,7 @@ bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 	{
 		{	//static sampler descriptor set 0
 			SamplerCreateInfo immutable_sampler{};
-			immutable_sampler.name = "standard sampler";
+			immutable_sampler.name = "standard 3d sampler";
 			immutable_sampler.mode_u = SAMPLER_ADDRESS_MODE::REPEAT;
 			immutable_sampler.mode_v = SAMPLER_ADDRESS_MODE::REPEAT;
 			immutable_sampler.mode_w = SAMPLER_ADDRESS_MODE::REPEAT;
@@ -1239,7 +1239,7 @@ void BB::EndFrame()
 	//present
 	EndRenderingInfo end_rendering_info;
 	end_rendering_info.initial_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-	end_rendering_info.final_layout = IMAGE_LAYOUT::PRESENT;
+	end_rendering_info.final_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 	Vulkan::EndRendering(current_command_list, end_rendering_info, s_render_inst->render_io.frame_index);
 	
 	ImGui::Render();
@@ -1484,6 +1484,11 @@ void* BB::MapGPUBuffer(const GPUBuffer a_buffer)
 void BB::UnmapGPUBuffer(const GPUBuffer a_buffer)
 {
 	Vulkan::UnmapBufferMemory(a_buffer);
+}
+
+void BB::BindIndexBuffer(const RCommandList a_list, const GPUBuffer a_buffer, const uint64_t a_offset)
+{
+	Vulkan::BindIndexBuffer(a_list, a_buffer, a_offset);
 }
 
 void BB::BindShaderEffects(const RCommandList a_list, const uint32_t a_shader_stage_count, const ShaderEffectHandle* a_shader_objects)

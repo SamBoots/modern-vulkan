@@ -24,8 +24,6 @@ namespace BB
 		const RImageView CreateViewImage(const ImageViewCreateInfo& a_create_info);
 		void FreeViewImage(const RImageView a_image_view);
 
-
-		//image here...
 		const RDepthBuffer CreateDepthBuffer(const RenderDepthCreateInfo& a_create_info);
 		void FreeDepthBuffer(const RDepthBuffer a_depth_buffer);
 

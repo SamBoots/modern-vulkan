@@ -13,9 +13,9 @@ struct VSOutput
     ConstantBuffer<ShaderIndices2D> shader_indices2D;
 #endif
 
-VSOutput VertexMain(uint VertexIndex : SV_VertexID)
+VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 {
-    const uint vertex_offset = shader_indices2D.vertex_buffer_offset + sizeof(Vertex2D) * VertexIndex;
+    const uint vertex_offset = shader_indices2D.vertex_buffer_offset + sizeof(Vertex2D) * a_vertex_index;
     Vertex2D cur_vertex;
     cur_vertex.position = asfloat(vertex_data.Load2(vertex_offset));
     cur_vertex.uv = asfloat(vertex_data.Load2(vertex_offset + 8));
@@ -28,8 +28,8 @@ VSOutput VertexMain(uint VertexIndex : SV_VertexID)
     return output;
 }
 
-float4 FragmentMain(VSOutput input) : SV_Target
+float4 FragmentMain(VSOutput a_input) : SV_Target
 {
-    float4 color = input.color * textures_data[shader_indices2D.albedo_texture].Sample(basic_3d_sampler, input.uv);
+    float4 color = a_input.color * textures_data[shader_indices2D.albedo_texture].Sample(basic_3d_sampler, a_input.uv);
     return color;
 }

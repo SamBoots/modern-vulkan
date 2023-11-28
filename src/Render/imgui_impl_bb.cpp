@@ -120,7 +120,7 @@ static void GrowFrameBufferGPUBuffers(ImGui_ImplBB_FrameRenderBuffers& a_rb, con
     //free I guess, lol can't do that now XDDD
 
     a_rb.vertex_buffer = AllocateFromWritableVertexBuffer(a_new_vertex_size);
-    a_rb.index_buffer = AllocateFromWritableVertexBuffer(a_new_index_size);
+    a_rb.index_buffer = AllocateFromWritableIndexBuffer(a_new_index_size);
 }
 
 // Render function
@@ -149,7 +149,7 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
 
         // Upload vertex/index data into a single contiguous GPU buffer
         ImDrawVert* vtx_dst = reinterpret_cast<ImDrawVert*>(rb.vertex_buffer.mapped);
-        ImDrawIdx* idx_dst = reinterpret_cast<ImDrawIdx*>(rb.vertex_buffer.mapped);
+        ImDrawIdx* idx_dst = reinterpret_cast<ImDrawIdx*>(rb.index_buffer.mapped);
 
         for (int n = 0; n < a_DrawData.CmdListsCount; n++)
         {
@@ -178,8 +178,10 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
 
     // Render command lists
     // (Because we merged all buffers into a single one, we maintain our own offset into them)
-    int global_vtx_offset = 0;
-    int global_idx_offset = 0;
+    uint32_t global_vtx_offset = 0;
+    uint32_t global_idx_offset = 0;
+
+    BindIndexBuffer(a_cmd_list, rb.index_buffer.buffer, rb.index_buffer.offset);
 
     ImTextureID last_texture = 0;
     for (int n = 0; n < a_DrawData.CmdListsCount; n++)
@@ -212,7 +214,7 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
                 {
                     SetPushConstants(a_cmd_list, bd->vertex_shader, IM_OFFSETOF(ShaderIndices2D, albedo_texture), sizeof(new_text), &new_text);
                 }
-                uint32_t vertex_offset = pcmd->VtxOffset + static_cast<uint32_t>(global_vtx_offset);
+                const uint32_t vertex_offset = rb.vertex_buffer.offset;
                 SetPushConstants(a_cmd_list, bd->vertex_shader, IM_OFFSETOF(ShaderIndices2D, vertex_buffer_offset), sizeof(vertex_offset), &vertex_offset);
                 // Apply scissor/clipping rectangle
                 ScissorInfo scissor;
@@ -223,7 +225,8 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
                 SetScissor(a_cmd_list, scissor);
 
                 // Draw
-                DrawIndexed(a_cmd_list, pcmd->ElemCount, 1, pcmd->IdxOffset + static_cast<uint32_t>(global_idx_offset), 0, 0);
+                const uint32_t index_offset = pcmd->IdxOffset + global_idx_offset;
+                DrawIndexed(a_cmd_list, pcmd->ElemCount, 1, index_offset, 0, 0);
             }
         }
         global_idx_offset += cmd_list->IdxBuffer.Size;
@@ -267,8 +270,7 @@ bool BB::ImGui_ImplBB_Init(Allocator a_temp_allocator, const RCommandList a_cmd_
     // Setup backend capabilities flags
     ImGui_ImplBBRenderer_Data* bd = IM_NEW(ImGui_ImplBBRenderer_Data)();
     io.BackendRendererUserData = reinterpret_cast<void*>(bd);
-    io.BackendRendererName = "imgui_impl_crossrenderer";
-    io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;  // We can honor the ImDrawCmd::VtxOffset field, allowing for large meshes.
+    io.BackendRendererName = "imgui_impl_bb";
 
     IM_ASSERT(a_info.min_image_count >= 2);
     IM_ASSERT(a_info.image_count >= a_info.min_image_count);
@@ -309,7 +311,7 @@ bool BB::ImGui_ImplBB_Init(Allocator a_temp_allocator, const RCommandList a_cmd_
             ImGui_ImplBB_FrameRenderBuffers& rb = bd->frame_buffers[i];
 
             rb.vertex_buffer = AllocateFromWritableVertexBuffer(INITIAL_VERTEX_SIZE);
-            rb.index_buffer = AllocateFromWritableVertexBuffer(INITIAL_INDEX_SIZE);
+            rb.index_buffer = AllocateFromWritableIndexBuffer(INITIAL_INDEX_SIZE);
         }
     }
 

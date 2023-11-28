@@ -2368,7 +2368,7 @@ void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stag
 		color_blend_equation.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 		color_blend_equation.alphaBlendOp = VK_BLEND_OP_ADD;
 		color_blend_equation.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-		color_blend_equation.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+		color_blend_equation.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 		//color thing.
 		s_vulkan_inst->pfn.CmdSetColorBlendEquationEXT(cmd_buffer, 0, 1, &color_blend_equation);
 	}

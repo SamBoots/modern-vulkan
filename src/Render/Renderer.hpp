@@ -142,6 +142,7 @@ namespace BB
 	void* MapGPUBuffer(const GPUBuffer a_buffer);
 	void UnmapGPUBuffer(const GPUBuffer a_buffer);
 
+	void BindIndexBuffer(const RCommandList a_list, const GPUBuffer a_buffer, const uint64_t a_offset);
 	void BindShaderEffects(const RCommandList a_list, const uint32_t a_shader_stage_count, const ShaderEffectHandle* a_shader_objects);
 	void SetPushConstants(const RCommandList a_list, const ShaderEffectHandle a_first_shader_handle, const uint32_t a_offset, const uint32_t a_size, const void* a_data);
 	void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_start_pass);
