@@ -507,7 +507,7 @@ struct RenderInterface_inst
 		GPUBuffer buffer;
 		uint32_t size;
 		uint32_t used;
-		void* mapped;
+		void* start_mapped;
 	} cpu_vertex_buffer;
 
 	struct IndexBuffer
@@ -521,7 +521,7 @@ struct RenderInterface_inst
 		GPUBuffer buffer;
 		uint32_t size;
 		uint32_t used;
-		void* mapped;
+		void* start_mapped;
 	} cpu_index_buffer;
 
 	struct Frame
@@ -590,10 +590,9 @@ WriteableGPUBufferView BB::AllocateFromWritableVertexBuffer(const size_t a_size_
 	view.buffer = s_render_inst->cpu_vertex_buffer.buffer;
 	view.size = a_size_in_bytes;
 	view.offset = s_render_inst->cpu_vertex_buffer.used;
-	view.mapped = s_render_inst->cpu_vertex_buffer.mapped;
+	view.mapped = Pointer::Add(s_render_inst->cpu_vertex_buffer.start_mapped, s_render_inst->cpu_vertex_buffer.used);
 
 	s_render_inst->cpu_vertex_buffer.used += static_cast<uint32_t>(a_size_in_bytes);
-	s_render_inst->cpu_vertex_buffer.mapped = Pointer::Add(s_render_inst->cpu_vertex_buffer.mapped, a_size_in_bytes);
 
 	return view;
 }
@@ -604,10 +603,9 @@ WriteableGPUBufferView BB::AllocateFromWritableIndexBuffer(const size_t a_size_i
 	view.buffer = s_render_inst->cpu_index_buffer.buffer;
 	view.size = a_size_in_bytes;
 	view.offset = s_render_inst->cpu_index_buffer.used;
-	view.mapped = s_render_inst->cpu_index_buffer.mapped;
+	view.mapped = Pointer::Add(s_render_inst->cpu_index_buffer.start_mapped, s_render_inst->cpu_index_buffer.used);
 
 	s_render_inst->cpu_index_buffer.used += static_cast<uint32_t>(a_size_in_bytes);
-	s_render_inst->cpu_index_buffer.mapped = Pointer::Add(s_render_inst->cpu_index_buffer.mapped, a_size_in_bytes);
 
 	return view;
 }
@@ -971,7 +969,7 @@ bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		s_render_inst->cpu_vertex_buffer.buffer = Vulkan::CreateBuffer(vertex_buffer);
 		s_render_inst->cpu_vertex_buffer.size = static_cast<uint32_t>(vertex_buffer.size);
 		s_render_inst->cpu_vertex_buffer.used = 0;
-		s_render_inst->cpu_vertex_buffer.mapped = Vulkan::MapBufferMemory(s_render_inst->cpu_vertex_buffer.buffer);
+		s_render_inst->cpu_vertex_buffer.start_mapped = Vulkan::MapBufferMemory(s_render_inst->cpu_vertex_buffer.buffer);
 
 		GPUBufferView view;
 		view.buffer = s_render_inst->vertex_buffer.buffer;
@@ -1016,7 +1014,7 @@ bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		s_render_inst->cpu_index_buffer.buffer = Vulkan::CreateBuffer(index_buffer);
 		s_render_inst->cpu_index_buffer.size = static_cast<uint32_t>(index_buffer.size);
 		s_render_inst->cpu_index_buffer.used = 0;
-		s_render_inst->cpu_index_buffer.mapped = Vulkan::MapBufferMemory(s_render_inst->cpu_index_buffer.buffer);
+		s_render_inst->cpu_index_buffer.start_mapped = Vulkan::MapBufferMemory(s_render_inst->cpu_index_buffer.buffer);
 	}
 
 

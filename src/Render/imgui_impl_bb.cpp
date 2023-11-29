@@ -19,21 +19,18 @@ struct ImGui_ImplBB_FrameRenderBuffers
 
 struct ImGui_ImplBBRenderer_Data
 {
-    uint64_t                    buffer_memory_alignment;
-    ShaderEffectHandle          vertex_shader;
-    ShaderEffectHandle          fragment_shader;
-    MaterialHandle              imgui_material;
-    RTexture                    font_image;
+    ShaderEffectHandle          vertex_shader;      //8
+    ShaderEffectHandle          fragment_shader;    //16
+    RTexture                    font_image;         //20
 
     // Render buffers for main window
-    uint32_t frame_index;
-    ImGui_ImplBB_FrameRenderBuffers* frame_buffers;
+    uint32_t frame_index;                           //24
+    ImGui_ImplBB_FrameRenderBuffers* frame_buffers; //32
 
     //follow imgui convention from different imgui source files.
     ImGui_ImplBBRenderer_Data()
     {
         memset(this, 0, sizeof(*this));
-        buffer_memory_alignment = 256;
     }
 };
 
@@ -92,7 +89,7 @@ static void ImGui_ImplBB_DestroyFontUploadObjects()
     bd->font_image = RTexture(BB_INVALID_HANDLE_32);
 }
 
-static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData, const RCommandList a_cmd_list)
+static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData, const RCommandList a_cmd_list, const ImGui_ImplBB_FrameRenderBuffers& a_fb)
 {
     ImGui_ImplBBRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
 
@@ -105,6 +102,7 @@ static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData, const
     // Our visible imgui space lies from draw_data->DisplayPps (top left) to draw_data->DisplayPos+data_data->DisplaySize (bottom right). DisplayPos is (0,0) for single viewport apps.
     {
         ShaderIndices2D shader_indices;
+        shader_indices.vertex_buffer_offset = a_fb.vertex_buffer.offset;
         shader_indices.albedo_texture = bd->font_image.handle;
         shader_indices.rect_scale.x = 2.0f / a_DrawData.DisplaySize.x;
         shader_indices.rect_scale.y = 2.0f / a_DrawData.DisplaySize.y;
@@ -162,8 +160,8 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
     }
 
     StartRenderingInfo imgui_pass_start{};
-    imgui_pass_start.viewport_width = static_cast<uint32_t>(fb_width);
-    imgui_pass_start.viewport_height = static_cast<uint32_t>(fb_height);
+    imgui_pass_start.viewport_width = render_io.screen_width;
+    imgui_pass_start.viewport_height = render_io.screen_height;
     imgui_pass_start.load_color = true;
     imgui_pass_start.store_color = true;
     imgui_pass_start.initial_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
@@ -171,19 +169,17 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
     StartRenderPass(a_cmd_list, imgui_pass_start);
 
     // Setup desired CrossRenderer state
-    ImGui_ImplCross_SetupRenderState(a_DrawData, a_cmd_list);
+    ImGui_ImplCross_SetupRenderState(a_DrawData, a_cmd_list, rb);
 
     // Will project scissor/clipping rectangles into framebuffer space
     ImVec2 clip_off = a_DrawData.DisplayPos;         // (0,0) unless using multi-viewports
 
-    // Render command lists
-    // (Because we merged all buffers into a single one, we maintain our own offset into them)
-    uint32_t global_vtx_offset = 0;
+    // Because we merged all buffers into a single one, we maintain our own offset into them
     uint32_t global_idx_offset = 0;
 
     BindIndexBuffer(a_cmd_list, rb.index_buffer.buffer, rb.index_buffer.offset);
 
-    ImTextureID last_texture = 0;
+    ImTextureID last_texture = bd->font_image.handle;
     for (int n = 0; n < a_DrawData.CmdListsCount; n++)
     {
         const ImDrawList* cmd_list = a_DrawData.CmdLists[n];
@@ -195,7 +191,7 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
                 // User callback, registered via ImDrawList::AddCallback()
                 // (ImDrawCallback_ResetRenderState is a special callback value used by the user to request the renderer to reset render state.)
                 if (pcmd->UserCallback == ImDrawCallback_ResetRenderState)
-                    ImGui_ImplCross_SetupRenderState(a_DrawData, a_cmd_list);
+                    ImGui_ImplCross_SetupRenderState(a_DrawData, a_cmd_list, rb);
                 else
                     pcmd->UserCallback(cmd_list, pcmd);
             }
@@ -209,13 +205,11 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
                 if (clip_max.x <= clip_min.x || clip_max.y <= clip_min.y)
                     continue;
 
-                const ImTextureID new_text = pcmd->TextureId;
-                if (new_text != last_texture)
-                {
-                    SetPushConstants(a_cmd_list, bd->vertex_shader, IM_OFFSETOF(ShaderIndices2D, albedo_texture), sizeof(new_text), &new_text);
-                }
-                const uint32_t vertex_offset = rb.vertex_buffer.offset;
-                SetPushConstants(a_cmd_list, bd->vertex_shader, IM_OFFSETOF(ShaderIndices2D, vertex_buffer_offset), sizeof(vertex_offset), &vertex_offset);
+                //const ImTextureID new_text = pcmd->TextureId;
+                //if (new_text != last_texture)
+                //{
+                //    SetPushConstants(a_cmd_list, bd->vertex_shader, IM_OFFSETOF(ShaderIndices2D, albedo_texture), sizeof(new_text), &new_text);
+                //}
                 // Apply scissor/clipping rectangle
                 ScissorInfo scissor;
                 scissor.offset.x = static_cast<int32_t>(clip_min.x);
@@ -230,7 +224,6 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
             }
         }
         global_idx_offset += cmd_list->IdxBuffer.Size;
-        global_vtx_offset += cmd_list->VtxBuffer.Size;
     }
 
     // Since we dynamically set our scissor lets set it back to the full viewport. 

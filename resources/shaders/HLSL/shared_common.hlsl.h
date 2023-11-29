@@ -73,6 +73,7 @@ namespace BB
         uint transform_index;       //8
         uint albedo_texture;        //12
         uint normal_texture;        //16
+        float2 padding;             //24
     };
     
     struct ShaderIndices2D
