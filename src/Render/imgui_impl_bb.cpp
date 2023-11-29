@@ -68,7 +68,7 @@ static bool ImGui_ImplBB_CreateFontsTexture(const RCommandList a_cmd_list, Uploa
     unsigned char* pixels;
     int width, height;
     io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
-
+    
     UploadImageInfo font_info;
     font_info.name = "imgui font";
     font_info.width = static_cast<uint32_t>(width);
@@ -205,11 +205,11 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
                 if (clip_max.x <= clip_min.x || clip_max.y <= clip_min.y)
                     continue;
 
-                //const ImTextureID new_text = pcmd->TextureId;
-                //if (new_text != last_texture)
-                //{
-                //    SetPushConstants(a_cmd_list, bd->vertex_shader, IM_OFFSETOF(ShaderIndices2D, albedo_texture), sizeof(new_text), &new_text);
-                //}
+                const ImTextureID new_text = pcmd->TextureId;
+                if (new_text != last_texture)
+                {
+                    SetPushConstants(a_cmd_list, bd->vertex_shader, IM_OFFSETOF(ShaderIndices2D, albedo_texture), sizeof(new_text), &new_text);
+                }
                 // Apply scissor/clipping rectangle
                 ScissorInfo scissor;
                 scissor.offset.x = static_cast<int32_t>(clip_min.x);

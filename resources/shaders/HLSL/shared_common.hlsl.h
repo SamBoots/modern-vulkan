@@ -45,7 +45,7 @@ namespace BB
     {
         float2 position;
         float2 uv;
-        float4 color;
+        uint32_t color;
     };
 
     struct SceneInfo

@@ -483,6 +483,7 @@ struct Vulkan_inst
 
 		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::RGBA8_SRGB)] = VK_FORMAT_R8G8B8A8_SRGB;
 		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::RGBA8_UNORM)] = VK_FORMAT_R8G8B8A8_SNORM;
+		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::A8_UNORM)] = VK_FORMAT_R8_UNORM;
 
 		enum_conv.image_types[static_cast<uint32_t>(IMAGE_TYPE::TYPE_1D)] = VK_IMAGE_TYPE_1D;
 		enum_conv.image_types[static_cast<uint32_t>(IMAGE_TYPE::TYPE_2D)] = VK_IMAGE_TYPE_2D;
@@ -723,6 +724,7 @@ static inline VkFormat ImageFormats(const IMAGE_FORMAT a_image_format)
 	{
 	case IMAGE_FORMAT::RGBA8_SRGB:		return VK_FORMAT_R8G8B8A8_SRGB;
 	case IMAGE_FORMAT::RGBA8_UNORM:		return VK_FORMAT_R8G8B8A8_SNORM;
+	case IMAGE_FORMAT::A8_UNORM:			return VK_FORMAT_R8_UNORM;
 	default:
 		BB_ASSERT(false, "Vulkan: IMAGE_FORMAT failed to convert to a VkFormat.");
 		return VK_FORMAT_R8G8B8A8_SRGB;

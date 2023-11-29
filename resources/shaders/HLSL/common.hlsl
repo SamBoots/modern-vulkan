@@ -10,6 +10,8 @@
 #define _BBBIND(bind, set) [[vk::binding(bind, set)]]
 #endif
 
+#define unpack_uint_to_float4(a_uint) float4(float((a_uint & 0xff000000) >> 24), float((a_uint & 0x00ff0000) >> 16), float((a_uint & 0x0000ff00) >> 8), float((a_uint & 0x000000ff)))
+
 _BBBIND(0, SPACE_PER_SCENE)ByteAddressBuffer scene_data;
 _BBBIND(1, SPACE_PER_SCENE)ByteAddressBuffer transform_data;
 

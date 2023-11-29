@@ -760,6 +760,10 @@ const RTexture GPUTextureManager::UploadTexture(const RCommandList a_list, const
 			image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
 			byte_per_pixel = 4;
 			break;
+		case 8:
+			image_info.format = IMAGE_FORMAT::A8_UNORM;
+			byte_per_pixel = 1;
+			break;
 		default:
 			BB_ASSERT(false, "Unsupported bit_count for upload image");
 			image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
