@@ -10,7 +10,16 @@
 #define _BBBIND(bind, set) [[vk::binding(bind, set)]]
 #endif
 
-#define unpack_uint_to_float4(a_uint) float4(float((a_uint & 0xff000000) >> 24), float((a_uint & 0x00ff0000) >> 16), float((a_uint & 0x0000ff00) >> 8), float((a_uint & 0x000000ff)))
+#define unpack_uint_to_float4(a_uint) float4(float((a_uint & 0xff000000) >> 24), float((a_uint & 0x00ff0000) >> 16), float((a_uint & 0x0000ff00) >> 8), float((a_uint & 0x000000ff) >> 0))
+#define unpack_uint_to_uint4(a_uint) uint4(uint((a_uint & 0xff000000) >> 24), uint((a_uint & 0x00ff0000) >> 16), uint((a_uint & 0x0000ff00) >> 8), uint((a_uint & 0x000000ff) >> 0))
+
+float4 PackedUintToFloat4Color(const uint a_uint)
+{
+    float4 unpacked = unpack_uint_to_float4(a_uint);
+    unpacked = unpacked / 255;
+    unpacked.w = 1;
+    return unpacked;
+}
 
 _BBBIND(0, SPACE_PER_SCENE)ByteAddressBuffer scene_data;
 _BBBIND(1, SPACE_PER_SCENE)ByteAddressBuffer transform_data;

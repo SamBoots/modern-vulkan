@@ -3,7 +3,7 @@
 struct VSOutput
 {
                 float4 pos  : SV_POSITION;
-    _BBEXT(0)   float4 color : COLOR0;
+    _BBEXT(0)   uint4 color : COLOR0;
     _BBEXT(1)   float2 uv   : TEXCOORD0;
 
 };
@@ -24,7 +24,7 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
     
     VSOutput output = (VSOutput) 0;
     output.pos = float4((cur_vertex.position * shader_indices2D.rect_scale) + shader_indices2D.translate, 0, 1);
-    output.color = unpack_uint_to_float4(cur_vertex.color);
+    output.color = PackedUintToFloat4Color(cur_vertex.color);
     output.uv = cur_vertex.uv;
     return output;
 }

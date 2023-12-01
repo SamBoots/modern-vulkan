@@ -60,28 +60,6 @@ static ImGui_ImplBB_Data* ImGui_ImplBB_GetPlatformData()
     return ImGui::GetCurrentContext() ? reinterpret_cast<ImGui_ImplBB_Data*>(ImGui::GetIO().BackendPlatformUserData) : nullptr;
 }
 
-static bool ImGui_ImplBB_CreateFontsTexture(const RCommandList a_cmd_list, UploadBufferView& a_upload_view)
-{
-    ImGuiIO& io = ImGui::GetIO();
-    ImGui_ImplBBRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
-
-    unsigned char* pixels;
-    int width, height;
-    io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
-    
-    UploadImageInfo font_info;
-    font_info.name = "imgui font";
-    font_info.width = static_cast<uint32_t>(width);
-    font_info.height = static_cast<uint32_t>(height);
-    font_info.bit_count = 32;
-    font_info.pixels = pixels;
-    bd->font_image = UploadTexture(a_cmd_list, font_info, a_upload_view);
-
-    io.Fonts->SetTexID(bd->font_image.handle);
-
-    return bd->font_image.IsValid();
-}
-
 static void ImGui_ImplBB_DestroyFontUploadObjects()
 {
     ImGui_ImplBBRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
@@ -209,6 +187,7 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
                 if (new_text != last_texture)
                 {
                     SetPushConstants(a_cmd_list, bd->vertex_shader, IM_OFFSETOF(ShaderIndices2D, albedo_texture), sizeof(new_text), &new_text);
+                    last_texture = new_text;
                 }
                 // Apply scissor/clipping rectangle
                 ScissorInfo scissor;
@@ -307,8 +286,22 @@ bool BB::ImGui_ImplBB_Init(Allocator a_temp_allocator, const RCommandList a_cmd_
             rb.index_buffer = AllocateFromWritableIndexBuffer(INITIAL_INDEX_SIZE);
         }
     }
+    io.Fonts->AddFontDefault();
+    unsigned char* pixels;
+    int width, height;
+    io.Fonts->GetTexDataAsAlpha8(&pixels, &width, &height);
 
-    return ImGui_ImplBB_CreateFontsTexture(a_cmd_list, a_upload_view);
+    UploadImageInfo font_info;
+    font_info.name = "imgui font";
+    font_info.width = static_cast<uint32_t>(width);
+    font_info.height = static_cast<uint32_t>(height);
+    font_info.bit_count = 8;
+    font_info.pixels = pixels;
+    bd->font_image = UploadTexture(a_cmd_list, font_info, a_upload_view);
+
+    io.Fonts->SetTexID(bd->font_image.handle);
+
+    return bd->font_image.IsValid();
 }
 
 void BB::ImGui_ImplBB_Shutdown()
