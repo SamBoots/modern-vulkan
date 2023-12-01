@@ -698,17 +698,23 @@ void GPUTextureManager::Init(const RCommandList a_list, UploadBufferView& a_uplo
 			Vulkan::PipelineBarriers(a_list, pipeline_info);
 		}
 
-		WriteDescriptorData write_desc{};
-		write_desc.binding = 2;
-		write_desc.descriptor_index = 0; //handle is also the descriptor index
-		write_desc.type = DESCRIPTOR_TYPE::IMAGE;
-		write_desc.image_view.view = m_debug_texture.view;
-		write_desc.image_view.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+
+
+		WriteDescriptorData write_desc[MAX_TEXTURES]{};
+
+		for (size_t i = 0; i < MAX_TEXTURES; i++)
+		{
+			write_desc[i].binding = 2;
+			write_desc[i].descriptor_index = i; //handle is also the descriptor index
+			write_desc[i].type = DESCRIPTOR_TYPE::IMAGE;
+			write_desc[i].image_view.view = m_debug_texture.view;
+			write_desc[i].image_view.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+		}
 
 		WriteDescriptorInfos image_write_infos;
 		image_write_infos.allocation = s_render_inst->global_descriptor_allocation;
 		image_write_infos.descriptor_layout = s_render_inst->global_descriptor_set;
-		image_write_infos.data = Slice(&write_desc, 1);
+		image_write_infos.data = Slice(write_desc, _countof(write_desc));
 
 		Vulkan::WriteDescriptors(image_write_infos);
 	}
@@ -1086,7 +1092,7 @@ bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 
 		//some basic colors
 		const uint32_t white = UINT32_MAX;
-		const uint32_t black = 0;
+		const uint32_t black = 0x000000FF;
 
 		UploadImageInfo image_info;
 		image_info.name = "white";

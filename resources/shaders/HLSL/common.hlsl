@@ -17,7 +17,7 @@ float4 PackedUintToFloat4Color(const uint a_uint)
 {
     float4 unpacked = unpack_uint_to_float4(a_uint);
     unpacked = unpacked / 255;
-    unpacked.w = 1;
+    unpacked[3] = 1;
     return unpacked;
 }
 

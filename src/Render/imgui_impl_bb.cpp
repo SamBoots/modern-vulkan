@@ -123,6 +123,12 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
         if (rb.vertex_buffer.size < vertex_size || rb.index_buffer.size < index_size)
             GrowFrameBufferGPUBuffers(rb, Max(rb.vertex_buffer.size * 2, vertex_size), Max(rb.index_buffer.size * 2, index_size));
 
+
+        BB_STATIC_ASSERT(sizeof(Vertex2D) == sizeof(ImDrawVert), "Vertex2D size is not the same as ImDrawVert");
+        BB_STATIC_ASSERT(IM_OFFSETOF(Vertex2D, position) == IM_OFFSETOF(ImDrawVert, pos), "Vertex2D does not have the same offset for the position variable as ImDrawVert");
+        BB_STATIC_ASSERT(IM_OFFSETOF(Vertex2D, uv) == IM_OFFSETOF(ImDrawVert, uv), "Vertex2D does not have the same offset for the uv variable as ImDrawVert");
+        BB_STATIC_ASSERT(IM_OFFSETOF(Vertex2D, color) == IM_OFFSETOF(ImDrawVert, col), "Vertex2D does not have the same offset for the color variable as ImDrawVert");
+
         // Upload vertex/index data into a single contiguous GPU buffer
         ImDrawVert* vtx_dst = reinterpret_cast<ImDrawVert*>(rb.vertex_buffer.mapped);
         ImDrawIdx* idx_dst = reinterpret_cast<ImDrawIdx*>(rb.index_buffer.mapped);
@@ -136,7 +142,7 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
             idx_dst += cmd_list->IdxBuffer.Size;
         }
     }
-
+    uint32_t t = 3640655872;
     StartRenderingInfo imgui_pass_start{};
     imgui_pass_start.viewport_width = render_io.screen_width;
     imgui_pass_start.viewport_height = render_io.screen_height;
@@ -286,16 +292,16 @@ bool BB::ImGui_ImplBB_Init(Allocator a_temp_allocator, const RCommandList a_cmd_
             rb.index_buffer = AllocateFromWritableIndexBuffer(INITIAL_INDEX_SIZE);
         }
     }
-    io.Fonts->AddFontDefault();
+
     unsigned char* pixels;
     int width, height;
-    io.Fonts->GetTexDataAsAlpha8(&pixels, &width, &height);
-
+    io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+    
     UploadImageInfo font_info;
     font_info.name = "imgui font";
     font_info.width = static_cast<uint32_t>(width);
     font_info.height = static_cast<uint32_t>(height);
-    font_info.bit_count = 8;
+    font_info.bit_count = 32;
     font_info.pixels = pixels;
     bd->font_image = UploadTexture(a_cmd_list, font_info, a_upload_view);
 

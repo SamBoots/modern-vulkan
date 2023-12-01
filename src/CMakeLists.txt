@@ -20,19 +20,6 @@ target_link_libraries(Renderer BBFramework
 	DXCompiler
     "${CMAKE_SOURCE_DIR}/lib/DXC/lib/${CPU_ARCHITECTURE}/dxcompiler.lib")
 
-#compile Definitions.
-if (WIN32)
-set(PLATFORM_NAME "_WIN")
-#target_compile_definitions(Renderer PUBLIC VK_USE_PLATFORM_WIN32_KHR)
-elseif(UNIX)
-set(PLATFORM_NAME "_LINUX")
-target_compile_definitions(Renderer PUBLIC VK_USE_PLATFORM_XLIB_KHR)
-endif ()
-
-if ("${USE_GRAPHIC_PIPELINES}" STREQUAL "TRUE")
-target_compile_definitions(Renderer PUBLIC _USE_G_PIPELINE)
-endif()
-
 #Include library
 target_include_directories(Renderer PUBLIC
 	"Render/Vulkan"
