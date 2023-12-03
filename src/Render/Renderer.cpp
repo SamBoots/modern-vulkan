@@ -19,14 +19,28 @@ struct RenderFence
 };
 
 constexpr uint32_t MAX_TEXTURES = 1024;
+constexpr const char* DEBUG_TEXTURE_NAME = "debug texture";
 
 class GPUTextureManager
 {
 public:
+	struct TextureSlot
+	{
+		const char* name;
+		RImage image;
+		RImageView view;
+		uint32_t next_free;
+	};
+
 	void Init(const RCommandList a_list, UploadBufferView& a_upload_view);
 
 	const RTexture UploadTexture(const RCommandList a_list, const UploadImageInfo& a_upload_info, UploadBufferView& a_upload_buffer);
 	void FreeTexture(const RTexture a_texture);
+
+	const TextureSlot& GetTextureSlot(const RTexture a_texture)
+	{
+		return m_textures[a_texture.handle];
+	}
 
 	void DisplayTextureListImgui()
 	{
@@ -47,11 +61,15 @@ public:
 
 			for (uint32_t i = 0; i < MAX_TEXTURES; i++)
 			{
-				//const TextureSlot& slot = m_textures[i];
+				const TextureSlot& slot = m_textures[i];
 
 				if (ImGui::TreeNodeEx(reinterpret_cast<void*>(i), ImGuiTreeNodeFlags_CollapsingHeader, "Texture Slot: %u", i))
 				{
 					ImGui::Indent();
+					if (slot.name != nullptr)
+						ImGui::Text(slot.name);
+					else
+						ImGui::Text("UNNAMED! This might be an error");
 					const ImVec2 image_size = { 160, 160 };
 					ImGui::Image(i, image_size);
 					ImGui::Unindent();
@@ -62,13 +80,6 @@ public:
 	}
 
 private:
-	struct TextureSlot
-	{
-		RImage image;
-		RImageView view;
-		uint32_t next_free;
-	};
-
 	uint32_t m_next_free;
 	TextureSlot m_textures[MAX_TEXTURES];
 	BBRWLock m_lock;
@@ -473,6 +484,7 @@ struct DrawList
 
 constexpr uint32_t UPLOAD_BUFFER_POOL_SIZE = mbSize * 8;
 constexpr uint32_t UPLOAD_BUFFER_POOL_COUNT = 8;
+constexpr uint32_t BACK_BUFFER_MAX = 3;
 
 struct RenderInterface_inst
 {
@@ -496,6 +508,9 @@ struct RenderInterface_inst
 	RDescriptorLayout static_sampler_descriptor_set;
 	RDescriptorLayout global_descriptor_set;
 	DescriptorAllocation global_descriptor_allocation;
+
+	RTexture back_buffer_images[BACK_BUFFER_MAX];
+
 	struct VertexBuffer
 	{
 		GPUBuffer buffer;
@@ -721,6 +736,7 @@ void GPUTextureManager::Init(const RCommandList a_list, UploadBufferView& a_uplo
 
 	m_lock = OSCreateRWLock();
 	//texture 0 is always the debug texture.
+	m_textures[0].name = DEBUG_TEXTURE_NAME;
 	m_textures[0].image = m_debug_texture.img;
 	m_textures[0].view = m_debug_texture.view;
 	m_textures[0].next_free = UINT32_MAX;
@@ -729,6 +745,7 @@ void GPUTextureManager::Init(const RCommandList a_list, UploadBufferView& a_uplo
 
 	for (uint32_t i = 1; i < MAX_TEXTURES - 1; i++)
 	{
+		m_textures[i].name = DEBUG_TEXTURE_NAME;
 		m_textures[i].image = m_debug_texture.img;
 		m_textures[i].view = m_debug_texture.view;
 		m_textures[i].next_free = i + 1;
@@ -747,6 +764,8 @@ const RTexture GPUTextureManager::UploadTexture(const RCommandList a_list, const
 	m_next_free = slot.next_free;
 	OSReleaseSRWLockWrite(&m_lock);
 
+	slot.name = a_upload_info.name;
+
 	uint32_t byte_per_pixel;
 	{
 		ImageCreateInfo image_info;
@@ -759,15 +778,18 @@ const RTexture GPUTextureManager::UploadTexture(const RCommandList a_list, const
 
 		image_info.type = IMAGE_TYPE::TYPE_2D;
 		image_info.tiling = IMAGE_TILING::OPTIMAL;
-
-		switch (a_upload_info.bit_count)
+		image_info.format = a_upload_info.format;
+		switch (image_info.format)
 		{
-		case 32:
-			image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+		case IMAGE_FORMAT::RGBA16_UNORM:
+		case IMAGE_FORMAT::RGBA16_SFLOAT:
+			byte_per_pixel = 8;
+			break;
+		case IMAGE_FORMAT::RGBA8_SRGB:
+		case IMAGE_FORMAT::RGBA8_UNORM:
 			byte_per_pixel = 4;
 			break;
-		case 8:
-			image_info.format = IMAGE_FORMAT::A8_UNORM;
+		case IMAGE_FORMAT::A8_UNORM:
 			byte_per_pixel = 1;
 			break;
 		default:
@@ -807,6 +829,26 @@ const RTexture GPUTextureManager::UploadTexture(const RCommandList a_list, const
 		pipeline_info.image_infos = &image_write_transition;
 		Vulkan::PipelineBarriers(a_list, pipeline_info);
 	}
+
+	{	
+		WriteDescriptorData write_desc{};
+		write_desc.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
+		write_desc.descriptor_index = texture_slot.handle; //handle is also the descriptor index
+		write_desc.type = DESCRIPTOR_TYPE::IMAGE;
+		write_desc.image_view.view = slot.view;
+		write_desc.image_view.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+
+		WriteDescriptorInfos image_write_infos;
+		image_write_infos.allocation = s_render_inst->global_descriptor_allocation;
+		image_write_infos.descriptor_layout = s_render_inst->global_descriptor_set;
+		image_write_infos.data = Slice(&write_desc, 1);
+
+		Vulkan::WriteDescriptors(image_write_infos);
+	}
+
+	//if we have no data to upload then just return the empty image.
+	if (a_upload_info.pixels == nullptr)
+		return texture_slot;
 
 	//now upload the image.
 	uint32_t allocation_offset;
@@ -851,20 +893,6 @@ const RTexture GPUTextureManager::UploadTexture(const RCommandList a_list, const
 		Vulkan::PipelineBarriers(a_list, pipeline_info);
 	}
 
-	WriteDescriptorData write_desc{};
-	write_desc.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
-	write_desc.descriptor_index = texture_slot.handle; //handle is also the descriptor index
-	write_desc.type = DESCRIPTOR_TYPE::IMAGE;
-	write_desc.image_view.view = slot.view;
-	write_desc.image_view.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
-
-	WriteDescriptorInfos image_write_infos;
-	image_write_infos.allocation = s_render_inst->global_descriptor_allocation;
-	image_write_infos.descriptor_layout = s_render_inst->global_descriptor_set;
-	image_write_infos.data = Slice(&write_desc, 1);
-
-	Vulkan::WriteDescriptors(image_write_infos);
-
 	return texture_slot;
 }
 
@@ -878,13 +906,17 @@ void GPUTextureManager::FreeTexture(const RTexture a_texture)
 	slot.next_free = m_next_free;
 	m_next_free = a_texture.handle;
 	OSReleaseSRWLockWrite(&m_lock);
+
+	slot.name = DEBUG_TEXTURE_NAME;
+	slot.image = m_debug_texture.img;
+	slot.view = m_debug_texture.view;
 }
 
 bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererCreateInfo& a_render_create_info)
 {
 	Vulkan::InitializeVulkan(a_stack_allocator, a_render_create_info.app_name, a_render_create_info.engine_name, a_render_create_info.debug);
 	s_render_inst = BBnew(a_stack_allocator, RenderInterface_inst)(a_stack_allocator);
-	s_render_inst->render_io.frame_count = 3;
+	s_render_inst->render_io.frame_count = BACK_BUFFER_MAX;
 	s_render_inst->render_io.frame_index = 0;
 	Vulkan::CreateSwapchain(a_stack_allocator, a_render_create_info.window_handle, a_render_create_info.swapchain_width, a_render_create_info.swapchain_height, s_render_inst->render_io.frame_count);
 	s_render_inst->frames = BBnewArr(a_stack_allocator, s_render_inst->render_io.frame_count, RenderInterface_inst::Frame);
@@ -1080,7 +1112,7 @@ bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 			Vulkan::WriteDescriptors(frame_desc_write);
 		}
 	}
-
+	
 	//do some basic CPU-GPU upload that we need.
 
 	CommandPool& start_up_pool = s_render_inst->graphics_queue.GetCommandPool("startup pool");
@@ -1098,7 +1130,7 @@ bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		image_info.name = "white";
 		image_info.width = 1;
 		image_info.height = 1;
-		image_info.bit_count = 32;
+		image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
 		image_info.pixels = &white;
 
 		s_render_inst->white = UploadTexture(list, image_info, startup_upload_view);
@@ -1106,6 +1138,19 @@ bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		image_info.name = "black";
 		image_info.pixels = &black;
 		s_render_inst->black = UploadTexture(list, image_info, startup_upload_view);
+	}
+
+	{	//setup the backbuffers
+		UploadImageInfo back_buffer_image_info;
+		back_buffer_image_info.name = "back buffer image";
+		back_buffer_image_info.width = a_render_create_info.swapchain_width;
+		back_buffer_image_info.height = a_render_create_info.swapchain_height;
+		back_buffer_image_info.format = IMAGE_FORMAT::RGBA16_SFLOAT;
+		back_buffer_image_info.pixels = nullptr;
+		for (uint32_t i = 0; i < BACK_BUFFER_MAX; i++)
+		{
+			s_render_inst->back_buffer_images[i] = UploadTexture(list, back_buffer_image_info, startup_upload_view);
+		}
 	}
 
 	BBStackAllocatorScope(a_stack_allocator)

@@ -302,7 +302,7 @@ bool BB::ImGui_ImplBB_Init(Allocator a_temp_allocator, const RCommandList a_cmd_
     font_info.name = "imgui font";
     font_info.width = static_cast<uint32_t>(width);
     font_info.height = static_cast<uint32_t>(height);
-    font_info.bit_count = 32;
+    font_info.format = IMAGE_FORMAT::RGBA8_UNORM;
     font_info.pixels = pixels;
     bd->font_image = UploadTexture(a_cmd_list, font_info, a_upload_view);
 

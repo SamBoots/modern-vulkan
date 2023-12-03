@@ -45,7 +45,7 @@ namespace BB
 	{
 		const char* name;
 		const void* pixels;
-		uint32_t bit_count;
+		IMAGE_FORMAT format;
 		uint32_t width;
 		uint32_t height;
 	};
