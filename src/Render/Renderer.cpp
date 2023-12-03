@@ -47,7 +47,7 @@ public:
 
 			for (uint32_t i = 0; i < MAX_TEXTURES; i++)
 			{
-				const TextureSlot& t_Slot = m_textures[i];
+				//const TextureSlot& slot = m_textures[i];
 
 				if (ImGui::TreeNodeEx(reinterpret_cast<void*>(i), ImGuiTreeNodeFlags_CollapsingHeader, "Texture Slot: %u", i))
 				{
@@ -702,7 +702,7 @@ void GPUTextureManager::Init(const RCommandList a_list, UploadBufferView& a_uplo
 
 		WriteDescriptorData write_desc[MAX_TEXTURES]{};
 
-		for (size_t i = 0; i < MAX_TEXTURES; i++)
+		for (uint32_t i = 0; i < MAX_TEXTURES; i++)
 		{
 			write_desc[i].binding = 2;
 			write_desc[i].descriptor_index = i; //handle is also the descriptor index
@@ -1329,9 +1329,16 @@ const MeshHandle BB::CreateMesh(const RCommandList a_list, const CreateMeshInfo&
 	mesh.index_buffer = AllocateFromIndexBuffer(a_create_info.indices.sizeInBytes());
 
 	uint32_t vertex_offset;
-	a_upload_view.AllocateAndMemoryCopy(a_create_info.vertices.data(), a_create_info.vertices.sizeInBytes(), vertex_offset);
+	a_upload_view.AllocateAndMemoryCopy(
+		a_create_info.vertices.data(), 
+		static_cast<uint32_t>(a_create_info.vertices.sizeInBytes()),
+		vertex_offset);
+
 	uint32_t index_offset;
-	a_upload_view.AllocateAndMemoryCopy(a_create_info.indices.data(), a_create_info.indices.sizeInBytes(), index_offset);
+	a_upload_view.AllocateAndMemoryCopy(
+		a_create_info.indices.data(), 
+		static_cast<uint32_t>(a_create_info.indices.sizeInBytes()),
+		index_offset);
 
 	RenderCopyBufferRegion copy_regions[2];
 	RenderCopyBuffer copy_buffer_infos[2];

@@ -111,7 +111,7 @@ int main(int argc, char** argv)
 		default_mat = CreateMaterial(material_info);
 	}
 
-	const Model* quad_mesh;
+	const Model* quad_mesh = nullptr;
 	const Model* gltf_model = nullptr;
 	BBStackAllocatorScope(main_allocator)
 	{

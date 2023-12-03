@@ -80,7 +80,7 @@ static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData, const
     // Our visible imgui space lies from draw_data->DisplayPps (top left) to draw_data->DisplayPos+data_data->DisplaySize (bottom right). DisplayPos is (0,0) for single viewport apps.
     {
         ShaderIndices2D shader_indices;
-        shader_indices.vertex_buffer_offset = a_fb.vertex_buffer.offset;
+        shader_indices.vertex_buffer_offset = static_cast<uint32_t>(a_fb.vertex_buffer.offset);
         shader_indices.albedo_texture = bd->font_image.handle;
         shader_indices.rect_scale.x = 2.0f / a_DrawData.DisplaySize.x;
         shader_indices.rect_scale.y = 2.0f / a_DrawData.DisplaySize.y;
@@ -142,7 +142,6 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
             idx_dst += cmd_list->IdxBuffer.Size;
         }
     }
-    uint32_t t = 3640655872;
     StartRenderingInfo imgui_pass_start{};
     imgui_pass_start.viewport_width = render_io.screen_width;
     imgui_pass_start.viewport_height = render_io.screen_height;
@@ -208,14 +207,16 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
                 DrawIndexed(a_cmd_list, pcmd->ElemCount, 1, index_offset, 0, 0);
             }
         }
-        global_idx_offset += cmd_list->IdxBuffer.Size;
+        global_idx_offset += static_cast<uint32_t>(cmd_list->IdxBuffer.Size);
     }
 
     // Since we dynamically set our scissor lets set it back to the full viewport. 
     // This might be bad to do since this can leak into different system's code. 
     ScissorInfo scissor{};
-    scissor.offset = { 0, 0 };
-    scissor.extent = { static_cast<uint32_t>(fb_width), static_cast<uint32_t>(fb_height) };
+    scissor.offset.x = 0;
+    scissor.offset.y = 0;
+    scissor.extent.x = static_cast<uint32_t>(fb_width);
+    scissor.extent.y = static_cast<uint32_t>(fb_height);
     SetScissor(a_cmd_list, scissor);
 
     EndRenderingInfo imgui_pass_end;

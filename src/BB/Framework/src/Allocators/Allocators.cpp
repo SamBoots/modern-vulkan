@@ -61,6 +61,9 @@ static void Memory_FreeBoundies(void* a_front, void* a_back)
 #ifdef BB_USE_ADDRESS_SANITIZER
 	__asan_unpoison_memory_region(a_front, MEMORY_BOUNDRY_FRONT);
 	__asan_unpoison_memory_region(a_back, MEMORY_BOUNDRY_BACK);
+#else
+	(void)a_front;
+	(void)a_back;
 #endif //USE_ADDRESS_SANITIZER
 }
 
@@ -398,7 +401,7 @@ void StackAllocator::SetMarker(const StackMarker a_marker)
 		prev_list = cur_list;
 		cur_list = prev_list->prev;
 
-		back = reinterpret_cast<uintptr_t>(cur_list->back) + MEMORY_BOUNDRY_BACK;;
+		back = reinterpret_cast<uintptr_t>(cur_list->back) + MEMORY_BOUNDRY_BACK;
 	}
 	//due to alignment this is unreliable. 
 	//BB_ASSERT(a_marker == back, "SetPosition points to a invalid address that holds no allocation");

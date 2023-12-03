@@ -221,7 +221,7 @@ uint32_t BB::LatestOSError()
 		nullptr,
 		error_msg,
 		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), 
-		(LPSTR)&message,
+		reinterpret_cast<LPSTR>(&message),
 		0, nullptr);
 
 	if (message == nullptr)
