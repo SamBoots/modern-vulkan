@@ -21,8 +21,11 @@ namespace BB
 	using RCommandList = FrameworkHandle<struct RCommandListTag>;
 
 	using GPUBuffer = FrameworkHandle<struct RBufferTag>;
+	//TEMP START
+	using RImage = FrameworkHandle<struct RImageTag>;
+	using RImageView = FrameworkHandle<struct RImageViewTag>;
+	//TEMP END
 	using RTexture = FrameworkHandle32Bit<struct RTextureTag>;
-	using RDepthBuffer = FrameworkHandle<struct RDepthBufferTag>;
 
 	using ShaderCode = FrameworkHandle<struct ShdaerCodeTag>;
 	using MeshHandle = FrameworkHandle<struct MeshHandleTag>;
@@ -75,6 +78,15 @@ namespace BB
 		ENUM_SIZE
 	};
 
+	enum class IMAGE_USAGE : uint32_t
+	{
+		DEPTH,
+		TEXTURE,
+		RENDER_TARGET,
+
+		ENUM_SIZE
+	};
+
 	struct StartRenderingInfo
 	{
 		uint32_t viewport_width;
@@ -82,18 +94,11 @@ namespace BB
 
 		bool load_color;
 		bool store_color;
-		IMAGE_LAYOUT initial_layout;
-		IMAGE_LAYOUT final_layout;
+		IMAGE_LAYOUT layout;
 
-		RDepthBuffer depth_buffer;
+		RImageView depth_view;
 
 		float4 clear_color_rgba;
-	};
-
-	struct EndRenderingInfo
-	{
-		IMAGE_LAYOUT initial_layout;
-		IMAGE_LAYOUT final_layout;
 	};
 
 	struct ScissorInfo

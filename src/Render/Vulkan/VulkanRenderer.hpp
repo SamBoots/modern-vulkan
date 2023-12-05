@@ -24,8 +24,7 @@ namespace BB
 		const RImageView CreateViewImage(const ImageViewCreateInfo& a_create_info);
 		void FreeViewImage(const RImageView a_image_view);
 
-		const RDepthBuffer CreateDepthBuffer(const RenderDepthCreateInfo& a_create_info);
-		void FreeDepthBuffer(const RDepthBuffer a_depth_buffer);
+		void CreateDepthBuffer(const RenderDepthCreateInfo& a_create_info, RImage& a_out_image, RImageView& a_out_image_view);
 
 		RDescriptorLayout CreateDescriptorLayout(Allocator a_temp_allocator, Slice<DescriptorBindingInfo> a_bindings);
 		RDescriptorLayout CreateDescriptorSamplerLayout(const Slice<SamplerCreateInfo> a_static_samplers);
@@ -51,11 +50,10 @@ namespace BB
 		void CopyBufferImage(const RCommandList a_list, const RenderCopyBufferToImageInfo& a_copy_info);
 		void PipelineBarriers(const RCommandList a_list, const PipelineBarrierInfo& a_BarrierInfo);
 
-		void StartRendering(const RCommandList a_list, const StartRenderingInfo& a_render_info, const uint32_t a_backbuffer_index);
-		void EndRendering(const RCommandList a_list, const EndRenderingInfo& a_rendering_info, const uint32_t a_backbuffer_index);
+		void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info, const RImageView a_rendering_image_view);
+		void EndRenderPass(const RCommandList a_list);
 		void SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor);
 
-		void BindVertexBuffer(const RCommandList a_list, const GPUBuffer a_buffer, const uint64_t a_offset);
 		void BindIndexBuffer(const RCommandList a_list, const GPUBuffer a_buffer, const uint64_t a_offset);
 		void BindPipeline(const RCommandList a_list, const RPipeline a_pipeline);
 		void BindShaders(const RCommandList a_list, const uint32_t a_shader_stage_count, const SHADER_STAGE* a_shader_stages, const ShaderObject* a_shader_objects);
@@ -64,12 +62,10 @@ namespace BB
 		void SetPushConstants(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_offset, const uint32_t a_size, const void* a_data);
 
 		void DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance);
+		bool UploadImageToSwapchain(const RCommandList a_list, const RImage a_src_image, const int2 a_src_image_size, const int2 a_swapchain_size, const uint32_t a_backbuffer_index);
 
 		void ExecuteCommandLists(const RQueue a_queue, const ExecuteCommandsInfo* a_execute_infos, const uint32_t a_execute_info_count);
 		void ExecutePresentCommandList(const RQueue a_queue, const ExecuteCommandsInfo& a_execute_info, const uint32_t a_backbuffer_index);
-
-		bool StartFrame(const uint32_t a_backbuffer_index);
-		bool EndFrame(const uint32_t a_backbuffer_index);
 
 		RFence CreateFence(const uint64_t a_initial_value, const char* a_name);
 		void FreeFence(const RFence a_fence);

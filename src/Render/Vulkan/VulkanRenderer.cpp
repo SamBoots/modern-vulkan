@@ -57,24 +57,6 @@ struct VulkanQueueDeviceInfo
 	uint32_t queueCount;
 };
 
-struct VulkanBuffer
-{
-	VkBuffer buffer;
-	VmaAllocation allocation;
-};
-
-struct VulkanImage
-{
-	VkImage image;
-	VmaAllocation allocation;
-};
-
-struct VulkanDepth
-{
-	VkImage image;
-	VmaAllocation allocation;
-	VkImageView view;
-};
 
 static inline VkDeviceSize GetBufferDeviceAddress(const VkDevice a_device, const VkBuffer a_buffer)
 {
@@ -511,14 +493,21 @@ struct Vulkan_inst
 		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::TRANSFER)] = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
 		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::VERTEX_INPUT)] = VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT;
 		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::VERTEX_SHADER)] = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
-		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::EARLY_FRAG_TEST)] = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
+		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::FRAGMENT_TEST)] = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
 		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER)] = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT)] = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::END_OF_PIPELINE)] = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
 
 		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::NONE)] = VK_ACCESS_2_NONE;
+		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::TRANSFER_READ)] = VK_ACCESS_2_TRANSFER_READ_BIT;
 		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::TRANSFER_WRITE)] = VK_ACCESS_2_TRANSFER_WRITE_BIT;
 		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE)] = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::SHADER_READ)] = VK_ACCESS_2_SHADER_READ_BIT;
+		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE)] = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+
+		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::DEPTH)] = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::TEXTURE)] = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;;
+		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::RENDER_TARGET)] = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 #endif //ENUM_CONVERSATION_BY_ARRAY
 	}
 
@@ -531,10 +520,9 @@ struct Vulkan_inst
 	//jank pointer
 	VulkanDescriptorLinearBuffer* pdescriptor_buffer;
 
+	//takes a VkHandle
+	StaticOL_HashMap<uintptr_t, VmaAllocation> allocation_map;
 	StaticOL_HashMap<uint64_t, VkPipelineLayout> pipeline_layout_cache;
-	StaticSlotmap<VulkanBuffer, GPUBuffer> buffers;
-	StaticSlotmap<VulkanImage, RImage> images;
-	StaticSlotmap<VulkanDepth, RDepthBuffer> depth_images;
 	
 	VulkanQueuesIndices queue_indices;
 	struct DeviceInfo
@@ -564,6 +552,7 @@ struct Vulkan_inst
 		VkSamplerAddressMode sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::ENUM_SIZE)];
 		VkPipelineStageFlags2 pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::ENUM_SIZE)];
 		VkAccessFlags2 access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::ENUM_SIZE)];
+		VkImageUsageFlags image_usages[static_cast<uint32_t>(IMAGE_USAGE::ENUM_SIZE)];
 	} enum_conv;
 #endif //ENUM_CONVERSATION_BY_ARRAY
 
@@ -821,8 +810,9 @@ static inline VkPipelineStageFlags2 PipelineStage(const BARRIER_PIPELINE_STAGE a
 	case BARRIER_PIPELINE_STAGE::TRANSFER:				return VK_PIPELINE_STAGE_2_TRANSFER_BIT;
 	case BARRIER_PIPELINE_STAGE::VERTEX_INPUT:			return VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT;
 	case BARRIER_PIPELINE_STAGE::VERTEX_SHADER:			return VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
-	case BARRIER_PIPELINE_STAGE::EARLY_FRAG_TEST:		return VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT;
+	case BARRIER_PIPELINE_STAGE::FRAGMENT_TEST:			return VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
 	case BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER:		return VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+	case BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT:	return VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 	case BARRIER_PIPELINE_STAGE::END_OF_PIPELINE:		return VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
 	default:
 		BB_ASSERT(false, "Vulkan: RENDER_PIPELINE_STAGE failed to convert to a VkPipelineStageFlags2.");
@@ -840,12 +830,32 @@ static inline VkAccessFlags2 AccessMask(const BARRIER_ACCESS_MASK a_type)
 	switch (a_type)
 	{
 	case BARRIER_ACCESS_MASK::NONE:						return VK_ACCESS_2_NONE;
+	case BARRIER_ACCESS_MASK::TRANSFER_READ:			return VK_ACCESS_2_TRANSFER_READ_BIT;
 	case BARRIER_ACCESS_MASK::TRANSFER_WRITE:			return VK_ACCESS_2_TRANSFER_WRITE_BIT;
 	case BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE:	return VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 	case BARRIER_ACCESS_MASK::SHADER_READ:				return VK_ACCESS_2_SHADER_READ_BIT;
+	case BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE:	return VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 	default:
 		BB_ASSERT(false, "Vulkan: RENDER_ACCESS_MASK failed to convert to a VkAccessFlags2.");
 		return VK_ACCESS_2_NONE;
+		break;
+	}
+#endif //ENUM_CONVERSATION_BY_ARRAY
+}
+
+static inline VkImageUsageFlags ImageUsage(const IMAGE_USAGE a_usage)
+{
+#ifdef ENUM_CONVERSATION_BY_ARRAY
+	return s_vulkan_inst->enum_conv.image_usages[static_cast<uint32_t>(a_usage)];
+#else
+	switch (a_usage)
+	{
+	case IMAGE_USAGE::DEPTH:			return VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT; 
+	case IMAGE_USAGE::TEXTURE:			return VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	case IMAGE_USAGE::RENDER_TARGET:	return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+	default:
+		BB_ASSERT(false, "Vulkan: IMAGE_USAGE failed to convert to a VkImageUsageFlags.");
+		return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
 		break;
 	}
 #endif //ENUM_CONVERSATION_BY_ARRAY
@@ -885,14 +895,14 @@ static VkSampler CreateSampler(const SamplerCreateInfo& a_CreateInfo)
 	return sampler;
 }
 
-static inline VkDescriptorAddressInfoEXT GetDescriptorAddressInfo(const VkDevice a_device, const GPUBufferView& a_Buffer, const VkFormat a_Format = VK_FORMAT_UNDEFINED)
+static inline VkDescriptorAddressInfoEXT GetDescriptorAddressInfo(const VkDevice a_device, const GPUBufferView& a_buffer, const VkFormat a_format = VK_FORMAT_UNDEFINED)
 {
 	VkDescriptorAddressInfoEXT info{ VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT };
-	info.range = a_Buffer.size;
-	info.address = GetBufferDeviceAddress(a_device, s_vulkan_inst->buffers[a_Buffer.buffer].buffer);
+	info.range = a_buffer.size;
+	info.address = GetBufferDeviceAddress(a_device, reinterpret_cast<VkBuffer>(a_buffer.buffer.handle));
 	//offset the address.
-	info.address += a_Buffer.offset;
-	info.format = a_Format;
+	info.address += a_buffer.offset;
+	info.format = a_format;
 	return info;
 }
 
@@ -1076,9 +1086,7 @@ bool Vulkan::InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a
 		}
 	}
 
-	s_vulkan_inst->buffers.Init(a_stack_allocator, 128);
-	s_vulkan_inst->images.Init(a_stack_allocator, 256);
-	s_vulkan_inst->depth_images.Init(a_stack_allocator, 32);
+	s_vulkan_inst->allocation_map.Init(a_stack_allocator, 256);
 	s_vulkan_inst->pdescriptor_buffer = BBnew(a_stack_allocator, VulkanDescriptorLinearBuffer)(
 		mbSize * 4,
 		VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
@@ -1175,7 +1183,7 @@ bool Vulkan::CreateSwapchain(StackAllocator_t& a_stack_allocator, const WindowHa
 		swapchain_create_info.imageColorSpace = optimal_surface_format.colorSpace;
 		swapchain_create_info.imageExtent = swapchain_extent;
 		swapchain_create_info.imageArrayLayers = 1;
-		swapchain_create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		swapchain_create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 		swapchain_create_info.preTransform = capabilities.currentTransform;
 		swapchain_create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 		swapchain_create_info.presentMode = optimal_present;
@@ -1310,8 +1318,6 @@ void Vulkan::FreeCommandPool(const RCommandPool a_pool)
 
 const GPUBuffer Vulkan::CreateBuffer(const GPUBufferCreateInfo& a_create_info)
 {
-	VulkanBuffer buffer;
-
 	VkBufferCreateInfo buffer_info{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
 	buffer_info.size = a_create_info.size;
 	buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -1348,21 +1354,27 @@ const GPUBuffer Vulkan::CreateBuffer(const GPUBufferCreateInfo& a_create_info)
 	else
 		vma_alloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
+	VkBuffer buffer;
+	VmaAllocation allocation;
 	VKASSERT(vmaCreateBuffer(s_vulkan_inst->vma,
 		&buffer_info, &vma_alloc,
-		&buffer.buffer, &buffer.allocation,
+		&buffer, &allocation,
 		nullptr), "Vulkan::VMA, Failed to allocate memory");
 
-	SetDebugName(a_create_info.name, buffer.buffer, VK_OBJECT_TYPE_BUFFER);
+	SetDebugName(a_create_info.name, buffer, VK_OBJECT_TYPE_BUFFER);
 
-	return GPUBuffer(s_vulkan_inst->buffers.insert(buffer));
+	s_vulkan_inst->allocation_map.insert(reinterpret_cast<uintptr_t>(buffer), allocation);
+	return GPUBuffer(reinterpret_cast<uintptr_t>(buffer));
 }
 
 void Vulkan::FreeBuffer(const GPUBuffer a_buffer)
 {
-	const VulkanBuffer& buf = s_vulkan_inst->buffers.find(a_buffer);
-	vmaDestroyBuffer(s_vulkan_inst->vma, buf.buffer, buf.allocation);
-	s_vulkan_inst->buffers.erase(a_buffer);
+	const VmaAllocation allocation = *s_vulkan_inst->allocation_map.find(a_buffer.handle);
+	vmaDestroyBuffer(s_vulkan_inst->vma, 
+		reinterpret_cast<VkBuffer>(a_buffer.handle),
+		allocation);
+
+	s_vulkan_inst->allocation_map.erase(a_buffer.handle);
 }
 
 const RImage Vulkan::CreateImage(const ImageCreateInfo& a_create_info)
@@ -1377,7 +1389,7 @@ const RImage Vulkan::CreateImage(const ImageCreateInfo& a_create_info)
 	image_create_info.imageType = ImageTypes(a_create_info.type);
 	image_create_info.tiling = ImageTilings(a_create_info.tiling);
 	image_create_info.format = ImageFormats(a_create_info.format);
-	image_create_info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+	image_create_info.usage = ImageUsage(a_create_info.usage);
 
 	//Will be defined in the first layout transition.
 	image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -1387,34 +1399,38 @@ const RImage Vulkan::CreateImage(const ImageCreateInfo& a_create_info)
 
 	VmaAllocationCreateInfo alloc_info{};
 	alloc_info.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+	alloc_info.preferredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
-	VulkanImage image;
+	VkImage image;
+	VmaAllocation allocation;
 	VKASSERT(vmaCreateImage(s_vulkan_inst->vma, 
 		&image_create_info,
 		&alloc_info,
-		&image.image,
-		&image.allocation,
+		&image,
+		&allocation,
 		nullptr), 
 		"Vulkan: Failed to create image");
 
-	SetDebugName(a_create_info.name, image.image, VK_OBJECT_TYPE_IMAGE);
+	SetDebugName(a_create_info.name, image, VK_OBJECT_TYPE_IMAGE);
 
-	return RImage(s_vulkan_inst->images.insert(image).handle);
+	s_vulkan_inst->allocation_map.insert(reinterpret_cast<uintptr_t>(image), allocation);
+	return RImage(reinterpret_cast<uintptr_t>(image));
 }
 
 void Vulkan::FreeImage(const RImage a_image)
 {
-	const VulkanImage& image = s_vulkan_inst->images.find(a_image);
-	vmaDestroyImage(s_vulkan_inst->vma, image.image, image.allocation);
-	s_vulkan_inst->images.erase(a_image);
+	const VmaAllocation allocation = *s_vulkan_inst->allocation_map.find(a_image.handle);
+	vmaDestroyImage(s_vulkan_inst->vma,
+		reinterpret_cast<VkImage>(a_image.handle),
+		allocation);
+
+	s_vulkan_inst->allocation_map.erase(a_image.handle);
 }
 
 const RImageView Vulkan::CreateViewImage(const ImageViewCreateInfo& a_create_info)
 {
-	const VulkanImage image = s_vulkan_inst->images.find(a_create_info.image);
-
 	VkImageViewCreateInfo view_info{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
-	view_info.image = image.image;
+	view_info.image = reinterpret_cast<VkImage>(a_create_info.image.handle);
 	view_info.viewType = ImageViewTypes(a_create_info.type);
 	view_info.format = ImageFormats(a_create_info.format);
 	view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -1442,7 +1458,7 @@ void Vulkan::FreeViewImage(const RImageView a_image_view)
 			nullptr);
 }
 
-const RDepthBuffer Vulkan::CreateDepthBuffer(const RenderDepthCreateInfo& a_create_info)
+void Vulkan::CreateDepthBuffer(const RenderDepthCreateInfo& a_create_info, RImage& a_out_image, RImageView& a_out_image_view)
 {
 	VkImageCreateInfo image_create_info{ VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
 	image_create_info.extent.width = a_create_info.width;
@@ -1475,29 +1491,22 @@ const RDepthBuffer Vulkan::CreateDepthBuffer(const RenderDepthCreateInfo& a_crea
 	VmaAllocationCreateInfo alloc_info{};
 	alloc_info.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
-	VulkanDepth depth;
-	VKASSERT(vmaCreateImage(s_vulkan_inst->vma, &image_create_info, &alloc_info, &depth.image, &depth.allocation, nullptr), "Vulkan: Failed to create image");
-	view_info.image = depth.image;
-	VKASSERT(vkCreateImageView(s_vulkan_inst->device, &view_info, nullptr, &depth.view), "Vulkan: Failed to create image view.");
+	VkImage image;
+	VmaAllocation allocation;
+	VKASSERT(vmaCreateImage(s_vulkan_inst->vma, &image_create_info, &alloc_info, &image, &allocation, nullptr), "Vulkan: Failed to create image");
+	view_info.image = image;
+	VkImageView image_view;
+	VKASSERT(vkCreateImageView(s_vulkan_inst->device, &view_info, nullptr, &image_view), "Vulkan: Failed to create image view.");
 
-	SetDebugName(a_create_info.name, depth.image, VK_OBJECT_TYPE_IMAGE);
-	SetDebugName(a_create_info.name, depth.view, VK_OBJECT_TYPE_IMAGE_VIEW);
+	SetDebugName(a_create_info.name, image, VK_OBJECT_TYPE_IMAGE);
+	SetDebugName(a_create_info.name, image_view, VK_OBJECT_TYPE_IMAGE_VIEW);
 
-	return RDepthBuffer(s_vulkan_inst->depth_images.insert(depth).handle);
-}
-
-void Vulkan::FreeDepthBuffer(const RDepthBuffer a_depth_buffer)
-{
-	const VulkanDepth& image = s_vulkan_inst->depth_images.find(a_depth_buffer);
-	vkDestroyImageView(s_vulkan_inst->device, image.view, nullptr);
-	vmaDestroyImage(s_vulkan_inst->vma, image.image, image.allocation);
-	s_vulkan_inst->depth_images.erase(a_depth_buffer);
+	a_out_image = RImage(reinterpret_cast<uint64_t>(image));
+	a_out_image_view = RImageView(reinterpret_cast<uint64_t>(image_view));
 }
 
 RDescriptorLayout Vulkan::CreateDescriptorLayout(Allocator a_temp_allocator, Slice<DescriptorBindingInfo> a_bindings)
 {
-	VkDescriptorSetLayout set_layout;
-
 	VkDescriptorSetLayoutBinding* layout_binds = BBnewArr(
 		a_temp_allocator,
 		a_bindings.size(),
@@ -1527,6 +1536,7 @@ RDescriptorLayout Vulkan::CreateDescriptorLayout(Allocator a_temp_allocator, Sli
 			bindless_flags[i] = 0;
 	}
 
+	VkDescriptorSetLayout set_layout;
 	VkDescriptorSetLayoutCreateInfo layout_info{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
 	layout_info.pBindings = layout_binds;
 	layout_info.bindingCount = static_cast<uint32_t>(a_bindings.size());
@@ -1919,16 +1929,16 @@ void Vulkan::DestroyShaderObject(const ShaderObject a_shader_object)
 
 void* Vulkan::MapBufferMemory(const GPUBuffer a_buffer)
 {
-	const VulkanBuffer& buffer = s_vulkan_inst->buffers.find(a_buffer);
+	const VmaAllocation allocation = *s_vulkan_inst->allocation_map.find(a_buffer.handle);
 	void* mapped;
-	vmaMapMemory(s_vulkan_inst->vma, buffer.allocation, &mapped);
+	vmaMapMemory(s_vulkan_inst->vma, allocation, &mapped);
 	return mapped;
 }
 
 void Vulkan::UnmapBufferMemory(const GPUBuffer a_buffer)
 {
-	const VulkanBuffer& buffer = s_vulkan_inst->buffers.find(a_buffer);
-	vmaUnmapMemory(s_vulkan_inst->vma, buffer.allocation);
+	const VmaAllocation allocation = *s_vulkan_inst->allocation_map.find(a_buffer.handle);
+	vmaUnmapMemory(s_vulkan_inst->vma, allocation);
 }
 
 void Vulkan::ResetCommandPool(const RCommandPool a_pool)
@@ -1964,8 +1974,6 @@ void Vulkan::EndCommandList(const RCommandList a_list)
 void Vulkan::CopyBuffer(const RCommandList a_list, const RenderCopyBuffer& a_copy_buffer)
 {
 	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
-	const VkBuffer dst_buf = s_vulkan_inst->buffers.find(a_copy_buffer.dst).buffer;
-	const VkBuffer src_buf = s_vulkan_inst->buffers.find(a_copy_buffer.src).buffer;
 
 	VkBufferCopy* copy_regions = BBstackAlloc(a_copy_buffer.regions.size(), VkBufferCopy);
 	for (size_t i = 0; i < a_copy_buffer.regions.size(); i++)
@@ -1979,8 +1987,8 @@ void Vulkan::CopyBuffer(const RCommandList a_list, const RenderCopyBuffer& a_cop
 	}
 	
 	vkCmdCopyBuffer(cmd_list,
-		src_buf,
-		dst_buf,
+		reinterpret_cast<VkBuffer>(a_copy_buffer.src.handle),
+		reinterpret_cast<VkBuffer>(a_copy_buffer.dst.handle),
 		static_cast<uint32_t>(a_copy_buffer.regions.size()),
 		copy_regions);
 }
@@ -1992,8 +2000,6 @@ void Vulkan::CopyBuffers(const RCommandList a_list, const RenderCopyBuffer* a_co
 	for (size_t i = 0; i < a_copy_buffer_count; i++)
 	{
 		const RenderCopyBuffer& cpy_buf = a_copy_buffers[i];
-		const VulkanBuffer& dst_buf = s_vulkan_inst->buffers.find(cpy_buf.dst);
-		const VulkanBuffer& src_buf = s_vulkan_inst->buffers.find(cpy_buf.src);
 
 		VkBufferCopy* copy_regions = BBstackAlloc(cpy_buf.regions.size(), VkBufferCopy);
 		for (size_t cpy_reg_index = 0; cpy_reg_index < cpy_buf.regions.size(); cpy_reg_index++)
@@ -2007,8 +2013,8 @@ void Vulkan::CopyBuffers(const RCommandList a_list, const RenderCopyBuffer* a_co
 		}
 
 		vkCmdCopyBuffer(cmd_list,
-			src_buf.buffer,
-			dst_buf.buffer,
+			reinterpret_cast<VkBuffer>(cpy_buf.src.handle),
+			reinterpret_cast<VkBuffer>(cpy_buf.dst.handle),
 			static_cast<uint32_t>(cpy_buf.regions.size()),
 			copy_regions);
 	}
@@ -2017,9 +2023,6 @@ void Vulkan::CopyBuffers(const RCommandList a_list, const RenderCopyBuffer* a_co
 void Vulkan::CopyBufferImage(const RCommandList a_list, const RenderCopyBufferToImageInfo& a_copy_info)
 {
 	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
-
-	const VulkanBuffer& src_buf = s_vulkan_inst->buffers.find(a_copy_info.src_buffer);
-	const VulkanImage& dst_image = s_vulkan_inst->images.find(a_copy_info.dst_image);
 
 	VkBufferImageCopy copy_image;
 	copy_image.bufferOffset = a_copy_info.src_offset;
@@ -2040,8 +2043,8 @@ void Vulkan::CopyBufferImage(const RCommandList a_list, const RenderCopyBufferTo
 	copy_image.imageSubresource.layerCount = a_copy_info.dst_image_info.layer_count;
 
 	vkCmdCopyBufferToImage(cmd_list,
-		src_buf.buffer,
-		dst_image.image,
+		reinterpret_cast<VkBuffer>(a_copy_info.src_buffer.handle),
+		reinterpret_cast<VkImage>(a_copy_info.dst_image.handle),
 		ImageLayout(a_copy_info.dst_image_info.layout),
 		1,
 		&copy_image);
@@ -2051,24 +2054,25 @@ static inline uint32_t QueueTransitionIndex(const QUEUE_TRANSITION a_Transition)
 {
 	switch (a_Transition)
 	{
-	case QUEUE_TRANSITION::GRAPHICS:	return s_vulkan_inst->queue_indices.graphics;
-	case QUEUE_TRANSITION::TRANSFER:	return s_vulkan_inst->queue_indices.transfer;
-	case QUEUE_TRANSITION::COMPUTE:		return s_vulkan_inst->queue_indices.compute;
+	case QUEUE_TRANSITION::NO_TRANSITION:	return VK_QUEUE_FAMILY_IGNORED;
+	case QUEUE_TRANSITION::GRAPHICS:		return s_vulkan_inst->queue_indices.graphics;
+	case QUEUE_TRANSITION::TRANSFER:		return s_vulkan_inst->queue_indices.transfer;
+	case QUEUE_TRANSITION::COMPUTE:			return s_vulkan_inst->queue_indices.compute;
 	default:
 		BB_ASSERT(false, "Vulkan: queue transition not supported!");
 		return VK_QUEUE_FAMILY_IGNORED;
 	}
 }
 
-void Vulkan::PipelineBarriers(const RCommandList a_list, const PipelineBarrierInfo& a_BarrierInfo)
+void Vulkan::PipelineBarriers(const RCommandList a_list, const PipelineBarrierInfo& a_barrier_info)
 {
-	VkMemoryBarrier2* global_barriers = BBstackAlloc(a_BarrierInfo.global_info_count, VkMemoryBarrier2);
-	VkBufferMemoryBarrier2* buffer_barriers = BBstackAlloc(a_BarrierInfo.buffer_info_count, VkBufferMemoryBarrier2);
-	VkImageMemoryBarrier2* image_barriers = BBstackAlloc(a_BarrierInfo.image_info_count, VkImageMemoryBarrier2);
+	VkMemoryBarrier2* global_barriers = BBstackAlloc(a_barrier_info.global_info_count, VkMemoryBarrier2);
+	VkBufferMemoryBarrier2* buffer_barriers = BBstackAlloc(a_barrier_info.buffer_info_count, VkBufferMemoryBarrier2);
+	VkImageMemoryBarrier2* image_barriers = BBstackAlloc(a_barrier_info.image_info_count, VkImageMemoryBarrier2);
 
-	for (size_t i = 0; i < a_BarrierInfo.global_info_count; i++)
+	for (size_t i = 0; i < a_barrier_info.global_info_count; i++)
 	{
-		const PipelineBarrierGlobalInfo& barrier_info = a_BarrierInfo.global_infos[i];
+		const PipelineBarrierGlobalInfo& barrier_info = a_barrier_info.global_infos[i];
 
 		global_barriers[i].sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
 		global_barriers[i].pNext = nullptr;
@@ -2078,9 +2082,9 @@ void Vulkan::PipelineBarriers(const RCommandList a_list, const PipelineBarrierIn
 		global_barriers[i].dstStageMask = PipelineStage(barrier_info.dst_stage);
 	}
 
-	for (size_t i = 0; i < a_BarrierInfo.buffer_info_count; i++)
+	for (size_t i = 0; i < a_barrier_info.buffer_info_count; i++)
 	{
-		const PipelineBarrierBufferInfo& barrier_info = a_BarrierInfo.buffer_infos[i];
+		const PipelineBarrierBufferInfo& barrier_info = a_barrier_info.buffer_infos[i];
 
 		buffer_barriers[i].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
 		buffer_barriers[i].pNext = nullptr;
@@ -2088,25 +2092,16 @@ void Vulkan::PipelineBarriers(const RCommandList a_list, const PipelineBarrierIn
 		buffer_barriers[i].dstAccessMask = AccessMask(barrier_info.dst_mask);
 		buffer_barriers[i].srcStageMask = PipelineStage(barrier_info.src_stage);
 		buffer_barriers[i].dstStageMask = PipelineStage(barrier_info.dst_stage);
-		//if we do no transition on the source queue. Then set it all to false.
-		if (barrier_info.src_queue == QUEUE_TRANSITION::NO_TRANSITION)
-		{
-			buffer_barriers[i].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			buffer_barriers[i].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		}
-		else
-		{
-			buffer_barriers[i].srcQueueFamilyIndex = QueueTransitionIndex(barrier_info.src_queue);
-			buffer_barriers[i].dstQueueFamilyIndex = QueueTransitionIndex(barrier_info.dst_queue);
-		}
-		buffer_barriers[i].buffer = reinterpret_cast<VulkanBuffer*>(barrier_info.buffer.handle)->buffer;
+		buffer_barriers[i].srcQueueFamilyIndex = QueueTransitionIndex(barrier_info.src_queue);
+		buffer_barriers[i].dstQueueFamilyIndex = QueueTransitionIndex(barrier_info.dst_queue);
+		buffer_barriers[i].buffer = reinterpret_cast<VkBuffer>(barrier_info.buffer.handle);
 		buffer_barriers[i].offset = barrier_info.offset;
 		buffer_barriers[i].size = barrier_info.size;
 	}
 
-	for (size_t i = 0; i < a_BarrierInfo.image_info_count; i++)
+	for (size_t i = 0; i < a_barrier_info.image_info_count; i++)
 	{
-		const PipelineBarrierImageInfo& barrier_info = a_BarrierInfo.image_infos[i];
+		const PipelineBarrierImageInfo& barrier_info = a_barrier_info.image_infos[i];
 
 		image_barriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 		image_barriers[i].pNext = nullptr;
@@ -2115,19 +2110,11 @@ void Vulkan::PipelineBarriers(const RCommandList a_list, const PipelineBarrierIn
 		image_barriers[i].srcStageMask = PipelineStage(barrier_info.src_stage);
 		image_barriers[i].dstStageMask = PipelineStage(barrier_info.dst_stage);
 		//if we do no transition on the source queue. Then set it all to false.
-		if (barrier_info.src_queue == QUEUE_TRANSITION::NO_TRANSITION)
-		{
-			image_barriers[i].srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			image_barriers[i].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		}
-		else
-		{
-			image_barriers[i].srcQueueFamilyIndex = QueueTransitionIndex(barrier_info.src_queue);
-			image_barriers[i].dstQueueFamilyIndex = QueueTransitionIndex(barrier_info.dst_queue);
-		}
+		image_barriers[i].srcQueueFamilyIndex = QueueTransitionIndex(barrier_info.src_queue);
+		image_barriers[i].dstQueueFamilyIndex = QueueTransitionIndex(barrier_info.dst_queue);
 		image_barriers[i].oldLayout = ImageLayout(barrier_info.old_layout);
 		image_barriers[i].newLayout = ImageLayout(barrier_info.new_layout);
-		image_barriers[i].image =  s_vulkan_inst->images.find(barrier_info.image).image;
+		image_barriers[i].image = reinterpret_cast<VkImage>(barrier_info.image.handle);
 		if (barrier_info.new_layout == IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT ||
 			barrier_info.old_layout == IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT)
 			image_barriers[i].subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
@@ -2140,68 +2127,32 @@ void Vulkan::PipelineBarriers(const RCommandList a_list, const PipelineBarrierIn
 	}
 
 	VkDependencyInfo dependency_info{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
-	dependency_info.memoryBarrierCount = a_BarrierInfo.global_info_count;
+	dependency_info.memoryBarrierCount = a_barrier_info.global_info_count;
 	dependency_info.pMemoryBarriers = global_barriers;
-	dependency_info.bufferMemoryBarrierCount = a_BarrierInfo.buffer_info_count;
+	dependency_info.bufferMemoryBarrierCount = a_barrier_info.buffer_info_count;
 	dependency_info.pBufferMemoryBarriers = buffer_barriers;
-	dependency_info.imageMemoryBarrierCount = a_BarrierInfo.image_info_count;
+	dependency_info.imageMemoryBarrierCount = a_barrier_info.image_info_count;
 	dependency_info.pImageMemoryBarriers = image_barriers;
 
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 	vkCmdPipelineBarrier2(cmd_buffer, &dependency_info);
 }
 
-void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo& a_render_info, const uint32_t a_backbuffer_index)
+void Vulkan::StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info, const RImageView a_rendering_image_view)
 {
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
-
-	//include depth stencil later.
-	VkImageMemoryBarrier2 image_barriers[2]{};
-	image_barriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-	image_barriers[0].dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-	image_barriers[0].srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
-	image_barriers[0].dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-	image_barriers[0].oldLayout = ImageLayout(a_render_info.initial_layout);
-	image_barriers[0].newLayout = ImageLayout(a_render_info.final_layout);
-	image_barriers[0].image = s_vulkan_swapchain->frames[a_backbuffer_index].image;
-	image_barriers[0].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	image_barriers[0].subresourceRange.baseArrayLayer = 0;
-	image_barriers[0].subresourceRange.layerCount = 1;
-	image_barriers[0].subresourceRange.baseMipLevel = 0;
-	image_barriers[0].subresourceRange.levelCount = 1;
 
 	VkRenderingInfo rendering_info{ VK_STRUCTURE_TYPE_RENDERING_INFO };
 	VkRenderingAttachmentInfo depth_attachment;
 
 	//If we handle the depth stencil we do that here. 
-	if (a_render_info.depth_buffer.handle != BB_INVALID_HANDLE_64)
+	if (a_render_info.depth_view.handle != BB_INVALID_HANDLE_64)
 	{
-		const VulkanDepth& depth_buffer = s_vulkan_inst->depth_images.find(a_render_info.depth_buffer);
-
-		image_barriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-		image_barriers[1].dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-		image_barriers[1].srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
-		image_barriers[1].dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
-		image_barriers[1].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		image_barriers[1].newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		image_barriers[1].image = depth_buffer.image;
-		image_barriers[1].subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-		image_barriers[1].subresourceRange.baseArrayLayer = 0;
-		image_barriers[1].subresourceRange.layerCount = 1;
-		image_barriers[1].subresourceRange.baseMipLevel = 0;
-		image_barriers[1].subresourceRange.levelCount = 1;
-
-		VkDependencyInfo barrier_info{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
-		barrier_info.pImageMemoryBarriers = image_barriers;
-		barrier_info.imageMemoryBarrierCount = 2;
-
-		vkCmdPipelineBarrier2(cmd_buffer, &barrier_info);
-
 		depth_attachment = { VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO };
 		depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 		depth_attachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		depth_attachment.imageView = depth_buffer.view;
+		depth_attachment.imageView = reinterpret_cast<VkImageView>(a_render_info.depth_view.handle);
 		depth_attachment.clearValue.depthStencil = { 1.0f, 0 };
 		rendering_info.pDepthAttachment = &depth_attachment;
 		rendering_info.pStencilAttachment = &depth_attachment;
@@ -2216,17 +2167,10 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 		vkCmdSetDepthCompareOp(cmd_buffer, VK_COMPARE_OP_LESS_OR_EQUAL);
 		
 		vkCmdSetDepthBias(cmd_buffer, 0.f, 0.f, 0.f);
-		
 #endif //USE_G_PIPELINE
 	}
 	else
 	{
-		VkDependencyInfo barrier_info{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
-		barrier_info.pImageMemoryBarriers = image_barriers;
-		barrier_info.imageMemoryBarrierCount = 1;
-
-		vkCmdPipelineBarrier2(cmd_buffer, &barrier_info);
-
 #ifndef USE_G_PIPELINE
 		vkCmdSetStencilTestEnable(cmd_buffer, false);
 
@@ -2247,8 +2191,8 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 	else
 		rendering_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 
-	rendering_attachment.imageLayout = ImageLayout(a_render_info.final_layout); //Get the layout after the memory barrier.
-	rendering_attachment.imageView = s_vulkan_swapchain->frames[a_backbuffer_index].image_view;
+	rendering_attachment.imageLayout = ImageLayout(a_render_info.layout); 
+	rendering_attachment.imageView = reinterpret_cast<VkImageView>(a_rendering_image_view.handle);
 	rendering_attachment.clearValue.color.float32[0] = a_render_info.clear_color_rgba.x;
 	rendering_attachment.clearValue.color.float32[1] = a_render_info.clear_color_rgba.y;
 	rendering_attachment.clearValue.color.float32[2] = a_render_info.clear_color_rgba.z;
@@ -2278,29 +2222,10 @@ void Vulkan::StartRendering(const RCommandList a_list, const StartRenderingInfo&
 	vkCmdSetScissorWithCount(cmd_buffer, 1, &scissor);
 }
 
-void Vulkan::EndRendering(const RCommandList a_list, const EndRenderingInfo& a_rendering_info, const uint32_t a_backbuffer_index)
+void Vulkan::EndRenderPass(const RCommandList a_list)
 {
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 	vkCmdEndRendering(cmd_buffer);
-
-	VkImageMemoryBarrier2 present_barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
-	present_barrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-	present_barrier.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
-	present_barrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-	present_barrier.oldLayout = ImageLayout(a_rendering_info.initial_layout);
-	present_barrier.newLayout = ImageLayout(a_rendering_info.final_layout);
-	present_barrier.image = s_vulkan_swapchain->frames[a_backbuffer_index].image;
-	present_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	present_barrier.subresourceRange.baseArrayLayer = 0;
-	present_barrier.subresourceRange.layerCount = 1;
-	present_barrier.subresourceRange.baseMipLevel = 0;
-	present_barrier.subresourceRange.levelCount = 1;
-
-	VkDependencyInfo barrier_info{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
-	barrier_info.pImageMemoryBarriers = &present_barrier;
-	barrier_info.imageMemoryBarrierCount = 1;
-
-	vkCmdPipelineBarrier2(cmd_buffer, &barrier_info);
 }
 
 void Vulkan::SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor)
@@ -2314,23 +2239,12 @@ void Vulkan::SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor)
 	vkCmdSetScissorWithCount(cmd_buffer, 1, &scissor);
 }
 
-void Vulkan::BindVertexBuffer(const RCommandList a_list, const GPUBuffer a_buffer, const uint64_t a_offset)
-{
-	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
-
-	vkCmdBindVertexBuffers(cmd_buffer,
-		0,
-		1,
-		&s_vulkan_inst->buffers[a_buffer].buffer,
-		&a_offset);
-}
-
 void Vulkan::BindIndexBuffer(const RCommandList a_list, const GPUBuffer a_buffer, const uint64_t a_offset)
 {
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 
 	vkCmdBindIndexBuffer(cmd_buffer,
-		s_vulkan_inst->buffers[a_buffer].buffer,
+		reinterpret_cast<VkBuffer>(a_buffer.handle),
 		a_offset,
 		VK_INDEX_TYPE_UINT32);
 }
@@ -2427,12 +2341,108 @@ void Vulkan::DrawIndexed(const RCommandList a_list, const uint32_t a_index_count
 	vkCmdDrawIndexed(cmd_buffer, a_index_count, a_instance_count, a_first_index, a_vertex_offset, a_first_instance);
 }
 
+bool Vulkan::UploadImageToSwapchain(const RCommandList a_list, const RImage a_src_image, const int2 a_src_image_size, const int2 a_swapchain_size, const uint32_t a_backbuffer_index)
+{
+	uint32_t image_index;
+	VKASSERT(vkAcquireNextImageKHR(s_vulkan_inst->device,
+		s_vulkan_swapchain->swapchain,
+		UINT64_MAX,
+		s_vulkan_swapchain->frames[a_backbuffer_index].image_available_semaphore,
+		VK_NULL_HANDLE,
+		&image_index),
+		"Vulkan: failed to get next image.");
+
+	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+
+	constexpr VkImageLayout START_LAYOUT = VK_IMAGE_LAYOUT_UNDEFINED;
+	constexpr VkImageLayout TRANSFER_LAYOUT = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	constexpr VkImageLayout END_LAYOUT = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	
+	const VkImage swapchain_image = s_vulkan_swapchain->frames[a_backbuffer_index].image;
+
+	{
+		VkImageMemoryBarrier2 upload_barrier{};
+		upload_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		upload_barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+		upload_barrier.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+		upload_barrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+		upload_barrier.oldLayout = START_LAYOUT;
+		upload_barrier.newLayout = TRANSFER_LAYOUT;
+		upload_barrier.image = swapchain_image;
+		upload_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		upload_barrier.subresourceRange.baseArrayLayer = 0;
+		upload_barrier.subresourceRange.layerCount = 1;
+		upload_barrier.subresourceRange.baseMipLevel = 0;
+		upload_barrier.subresourceRange.levelCount = 1;
+
+		VkDependencyInfo barrier_info{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+		barrier_info.pImageMemoryBarriers = &upload_barrier;
+		barrier_info.imageMemoryBarrierCount = 1;
+
+		vkCmdPipelineBarrier2(cmd_buffer, &barrier_info);
+	}
+
+	{
+		//always single so don't use VkImageBlit2 here.
+		VkImageBlit image_blit;
+		image_blit.srcOffsets[0].x = a_src_image_size.x;
+		image_blit.srcOffsets[0].y = a_src_image_size.y;
+		image_blit.srcOffsets[0].z = 1;
+
+		image_blit.dstOffsets[0].x = a_swapchain_size.x;
+		image_blit.dstOffsets[0].y = a_swapchain_size.y;
+		image_blit.dstOffsets[0].z = 1;
+
+		image_blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		image_blit.srcSubresource.baseArrayLayer = 0;
+		image_blit.srcSubresource.layerCount = 1;
+		image_blit.srcSubresource.mipLevel = 0;
+
+		image_blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		image_blit.dstSubresource.baseArrayLayer = 0;
+		image_blit.dstSubresource.layerCount = 1;
+		image_blit.dstSubresource.mipLevel = 0;
+
+		vkCmdBlitImage(cmd_buffer,
+			reinterpret_cast<VkImage>(a_src_image.handle),
+			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			swapchain_image,
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			1,
+			&image_blit,
+			VK_FILTER_NEAREST);
+	}
+
+	{
+		VkImageMemoryBarrier2 present_barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
+		present_barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+		present_barrier.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
+		present_barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+		present_barrier.oldLayout = TRANSFER_LAYOUT;
+		present_barrier.newLayout = END_LAYOUT;
+		present_barrier.image = swapchain_image;
+		present_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		present_barrier.subresourceRange.baseArrayLayer = 0;
+		present_barrier.subresourceRange.layerCount = 1;
+		present_barrier.subresourceRange.baseMipLevel = 0;
+		present_barrier.subresourceRange.levelCount = 1;
+
+		VkDependencyInfo barrier_info{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+		barrier_info.pImageMemoryBarriers = &present_barrier;
+		barrier_info.imageMemoryBarrierCount = 1;
+
+		vkCmdPipelineBarrier2(cmd_buffer, &barrier_info);
+	}
+
+	return true;
+}
+
 void Vulkan::ExecuteCommandLists(const RQueue a_queue, const ExecuteCommandsInfo* a_execute_infos, const uint32_t a_execute_info_count)
 {
 	VkTimelineSemaphoreSubmitInfo* timeline_sem_infos = BBstackAlloc(
 		a_execute_info_count,
 		VkTimelineSemaphoreSubmitInfo);
-	VkSubmitInfo* submiinfos = BBstackAlloc(
+	VkSubmitInfo* submit_infos = BBstackAlloc(
 		a_execute_info_count,
 		VkSubmitInfo);
 
@@ -2440,7 +2450,7 @@ void Vulkan::ExecuteCommandLists(const RQueue a_queue, const ExecuteCommandsInfo
 	{
 		const ExecuteCommandsInfo& exe_inf = a_execute_infos[i];
 		VkTimelineSemaphoreSubmitInfo& cur_sem_inf = timeline_sem_infos[i];
-		VkSubmitInfo& cur_sub_inf = submiinfos[i];
+		VkSubmitInfo& cur_sub_inf = submit_infos[i];
 
 		cur_sem_inf.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
 		cur_sem_inf.pNext = nullptr;
@@ -2462,17 +2472,17 @@ void Vulkan::ExecuteCommandLists(const RQueue a_queue, const ExecuteCommandsInfo
 	VkQueue queue = reinterpret_cast<VkQueue>(a_queue.handle);
 	VKASSERT(vkQueueSubmit(queue,
 		a_execute_info_count,
-		submiinfos,
+		submit_infos,
 		VK_NULL_HANDLE),
 		"Vulkan: failed to submit to queue.");
 }
 
 void Vulkan::ExecutePresentCommandList(const RQueue a_queue, const ExecuteCommandsInfo& a_execute_info, const uint32_t a_backbuffer_index)
 {
-	//TEMP
+	// TEMP
 	constexpr VkPipelineStageFlags WAIT_STAGES[8] = { VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT };
 
-	//handle the window api for vulkan.
+	// handle the window api for vulkan.
 	const uint32_t wait_semaphore_count = a_execute_info.wait_count + 1;
 	const uint32_t signal_semaphore_count = a_execute_info.signal_count + 1;
 
@@ -2499,53 +2509,34 @@ void Vulkan::ExecutePresentCommandList(const RQueue a_queue, const ExecuteComman
 	timeline_sem_info.pSignalSemaphoreValues = signal_values;
 	timeline_sem_info.signalSemaphoreValueCount = signal_semaphore_count;
 
-	VkSubmitInfo submiinfo{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
-	submiinfo.pNext = &timeline_sem_info;
-	submiinfo.commandBufferCount = a_execute_info.list_count;
-	submiinfo.pCommandBuffers = reinterpret_cast<const VkCommandBuffer*>(a_execute_info.lists);
-	submiinfo.waitSemaphoreCount = wait_semaphore_count;
-	submiinfo.pWaitSemaphores = wait_semaphores;
-	submiinfo.signalSemaphoreCount = signal_semaphore_count;
-	submiinfo.pSignalSemaphores = signal_semaphores;
-	submiinfo.pWaitDstStageMask = WAIT_STAGES;
+	VkSubmitInfo submit_info{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
+	submit_info.pNext = &timeline_sem_info;
+	submit_info.commandBufferCount = a_execute_info.list_count;
+	submit_info.pCommandBuffers = reinterpret_cast<const VkCommandBuffer*>(a_execute_info.lists);
+	submit_info.waitSemaphoreCount = wait_semaphore_count;
+	submit_info.pWaitSemaphores = wait_semaphores;
+	submit_info.signalSemaphoreCount = signal_semaphore_count;
+	submit_info.pSignalSemaphores = signal_semaphores;
+	submit_info.pWaitDstStageMask = WAIT_STAGES;
 
 	VkQueue queue = reinterpret_cast<VkQueue>(a_queue.handle);
 	VKASSERT(vkQueueSubmit(queue,
 		1,
-		&submiinfo,
+		&submit_info,
 		VK_NULL_HANDLE),
 		"Vulkan: failed to submit to queue.");
-}
 
-bool Vulkan::StartFrame(const uint32_t a_backbuffer_index)
-{
-	uint32_t image_index;
-	VKASSERT(vkAcquireNextImageKHR(s_vulkan_inst->device,
-		s_vulkan_swapchain->swapchain,
-		UINT64_MAX,
-		s_vulkan_swapchain->frames[a_backbuffer_index].image_available_semaphore,
-		VK_NULL_HANDLE,
-		&image_index),
-		"Vulkan: failed to get next image.");
+	VkPresentInfoKHR present_info{};
+	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	present_info.waitSemaphoreCount = 1;
+	present_info.pWaitSemaphores = &s_vulkan_swapchain->frames[a_backbuffer_index].present_finished_semaphore;
+	present_info.swapchainCount = 1; //Swapchain will always be 1
+	present_info.pSwapchains = &s_vulkan_swapchain->swapchain;
+	present_info.pImageIndices = &a_backbuffer_index; //THIS MAY BE WRONG
+	present_info.pResults = nullptr;
 
-	return true;
-}
-
-bool Vulkan::EndFrame(const uint32_t a_backbuffer_index)
-{
-	VkPresentInfoKHR preseninfo{};
-	preseninfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-	preseninfo.waitSemaphoreCount = 1;
-	preseninfo.pWaitSemaphores = &s_vulkan_swapchain->frames[a_backbuffer_index].present_finished_semaphore;
-	preseninfo.swapchainCount = 1; //Swapchain will always be 1
-	preseninfo.pSwapchains = &s_vulkan_swapchain->swapchain;
-	preseninfo.pImageIndices = &a_backbuffer_index; //THIS MAY BE WRONG
-	preseninfo.pResults = nullptr;
-
-	VKASSERT(vkQueuePresentKHR(s_vulkan_inst->present_queue, &preseninfo),
+	VKASSERT(vkQueuePresentKHR(s_vulkan_inst->present_queue, &present_info),
 		"Vulkan: Failed to queuepresentKHR.");
-
-	return true;
 }
 
 RFence Vulkan::CreateFence(const uint64_t a_initial_value, const char* a_name)

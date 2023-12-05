@@ -9,8 +9,6 @@ namespace BB
 	using RPipeline = FrameworkHandle<struct RPipelineTag>;
 	using RDescriptorLayout = FrameworkHandle<struct RDescriptorLayoutTag>;
 	using RPipelineLayout = FrameworkHandle<struct RPipelineLayoutTag>;
-	using RImage = FrameworkHandle<struct RImageTag>;
-	using RImageView = FrameworkHandle<struct RImageViewTag>;
 	using RDepthBuffer = FrameworkHandle<struct RDepthBufferTag>;
 
 	enum class QUEUE_TYPE : uint32_t
@@ -67,27 +65,29 @@ namespace BB
 
 	struct ImageCreateInfo
 	{
-		const char* name = nullptr;
-		uint32_t width = 0;
-		uint32_t height = 0;
-		uint32_t depth = 0;
+		const char* name = nullptr;	//8
+		uint32_t width = 0;			//12
+		uint32_t height = 0;		//16
+		uint32_t depth = 0;			//20
 
-		uint16_t array_layers = 0;
-		uint16_t mip_levels = 0;
-		IMAGE_TYPE type{};
-		IMAGE_FORMAT format{};
-		IMAGE_TILING tiling{};
+		uint16_t array_layers = 0;	//22
+		uint16_t mip_levels = 0;	//24
+		IMAGE_TYPE type{};			//28
+		IMAGE_FORMAT format{};		//32
+		IMAGE_TILING tiling{};		//36
+		IMAGE_USAGE usage{};		//40
 	};
 
 	struct ImageViewCreateInfo
 	{
-		const char* name = nullptr;
+		const char* name = nullptr;	//8
 
-		RImage image;
-		uint16_t array_layers = 0;
-		uint16_t mip_levels = 0;
-		IMAGE_TYPE type{};
-		IMAGE_FORMAT format{};
+		RImage image;				//16
+		uint16_t array_layers = 0;	//18
+		uint16_t mip_levels = 0;	//20
+		IMAGE_TYPE type{};			//24
+		IMAGE_FORMAT format{};		//28
+		bool is_depth_image = false;//32
 	};
 
 	enum class SAMPLER_ADDRESS_MODE : uint32_t
@@ -168,6 +168,15 @@ namespace BB
 		IMAGE_LAYOUT layout;
 	};
 
+	struct RenderCopyBufferToImageInfo
+	{
+		GPUBuffer src_buffer;
+		uint32_t src_offset;
+
+		RImage dst_image;
+		ImageCopyInfo dst_image_info;
+	};
+
 	enum class QUEUE_TRANSITION : uint32_t
 	{
 		NO_TRANSITION,
@@ -184,8 +193,9 @@ namespace BB
 		TRANSFER,
 		VERTEX_INPUT,
 		VERTEX_SHADER,
-		EARLY_FRAG_TEST,
+		FRAGMENT_TEST,
 		FRAGMENT_SHADER,
+		COLOR_ATTACH_OUTPUT,
 		END_OF_PIPELINE,
 
 		ENUM_SIZE
@@ -194,9 +204,11 @@ namespace BB
 	enum class BARRIER_ACCESS_MASK : uint32_t
 	{
 		NONE = 0,
+		TRANSFER_READ,
 		TRANSFER_WRITE,
 		DEPTH_STENCIL_READ_WRITE,
 		SHADER_READ,
+		COLOR_ATTACHMENT_WRITE,
 
 		ENUM_SIZE
 	};
@@ -225,21 +237,21 @@ namespace BB
 
 	struct PipelineBarrierImageInfo
 	{
-		RImage image{};
-		IMAGE_LAYOUT old_layout{};
-		IMAGE_LAYOUT new_layout{};
-		BARRIER_PIPELINE_STAGE src_stage{};
-		BARRIER_PIPELINE_STAGE dst_stage{};
-		BARRIER_ACCESS_MASK src_mask{};
-		BARRIER_ACCESS_MASK dst_mask{};
+		RImage image{};						//8
+		IMAGE_LAYOUT old_layout{};			//12
+		IMAGE_LAYOUT new_layout{};			//16
+		BARRIER_PIPELINE_STAGE src_stage{};	//20
+		BARRIER_PIPELINE_STAGE dst_stage{};	//24
+		BARRIER_ACCESS_MASK src_mask{};		//28
+		BARRIER_ACCESS_MASK dst_mask{};		//32
 
-		QUEUE_TRANSITION src_queue = QUEUE_TRANSITION::NO_TRANSITION;
-		QUEUE_TRANSITION dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
+		QUEUE_TRANSITION src_queue{};		//36
+		QUEUE_TRANSITION dst_queue{};		//40
 
-		uint32_t base_mip_level = 0;
-		uint32_t level_count = 0;
-		uint32_t base_array_layer = 0;
-		uint32_t layer_count = 0;
+		uint32_t base_mip_level = 0;		//44
+		uint32_t level_count = 0;			//48
+		uint32_t base_array_layer = 0;		//52
+		uint32_t layer_count = 0;			//56
 	};
 
 	struct PipelineBarrierInfo
@@ -250,15 +262,6 @@ namespace BB
 		const PipelineBarrierBufferInfo* buffer_infos = nullptr;
 		uint32_t image_info_count = 0;
 		const PipelineBarrierImageInfo* image_infos = nullptr;
-	};
-
-	struct RenderCopyBufferToImageInfo
-	{
-		GPUBuffer src_buffer;
-		uint32_t src_offset;
-
-		RImage dst_image;
-		ImageCopyInfo dst_image_info;
 	};
 
 	struct DescriptorAllocation

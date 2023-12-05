@@ -109,7 +109,7 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
         return;
 
     ImGui_ImplBBRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
-    const RenderIO render_io = GetRenderIO();
+    const RenderIO& render_io = GetRenderIO();
 
     BB_ASSERT(bd->frame_index < render_io.frame_count, "Frame index is higher then the framebuffer amount! Forgot to resize the imgui window info.");
     bd->frame_index = (bd->frame_index + 1) % render_io.frame_count;
@@ -145,17 +145,17 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
     StartRenderingInfo imgui_pass_start{};
     imgui_pass_start.viewport_width = render_io.screen_width;
     imgui_pass_start.viewport_height = render_io.screen_height;
+    imgui_pass_start.depth_view = {};
     imgui_pass_start.load_color = true;
     imgui_pass_start.store_color = true;
-    imgui_pass_start.initial_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-    imgui_pass_start.final_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+    imgui_pass_start.layout = IMAGE_LAYOUT::GENERAL;
     StartRenderPass(a_cmd_list, imgui_pass_start);
 
     // Setup desired CrossRenderer state
     ImGui_ImplCross_SetupRenderState(a_DrawData, a_cmd_list, rb);
 
     // Will project scissor/clipping rectangles into framebuffer space
-    ImVec2 clip_off = a_DrawData.DisplayPos;         // (0,0) unless using multi-viewports
+    const ImVec2 clip_off = a_DrawData.DisplayPos;    // (0,0) unless using multi-viewports
 
     // Because we merged all buffers into a single one, we maintain our own offset into them
     uint32_t global_idx_offset = 0;
@@ -219,10 +219,7 @@ void BB::ImGui_ImplBB_RenderDrawData(const ImDrawData& a_DrawData, const RComman
     scissor.extent.y = static_cast<uint32_t>(fb_height);
     SetScissor(a_cmd_list, scissor);
 
-    EndRenderingInfo imgui_pass_end;
-    imgui_pass_end.initial_layout = imgui_pass_start.final_layout;
-    imgui_pass_end.final_layout = IMAGE_LAYOUT::PRESENT;
-    EndRenderPass(a_cmd_list, imgui_pass_end);
+    EndRenderPass(a_cmd_list);
 }
 
 bool BB::ImGui_ImplBB_Init(Allocator a_temp_allocator, const RCommandList a_cmd_list, const ImGui_ImplBB_InitInfo& a_info, UploadBufferView& a_upload_view)
@@ -303,6 +300,7 @@ bool BB::ImGui_ImplBB_Init(Allocator a_temp_allocator, const RCommandList a_cmd_
     font_info.width = static_cast<uint32_t>(width);
     font_info.height = static_cast<uint32_t>(height);
     font_info.format = IMAGE_FORMAT::RGBA8_UNORM;
+    font_info.usage = IMAGE_USAGE::TEXTURE;
     font_info.pixels = pixels;
     bd->font_image = UploadTexture(a_cmd_list, font_info, a_upload_view);
 

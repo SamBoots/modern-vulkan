@@ -46,6 +46,7 @@ namespace BB
 		const char* name;
 		const void* pixels;
 		IMAGE_FORMAT format;
+		IMAGE_USAGE usage;
 		uint32_t width;
 		uint32_t height;
 	};
@@ -146,7 +147,7 @@ namespace BB
 	void BindShaderEffects(const RCommandList a_list, const uint32_t a_shader_stage_count, const ShaderEffectHandle* a_shader_objects);
 	void SetPushConstants(const RCommandList a_list, const ShaderEffectHandle a_first_shader_handle, const uint32_t a_offset, const uint32_t a_size, const void* a_data);
 	void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_start_pass);
-	void EndRenderPass(const RCommandList a_list, const EndRenderingInfo& a_end_pass);
+	void EndRenderPass(const RCommandList a_list);
 	void SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor);
 	void DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance);
 
