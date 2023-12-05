@@ -2384,14 +2384,14 @@ bool Vulkan::UploadImageToSwapchain(const RCommandList a_list, const RImage a_sr
 
 	{
 		//always single so don't use VkImageBlit2 here.
-		VkImageBlit image_blit;
-		image_blit.srcOffsets[0].x = a_src_image_size.x;
-		image_blit.srcOffsets[0].y = a_src_image_size.y;
-		image_blit.srcOffsets[0].z = 1;
+		VkImageBlit image_blit{};
+		image_blit.srcOffsets[1].x = a_src_image_size.x;
+		image_blit.srcOffsets[1].y = a_src_image_size.y;
+		image_blit.srcOffsets[1].z = 1;
 
-		image_blit.dstOffsets[0].x = a_swapchain_size.x;
-		image_blit.dstOffsets[0].y = a_swapchain_size.y;
-		image_blit.dstOffsets[0].z = 1;
+		image_blit.dstOffsets[1].x = a_swapchain_size.x;
+		image_blit.dstOffsets[1].y = a_swapchain_size.y;
+		image_blit.dstOffsets[1].z = 1;
 
 		image_blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		image_blit.srcSubresource.baseArrayLayer = 0;
