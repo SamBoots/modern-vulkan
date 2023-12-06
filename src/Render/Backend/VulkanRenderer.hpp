@@ -1,6 +1,6 @@
 #pragma once
 #include "Common.h"
-#include "RendererTypes.hpp"
+#include "BackendRendererTypes.hpp"
 #include "Slice.h"
 #include "Storage/FixedArray.h"
 
@@ -46,7 +46,7 @@ namespace BB
 		void EndCommandList(const RCommandList a_list);
 
 		void CopyBuffer(const RCommandList a_list, const RenderCopyBuffer& a_copy_buffer);
-		void CopyBuffers(const RCommandList a_list, const RenderCopyBuffer* a_copy_buffers, const uint32_t a_copy_buffer_count);
+		void CopyBuffers(const RCommandList a_list, const BB::Slice<RenderCopyBuffer> a_copy_buffers);
 		void CopyBufferImage(const RCommandList a_list, const RenderCopyBufferToImageInfo& a_copy_info);
 		void PipelineBarriers(const RCommandList a_list, const PipelineBarrierInfo& a_BarrierInfo);
 

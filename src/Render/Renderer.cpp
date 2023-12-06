@@ -4,6 +4,8 @@
 
 #include "Storage/Slotmap.h"
 
+#include "Math.inl"
+
 using namespace BB;
 
 struct Mesh
@@ -81,13 +83,13 @@ struct RenderInterface_inst
 
 static RenderInterface_inst* s_render_inst;
 
-void BB::Render(const RCommandList a_cmd_list)
+void BB::Render(const RCommandList a_cmd_list, const uint2 a_render_area)
 {
 	//render
 	StartRenderingInfo start_rendering_info;
-	start_rendering_info.viewport_width = s_render_inst->render_io.screen_width;
-	start_rendering_info.viewport_height = s_render_inst->render_io.screen_height;
-	start_rendering_info.depth_view = depth_image_view;
+	start_rendering_info.viewport_width = a_render_area.x;
+	start_rendering_info.viewport_height = a_render_area.y;
+	start_rendering_info.depth_view = s_render_inst->depth_image_view;
 	start_rendering_info.layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 	start_rendering_info.load_color = false;
 	start_rendering_info.store_color = true;
@@ -99,17 +101,8 @@ void BB::Render(const RCommandList a_cmd_list)
 		const MeshDrawCall& mesh_draw_call = s_render_inst->draw_list_data.mesh_draw_call[0];
 		const Material& material = s_render_inst->material_map.find(mesh_draw_call.material);
 
-		//set 0
-		Vulkan::SetDescriptorImmutableSamplers(current_command_list, material.shader.pipeline_layout);
-		const uint32_t buffer_indices[] = { 0, 0 };
-		const size_t buffer_offsets[]{ s_render_inst->global_descriptor_allocation.offset, cur_frame.desc_alloc.offset };
-		//set 1-2
-		Vulkan::SetDescriptorBufferOffset(current_command_list,
-			material.shader.pipeline_layout,
-			SPACE_GLOBAL,
-			_countof(buffer_offsets),
-			buffer_indices,
-			buffer_offsets);
+
+		//SET THE SECOND SET HERE (PER FRAME)
 	}
 
 	BindIndexBuffer(a_cmd_list, s_render_inst->index_buffer.buffer, 0);
@@ -188,7 +181,7 @@ const MeshHandle BB::CreateMesh(const RCommandList a_list, const CreateMeshInfo&
 	copy_regions[1].src_offset = index_offset;
 	copy_buffer_infos[1].regions = Slice(&copy_regions[1], 1);
 
-	Vulkan::CopyBuffers(a_list, copy_buffer_infos, 2);
+	CopyBuffers(a_list, copy_buffer_infos, 2);
 
 	return MeshHandle(s_render_inst->mesh_map.insert(mesh).handle);
 }
@@ -304,12 +297,12 @@ void BB::FreeMaterial(const MaterialHandle a_material)
 //maybe not handle a_upload_view_offset
 const RTexture BB::UploadTexture(const RCommandList a_list, const UploadImageInfo& a_upload_info, UploadBufferView& a_upload_view)
 {
-	return s_render_inst->texture_manager.UploadTexture(a_list, a_upload_info, a_upload_view);
+	return BackendUploadTexture(a_list, a_upload_info, a_upload_view);
 }
 
 void BB::FreeTexture(const RTexture a_texture)
 {
-	return s_render_inst->texture_manager.FreeTexture(a_texture);
+	BackendFreeTexture(a_texture);
 }
 
 void BB::DrawMesh(const MeshHandle a_mesh, const float4x4& a_transform, const uint32_t a_index_start, const uint32_t a_index_count, const MaterialHandle a_material)

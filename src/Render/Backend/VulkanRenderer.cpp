@@ -1993,11 +1993,11 @@ void Vulkan::CopyBuffer(const RCommandList a_list, const RenderCopyBuffer& a_cop
 		copy_regions);
 }
 
-void Vulkan::CopyBuffers(const RCommandList a_list, const RenderCopyBuffer* a_copy_buffers, const uint32_t a_copy_buffer_count)
+void Vulkan::CopyBuffers(const RCommandList a_list, , const BB::Slice<RenderCopyBuffer> a_copy_buffers)
 {
 	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 
-	for (size_t i = 0; i < a_copy_buffer_count; i++)
+	for (size_t i = 0; i < a_copy_buffers.size(); i++)
 	{
 		const RenderCopyBuffer& cpy_buf = a_copy_buffers[i];
 

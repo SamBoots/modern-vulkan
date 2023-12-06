@@ -232,30 +232,6 @@ namespace BB
 	};
 }
 
-RCommandList CommandPool::StartCommandList(const char* a_name)
-{
-	BB_ASSERT(m_recording == false, "already recording a commandlist from this commandpool!");
-	BB_ASSERT(m_list_current_free < m_list_count, "command pool out of lists!");
-	RCommandList list{ m_lists[m_list_current_free++] };
-	Vulkan::StartCommandList(list, a_name);
-	m_recording = true;
-	return list;
-}
-
-void CommandPool::EndCommandList(RCommandList a_list)
-{
-	BB_ASSERT(m_recording == true, "trying to end a commandlist while the pool is not recording any list");
-	BB_ASSERT(a_list == m_lists[m_list_current_free - 1], "commandlist that was submitted is not from this pool or was already closed!");
-	Vulkan::EndCommandList(a_list);
-	m_recording = false;
-}
-void CommandPool::ResetPool()
-{
-	BB_ASSERT(m_recording == false, "trying to reset a pool while still recording");
-	Vulkan::ResetCommandPool(m_api_cmd_pool);
-	m_list_current_free = 0;
-}
-
 //THREAD SAFE: TRUE
 class BB::RenderQueue
 {
@@ -497,54 +473,38 @@ static BackendRenderInterface_inst* s_render_inst;
 static CommandPool* current_use_pool;
 static RCommandList current_command_list;
 
-GPUBufferView BB::AllocateFromVertexBuffer(const size_t a_size_in_bytes)
+RCommandList CommandPool::StartCommandList(const char* a_name)
 {
-	GPUBufferView view;
-	view.buffer = s_render_inst->vertex_buffer.buffer;
-	view.size = a_size_in_bytes;
-	view.offset = s_render_inst->vertex_buffer.used;
+	BB_ASSERT(m_recording == false, "already recording a commandlist from this commandpool!");
+	BB_ASSERT(m_list_current_free < m_list_count, "command pool out of lists!");
+	RCommandList list{ m_lists[m_list_current_free++] };
+	Vulkan::StartCommandList(list, a_name);
+	m_recording = true;
 
-	s_render_inst->vertex_buffer.used += static_cast<uint32_t>(a_size_in_bytes);
-
-	return view;
+	const uint32_t buffer_indices[] = { 0 };
+	const size_t buffer_offsets[]{ s_render_inst->global_descriptor_allocation.offset };
+	//set 1
+	Vulkan::SetDescriptorBufferOffset(list,
+		material.shader.pipeline_layout,
+		SPACE_GLOBAL,
+		_countof(buffer_offsets),
+		buffer_indices,
+		buffer_offsets);
+	return list;
 }
 
-GPUBufferView BB::AllocateFromIndexBuffer(const size_t a_size_in_bytes)
+void CommandPool::EndCommandList(RCommandList a_list)
 {
-	GPUBufferView view;
-	view.buffer = s_render_inst->index_buffer.buffer;
-	view.size = a_size_in_bytes;
-	view.offset = s_render_inst->index_buffer.used;
-
-	s_render_inst->index_buffer.used += static_cast<uint32_t>(a_size_in_bytes);
-
-	return view;
+	BB_ASSERT(m_recording == true, "trying to end a commandlist while the pool is not recording any list");
+	BB_ASSERT(a_list == m_lists[m_list_current_free - 1], "commandlist that was submitted is not from this pool or was already closed!");
+	Vulkan::EndCommandList(a_list);
+	m_recording = false;
 }
-
-WriteableGPUBufferView BB::AllocateFromWritableVertexBuffer(const size_t a_size_in_bytes)
+void CommandPool::ResetPool()
 {
-	WriteableGPUBufferView view;
-	view.buffer = s_render_inst->cpu_vertex_buffer.buffer;
-	view.size = a_size_in_bytes;
-	view.offset = s_render_inst->cpu_vertex_buffer.used;
-	view.mapped = Pointer::Add(s_render_inst->cpu_vertex_buffer.start_mapped, s_render_inst->cpu_vertex_buffer.used);
-
-	s_render_inst->cpu_vertex_buffer.used += static_cast<uint32_t>(a_size_in_bytes);
-
-	return view;
-}
-
-WriteableGPUBufferView BB::AllocateFromWritableIndexBuffer(const size_t a_size_in_bytes)
-{
-	WriteableGPUBufferView view;
-	view.buffer = s_render_inst->cpu_index_buffer.buffer;
-	view.size = a_size_in_bytes;
-	view.offset = s_render_inst->cpu_index_buffer.used;
-	view.mapped = Pointer::Add(s_render_inst->cpu_index_buffer.start_mapped, s_render_inst->cpu_index_buffer.used);
-
-	s_render_inst->cpu_index_buffer.used += static_cast<uint32_t>(a_size_in_bytes);
-
-	return view;
+	BB_ASSERT(m_recording == false, "trying to reset a pool while still recording");
+	Vulkan::ResetCommandPool(m_api_cmd_pool);
+	m_list_current_free = 0;
 }
 
 void GPUTextureManager::Init(const RCommandList a_list, UploadBufferView& a_upload_view)
@@ -1290,6 +1250,67 @@ bool BB::ExecuteTransferCommands(const BB::Slice<CommandPool> a_cmd_pools, const
 	return ExecuteGraphicCommands(a_cmd_pools, a_upload_views);
 }
 
+GPUBufferView BB::AllocateFromVertexBuffer(const size_t a_size_in_bytes)
+{
+	GPUBufferView view;
+	view.buffer = s_render_inst->vertex_buffer.buffer;
+	view.size = a_size_in_bytes;
+	view.offset = s_render_inst->vertex_buffer.used;
+
+	s_render_inst->vertex_buffer.used += static_cast<uint32_t>(a_size_in_bytes);
+
+	return view;
+}
+
+GPUBufferView BB::AllocateFromIndexBuffer(const size_t a_size_in_bytes)
+{
+	GPUBufferView view;
+	view.buffer = s_render_inst->index_buffer.buffer;
+	view.size = a_size_in_bytes;
+	view.offset = s_render_inst->index_buffer.used;
+
+	s_render_inst->index_buffer.used += static_cast<uint32_t>(a_size_in_bytes);
+
+	return view;
+}
+
+WriteableGPUBufferView BB::AllocateFromWritableVertexBuffer(const size_t a_size_in_bytes)
+{
+	WriteableGPUBufferView view;
+	view.buffer = s_render_inst->cpu_vertex_buffer.buffer;
+	view.size = a_size_in_bytes;
+	view.offset = s_render_inst->cpu_vertex_buffer.used;
+	view.mapped = Pointer::Add(s_render_inst->cpu_vertex_buffer.start_mapped, s_render_inst->cpu_vertex_buffer.used);
+
+	s_render_inst->cpu_vertex_buffer.used += static_cast<uint32_t>(a_size_in_bytes);
+
+	return view;
+}
+
+WriteableGPUBufferView BB::AllocateFromWritableIndexBuffer(const size_t a_size_in_bytes)
+{
+	WriteableGPUBufferView view;
+	view.buffer = s_render_inst->cpu_index_buffer.buffer;
+	view.size = a_size_in_bytes;
+	view.offset = s_render_inst->cpu_index_buffer.used;
+	view.mapped = Pointer::Add(s_render_inst->cpu_index_buffer.start_mapped, s_render_inst->cpu_index_buffer.used);
+
+	s_render_inst->cpu_index_buffer.used += static_cast<uint32_t>(a_size_in_bytes);
+
+	return view;
+}
+
+//maybe not handle a_upload_view_offset
+const RTexture BB::BackendUploadTexture(const RCommandList a_list, const UploadImageInfo& a_upload_info, UploadBufferView& a_upload_view)
+{
+	return s_render_inst->texture_manager.UploadTexture(a_list, a_upload_info, a_upload_view);
+}
+
+void BB::BackendFreeTexture(const RTexture a_texture)
+{
+	s_render_inst->texture_manager.FreeTexture(a_texture);
+}
+
 const GPUBuffer BB::CreateGPUBuffer(const GPUBufferCreateInfo& a_create_info)
 {
 	return Vulkan::CreateBuffer(a_create_info);
@@ -1308,6 +1329,21 @@ void* BB::MapGPUBuffer(const GPUBuffer a_buffer)
 void BB::UnmapGPUBuffer(const GPUBuffer a_buffer)
 {
 	Vulkan::UnmapBufferMemory(a_buffer);
+}
+
+void BB::CopyBuffer(const RCommandList a_list, const RenderCopyBuffer& a_copy_buffer)
+{
+	Vulkan::CopyBuffer(a_list, a_copy_buffer);
+}
+
+void BB::CopyBuffers(const RCommandList a_list, const RenderCopyBuffer* a_copy_buffers, const uint32_t a_copy_buffer_count)
+{
+
+}
+
+void BB::CopyBufferImage(const RCommandList a_list, const RenderCopyBufferToImageInfo& a_copy_info)
+{
+
 }
 
 void BB::BindIndexBuffer(const RCommandList a_list, const GPUBuffer a_buffer, const uint64_t a_offset)

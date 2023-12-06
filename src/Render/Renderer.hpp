@@ -49,7 +49,7 @@ namespace BB
 
 	bool InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererCreateInfo& a_render_create_info);
 
-	void Render();
+	void Render(const RCommandList a_cmd_list, const uint2 a_render_area);
 
 	void SetView(const float4x4& a_view);
 	void SetProjection(const float4x4& a_projection);
