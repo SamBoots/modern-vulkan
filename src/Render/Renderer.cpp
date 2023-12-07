@@ -566,6 +566,319 @@ struct RenderInterface_inst
 
 static RenderInterface_inst* s_render_inst;
 
+namespace IMGUI_IMPL
+{
+	constexpr size_t IMGUI_INITIAL_VERTEX_SIZE = sizeof(Vertex2D) * 128;
+	constexpr size_t IMGUI_INITIAL_INDEX_SIZE = sizeof(uint32_t) * 256;
+
+	struct ImRenderBuffer
+	{
+		WriteableGPUBufferView vertex_buffer;
+		WriteableGPUBufferView index_buffer;
+	};
+
+	constexpr SHADER_STAGE IMGUI_SHADER_STAGES[2]{ SHADER_STAGE::VERTEX, SHADER_STAGE::FRAGMENT_PIXEL };
+
+	struct ImRenderData
+	{
+		//0 = VERTEX, 1 = FRAGMENT
+		ShaderObject			shader_objects[2];	//16
+		RPipelineLayout			pipeline_layout;	//24
+		RTexture				font_image;         //28
+
+		// Render buffers for main window
+		uint32_t frame_index;                           //32
+		ImRenderBuffer* frame_buffers;					//40
+	};
+
+	static ImRenderData* ImGetRenderData()
+	{
+		return ImGui::GetCurrentContext() ? reinterpret_cast<ImRenderData*>(ImGui::GetIO().BackendRendererUserData) : nullptr;
+	}
+
+	static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData, const RCommandList a_cmd_list, const ImRenderBuffer& a_rb)
+	{
+		ImRenderData* bd = ImGetRenderData();
+
+		{
+			Vulkan::BindShaders(a_cmd_list, _countof(IMGUI_SHADER_STAGES), IMGUI_SHADER_STAGES, bd->shader_objects);
+		}
+
+		// Setup scale and translation:
+		// Our visible imgui space lies from draw_data->DisplayPps (top left) to draw_data->DisplayPos+data_data->DisplaySize (bottom right). DisplayPos is (0,0) for single viewport apps.
+		{
+			ShaderIndices2D shader_indices;
+			shader_indices.vertex_buffer_offset = static_cast<uint32_t>(a_rb.vertex_buffer.offset);
+			shader_indices.albedo_texture = bd->font_image.handle;
+			shader_indices.rect_scale.x = 2.0f / a_DrawData.DisplaySize.x;
+			shader_indices.rect_scale.y = 2.0f / a_DrawData.DisplaySize.y;
+			shader_indices.translate.x = -1.0f - a_DrawData.DisplayPos.x * shader_indices.rect_scale.x;
+			shader_indices.translate.y = -1.0f - a_DrawData.DisplayPos.y * shader_indices.rect_scale.y;
+
+			Vulkan::SetPushConstants(a_cmd_list, bd->pipeline_layout, 0, sizeof(shader_indices), &shader_indices);
+		}
+	}
+
+	static void ImGui_ImplBB_DestroyFontUploadObjects()
+	{
+		ImRenderData* bd = ImGetRenderData();
+		FreeTexture(bd->font_image);
+		bd->font_image = RTexture(BB_INVALID_HANDLE_32);
+	}
+
+	static void GrowFrameBufferGPUBuffers(ImRenderBuffer& a_rb, const size_t a_new_vertex_size, const size_t a_new_index_size)
+	{
+		//free I guess, lol can't do that now XDDD
+
+		a_rb.vertex_buffer = AllocateFromWritableVertexBuffer(a_new_vertex_size);
+		a_rb.index_buffer = AllocateFromWritableIndexBuffer(a_new_index_size);
+	}
+
+
+	// Render function
+	static void ImRenderFrame(const RCommandList a_cmd_list, const RImageView a_render_target_view)
+	{
+		const ImDrawData& draw_data = *ImGui::GetDrawData();
+		// Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
+		int fb_width = static_cast<int>(draw_data.DisplaySize.x * draw_data.FramebufferScale.x);
+		int fb_height = static_cast<int>(draw_data.DisplaySize.y * draw_data.FramebufferScale.y);
+		if (fb_width <= 0 || fb_height <= 0)
+			return;
+
+		ImRenderData* bd = ImGetRenderData();
+		const RenderIO& render_io = GetRenderIO();
+
+		BB_ASSERT(bd->frame_index < render_io.frame_count, "Frame index is higher then the framebuffer amount! Forgot to resize the imgui window info.");
+		bd->frame_index = (bd->frame_index + 1) % render_io.frame_count;
+		ImRenderBuffer& rb = bd->frame_buffers[bd->frame_index];
+
+		if (draw_data.TotalVtxCount > 0)
+		{
+			// Create or resize the vertex/index buffers
+			const size_t vertex_size = static_cast<size_t>(draw_data.TotalVtxCount) * sizeof(ImDrawVert);
+			const size_t index_size = static_cast<size_t>(draw_data.TotalIdxCount) * sizeof(ImDrawIdx);
+			if (rb.vertex_buffer.size < vertex_size || rb.index_buffer.size < index_size)
+				GrowFrameBufferGPUBuffers(rb, Max(rb.vertex_buffer.size * 2, vertex_size), Max(rb.index_buffer.size * 2, index_size));
+
+
+			BB_STATIC_ASSERT(sizeof(Vertex2D) == sizeof(ImDrawVert), "Vertex2D size is not the same as ImDrawVert");
+			BB_STATIC_ASSERT(IM_OFFSETOF(Vertex2D, position) == IM_OFFSETOF(ImDrawVert, pos), "Vertex2D does not have the same offset for the position variable as ImDrawVert");
+			BB_STATIC_ASSERT(IM_OFFSETOF(Vertex2D, uv) == IM_OFFSETOF(ImDrawVert, uv), "Vertex2D does not have the same offset for the uv variable as ImDrawVert");
+			BB_STATIC_ASSERT(IM_OFFSETOF(Vertex2D, color) == IM_OFFSETOF(ImDrawVert, col), "Vertex2D does not have the same offset for the color variable as ImDrawVert");
+
+			// Upload vertex/index data into a single contiguous GPU buffer
+			ImDrawVert* vtx_dst = reinterpret_cast<ImDrawVert*>(rb.vertex_buffer.mapped);
+			ImDrawIdx* idx_dst = reinterpret_cast<ImDrawIdx*>(rb.index_buffer.mapped);
+
+			for (int n = 0; n < draw_data.CmdListsCount; n++)
+			{
+				const ImDrawList* cmd_list = draw_data.CmdLists[n];
+				memcpy(vtx_dst, cmd_list->VtxBuffer.Data, static_cast<size_t>(cmd_list->VtxBuffer.Size) * sizeof(ImDrawVert));
+				memcpy(idx_dst, cmd_list->IdxBuffer.Data, static_cast<size_t>(cmd_list->IdxBuffer.Size) * sizeof(ImDrawIdx));
+				vtx_dst += cmd_list->VtxBuffer.Size;
+				idx_dst += cmd_list->IdxBuffer.Size;
+			}
+		}
+		StartRenderingInfo imgui_pass_start{};
+		imgui_pass_start.viewport_width = render_io.screen_width;
+		imgui_pass_start.viewport_height = render_io.screen_height;
+		imgui_pass_start.depth_view = {};
+		imgui_pass_start.load_color = true;
+		imgui_pass_start.store_color = true;
+		imgui_pass_start.layout = IMAGE_LAYOUT::GENERAL;
+		Vulkan::StartRenderPass(a_cmd_list, imgui_pass_start, a_render_target_view);
+
+		// Setup desired CrossRenderer state
+		ImGui_ImplCross_SetupRenderState(draw_data, a_cmd_list, rb);
+
+		// Will project scissor/clipping rectangles into framebuffer space
+		const ImVec2 clip_off = draw_data.DisplayPos;    // (0,0) unless using multi-viewports
+
+		// Because we merged all buffers into a single one, we maintain our own offset into them
+		uint32_t global_idx_offset = 0;
+
+		Vulkan::BindIndexBuffer(a_cmd_list, rb.index_buffer.buffer, rb.index_buffer.offset);
+
+		ImTextureID last_texture = bd->font_image.handle;
+		for (int n = 0; n < draw_data.CmdListsCount; n++)
+		{
+			const ImDrawList* cmd_list = draw_data.CmdLists[n];
+			for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++)
+			{
+				const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_i];
+				if (pcmd->UserCallback != nullptr)
+				{
+					// User callback, registered via ImDrawList::AddCallback()
+					// (ImDrawCallback_ResetRenderState is a special callback value used by the user to request the renderer to reset render state.)
+					if (pcmd->UserCallback == ImDrawCallback_ResetRenderState)
+						ImGui_ImplCross_SetupRenderState(draw_data, a_cmd_list, rb);
+					else
+						pcmd->UserCallback(cmd_list, pcmd);
+				}
+				else
+				{
+					// Project scissor/clipping rectangles into framebuffer space
+					ImVec2 clip_min(pcmd->ClipRect.x - clip_off.x, pcmd->ClipRect.y - clip_off.y);
+					ImVec2 clip_max(pcmd->ClipRect.z - clip_off.x, pcmd->ClipRect.w - clip_off.y);
+
+					// Clamp to viewport as vkCmdSetScissor() won't accept values that are off bounds
+					if (clip_max.x <= clip_min.x || clip_max.y <= clip_min.y)
+						continue;
+
+					const ImTextureID new_text = pcmd->TextureId;
+					if (new_text != last_texture)
+					{
+						Vulkan::SetPushConstants(a_cmd_list, bd->pipeline_layout, IM_OFFSETOF(ShaderIndices2D, albedo_texture), sizeof(new_text), &new_text);
+						last_texture = new_text;
+					}
+					// Apply scissor/clipping rectangle
+					ScissorInfo scissor;
+					scissor.offset.x = static_cast<int32_t>(clip_min.x);
+					scissor.offset.y = static_cast<int32_t>(clip_min.y);
+					scissor.extent.x = static_cast<uint32_t>(clip_max.x);
+					scissor.extent.y = static_cast<uint32_t>(clip_max.y);
+					Vulkan::SetScissor(a_cmd_list, scissor);
+
+					// Draw
+					const uint32_t index_offset = pcmd->IdxOffset + global_idx_offset;
+					Vulkan::DrawIndexed(a_cmd_list, pcmd->ElemCount, 1, index_offset, 0, 0);
+				}
+			}
+			global_idx_offset += static_cast<uint32_t>(cmd_list->IdxBuffer.Size);
+		}
+
+		// Since we dynamically set our scissor lets set it back to the full viewport. 
+		// This might be bad to do since this can leak into different system's code. 
+		ScissorInfo scissor{};
+		scissor.offset.x = 0;
+		scissor.offset.y = 0;
+		scissor.extent.x = static_cast<uint32_t>(fb_width);
+		scissor.extent.y = static_cast<uint32_t>(fb_height);
+		Vulkan::SetScissor(a_cmd_list, scissor);
+
+		Vulkan::EndRenderPass(a_cmd_list);
+	}
+
+	bool BB::ImGui_ImplBB_Init(Allocator a_temp_allocator, const RCommandList a_cmd_list, const ImGui_ImplBB_InitInfo& a_info, UploadBufferView& a_upload_view)
+	{
+		ImGuiIO& io = ImGui::GetIO();
+		IM_ASSERT(io.BackendRendererUserData == nullptr && "Already initialized a renderer backend!");
+
+		{ // WIN implementation
+			// Setup backend capabilities flags
+			ImGui_ImplBB_Data* bdWin = IM_NEW(ImGui_ImplBB_Data)();
+			io.BackendPlatformUserData = reinterpret_cast<void*>(bdWin);
+			io.BackendPlatformName = "imgui_impl_BB";
+			io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;         // We can honor GetMouseCursor() values (optional)
+			io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;          // We can honor io.WantSetMousePos requests (optional, rarely used)
+
+			bdWin->window = a_info.window;
+			//bd->TicksPerSecond = perf_frequency;
+			//bd->Time = perf_counter;
+			bdWin->LastMouseCursor = ImGuiMouseCursor_COUNT;
+
+			// Set platform dependent data in viewport
+			ImGui::GetMainViewport()->PlatformHandleRaw = reinterpret_cast<void*>(a_info.window.handle);
+		}
+		// Setup backend capabilities flags
+		ImGui_ImplBBRenderer_Data* bd = IM_NEW(ImGui_ImplBBRenderer_Data)();
+		io.BackendRendererUserData = reinterpret_cast<void*>(bd);
+		io.BackendRendererName = "imgui_impl_bb";
+
+		IM_ASSERT(a_info.min_image_count >= 2);
+		IM_ASSERT(a_info.image_count >= a_info.min_image_count);
+
+		{
+			CreateShaderEffectInfo shaders[2];
+			shaders[0].name = "imgui vertex shader";
+			shaders[0].shader_path = "../resources/shaders/hlsl/Imgui.hlsl";
+			shaders[0].shader_entry = "VertexMain";
+			shaders[0].stage = SHADER_STAGE::VERTEX;
+			shaders[0].next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::FRAGMENT_PIXEL);
+			shaders[0].push_constant_space = sizeof(ShaderIndices2D);
+
+			shaders[1].name = "imgui Fragment shader";
+			shaders[1].shader_path = "../resources/shaders/hlsl/Imgui.hlsl";
+			shaders[1].shader_entry = "FragmentMain";
+			shaders[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
+			shaders[1].next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::NONE);
+			shaders[1].push_constant_space = sizeof(ShaderIndices2D);
+
+			ShaderEffectHandle shader_objects[2];
+			BB_ASSERT(CreateShaderEffect(a_temp_allocator, Slice(shaders, _countof(shaders)), shader_objects),
+				"Failed to create imgui shaders");
+			bd->vertex_shader = shader_objects[0];
+			bd->fragment_shader = shader_objects[1];
+		}
+
+		//create framebuffers.
+		{
+			const RenderIO render_io = GetRenderIO();
+			bd->frame_index = 0;
+			bd->frame_buffers = reinterpret_cast<ImGui_ImplBB_FrameRenderBuffers*>(IM_ALLOC(sizeof(ImGui_ImplBB_FrameRenderBuffers) * render_io.frame_count));
+
+			for (size_t i = 0; i < render_io.frame_count; i++)
+			{
+				//I love C++
+				new (&bd->frame_buffers[i])(ImGui_ImplBB_FrameRenderBuffers);
+				ImGui_ImplBB_FrameRenderBuffers& rb = bd->frame_buffers[i];
+
+				rb.vertex_buffer = AllocateFromWritableVertexBuffer(INITIAL_VERTEX_SIZE);
+				rb.index_buffer = AllocateFromWritableIndexBuffer(INITIAL_INDEX_SIZE);
+			}
+		}
+
+		unsigned char* pixels;
+		int width, height;
+		io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+
+		UploadImageInfo font_info;
+		font_info.name = "imgui font";
+		font_info.width = static_cast<uint32_t>(width);
+		font_info.height = static_cast<uint32_t>(height);
+		font_info.format = IMAGE_FORMAT::RGBA8_UNORM;
+		font_info.usage = IMAGE_USAGE::TEXTURE;
+		font_info.pixels = pixels;
+		bd->font_image = UploadTexture(a_cmd_list, font_info, a_upload_view);
+
+		io.Fonts->SetTexID(bd->font_image.handle);
+
+		return bd->font_image.IsValid();
+	}
+
+	void BB::ImGui_ImplBB_Shutdown()
+	{
+		ImGui_ImplBBRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
+		BB_ASSERT(bd != nullptr, "No renderer backend to shutdown, or already shutdown?");
+		ImGuiIO& io = ImGui::GetIO();
+
+		//delete my things here.
+
+		ImGui_ImplBB_Data* pd = ImGui_ImplBB_GetPlatformData();
+		BB_ASSERT(pd != nullptr, "No platform backend to shutdown, or already shutdown?");
+
+		ImGui_ImplBB_DestroyFontUploadObjects();
+
+		io.BackendPlatformName = nullptr;
+		io.BackendPlatformUserData = nullptr;
+		IM_DELETE(bd);
+		IM_DELETE(pd);
+	}
+
+	void BB::ImGui_ImplBB_NewFrame()
+	{
+		ImGui_ImplBB_Data* bd = ImGui_ImplBB_GetPlatformData();
+		BB_ASSERT(bd != nullptr, "Did you call ImGui_ImplBB_Init()?");
+		ImGuiIO& io = ImGui::GetIO();
+
+		int x, y;
+		GetWindowSize(bd->window, x, y);
+		io.DisplaySize = ImVec2(static_cast<float>(x), static_cast<float>(y));
+
+		IM_UNUSED(bd);
+	}
+}
+
 static CommandPool* current_use_pool;
 static RCommandList current_command_list;
 
@@ -1287,7 +1600,7 @@ void BB::EndFrame()
 	start_rendering_info.load_color = false;
 	start_rendering_info.store_color = true;
 	start_rendering_info.clear_color_rgba = float4{ 0.f, 0.5f, 0.f, 1.f };
-	StartRenderPass(current_command_list, start_rendering_info);
+	Vulkan::StartRenderPass(current_command_list, start_rendering_info, s_render_inst.);
 
 	{
 		//set the first data to get the first 3 descriptor sets.
@@ -1335,7 +1648,7 @@ void BB::EndFrame()
 			0);
 	}
 
-	EndRenderPass(current_command_list);
+	Vulkan::EndRenderPass(current_command_list);
 
 	//present
 	ImGui::Render();
@@ -1612,54 +1925,6 @@ void* BB::MapGPUBuffer(const GPUBuffer a_buffer)
 void BB::UnmapGPUBuffer(const GPUBuffer a_buffer)
 {
 	Vulkan::UnmapBufferMemory(a_buffer);
-}
-
-void BB::BindIndexBuffer(const RCommandList a_list, const GPUBuffer a_buffer, const uint64_t a_offset)
-{
-	Vulkan::BindIndexBuffer(a_list, a_buffer, a_offset);
-}
-
-void BB::BindShaderEffects(const RCommandList a_list, const uint32_t a_shader_stage_count, const ShaderEffectHandle* a_shader_objects)
-{
-	ShaderObject* shader_objects = BBstackAlloc(a_shader_stage_count, ShaderObject);
-	SHADER_STAGE* shader_stages = BBstackAlloc(a_shader_stage_count, SHADER_STAGE);
-
-	for (size_t i = 0; i < a_shader_stage_count; i++)
-	{
-		const ShaderEffect& effect = s_render_inst->shader_effect_map[a_shader_objects[i]];
-		shader_objects[i] = effect.shader_object;
-		shader_stages[i] = effect.shader_stage;
-	}
-
-	Vulkan::BindShaders(a_list, a_shader_stage_count, shader_stages, shader_objects);
-}
-
-void BB::SetPushConstants(const RCommandList a_list, const ShaderEffectHandle a_first_shader_handle, const uint32_t a_offset, const uint32_t a_size, const void* a_data)
-{
-	Vulkan::SetPushConstants(a_list, s_render_inst->shader_effect_map[a_first_shader_handle].pipeline_layout, a_offset, a_size, a_data);
-}
-
-void BB::StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_start_pass)
-{
-	//hack
-	const RImageView view = s_render_inst->texture_manager.GetTextureSlot(s_render_inst->frames[s_render_inst->render_io.frame_index].back_buffer_image).view;
-
-	Vulkan::StartRenderPass(a_list, a_start_pass, view);
-}
-
-void BB::EndRenderPass(const RCommandList a_list)
-{
-	Vulkan::EndRenderPass(a_list);
-}
-
-void BB::SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor)
-{
-	Vulkan::SetScissor(a_list, a_scissor);
-}
-
-void BB::DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance)
-{
-	Vulkan::DrawIndexed(a_list, a_index_count, a_instance_count, a_first_index, a_vertex_offset, a_first_instance);
 }
 
 void BB::DrawMesh(const MeshHandle a_mesh, const float4x4& a_transform, const uint32_t a_index_start, const uint32_t a_index_count, const MaterialHandle a_material)

@@ -143,14 +143,6 @@ namespace BB
 	void* MapGPUBuffer(const GPUBuffer a_buffer);
 	void UnmapGPUBuffer(const GPUBuffer a_buffer);
 
-	void BindIndexBuffer(const RCommandList a_list, const GPUBuffer a_buffer, const uint64_t a_offset);
-	void BindShaderEffects(const RCommandList a_list, const uint32_t a_shader_stage_count, const ShaderEffectHandle* a_shader_objects);
-	void SetPushConstants(const RCommandList a_list, const ShaderEffectHandle a_first_shader_handle, const uint32_t a_offset, const uint32_t a_size, const void* a_data);
-	void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_start_pass);
-	void EndRenderPass(const RCommandList a_list);
-	void SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor);
-	void DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance);
-
 	void DrawMesh(const MeshHandle a_mesh, const float4x4& a_transform, const uint32_t a_index_start, const uint32_t a_index_count, const MaterialHandle a_material);
 
 	RTexture GetWhiteTexture();
