@@ -17,7 +17,7 @@ struct VSOutput
 
 VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 {
-    SceneInfo scene_info = scene_data.Load<SceneInfo>(0);
+    Scene3DInfo scene_info = scene_data.Load<Scene3DInfo>(0);
     
     const uint vertex_offset = shader_indices.vertex_buffer_offset + sizeof(Vertex) * a_vertex_index;
     Vertex cur_vertex;

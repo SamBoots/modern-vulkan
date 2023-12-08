@@ -24,6 +24,11 @@ namespace BB
 		Slice<uint32_t> indices;
 	};
 
+	enum class RENDER_PASS_TYPE
+	{
+		STANDARD_3D
+	};
+
 	struct CreateShaderEffectInfo
 	{
 		const char* name;
@@ -32,6 +37,7 @@ namespace BB
 		SHADER_STAGE stage;
 		SHADER_STAGE_FLAGS next_stages;
 		uint32_t push_constant_space;
+		RENDER_PASS_TYPE pass_type;
 	};
 
 	struct CreateMaterialInfo
@@ -104,6 +110,17 @@ namespace BB
 		//LinkedListNode holds next, so //48
 	};
 
+
+
+	using LightHandle = FrameworkHandle<struct LightHandleTag>;
+	struct CreateLightInfo
+	{
+		//light type here
+		float3 pos;
+		float radius;
+		float4 color;
+	};
+
 	const RenderIO& GetRenderIO();
 
 	bool InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererCreateInfo& a_render_create_info);
@@ -129,7 +146,10 @@ namespace BB
 	const MeshHandle CreateMesh(const RCommandList a_list, const CreateMeshInfo& a_create_info, UploadBufferView& a_upload_view);
 	void FreeMesh(const MeshHandle a_mesh);
 
-	bool CreateShaderEffect(Allocator a_temp_allocator, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* a_handles);
+	void CreateLights(const Slice<CreateLightInfo> a_create_infos, LightHandle* const a_light_handles);
+	void FreeLight(const LightHandle a_light);
+
+	bool CreateShaderEffect(Allocator a_temp_allocator, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles);
 	void FreeShaderEffect(const ShaderEffectHandle a_shader_effect);
 
 	const MaterialHandle CreateMaterial(const CreateMaterialInfo& a_create_info);

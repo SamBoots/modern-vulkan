@@ -259,6 +259,7 @@ int main(int argc, char** argv)
 		shader_effect_create_infos[0].shader_path = "../resources/shaders/hlsl/Debug.hlsl";
 		shader_effect_create_infos[0].shader_entry = "VertexMain";
 		shader_effect_create_infos[0].push_constant_space = sizeof(ShaderIndices);
+		shader_effect_create_infos[0].pass_type = RENDER_PASS_TYPE::STANDARD_3D;
 
 		shader_effect_create_infos[1].name = "debug fragment shader";
 		shader_effect_create_infos[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
@@ -266,6 +267,7 @@ int main(int argc, char** argv)
 		shader_effect_create_infos[1].shader_path = "../resources/shaders/hlsl/Debug.hlsl";
 		shader_effect_create_infos[1].shader_entry = "FragmentMain";
 		shader_effect_create_infos[1].push_constant_space = sizeof(ShaderIndices);
+		shader_effect_create_infos[1].pass_type = RENDER_PASS_TYPE::STANDARD_3D;
 
 		BB_ASSERT(CreateShaderEffect(main_allocator,
 			Slice(shader_effect_create_infos, _countof(shader_effect_create_infos)),

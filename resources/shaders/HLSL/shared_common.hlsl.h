@@ -8,30 +8,24 @@ namespace BB
 #endif//__HLSL_VERSION
 
     //defined for HLSL and constexpr for the cpp
-#ifdef __HLSL_VERSION
 #define SPACE_IMMUTABLE_SAMPLER 0
 #define SPACE_GLOBAL 1
 #define SPACE_PER_SCENE 2
 #define SPACE_PER_MATERIAL 3
 #define SPACE_PER_MESH 4
+#define SPACE_AMOUNT 5
+
+#define STATIC_SAMPLER_MAX 1
+
+#define IMMUTABLE_SAMPLER_BASIC_BINDING 0
 
 #define GLOBAL_VERTEX_BUFFER_BINDING 0
 #define GLOBAL_CPU_VERTEX_BUFFER_BINDING 1
 #define GLOBAL_BINDLESS_TEXTURES_BINDING 2
-#else
-    constexpr uint32_t SPACE_IMMUTABLE_SAMPLER = 0;
-    constexpr uint32_t SPACE_GLOBAL = 1;
-    constexpr uint32_t SPACE_PER_SCENE = 2;
-    constexpr uint32_t SPACE_PER_MATERIAL = 3;
-    constexpr uint32_t SPACE_PER_MESH = 4;
-    constexpr uint32_t SPACE_AMOUNT = 5;
 
-    constexpr uint32_t STATIC_SAMPLER_MAX = 3;
-
-    constexpr uint32_t GLOBAL_VERTEX_BUFFER_BINDING = 0;
-    constexpr uint32_t GLOBAL_CPU_VERTEX_BUFFER_BINDING = 1;
-    constexpr uint32_t GLOBAL_BINDLESS_TEXTURES_BINDING = 2;
-#endif //__HLSL_VERSION
+#define PER_SCENE_SCENE_DATA_BINDING 0
+#define PER_SCENE_TRANSFORM_DATA_BINDING 1
+#define PER_SCENE_LIGHT_DATA_BINDING 2
 
     struct Vertex
     {
@@ -48,7 +42,7 @@ namespace BB
         uint color;
     };
 
-    struct SceneInfo
+    struct Scene3DInfo
     {
         float4x4 view;
         float4x4 proj;
@@ -58,6 +52,14 @@ namespace BB
 
         uint lightCount;
         uint3 padding;
+    };
+
+    //pointlight
+    struct PointLight
+    {
+        float3 pos;
+        float radius;
+        float4 color;
     };
 
     struct ShaderTransform
@@ -75,7 +77,7 @@ namespace BB
         uint normal_texture;        //16
         float2 padding;             //24
     };
-    
+
     struct ShaderIndices2D
     {
         uint vertex_buffer_offset;  //4

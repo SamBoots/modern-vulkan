@@ -106,15 +106,27 @@ namespace BB
 			void Clear();
 
 			void SetMarker(const StackMarker a_pos);
+#ifdef _DEBUG
 			StackMarker GetMarker()
+			{
+				m_marker_log = m_front_log;
+				return reinterpret_cast<StackMarker>(m_buffer);
+			}
+#else
+			StackMarker GetMarker() const
 			{
 				return reinterpret_cast<StackMarker>(m_buffer);
 			}
+#endif //_DEBUG
+
 
 		private:
 			void* m_start;
 			void* m_buffer;
 			uintptr_t m_end;
+#ifdef _DEBUG
+			AllocationLog* m_marker_log;
+#endif //_DEBUG
 		};
 
 		struct FreelistAllocator : public BaseAllocator

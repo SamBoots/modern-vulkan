@@ -50,7 +50,7 @@ const float4x4 Transform::CreateMatrix()
 }
 
 //slotmap type of data structure.
-struct TransformNode
+struct BB::TransformNode
 {
 	union //44 bytes
 	{
@@ -61,48 +61,26 @@ struct TransformNode
 	uint32_t generation; //48 bytes
 };
 
-struct BB::TransformPool_inst
+TransformPool::TransformPool(StackAllocator_t& a_stack_allocator, const uint32_t a_transform_count)
 {
-	TransformPool_inst(Allocator a_system_allocator, const uint32_t a_transform_count)
-		:	system_allocator(a_system_allocator)
+	m_transform_count = a_transform_count;
+	m_next_free_transform = 0;
+	m_transforms = reinterpret_cast<TransformNode*>(BBalloc(a_stack_allocator, a_transform_count * sizeof(TransformNode)));
+	for (size_t i = 0; i < static_cast<size_t>(m_transform_count - 1); i++)
 	{
-		transform_count = a_transform_count;
-		next_free_transform = 0;
-		transforms = reinterpret_cast<TransformNode*>(BBalloc(a_system_allocator, sizeof(TransformNode) * a_transform_count));
-		for (size_t i = 0; i < static_cast<size_t>(transform_count - 1); i++)
-		{
-			transforms[i].next = static_cast<uint32_t>(i + 1);
-			transforms[i].generation = 1;
-		}
-
-		transforms[transform_count - 1].next = UINT32_MAX;
-		transforms[transform_count - 1].generation = 1;
+		m_transforms[i].next = static_cast<uint32_t>(i + 1);
+		m_transforms[i].generation = 1;
 	}
 
-	Allocator system_allocator;
-
-	uint32_t transform_count;
-	uint32_t next_free_transform;
-
-	TransformNode* transforms;
-};
-
-TransformPool::TransformPool(Allocator a_system_allocator, const uint32_t a_matrix_size)
-{
-	inst = BBnew(a_system_allocator, TransformPool_inst)(a_system_allocator, a_matrix_size);
-}
-
-TransformPool::~TransformPool()
-{
-	Allocator t_Allocator = inst->system_allocator;
-	BBfree(t_Allocator, inst);
+	m_transforms[m_transform_count - 1].next = UINT32_MAX;
+	m_transforms[m_transform_count - 1].generation = 1;
 }
 
 TransformHandle TransformPool::CreateTransform(const float3 a_position)
 {
-	const uint32_t transform_index = inst->next_free_transform;
-	TransformNode* node = &inst->transforms[transform_index];
-	inst->next_free_transform = node->next;
+	const uint32_t transform_index = m_next_free_transform;
+	TransformNode* node = &m_transforms[transform_index];
+	m_next_free_transform = node->next;
 
 	//WILL OVERWRITE node->next due to it being a union.
 	new (&node->transform) Transform(a_position);
@@ -112,9 +90,9 @@ TransformHandle TransformPool::CreateTransform(const float3 a_position)
 
 TransformHandle TransformPool::CreateTransform(const float3 a_position, const float3 a_axis, const float a_radians)
 {
-	const uint32_t transform_index = inst->next_free_transform;
-	TransformNode* node = &inst->transforms[transform_index];
-	inst->next_free_transform = node->next;
+	const uint32_t transform_index = m_next_free_transform;
+	TransformNode* node = &m_transforms[transform_index];
+	m_next_free_transform = node->next;
 
 	//WILL OVERWRITE node->next due to it being a union.
 	new (&node->transform) Transform(a_position, a_axis, a_radians);
@@ -124,9 +102,9 @@ TransformHandle TransformPool::CreateTransform(const float3 a_position, const fl
 
 TransformHandle TransformPool::CreateTransform(const float3 a_position, const float3 a_axis, const float a_radians, const float3 a_scale)
 {
-	const uint32_t transform_index = inst->next_free_transform;
-	TransformNode* node = &inst->transforms[transform_index];
-	inst->next_free_transform = node->next;
+	const uint32_t transform_index = m_next_free_transform;
+	TransformNode* node = &m_transforms[transform_index];
+	m_next_free_transform = node->next;
 
 	//WILL OVERWRITE node->next due to it being a union.
 	new (&node->transform) Transform(a_position, a_axis, a_radians, a_scale);
@@ -136,21 +114,21 @@ TransformHandle TransformPool::CreateTransform(const float3 a_position, const fl
 
 void TransformPool::FreeTransform(const TransformHandle a_handle)
 {
-	BB_ASSERT(a_handle.extra_index == inst->transforms[a_handle.index].generation, "Transform likely freed twice.");
+	BB_ASSERT(a_handle.extra_index == m_transforms[a_handle.index].generation, "Transform likely freed twice.");
 
 	//mark transform as free.
-	inst->transforms[a_handle.index].next = inst->transforms->next;
-	++inst->transforms[a_handle.index].generation;
-	inst->transforms->next = a_handle.index;
+	m_transforms[a_handle.index].next = m_transforms->next;
+	++m_transforms[a_handle.index].generation;
+	m_transforms->next = a_handle.index;
 }
 
 Transform& TransformPool::GetTransform(const TransformHandle a_handle) const
 {
-	BB_ASSERT(a_handle.extra_index == inst->transforms[a_handle.index].generation, "Transform likely freed twice.");
-	return inst->transforms[a_handle.index].transform;
+	BB_ASSERT(a_handle.extra_index == m_transforms[a_handle.index].generation, "Transform likely freed twice.");
+	return m_transforms[a_handle.index].transform;
 }
 
 uint32_t TransformPool::PoolSize() const
 {
-	return inst->transform_count;
+	return m_transform_count;
 }

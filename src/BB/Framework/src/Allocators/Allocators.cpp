@@ -393,19 +393,12 @@ void StackAllocator::SetMarker(const StackMarker a_marker)
 		return;
 	//jank, but remove logs that are after a_pos;
 	AllocationLog* cur_list = m_front_log;
-	AllocationLog* prev_list = nullptr;
-	uintptr_t back = reinterpret_cast<uintptr_t>(cur_list->back) + MEMORY_BOUNDRY_BACK;
-	while (back > a_marker)
+	while (cur_list != m_marker_log)
 	{
 		Memory_FreeBoundies(cur_list->front, cur_list->back);
-		prev_list = cur_list;
-		cur_list = prev_list->prev;
-
-		back = reinterpret_cast<uintptr_t>(cur_list->back) + MEMORY_BOUNDRY_BACK;
+		cur_list = cur_list->prev;
 	}
-	//due to alignment this is unreliable. 
-	//BB_ASSERT(a_marker == back, "SetPosition points to a invalid address that holds no allocation");
-	m_front_log = cur_list->prev;
+	m_front_log = m_marker_log;
 #endif
 	m_buffer = reinterpret_cast<void*>(a_marker);
 }
