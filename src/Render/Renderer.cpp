@@ -5,9 +5,10 @@
 #include "Program.h"
 
 #include "ShaderCompiler.h"
-#include "imgui_impl_bb.hpp"
 
 #include "Math.inl"
+
+#include "imgui.h"
 
 using namespace BB;
 
@@ -568,8 +569,8 @@ static RenderInterface_inst* s_render_inst;
 
 namespace IMGUI_IMPL
 {
-	constexpr size_t IMGUI_INITIAL_VERTEX_SIZE = sizeof(Vertex2D) * 128;
-	constexpr size_t IMGUI_INITIAL_INDEX_SIZE = sizeof(uint32_t) * 256;
+	constexpr size_t INITIAL_VERTEX_SIZE = sizeof(Vertex2D) * 128;
+	constexpr size_t INITIAL_INDEX_SIZE = sizeof(uint32_t) * 256;
 
 	struct ImRenderBuffer
 	{
@@ -581,22 +582,24 @@ namespace IMGUI_IMPL
 
 	struct ImRenderData
 	{
+		//0 = VERTEX, 1 = FRAGMENT //this is a hack to be able to delete em lol
+		ShaderEffectHandle		shader_effects[2];	//16
 		//0 = VERTEX, 1 = FRAGMENT
-		ShaderObject			shader_objects[2];	//16
-		RPipelineLayout			pipeline_layout;	//24
-		RTexture				font_image;         //28
+		ShaderObject			shader_objects[2];	//32
+		RPipelineLayout			pipeline_layout;	//40
+		RTexture				font_image;         //44
 
 		// Render buffers for main window
-		uint32_t frame_index;                           //32
-		ImRenderBuffer* frame_buffers;					//40
+		uint32_t frame_index;                           //48
+		ImRenderBuffer* frame_buffers;					//56
 	};
 
-	static ImRenderData* ImGetRenderData()
+	inline static ImRenderData* ImGetRenderData()
 	{
 		return ImGui::GetCurrentContext() ? reinterpret_cast<ImRenderData*>(ImGui::GetIO().BackendRendererUserData) : nullptr;
 	}
 
-	static void ImGui_ImplCross_SetupRenderState(const ImDrawData& a_DrawData, const RCommandList a_cmd_list, const ImRenderBuffer& a_rb)
+	inline static void ImSetRenderState(const ImDrawData& a_draw_data, const RCommandList a_cmd_list, const ImRenderBuffer& a_rb)
 	{
 		ImRenderData* bd = ImGetRenderData();
 
@@ -610,23 +613,16 @@ namespace IMGUI_IMPL
 			ShaderIndices2D shader_indices;
 			shader_indices.vertex_buffer_offset = static_cast<uint32_t>(a_rb.vertex_buffer.offset);
 			shader_indices.albedo_texture = bd->font_image.handle;
-			shader_indices.rect_scale.x = 2.0f / a_DrawData.DisplaySize.x;
-			shader_indices.rect_scale.y = 2.0f / a_DrawData.DisplaySize.y;
-			shader_indices.translate.x = -1.0f - a_DrawData.DisplayPos.x * shader_indices.rect_scale.x;
-			shader_indices.translate.y = -1.0f - a_DrawData.DisplayPos.y * shader_indices.rect_scale.y;
+			shader_indices.rect_scale.x = 2.0f / a_draw_data.DisplaySize.x;
+			shader_indices.rect_scale.y = 2.0f / a_draw_data.DisplaySize.y;
+			shader_indices.translate.x = -1.0f - a_draw_data.DisplayPos.x * shader_indices.rect_scale.x;
+			shader_indices.translate.y = -1.0f - a_draw_data.DisplayPos.y * shader_indices.rect_scale.y;
 
 			Vulkan::SetPushConstants(a_cmd_list, bd->pipeline_layout, 0, sizeof(shader_indices), &shader_indices);
 		}
 	}
 
-	static void ImGui_ImplBB_DestroyFontUploadObjects()
-	{
-		ImRenderData* bd = ImGetRenderData();
-		FreeTexture(bd->font_image);
-		bd->font_image = RTexture(BB_INVALID_HANDLE_32);
-	}
-
-	static void GrowFrameBufferGPUBuffers(ImRenderBuffer& a_rb, const size_t a_new_vertex_size, const size_t a_new_index_size)
+	inline static void ImGrowFrameBufferGPUBuffers(ImRenderBuffer& a_rb, const size_t a_new_vertex_size, const size_t a_new_index_size)
 	{
 		//free I guess, lol can't do that now XDDD
 
@@ -658,7 +654,7 @@ namespace IMGUI_IMPL
 			const size_t vertex_size = static_cast<size_t>(draw_data.TotalVtxCount) * sizeof(ImDrawVert);
 			const size_t index_size = static_cast<size_t>(draw_data.TotalIdxCount) * sizeof(ImDrawIdx);
 			if (rb.vertex_buffer.size < vertex_size || rb.index_buffer.size < index_size)
-				GrowFrameBufferGPUBuffers(rb, Max(rb.vertex_buffer.size * 2, vertex_size), Max(rb.index_buffer.size * 2, index_size));
+				ImGrowFrameBufferGPUBuffers(rb, Max(rb.vertex_buffer.size * 2, vertex_size), Max(rb.index_buffer.size * 2, index_size));
 
 
 			BB_STATIC_ASSERT(sizeof(Vertex2D) == sizeof(ImDrawVert), "Vertex2D size is not the same as ImDrawVert");
@@ -689,7 +685,7 @@ namespace IMGUI_IMPL
 		Vulkan::StartRenderPass(a_cmd_list, imgui_pass_start, a_render_target_view);
 
 		// Setup desired CrossRenderer state
-		ImGui_ImplCross_SetupRenderState(draw_data, a_cmd_list, rb);
+		ImSetRenderState(draw_data, a_cmd_list, rb);
 
 		// Will project scissor/clipping rectangles into framebuffer space
 		const ImVec2 clip_off = draw_data.DisplayPos;    // (0,0) unless using multi-viewports
@@ -711,7 +707,7 @@ namespace IMGUI_IMPL
 					// User callback, registered via ImDrawList::AddCallback()
 					// (ImDrawCallback_ResetRenderState is a special callback value used by the user to request the renderer to reset render state.)
 					if (pcmd->UserCallback == ImDrawCallback_ResetRenderState)
-						ImGui_ImplCross_SetupRenderState(draw_data, a_cmd_list, rb);
+						ImSetRenderState(draw_data, a_cmd_list, rb);
 					else
 						pcmd->UserCallback(cmd_list, pcmd);
 				}
@@ -759,35 +755,17 @@ namespace IMGUI_IMPL
 		Vulkan::EndRenderPass(a_cmd_list);
 	}
 
-	bool BB::ImGui_ImplBB_Init(Allocator a_temp_allocator, const RCommandList a_cmd_list, const ImGui_ImplBB_InitInfo& a_info, UploadBufferView& a_upload_view)
+	static bool ImInit(StackAllocator_t& a_stack_allocator, const RCommandList a_cmd_list, UploadBufferView& a_upload_view)
 	{
 		ImGuiIO& io = ImGui::GetIO();
 		IM_ASSERT(io.BackendRendererUserData == nullptr && "Already initialized a renderer backend!");
 
-		{ // WIN implementation
-			// Setup backend capabilities flags
-			ImGui_ImplBB_Data* bdWin = IM_NEW(ImGui_ImplBB_Data)();
-			io.BackendPlatformUserData = reinterpret_cast<void*>(bdWin);
-			io.BackendPlatformName = "imgui_impl_BB";
-			io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;         // We can honor GetMouseCursor() values (optional)
-			io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;          // We can honor io.WantSetMousePos requests (optional, rarely used)
-
-			bdWin->window = a_info.window;
-			//bd->TicksPerSecond = perf_frequency;
-			//bd->Time = perf_counter;
-			bdWin->LastMouseCursor = ImGuiMouseCursor_COUNT;
-
-			// Set platform dependent data in viewport
-			ImGui::GetMainViewport()->PlatformHandleRaw = reinterpret_cast<void*>(a_info.window.handle);
-		}
 		// Setup backend capabilities flags
-		ImGui_ImplBBRenderer_Data* bd = IM_NEW(ImGui_ImplBBRenderer_Data)();
+		ImRenderData* bd = BBnew(a_stack_allocator, ImRenderData);
+		io.BackendRendererName = "imgui-modern-vulkan";
 		io.BackendRendererUserData = reinterpret_cast<void*>(bd);
-		io.BackendRendererName = "imgui_impl_bb";
 
-		IM_ASSERT(a_info.min_image_count >= 2);
-		IM_ASSERT(a_info.image_count >= a_info.min_image_count);
-
+		BBStackAllocatorScope(a_stack_allocator)
 		{
 			CreateShaderEffectInfo shaders[2];
 			shaders[0].name = "imgui vertex shader";
@@ -804,24 +782,27 @@ namespace IMGUI_IMPL
 			shaders[1].next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::NONE);
 			shaders[1].push_constant_space = sizeof(ShaderIndices2D);
 
-			ShaderEffectHandle shader_objects[2];
-			BB_ASSERT(CreateShaderEffect(a_temp_allocator, Slice(shaders, _countof(shaders)), shader_objects),
+			BB_ASSERT(CreateShaderEffect(a_stack_allocator, Slice(shaders, _countof(shaders)), bd->shader_effects),
 				"Failed to create imgui shaders");
-			bd->vertex_shader = shader_objects[0];
-			bd->fragment_shader = shader_objects[1];
+
+			for (size_t i = 0; i < _countof(shaders); i++)
+			{
+				const ShaderEffect& eff = s_render_inst->shader_effect_map[bd->shader_effects[i]];
+				bd->shader_objects[i] = eff.shader_object;
+			}
 		}
 
 		//create framebuffers.
 		{
 			const RenderIO render_io = GetRenderIO();
 			bd->frame_index = 0;
-			bd->frame_buffers = reinterpret_cast<ImGui_ImplBB_FrameRenderBuffers*>(IM_ALLOC(sizeof(ImGui_ImplBB_FrameRenderBuffers) * render_io.frame_count));
+			bd->frame_buffers = BBnewArr(a_stack_allocator, render_io.frame_count, ImRenderBuffer);
 
 			for (size_t i = 0; i < render_io.frame_count; i++)
 			{
 				//I love C++
-				new (&bd->frame_buffers[i])(ImGui_ImplBB_FrameRenderBuffers);
-				ImGui_ImplBB_FrameRenderBuffers& rb = bd->frame_buffers[i];
+				new (&bd->frame_buffers[i])(ImRenderBuffer);
+				ImRenderBuffer& rb = bd->frame_buffers[i];
 
 				rb.vertex_buffer = AllocateFromWritableVertexBuffer(INITIAL_VERTEX_SIZE);
 				rb.index_buffer = AllocateFromWritableIndexBuffer(INITIAL_INDEX_SIZE);
@@ -846,36 +827,28 @@ namespace IMGUI_IMPL
 		return bd->font_image.IsValid();
 	}
 
-	void BB::ImGui_ImplBB_Shutdown()
+	inline static void ImShutdown()
 	{
-		ImGui_ImplBBRenderer_Data* bd = ImGui_ImplCross_GetBackendData();
+		ImRenderData* bd = ImGetRenderData();
 		BB_ASSERT(bd != nullptr, "No renderer backend to shutdown, or already shutdown?");
 		ImGuiIO& io = ImGui::GetIO();
 
 		//delete my things here.
+		FreeTexture(bd->font_image);
+		bd->font_image = RTexture(BB_INVALID_HANDLE_32);
 
-		ImGui_ImplBB_Data* pd = ImGui_ImplBB_GetPlatformData();
-		BB_ASSERT(pd != nullptr, "No platform backend to shutdown, or already shutdown?");
-
-		ImGui_ImplBB_DestroyFontUploadObjects();
-
-		io.BackendPlatformName = nullptr;
-		io.BackendPlatformUserData = nullptr;
+		io.BackendRendererName = nullptr;
+		io.BackendRendererUserData = nullptr;
 		IM_DELETE(bd);
-		IM_DELETE(pd);
 	}
 
-	void BB::ImGui_ImplBB_NewFrame()
+	inline static void ImNewFrame()
 	{
-		ImGui_ImplBB_Data* bd = ImGui_ImplBB_GetPlatformData();
-		BB_ASSERT(bd != nullptr, "Did you call ImGui_ImplBB_Init()?");
 		ImGuiIO& io = ImGui::GetIO();
 
-		int x, y;
-		GetWindowSize(bd->window, x, y);
-		io.DisplaySize = ImVec2(static_cast<float>(x), static_cast<float>(y));
-
-		IM_UNUSED(bd);
+		io.DisplaySize = ImVec2(
+			static_cast<float>(s_render_inst->render_io.screen_width), 
+			static_cast<float>(s_render_inst->render_io.screen_height));
 	}
 }
 
@@ -908,7 +881,6 @@ GPUBufferView BB::AllocateFromIndexBuffer(const size_t a_size_in_bytes)
 	view.offset = s_render_inst->index_buffer.used;
 
 	s_render_inst->index_buffer.used += static_cast<uint32_t>(a_size_in_bytes);
-
 	return view;
 }
 
@@ -1479,17 +1451,12 @@ bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		}
 	}
 
-	BBStackAllocatorScope(a_stack_allocator)
 	{
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
 		ImGui::StyleColorsClassic();
 
-		ImGui_ImplBB_InitInfo imgui_init;
-		imgui_init.window = s_render_inst->render_io.window_handle;
-		imgui_init.image_count = s_render_inst->render_io.frame_count;
-		imgui_init.min_image_count = s_render_inst->render_io.frame_count;
-		ImGui_ImplBB_Init(a_stack_allocator, list, imgui_init, startup_upload_view);
+		IMGUI_IMPL::ImInit(a_stack_allocator, list, startup_upload_view);
 	}
 
 	start_up_pool.EndCommandList(list);
@@ -1509,7 +1476,7 @@ void BB::StartFrame()
 	//clear the drawlist, maybe do this on a per-frame basis of we do GPU upload?
 	s_render_inst->draw_list_count = 0;
 
-	ImGui_ImplBB_NewFrame();
+	IMGUI_IMPL::ImNewFrame();
 	ImGui::NewFrame();
 
 	current_use_pool = &s_render_inst->graphics_queue.GetCommandPool("test getting thing command pool");
@@ -1554,7 +1521,7 @@ void BB::EndFrame()
 	s_render_inst->upload_buffers.ReturnUploadViews(Slice(&matrix_upload_view, 1), upload_fence, upload_fence_value);
 	s_render_inst->upload_buffers.IncrementNextFenceValue();
 
-	const RImage render_image = s_render_inst->texture_manager.GetTextureSlot(cur_frame.back_buffer_image).image;
+	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(cur_frame.back_buffer_image);
 
 	//transition depth buffer
 	{
@@ -1563,7 +1530,7 @@ void BB::EndFrame()
 		PipelineBarrierImageInfo image_transitions[2]{};
 		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::NONE;
 		image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
-		image_transitions[0].image = render_image;
+		image_transitions[0].image = render_target.image;
 		image_transitions[0].old_layout = IMAGE_LAYOUT::UNDEFINED;
 		image_transitions[0].new_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 		image_transitions[0].layer_count = 1;
@@ -1600,7 +1567,7 @@ void BB::EndFrame()
 	start_rendering_info.load_color = false;
 	start_rendering_info.store_color = true;
 	start_rendering_info.clear_color_rgba = float4{ 0.f, 0.5f, 0.f, 1.f };
-	Vulkan::StartRenderPass(current_command_list, start_rendering_info, s_render_inst.);
+	Vulkan::StartRenderPass(current_command_list, start_rendering_info, render_target.view);
 
 	{
 		//set the first data to get the first 3 descriptor sets.
@@ -1652,14 +1619,14 @@ void BB::EndFrame()
 
 	//present
 	ImGui::Render();
-	ImGui_ImplBB_RenderDrawData(*ImGui::GetDrawData(), current_command_list);
+	IMGUI_IMPL::ImRenderFrame(current_command_list, render_target.view);
 	ImGui::EndFrame();
 
 	{
 		PipelineBarrierImageInfo image_transitions[1]{};
 		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
 		image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
-		image_transitions[0].image = render_image;
+		image_transitions[0].image = render_target.image;
 		image_transitions[0].old_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 		image_transitions[0].new_layout = IMAGE_LAYOUT::TRANSFER_SRC;
 		image_transitions[0].layer_count = 1;
@@ -1680,7 +1647,7 @@ void BB::EndFrame()
 		static_cast<int>(s_render_inst->render_io.screen_width), 
 		static_cast<int>(s_render_inst->render_io.screen_height)
 	};
-	Vulkan::UploadImageToSwapchain(current_command_list, render_image, swapchain_size, swapchain_size, s_render_inst->render_io.frame_index);
+	Vulkan::UploadImageToSwapchain(current_command_list, render_target.image, swapchain_size, swapchain_size, s_render_inst->render_io.frame_index);
 	current_use_pool->EndCommandList(current_command_list);
 
 	s_render_inst->frames[s_render_inst->render_io.frame_index].fence_value = s_render_inst->graphics_queue.GetNextFenceValue();

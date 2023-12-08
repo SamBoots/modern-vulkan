@@ -19,6 +19,32 @@ struct ImGui_ImplBB_Data
     ImGui_ImplBB_Data() { memset(this, 0, sizeof(*this)); }
 };
 
+// Setup backend capabilities flags
+ImGui_ImplBB_Data* bdWin = IM_NEW(ImGui_ImplBB_Data)();
+io.BackendPlatformUserData = reinterpret_cast<void*>(bdWin);
+io.BackendPlatformName = "imgui_impl_BB";
+io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;         // We can honor GetMouseCursor() values (optional)
+io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;          // We can honor io.WantSetMousePos requests (optional, rarely used)
+
+
+{ // WIN implementation
+
+    bdWin->window = a_info.window;
+    //bd->TicksPerSecond = perf_frequency;
+    //bd->Time = perf_counter;
+    bdWin->LastMouseCursor = ImGuiMouseCursor_COUNT;
+
+    // Set platform dependent data in viewport
+    ImGui::GetMainViewport()->PlatformHandleRaw = reinterpret_cast<void*>(a_info.window.handle);
+}
+
+ImGui_ImplBB_Data* pd = ImGui_ImplBB_GetPlatformData();
+BB_ASSERT(pd != nullptr, "No platform backend to shutdown, or already shutdown?");
+
+io.BackendPlatformName = nullptr;
+io.BackendPlatformUserData = nullptr;
+IM_DELETE(pd);
+
 //-----------------------------------------------------------------------------
 // FUNCTIONS
 //-----------------------------------------------------------------------------
