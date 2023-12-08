@@ -10,8 +10,7 @@ find_package(Vulkan REQUIRED)
 add_library(Renderer
 	"Render/Vulkan/VulkanRenderer.cpp"
 	"Render/ShaderCompiler.cpp"
-	"Render/Renderer.cpp"
-	"Render/imgui_impl_bb.cpp")
+	"Render/Renderer.cpp")
 
 target_link_libraries(Renderer BBFramework 
 	Vulkan::Vulkan

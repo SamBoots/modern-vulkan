@@ -788,6 +788,7 @@ namespace IMGUI_IMPL
 			for (size_t i = 0; i < _countof(shaders); i++)
 			{
 				const ShaderEffect& eff = s_render_inst->shader_effect_map[bd->shader_effects[i]];
+				bd->pipeline_layout = eff.pipeline_layout;
 				bd->shader_objects[i] = eff.shader_object;
 			}
 		}
