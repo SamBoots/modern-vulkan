@@ -21,12 +21,12 @@ float4 PackedUintToFloat4Color(const uint a_uint)
     return unpacked;
 }
 
-float4 CalculatePointLight(const PointLight a_light, float3 a_normal, float3 a_frag_pos)
+float3 CalculatePointLight(const PointLight a_light, float3 a_normal, float3 a_frag_pos)
 {
     float3 dir = normalize(a_light.pos - a_frag_pos);
 
     float diff = max(dot(a_normal, dir), 0.0f);
-    return float4(mul(diff, a_light.color));
+    return float3(mul(diff, float3(1.f, 1.f, 1.f)));
 }
 
 //IMMUTABLE SAMPLERS

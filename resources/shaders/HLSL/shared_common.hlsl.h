@@ -47,10 +47,10 @@ namespace BB
         float4x4 view;
         float4x4 proj;
 
-        float3 ambientLight;
-        float ambientStrength;
+        float3 ambient_light;
+        float ambient_strength;
 
-        uint lightCount;
+        uint light_count;
         uint3 padding;
     };
 

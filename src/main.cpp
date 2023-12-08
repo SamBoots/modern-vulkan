@@ -316,6 +316,21 @@ int main(int argc, char** argv)
 		quad_mesh = Asset::FindModelByName(async_assets[1].mesh_memory.name);
 	}
 
+	LightHandle lights[2];
+
+	{	//add some basic lights
+		CreateLightInfo light_create_info[2];
+		light_create_info[0].color = float4(1, 1, 1, 1);
+		light_create_info[0].radius = 1;
+		light_create_info[0].pos = float3(3, 0, 0);
+
+		light_create_info[1].color = float4(1, 1, 1, 1);
+		light_create_info[1].radius = 1;
+		light_create_info[1].pos = float3(0, 4, 0);
+
+		CreateLights(Slice(light_create_info, 1), lights);
+	}
+
 	bool freeze_cam = false;
 	bool quit_app = false;
 	float delta_time = 0;

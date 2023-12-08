@@ -2269,7 +2269,7 @@ void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stag
 
 	vkCmdSetRasterizerDiscardEnable(cmd_buffer, VK_FALSE);
 
-	vkCmdSetCullMode(cmd_buffer, VK_CULL_MODE_NONE);
+	vkCmdSetCullMode(cmd_buffer, VK_CULL_MODE_BACK_BIT);
 	vkCmdSetFrontFace(cmd_buffer, VK_FRONT_FACE_CLOCKWISE);
 	vkCmdSetPrimitiveTopology(cmd_buffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	s_vulkan_inst->pfn.CmdSetPolygonModeEXT(cmd_buffer, VK_POLYGON_MODE_FILL);
@@ -2280,7 +2280,7 @@ void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stag
 	{
 		VkBool32 color_enable = VK_TRUE;
 		s_vulkan_inst->pfn.CmdSetColorBlendEnableEXT(cmd_buffer, 0, 1, &color_enable);
-		VkColorComponentFlags color_flags = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+		const VkColorComponentFlags color_flags = 0xf;
 		s_vulkan_inst->pfn.CmdSetColorWriteMaskEXT(cmd_buffer, 0, 1, &color_flags);
 
 		VkColorBlendEquationEXT color_blend_equation{};
@@ -2289,7 +2289,7 @@ void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stag
 		color_blend_equation.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 		color_blend_equation.alphaBlendOp = VK_BLEND_OP_ADD;
 		color_blend_equation.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-		color_blend_equation.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+		color_blend_equation.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 		//color thing.
 		s_vulkan_inst->pfn.CmdSetColorBlendEquationEXT(cmd_buffer, 0, 1, &color_blend_equation);
 	}

@@ -17,7 +17,7 @@ struct VSOutput
 
 VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 {
-    Scene3DInfo scene_info = scene_data.Load<Scene3DInfo>(0);
+    const Scene3DInfo scene_info = scene_data.Load<Scene3DInfo>(0);
     
     const uint vertex_offset = shader_indices.vertex_buffer_offset + sizeof(Vertex) * a_vertex_index;
     Vertex cur_vertex;
@@ -34,14 +34,24 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
     output.frag_pos = float4(mul(transform.transform, float4(cur_vertex.position, 1.0f))).xyz;
     output.uv = cur_vertex.uv;
     output.color = cur_vertex.color;
-    output.normal = mul(transform.inverse, float4(cur_vertex.normal.xyz, 0)).xyz;
+    output.normal = normalize(mul(transform.inverse, float4(cur_vertex.normal.xyz, 0)).xyz);
     return output;
 }
 
 float4 FragmentMain(VSOutput a_input) : SV_Target
 {
-    float4 texture_color = textures_data[shader_indices.albedo_texture].Sample(basic_3d_sampler, a_input.uv);
-    float4 color = float4(texture_color.xyz * a_input.color.xyz, 1.0f);
+    const Scene3DInfo scene_info = scene_data.Load<Scene3DInfo>(0);
     
-    return color;
+    float4 texture_color = textures_data[shader_indices.albedo_texture].Sample(basic_3d_sampler, a_input.uv);
+    float4 color = float4(texture_color.xyz * a_input.color.xyz, 1.f);
+    
+    float3 diffuse = 0;
+    for (uint i = 0; i < scene_info.light_count; i++)
+    {
+        const PointLight point_light = light_data.Load<PointLight>(sizeof(PointLight) * i);
+        diffuse += CalculatePointLight(point_light, a_input.normal, a_input.frag_pos).xyz;
+    }
+    float4 result = float4(diffuse, 1.f) * color;
+    
+    return result;
 }

@@ -1548,8 +1548,11 @@ void BB::EndFrame()
 	RenderPass3D& renderpass_3d = GetRenderPass3D();
 	const auto& cur_frame = renderpass_3d.frames[s_render_inst->render_io.frame_index];
 
+	renderpass_3d.scene_info.light_count = renderpass_3d.light_container.size();
+
 	const uint32_t scene_upload_size = sizeof(Scene3DInfo);
 	const uint32_t matrices_upload_size = sizeof(ShaderTransform) * renderpass_3d.draw_list_count;
+	const size_t light_upload_size = sizeof(Light) * renderpass_3d.light_container.size();
 
 	//upload matrices
 	//optimalization, upload previous frame matrices when using transfer buffer?
@@ -1559,19 +1562,25 @@ void BB::EndFrame()
 	matrix_upload_view.AllocateAndMemoryCopy(&renderpass_3d.scene_info, scene_upload_size, scene_offset);
 	uint32_t matrix_offset = 0;
 	matrix_upload_view.AllocateAndMemoryCopy(renderpass_3d.draw_list_data.transform, matrices_upload_size, matrix_offset);
+	uint32_t light_offset = 0;
+	matrix_upload_view.AllocateAndMemoryCopy(renderpass_3d.light_container.data(), light_upload_size, light_offset);
 
 	//upload to some GPU buffer here.
 	RenderCopyBuffer matrix_buffer_copy;
 	matrix_buffer_copy.src = matrix_upload_view.GetBufferHandle();
 	matrix_buffer_copy.dst = cur_frame.per_frame_buffer;
-	RenderCopyBufferRegion buffer_regions[2]; // 0 = scene, 1 = matrix
+	RenderCopyBufferRegion buffer_regions[3]; // 0 = scene, 1 = matrix
 	buffer_regions[0].src_offset = scene_offset;
 	buffer_regions[0].dst_offset = cur_frame.scene_buffer.offset;
 	buffer_regions[0].size = cur_frame.scene_buffer.size;
 
 	buffer_regions[1].src_offset = matrix_offset;
 	buffer_regions[1].dst_offset = cur_frame.transform_buffer.offset;
-	buffer_regions[1].size = renderpass_3d.draw_list_count * sizeof(ShaderTransform);
+	buffer_regions[1].size = matrices_upload_size;
+
+	buffer_regions[2].src_offset = light_offset;
+	buffer_regions[2].dst_offset = cur_frame.light_buffer.offset;
+	buffer_regions[2].size = light_upload_size;
 	matrix_buffer_copy.regions = Slice(buffer_regions, _countof(buffer_regions));
 	Vulkan::CopyBuffer(current_command_list, matrix_buffer_copy);
 
