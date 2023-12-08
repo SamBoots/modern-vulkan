@@ -23,10 +23,19 @@ float4 PackedUintToFloat4Color(const uint a_uint)
 
 float3 CalculatePointLight(const PointLight a_light, float3 a_normal, float3 a_frag_pos)
 {
-    float3 dir = normalize(a_light.pos - a_frag_pos);
-
+    const float3 dir = normalize(a_light.pos - a_frag_pos);
+    
+    const float constant = 1.f;
+    const float distance = length(a_light.pos - a_frag_pos);
+    const float attenuation = 1.0f / (constant, a_light.radius_linear * distance + a_light.radius_quadratic * (distance * distance));
+    
     float diff = max(dot(a_normal, dir), 0.0f);
-    return float3(mul(diff, float3(1.f, 1.f, 1.f)));
+    float3 diffuse = mul(diff, a_light.color);
+
+    diffuse *= attenuation;
+    
+    float3 light_color = diffuse;
+    return light_color;
 }
 
 //IMMUTABLE SAMPLERS

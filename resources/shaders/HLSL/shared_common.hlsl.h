@@ -57,9 +57,11 @@ namespace BB
     //pointlight
     struct PointLight
     {
-        float3 pos;
-        float radius;
-        float4 color;
+        float3 color;           //12
+        float3 pos;             //24
+
+        float radius_linear;    //28
+        float radius_quadratic; //32
     };
 
     struct ShaderTransform

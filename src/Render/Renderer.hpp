@@ -117,8 +117,9 @@ namespace BB
 	{
 		//light type here
 		float3 pos;
-		float radius;
-		float4 color;
+		float3 color;
+		float linear_distance;
+		float quadratic_distance;
 	};
 
 	const RenderIO& GetRenderIO();

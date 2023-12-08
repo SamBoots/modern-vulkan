@@ -1831,12 +1831,14 @@ void BB::FreeMesh(const MeshHandle a_mesh)
 void BB::CreateLights(const Slice<CreateLightInfo> a_create_infos, LightHandle* const a_light_handles)
 {
 	RenderPass3D& renderpass_3d = GetRenderPass3D();
+
 	for (size_t i = 0; i < a_create_infos.size(); i++)
 	{
 		PointLight light;
 		light.pos = a_create_infos[i].pos;
-		light.radius = a_create_infos[i].radius;
 		light.color = a_create_infos[i].color;
+		light.radius_linear = a_create_infos[i].linear_distance;
+		light.radius_quadratic = a_create_infos[i].quadratic_distance;
 		a_light_handles[i] = renderpass_3d.light_container.insert(light);
 	}
 }

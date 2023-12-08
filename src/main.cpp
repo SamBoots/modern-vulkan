@@ -320,15 +320,17 @@ int main(int argc, char** argv)
 
 	{	//add some basic lights
 		CreateLightInfo light_create_info[2];
-		light_create_info[0].color = float4(1, 1, 1, 1);
-		light_create_info[0].radius = 1;
+		light_create_info[0].color = float3(1, 1, 1);
+		light_create_info[0].linear_distance = 0.35f;
+		light_create_info[0].quadratic_distance = 0.44f;
 		light_create_info[0].pos = float3(3, 0, 0);
 
-		light_create_info[1].color = float4(1, 1, 1, 1);
-		light_create_info[1].radius = 1;
+		light_create_info[1].color = float3(1, 1, 1);
+		light_create_info[1].linear_distance = 0.35f;
+		light_create_info[1].quadratic_distance = 0.44f;
 		light_create_info[1].pos = float3(0, 4, 0);
 
-		CreateLights(Slice(light_create_info, 1), lights);
+		CreateLights(Slice(light_create_info, _countof(light_create_info)), lights);
 	}
 
 	bool freeze_cam = false;
