@@ -5,9 +5,11 @@
 #ifdef _VULKAN
 #define _BBEXT(num) [[vk::location(num)]]
 #define _BBBIND(bind, set) [[vk::binding(bind, set)]]
+#define _BBCONSTANT(type) [[vk::push_constant]] type
 #else
 #define _BBEXT(num) [[vk::location(num)]]
 #define _BBBIND(bind, set) [[vk::binding(bind, set)]]
+#define _BBCONSTANT(type) [[vk::push_constant]] type
 #endif
 
 #define unpack_uint_to_float4(a_uint) float4(float((a_uint & 0xff000000) >> 24), float((a_uint & 0x00ff0000) >> 16), float((a_uint & 0x0000ff00) >> 8), float((a_uint & 0x000000ff) >> 0))
@@ -21,7 +23,7 @@ float4 PackedUintToFloat4Color(const uint a_uint)
     return unpacked;
 }
 
-float3 CalculatePointLight(const PointLight a_light, float3 a_normal, float3 a_frag_pos)
+float3 CalculatePointLight(const BB::PointLight a_light, float3 a_normal, float3 a_frag_pos)
 {
     const float3 dir = normalize(a_light.pos - a_frag_pos);
     

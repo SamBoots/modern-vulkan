@@ -695,8 +695,8 @@ namespace IMGUI_IMPL
 			for (int n = 0; n < draw_data.CmdListsCount; n++)
 			{
 				const ImDrawList* cmd_list = draw_data.CmdLists[n];
-				memcpy(vtx_dst, cmd_list->VtxBuffer.Data, static_cast<size_t>(cmd_list->VtxBuffer.Size) * sizeof(ImDrawVert));
-				memcpy(idx_dst, cmd_list->IdxBuffer.Data, static_cast<size_t>(cmd_list->IdxBuffer.Size) * sizeof(ImDrawIdx));
+				Memory::Copy(vtx_dst, cmd_list->VtxBuffer.Data, cmd_list->VtxBuffer.Size);
+				Memory::Copy(idx_dst, cmd_list->IdxBuffer.Data, cmd_list->IdxBuffer.Size);
 				vtx_dst += cmd_list->VtxBuffer.Size;
 				idx_dst += cmd_list->IdxBuffer.Size;
 			}

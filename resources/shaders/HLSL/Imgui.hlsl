@@ -8,16 +8,12 @@ struct VSOutput
 
 };
 
-#ifdef _VULKAN
-    [[vk::push_constant]] ShaderIndices2D shader_indices2D;
-#else
-    ConstantBuffer<ShaderIndices2D> shader_indices2D;
-#endif
+_BBCONSTANT(BB::ShaderIndices2D) shader_indices2D;
 
 VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 {
-    const uint vertex_offset = shader_indices2D.vertex_buffer_offset + sizeof(Vertex2D) * a_vertex_index;
-    Vertex2D cur_vertex;
+    const uint vertex_offset = shader_indices2D.vertex_buffer_offset + sizeof(BB::Vertex2D) * a_vertex_index;
+    BB::Vertex2D cur_vertex;
     cur_vertex.position = asfloat(cpu_writable_vertex_data.Load2(vertex_offset));
     cur_vertex.uv = asfloat(cpu_writable_vertex_data.Load2(vertex_offset + 8));
     cur_vertex.color = cpu_writable_vertex_data.Load(vertex_offset + 16);

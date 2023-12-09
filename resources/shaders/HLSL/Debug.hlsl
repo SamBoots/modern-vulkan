@@ -9,25 +9,21 @@ struct VSOutput
     _BBEXT(3)float3 normal : NORMAL0;
 };
 
-#ifdef _VULKAN
-    [[vk::push_constant]] ShaderIndices shader_indices;
-#else
-    ConstantBuffer<ShaderIndices> shader_indices;
-#endif
+_BBCONSTANT(BB::ShaderIndices) shader_indices;
 
 VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 {
-    const Scene3DInfo scene_info = scene_data.Load<Scene3DInfo>(0);
+    const BB::Scene3DInfo scene_info = scene_data.Load<BB::Scene3DInfo>(0);
     
-    const uint vertex_offset = shader_indices.vertex_buffer_offset + sizeof(Vertex) * a_vertex_index;
-    Vertex cur_vertex;
+    const uint vertex_offset = shader_indices.vertex_buffer_offset + sizeof(BB::Vertex) * a_vertex_index;
+    BB::Vertex cur_vertex;
     cur_vertex.position = asfloat(vertex_data.Load3(vertex_offset));
     cur_vertex.normal = asfloat(vertex_data.Load3(vertex_offset + 12));
     cur_vertex.uv = asfloat(vertex_data.Load2(vertex_offset + 24));
     cur_vertex.color = asfloat(vertex_data.Load3(vertex_offset + 32));
    
-    ShaderTransform transform = transform_data.Load<ShaderTransform>(
-        sizeof(ShaderTransform) * shader_indices.transform_index);
+    BB::ShaderTransform transform = transform_data.Load<BB::ShaderTransform>(
+        sizeof(BB::ShaderTransform) * shader_indices.transform_index);
     
     VSOutput output = (VSOutput) 0;
     output.pos = mul(scene_info.proj, mul(scene_info.view, mul(transform.transform, float4(cur_vertex.position.xyz, 1.0))));
@@ -40,7 +36,7 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 
 float4 FragmentMain(VSOutput a_input) : SV_Target
 {
-    const Scene3DInfo scene_info = scene_data.Load<Scene3DInfo>(0);
+    const BB::Scene3DInfo scene_info = scene_data.Load<BB::Scene3DInfo>(0);
     
     float4 texture_color = textures_data[shader_indices.albedo_texture].Sample(basic_3d_sampler, a_input.uv);
     float4 color = float4(texture_color.xyz * a_input.color.xyz, 1.f);
@@ -48,7 +44,7 @@ float4 FragmentMain(VSOutput a_input) : SV_Target
     float3 diffuse = 0;
     for (uint i = 0; i < scene_info.light_count; i++)
     {
-        const PointLight point_light = light_data.Load<PointLight>(sizeof(PointLight) * i);
+        const BB::PointLight point_light = light_data.Load<BB::PointLight>(sizeof(BB::PointLight) * i);
         diffuse += CalculatePointLight(point_light, a_input.normal, a_input.frag_pos).xyz;
     }
     float4 result = float4(diffuse, 1.f) * color;

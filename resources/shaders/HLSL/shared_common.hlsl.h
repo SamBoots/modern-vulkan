@@ -1,12 +1,8 @@
 #pragma once
 #include "shared_defines.hlsl.h"
 
-#ifndef __HLSL_VERSION
-//I don't like namespaces in my shaders
 namespace BB
 {
-#endif//__HLSL_VERSION
-
     //defined for HLSL and constexpr for the cpp
 #define SPACE_IMMUTABLE_SAMPLER 0
 #define SPACE_GLOBAL 1
@@ -87,7 +83,4 @@ namespace BB
         float2 rect_scale;          //16
         float2 translate;           //24
     };
-
-#ifndef __HLSL_VERSION
 }
-#endif //__HLSL_VERSION
