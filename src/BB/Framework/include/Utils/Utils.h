@@ -291,6 +291,7 @@ namespace BB
 		}
 
 #pragma warning(disable:4146)
+
 		/// <summary>
 		/// Align a given pointer forward.
 		/// </summary>

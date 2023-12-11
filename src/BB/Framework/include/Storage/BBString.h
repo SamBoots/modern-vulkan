@@ -16,12 +16,58 @@ namespace BB
 	class Basic_String
 	{
 	public:
-		Basic_String(Allocator a_allocator);
-		Basic_String(Allocator a_allocator, size_t a_size);
-		Basic_String(Allocator a_allocator, const CharT* a_string);
-		Basic_String(Allocator a_allocator, const CharT* a_string, size_t a_size);
-		Basic_String(const Basic_String<CharT>& a_string);
-		Basic_String(Basic_String<CharT>&& a_string) noexcept;
+		Basic_String(Allocator a_allocator)
+			: Basic_String(a_allocator, String_Specs::standardSize)
+		{}
+		Basic_String(Allocator a_allocator, size_t a_size)
+		{
+			constexpr bool is_char = std::is_same_v<CharT, char> || std::is_same_v<CharT, wchar_t>;
+			BB_STATIC_ASSERT(is_char, "String is not a char or wchar");
+
+			m_allocator = a_allocator;
+			m_capacity = RoundUp(a_size, String_Specs::multipleValue);
+
+			m_String = reinterpret_cast<CharT*>(BBalloc(m_allocator, m_capacity * sizeof(CharT)));
+			Memory::Set(m_String, NULL, m_capacity);
+		}
+		Basic_String(Allocator a_allocator, const CharT* const a_string)
+			: Basic_String(a_allocator, a_string, Memory::StrLength(a_string))
+		{}
+		Basic_String(Allocator a_allocator, const CharT* const a_string, size_t a_size)
+		{
+			constexpr bool is_char = std::is_same_v<CharT, char> || std::is_same_v<CharT, wchar_t>;
+			BB_STATIC_ASSERT(is_char, "String is not a char or wchar");
+
+			m_allocator = a_allocator;
+			m_capacity = RoundUp(a_size + 1, String_Specs::multipleValue);
+			m_size = a_size;
+
+			m_String = reinterpret_cast<CharT*>(BBalloc(m_allocator, m_capacity * sizeof(CharT)));
+			Memory::Copy(m_String, a_string, a_size);
+			Memory::Set(m_String + a_size, NULL, m_capacity - a_size);
+		}
+		Basic_String(const Basic_String<CharT>& a_string)
+		{
+			m_allocator = a_string.m_allocator;
+			m_capacity = a_string.m_capacity;
+			m_size = a_string.m_size;
+
+			m_String = reinterpret_cast<CharT*>(BBalloc(m_allocator, m_capacity * sizeof(CharT)));
+			Memory::Copy(m_String, a_string.m_String, m_capacity);
+		}
+		Basic_String(Basic_String<CharT>&& a_string) noexcept
+		{
+			m_allocator = a_string.m_allocator;
+			m_capacity = a_string.m_capacity;
+			m_size = a_string.m_size;
+			m_String = a_string.m_String;
+
+			a_string.m_allocator.allocator = nullptr;
+			a_string.m_allocator.func = nullptr;
+			a_string.m_capacity = 0;
+			a_string.m_size = 0;
+			a_string.m_String = nullptr;
+		}
 		~Basic_String()
 		{
 			if (m_String != nullptr)
@@ -31,34 +77,162 @@ namespace BB
 			}
 		}
 
-		Basic_String& operator=(const Basic_String<CharT>& a_rhs);
-		Basic_String& operator=(Basic_String<CharT>&& a_rhs) noexcept;
-		bool operator==(const Basic_String<CharT>& a_rhs) const;
+		Basic_String& operator=(const Basic_String<CharT>& a_rhs)
+		{
+			this->~Basic_String();
 
-		void append(const Basic_String<CharT>& a_string);
-		void append(const Basic_String<CharT>& a_string, size_t a_SubPos, size_t a_SubLength);
-		void append(const CharT* a_string);
-		void append(const CharT* a_string, size_t a_size);
-		void insert(size_t a_Pos, const Basic_String<CharT>& a_string);
-		void insert(size_t a_Pos, const Basic_String<CharT>& a_string, size_t a_SubPos, size_t a_SubLength);
-		void insert(size_t a_Pos, const CharT* a_string);
-		void insert(size_t a_Pos, const CharT* a_string, size_t a_size);
-		void push_back(const CharT a_Char);
+			m_allocator = a_rhs.m_allocator;
+			m_capacity = a_rhs.m_capacity;
+			m_size = a_rhs.m_size;
+
+			m_String = reinterpret_cast<CharT*>(BBalloc(m_allocator, m_capacity * sizeof(CharT)));
+			Memory::Copy(m_String, a_rhs.m_String, m_capacity);
+
+			return *this;
+		}
+		Basic_String& operator=(Basic_String<CharT>&& a_rhs) noexcept
+		{
+			this->~Basic_String();
+
+			m_allocator = a_rhs.m_allocator;
+			m_capacity = a_rhs.m_capacity;
+			m_size = a_rhs.m_size;
+			m_String = a_rhs.m_String;
+
+			a_rhs.m_allocator.allocator = nullptr;
+			a_rhs.m_allocator.func = nullptr;
+			a_rhs.m_capacity = 0;
+			a_rhs.m_size = 0;
+			a_rhs.m_String = nullptr;
+
+			return *this;
+		}
+		bool operator==(const Basic_String<CharT>& a_rhs) const
+		{
+			if (Memory::Compare(m_String, a_rhs.data(), m_size) == 0)
+				return true;
+			return false;
+		}
+
+		void append(const Basic_String<CharT>& a_string)
+		{
+			append(a_string.c_str(), a_string.size());
+		}
+		void append(const Basic_String<CharT>& a_string, size_t a_SubPos, size_t a_SubLength)
+		{
+			append(a_string.c_str() + a_SubPos, a_SubLength);
+		}
+		void append(const CharT* const a_string)
+		{
+			append(a_string, Memory::StrLength(a_string));
+		}
+		void append(const CharT* const a_string, size_t a_size)
+		{
+			if (m_size + 1 + a_size >= m_capacity)
+				grow(a_size + 1);
+
+			BB::Memory::Copy(m_String + m_size, a_string, a_size);
+			m_size += a_size;
+		}
+		void insert(size_t a_Pos, const Basic_String<CharT>& a_string)
+		{
+			insert(a_Pos, a_string.c_str(), a_string.size());
+		}
+		void insert(size_t a_Pos, const Basic_String<CharT>& a_string, size_t a_SubPos, size_t a_SubLength)
+		{
+			insert(a_Pos, a_string.c_str() + a_SubPos, a_SubLength);
+		}
+		void insert(size_t a_Pos, const CharT* a_string)
+		{
+			insert(a_Pos, a_string, Memory::StrLength(a_string));
+		}
+		void insert(size_t a_Pos, const CharT* a_string, size_t a_size)
+		{
+			BB_ASSERT(m_size >= a_Pos, "String::Insert, trying to insert a string in a invalid position.");
+
+			if (m_size + 1 + a_size >= m_capacity)
+				grow(a_size + 1);
+
+			Memory::Move(m_String + (a_Pos + a_size), m_String + a_Pos, m_size - a_Pos);
+
+			Memory::Copy(m_String + a_Pos, a_string, a_size);
+			m_size += a_size;
+		}
+		void push_back(const CharT a_Char)
+		{
+			if (m_size + 1 >= m_capacity)
+				grow();
+
+			m_String[m_size++] = a_Char;
+		}
 		
-		void pop_back();
+		void pop_back()
+		{
+			m_String[m_size--] = NULL;
+		}
 
-		bool compare(const Basic_String<CharT>& a_string) const;
-		bool compare(const Basic_String<CharT>& a_string, size_t a_size) const;
-		bool compare(size_t a_Pos, const Basic_String<CharT>& a_string, size_t a_Subpos, size_t a_size) const;
-		bool compare(const CharT* a_string) const;
-		bool compare(const CharT* a_string, size_t a_size) const;
-		bool compare(size_t a_Pos, const CharT* a_string) const;
-		bool compare(size_t a_Pos, const CharT* a_string, size_t a_size) const;
+		bool compare(const Basic_String<CharT>& a_string) const
+		{
+			if (Memory::Compare(m_String, a_string.data(), m_size) == 0)
+				return true;
+			return false;
+		}
+		bool compare(const Basic_String<CharT>& a_string, size_t a_size) const
+		{
+			if (Memory::Compare(m_String, a_string.c_str(), a_size) == 0)
+				return true;
+			return false;
+		}
+		bool compare(size_t a_Pos, const Basic_String<CharT>& a_string, size_t a_Subpos, size_t a_size) const
+		{
+			if (Memory::Compare(m_String + a_Pos, a_string.c_str() + a_Subpos, a_size) == 0)
+				return true;
+			return false;
+		}
+		bool compare(const CharT* a_string) const
+		{
+			return compare(a_string, Memory::StrLength(a_string));
+		}
+		bool compare(const CharT* a_string, size_t a_size) const
+		{
+			if (Memory::Compare(m_String, a_string, a_size) == 0)
+				return true;
+			return false;
+		}
+		bool compare(size_t a_Pos, const CharT* a_string) const
+		{
+			return compare(a_Pos, a_string, Memory::StrLength(a_string));
+		}
+		bool compare(size_t a_Pos, const CharT* a_string, size_t a_size) const
+		{
+			if (Memory::Compare(m_String + a_Pos, a_string, a_size) == 0)
+				return true;
+			return false;
+		}
 
-		void clear();
+		void clear()
+		{
+			Memory::Set(m_String, NULL, m_size);
+			m_size = 0;
+		}
 
-		void reserve(const size_t a_size);
-		void shrink_to_fit();
+		void reserve(const size_t a_size)
+		{
+			if (a_size > m_capacity)
+			{
+				size_t t_ModifiedCapacity = RoundUp(a_size + 1, String_Specs::multipleValue);
+
+				reallocate(t_ModifiedCapacity);
+			}
+		}
+		void shrink_to_fit()
+		{
+			size_t t_ModifiedCapacity = RoundUp(m_size + 1, String_Specs::multipleValue);
+			if (t_ModifiedCapacity < m_capacity)
+			{
+				reallocate(t_ModifiedCapacity);
+			}
+		}
 
 		size_t size() const { return m_size; }
 		size_t capacity() const { return m_capacity; }
@@ -66,8 +240,25 @@ namespace BB
 		const CharT* c_str() const { return m_String; }
 
 	private:
-		void grow(size_t a_MinCapacity = 1);
-		void reallocate(size_t a_new_capacity);
+		void grow(size_t a_MinCapacity = 1)
+		{
+			size_t t_ModifiedCapacity = m_capacity * 2;
+
+			if (a_MinCapacity > t_ModifiedCapacity)
+				t_ModifiedCapacity = RoundUp(a_MinCapacity, String_Specs::multipleValue);
+
+			reallocate(t_ModifiedCapacity);
+		}
+		void reallocate(size_t a_new_capacity)
+		{
+			CharT* t_NewString = reinterpret_cast<CharT*>(BBalloc(m_allocator, a_new_capacity * sizeof(CharT)));
+
+			Memory::Copy(t_NewString, m_String, m_size);
+			BBfree(m_allocator, m_String);
+
+			m_String = t_NewString;
+			m_capacity = a_new_capacity;
+		}
 
 		Allocator m_allocator;
 
@@ -79,292 +270,6 @@ namespace BB
 	using String = Basic_String<char>;
 	using WString = Basic_String<wchar_t>;
 
-
-	template<typename CharT>
-	inline BB::Basic_String<CharT>::Basic_String(Allocator a_allocator)
-		: Basic_String(a_allocator, String_Specs::standardSize)
-	{}
-
-	template<typename CharT>
-	inline BB::Basic_String<CharT>::Basic_String(Allocator a_allocator, size_t a_size)
-	{
-		constexpr bool is_char = std::is_same_v<CharT, char> || std::is_same_v<CharT, wchar_t>;
-		BB_STATIC_ASSERT(is_char, "String is not a char or wchar");
-
-		m_allocator = a_allocator;
-		m_capacity = RoundUp(a_size, String_Specs::multipleValue);
-
-		m_String = reinterpret_cast<CharT*>(BBalloc(m_allocator, m_capacity * sizeof(CharT)));
-		Memory::Set(m_String, NULL, m_capacity);
-	}
-
-	template<typename CharT>
-	inline BB::Basic_String<CharT>::Basic_String(Allocator a_allocator, const CharT* a_string)
-		:	Basic_String(a_allocator, a_string, Memory::StrLength(a_string))
-	{}
-
-	template<typename CharT>
-	inline BB::Basic_String<CharT>::Basic_String(Allocator a_allocator, const CharT* a_string, size_t a_size)
-	{
-		constexpr bool is_char = std::is_same_v<CharT, char> || std::is_same_v<CharT, wchar_t>;
-		BB_STATIC_ASSERT(is_char, "String is not a char or wchar");
-
-		m_allocator = a_allocator;
-		m_capacity = RoundUp(a_size + 1, String_Specs::multipleValue);
-		m_size = a_size;
-
-		m_String = reinterpret_cast<CharT*>(BBalloc(m_allocator, m_capacity * sizeof(CharT)));
-		Memory::Copy(m_String, a_string, a_size);
-		Memory::Set(m_String + a_size, NULL, m_capacity - a_size);
-	}
-
-	template<typename CharT>
-	inline BB::Basic_String<CharT>::Basic_String(const Basic_String<CharT>& a_string)
-	{
-		m_allocator = a_string.m_allocator;
-		m_capacity = a_string.m_capacity;
-		m_size = a_string.m_size;
-
-		m_String = reinterpret_cast<CharT*>(BBalloc(m_allocator, m_capacity * sizeof(CharT)));
-		Memory::Copy(m_String, a_string.m_String, m_capacity);
-	}
-
-	template<typename CharT>
-	inline BB::Basic_String<CharT>::Basic_String(Basic_String<CharT>&& a_string) noexcept
-	{
-		m_allocator = a_string.m_allocator;
-		m_capacity = a_string.m_capacity;
-		m_size = a_string.m_size;
-		m_String = a_string.m_String;
-
-		a_string.m_allocator.allocator = nullptr;
-		a_string.m_allocator.func = nullptr;
-		a_string.m_capacity = 0;
-		a_string.m_size = 0;
-		a_string.m_String = nullptr;
-	}
-
-	template<typename CharT>
-	inline Basic_String<CharT>& BB::Basic_String<CharT>::operator=(const Basic_String<CharT>& a_rhs)
-	{
-		this->~Basic_String();
-
-		m_allocator = a_rhs.m_allocator;
-		m_capacity = a_rhs.m_capacity;
-		m_size = a_rhs.m_size;
-
-		m_String = reinterpret_cast<CharT*>(BBalloc(m_allocator, m_capacity * sizeof(CharT)));
-		Memory::Copy(m_String, a_rhs.m_String, m_capacity);
-
-		return *this;
-	}
-
-	template<typename CharT>
-	inline Basic_String<CharT>& BB::Basic_String<CharT>::operator=(Basic_String<CharT>&& a_rhs) noexcept
-	{
-		this->~Basic_String();
-
-		m_allocator = a_rhs.m_allocator;
-		m_capacity = a_rhs.m_capacity;
-		m_size = a_rhs.m_size;
-		m_String = a_rhs.m_String;
-
-		a_rhs.m_allocator.allocator = nullptr;
-		a_rhs.m_allocator.func = nullptr;
-		a_rhs.m_capacity = 0;
-		a_rhs.m_size = 0;
-		a_rhs.m_String = nullptr;
-
-		return *this;
-	}
-
-	template<typename CharT>
-	inline bool BB::Basic_String<CharT>::operator==(const Basic_String<CharT>& a_rhs) const
-	{
-		if (Memory::Compare(m_String, a_rhs.data(), m_size) == 0)
-			return true;
-		return false;
-	}
-
-	template<typename CharT>
-	inline void BB::Basic_String<CharT>::append(const Basic_String<CharT>& a_string)
-	{
-		append(a_string.c_str(), a_string.size());
-	}
-
-	template<typename CharT>
-	inline void BB::Basic_String<CharT>::append(const Basic_String<CharT>& a_string, size_t a_SubPos, size_t a_SubLength)
-	{
-		append(a_string.c_str() + a_SubPos, a_SubLength);
-	}
-
-	template<typename CharT>
-	inline void BB::Basic_String<CharT>::append(const CharT* a_string)
-	{
-		append(a_string, Memory::StrLength(a_string));
-	}
-
-	template<typename CharT>
-	inline void BB::Basic_String<CharT>::append(const CharT* a_string, size_t a_size)
-	{
-		if (m_size + 1 + a_size >= m_capacity)
-			grow(a_size + 1);
-
-		BB::Memory::Copy(m_String + m_size, a_string, a_size);
-		m_size += a_size;
-	}
-
-	template<typename CharT>
-	inline void BB::Basic_String<CharT>::insert(size_t a_Pos, const Basic_String<CharT>& a_string)
-	{
-		insert(a_Pos, a_string.c_str(), a_string.size());
-	}
-
-	template<typename CharT>
-	inline void BB::Basic_String<CharT>::insert(size_t a_Pos, const Basic_String<CharT>& a_string, size_t a_SubPos, size_t a_SubLength)
-	{
-		insert(a_Pos, a_string.c_str() + a_SubPos, a_SubLength);
-	}
-
-	template<typename CharT>
-	inline void BB::Basic_String<CharT>::insert(size_t a_Pos, const CharT* a_string)
-	{
-		insert(a_Pos, a_string, Memory::StrLength(a_string));
-	}
-
-	template<typename CharT>
-	inline void BB::Basic_String<CharT>::insert(size_t a_Pos, const CharT* a_string, size_t a_size)
-	{
-		BB_ASSERT(m_size >= a_Pos, "String::Insert, trying to insert a string in a invalid position.");
-
-		if (m_size + 1 + a_size >= m_capacity)
-			grow(a_size + 1);
-
-		Memory::Move(m_String + (a_Pos + a_size), m_String + a_Pos, m_size - a_Pos);
-
-		Memory::Copy(m_String + a_Pos, a_string, a_size);
-		m_size += a_size;
-	}
-
-	template<typename CharT>
-	inline void BB::Basic_String<CharT>::push_back(const CharT a_Char)
-	{
-		if (m_size + 1 >= m_capacity)
-			grow();
-
-		m_String[m_size++] = a_Char;
-	}
-
-	template<typename CharT>
-	inline void BB::Basic_String<CharT>::pop_back()
-	{
-		m_String[m_size--] = NULL;
-	}
-
-	template<typename CharT>
-	inline bool BB::Basic_String<CharT>::compare(const Basic_String<CharT>& a_string) const
-	{
-		if (Memory::Compare(m_String, a_string.data(), m_size) == 0)
-			return true;
-		return false;
-	}
-
-	template<typename CharT>
-	inline bool BB::Basic_String<CharT>::compare(const Basic_String<CharT>& a_string, size_t a_size) const
-	{
-		if (Memory::Compare(m_String, a_string.c_str(), a_size) == 0)
-			return true;
-		return false;
-	}
-
-	template<typename CharT>
-	inline bool BB::Basic_String<CharT>::compare(size_t a_Pos, const Basic_String<CharT>& a_string, size_t a_Subpos, size_t a_size) const
-	{
-		if (Memory::Compare(m_String + a_Pos, a_string.c_str() + a_Subpos, a_size) == 0)
-			return true;
-		return false;
-	}
-
-	template<typename CharT>
-	inline bool BB::Basic_String<CharT>::compare(const CharT* a_string) const
-	{
-		return compare(a_string, Memory::StrLength(a_string));
-	}
-
-	template<typename CharT>
-	inline bool BB::Basic_String<CharT>::compare(const CharT* a_string, size_t a_size) const
-	{
-		if (Memory::Compare(m_String, a_string, a_size) == 0)
-			return true;
-		return false;
-	}
-
-	template<typename CharT>
-	inline bool BB::Basic_String<CharT>::compare(size_t a_Pos, const CharT* a_string) const
-	{
-		return compare(a_Pos, a_string, Memory::StrLength(a_string));
-	}
-
-	template<typename CharT>
-	inline bool BB::Basic_String<CharT>::compare(size_t a_Pos, const CharT* a_string, size_t a_size) const
-	{
-		if (Memory::Compare(m_String + a_Pos, a_string, a_size) == 0)
-			return true;
-		return false;
-	}
-
-	template<typename CharT>
-	inline void BB::Basic_String<CharT>::clear()
-	{
-		Memory::Set(m_String, NULL, m_size);
-		m_size = 0;
-	}
-
-	template<typename CharT>
-	inline void BB::Basic_String<CharT>::reserve(const size_t a_size)
-	{
-		if (a_size > m_capacity)
-		{
-			size_t t_ModifiedCapacity = RoundUp(a_size + 1, String_Specs::multipleValue);
-
-			reallocate(t_ModifiedCapacity);
-		}
-	}
-
-	template<typename CharT>
-	inline void BB::Basic_String<CharT>::shrink_to_fit()
-	{
-		size_t t_ModifiedCapacity = RoundUp(m_size + 1, String_Specs::multipleValue);
-		if (t_ModifiedCapacity < m_capacity)
-		{
-			reallocate(t_ModifiedCapacity);
-		}
-	}
-
-	template<typename CharT>
-	inline void BB::Basic_String<CharT>::grow(size_t a_MinCapacity)
-	{
-		size_t t_ModifiedCapacity = m_capacity * 2;
-
-		if (a_MinCapacity > t_ModifiedCapacity)
-			t_ModifiedCapacity = RoundUp(a_MinCapacity, String_Specs::multipleValue);
-
-		reallocate(t_ModifiedCapacity);
-	}
-
-	template<typename CharT>
-	inline void BB::Basic_String<CharT>::reallocate(size_t a_new_capacity)
-	{
-		CharT* t_NewString = reinterpret_cast<CharT*>(BBalloc(m_allocator, a_new_capacity * sizeof(CharT)));
-
-		Memory::Copy(t_NewString, m_String, m_size);
-		BBfree(m_allocator, m_String);
-
-		m_String = t_NewString;
-		m_capacity = a_new_capacity;
-	}
-
-
 	template<typename CharT, size_t stringSize>
 	class Stack_String
 	{
@@ -373,7 +278,8 @@ namespace BB
 		{
 			Memory::Set(m_String, 0, stringSize);
 		}
-		Stack_String(const CharT* a_string) : Stack_String(a_string, Memory::StrLength(a_string)) {}
+		Stack_String(const CharT* a_string) 
+			: Stack_String(a_string, Memory::StrLength(a_string)) {}
 		Stack_String(const CharT* a_string, size_t a_size)
 		{
 			BB_ASSERT(a_size < sizeof(m_String), "Stack string overflow");
@@ -497,8 +403,8 @@ namespace BB
 		size_t m_size = 0;
 	};
 
-	template<size_t stringSize>
-	using StackString = Stack_String<char, stringSize>;
-	template<size_t stringSize>
-	using StackWString = Stack_String<wchar_t, stringSize>;
+	template<size_t string_size>
+	using StackString = Stack_String<char, string_size>;
+	template<size_t string_size>
+	using StackWString = Stack_String<wchar_t, string_size>;
 }

@@ -1,4 +1,3 @@
-#include "BBMemory.h"
 #include "Rendererfwd.hpp"
 #include "Utils/Slice.h"
 
@@ -50,7 +49,16 @@ namespace BB
 
 	namespace Asset
 	{
-		char* FindOrCreateString(const char* a_string);
+		constexpr size_t ASSET_COUNT_STANDARD = 512;
+		constexpr size_t STRING_ENTRY_COUNT_STANDARD = 1024;
+		constexpr size_t STRING_MEMORY_SIZE_STANDARD = mbSize * 4;
+
+		struct AssetManagerInitInfo
+		{
+			uint32_t asset_count = ASSET_COUNT_STANDARD;
+			uint32_t string_entry_count = STRING_ENTRY_COUNT_STANDARD;
+			uint32_t string_memory_size = STRING_MEMORY_SIZE_STANDARD;
+		};
 
 		enum class ASYNC_ASSET_TYPE : uint32_t
 		{
@@ -104,6 +112,10 @@ namespace BB
 
 			};
 		};
+
+		void InitializeAssetManager(const AssetManagerInitInfo& a_init_info);
+
+		const char* FindOrCreateString(const char* a_string);
 
 		void LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_task_name = "upload asset task");
 

@@ -12,6 +12,8 @@
 
 #include "BBIntrin.h"
 
+#include "MemoryArena.hpp"
+
 BB_WARNINGS_OFF
 #define CGLTF_IMPLEMENTATION
 #include "cgltf.h"
@@ -111,28 +113,59 @@ struct AssetSlot
 
 struct AssetManager
 {
-	FreelistAllocator_t allocator{ mbSize * 64, "asset manager allocator" };
-	OL_HashMap<uint64_t, AssetSlot> asset_map{ allocator, 128 };
+	StaticOL_HashMap<uint64_t, AssetSlot> asset_table;
+	StaticOL_HashMap<uint64_t, char*> string_table;
+	struct StringBuffer
+	{
+		char* current_memory_pos;
+		size_t mem_remaining;
+	} string_buffer;
 
-	LinearAllocator_t string_allocator{ mbSize * 16, "asset string allocator" };
-	OL_HashMap<uint64_t, char*> string_map{ string_allocator, 1024 };
+	MemoryArena asset_arena;
 };
-static AssetManager s_asset_manager{};
+static AssetManager s_asset_manager;
+
+static inline char* AllocateStringSpace(const size_t a_string_size)
+{
+	if (s_asset_manager.string_buffer.mem_remaining > a_string_size)
+		s_asset_manager.string_buffer.mem_remaining -= a_string_size;
+	else
+		BB_ASSERT(false, "not enough string space in asset manager!");
+
+	char* string_mem = s_asset_manager.string_buffer.current_memory_pos;
+	s_asset_manager.string_buffer.current_memory_pos += a_string_size;
+	return string_mem;
+}
 
 using namespace BB;
 
-char* Asset::FindOrCreateString(const char* a_string)
+void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
+{
+	BB_ASSERT(!s_asset_manager.asset_arena.buffer, "Asset Manager already initialized");
+
+	s_asset_manager.asset_arena = MemoryArenaCreate();
+	s_asset_manager.asset_table.Init(s_asset_manager.asset_arena, a_init_info.asset_count);
+	s_asset_manager.string_table.Init(s_asset_manager.asset_arena, a_init_info.string_entry_count);
+
+	s_asset_manager.string_buffer.current_memory_pos = ArenaAllocArr(s_asset_manager.asset_arena, char, a_init_info.string_memory_size, _alignof(char));
+	s_asset_manager.string_buffer.mem_remaining = a_init_info.string_memory_size;
+	Memory::Set(s_asset_manager.string_buffer.current_memory_pos, 0, a_init_info.string_memory_size);
+	//now store the memory arena
+}
+
+const char* Asset::FindOrCreateString(const char* a_string)
 {
 	const uint64_t string_hash = StringHash(a_string);
-	char** string_ptr = s_asset_manager.string_map.find(string_hash);
+	char** string_ptr = s_asset_manager.string_table.find(string_hash);
 	if (string_ptr != nullptr)
 		return *string_ptr;
 
 	const uint32_t string_size = static_cast<uint32_t>(strlen(a_string) + 1);
-	char* string = BBnewArr(s_asset_manager.string_allocator, string_size, char);
+
+	char* const string = AllocateStringSpace(string_size);
 	memcpy(string, a_string, string_size);
 	string[string_size - 1] = '\0';
-	s_asset_manager.string_map.emplace(string_hash, string);
+	s_asset_manager.string_table.emplace(string_hash, string);
 	return string;
 }
 
@@ -204,7 +237,7 @@ const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const 
 
 	const RTexture gpu_image = UploadTexture(a_list, upload_image_info, a_upload_view);
 
-	Image* image = BBnew(s_asset_manager.allocator, Image);
+	Image* image = ArenaAllocType(s_asset_manager.asset_arena, Image);
 	image->width = upload_image_info.width;
 	image->height = upload_image_info.height;
 	image->gpu_image = gpu_image;
@@ -219,7 +252,7 @@ const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const 
 	asset.path = nullptr; //memory loads have nullptr has path.
 	asset.image = image;
 
-	s_asset_manager.asset_map.insert(asset.hash.full_hash, asset);
+	s_asset_manager.asset_table.insert(asset.hash.full_hash, asset);
 	image->asset_handle = AssetHandle(asset.hash.full_hash);
 
 	return image;
@@ -250,7 +283,7 @@ const Image* Asset::LoadImageMemory(const BB::BBImage& a_image, const char* a_na
 
 	const RTexture gpu_image = UploadTexture(a_list, upload_image_info, a_upload_view);
 
-	Image* image = BBnew(s_asset_manager.allocator, Image);
+	Image* image = ArenaAllocType(s_asset_manager.asset_arena, Image);
 	image->width = upload_image_info.width;
 	image->height = upload_image_info.height;
 	image->gpu_image = gpu_image;
@@ -263,7 +296,7 @@ const Image* Asset::LoadImageMemory(const BB::BBImage& a_image, const char* a_na
 	asset.path = nullptr; //memory loads have nullptr has path.
 	asset.image = image;
 
-	s_asset_manager.asset_map.insert(asset.hash.full_hash, asset);
+	s_asset_manager.asset_table.insert(asset.hash.full_hash, asset);
 	image->asset_handle = AssetHandle(asset.hash.full_hash);
 
 	return image;
@@ -442,7 +475,7 @@ const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const MeshLoadFrom
 {
 	const AssetHash asset_hash = CreateAssetHash(StringHash(a_mesh_op.path), ASSET_TYPE::MODEL);
 	
-	if (AssetSlot* slot = s_asset_manager.asset_map.find(asset_hash.full_hash))
+	if (AssetSlot* slot = s_asset_manager.asset_table.find(asset_hash.full_hash))
 	{
 		return slot->model;
 	}
@@ -474,9 +507,9 @@ const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const MeshLoadFrom
 	const uint32_t linear_node_count = static_cast<uint32_t>(gltf_data->nodes_count);
 
 	//optimize the memory space with one allocation for the entire model
-	Model* model = BBnew(s_asset_manager.allocator, Model);
-	model->linear_nodes = BBnewArr(s_asset_manager.allocator, linear_node_count, Model::Node);
-	model->primitives = BBnewArr(s_asset_manager.allocator, primitive_count, Model::Primitive);
+	Model* model = ArenaAllocType(s_asset_manager.asset_arena, Model);
+	model->linear_nodes = ArenaAllocArr(s_asset_manager.asset_arena, Model::Node, linear_node_count);
+	model->primitives = ArenaAllocArr(s_asset_manager.asset_arena, Model::Primitive, primitive_count);
 	//for now this is going to be the root node, which is 0.
 	//This is not accurate on all GLTF models
 	model->primitive_count = primitive_count;
@@ -499,7 +532,7 @@ const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const MeshLoadFrom
 	asset.path = FindOrCreateString(a_mesh_op.path);
 	asset.model = model;
 
-	s_asset_manager.asset_map.insert(asset.hash.full_hash, asset);
+	s_asset_manager.asset_table.insert(asset.hash.full_hash, asset);
 
 	model->asset_handle = AssetHandle(asset.hash.full_hash);
 	return model;
@@ -509,7 +542,7 @@ const Model* Asset::LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, cons
 {
 	const AssetHash asset_hash = CreateAssetHash(StringHash(a_mesh_op.name), ASSET_TYPE::MODEL);
 
-	if (AssetSlot* slot = s_asset_manager.asset_map.find(asset_hash.full_hash))
+	if (AssetSlot* slot = s_asset_manager.asset_table.find(asset_hash.full_hash))
 	{
 		return slot->model;
 	}
@@ -519,9 +552,9 @@ const Model* Asset::LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, cons
 	mesh_info.indices = a_mesh_op.indices;
 
 	//hack shit way, but a single mesh just has one primitive to draw.
-	Model* model = BBnew(s_asset_manager.allocator, Model);
-	model->linear_nodes = BBnewArr(s_asset_manager.allocator, 1, Model::Node);
-	model->primitives = BBnewArr(s_asset_manager.allocator, 1, Model::Primitive);
+	Model* model = ArenaAllocType(s_asset_manager.asset_arena, Model);
+	model->linear_nodes = ArenaAllocArr(s_asset_manager.asset_arena, Model::Node, 1);
+	model->primitives = ArenaAllocArr(s_asset_manager.asset_arena, Model::Primitive, 1);
 	model->primitive_count = 1;
 	model->root_node_count = 1;
 	model->root_nodes = &model->linear_nodes[0];
@@ -537,7 +570,7 @@ const Model* Asset::LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, cons
 	asset.path = FindOrCreateString(a_mesh_op.name);
 	asset.model = model;
 
-	s_asset_manager.asset_map.insert(asset.hash.full_hash, asset);
+	s_asset_manager.asset_table.insert(asset.hash.full_hash, asset);
 
 	model->asset_handle = AssetHandle(asset.hash.full_hash);
 	return model;
@@ -546,7 +579,7 @@ const Model* Asset::LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, cons
 const Model* Asset::FindModelByPath(const char* a_path)
 {
 	AssetHash asset_hash = CreateAssetHash(StringHash(a_path), ASSET_TYPE::MODEL);
-	if (AssetSlot* slot = s_asset_manager.asset_map.find(asset_hash.full_hash))
+	if (AssetSlot* slot = s_asset_manager.asset_table.find(asset_hash.full_hash))
 	{
 		return slot->model;
 	}
@@ -556,7 +589,7 @@ const Model* Asset::FindModelByPath(const char* a_path)
 const Model* Asset::FindModelByName(const char* a_name)
 {
 	AssetHash asset_hash = CreateAssetHash(StringHash(a_name), ASSET_TYPE::MODEL);
-	if (AssetSlot* slot = s_asset_manager.asset_map.find(asset_hash.full_hash))
+	if (AssetSlot* slot = s_asset_manager.asset_table.find(asset_hash.full_hash))
 	{
 		return slot->model;
 	}
@@ -565,18 +598,18 @@ const Model* Asset::FindModelByName(const char* a_name)
 
 void Asset::FreeAsset(const AssetHandle a_asset_handle)
 {
-	AssetSlot* slot = s_asset_manager.asset_map.find(a_asset_handle.handle);
+	AssetSlot* slot = s_asset_manager.asset_table.find(a_asset_handle.handle);
 
 	switch (slot->hash.type)
 	{
 	case ASSET_TYPE::MODEL:
-		BBfreeArr(s_asset_manager.allocator, slot->model->linear_nodes);
-		BBfree(s_asset_manager.allocator, slot->model);
+		//BBfreeArr(s_asset_manager.allocator, slot->model->linear_nodes);
+		//BBfree(s_asset_manager.allocator, slot->model);
 		break;
 	case ASSET_TYPE::TEXTURE:
-		BBfree(s_asset_manager.allocator, slot->image);
+		//BBfree(s_asset_manager.allocator, slot->image);
 		break;
 	}
 
-	s_asset_manager.asset_map.erase(a_asset_handle.handle);
+	s_asset_manager.asset_table.erase(a_asset_handle.handle);
 }

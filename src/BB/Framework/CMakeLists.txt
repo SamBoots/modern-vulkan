@@ -17,13 +17,14 @@ add_library (BBFramework STATIC
 "src/Allocators/BackingAllocator.cpp" 
 "src/Allocators/TemporaryAllocator.cpp"
 "src/Allocators/RingAllocator.cpp"
+"src/Allocators/MemoryArena.cpp"
 "src/OS/Program${PLATFORM_NAME}.cpp"
 "src/Utils/Logger.cpp"
 "src/Utils/Utils.cpp"
 "src/BBThreadScheduler.cpp"
 "src/BBjson.cpp"
 "src/BBImage.cpp"
-"src/BBMain.cpp")
+"src/BBMain.cpp" )
 
 #Include library
 target_include_directories(BBFramework PUBLIC

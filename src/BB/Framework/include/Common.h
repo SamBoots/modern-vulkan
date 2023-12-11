@@ -33,6 +33,10 @@ namespace BB
 #define BB_WARNINGS_ON			BB_PRAGMA(warning(pop, 0))
 #endif
 
+	constexpr const size_t kbSize = 1024;
+	constexpr const size_t mbSize = kbSize * 1024;
+	constexpr const size_t gbSize = mbSize * 1024;
+
 	namespace allocators
 	{
 		struct LinearAllocator;

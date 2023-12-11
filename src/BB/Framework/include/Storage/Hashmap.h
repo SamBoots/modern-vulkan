@@ -2,6 +2,9 @@
 #include "Utils/Hash.h"
 #include "Utils/Utils.h"
 #include "BBMemory.h"
+
+#include "MemoryArena.hpp"
+
 namespace BB
 {
 	namespace Hashmap_Specs
@@ -804,6 +807,23 @@ namespace BB
 				m_hashes[i] = Hashmap_Specs::OL_EMPTY;
 			}
 		}
+		void Init(MemoryArena& a_arena, const size_t a_size)
+		{
+			m_capacity = a_size;
+			m_size = 0;
+
+			const size_t memory_size = (sizeof(Hash) + sizeof(Key) + sizeof(Value)) * m_capacity;
+
+			void* buffer = ArenAlloc(a_arena, memory_size);
+			m_hashes = reinterpret_cast<Hash*>(buffer);
+			m_keys = reinterpret_cast<Key*>(Pointer::Add(buffer, sizeof(Hash) * m_capacity));
+			m_values = reinterpret_cast<Value*>(Pointer::Add(buffer, (sizeof(Hash) + sizeof(Key)) * m_capacity));
+			for (size_t i = 0; i < m_capacity; i++)
+			{
+				m_hashes[i] = Hashmap_Specs::OL_EMPTY;
+			}
+		}
+
 		void Destroy()
 		{
 			if (m_hashes != nullptr)

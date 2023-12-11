@@ -16,6 +16,8 @@
 
 #include "Math.inl"
 
+#include "Storage/FixedArray.h"
+
 
 using namespace BB;
 
@@ -319,7 +321,7 @@ int main(int argc, char** argv)
 	LightHandle lights[2];
 
 	{	//add some basic lights
-		CreateLightInfo light_create_info[2];
+		BB::FixedArray<CreateLightInfo, 2> light_create_info;
 		light_create_info[0].color = float3(1, 1, 1);
 		light_create_info[0].linear_distance = 0.35f;
 		light_create_info[0].quadratic_distance = 0.44f;
@@ -330,7 +332,7 @@ int main(int argc, char** argv)
 		light_create_info[1].quadratic_distance = 0.44f;
 		light_create_info[1].pos = float3(0, 4, 0);
 
-		CreateLights(Slice(light_create_info, _countof(light_create_info)), lights);
+		CreateLights(light_create_info, lights);
 	}
 
 	bool freeze_cam = false;
@@ -426,6 +428,7 @@ int main(int argc, char** argv)
 		current_time = std::chrono::high_resolution_clock::now();
 	}
 
+	DestroyImGuiInput();
 	DirectDestroyOSWindow(window);
 
 	return 0;

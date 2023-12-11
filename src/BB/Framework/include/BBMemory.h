@@ -12,10 +12,6 @@
 
 namespace BB
 {
-	constexpr const size_t kbSize = 1024;
-	constexpr const size_t mbSize = kbSize * 1024;
-	constexpr const size_t gbSize = mbSize * 1024;
-
 //_alloca wrapper, does not require a free call.
 #define BBstackAlloc(a_count, a_type) reinterpret_cast<a_type*>(_alloca(a_count * sizeof(a_type)))
 //_malloca wrapper, be sure to call BBstackFree_s

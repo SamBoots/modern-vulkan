@@ -588,7 +588,7 @@ struct RenderInterface_inst
 };
 
 static RenderInterface_inst* s_render_inst;
-RenderPass3D& GetRenderPass3D()
+static RenderPass3D& GetRenderPass3D()
 {
 	return s_render_inst->renderpass_3d;
 }
@@ -695,8 +695,8 @@ namespace IMGUI_IMPL
 			for (int n = 0; n < draw_data.CmdListsCount; n++)
 			{
 				const ImDrawList* cmd_list = draw_data.CmdLists[n];
-				Memory::Copy(vtx_dst, cmd_list->VtxBuffer.Data, cmd_list->VtxBuffer.Size);
-				Memory::Copy(idx_dst, cmd_list->IdxBuffer.Data, cmd_list->IdxBuffer.Size);
+				Memory::Copy(vtx_dst, cmd_list->VtxBuffer.Data, static_cast<size_t>(cmd_list->VtxBuffer.Size));
+				Memory::Copy(idx_dst, cmd_list->IdxBuffer.Data, static_cast<size_t>(cmd_list->IdxBuffer.Size));
 				vtx_dst += cmd_list->VtxBuffer.Size;
 				idx_dst += cmd_list->IdxBuffer.Size;
 			}
@@ -857,22 +857,22 @@ namespace IMGUI_IMPL
 		return bd->font_image.IsValid();
 	}
 
-	inline static void ImShutdown()
-	{
-		ImRenderData* bd = ImGetRenderData();
-		BB_ASSERT(bd != nullptr, "No renderer backend to shutdown, or already shutdown?");
-		ImGuiIO& io = ImGui::GetIO();
+	//inline static void ImShutdown()
+	//{
+	//	ImRenderData* bd = ImGetRenderData();
+	//	BB_ASSERT(bd != nullptr, "No renderer backend to shutdown, or already shutdown?");
+	//	ImGuiIO& io = ImGui::GetIO();
 
-		//delete my things here.
-		FreeTexture(bd->font_image);
-		bd->font_image = RTexture(BB_INVALID_HANDLE_32);
+	//	//delete my things here.
+	//	FreeTexture(bd->font_image);
+	//	bd->font_image = RTexture(BB_INVALID_HANDLE_32);
 
-		FreeShaderEffect(bd->shader_effects[0]);
-		FreeShaderEffect(bd->shader_effects[1]);
+	//	FreeShaderEffect(bd->shader_effects[0]);
+	//	FreeShaderEffect(bd->shader_effects[1]);
 
-		io.BackendRendererName = nullptr;
-		io.BackendRendererUserData = nullptr;
-	}
+	//	io.BackendRendererName = nullptr;
+	//	io.BackendRendererUserData = nullptr;
+	//}
 
 	inline static void ImNewFrame()
 	{
@@ -1424,11 +1424,11 @@ bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 
 		render_pass3d.light_container.Init(a_stack_allocator, LIGHT_MAX);
 
-		constexpr size_t scene_size = sizeof(Scene3DInfo);
-		const size_t shader_transform_size = render_pass3d.draw_list_max * sizeof(ShaderTransform);
-		const size_t light_buffer_size = render_pass3d.light_container.capacity() * sizeof(PointLight);
+		constexpr uint32_t scene_size = sizeof(Scene3DInfo);
+		const uint32_t shader_transform_size = render_pass3d.draw_list_max * sizeof(ShaderTransform);
+		const uint32_t light_buffer_size = render_pass3d.light_container.capacity() * sizeof(PointLight);
 
-		const size_t per_frame_buffer_size = scene_size + shader_transform_size + light_buffer_size;
+		const uint32_t per_frame_buffer_size = scene_size + shader_transform_size + light_buffer_size;
 
 		//per frame stuff
 		GPUBufferCreateInfo per_frame_buffer_info;
@@ -1552,7 +1552,7 @@ void BB::EndFrame()
 
 	const uint32_t scene_upload_size = sizeof(Scene3DInfo);
 	const uint32_t matrices_upload_size = sizeof(ShaderTransform) * renderpass_3d.draw_list_count;
-	const size_t light_upload_size = sizeof(Light) * renderpass_3d.light_container.size();
+	const uint32_t light_upload_size = sizeof(Light) * renderpass_3d.light_container.size();
 
 	//upload matrices
 	//optimalization, upload previous frame matrices when using transfer buffer?
