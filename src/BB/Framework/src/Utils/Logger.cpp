@@ -3,20 +3,20 @@
 #include "Program.h"
 
 #include "BBThreadScheduler.hpp"
-#include "Allocators.h"
 #include "Storage/BBString.h"
+#include "MemoryArena.hpp"
 #include <stdarg.h>
 
 using namespace BB;
 
 static void WriteLoggerToFile(void*);
 
-static LinearAllocator_t s_allocator(mbSize * 4, "Log Allocator");
-
 //dirty singleton
-class LoggerSingleton
+struct LoggerSingleton
 {
 private:
+	MemoryArena m_memory_arena;
+
 	uint32_t m_max_logger_buffer_size;
 	WarningTypeFlags m_enabled_warning_flags = 0;
 	//create a fixed string class for this.
@@ -25,15 +25,16 @@ private:
 	String m_upload_string;
 	ThreadTask m_last_thread_task = ThreadTask(BB_INVALID_HANDLE_64);
 	const BBMutex m_write_to_file_mutex;
-	const OSFileHandle m_log_file;
+	OSFileHandle m_log_file;
 
 	static LoggerSingleton* m_logger_inst;
 public:
 
-	LoggerSingleton()
-		: m_max_logger_buffer_size(2024),
-		  m_cache_string(s_allocator, m_max_logger_buffer_size),
-		  m_upload_string(s_allocator, m_max_logger_buffer_size),
+	LoggerSingleton(MemoryArena& a_mem_arena)
+		: m_memory_arena(a_mem_arena),
+		  m_max_logger_buffer_size(2024),
+		  m_cache_string(m_memory_arena, m_max_logger_buffer_size),
+		  m_upload_string(m_memory_arena, m_max_logger_buffer_size),
 	      m_write_to_file_mutex(OSCreateMutex()),
 		  m_log_file(CreateOSFile(L"logger.txt"))
 	{
@@ -43,17 +44,20 @@ public:
 
 	~LoggerSingleton()
 	{
-		//write the last logger information
 		LoggerWriteToFile();
-		//clear it to avoid issues related to reporting memory leaks.
-		s_allocator.Clear();
+
+		MemoryArenaFree(m_memory_arena);
 		OSDestroyMutex(m_write_to_file_mutex);
 	}
 
 	static LoggerSingleton* GetInstance()
 	{
 		if (!m_logger_inst)
-			m_logger_inst = BBnew(s_allocator, LoggerSingleton);
+		{
+			MemoryArena logger_mem_arena = MemoryArenaCreate();
+			m_logger_inst = ArenaAllocType(logger_mem_arena, LoggerSingleton)(logger_mem_arena);
+		}
+
 
 		return m_logger_inst;
 	}

@@ -137,6 +137,11 @@ namespace BB
 		return a_b;
 	}
 
+	inline static void* Max(const void* a_a, const void* a_b)
+	{
+		return reinterpret_cast<void*>(Max(reinterpret_cast<size_t>(a_a), reinterpret_cast<size_t>(a_b)));
+	}
+
 	inline static size_t Min(const size_t a_a, const size_t a_b)
 	{
 		if (a_a < a_b)

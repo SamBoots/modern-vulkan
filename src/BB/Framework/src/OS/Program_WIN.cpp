@@ -25,9 +25,7 @@ static PFN_WindowResizeEvent s_pfn_resize_event = DefaultResize;
 
 struct InputBuffer
 {
-	InputBuffer() : lock(OSCreateRWLock()) {}
-	BBRWLock lock;
-	InputEvent input_buffer[INPUT_EVENT_BUFFER_MAX]{};
+	InputEvent input_buffer[INPUT_EVENT_BUFFER_MAX];
 	uint32_t start = 0;
 	uint16_t pos = 0;
 	uint16_t used = 0;
@@ -38,12 +36,13 @@ struct GlobalProgramInfo
 	bool tracking_mouse = true;
 };
 
+static BBRWLock s_input_lock{ OSCreateRWLock() };
 static GlobalProgramInfo s_program_info;
 static InputBuffer s_input_buffer{};
 
 static void PushInput(const InputEvent& a_Input)
 {
-	OSAcquireSRWLockWrite(&s_input_buffer.lock);
+	OSAcquireSRWLockWrite(&s_input_lock);
 	if (s_input_buffer.pos + 1 > INPUT_EVENT_BUFFER_MAX)
 		s_input_buffer.pos = 0;
 
@@ -54,13 +53,13 @@ static void PushInput(const InputEvent& a_Input)
 	{
 		++s_input_buffer.used;
 	}
-	OSReleaseSRWLockWrite(&s_input_buffer.lock);
+	OSReleaseSRWLockWrite(&s_input_lock);
 }
 
 //Returns false if no input is left.
 static void GetAllInput(InputEvent* a_InputBuffer)
 {
-	OSAcquireSRWLockWrite(&s_input_buffer.lock);
+	OSAcquireSRWLockWrite(&s_input_lock);
 	size_t first_index = s_input_buffer.start;
 	for (size_t i = 0; i < s_input_buffer.used; i++)
 	{
@@ -71,7 +70,7 @@ static void GetAllInput(InputEvent* a_InputBuffer)
 	}
 	s_input_buffer.start = s_input_buffer.pos;
 	s_input_buffer.used = 0;
-	OSReleaseSRWLockWrite(&s_input_buffer.lock);
+	OSReleaseSRWLockWrite(&s_input_lock);
 }
 
 void BB::InitProgram()
@@ -202,6 +201,11 @@ bool BB::CommitVirtualMemory(void* a_ptr, const size_t a_size)
 	return ptr;
 }
 
+bool BB::DecommitVirtualMemory(void* a_ptr, const size_t a_size)
+{
+	return VirtualFree(a_ptr, a_size, MEM_DECOMMIT);
+}
+
 bool BB::ReleaseVirtualMemory(void* a_ptr)
 {
 	return VirtualFree(a_ptr, 0, MEM_RELEASE);
@@ -236,18 +240,12 @@ uint32_t BB::LatestOSError()
 
 LibHandle BB::LoadLib(const wchar* a_lib_name)
 {
-	HMODULE mod = LoadLibraryW(a_lib_name);
-	if (mod == nullptr)
-	{
-		LatestOSError();
-		BB_ASSERT(false, "Failed to load .DLL");
-	}
-	return LibHandle(reinterpret_cast<uintptr_t>(mod));
+	return LibHandle(reinterpret_cast<uintptr_t>(LoadLibraryW(a_lib_name)));
 }
 
-void BB::UnloadLib(const LibHandle a_handle)
+bool BB::UnloadLib(const LibHandle a_handle)
 {
-	FreeLibrary(reinterpret_cast<HMODULE>(a_handle.handle));
+	return FreeLibrary(reinterpret_cast<HMODULE>(a_handle.handle));
 }
 
 LibFuncPtr BB::LibLoadFunc(const LibHandle a_handle, const char* a_func_name)
@@ -261,50 +259,26 @@ LibFuncPtr BB::LibLoadFunc(const LibHandle a_handle, const char* a_func_name)
 	return func;
 }
 
-void BB::WriteToConsole(const char* a_string, uint32_t a_str_length)
+bool BB::WriteToConsole(const char* a_string, uint32_t a_str_length)
 {
 	DWORD written = 0;
 	//Maybe check if a console is available, it could be nullptr.
-	if (FALSE == WriteConsoleA(GetStdHandle(STD_OUTPUT_HANDLE),
-		a_string,
-		a_str_length,
-		&written,
-		nullptr))
-	{
-		BB_WARNING(false,
-			"OS, failed to write to console! This can be severe.",
-			WarningType::HIGH);
-		LatestOSError();
-	}
+	return WriteConsoleA(GetStdHandle(STD_OUTPUT_HANDLE), a_string, a_str_length, &written, nullptr);
 }
 
-void BB::WriteToConsole(const wchar_t* a_string, uint32_t a_str_length)
+bool BB::WriteToConsole(const wchar_t* a_string, uint32_t a_str_length)
 {
 	DWORD written = 0;
-	//Maybe check if a console is available, it could be nullptr.
-	if (FALSE == WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE),
+	return WriteConsoleW(GetStdHandle(STD_OUTPUT_HANDLE),
 		a_string,
 		a_str_length,
 		&written,
-		nullptr))
-	{
-		BB_WARNING(false,
-			"OS, failed to write to console! This can be severe.",
-			WarningType::HIGH);
-		LatestOSError();
-	}
+		nullptr);
 }
 
-void BB::OSCreateDirectory(const char* a_path_name)
+bool BB::OSCreateDirectory(const char* a_path_name)
 {
-	const BOOL result = CreateDirectoryA(a_path_name, nullptr);
-#ifdef _DEBUG
-	if (result == ERROR_PATH_NOT_FOUND)
-	{
-		LatestOSError();
-		BB_ASSERT(false, "OS, failed to a directory file! This can be severe.");
-	}
-#endif //_DEBUG
+	return CreateDirectoryA(a_path_name, nullptr);
 }
 
 bool BB::OSFileIsValid(const OSFileHandle a_file_handle)
@@ -322,14 +296,6 @@ OSFileHandle BB::CreateOSFile(const char* a_file_name)
 		FILE_ATTRIBUTE_NORMAL,
 		nullptr);
 
-	if (created_file == INVALID_HANDLE_VALUE)
-	{
-		LatestOSError();
-		BB_WARNING(false,
-			"OS, failed to create file! This can be severe.",
-			WarningType::HIGH);
-	}
-
 	return OSFileHandle(reinterpret_cast<uintptr_t>(created_file));
 }
 
@@ -342,14 +308,6 @@ OSFileHandle BB::CreateOSFile(const wchar* a_file_name)
 		CREATE_ALWAYS,
 		FILE_ATTRIBUTE_NORMAL,
 		nullptr);
-
-	if (created_file == INVALID_HANDLE_VALUE)
-	{
-		LatestOSError();
-		BB_WARNING(false, 
-			"OS, failed to create file! This can be severe.",
-			WarningType::HIGH);
-	}
 	
 	return OSFileHandle(reinterpret_cast<uintptr_t>(created_file));
 }
@@ -364,9 +322,6 @@ OSFileHandle BB::LoadOSFile(const char* a_file_name)
 		FILE_ATTRIBUTE_NORMAL,
 		nullptr);
 
-	if (load_file == INVALID_HANDLE_VALUE)
-		LatestOSError();
-
 	return OSFileHandle(reinterpret_cast<uintptr_t>(load_file));
 }
 
@@ -380,14 +335,6 @@ OSFileHandle BB::LoadOSFile(const wchar* a_file_name)
 		OPEN_EXISTING,
 		FILE_ATTRIBUTE_NORMAL,
 		nullptr);
-
-	if (load_file == INVALID_HANDLE_VALUE)
-	{
-		LatestOSError();
-		BB_WARNING(false,
-			"OS, failed to load file! This can be severe.",
-			WarningType::HIGH);
-	}
 
 	return OSFileHandle(reinterpret_cast<uintptr_t>(load_file));
 }
@@ -470,20 +417,10 @@ Buffer BB::ReadOSFile(Allocator a_system_allocator, const wchar* a_path)
 }
 
 //char replaced with string view later on.
-void BB::WriteToOSFile(const OSFileHandle a_file_handle, const void* a_data, const size_t a_size)
+bool BB::WriteToOSFile(const OSFileHandle a_file_handle, const void* a_data, const size_t a_size)
 {
 	DWORD bytes_written = 0;
-	if (FALSE == WriteFile(reinterpret_cast<HANDLE>(a_file_handle.handle),
-		a_data,
-		static_cast<const DWORD>(a_size),
-		&bytes_written,
-		nullptr))
-	{
-		LatestOSError();
-		BB_WARNING(false,
-			"OS, failed to write to file!",
-			WarningType::HIGH);
-	}
+	return WriteFile(reinterpret_cast<HANDLE>(a_file_handle.handle), a_data, static_cast<const DWORD>(a_size), &bytes_written, nullptr);
 }
 
 //Get a file's size in bytes.
@@ -506,9 +443,9 @@ void BB::SetOSFilePosition(const OSFileHandle a_file_handle, const uint32_t a_of
 #endif //_DEBUG
 }
 
-void BB::CloseOSFile(const OSFileHandle a_file_handle)
+bool BB::CloseOSFile(const OSFileHandle a_file_handle)
 {
-	CloseHandle(reinterpret_cast<HANDLE>(a_file_handle.handle));
+	return CloseHandle(reinterpret_cast<HANDLE>(a_file_handle.handle));
 }
 
 OSThreadHandle BB::OSCreateThread(void(*a_func)(void*), const unsigned int a_stack_size, void* a_arg_list)
@@ -516,9 +453,9 @@ OSThreadHandle BB::OSCreateThread(void(*a_func)(void*), const unsigned int a_sta
 	return OSThreadHandle(_beginthread(a_func, a_stack_size, a_arg_list));
 }
 
-void BB::OSWaitThreadfinish(const OSThreadHandle a_thread)
+bool BB::OSWaitThreadfinish(const OSThreadHandle a_thread)
 {
-	WaitForSingleObject(reinterpret_cast<HANDLE>(a_thread.handle), INFINITE);
+	return WaitForSingleObject(reinterpret_cast<HANDLE>(a_thread.handle), INFINITE);
 }
 
 BBMutex BB::OSCreateMutex()
@@ -526,19 +463,19 @@ BBMutex BB::OSCreateMutex()
 	return BBMutex(reinterpret_cast<uintptr_t>(CreateMutex(nullptr, false, nullptr)));
 }
 
-void BB::OSWaitAndLockMutex(const BBMutex a_mutex)
+bool BB::OSWaitAndLockMutex(const BBMutex a_mutex)
 {
-	WaitForSingleObject(reinterpret_cast<HANDLE>(a_mutex.handle), INFINITE);
+	return WaitForSingleObject(reinterpret_cast<HANDLE>(a_mutex.handle), INFINITE);
 }
 
-void BB::OSUnlockMutex(const BBMutex a_mutex)
+bool BB::OSUnlockMutex(const BBMutex a_mutex)
 {
-	ReleaseMutex(reinterpret_cast<HANDLE>(a_mutex.handle));
+	return ReleaseMutex(reinterpret_cast<HANDLE>(a_mutex.handle));
 }
 
-void BB::OSDestroyMutex(const BBMutex a_mutex)
+bool BB::OSDestroyMutex(const BBMutex a_mutex)
 {
-	CloseHandle(reinterpret_cast<HANDLE>(a_mutex.handle));
+	return CloseHandle(reinterpret_cast<HANDLE>(a_mutex.handle));
 }
 
 BBSemaphore BB::OSCreateSemaphore(const uint32_t a_initial_count, const uint32_t a_maximum_count)
@@ -546,19 +483,19 @@ BBSemaphore BB::OSCreateSemaphore(const uint32_t a_initial_count, const uint32_t
 	return BBSemaphore(reinterpret_cast<uintptr_t>(CreateSemaphore(nullptr, static_cast<LONG>(a_initial_count), static_cast<LONG>(a_maximum_count), nullptr)));
 }
 
-void BB::OSWaitSemaphore(const BBSemaphore a_semaphore)
+bool BB::OSWaitSemaphore(const BBSemaphore a_semaphore)
 {
-	WaitForSingleObject(reinterpret_cast<HANDLE>(a_semaphore.handle), INFINITE);
+	return WaitForSingleObject(reinterpret_cast<HANDLE>(a_semaphore.handle), INFINITE);
 }
 
-void BB::OSSignalSemaphore(const BBSemaphore a_semaphore, const uint32_t a_signal_count)
+bool BB::OSSignalSemaphore(const BBSemaphore a_semaphore, const uint32_t a_signal_count)
 {
-	ReleaseSemaphore(reinterpret_cast<HANDLE>(a_semaphore.handle), static_cast<LONG>(a_signal_count), nullptr);
+	return ReleaseSemaphore(reinterpret_cast<HANDLE>(a_semaphore.handle), static_cast<LONG>(a_signal_count), nullptr);
 }
 
-void BB::OSDestroySemaphore(const BBSemaphore a_semaphore)
+bool BB::OSDestroySemaphore(const BBSemaphore a_semaphore)
 {
-	CloseHandle(reinterpret_cast<HANDLE>(a_semaphore.handle));
+	return CloseHandle(reinterpret_cast<HANDLE>(a_semaphore.handle));
 }
 
 BBRWLock BB::OSCreateRWLock()
@@ -597,30 +534,16 @@ BBConditionalVariable BB::OSCreateConditionalVariable()
 	BB_WARNINGS_ON
 }
 
-void BB::OSWaitConditionalVariableShared(BBConditionalVariable* a_condition, BBRWLock* a_lock)
+bool BB::OSWaitConditionalVariableShared(BBConditionalVariable* a_condition, BBRWLock* a_lock)
 {
-	const BOOL result = SleepConditionVariableSRW(reinterpret_cast<CONDITION_VARIABLE*>(a_condition),
+	return SleepConditionVariableSRW(reinterpret_cast<CONDITION_VARIABLE*>(a_condition),
 		reinterpret_cast<SRWLOCK*>(a_lock), INFINITE, CONDITION_VARIABLE_LOCKMODE_SHARED);
-#ifdef _DEBUG
-	if (!result)
-	{
-		LatestOSError();
-		BB_ASSERT(false, "failed to wait on condition variable, extended info above");
-	}
-#endif //_DEBUG
 }
 
-void BB::OSWaitConditionalVariableExclusive(BBConditionalVariable* a_condition, BBRWLock* a_lock)
+bool BB::OSWaitConditionalVariableExclusive(BBConditionalVariable* a_condition, BBRWLock* a_lock)
 {
-	const BOOL result = SleepConditionVariableSRW(reinterpret_cast<CONDITION_VARIABLE*>(a_condition),
+	return SleepConditionVariableSRW(reinterpret_cast<CONDITION_VARIABLE*>(a_condition),
 		reinterpret_cast<SRWLOCK*>(a_lock), INFINITE, 0);
-#ifdef _DEBUG
-	if (!result)
-	{
-		LatestOSError();
-		BB_ASSERT(false, "failed to wait on condition variable, extended info above");
-	}
-#endif //_DEBUG
 }
 
 void BB::OSWakeConditionVariable(BBConditionalVariable* a_condition)
@@ -735,24 +658,25 @@ void* BB::GetOSWindowHandle(const WindowHandle a_handle)
 	return reinterpret_cast<HWND>(a_handle.handle);
 }
 
-void BB::GetWindowSize(const WindowHandle a_handle, int& a_x, int& a_y)
+bool BB::GetWindowSize(const WindowHandle a_handle, int& a_x, int& a_y)
 {
 	RECT rect;
-	GetClientRect(reinterpret_cast<HWND>(a_handle.handle), &rect);
+	bool ret_val = GetClientRect(reinterpret_cast<HWND>(a_handle.handle), &rect);
 
 	a_x = rect.right;
 	a_y = rect.bottom;
+	return ret_val;
 }
 
-void BB::DirectDestroyOSWindow(const WindowHandle a_handle)
+bool BB::DirectDestroyOSWindow(const WindowHandle a_handle)
 {
-	DestroyWindow(reinterpret_cast<HWND>(a_handle.handle));
+	return DestroyWindow(reinterpret_cast<HWND>(a_handle.handle));
 }
 
-void BB::FreezeMouseOnWindow(const WindowHandle a_handle)
+bool BB::FreezeMouseOnWindow(const WindowHandle a_handle)
 {
 	RECT rect;
-	GetClientRect(reinterpret_cast<HWND>(a_handle.handle), &rect);
+	BB_ASSERT(GetClientRect(reinterpret_cast<HWND>(a_handle.handle), &rect), "invalid window handle send to FreezeMouseOnWindow");
 
 	POINT left_right_up_down[2]{};
 	left_right_up_down[0].x = rect.left;
@@ -768,12 +692,12 @@ void BB::FreezeMouseOnWindow(const WindowHandle a_handle)
 	rect.right = left_right_up_down[1].x;
 	rect.bottom = left_right_up_down[1].y;
 
-	ClipCursor(&rect);
+	return ClipCursor(&rect);
 }
 
-void BB::UnfreezeMouseOnWindow()
+bool BB::UnfreezeMouseOnWindow()
 {
-	ClipCursor(nullptr);
+	return ClipCursor(nullptr);
 }
 
 void BB::SetCloseWindowPtr(PFN_WindowCloseEvent a_func)

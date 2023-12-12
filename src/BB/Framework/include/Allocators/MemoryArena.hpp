@@ -18,9 +18,9 @@ namespace BB
 #define BB_ARENA_DEBUG_FREE
 #endif //_DEBUG
 
-	constexpr size_t ARENA_DEFAULT_RESERVE(gbSize * 16);
-	constexpr size_t ARENA_DEFAULT_COMMIT(kbSize * 16);
-	constexpr size_t ARENA_DEFAULT_COMMITTED_SIZE = ARENA_DEFAULT_COMMIT;
+	constexpr size_t ARENA_DEFAULT_RESERVE(gbSize * 16);					//16 gb
+	constexpr size_t ARENA_DEFAULT_COMMIT(kbSize * 16);						//16 kb
+	constexpr size_t ARENA_DEFAULT_COMMITTED_SIZE = ARENA_DEFAULT_COMMIT;	//16 kb
 
 	//memory arena using virtual memory
 	struct MemoryArena
@@ -42,14 +42,17 @@ namespace BB
 
 	//don't use this unless you know what you are doing, use ArenaAlloc instead
 	void* ArenaAlloc_f(BB_ARENA_DEBUG MemoryArena& a_arena, const size_t a_memory_size, const size_t a_align);
-
+	void* ArenaAllocNoZero_f(BB_ARENA_DEBUG MemoryArena& a_arena, const size_t a_memory_size, const size_t a_align);
 
 
 	
 #define ArenaAlloc(a_arena, a_memory_size, a_align) BB::ArenaAlloc_f(BB_ARENA_DEBUG_ARGS a_arena, a_memory_size, a_align)
-	
+#define ArenaAllocNoZero(a_arena, a_memory_size, a_align) BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG_ARGS a_arena, a_memory_size, a_align)
+
 #define ArenaAllocType(a_arena, a_type) new (BB::ArenaAlloc_f(BB_ARENA_DEBUG_ARGS a_arena, sizeof(a_type), alignof(a_type))) a_type
-	
+#define ArenaAllocTypeNoZero(a_arena, a_memory_size, a_align) BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG_ARGS a_arena, a_memory_size, a_align)
+
 #define ArenaAllocArr(a_arena, a_type, a_count) reinterpret_cast<a_type*>(BB::ArenaAlloc_f(BB_ARENA_DEBUG_ARGS a_arena, sizeof(a_type) * a_count, alignof(a_type)))
+#define ArenaAllocArrNoZero(a_arena, a_memory_size, a_align) BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG_ARGS a_arena, a_memory_size, a_align)
 
 }

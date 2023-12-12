@@ -72,7 +72,7 @@ namespace BB
 	inline void BBfree_f(Allocator a_allocator, T* a_ptr)
 	{
 		BB_ASSERT(a_ptr != nullptr, "Trying to free a nullptr");
-		if constexpr (!std::is_trivially_destructible_v<T>)
+		if constexpr (!std::is_trivially_destructible<T>::value)
 		{
 			a_ptr->~T();
 		}

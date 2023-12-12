@@ -68,7 +68,7 @@ public:
 				{
 					ImGui::Indent();
 					if (slot.name != nullptr)
-						ImGui::Text(slot.name);
+						ImGui::TextUnformatted(slot.name);
 					else
 						ImGui::Text("UNNAMED! This might be an error");
 					const ImVec2 image_size = { 160, 160 };
@@ -1710,10 +1710,12 @@ void BB::EndFrame()
 		Vulkan::PipelineBarriers(current_command_list, pipeline_info);
 	}
 
-	const int2 swapchain_size = 
-	{ 
-		static_cast<int>(s_render_inst->render_io.screen_width), 
+	const int2 swapchain_size =
+	{
+		{
+		static_cast<int>(s_render_inst->render_io.screen_width),
 		static_cast<int>(s_render_inst->render_io.screen_height)
+		}
 	};
 	Vulkan::UploadImageToSwapchain(current_command_list, render_target.image, swapchain_size, swapchain_size, s_render_inst->render_io.frame_index);
 	current_use_pool->EndCommandList(current_command_list);

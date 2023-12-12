@@ -45,7 +45,7 @@ MemoryArena BB::MemoryArenaCreate(const size_t a_reserve_size)
 MemoryArena BB::MemoryArenaCreate(MemoryArena& a_memory_source, const size_t a_memory_size)
 {
 	MemoryArena memory_arena;
-	memory_arena.buffer = MemoryArenaAlloc(a_memory_source, a_memory_size, 8);
+	memory_arena.buffer = ArenaAlloc(a_memory_source, a_memory_size, 8);
 	memory_arena.commited = Pointer::Add(memory_arena.buffer, a_memory_size);
 	memory_arena.end = Pointer::Add(memory_arena.buffer, a_memory_size);
 	memory_arena.at = memory_arena.buffer;
@@ -75,15 +75,39 @@ void BB::MemoryArenaFree(MemoryArena& a_arena)
 
 void BB::MemoryArenaReset(MemoryArena& a_arena)
 {
-	memset(a_arena.buffer, 0, GetAddressRange(a_arena.buffer, a_arena.at));
+	MemoryArenaDecommitExess(a_arena);
+	memset(a_arena.buffer, 0, GetAddressRange(a_arena.buffer, a_arena.commited));
 	a_arena.at = a_arena.buffer;
 }
 
-void* BB::MemoryArenaAlloc_f(BB_ARENA_DEBUG MemoryArena& a_arena, const size_t a_memory_size, const size_t a_align)
+void BB::MemoryArenaDecommitExess(MemoryArena& a_arena)
 {
-	void* return_address = a_arena.at;
+	if (a_arena.owns_memory)
+	{
+		const void* const aligned_at = Pointer::Add(a_arena.at, ARENA_DEFAULT_COMMIT);
+		void* const decommit_start = Max(aligned_at, Pointer::Add(a_arena.buffer, ARENA_DEFAULT_COMMITTED_SIZE));
+		const size_t decommit_size = Max(0u, GetAddressRange(a_arena.commited, decommit_start));
 
-	void* new_at = Pointer::Add(a_arena.at, a_memory_size + Pointer::AlignForwardAdjustment(a_arena.at, a_align));
+		if (decommit_size > 0)
+		{
+			BB_ASSERT(DecommitVirtualMemory(decommit_start, decommit_size), "decommiting memory arena failed");
+			a_arena.commited = decommit_start;
+		}
+	}
+}
+
+void* BB::ArenaAlloc_f(BB_ARENA_DEBUG MemoryArena& a_arena, const size_t a_memory_size, const size_t a_align)
+{
+	void* ret_add = ArenaAllocNoZero_f(BB_ARENA_DEBUG_SEND a_arena, a_memory_size, a_align);
+	memset(ret_add, 0, a_memory_size);
+	return ret_add;
+}
+
+void* BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG MemoryArena& a_arena, const size_t a_memory_size, const size_t a_align)
+{
+	void* return_address = Pointer::Add(a_arena.at, Pointer::AlignForwardAdjustment(a_arena.at, a_align));
+
+	void* new_at = Pointer::Add(return_address, a_memory_size);
 	ChangeArenaAt(a_arena, new_at);
 
 	// do debug stuff here

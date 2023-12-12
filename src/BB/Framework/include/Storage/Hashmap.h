@@ -781,19 +781,11 @@ namespace BB
 		static constexpr bool trivalDestructableKey = std::is_trivially_destructible_v<Key>;
 
 	public:
-		StaticOL_HashMap()
-		{
-			m_hashes = nullptr;
-			m_keys = nullptr;
-			m_values = nullptr;
-
-			m_capacity = 0;
-			m_size = 0;
-		}
+		StaticOL_HashMap() = default;
 
 		void Init(Allocator a_allocator, const size_t a_size)
 		{
-			m_capacity = a_size;
+			m_capacity = RoundUp(LFCalculation(a_size, Hashmap_Specs::OL_LoadFactor), 8);
 			m_size = 0;
 
 			const size_t memory_size = (sizeof(Hash) + sizeof(Key) + sizeof(Value)) * m_capacity;
@@ -809,12 +801,12 @@ namespace BB
 		}
 		void Init(MemoryArena& a_arena, const size_t a_size)
 		{
-			m_capacity = a_size;
+			m_capacity = RoundUp(LFCalculation(a_size, Hashmap_Specs::OL_LoadFactor), 8);
 			m_size = 0;
 
 			const size_t memory_size = (sizeof(Hash) + sizeof(Key) + sizeof(Value)) * m_capacity;
 
-			void* buffer = ArenAlloc(a_arena, memory_size);
+			void* buffer = ArenaAlloc(a_arena, memory_size, 8);
 			m_hashes = reinterpret_cast<Hash*>(buffer);
 			m_keys = reinterpret_cast<Key*>(Pointer::Add(buffer, sizeof(Hash) * m_capacity));
 			m_values = reinterpret_cast<Value*>(Pointer::Add(buffer, (sizeof(Hash) + sizeof(Key)) * m_capacity));
@@ -975,7 +967,6 @@ namespace BB
 
 		size_t size() const { return m_size; }
 	private:
-		//no load capacity here, we don't resize.
 		size_t m_size;
 		size_t m_capacity;
 

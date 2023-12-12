@@ -93,6 +93,7 @@ namespace BB
 	{
 		constexpr FrameworkHandle32Bit() : handle(BB_INVALID_HANDLE_32) {}
 		constexpr explicit FrameworkHandle32Bit(const uint32_t a_handle) : handle(a_handle) {}
+
 		uint32_t handle;
 
 		bool IsValid() const { return handle != BB_INVALID_HANDLE_32; }

@@ -1,6 +1,6 @@
 #pragma once
 #include "Utils/Logger.h"
-#include "BBMemory.h"
+#include "MemoryArena.hpp"
 
 #include "Utils/Utils.h"
 
@@ -8,184 +8,151 @@ namespace BB
 {
 	namespace String_Specs
 	{
-		constexpr const size_t multipleValue = 8;
-		constexpr const size_t standardSize = 8;
+		constexpr const size_t multiple_value = 8;
+		constexpr const size_t standard_size = 8;
 	}
 
 	template<typename CharT>
 	class Basic_String
 	{
 	public:
-		Basic_String(Allocator a_allocator)
-			: Basic_String(a_allocator, String_Specs::standardSize)
+		Basic_String(MemoryArena a_arena)
+			: Basic_String(a_arena, String_Specs::standard_size)
 		{}
-		Basic_String(Allocator a_allocator, size_t a_size)
+		Basic_String(MemoryArena a_arena, size_t a_size)
 		{
 			constexpr bool is_char = std::is_same_v<CharT, char> || std::is_same_v<CharT, wchar_t>;
 			BB_STATIC_ASSERT(is_char, "String is not a char or wchar");
 
-			m_allocator = a_allocator;
-			m_capacity = RoundUp(a_size, String_Specs::multipleValue);
+			m_capacity = RoundUp(a_size, String_Specs::multiple_value);
 
-			m_String = reinterpret_cast<CharT*>(BBalloc(m_allocator, m_capacity * sizeof(CharT)));
-			Memory::Set(m_String, NULL, m_capacity);
+			m_string = reinterpret_cast<CharT*>(ArenaAllocArr(a_arena, CharT, m_capacity));
+			Memory::Set(m_string, NULL, m_capacity);
 		}
-		Basic_String(Allocator a_allocator, const CharT* const a_string)
-			: Basic_String(a_allocator, a_string, Memory::StrLength(a_string))
+		Basic_String(MemoryArena a_arena, const CharT* const a_string)
+			: Basic_String(a_arena, a_string, Memory::StrLength(a_string))
 		{}
-		Basic_String(Allocator a_allocator, const CharT* const a_string, size_t a_size)
+		Basic_String(MemoryArena a_arena, const CharT* const a_string, size_t a_size)
 		{
 			constexpr bool is_char = std::is_same_v<CharT, char> || std::is_same_v<CharT, wchar_t>;
 			BB_STATIC_ASSERT(is_char, "String is not a char or wchar");
 
-			m_allocator = a_allocator;
-			m_capacity = RoundUp(a_size + 1, String_Specs::multipleValue);
+			m_capacity = RoundUp(a_size + 1, String_Specs::multiple_value);
 			m_size = a_size;
 
-			m_String = reinterpret_cast<CharT*>(BBalloc(m_allocator, m_capacity * sizeof(CharT)));
-			Memory::Copy(m_String, a_string, a_size);
-			Memory::Set(m_String + a_size, NULL, m_capacity - a_size);
+			m_string = reinterpret_cast<CharT*>(ArenaAlloArrc(a_arena, CharT, m_capacity);
+			Memory::Copy(m_string, a_string, a_size);
+			Memory::Set(m_string + a_size, NULL, m_capacity - a_size);
 		}
-		Basic_String(const Basic_String<CharT>& a_string)
-		{
-			m_allocator = a_string.m_allocator;
-			m_capacity = a_string.m_capacity;
-			m_size = a_string.m_size;
-
-			m_String = reinterpret_cast<CharT*>(BBalloc(m_allocator, m_capacity * sizeof(CharT)));
-			Memory::Copy(m_String, a_string.m_String, m_capacity);
-		}
+		Basic_String(const Basic_String<CharT>& a_string) = delete;
 		Basic_String(Basic_String<CharT>&& a_string) noexcept
 		{
-			m_allocator = a_string.m_allocator;
 			m_capacity = a_string.m_capacity;
 			m_size = a_string.m_size;
-			m_String = a_string.m_String;
+			m_string = a_string.m_string;
 
-			a_string.m_allocator.allocator = nullptr;
-			a_string.m_allocator.func = nullptr;
 			a_string.m_capacity = 0;
 			a_string.m_size = 0;
-			a_string.m_String = nullptr;
-		}
-		~Basic_String()
-		{
-			if (m_String != nullptr)
-			{
-				BBfree(m_allocator, m_String);
-				m_String = nullptr;
-			}
+			a_string.m_string = nullptr;
 		}
 
-		Basic_String& operator=(const Basic_String<CharT>& a_rhs)
-		{
-			this->~Basic_String();
-
-			m_allocator = a_rhs.m_allocator;
-			m_capacity = a_rhs.m_capacity;
-			m_size = a_rhs.m_size;
-
-			m_String = reinterpret_cast<CharT*>(BBalloc(m_allocator, m_capacity * sizeof(CharT)));
-			Memory::Copy(m_String, a_rhs.m_String, m_capacity);
-
-			return *this;
-		}
+		Basic_String& operator=(const Basic_String<CharT>& a_rhs) = delete;
 		Basic_String& operator=(Basic_String<CharT>&& a_rhs) noexcept
 		{
 			this->~Basic_String();
 
-			m_allocator = a_rhs.m_allocator;
 			m_capacity = a_rhs.m_capacity;
 			m_size = a_rhs.m_size;
-			m_String = a_rhs.m_String;
+			m_string = a_rhs.m_string;
 
-			a_rhs.m_allocator.allocator = nullptr;
-			a_rhs.m_allocator.func = nullptr;
 			a_rhs.m_capacity = 0;
 			a_rhs.m_size = 0;
-			a_rhs.m_String = nullptr;
+			a_rhs.m_string = nullptr;
 
 			return *this;
 		}
 		bool operator==(const Basic_String<CharT>& a_rhs) const
 		{
-			if (Memory::Compare(m_String, a_rhs.data(), m_size) == 0)
+			if (Memory::Compare(m_string, a_rhs.data(), m_size) == 0)
 				return true;
 			return false;
 		}
 
-		void append(const Basic_String<CharT>& a_string)
+		bool append(const Basic_String<CharT>& a_string)
 		{
-			append(a_string.c_str(), a_string.size());
+			return append(a_string.c_str(), a_string.size());
 		}
-		void append(const Basic_String<CharT>& a_string, size_t a_SubPos, size_t a_SubLength)
+		bool append(const Basic_String<CharT>& a_string, size_t a_sub_pos, size_t a_sub_length)
 		{
-			append(a_string.c_str() + a_SubPos, a_SubLength);
+			return append(a_string.c_str() + a_sub_pos, a_sub_length);
 		}
-		void append(const CharT* const a_string)
+		bool append(const CharT* const a_string)
 		{
-			append(a_string, Memory::StrLength(a_string));
+			return append(a_string, Memory::StrLength(a_string));
 		}
-		void append(const CharT* const a_string, size_t a_size)
+		bool append(const CharT* const a_string, size_t a_size)
 		{
 			if (m_size + 1 + a_size >= m_capacity)
-				grow(a_size + 1);
+				return false;
 
-			BB::Memory::Copy(m_String + m_size, a_string, a_size);
+			BB::Memory::Copy(m_string + m_size, a_string, a_size);
 			m_size += a_size;
+			return true;
 		}
-		void insert(size_t a_Pos, const Basic_String<CharT>& a_string)
+		bool insert(size_t a_pos, const Basic_String<CharT>& a_string)
 		{
-			insert(a_Pos, a_string.c_str(), a_string.size());
+			return insert(a_pos, a_string.c_str(), a_string.size());
 		}
-		void insert(size_t a_Pos, const Basic_String<CharT>& a_string, size_t a_SubPos, size_t a_SubLength)
+		bool insert(size_t a_pos, const Basic_String<CharT>& a_string, size_t a_sub_pos, size_t a_sub_length)
 		{
-			insert(a_Pos, a_string.c_str() + a_SubPos, a_SubLength);
+			return insert(a_pos, a_string.c_str() + a_sub_pos, a_sub_length);
 		}
-		void insert(size_t a_Pos, const CharT* a_string)
+		bool insert(size_t a_pos, const CharT* a_string)
 		{
-			insert(a_Pos, a_string, Memory::StrLength(a_string));
+			return insert(a_pos, a_string, Memory::StrLength(a_string));
 		}
-		void insert(size_t a_Pos, const CharT* a_string, size_t a_size)
+		bool insert(size_t a_pos, const CharT* a_string, size_t a_size)
 		{
-			BB_ASSERT(m_size >= a_Pos, "String::Insert, trying to insert a string in a invalid position.");
+			BB_ASSERT(m_size >= a_pos, "String::Insert, trying to insert a string in a invalid position.");
 
 			if (m_size + 1 + a_size >= m_capacity)
-				grow(a_size + 1);
+				return false;
 
-			Memory::Move(m_String + (a_Pos + a_size), m_String + a_Pos, m_size - a_Pos);
+			Memory::Move(m_string + (a_pos + a_size), m_string + a_pos, m_size - a_pos);
 
-			Memory::Copy(m_String + a_Pos, a_string, a_size);
+			Memory::Copy(m_string + a_pos, a_string, a_size);
 			m_size += a_size;
+			return true;
 		}
-		void push_back(const CharT a_Char)
+		bool push_back(const CharT a_Char)
 		{
 			if (m_size + 1 >= m_capacity)
-				grow();
+				return false;
 
-			m_String[m_size++] = a_Char;
+			m_string[m_size++] = a_Char;
+			return true;
 		}
 		
 		void pop_back()
 		{
-			m_String[m_size--] = NULL;
+			m_string[m_size--] = NULL;
 		}
 
 		bool compare(const Basic_String<CharT>& a_string) const
 		{
-			if (Memory::Compare(m_String, a_string.data(), m_size) == 0)
+			if (Memory::Compare(m_string, a_string.data(), m_size) == 0)
 				return true;
 			return false;
 		}
 		bool compare(const Basic_String<CharT>& a_string, size_t a_size) const
 		{
-			if (Memory::Compare(m_String, a_string.c_str(), a_size) == 0)
+			if (Memory::Compare(m_string, a_string.c_str(), a_size) == 0)
 				return true;
 			return false;
 		}
-		bool compare(size_t a_Pos, const Basic_String<CharT>& a_string, size_t a_Subpos, size_t a_size) const
+		bool compare(size_t a_pos, const Basic_String<CharT>& a_string, size_t a_sub_pos, size_t a_size) const
 		{
-			if (Memory::Compare(m_String + a_Pos, a_string.c_str() + a_Subpos, a_size) == 0)
+			if (Memory::Compare(m_string + a_pos, a_string.c_str() + a_sub_pos, a_size) == 0)
 				return true;
 			return false;
 		}
@@ -195,74 +162,55 @@ namespace BB
 		}
 		bool compare(const CharT* a_string, size_t a_size) const
 		{
-			if (Memory::Compare(m_String, a_string, a_size) == 0)
+			if (Memory::Compare(m_string, a_string, a_size) == 0)
 				return true;
 			return false;
 		}
-		bool compare(size_t a_Pos, const CharT* a_string) const
+		bool compare(size_t a_pos, const CharT* a_string) const
 		{
-			return compare(a_Pos, a_string, Memory::StrLength(a_string));
+			return compare(a_pos, a_string, Memory::StrLength(a_string));
 		}
-		bool compare(size_t a_Pos, const CharT* a_string, size_t a_size) const
+		bool compare(size_t a_pos, const CharT* a_string, size_t a_size) const
 		{
-			if (Memory::Compare(m_String + a_Pos, a_string, a_size) == 0)
+			if (Memory::Compare(m_string + a_pos, a_string, a_size) == 0)
 				return true;
 			return false;
 		}
 
 		void clear()
 		{
-			Memory::Set(m_String, NULL, m_size);
+			Memory::Set(m_string, NULL, m_size);
 			m_size = 0;
 		}
 
-		void reserve(const size_t a_size)
+		void reserve(MemoryArena a_arena, const size_t a_size)
 		{
 			if (a_size > m_capacity)
 			{
-				size_t t_ModifiedCapacity = RoundUp(a_size + 1, String_Specs::multipleValue);
+				size_t modified_capacity = RoundUp(a_size + 1, String_Specs::multiple_value);
 
-				reallocate(t_ModifiedCapacity);
-			}
-		}
-		void shrink_to_fit()
-		{
-			size_t t_ModifiedCapacity = RoundUp(m_size + 1, String_Specs::multipleValue);
-			if (t_ModifiedCapacity < m_capacity)
-			{
-				reallocate(t_ModifiedCapacity);
+				reallocate(a_arena, modified_capacity);
 			}
 		}
 
 		size_t size() const { return m_size; }
 		size_t capacity() const { return m_capacity; }
-		CharT* data() const { return m_String; }
-		const CharT* c_str() const { return m_String; }
+		CharT* data() const { return m_string; }
+		const CharT* c_str() const { return m_string; }
 
 	private:
-		void grow(size_t a_MinCapacity = 1)
+		void reallocate(MemoryArena a_arena, size_t a_new_capacity)
 		{
-			size_t t_ModifiedCapacity = m_capacity * 2;
+			//do a realloc maybe?
+			CharT* new_string = reinterpret_cast<CharT*>(ArenaAlloArrc(a_arena, CharT, a_new_capacity);
 
-			if (a_MinCapacity > t_ModifiedCapacity)
-				t_ModifiedCapacity = RoundUp(a_MinCapacity, String_Specs::multipleValue);
+			Memory::Copy(new_string, m_string, m_size);
 
-			reallocate(t_ModifiedCapacity);
-		}
-		void reallocate(size_t a_new_capacity)
-		{
-			CharT* t_NewString = reinterpret_cast<CharT*>(BBalloc(m_allocator, a_new_capacity * sizeof(CharT)));
-
-			Memory::Copy(t_NewString, m_String, m_size);
-			BBfree(m_allocator, m_String);
-
-			m_String = t_NewString;
+			m_string = new_string;
 			m_capacity = a_new_capacity;
 		}
 
-		Allocator m_allocator;
-
-		CharT* m_String;
+		CharT* m_string;
 		size_t m_size = 0;
 		size_t m_capacity = 64;
 	};
@@ -276,28 +224,28 @@ namespace BB
 	public:
 		Stack_String()
 		{
-			Memory::Set(m_String, 0, stringSize);
+			Memory::Set(m_string, 0, stringSize);
 		}
 		Stack_String(const CharT* a_string) 
 			: Stack_String(a_string, Memory::StrLength(a_string)) {}
 		Stack_String(const CharT* a_string, size_t a_size)
 		{
-			BB_ASSERT(a_size < sizeof(m_String), "Stack string overflow");
-			Memory::Set(m_String, 0, sizeof(m_String));
-			Memory::Copy(m_String, a_string, a_size);
+			BB_ASSERT(a_size < sizeof(m_string), "Stack string overflow");
+			Memory::Set(m_string, 0, sizeof(m_string));
+			Memory::Copy(m_string, a_string, a_size);
 			m_size = a_size;
 		}
 		Stack_String(const Stack_String<CharT, stringSize>& a_string)
 		{
-			Memory::Copy(m_String, a_string, sizeof(m_String));
+			Memory::Copy(m_string, a_string, sizeof(m_string));
 			m_size = a_string.size;
 		}
 		Stack_String(Stack_String<CharT, stringSize>&& a_string) noexcept
 		{
-			Memory::Copy(m_String, a_string, sizeof(m_String));
+			Memory::Copy(m_string, a_string, sizeof(m_string));
 			m_size = a_string.size();
 
-			Memory::Set(a_string.m_String, 0, stringSize);
+			Memory::Set(a_string.m_string, 0, stringSize);
 			a_string.m_size = 0
 		}
 		~Stack_String()
@@ -309,22 +257,22 @@ namespace BB
 		{
 			this->~Stack_String();
 
-			Memory::Copy(m_String, a_string, sizeof(m_String));
+			Memory::Copy(m_string, a_string, sizeof(m_string));
 			m_size = a_string.size();
 		}
 		Stack_String& operator=(Stack_String<CharT, stringSize>&& a_rhs) noexcept
 		{
 			this->~Stack_String();
 
-			Memory::Copy(m_String, a_string, sizeof(m_String));
+			Memory::Copy(m_string, a_string, sizeof(m_string));
 			m_size = a_string.size();
 
-			Memory::Set(a_rhs.m_String, 0, stringSize);
+			Memory::Set(a_rhs.m_string, 0, stringSize);
 			a_rhs.m_size = 0
 		}
 		bool operator==(const Stack_String<CharT, stringSize>& a_rhs) const
 		{
-			if (Memory::Compare(m_String, a_rhs.data(), sizeof(m_String)) == 0)
+			if (Memory::Compare(m_string, a_rhs.data(), sizeof(m_string)) == 0)
 				return true;
 			return false;
 		}
@@ -333,9 +281,9 @@ namespace BB
 		{
 			append(a_string.c_str(), a_string.size());
 		}
-		void append(const Stack_String<CharT, stringSize>& a_string, size_t a_SubPos, size_t a_SubLength)
+		void append(const Stack_String<CharT, stringSize>& a_string, size_t a_sub_pos, size_t a_sub_length)
 		{
-			append(a_string.c_str() + a_SubPos, a_SubLength);
+			append(a_string.c_str() + a_sub_pos, a_sub_length);
 		}
 		void append(const CharT* a_string)
 		{
@@ -343,63 +291,63 @@ namespace BB
 		}
 		void append(const CharT a_char, size_t a_count = 1)
 		{
-			BB_ASSERT(m_size + a_count < sizeof(m_String), "Stack string overflow");
+			BB_ASSERT(m_size + a_count < sizeof(m_string), "Stack string overflow");
 			for (size_t i = 0; i < a_count; i++)
-				m_String[m_size++] = a_char;
+				m_string[m_size++] = a_char;
 		}
 		void append(const CharT* a_string, size_t a_size)
 		{
-			BB_ASSERT(m_size + a_size < sizeof(m_String), "Stack string overflow");
-			BB::Memory::Copy(m_String + m_size, a_string, a_size);
+			BB_ASSERT(m_size + a_size < sizeof(m_string), "Stack string overflow");
+			BB::Memory::Copy(m_string + m_size, a_string, a_size);
 			m_size += a_size;
 		}
-		void insert(size_t a_Pos, const Stack_String<CharT, stringSize>& a_string)
+		void insert(size_t a_pos, const Stack_String<CharT, stringSize>& a_string)
 		{
-			insert(a_Pos, a_string.c_str(), a_string.size());
+			insert(a_pos, a_string.c_str(), a_string.size());
 		}
-		void insert(size_t a_Pos, const Stack_String<CharT, stringSize>& a_string, size_t a_SubPos, size_t a_SubLength)
+		void insert(size_t a_pos, const Stack_String<CharT, stringSize>& a_string, size_t a_sub_pos, size_t a_sub_length)
 		{
-			insert(a_Pos, a_string.c_str() + a_SubPos, a_SubLength);
+			insert(a_pos, a_string.c_str() + a_sub_pos, a_sub_length);
 		}
-		void insert(size_t a_Pos, const CharT* a_string)
+		void insert(size_t a_pos, const CharT* a_string)
 		{
-			insert(a_Pos, a_string, Memory::StrLength(a_string));
+			insert(a_pos, a_string, Memory::StrLength(a_string));
 		}
-		void insert(size_t a_Pos, const CharT* a_string, size_t a_size)
+		void insert(size_t a_pos, const CharT* a_string, size_t a_size)
 		{
-			BB_ASSERT(m_size >= a_Pos, "Trying to insert a string in a invalid position.");
-			BB_ASSERT(m_size + a_size < sizeof(m_String), "Stack string overflow");
+			BB_ASSERT(m_size >= a_pos, "Trying to insert a string in a invalid position.");
+			BB_ASSERT(m_size + a_size < sizeof(m_string), "Stack string overflow");
 
-			Memory::sMove(m_String + (a_Pos + a_size), m_String + a_Pos, m_size - a_Pos);
+			Memory::sMove(m_string + (a_pos + a_size), m_string + a_pos, m_size - a_pos);
 
-			Memory::Copy(m_String + a_Pos, a_string, a_size);
+			Memory::Copy(m_string + a_pos, a_string, a_size);
 			m_size += a_size;
 		}
 		void push_back(const CharT a_Char)
 		{
-			m_String[m_size++] = a_Char;
-			BB_ASSERT(m_size < sizeof(m_String), "Stack string overflow");
+			m_string[m_size++] = a_Char;
+			BB_ASSERT(m_size < sizeof(m_string), "Stack string overflow");
 		}
 
 		void pop_back(uint32_t a_count)
 		{
 			m_size -= a_count;
-			memset(Pointer::Add(m_String, m_size), NULL, a_count);
+			memset(Pointer::Add(m_string, m_size), NULL, a_count);
 		}
 
 		void clear()
 		{
-			Memory::Set(m_String, 0, stringSize);
+			Memory::Set(m_string, 0, stringSize);
 			m_size = 0;
 		}
 
 		size_t size() const { return m_size; }
 		size_t capacity() const { return stringSize; }
-		CharT* data() { return m_String; }
-		const CharT* c_str() const { return m_String; }
+		CharT* data() { return m_string; }
+		const CharT* c_str() const { return m_string; }
 
 	private:
-		CharT m_String[stringSize + 1];
+		CharT m_string[stringSize + 1];
 		size_t m_size = 0;
 	};
 

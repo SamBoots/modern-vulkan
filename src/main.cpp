@@ -229,6 +229,11 @@ int main(int argc, char** argv)
 		window_height,
 		L"Modern Vulkan");
 
+	{
+		const Asset::AssetManagerInitInfo asset_manager_info{};
+		Asset::InitializeAssetManager(asset_manager_info);
+	}
+
 	RendererCreateInfo render_create_info;
 	render_create_info.app_name = "modern vulkan";
 	render_create_info.engine_name = "Building Block Engine";
