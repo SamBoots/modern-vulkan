@@ -1,18 +1,16 @@
 #include "AssetLoader.hpp"
-#include "Storage/BBString.h"
 
 #include "Storage/Hashmap.h"
-
+#include "MemoryArena.hpp"
+#include "BBIntrin.h"
 #include "BBImage.hpp"
-
 #include "Math.inl"
+#include "Program.h"
 
 #include "shared_common.hlsl.h"
 #include "Renderer.hpp"
 
-#include "BBIntrin.h"
 
-#include "MemoryArena.hpp"
 
 BB_WARNINGS_OFF
 #define CGLTF_IMPLEMENTATION
@@ -113,6 +111,7 @@ struct AssetSlot
 
 struct AssetManager
 {
+	BBRWLock asset_lock;
 	StaticOL_HashMap<uint64_t, AssetSlot> asset_table;
 	StaticOL_HashMap<uint64_t, char*> string_table;
 	struct StringBuffer
@@ -143,6 +142,7 @@ void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
 {
 	BB_ASSERT(!s_asset_manager.asset_arena.buffer, "Asset Manager already initialized");
 
+	s_asset_manager.asset_lock = OSCreateRWLock();
 	s_asset_manager.asset_arena = MemoryArenaCreate();
 	s_asset_manager.asset_table.Init(s_asset_manager.asset_arena, a_init_info.asset_count);
 	s_asset_manager.string_table.Init(s_asset_manager.asset_arena, a_init_info.string_entry_count);
@@ -165,7 +165,10 @@ const char* Asset::FindOrCreateString(const char* a_string)
 	char* const string = AllocateStringSpace(string_size);
 	memcpy(string, a_string, string_size);
 	string[string_size - 1] = '\0';
+
+	OSAcquireSRWLockWrite(&s_asset_manager.asset_lock);
 	s_asset_manager.string_table.emplace(string_hash, string);
+	OSReleaseSRWLockWrite(&s_asset_manager.asset_lock);
 	return string;
 }
 
@@ -237,6 +240,9 @@ const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const 
 
 	const RTexture gpu_image = UploadTexture(a_list, upload_image_info, a_upload_view);
 
+
+	OSAcquireSRWLockWrite(&s_asset_manager.asset_lock);
+
 	Image* image = ArenaAllocType(s_asset_manager.asset_arena, Image);
 	image->width = upload_image_info.width;
 	image->height = upload_image_info.height;
@@ -254,6 +260,8 @@ const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const 
 
 	s_asset_manager.asset_table.insert(asset.hash.full_hash, asset);
 	image->asset_handle = AssetHandle(asset.hash.full_hash);
+
+	OSReleaseSRWLockWrite(&s_asset_manager.asset_lock);
 
 	return image;
 }
@@ -283,6 +291,7 @@ const Image* Asset::LoadImageMemory(const BB::BBImage& a_image, const char* a_na
 
 	const RTexture gpu_image = UploadTexture(a_list, upload_image_info, a_upload_view);
 
+	OSAcquireSRWLockWrite(&s_asset_manager.asset_lock);
 	Image* image = ArenaAllocType(s_asset_manager.asset_arena, Image);
 	image->width = upload_image_info.width;
 	image->height = upload_image_info.height;
@@ -298,6 +307,7 @@ const Image* Asset::LoadImageMemory(const BB::BBImage& a_image, const char* a_na
 
 	s_asset_manager.asset_table.insert(asset.hash.full_hash, asset);
 	image->asset_handle = AssetHandle(asset.hash.full_hash);
+	OSReleaseSRWLockWrite(&s_asset_manager.asset_lock);
 
 	return image;
 }
@@ -505,7 +515,7 @@ const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const MeshLoadFrom
 	}
 
 	const uint32_t linear_node_count = static_cast<uint32_t>(gltf_data->nodes_count);
-
+	OSAcquireSRWLockWrite(&s_asset_manager.asset_lock);
 	//optimize the memory space with one allocation for the entire model
 	Model* model = ArenaAllocType(s_asset_manager.asset_arena, Model);
 	model->linear_nodes = ArenaAllocArr(s_asset_manager.asset_arena, Model::Node, linear_node_count);
@@ -516,7 +526,7 @@ const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const MeshLoadFrom
 	model->root_node_count = static_cast<uint32_t>(gltf_data->scene->nodes_count);
 	BB_ASSERT(model->root_node_count == 1, "not supporting more then 1 root node for gltf yet.");
 	model->root_nodes = &model->linear_nodes[0];
-
+	OSReleaseSRWLockWrite(&s_asset_manager.asset_lock);
 	uint32_t current_node = 0;
 	uint32_t current_primitive = 0;
 
@@ -531,9 +541,9 @@ const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const MeshLoadFrom
 	asset.hash = asset_hash;
 	asset.path = FindOrCreateString(a_mesh_op.path);
 	asset.model = model;
-
+	OSAcquireSRWLockWrite(&s_asset_manager.asset_lock);
 	s_asset_manager.asset_table.insert(asset.hash.full_hash, asset);
-
+	OSReleaseSRWLockWrite(&s_asset_manager.asset_lock);
 	model->asset_handle = AssetHandle(asset.hash.full_hash);
 	return model;
 }
@@ -550,7 +560,7 @@ const Model* Asset::LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, cons
 	CreateMeshInfo mesh_info;
 	mesh_info.vertices = a_mesh_op.vertices;
 	mesh_info.indices = a_mesh_op.indices;
-
+	OSAcquireSRWLockWrite(&s_asset_manager.asset_lock);
 	//hack shit way, but a single mesh just has one primitive to draw.
 	Model* model = ArenaAllocType(s_asset_manager.asset_arena, Model);
 	model->linear_nodes = ArenaAllocArr(s_asset_manager.asset_arena, Model::Node, 1);
@@ -571,6 +581,7 @@ const Model* Asset::LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, cons
 	asset.model = model;
 
 	s_asset_manager.asset_table.insert(asset.hash.full_hash, asset);
+	OSReleaseSRWLockWrite(&s_asset_manager.asset_lock);
 
 	model->asset_handle = AssetHandle(asset.hash.full_hash);
 	return model;
@@ -611,5 +622,7 @@ void Asset::FreeAsset(const AssetHandle a_asset_handle)
 		break;
 	}
 
+	OSAcquireSRWLockWrite(&s_asset_manager.asset_lock);
 	s_asset_manager.asset_table.erase(a_asset_handle.handle);
+	OSReleaseSRWLockWrite(&s_asset_manager.asset_lock);
 }
