@@ -3,8 +3,10 @@
 
 namespace BB
 {
+#define _DEBUG_MEMORY
+//#define _DEBUG_POISON_MEMORY_BOUNDRY
 
-#ifdef _DEBUG
+#ifdef _DEBUG_MEMORY
 #define BB_ARENA_DEBUG const char* a_file, int a_line,
 #define BB_ARENA_DEBUG_UNUSED const char*, int, bool,
 #define BB_ARENA_DEBUG_ARGS __FILE__, __LINE__,
@@ -16,13 +18,23 @@ namespace BB
 #define BB_ARENA_DEBUG_ARGS
 #define BB_ARENA_DEBUG_SEND
 #define BB_ARENA_DEBUG_FREE
-#endif //_DEBUG
+#endif //_DEBUG_MEMORY
 
 	constexpr size_t ARENA_DEFAULT_RESERVE(gbSize * 16);					//16 gb
 	constexpr size_t ARENA_DEFAULT_COMMIT(kbSize * 16);						//16 kb
 	constexpr size_t ARENA_DEFAULT_COMMITTED_SIZE = ARENA_DEFAULT_COMMIT;	//16 kb
 
-	//memory arena using virtual memory
+	struct MemoryArenaAllocationInfo
+	{
+		MemoryArenaAllocationInfo* next;//8
+
+		const char* file;				//16
+		int line;						//20
+		size_t alloc_size;				//28
+		uint32_t alignment;				//32
+		const char* tag_name;			//40
+	};
+
 	struct MemoryArena
 	{
 		void* buffer;	//start
@@ -31,6 +43,11 @@ namespace BB
 		void* at;
 
 		bool owns_memory;
+
+#ifdef _DEBUG_MEMORY
+		MemoryArenaAllocationInfo* first;
+		MemoryArenaAllocationInfo* last;
+#endif // _DEBUG_MEMORY
 	};
 
 	MemoryArena MemoryArenaCreate(const size_t a_reserve_size = ARENA_DEFAULT_RESERVE);
@@ -40,9 +57,13 @@ namespace BB
 
 	void MemoryArenaDecommitExess(MemoryArena& a_arena);
 
+	void TagMemory(const MemoryArena& a_arena, void* a_memory_tag, const char* a_tag_name);
+
+	MemoryArenaAllocationInfo* MemoryArenaGetFrontAllocationLog(const MemoryArena& a_arena);
+
 	//don't use this unless you know what you are doing, use ArenaAlloc instead
-	void* ArenaAlloc_f(BB_ARENA_DEBUG MemoryArena& a_arena, const size_t a_memory_size, const size_t a_align);
-	void* ArenaAllocNoZero_f(BB_ARENA_DEBUG MemoryArena& a_arena, const size_t a_memory_size, const size_t a_align);
+	void* ArenaAlloc_f(BB_ARENA_DEBUG MemoryArena& a_arena, size_t a_memory_size, const uint32_t a_align);
+	void* ArenaAllocNoZero_f(BB_ARENA_DEBUG MemoryArena& a_arena, size_t a_memory_size, const uint32_t a_align);
 
 
 	
@@ -54,5 +75,4 @@ namespace BB
 
 #define ArenaAllocArr(a_arena, a_type, a_count) reinterpret_cast<a_type*>(BB::ArenaAlloc_f(BB_ARENA_DEBUG_ARGS a_arena, sizeof(a_type) * a_count, alignof(a_type)))
 #define ArenaAllocArrNoZero(a_arena, a_memory_size, a_align) BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG_ARGS a_arena, a_memory_size, a_align)
-
 }

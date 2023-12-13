@@ -1,6 +1,10 @@
 #include "MemoryArena.hpp"
 #include "Program.h"
 
+#ifdef _DEBUG_POISON_MEMORY_BOUNDRY
+#include <sanitizer/asan_interface.h>
+#endif // _DEBUG_POISON_MEMORY_BOUNDRY
+
 using namespace BB;
 
 static inline bool PointerWithinArena(const MemoryArena& a_arena, const void* a_pointer)
@@ -32,7 +36,7 @@ static inline void ChangeArenaAt(MemoryArena& a_arena, void* a_at)
 
 MemoryArena BB::MemoryArenaCreate(const size_t a_reserve_size)
 {
-	MemoryArena memory_arena;
+	MemoryArena memory_arena{};
 	memory_arena.buffer = ReserveVirtualMemory(a_reserve_size);
 	memory_arena.commited = memory_arena.buffer;
 	memory_arena.end = Pointer::Add(memory_arena.buffer, a_reserve_size);
@@ -44,7 +48,7 @@ MemoryArena BB::MemoryArenaCreate(const size_t a_reserve_size)
 
 MemoryArena BB::MemoryArenaCreate(MemoryArena& a_memory_source, const size_t a_memory_size)
 {
-	MemoryArena memory_arena;
+	MemoryArena memory_arena{};
 	memory_arena.buffer = ArenaAlloc(a_memory_source, a_memory_size, 8);
 	memory_arena.commited = Pointer::Add(memory_arena.buffer, a_memory_size);
 	memory_arena.end = Pointer::Add(memory_arena.buffer, a_memory_size);
@@ -96,21 +100,69 @@ void BB::MemoryArenaDecommitExess(MemoryArena& a_arena)
 	}
 }
 
-void* BB::ArenaAlloc_f(BB_ARENA_DEBUG MemoryArena& a_arena, const size_t a_memory_size, const size_t a_align)
+void BB::TagMemory(const MemoryArena& a_arena, void* a_ptr, const char* a_tag_name)
+{
+	BB_ASSERT(PointerWithinArena(a_arena, a_ptr), "Trying to tag memory that is not within the memory arena!");
+
+}
+
+MemoryArenaAllocationInfo* BB::MemoryArenaGetFrontAllocationLog(const MemoryArena& a_arena)
+{
+	return a_arena.first;
+}
+
+void* BB::ArenaAlloc_f(BB_ARENA_DEBUG MemoryArena& a_arena, size_t a_memory_size, const uint32_t a_align)
 {
 	void* ret_add = ArenaAllocNoZero_f(BB_ARENA_DEBUG_SEND a_arena, a_memory_size, a_align);
 	memset(ret_add, 0, a_memory_size);
 	return ret_add;
 }
 
-void* BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG MemoryArena& a_arena, const size_t a_memory_size, const size_t a_align)
+void* BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG MemoryArena& a_arena, size_t a_memory_size, const uint32_t a_align)
 {
-	void* return_address = Pointer::Add(a_arena.at, Pointer::AlignForwardAdjustment(a_arena.at, a_align));
+#ifdef _DEBUG_POISON_MEMORY_BOUNDRY
+	constexpr size_t MEMORY_BOUNDRY_SIZE = 8;
+	// memory region could be poisoned, remove the poison.
+	__asan_unpoison_memory_region(a_arena.at, a_memory_size + MEMORY_BOUNDRY_SIZE * 2);
+#endif // _DEBUG_POISON_MEMORY_BOUNDRY
 
+#ifdef _DEBUG_MEMORY
+	// do debug stuff here
+	MemoryArenaAllocationInfo* debug_address = reinterpret_cast<MemoryArenaAllocationInfo*>(a_arena.at);
+	debug_address->file = a_file;
+	debug_address->line = a_line;
+	debug_address->alloc_size = a_memory_size;
+	debug_address->alignment = a_align;
+	debug_address->tag_name = nullptr;
+	debug_address->next = nullptr;
+
+	if (a_arena.first == nullptr)
+	{
+		a_arena.first = debug_address;
+		a_arena.last = debug_address;
+	}
+	else
+	{
+		a_arena.last->next = debug_address;
+		a_arena.last = debug_address;
+	}
+
+	ChangeArenaAt(a_arena, Pointer::Add(a_arena.at, sizeof(MemoryArenaAllocationInfo)));
+#endif // _DEBUG_MEMORY
+	
+#ifdef _DEBUG_POISON_MEMORY_BOUNDRY
+	a_memory_size += MEMORY_BOUNDRY_SIZE * 2;
+	void* return_address = Pointer::Add(a_arena.at, Pointer::AlignForwardAdjustment(a_arena.at, a_align) + MEMORY_BOUNDRY_SIZE);
+#else
+	void* return_address = Pointer::Add(a_arena.at, Pointer::AlignForwardAdjustment(a_arena.at, a_align));
+#endif // _DEBUG_POISON_MEMORY_BOUNDRY
 	void* new_at = Pointer::Add(return_address, a_memory_size);
 	ChangeArenaAt(a_arena, new_at);
 
-	// do debug stuff here
+#ifdef _DEBUG_POISON_MEMORY_BOUNDRY
+	__asan_poison_memory_region(Pointer::Subtract(return_address, MEMORY_BOUNDRY_SIZE), MEMORY_BOUNDRY_SIZE);
+	__asan_poison_memory_region(Pointer::Add(return_address, a_memory_size - MEMORY_BOUNDRY_SIZE), MEMORY_BOUNDRY_SIZE);
+#endif // _DEBUG_POISON_MEMORY_BOUNDRY
 
 	return return_address;
 }

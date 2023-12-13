@@ -55,7 +55,6 @@ static void* Memory_AddBoundries(void* a_front, const size_t a_alloc_size)
 	return back;
 }
 
-
 static void Memory_FreeBoundies(void* a_front, void* a_back)
 {
 #ifdef BB_USE_ADDRESS_SANITIZER
