@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Rendererfwd.hpp"
-#include "Slice.h"
+#include "Storage/FixedArray.h"
 
 namespace BB
 {
@@ -321,9 +321,8 @@ namespace BB
 		const void* shader_code;
 		const char* shader_entry;
 		uint32_t descriptor_layout_count;
-		RDescriptorLayout* descriptor_layouts;
-		uint32_t push_constant_range_count;
-		PushConstantRange* push_constant_ranges;
+		FixedArray<RDescriptorLayout, SPACE_AMOUNT> descriptor_layouts;
+		PushConstantRange push_constant_range;
 	};
 
 	struct WriteDescriptorImage

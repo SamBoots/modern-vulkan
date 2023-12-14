@@ -1869,7 +1869,56 @@ RPipeline Vulkan::CreatePipeline(const CreatePipelineInfo& a_info)
 	return RPipeline(reinterpret_cast<uintptr_t>(pipeline));
 }
 
-void Vulkan::CreateShaderObject(MemoryArena& a_temp_arena, Slice<ShaderObjectCreateInfo> a_shader_objects, ShaderObject* a_pshader_objects)
+ShaderObject Vulkan::CreateShaderObject(const ShaderObjectCreateInfo& a_shader_object)
+{
+	VkShaderCreateInfoEXT shader_create_info{ VK_STRUCTURE_TYPE_SHADER_CREATE_INFO_EXT };
+	shader_create_info.flags = 0;
+	shader_create_info.stage = static_cast<VkShaderStageFlagBits>(ShaderStageFlags(a_shader_object.stage));
+	shader_create_info.nextStage = ShaderStageFlagsFromFlags(a_shader_object.next_stages);
+	shader_create_info.codeType = VK_SHADER_CODE_TYPE_SPIRV_EXT; //for now always SPIR-V
+	shader_create_info.codeSize = a_shader_object.shader_code_size;
+	shader_create_info.pCode = a_shader_object.shader_code;
+	shader_create_info.pName = a_shader_object.shader_entry;
+	shader_create_info.setLayoutCount = a_shader_object.descriptor_layout_count;
+	shader_create_info.pSetLayouts = reinterpret_cast<const VkDescriptorSetLayout*>(a_shader_object.descriptor_layouts.data());
+	shader_create_info.pSpecializationInfo = nullptr;
+
+	VkShaderEXT shader_object;
+	if (a_shader_object.push_constant_range.size)
+	{
+		VkPushConstantRange constant_range;
+		constant_range.stageFlags = ShaderStageFlags(a_shader_object.push_constant_range.stages);
+		constant_range.size = a_shader_object.push_constant_range.size;
+		constant_range.offset = a_shader_object.push_constant_range.offset;
+		shader_create_info.pPushConstantRanges = &constant_range;
+		shader_create_info.pushConstantRangeCount = 1;
+
+		VKASSERT(s_vulkan_inst->pfn.CreateShaderEXT(s_vulkan_inst->device,
+			1,
+			&shader_create_info,
+			nullptr,
+			&shader_object),
+			"Failed to create a shader object!");
+
+		return ShaderObject(reinterpret_cast<size_t>(shader_object));
+	}
+	else
+	{
+		shader_create_info.pPushConstantRanges = nullptr;
+		shader_create_info.pushConstantRangeCount = 0;
+
+		VKASSERT(s_vulkan_inst->pfn.CreateShaderEXT(s_vulkan_inst->device,
+			1,
+			&shader_create_info,
+			nullptr,
+			&shader_object),
+			"Failed to create a shader object!");
+
+		return ShaderObject(reinterpret_cast<size_t>(shader_object));
+	}
+}
+
+void Vulkan::CreateShaderObjects(MemoryArena& a_temp_arena, Slice<ShaderObjectCreateInfo> a_shader_objects, ShaderObject* a_pshader_objects)
 {
 	VkShaderCreateInfoEXT* shader_create_infos = ArenaAllocArr(a_temp_arena, VkShaderCreateInfoEXT, a_shader_objects.size());
 
@@ -1879,7 +1928,11 @@ void Vulkan::CreateShaderObject(MemoryArena& a_temp_arena, Slice<ShaderObjectCre
 		VkShaderCreateInfoEXT& create_inf = shader_create_infos[i];
 		create_inf.sType = VK_STRUCTURE_TYPE_SHADER_CREATE_INFO_EXT;
 		create_inf.pNext = nullptr;
+#ifdef _ENABLE_REBUILD_SHADERS
+		create_inf.flags = 0;
+#else 
 		create_inf.flags = VK_SHADER_CREATE_LINK_STAGE_BIT_EXT;
+#endif // _ENABLE_REBUILD_SHADERS
 		create_inf.stage = static_cast<VkShaderStageFlagBits>(ShaderStageFlags(shad_info.stage));
 		create_inf.nextStage = ShaderStageFlagsFromFlags(shad_info.next_stages);
 		create_inf.codeType = VK_SHADER_CODE_TYPE_SPIRV_EXT; //for now always SPIR-V
@@ -1887,22 +1940,20 @@ void Vulkan::CreateShaderObject(MemoryArena& a_temp_arena, Slice<ShaderObjectCre
 		create_inf.pCode = shad_info.shader_code;
 		create_inf.pName = shad_info.shader_entry;
 		create_inf.setLayoutCount = shad_info.descriptor_layout_count;
-		create_inf.pSetLayouts = reinterpret_cast<VkDescriptorSetLayout*>(shad_info.descriptor_layouts);
+		create_inf.pSetLayouts = reinterpret_cast<const VkDescriptorSetLayout*>(shad_info.descriptor_layouts.data());
 
-		if (shad_info.push_constant_range_count)
+		if (shad_info.push_constant_range.size)
 		{
-			VkPushConstantRange* constant_ranges = ArenaAllocArr(a_temp_arena, VkPushConstantRange, shad_info.push_constant_range_count);
-			for (size_t const_range = 0; const_range < shad_info.push_constant_range_count; const_range++)
-			{
-				constant_ranges[const_range].stageFlags = ShaderStageFlags(shad_info.push_constant_ranges[const_range].stages);
-				constant_ranges[const_range].size = shad_info.push_constant_ranges[const_range].size;
-				constant_ranges[const_range].offset = shad_info.push_constant_ranges[const_range].offset;
-			}
+			VkPushConstantRange* constant_ranges = ArenaAllocType(a_temp_arena, VkPushConstantRange);
+			constant_ranges->stageFlags = ShaderStageFlags(shad_info.push_constant_range.stages);
+			constant_ranges->size = shad_info.push_constant_range.size;
+			constant_ranges->offset = shad_info.push_constant_range.offset;
 			create_inf.pPushConstantRanges = constant_ranges;
+			create_inf.pushConstantRangeCount = 1;
 		}
 		else
 			create_inf.pPushConstantRanges = nullptr;
-		create_inf.pushConstantRangeCount = shad_info.push_constant_range_count;
+		create_inf.pushConstantRangeCount = 0;
 		create_inf.pSpecializationInfo = nullptr;
 	}
 

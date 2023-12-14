@@ -153,6 +153,7 @@ namespace BB
 
 	bool CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles);
 	void FreeShaderEffect(const ShaderEffectHandle a_shader_effect);
+	bool ReloadShaderEffect(const ShaderEffectHandle a_shader_effect);
 
 	const MaterialHandle CreateMaterial(const CreateMaterialInfo& a_create_info);
 	void FreeMaterial(const MaterialHandle a_material);

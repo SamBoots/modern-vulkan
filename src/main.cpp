@@ -218,20 +218,20 @@ static void DebugWindowMemoryArena(const MemoryArena& a_arena)
 
 		const size_t real_size = commited;
 
-		ImGui::Text("Memory Remaining: %u", remaining);
-		ImGui::Text("Memory Commited: %u", commited);
-		ImGui::Text("Memory Used: %u", used);
+		ImGui::Text("Memory Remaining: %zu", remaining);
+		ImGui::Text("Memory Commited: %zu", commited);
+		ImGui::Text("Memory Used: %zu", used);
 
 		const float perc_calculation = 1.f / static_cast<float>(real_size);
-		ImGui::ProgressBar(perc_calculation * remaining);
+		ImGui::ProgressBar(perc_calculation * static_cast<float>(remaining));
 		ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
 		ImGui::TextUnformatted("memory remaining");
 
-		ImGui::ProgressBar(perc_calculation * commited);
+		ImGui::ProgressBar(perc_calculation * static_cast<float>(commited));
 		ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
 		ImGui::TextUnformatted("memory commited");
 
-		ImGui::ProgressBar(perc_calculation * used);
+		ImGui::ProgressBar(perc_calculation * static_cast<float>(used));
 		ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
 		ImGui::TextUnformatted("memory used");
 	}

@@ -20,7 +20,7 @@ namespace BB
 		}
 
 		constexpr size_t size() const { return arr_size; }
-		T* data() { return m_arr; }
+		constexpr const T* data() const { return m_arr; }
 
 		T m_arr[arr_size]{};
 	};

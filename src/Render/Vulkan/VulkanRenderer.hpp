@@ -5,6 +5,8 @@
 #include "Storage/FixedArray.h"
 #include "MemoryArena.hpp"
 
+#define _ENABLE_REBUILD_SHADERS
+
 namespace BB
 {
 	namespace Vulkan //annoying, but many function names actually overlap.
@@ -36,7 +38,8 @@ namespace BB
 		void FreePipelineLayout(const RPipelineLayout a_layout);
 
 		RPipeline CreatePipeline(const CreatePipelineInfo& a_info);
-		void CreateShaderObject(MemoryArena& a_temp_arena, Slice<ShaderObjectCreateInfo> a_shader_objects, ShaderObject* a_pshader_objects);
+		ShaderObject CreateShaderObject(const ShaderObjectCreateInfo& a_shader_object);
+		void CreateShaderObjects(MemoryArena& a_temp_arena, Slice<ShaderObjectCreateInfo> a_shader_objects, ShaderObject* a_pshader_objects);
 		void DestroyShaderObject(const ShaderObject a_shader_object);
 
 		void* MapBufferMemory(const GPUBuffer a_buffer);

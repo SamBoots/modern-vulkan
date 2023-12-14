@@ -55,8 +55,8 @@ public:
 			{
 				ImGui::Indent();
 				ImGui::Text("Texture slot index: %u", m_next_free);
-				const ImVec2 t_ImageSize = { 160, 160 };
-				ImGui::Image(m_next_free, t_ImageSize);
+				const ImVec2 image_size = { 160, 160 };
+				ImGui::Image(m_next_free, image_size);
 				ImGui::Unindent();
 			}
 
@@ -451,6 +451,12 @@ struct ShaderEffect
 	RPipelineLayout pipeline_layout;//24
 	SHADER_STAGE shader_stage;		//28
 	SHADER_STAGE_FLAGS shader_stages_next; //32
+
+#ifdef _ENABLE_REBUILD_SHADERS
+	const char* shader_entry;
+	const char* shader_path;
+	ShaderObjectCreateInfo create_info;
+#endif // _ENABLE_REBUILD_SHADERS
 };
 
 struct Material
@@ -608,16 +614,17 @@ namespace IMGUI_IMPL
 
 	struct ImRenderData
 	{
-		// 0 = VERTEX, 1 = FRAGMENT //this is a hack to be able to delete em lol
-		ShaderEffectHandle		shader_effects[2];	//16
 		// 0 = VERTEX, 1 = FRAGMENT
-		ShaderObject			shader_objects[2];	//32
-		RPipelineLayout			pipeline_layout;	//40
-		RTexture				font_image;         //44
+		ShaderEffectHandle		shader_effects[2];	//16
+		RTexture				font_image;         //20
 
 		// Render buffers for main window
-		uint32_t frame_index;                           //48
-		ImRenderBuffer* frame_buffers;					//56
+		uint32_t frame_index;                       //24
+		ImRenderBuffer* frame_buffers;				//32
+
+		//we just fetch em directly
+		const ShaderEffect* vertex;
+		const ShaderEffect* fragment;
 	};
 
 	inline static ImRenderData* ImGetRenderData()
@@ -630,7 +637,8 @@ namespace IMGUI_IMPL
 		ImRenderData* bd = ImGetRenderData();
 
 		{
-			Vulkan::BindShaders(a_cmd_list, _countof(IMGUI_SHADER_STAGES), IMGUI_SHADER_STAGES, bd->shader_objects);
+			const ShaderObject shader_objects[2]{ bd->vertex->shader_object, bd->fragment->shader_object };
+			Vulkan::BindShaders(a_cmd_list, _countof(IMGUI_SHADER_STAGES), IMGUI_SHADER_STAGES, shader_objects);
 		}
 
 		// Setup scale and translation:
@@ -644,7 +652,7 @@ namespace IMGUI_IMPL
 			shader_indices.translate.x = -1.0f - a_draw_data.DisplayPos.x * shader_indices.rect_scale.x;
 			shader_indices.translate.y = -1.0f - a_draw_data.DisplayPos.y * shader_indices.rect_scale.y;
 
-			Vulkan::SetPushConstants(a_cmd_list, bd->pipeline_layout, 0, sizeof(shader_indices), &shader_indices);
+			Vulkan::SetPushConstants(a_cmd_list, bd->vertex->pipeline_layout, 0, sizeof(shader_indices), &shader_indices);
 		}
 	}
 
@@ -750,7 +758,7 @@ namespace IMGUI_IMPL
 					const ImTextureID new_text = pcmd->TextureId;
 					if (new_text != last_texture)
 					{
-						Vulkan::SetPushConstants(a_cmd_list, bd->pipeline_layout, IM_OFFSETOF(ShaderIndices2D, albedo_texture), sizeof(new_text), &new_text);
+						Vulkan::SetPushConstants(a_cmd_list, bd->vertex->pipeline_layout, IM_OFFSETOF(ShaderIndices2D, albedo_texture), sizeof(new_text), &new_text);
 						last_texture = new_text;
 					}
 					// Apply scissor/clipping rectangle
@@ -813,13 +821,8 @@ namespace IMGUI_IMPL
 			BB_ASSERT(CreateShaderEffect(a_arena, Slice(shaders, _countof(shaders)), bd->shader_effects),
 				"Failed to create imgui shaders");
 
-			// jank
-			for (size_t i = 0; i < _countof(shaders); i++)
-			{
-				const ShaderEffect& eff = s_render_inst->shader_effect_map[bd->shader_effects[i]];
-				bd->pipeline_layout = eff.pipeline_layout;
-				bd->shader_objects[i] = eff.shader_object;
-			}
+			bd->vertex = &s_render_inst->shader_effect_map.find(bd->shader_effects[0]);
+			bd->fragment = &s_render_inst->shader_effect_map.find(bd->shader_effects[1]);
 		}
 
 		//create framebuffers.
@@ -881,6 +884,36 @@ namespace IMGUI_IMPL
 		io.DisplaySize = ImVec2(
 			static_cast<float>(s_render_inst->render_io.screen_width), 
 			static_cast<float>(s_render_inst->render_io.screen_height));
+	}
+} // IMGUI_IMPL
+
+static void ImguiDisplayRenderer()
+{
+	if (ImGui::CollapsingHeader("Renderer"))
+	{
+		ImGui::Indent();
+		s_render_inst->texture_manager.DisplayTextureListImgui();
+
+		if (ImGui::CollapsingHeader("Renderer"))
+		{
+			ImGui::Indent();
+			if (ImGui::CollapsingHeader("Reload imgui shaders"))
+			{
+				auto* render_data = IMGUI_IMPL::ImGetRenderData();
+				if (ImGui::Button("Vertex"))
+				{
+					ReloadShaderEffect(render_data->shader_effects[0]);
+				}
+				if (ImGui::Button("Fragment"))
+				{
+					ReloadShaderEffect(render_data->shader_effects[1]);
+				}
+			}
+			ImGui::Unindent();
+		}
+
+
+		ImGui::Unindent();
 	}
 }
 
@@ -1540,7 +1573,7 @@ void BB::StartFrame()
 	current_use_pool = &s_render_inst->graphics_queue.GetCommandPool("test getting thing command pool");
 	current_command_list = current_use_pool->StartCommandList("test getting thing command list");
 
-	s_render_inst->texture_manager.DisplayTextureListImgui();
+	ImguiDisplayRenderer();
 }
 
 void BB::EndFrame()
@@ -1854,10 +1887,12 @@ bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderE
 {
 	//our default layouts
 	//array size should be SPACE_AMOUNT
-	RDescriptorLayout desc_layouts[3] = {
+	FixedArray<RDescriptorLayout, SPACE_AMOUNT> desc_layouts = {
 			s_render_inst->static_sampler_descriptor_set,
 			s_render_inst->global_descriptor_set,
-			RDescriptorLayout(BB_INVALID_HANDLE_64) };
+			RDescriptorLayout(BB_INVALID_HANDLE_64), // SCENE SET
+			RDescriptorLayout(BB_INVALID_HANDLE_64), // MATERIAL SET, NOT USED
+			RDescriptorLayout(BB_INVALID_HANDLE_64) };// OBJECT SET, NOT USED
 
 	//all of them use this push constant for the shader indices.
 	PushConstantRange push_constant;
@@ -1881,7 +1916,7 @@ bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderE
 		}
 
 		push_constant.size = a_create_infos[i].push_constant_space;
-		shader_effects[i].pipeline_layout = Vulkan::CreatePipelineLayout(desc_layouts, _countof(desc_layouts), &push_constant, 1);
+		shader_effects[i].pipeline_layout = Vulkan::CreatePipelineLayout(desc_layouts.data(), 3, &push_constant, 1);
 
 		shader_codes[i] = CompileShader(s_render_inst->shader_compiler,
 			a_create_infos[i].shader_path,
@@ -1895,14 +1930,13 @@ bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderE
 		shader_object_infos[i].shader_code = shader_buffer.data;
 		shader_object_infos[i].shader_entry = a_create_infos[i].shader_entry;
 
-		shader_object_infos[i].descriptor_layout_count = _countof(desc_layouts);
+		shader_object_infos[i].descriptor_layout_count = 3;
 		shader_object_infos[i].descriptor_layouts = desc_layouts;
-		shader_object_infos[i].push_constant_range_count = 1;
-		shader_object_infos[i].push_constant_ranges = &push_constant;
+		shader_object_infos[i].push_constant_range = push_constant;
 	}
 
 	ShaderObject* shader_objects = ArenaAllocArr(a_temp_arena, ShaderObject, a_create_infos.size());
-	Vulkan::CreateShaderObject(a_temp_arena, Slice(shader_object_infos, a_create_infos.size()), shader_objects);
+	Vulkan::CreateShaderObjects(a_temp_arena, Slice(shader_object_infos, a_create_infos.size()), shader_objects);
 
 	for (size_t i = 0; i < a_create_infos.size(); i++)
 	{
@@ -1910,6 +1944,12 @@ bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderE
 		shader_effects[i].shader_object = shader_objects[i];
 		shader_effects[i].shader_stage = a_create_infos[i].stage;
 		shader_effects[i].shader_stages_next = a_create_infos[i].next_stages;
+#ifdef _ENABLE_REBUILD_SHADERS
+		shader_effects[i].create_info = shader_object_infos[i];
+		shader_effects[i].shader_path = a_create_infos[i].shader_path;
+		shader_effects[i].shader_entry = a_create_infos[i].shader_entry;
+#endif // _ENABLE_REBUILD_SHADERS
+
 		a_handles[i] = s_render_inst->shader_effect_map.insert(shader_effects[i]);
 		ReleaseShaderCode(shader_codes[i]);
 	}
@@ -1922,6 +1962,34 @@ void BB::FreeShaderEffect(const ShaderEffectHandle a_shader_effect)
 	Vulkan::DestroyShaderObject(shader_effect.shader_object);
 	Vulkan::FreePipelineLayout(shader_effect.pipeline_layout);
 	s_render_inst->shader_effect_map.erase(a_shader_effect);
+}
+
+bool BB::ReloadShaderEffect(const ShaderEffectHandle a_shader_effect)
+{
+#ifdef _ENABLE_REBUILD_SHADERS
+	ShaderEffect& old_effect = s_render_inst->shader_effect_map.find(a_shader_effect);
+	Vulkan::DestroyShaderObject(old_effect.shader_object);
+
+
+	ShaderCode shader_code = CompileShader(s_render_inst->shader_compiler,
+		old_effect.shader_path,
+		old_effect.shader_entry,
+		old_effect.shader_stage);
+
+	const Buffer shader_data = GetShaderCodeBuffer(shader_code);
+	old_effect.create_info.shader_code = shader_data.data;
+	old_effect.create_info.shader_code_size = shader_data.size;
+	old_effect.create_info.shader_entry = old_effect.shader_entry;
+
+	const ShaderObject new_object = Vulkan::CreateShaderObject(old_effect.create_info);
+	old_effect.shader_object = new_object;
+
+	ReleaseShaderCode(shader_code);
+
+	return new_object.IsValid();
+#endif // _ENABLE_REBUILD_SHADERS
+	BB_WARNING(false, "trying to reload a shader but _ENABLE_REBUILD_SHADERS is not defined", WarningType::MEDIUM);
+	return true;
 }
 
 const MaterialHandle BB::CreateMaterial(const CreateMaterialInfo& a_create_info)
