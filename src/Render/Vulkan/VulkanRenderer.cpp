@@ -134,12 +134,12 @@ static VkDebugUtilsMessengerCreateInfoEXT CreateDebugCallbackCreateInfo()
 	return create_info;
 }
 
-static bool CheckExtensionSupport(Allocator a_temp_allocator, Slice<const char*> a_extensions)
+static bool CheckExtensionSupport(MemoryArena& a_temp_arena, Slice<const char*> a_extensions)
 {
 	// check extensions if they are available.
 	uint32_t extension_count;
 	vkEnumerateInstanceExtensionProperties(nullptr, &extension_count, nullptr);
-	VkExtensionProperties* extensions = BBnewArr(a_temp_allocator, extension_count, VkExtensionProperties);
+	VkExtensionProperties* extensions = ArenaAllocArr(a_temp_arena, VkExtensionProperties, extension_count);
 	vkEnumerateInstanceExtensionProperties(nullptr, &extension_count, extensions);
 
 	for (auto it = a_extensions.begin(); it < a_extensions.end(); it++)
@@ -157,12 +157,12 @@ static bool CheckExtensionSupport(Allocator a_temp_allocator, Slice<const char*>
 	return true;
 }
 
-static bool CheckValidationLayerSupport(Allocator a_temp_allocator, const Slice<const char*> a_layers)
+static bool CheckValidationLayerSupport(MemoryArena& a_temp_arena, const Slice<const char*> a_layers)
 {
 	// check layers if they are available.
 	uint32_t layer_count;
 	vkEnumerateInstanceLayerProperties(&layer_count, nullptr);
-	VkLayerProperties* layers = BBnewArr(a_temp_allocator, layer_count, VkLayerProperties);
+	VkLayerProperties* layers = ArenaAllocArr(a_temp_arena, VkLayerProperties, layer_count);
 	vkEnumerateInstanceLayerProperties(&layer_count, layers);
 
 	for (auto it = a_layers.begin(); it < a_layers.end(); it++)
@@ -181,11 +181,11 @@ static bool CheckValidationLayerSupport(Allocator a_temp_allocator, const Slice<
 }
 
 //If a_Index is nullptr it will just check if we have a queue that has a graphics bit.
-static bool QueueFindGraphicsBit(Allocator a_temp_allocator, VkPhysicalDevice a_physical_device)
+static bool QueueFindGraphicsBit(MemoryArena& a_temp_arena, VkPhysicalDevice a_physical_device)
 {
 	uint32_t queue_family_count = 0;
 	vkGetPhysicalDeviceQueueFamilyProperties(a_physical_device, &queue_family_count, nullptr);
-	VkQueueFamilyProperties* queue_families = BBnewArr(a_temp_allocator, queue_family_count, VkQueueFamilyProperties);
+	VkQueueFamilyProperties* queue_families = ArenaAllocArr(a_temp_arena, VkQueueFamilyProperties, queue_family_count);
 	vkGetPhysicalDeviceQueueFamilyProperties(a_physical_device, &queue_family_count, queue_families);
 
 	for (uint32_t i = 0; i < queue_family_count; i++)
@@ -198,12 +198,12 @@ static bool QueueFindGraphicsBit(Allocator a_temp_allocator, VkPhysicalDevice a_
 	return false;
 }
 
-static VkPhysicalDevice FindPhysicalDevice(Allocator a_temp_allocator, const VkInstance a_instance)
+static VkPhysicalDevice FindPhysicalDevice(MemoryArena& a_temp_arena, const VkInstance a_instance)
 {
 	uint32_t device_count = 0;
 	vkEnumeratePhysicalDevices(a_instance, &device_count, nullptr);
 	BB_ASSERT(device_count != 0, "Failed to find any GPU's with vulkan support.");
-	VkPhysicalDevice* physical_device = BBnewArr(a_temp_allocator, device_count, VkPhysicalDevice);
+	VkPhysicalDevice* physical_device = ArenaAllocArr(a_temp_arena, VkPhysicalDevice, device_count);
 	vkEnumeratePhysicalDevices(a_instance, &device_count, physical_device);
 
 	for (uint32_t i = 0; i < device_count; i++)
@@ -228,7 +228,7 @@ static VkPhysicalDevice FindPhysicalDevice(Allocator a_temp_allocator, const VkI
 			sync_features.synchronization2 == VK_TRUE &&
 			device_features.features.geometryShader &&
 			device_features.features.samplerAnisotropy &&
-			QueueFindGraphicsBit(a_temp_allocator, physical_device[i]) &&
+			QueueFindGraphicsBit(a_temp_arena, physical_device[i]) &&
 			indexing_features.descriptorBindingPartiallyBound == VK_TRUE &&
 			indexing_features.runtimeDescriptorArray == VK_TRUE &&
 			indexing_features.descriptorBindingSampledImageUpdateAfterBind == VK_TRUE &&
@@ -293,13 +293,13 @@ static VulkanQueueDeviceInfo FindQueueIndex(VkQueueFamilyProperties* a_queue_pro
 	return return_info;
 }
 
-static VulkanQueuesIndices GetQueueIndices(Allocator a_temp_allocator, const VkPhysicalDevice a_phys_device)
+static VulkanQueuesIndices GetQueueIndices(MemoryArena& a_temp_arena, const VkPhysicalDevice a_phys_device)
 {
 	VulkanQueuesIndices return_value{};
 
 	uint32_t queue_family_count = 0;
 	vkGetPhysicalDeviceQueueFamilyProperties(a_phys_device, &queue_family_count, nullptr);
-	VkQueueFamilyProperties* const queue_families = BBnewArr(a_temp_allocator, queue_family_count, VkQueueFamilyProperties);
+	VkQueueFamilyProperties* const queue_families = ArenaAllocArr(a_temp_arena, VkQueueFamilyProperties, queue_family_count);
 	vkGetPhysicalDeviceQueueFamilyProperties(a_phys_device, &queue_family_count, queue_families);
 
 	{
@@ -350,7 +350,7 @@ static VulkanQueuesIndices GetQueueIndices(Allocator a_temp_allocator, const VkP
 	return return_value;
 }
 
-static VkDevice CreateLogicalDevice(Allocator a_temp_allocator, const VkPhysicalDevice a_phys_device, const VulkanQueuesIndices& a_queue_indices, const BB::Slice<const char*>& a_device_extensions)
+static VkDevice CreateLogicalDevice(MemoryArena& a_temp_arena, const VkPhysicalDevice a_phys_device, const VulkanQueuesIndices& a_queue_indices, const BB::Slice<const char*>& a_device_extensions)
 {
 	VkPhysicalDeviceFeatures device_features{};
 	device_features.samplerAnisotropy = VK_TRUE;
@@ -389,7 +389,7 @@ static VkDevice CreateLogicalDevice(Allocator a_temp_allocator, const VkPhysical
 	shader_objects.shaderObject = true;
 	shader_objects.pNext = &sync_features;
 
-	VkDeviceQueueCreateInfo* queue_create_infos = BBnewArr(a_temp_allocator, 3, VkDeviceQueueCreateInfo);
+	VkDeviceQueueCreateInfo* queue_create_infos = ArenaAllocArr(a_temp_arena, VkDeviceQueueCreateInfo, 3);
 	float standard_queue_prios[16] = { 1.0f }; // just put it all to 1 for multiple queues;
 	uint32_t unique_queue_pos = 0;
 	{
@@ -957,10 +957,10 @@ DescriptorAllocation VulkanDescriptorLinearBuffer::AllocateDescriptor(const RDes
 	return allocation;
 }
 
-bool Vulkan::InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a_app_name, const char* a_engine_name, const bool a_debug)
+bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, const char* a_engine_name, const bool a_debug)
 {
 	BB_ASSERT(s_vulkan_inst == nullptr, "trying to initialize vulkan while it's already initialized");
-	s_vulkan_inst = BBnew(a_stack_allocator, Vulkan_inst) {};
+	s_vulkan_inst = ArenaAllocType(a_arena, Vulkan_inst) {};
 
 	//just enable then all, no fallback layer for now lol.
 	const char* instance_extensions[] = {
@@ -982,14 +982,14 @@ bool Vulkan::InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a
 		VK_EXT_SHADER_OBJECT_EXTENSION_NAME
 	};
 
-	BBStackAllocatorScope(a_stack_allocator)
+	MemoryArenaScope(a_arena)
 	{
 		//Check if the extensions and layers work.
-		BB_ASSERT(CheckExtensionSupport(a_stack_allocator,
+		BB_ASSERT(CheckExtensionSupport(a_arena,
 			Slice(instance_extensions, _countof(instance_extensions))),
 			"Vulkan: extension(s) not supported.");
 
-		BB_ASSERT(CheckExtensionSupport(a_stack_allocator,
+		BB_ASSERT(CheckExtensionSupport(a_arena,
 			Slice(device_extensions, _countof(device_extensions))),
 			"Vulkan: extension(s) not supported.");
 
@@ -1006,7 +1006,7 @@ bool Vulkan::InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a
 		if (a_debug)
 		{
 			const char* validationLayer = "VK_LAYER_KHRONOS_validation";
-			BB_WARNING(CheckValidationLayerSupport(a_stack_allocator, Slice(&validationLayer, 1)), "Vulkan: Validation layer(s) not available.", WarningType::MEDIUM);
+			BB_WARNING(CheckValidationLayerSupport(a_arena, Slice(&validationLayer, 1)), "Vulkan: Validation layer(s) not available.", WarningType::MEDIUM);
 			debug_create_info = CreateDebugCallbackCreateInfo();
 			instance_create_info.ppEnabledLayerNames = &validationLayer;
 			instance_create_info.enabledLayerCount = 1;
@@ -1044,12 +1044,12 @@ bool Vulkan::InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a
 		s_vulkan_inst->pfn.CmdSetSampleMaskEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkCmdSetSampleMaskEXT);
 
 		{	//device & queues
-			s_vulkan_inst->phys_device = FindPhysicalDevice(a_stack_allocator, s_vulkan_inst->instance);
+			s_vulkan_inst->phys_device = FindPhysicalDevice(a_arena, s_vulkan_inst->instance);
 			//do some queue stuff.....
 
-			s_vulkan_inst->queue_indices = GetQueueIndices(a_stack_allocator, s_vulkan_inst->phys_device);
+			s_vulkan_inst->queue_indices = GetQueueIndices(a_arena, s_vulkan_inst->phys_device);
 
-			s_vulkan_inst->device = CreateLogicalDevice(a_stack_allocator, 
+			s_vulkan_inst->device = CreateLogicalDevice(a_arena,
 				s_vulkan_inst->phys_device, 
 				s_vulkan_inst->queue_indices,
 				Slice(device_extensions, _countof(device_extensions)));
@@ -1086,12 +1086,12 @@ bool Vulkan::InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a
 		}
 	}
 
-	s_vulkan_inst->allocation_map.Init(a_stack_allocator, 256);
-	s_vulkan_inst->pdescriptor_buffer = BBnew(a_stack_allocator, VulkanDescriptorLinearBuffer)(
+	s_vulkan_inst->allocation_map.Init(a_arena, 256);
+	s_vulkan_inst->pdescriptor_buffer = ArenaAllocType(a_arena, VulkanDescriptorLinearBuffer)(
 		mbSize * 4,
 		VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
 
-	s_vulkan_inst->pipeline_layout_cache.Init(a_stack_allocator, 64);
+	s_vulkan_inst->pipeline_layout_cache.Init(a_arena, 64);
 
 	//Get the present queue.
 	vkGetDeviceQueue(s_vulkan_inst->device,
@@ -1102,13 +1102,13 @@ bool Vulkan::InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a
 	return true;
 }
 
-bool Vulkan::CreateSwapchain(StackAllocator_t& a_stack_allocator, const WindowHandle a_window_handle, const uint32_t a_width, const uint32_t a_height, uint32_t& a_backbuffer_count)
+bool Vulkan::CreateSwapchain(MemoryArena& a_arena, const WindowHandle a_window_handle, const uint32_t a_width, const uint32_t a_height, uint32_t& a_backbuffer_count)
 {
 	BB_ASSERT(s_vulkan_inst != nullptr, "trying to create a swapchain while vulkan is not initialized");
 	BB_ASSERT(s_vulkan_swapchain == nullptr, "trying to create a swapchain while one exists");
-	s_vulkan_swapchain = BBnew(a_stack_allocator, Vulkan_swapchain) {};
+	s_vulkan_swapchain = ArenaAllocType(a_arena, Vulkan_swapchain) {};
 	
-	BBStackAllocatorScope(a_stack_allocator)
+	MemoryArenaScope(a_arena)
 	{
 		//Surface
 		VkWin32SurfaceCreateInfoKHR surface_create_info{};
@@ -1127,13 +1127,13 @@ bool Vulkan::CreateSwapchain(StackAllocator_t& a_stack_allocator, const WindowHa
 		VkSurfaceFormatKHR* formats;
 		uint32_t format_count;
 		vkGetPhysicalDeviceSurfaceFormatsKHR(s_vulkan_inst->phys_device, s_vulkan_swapchain->surface, &format_count, nullptr);
-		formats = BBnewArr(a_stack_allocator, format_count, VkSurfaceFormatKHR);
+		formats = ArenaAllocArr(a_arena, VkSurfaceFormatKHR, format_count);
 		vkGetPhysicalDeviceSurfaceFormatsKHR(s_vulkan_inst->phys_device, s_vulkan_swapchain->surface, &format_count, formats);
 
 		VkPresentModeKHR* present_modes;
 		uint32_t present_mode_count;
 		vkGetPhysicalDeviceSurfacePresentModesKHR(s_vulkan_inst->phys_device, s_vulkan_swapchain->surface, &present_mode_count, nullptr);
-		present_modes = BBnewArr(a_stack_allocator, present_mode_count, VkPresentModeKHR);
+		present_modes = ArenaAllocArr(a_arena, VkPresentModeKHR, present_mode_count);
 		vkGetPhysicalDeviceSurfacePresentModesKHR(s_vulkan_inst->phys_device, s_vulkan_swapchain->surface, &present_mode_count, present_modes);
 
 		BB_ASSERT(format_count != 0 && present_mode_count != 0, "physical device does not support a swapchain!");
@@ -1217,11 +1217,11 @@ bool Vulkan::CreateSwapchain(StackAllocator_t& a_stack_allocator, const WindowHa
 			"Vulkan: Failed to create swapchain.");
 	}
 
-	s_vulkan_swapchain->frames = BBnewArr(a_stack_allocator, s_vulkan_swapchain->frame_count, Vulkan_swapchain::swapchain_frame);
+	s_vulkan_swapchain->frames = ArenaAllocArr(a_arena, Vulkan_swapchain::swapchain_frame, s_vulkan_swapchain->frame_count);
 
-	BBStackAllocatorScope(a_stack_allocator)
+	MemoryArenaScope(a_arena)
 	{
-		VkImage* swapchain_images = BBnewArr(a_stack_allocator, s_vulkan_swapchain->frame_count, VkImage);
+		VkImage* swapchain_images = ArenaAllocArr(a_arena, VkImage, s_vulkan_swapchain->frame_count);
 		vkGetSwapchainImagesKHR(s_vulkan_inst->device,
 			s_vulkan_swapchain->swapchain,
 			&s_vulkan_swapchain->frame_count,
@@ -1505,17 +1505,11 @@ void Vulkan::CreateDepthBuffer(const RenderDepthCreateInfo& a_create_info, RImag
 	a_out_image_view = RImageView(reinterpret_cast<uint64_t>(image_view));
 }
 
-RDescriptorLayout Vulkan::CreateDescriptorLayout(Allocator a_temp_allocator, Slice<DescriptorBindingInfo> a_bindings)
+RDescriptorLayout Vulkan::CreateDescriptorLayout(MemoryArena& a_temp_arena, Slice<DescriptorBindingInfo> a_bindings)
 {
-	VkDescriptorSetLayoutBinding* layout_binds = BBnewArr(
-		a_temp_allocator,
-		a_bindings.size(),
-		VkDescriptorSetLayoutBinding);
+	VkDescriptorSetLayoutBinding* layout_binds = ArenaAllocArr(a_temp_arena, VkDescriptorSetLayoutBinding, a_bindings.size());
 
-	VkDescriptorBindingFlags* bindless_flags = BBnewArr(
-		a_temp_allocator,
-		a_bindings.size(),
-		VkDescriptorBindingFlags);
+	VkDescriptorBindingFlags* bindless_flags = ArenaAllocArr(a_temp_arena, VkDescriptorBindingFlags, a_bindings.size());
 	bool is_bindless = false;
 
 	for (size_t i = 0; i < a_bindings.size(); i++)
@@ -1875,9 +1869,9 @@ RPipeline Vulkan::CreatePipeline(const CreatePipelineInfo& a_info)
 	return RPipeline(reinterpret_cast<uintptr_t>(pipeline));
 }
 
-void Vulkan::CreateShaderObject(Allocator a_temp_allocator, Slice<ShaderObjectCreateInfo> a_shader_objects, ShaderObject* a_pshader_objects)
+void Vulkan::CreateShaderObject(MemoryArena& a_temp_arena, Slice<ShaderObjectCreateInfo> a_shader_objects, ShaderObject* a_pshader_objects)
 {
-	VkShaderCreateInfoEXT* shader_create_infos = BBnewArr(a_temp_allocator, a_shader_objects.size(), VkShaderCreateInfoEXT);
+	VkShaderCreateInfoEXT* shader_create_infos = ArenaAllocArr(a_temp_arena, VkShaderCreateInfoEXT, a_shader_objects.size());
 
 	for (size_t i = 0; i < a_shader_objects.size(); i++)
 	{
@@ -1897,7 +1891,7 @@ void Vulkan::CreateShaderObject(Allocator a_temp_allocator, Slice<ShaderObjectCr
 
 		if (shad_info.push_constant_range_count)
 		{
-			VkPushConstantRange* constant_ranges = BBnewArr(a_temp_allocator, shad_info.push_constant_range_count, VkPushConstantRange);
+			VkPushConstantRange* constant_ranges = ArenaAllocArr(a_temp_arena, VkPushConstantRange, shad_info.push_constant_range_count);
 			for (size_t const_range = 0; const_range < shad_info.push_constant_range_count; const_range++)
 			{
 				constant_ranges[const_range].stageFlags = ShaderStageFlags(shad_info.push_constant_ranges[const_range].stages);

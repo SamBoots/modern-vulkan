@@ -4,6 +4,8 @@
 
 #include "Common.h"
 
+#include "MemoryArena.hpp"
+
 namespace BB
 {
 	namespace Slotmap_Specs
@@ -339,6 +341,24 @@ namespace BB
 
 		Slotmap<T>& operator=(const Slotmap<T>& a_rhs) = delete;
 		Slotmap<T>& operator=(Slotmap<T>&& a_rhs) = delete;
+
+		void Init(MemoryArena& a_arena, const uint32_t a_size)
+		{
+			BB_ASSERT(m_id_arr == nullptr, "initializing a static slotmap while it was already initialized or not set to 0");
+			m_capacity = a_size;
+
+			m_id_arr = reinterpret_cast<HandleType*>(ArenaAlloc(a_arena, (sizeof(HandleType) + sizeof(T) + sizeof(uint32_t)) * m_capacity, 8));
+			m_obj_arr = reinterpret_cast<T*>(Pointer::Add(m_id_arr, sizeof(HandleType) * m_capacity));
+			m_erase_arr = reinterpret_cast<uint32_t*>(Pointer::Add(m_obj_arr, sizeof(T) * m_capacity));
+
+			for (uint32_t i = 0; i < m_capacity - 1; ++i)
+			{
+				m_id_arr[i].index = i + 1;
+				m_id_arr[i].extra_index = 1;
+			}
+			m_id_arr[m_capacity - 1].extra_index = 1;
+			m_next_free = 0;
+		}
 
 		void Init(Allocator a_allocator, const uint32_t a_size)
 		{

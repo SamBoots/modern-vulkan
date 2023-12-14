@@ -294,6 +294,11 @@ namespace BB
 			return aligned_size;
 		}
 
+		inline static void* AlignAddress(const void* a_addr, const size_t a_multiple)
+		{
+			return reinterpret_cast<void*>(((reinterpret_cast<size_t>(a_addr) + a_multiple - 1) / a_multiple) * a_multiple);
+		}
+
 #pragma warning(disable:4146)
 
 		/// <summary>

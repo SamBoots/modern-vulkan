@@ -1,6 +1,8 @@
 #include "Transform.hpp"
 #include "Math.inl"
 
+#include "MemoryArena.hpp"
+
 using namespace BB;
 
 Transform::Transform(const float3 a_position)
@@ -61,11 +63,11 @@ struct BB::TransformNode
 	uint32_t generation; //48 bytes
 };
 
-TransformPool::TransformPool(StackAllocator_t& a_stack_allocator, const uint32_t a_transform_count)
+TransformPool::TransformPool(MemoryArena& a_arena, const uint32_t a_transform_count)
 {
 	m_transform_count = a_transform_count;
 	m_next_free_transform = 0;
-	m_transforms = reinterpret_cast<TransformNode*>(BBalloc(a_stack_allocator, a_transform_count * sizeof(TransformNode)));
+	m_transforms = reinterpret_cast<TransformNode*>(ArenaAlloc(a_arena, a_transform_count * sizeof(TransformNode), __alignof(TransformNode)));
 	for (size_t i = 0; i < static_cast<size_t>(m_transform_count - 1); i++)
 	{
 		m_transforms[i].next = static_cast<uint32_t>(i + 1);

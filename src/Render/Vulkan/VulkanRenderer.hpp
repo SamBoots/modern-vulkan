@@ -3,14 +3,15 @@
 #include "RendererTypes.hpp"
 #include "Slice.h"
 #include "Storage/FixedArray.h"
+#include "MemoryArena.hpp"
 
 namespace BB
 {
 	namespace Vulkan //annoying, but many function names actually overlap.
 	{
-		bool InitializeVulkan(StackAllocator_t& a_stack_allocator, const char* a_app_name, const char* a_engine_name, const bool a_debug);
+		bool InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, const char* a_engine_name, const bool a_debug);
 
-		bool CreateSwapchain(StackAllocator_t& a_stack_allocator, const WindowHandle a_window_handle, const uint32_t a_width, const uint32_t a_height, uint32_t& a_backbuffer_count);
+		bool CreateSwapchain(MemoryArena& a_arena, const WindowHandle a_window_handle, const uint32_t a_width, const uint32_t a_height, uint32_t& a_backbuffer_count);
 
 		void CreateCommandPool(const QUEUE_TYPE a_queue_type, const uint32_t a_command_list_count, RCommandPool& a_pool, RCommandList* a_plists);
 		void FreeCommandPool(const RCommandPool a_pool);
@@ -26,7 +27,7 @@ namespace BB
 
 		void CreateDepthBuffer(const RenderDepthCreateInfo& a_create_info, RImage& a_out_image, RImageView& a_out_image_view);
 
-		RDescriptorLayout CreateDescriptorLayout(Allocator a_temp_allocator, Slice<DescriptorBindingInfo> a_bindings);
+		RDescriptorLayout CreateDescriptorLayout(MemoryArena& a_temp_arena, Slice<DescriptorBindingInfo> a_bindings);
 		RDescriptorLayout CreateDescriptorSamplerLayout(const Slice<SamplerCreateInfo> a_static_samplers);
 		DescriptorAllocation AllocateDescriptor(const RDescriptorLayout a_descriptor);
 		void WriteDescriptors(const WriteDescriptorInfos& a_write_info);
@@ -35,7 +36,7 @@ namespace BB
 		void FreePipelineLayout(const RPipelineLayout a_layout);
 
 		RPipeline CreatePipeline(const CreatePipelineInfo& a_info);
-		void CreateShaderObject(Allocator a_temp_allocator, Slice<ShaderObjectCreateInfo> a_shader_objects, ShaderObject* a_pshader_objects);
+		void CreateShaderObject(MemoryArena& a_temp_arena, Slice<ShaderObjectCreateInfo> a_shader_objects, ShaderObject* a_pshader_objects);
 		void DestroyShaderObject(const ShaderObject a_shader_object);
 
 		void* MapBufferMemory(const GPUBuffer a_buffer);

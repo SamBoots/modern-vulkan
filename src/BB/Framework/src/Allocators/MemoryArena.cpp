@@ -28,7 +28,7 @@ static inline void ChangeArenaAt(MemoryArena& a_arena, void* a_at)
 	BB_ASSERT(PointerWithinArena(a_arena, a_at), "modifying memory arena at that is not inside the arena, arena may be full");
 	if (a_at > a_arena.commited)
 	{
-		const size_t commit_range = Max(ARENA_DEFAULT_COMMIT, GetAddressRange(a_arena.commited, a_at));
+		const size_t commit_range = RoundUp(GetAddressRange(a_arena.commited, a_at), ARENA_DEFAULT_COMMIT);
 		BB_ASSERT(CommitVirtualMemory(a_arena.commited, commit_range), "increase commit range of memory arena failed");
 
 		a_arena.commited = Pointer::Add(a_arena.commited, commit_range);
@@ -91,7 +91,7 @@ void BB::MemoryArenaDecommitExess(MemoryArena& a_arena)
 {
 	if (a_arena.owns_memory)
 	{
-		const void* const aligned_at = Pointer::Add(a_arena.at, ARENA_DEFAULT_COMMIT);
+		const void* const aligned_at = Pointer::AlignAddress(a_arena.at, ARENA_DEFAULT_COMMIT);
 		void* const decommit_start = Max(aligned_at, Pointer::Add(a_arena.buffer, ARENA_DEFAULT_COMMITTED_SIZE));
 		const size_t decommit_size = Max(0u, GetAddressRange(a_arena.commited, decommit_start));
 
@@ -116,9 +116,43 @@ void BB::TagMemory(const MemoryArena& a_arena, void* a_ptr, const char* a_tag_na
 	allocation_info->tag_name = a_tag_name;
 }
 
+MemoryArenaMarker BB::GetMemoryMarker(const MemoryArena& a_arena)
+{
+	return MemoryArenaMarker{ a_arena, a_arena.at };
+}
+
+void BB::SetMemoryMarker(MemoryArena& a_arena, const MemoryArenaMarker& a_memory_marker)
+{
+	BB_ASSERT(a_arena.buffer == a_memory_marker.owner.buffer, "not the same allocator");
+	BB_ASSERT(PointerWithinArena(a_arena, a_memory_marker.at), "MemoryArenaMarker.at not within memory arena");
+
+#ifdef SANITIZER_ENABLED
+	// memory region could be poisoned, remove the poison.
+	const size_t a_range = GetAddressRange(a_arena.at, a_memory_marker.at);
+	__asan_unpoison_memory_region(a_memory_marker.at, a_range);
+#endif // SANITIZER_ENABLED
+	a_arena.at = a_memory_marker.at;
+	MemoryArenaDecommitExess(a_arena);
+}
+
 const MemoryArenaAllocationInfo* BB::MemoryArenaGetFrontAllocationLog(const MemoryArena& a_arena)
 {
 	return a_arena.first;
+}
+
+size_t BB::MemoryArenaSizeRemaining(const MemoryArena& a_arena)
+{
+	return GetAddressRange(a_arena.at, a_arena.end);
+}
+
+size_t BB::MemoryArenaSizeCommited(const MemoryArena& a_arena)
+{
+	return GetAddressRange(a_arena.buffer, a_arena.commited);
+}
+
+size_t BB::MemoryArenaSizeUsed(const MemoryArena& a_arena)
+{
+	return GetAddressRange(a_arena.buffer, a_arena.at);
 }
 
 void* BB::ArenaAlloc_f(BB_ARENA_DEBUG MemoryArena& a_arena, size_t a_memory_size, const uint32_t a_align)
@@ -130,11 +164,6 @@ void* BB::ArenaAlloc_f(BB_ARENA_DEBUG MemoryArena& a_arena, size_t a_memory_size
 
 void* BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG MemoryArena& a_arena, size_t a_memory_size, const uint32_t a_align)
 {
-#ifdef SANITIZER_ENABLED
-	// memory region could be poisoned, remove the poison.
-	__asan_unpoison_memory_region(a_arena.at, a_memory_size + MEMORY_BOUNDRY_SIZE * 2);
-#endif // SANITIZER_ENABLED
-
 #ifdef _DEBUG_MEMORY
 	// do debug stuff here
 	MemoryArenaAllocationInfo* debug_address = reinterpret_cast<MemoryArenaAllocationInfo*>(a_arena.at);
@@ -160,12 +189,13 @@ void* BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG MemoryArena& a_arena, size_t a_memor
 
 #endif // _DEBUG_MEMORY
 	
+	void* return_address = Pointer::AlignAddress(a_arena.at, a_align);
+
 #ifdef SANITIZER_ENABLED
 	a_memory_size += MEMORY_BOUNDRY_SIZE * 2;
-	void* return_address = Pointer::Add(a_arena.at, Pointer::AlignForwardAdjustment(a_arena.at, a_align) + MEMORY_BOUNDRY_SIZE);
-#else
-	void* return_address = Pointer::Add(a_arena.at, Pointer::AlignForwardAdjustment(a_arena.at, a_align));
+	void* return_address = Pointer::Add(return_address, MEMORY_BOUNDRY_SIZE);
 #endif // SANITIZER_ENABLED
+
 	void* new_at = Pointer::Add(return_address, a_memory_size);
 	ChangeArenaAt(a_arena, new_at);
 

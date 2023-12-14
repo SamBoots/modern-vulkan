@@ -14,6 +14,8 @@
 #include "shared_common.hlsl.h"
 #include "Renderer.hpp"
 
+#include "MemoryArena.hpp"
+
 #include "Math.inl"
 
 #include "Storage/FixedArray.h"
@@ -170,12 +172,12 @@ static bool ImProcessInput(const BB::InputEvent& a_input_event)
 	return false;
 }
 
-static inline void SetupImGuiInput(StackAllocator_t& a_stack_allocator, const BB::WindowHandle a_window)
+static inline void SetupImGuiInput(MemoryArena& a_arena, const BB::WindowHandle a_window)
 {
 	ImGuiIO& io = ImGui::GetIO();
 
 	// Setup backend capabilities flags
-	ImInputData* bdWin = BBnew(a_stack_allocator, ImInputData);
+	ImInputData* bdWin = ArenaAllocType(a_arena, ImInputData);
 	io.BackendPlatformUserData = reinterpret_cast<void*>(bdWin);
 	io.BackendPlatformName = "imgui_impl_BB";
 	io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;         // We can honor GetMouseCursor() values (optional)
@@ -204,6 +206,37 @@ static inline void DestroyImGuiInput()
 	IM_DELETE(pd);
 }
 
+static void DebugWindowMemoryArena(const MemoryArena& a_arena)
+{
+	const MemoryArenaAllocationInfo* a_alloc_info = MemoryArenaGetFrontAllocationLog(a_arena);
+
+	if (ImGui::CollapsingHeader("Main stack memory arena"))
+	{
+		const size_t remaining = MemoryArenaSizeRemaining(a_arena);
+		const size_t commited = MemoryArenaSizeCommited(a_arena);
+		const size_t used = MemoryArenaSizeUsed(a_arena);
+
+		const size_t real_size = commited;
+
+		ImGui::Text("Memory Remaining: %u", remaining);
+		ImGui::Text("Memory Commited: %u", commited);
+		ImGui::Text("Memory Used: %u", used);
+
+		const float perc_calculation = 1.f / static_cast<float>(real_size);
+		ImGui::ProgressBar(perc_calculation * remaining);
+		ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
+		ImGui::TextUnformatted("memory remaining");
+
+		ImGui::ProgressBar(perc_calculation * commited);
+		ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
+		ImGui::TextUnformatted("memory commited");
+
+		ImGui::ProgressBar(perc_calculation * used);
+		ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
+		ImGui::TextUnformatted("memory used");
+	}
+}
+
 int main(int argc, char** argv)
 {
 	(void)argc;
@@ -217,7 +250,7 @@ int main(int argc, char** argv)
 	OSSystemInfo(sys_info);
 	Threads::InitThreads(sys_info.processor_num);
 
-	StackAllocator_t main_allocator{ mbSize * 32 };
+	MemoryArena main_arena = MemoryArenaCreate();
 
 	int window_width = 1280;
 	int window_height = 720;
@@ -241,11 +274,11 @@ int main(int argc, char** argv)
 	render_create_info.swapchain_width = static_cast<uint32_t>(window_width);
 	render_create_info.swapchain_height = static_cast<uint32_t>(window_height);
 	render_create_info.debug = true;
-	InitializeRenderer(main_allocator, render_create_info);
-	SetupImGuiInput(main_allocator, window);
+	InitializeRenderer(main_arena, render_create_info);
+	SetupImGuiInput(main_arena, window);
 	Camera camera{ float3{2.0f, 2.0f, 2.0f}, 0.35f };
 
-	TransformPool transform_pool{ main_allocator, 32 };
+	TransformPool transform_pool{ main_arena, 32 };
 	const TransformHandle transform_test = transform_pool.CreateTransform(float3{ 0, -1, 1 });
 	const TransformHandle transform_gltf = transform_pool.CreateTransform(float3{ 0, 1, 1 });
 
@@ -257,7 +290,7 @@ int main(int argc, char** argv)
 	}
 
 	ShaderEffectHandle shader_effects[2];
-	BBStackAllocatorScope(main_allocator)
+	MemoryArenaScope(main_arena)
 	{
 		CreateShaderEffectInfo shader_effect_create_infos[2];
 		shader_effect_create_infos[0].name = "debug vertex shader";
@@ -276,7 +309,7 @@ int main(int argc, char** argv)
 		shader_effect_create_infos[1].push_constant_space = sizeof(ShaderIndices);
 		shader_effect_create_infos[1].pass_type = RENDER_PASS_TYPE::STANDARD_3D;
 
-		BB_ASSERT(CreateShaderEffect(main_allocator,
+		BB_ASSERT(CreateShaderEffect(main_arena,
 			Slice(shader_effect_create_infos, _countof(shader_effect_create_infos)),
 			shader_effects), "Failed to create shader objects");
 	}
@@ -292,7 +325,7 @@ int main(int argc, char** argv)
 
 	const Model* quad_mesh = nullptr;
 	const Model* gltf_model = nullptr;
-	BBStackAllocatorScope(main_allocator)
+	MemoryArenaScope(main_arena)
 	{
 		//Do some simpel model loading and drawing.
 		Vertex vertices[4];
@@ -409,11 +442,12 @@ int main(int argc, char** argv)
 			}
 		}
 		
-		BBStackAllocatorScope(main_allocator)
+		MemoryArenaScope(main_arena)
 		{
 			BB::SetView(camera.CalculateView());
 			StartFrame();
 
+			DebugWindowMemoryArena(main_arena);
 
 			for (size_t i = 0; i < gltf_model->root_node_count; i++)
 			{

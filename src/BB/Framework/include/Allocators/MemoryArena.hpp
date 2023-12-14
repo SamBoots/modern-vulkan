@@ -50,6 +50,12 @@ namespace BB
 #endif // _DEBUG_MEMORY
 	};
 
+	struct MemoryArenaMarker
+	{
+		const MemoryArena& owner;
+		void* at;
+	};
+
 	MemoryArena MemoryArenaCreate(const size_t a_reserve_size = ARENA_DEFAULT_RESERVE);
 	MemoryArena MemoryArenaCreate(MemoryArena& a_memory_source, const size_t a_memory_size);
 	void MemoryArenaFree(MemoryArena& a_arena);
@@ -60,6 +66,15 @@ namespace BB
 	void TagMemory(const MemoryArena& a_arena, void* a_memory_tag, const char* a_tag_name);
 
 	const MemoryArenaAllocationInfo* MemoryArenaGetFrontAllocationLog(const MemoryArena& a_arena);
+	size_t MemoryArenaSizeRemaining(const MemoryArena& a_arena);
+	size_t MemoryArenaSizeCommited(const MemoryArena& a_arena);
+	size_t MemoryArenaSizeUsed(const MemoryArena& a_arena);
+
+	MemoryArenaMarker GetMemoryMarker(const MemoryArena& a_arena);
+	void SetMemoryMarker(MemoryArena& a_arena, const MemoryArenaMarker& a_memory_marker);
+
+#define MemoryArenaScope(a_memory_arena) \
+	for (MemoryArenaMarker _stack_marker = GetMemoryMarker(a_memory_arena); _stack_marker.at; SetMemoryMarker(a_memory_arena, _stack_marker), _stack_marker.at = nullptr)
 
 	//don't use this unless you know what you are doing, use ArenaAlloc instead
 	void* ArenaAlloc_f(BB_ARENA_DEBUG MemoryArena& a_arena, size_t a_memory_size, const uint32_t a_align);
@@ -69,8 +84,8 @@ namespace BB
 #define ArenaAllocNoZero(a_arena, a_memory_size, a_align) BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG_ARGS a_arena, a_memory_size, a_align)
 
 #define ArenaAllocType(a_arena, a_type) new (BB::ArenaAlloc_f(BB_ARENA_DEBUG_ARGS a_arena, sizeof(a_type), alignof(a_type))) a_type
-#define ArenaAllocTypeNoZero(a_arena, a_memory_size, a_align) BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG_ARGS a_arena, a_memory_size, a_align)
+#define ArenaAllocTypeNoZero(a_arena, a_type) new (BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG_ARGS a_arena, sizeof(a_type), alignof(a_type))) a_type
 
 #define ArenaAllocArr(a_arena, a_type, a_count) reinterpret_cast<a_type*>(BB::ArenaAlloc_f(BB_ARENA_DEBUG_ARGS a_arena, sizeof(a_type) * a_count, alignof(a_type)))
-#define ArenaAllocArrNoZero(a_arena, a_memory_size, a_align) BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG_ARGS a_arena, a_memory_size, a_align)
+#define ArenaAllocArrNoZero(a_arena, a_memory_size, a_align) reinterpret_cast<a_type*>(BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG_ARGS a_arena, sizeof(a_type) * a_count, alignof(a_type)))
 }

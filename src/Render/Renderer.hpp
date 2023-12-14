@@ -5,6 +5,7 @@
 #include "Slice.h"
 
 #include "Storage/LinkedList.h"
+#include "MemoryArena.hpp"
 
 namespace BB
 {
@@ -124,7 +125,7 @@ namespace BB
 
 	const RenderIO& GetRenderIO();
 
-	bool InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererCreateInfo& a_render_create_info);
+	bool InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_render_create_info);
 	void StartFrame();
 	void EndFrame();
 
@@ -150,7 +151,7 @@ namespace BB
 	void CreateLights(const Slice<CreateLightInfo> a_create_infos, LightHandle* const a_light_handles);
 	void FreeLight(const LightHandle a_light);
 
-	bool CreateShaderEffect(Allocator a_temp_allocator, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles);
+	bool CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles);
 	void FreeShaderEffect(const ShaderEffectHandle a_shader_effect);
 
 	const MaterialHandle CreateMaterial(const CreateMaterialInfo& a_create_info);

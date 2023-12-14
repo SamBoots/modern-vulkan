@@ -7,6 +7,8 @@
 #include "Logger.h"
 #include "BBMemory.h"
 
+#include "MemoryArena.hpp"
+
 //https://simoncoenen.com/blog/programming/graphics/DxcCompiling Guide used, I'll also use this as reference to remind myself.
 
 #if defined(__GNUC__) || defined(__MINGW32__) || defined(__clang__) || defined(__clang_major__)
@@ -24,9 +26,9 @@ struct ShaderCompiler_inst
 	IDxcIncludeHandler* include_header;
 };
 
-ShaderCompiler BB::CreateShaderCompiler(Allocator a_system_allocator)
+ShaderCompiler BB::CreateShaderCompiler(struct BB::MemoryArena& a_arena)
 {
-	ShaderCompiler_inst* inst = BBnew(a_system_allocator, ShaderCompiler_inst);
+	ShaderCompiler_inst* inst = ArenaAllocType(a_arena, ShaderCompiler_inst);
 
 	DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(&inst->utils));
 	DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&inst->compiler));

@@ -101,7 +101,7 @@ namespace BB
 	class UploadBufferPool
 	{
 	public:
-		UploadBufferPool(Allocator a_sys_allocator, const size_t a_size_per_pool, const uint32_t a_pool_count)
+		UploadBufferPool(MemoryArena& a_arena, const size_t a_size_per_pool, const uint32_t a_pool_count)
 			: m_upload_view_count(a_pool_count)
 		{
 			const size_t upload_buffer_size = a_size_per_pool * m_upload_view_count;
@@ -115,7 +115,7 @@ namespace BB
 			m_upload_buffer = Vulkan::CreateBuffer(buffer_info);
 			m_upload_mem_start = Vulkan::MapBufferMemory(m_upload_buffer);
 
-			m_views = BBnewArr(a_sys_allocator, m_upload_view_count, UploadBufferView);
+			m_views = ArenaAllocArr(a_arena, UploadBufferView, m_upload_view_count);
 			for (uint32_t i = 0; i < m_upload_view_count; i++)
 			{
 				m_views[i].upload_buffer_handle = m_upload_buffer;
@@ -263,7 +263,7 @@ class BB::RenderQueue
 {
 public:
 
-	RenderQueue(Allocator a_system_allocator, const QUEUE_TYPE a_queue_type, const char* a_name, const uint32_t a_command_pool_count, const uint32_t a_command_lists_per_pool)
+	RenderQueue(MemoryArena& a_arena, const QUEUE_TYPE a_queue_type, const char* a_name, const uint32_t a_command_pool_count, const uint32_t a_command_lists_per_pool)
 		:	m_pool_count(a_command_pool_count)
 	{
 		m_queue_type = a_queue_type;
@@ -272,7 +272,7 @@ public:
 		m_fence.last_complete_value = 0;
 		m_fence.next_fence_value = 1;
 
-		m_pools = BBnewArr(a_system_allocator, a_command_pool_count, CommandPool);
+		m_pools = ArenaAllocArr(a_arena, CommandPool, a_command_pool_count);
 		for (uint32_t i = 0; i < a_command_pool_count; i++)
 		{
 			m_pools[i].pool_index = i;
@@ -280,7 +280,7 @@ public:
 			m_pools[i].m_fence_value = 0;
 			m_pools[i].m_list_count = a_command_lists_per_pool;
 			m_pools[i].m_list_current_free = 0;
-			m_pools[i].m_lists = BBnewArr(a_system_allocator, m_pools[i].m_list_count, RCommandList);
+			m_pools[i].m_lists = ArenaAllocArr(a_arena, RCommandList, m_pools[i].m_list_count);
 			Vulkan::CreateCommandPool(a_queue_type, a_command_lists_per_pool, m_pools[i].m_api_cmd_pool, m_pools[i].m_lists);
 		}
 
@@ -530,9 +530,9 @@ struct RenderPass3D
 
 struct RenderInterface_inst
 {
-	RenderInterface_inst(Allocator a_system_allocator)
-		: graphics_queue(a_system_allocator, QUEUE_TYPE::GRAPHICS, "graphics queue", 8, 8),
-		upload_buffers(a_system_allocator, UPLOAD_BUFFER_POOL_SIZE, UPLOAD_BUFFER_POOL_COUNT)
+	RenderInterface_inst(MemoryArena& a_arena)
+		: graphics_queue(a_arena, QUEUE_TYPE::GRAPHICS, "graphics queue", 8, 8),
+		upload_buffers(a_arena, UPLOAD_BUFFER_POOL_SIZE, UPLOAD_BUFFER_POOL_COUNT)
 	{}
 
 	RenderIO render_io;
@@ -781,17 +781,17 @@ namespace IMGUI_IMPL
 		Vulkan::EndRenderPass(a_cmd_list);
 	}
 
-	static bool ImInit(StackAllocator_t& a_stack_allocator, const RCommandList a_cmd_list, UploadBufferView& a_upload_view)
+	static bool ImInit(MemoryArena& a_arena, const RCommandList a_cmd_list, UploadBufferView& a_upload_view)
 	{
 		ImGuiIO& io = ImGui::GetIO();
 		IM_ASSERT(io.BackendRendererUserData == nullptr && "Already initialized a renderer backend!");
 
 		// Setup backend capabilities flags
-		ImRenderData* bd = BBnew(a_stack_allocator, ImRenderData);
+		ImRenderData* bd = ArenaAllocType(a_arena, ImRenderData);
 		io.BackendRendererName = "imgui-modern-vulkan";
 		io.BackendRendererUserData = reinterpret_cast<void*>(bd);
 
-		BBStackAllocatorScope(a_stack_allocator)
+		MemoryArenaScope(a_arena)
 		{
 			CreateShaderEffectInfo shaders[2];
 			shaders[0].name = "imgui vertex shader";
@@ -810,7 +810,7 @@ namespace IMGUI_IMPL
 			shaders[1].push_constant_space = sizeof(ShaderIndices2D);
 			shaders[1].pass_type = RENDER_PASS_TYPE::STANDARD_3D;
 
-			BB_ASSERT(CreateShaderEffect(a_stack_allocator, Slice(shaders, _countof(shaders)), bd->shader_effects),
+			BB_ASSERT(CreateShaderEffect(a_arena, Slice(shaders, _countof(shaders)), bd->shader_effects),
 				"Failed to create imgui shaders");
 
 			// jank
@@ -826,7 +826,7 @@ namespace IMGUI_IMPL
 		{
 			const RenderIO render_io = GetRenderIO();
 			bd->frame_index = 0;
-			bd->frame_buffers = BBnewArr(a_stack_allocator, render_io.frame_count, ImRenderBuffer);
+			bd->frame_buffers = ArenaAllocArr(a_arena, ImRenderBuffer,  render_io.frame_count);
 
 			for (size_t i = 0; i < render_io.frame_count; i++)
 			{
@@ -1239,26 +1239,26 @@ void GPUTextureManager::FreeTexture(const RTexture a_texture)
 	slot.view = m_debug_texture.view;
 }
 
-bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererCreateInfo& a_render_create_info)
+bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_render_create_info)
 {
-	Vulkan::InitializeVulkan(a_stack_allocator, a_render_create_info.app_name, a_render_create_info.engine_name, a_render_create_info.debug);
-	s_render_inst = BBnew(a_stack_allocator, RenderInterface_inst)(a_stack_allocator);
+	Vulkan::InitializeVulkan(a_arena, a_render_create_info.app_name, a_render_create_info.engine_name, a_render_create_info.debug);
+	s_render_inst = ArenaAllocType(a_arena, RenderInterface_inst)(a_arena);
 	s_render_inst->render_io.frame_count = BACK_BUFFER_MAX;
 	s_render_inst->render_io.frame_index = 0;
-	Vulkan::CreateSwapchain(a_stack_allocator, a_render_create_info.window_handle, a_render_create_info.swapchain_width, a_render_create_info.swapchain_height, s_render_inst->render_io.frame_count);
+	Vulkan::CreateSwapchain(a_arena, a_render_create_info.window_handle, a_render_create_info.swapchain_width, a_render_create_info.swapchain_height, s_render_inst->render_io.frame_count);
 
 	s_render_inst->render_io.window_handle = a_render_create_info.window_handle;
 	s_render_inst->render_io.screen_width = a_render_create_info.swapchain_width;
 	s_render_inst->render_io.screen_height = a_render_create_info.swapchain_height;
 	s_render_inst->debug = a_render_create_info.debug;
 
-	s_render_inst->mesh_map.Init(a_stack_allocator, 32);
-	s_render_inst->shader_effect_map.Init(a_stack_allocator, 32);
-	s_render_inst->material_map.Init(a_stack_allocator, 64);
+	s_render_inst->mesh_map.Init(a_arena, 32);
+	s_render_inst->shader_effect_map.Init(a_arena, 32);
+	s_render_inst->material_map.Init(a_arena, 64);
 
-	s_render_inst->shader_compiler = CreateShaderCompiler(a_stack_allocator);
+	s_render_inst->shader_compiler = CreateShaderCompiler(a_arena);
 
-	BBStackAllocatorScope(a_stack_allocator)
+	MemoryArenaScope(a_arena)
 	{
 		{	//static sampler descriptor set 0
 			SamplerCreateInfo immutable_sampler{};
@@ -1289,7 +1289,7 @@ bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 			descriptor_bindings[2].count = MAX_TEXTURES;
 			descriptor_bindings[2].shader_stage = SHADER_STAGE::FRAGMENT_PIXEL;
 			descriptor_bindings[2].type = DESCRIPTOR_TYPE::IMAGE;
-			s_render_inst->global_descriptor_set = Vulkan::CreateDescriptorLayout(a_stack_allocator, Slice(descriptor_bindings, _countof(descriptor_bindings)));
+			s_render_inst->global_descriptor_set = Vulkan::CreateDescriptorLayout(a_arena, Slice(descriptor_bindings, _countof(descriptor_bindings)));
 			s_render_inst->global_descriptor_allocation = Vulkan::AllocateDescriptor(s_render_inst->global_descriptor_set);
 		}
 	}
@@ -1393,11 +1393,11 @@ bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 
 	{	//3d renderpass
 		RenderPass3D& render_pass3d = GetRenderPass3D();
-		render_pass3d.frames = BBnewArr(a_stack_allocator, s_render_inst->render_io.frame_count, RenderPass3D::Frame);
+		render_pass3d.frames = ArenaAllocArr(a_arena, RenderPass3D::Frame, s_render_inst->render_io.frame_count);
 		render_pass3d.draw_list_max = 128;
 		render_pass3d.draw_list_count = 0;
-		render_pass3d.draw_list_data.mesh_draw_call = BBnewArr(a_stack_allocator, GetRenderPass3D().draw_list_max, MeshDrawCall);
-		render_pass3d.draw_list_data.transform = BBnewArr(a_stack_allocator, GetRenderPass3D().draw_list_max, ShaderTransform);
+		render_pass3d.draw_list_data.mesh_draw_call = ArenaAllocArr(a_arena, MeshDrawCall, GetRenderPass3D().draw_list_max);
+		render_pass3d.draw_list_data.transform = ArenaAllocArr(a_arena, ShaderTransform, GetRenderPass3D().draw_list_max);
 
 		Vulkan::CreateDepthBuffer(depth_create_info, render_pass3d.depth_image, render_pass3d.depth_image_view);
 
@@ -1418,11 +1418,11 @@ bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 			descriptor_bindings[2].count = 1;
 			descriptor_bindings[2].shader_stage = SHADER_STAGE::FRAGMENT_PIXEL;
 			descriptor_bindings[2].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-			render_pass3d.descriptor_layout = Vulkan::CreateDescriptorLayout(a_stack_allocator, Slice(descriptor_bindings, _countof(descriptor_bindings)));
+			render_pass3d.descriptor_layout = Vulkan::CreateDescriptorLayout(a_arena, Slice(descriptor_bindings, _countof(descriptor_bindings)));
 		}
 
 
-		render_pass3d.light_container.Init(a_stack_allocator, LIGHT_MAX);
+		render_pass3d.light_container.Init(a_arena, LIGHT_MAX);
 
 		constexpr uint32_t scene_size = sizeof(Scene3DInfo);
 		const uint32_t shader_transform_size = render_pass3d.draw_list_max * sizeof(ShaderTransform);
@@ -1513,7 +1513,7 @@ bool BB::InitializeRenderer(StackAllocator_t& a_stack_allocator, const RendererC
 		ImGui::CreateContext();
 		ImGui::StyleColorsClassic();
 
-		IMGUI_IMPL::ImInit(a_stack_allocator, list, startup_upload_view);
+		IMGUI_IMPL::ImInit(a_arena, list, startup_upload_view);
 	}
 
 	start_up_pool.EndCommandList(list);
@@ -1850,7 +1850,7 @@ void BB::FreeLight(const LightHandle a_light)
 	GetRenderPass3D().light_container.erase(a_light);
 }
 
-bool BB::CreateShaderEffect(Allocator a_temp_allocator, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles)
+bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles)
 {
 	//our default layouts
 	//array size should be SPACE_AMOUNT
@@ -1864,9 +1864,9 @@ bool BB::CreateShaderEffect(Allocator a_temp_allocator, const Slice<CreateShader
 	push_constant.stages = SHADER_STAGE::ALL;
 	push_constant.offset = 0;
 
-	ShaderEffect* shader_effects = BBnewArr(a_temp_allocator, a_create_infos.size(), ShaderEffect);
-	ShaderCode* shader_codes = BBnewArr(a_temp_allocator, a_create_infos.size(), ShaderCode);
-	ShaderObjectCreateInfo* shader_object_infos = BBnewArr(a_temp_allocator, a_create_infos.size(), ShaderObjectCreateInfo);
+	ShaderEffect* shader_effects = ArenaAllocArr(a_temp_arena, ShaderEffect, a_create_infos.size());
+	ShaderCode* shader_codes = ArenaAllocArr(a_temp_arena, ShaderCode, a_create_infos.size());
+	ShaderObjectCreateInfo* shader_object_infos = ArenaAllocArr(a_temp_arena, ShaderObjectCreateInfo, a_create_infos.size());
 
 	for (size_t i = 0; i < a_create_infos.size(); i++)
 	{
@@ -1901,8 +1901,8 @@ bool BB::CreateShaderEffect(Allocator a_temp_allocator, const Slice<CreateShader
 		shader_object_infos[i].push_constant_ranges = &push_constant;
 	}
 
-	ShaderObject* shader_objects = BBnewArr(a_temp_allocator, a_create_infos.size(), ShaderObject);
-	Vulkan::CreateShaderObject(a_temp_allocator, Slice(shader_object_infos, a_create_infos.size()), shader_objects);
+	ShaderObject* shader_objects = ArenaAllocArr(a_temp_arena, ShaderObject, a_create_infos.size());
+	Vulkan::CreateShaderObject(a_temp_arena, Slice(shader_object_infos, a_create_infos.size()), shader_objects);
 
 	for (size_t i = 0; i < a_create_infos.size(); i++)
 	{
