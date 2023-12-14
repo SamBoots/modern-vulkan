@@ -33,6 +33,20 @@ namespace BB
 #define BB_WARNINGS_ON			BB_PRAGMA(warning(pop, 0))
 #endif
 
+	// logger info 
+	using WarningTypeFlags = unsigned int;
+	enum class WarningType : WarningTypeFlags
+	{
+		INFO = 1 << 0, //No warning, just a message.
+		OPTIMALIZATION = 1 << 1, //Indicates a possible issue that might cause problems with performance.
+		LOW = 1 << 2, //Low chance of breaking the application or causing undefined behaviour.
+		MEDIUM = 1 << 3, //Medium chance of breaking the application or causing undefined behaviour.
+		HIGH = 1 << 4, //High chance of breaking the application or causing undefined behaviour.
+		ASSERT = 1 << 5  //Use BB_ASSERT for this
+	};
+	constexpr WarningTypeFlags WARNING_TYPES_ALL = UINT32_MAX;
+	
+	// memory info
 	constexpr const size_t kbSize = 1024;
 	constexpr const size_t mbSize = kbSize * 1024;
 	constexpr const size_t gbSize = mbSize * 1024;

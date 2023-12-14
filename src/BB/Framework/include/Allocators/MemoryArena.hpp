@@ -4,7 +4,7 @@
 namespace BB
 {
 #define _DEBUG_MEMORY
-//#define _DEBUG_POISON_MEMORY_BOUNDRY
+#define _DEBUG_POISON_MEMORY_BOUNDRY
 
 #ifdef _DEBUG_MEMORY
 #define BB_ARENA_DEBUG const char* a_file, int a_line,
@@ -30,8 +30,8 @@ namespace BB
 
 		const char* file;				//16
 		int line;						//20
-		size_t alloc_size;				//28
-		uint32_t alignment;				//32
+		uint32_t alignment;				//24
+		size_t alloc_size;				//32
 		const char* tag_name;			//40
 	};
 
@@ -59,14 +59,12 @@ namespace BB
 
 	void TagMemory(const MemoryArena& a_arena, void* a_memory_tag, const char* a_tag_name);
 
-	MemoryArenaAllocationInfo* MemoryArenaGetFrontAllocationLog(const MemoryArena& a_arena);
+	const MemoryArenaAllocationInfo* MemoryArenaGetFrontAllocationLog(const MemoryArena& a_arena);
 
 	//don't use this unless you know what you are doing, use ArenaAlloc instead
 	void* ArenaAlloc_f(BB_ARENA_DEBUG MemoryArena& a_arena, size_t a_memory_size, const uint32_t a_align);
 	void* ArenaAllocNoZero_f(BB_ARENA_DEBUG MemoryArena& a_arena, size_t a_memory_size, const uint32_t a_align);
 
-
-	
 #define ArenaAlloc(a_arena, a_memory_size, a_align) BB::ArenaAlloc_f(BB_ARENA_DEBUG_ARGS a_arena, a_memory_size, a_align)
 #define ArenaAllocNoZero(a_arena, a_memory_size, a_align) BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG_ARGS a_arena, a_memory_size, a_align)
 

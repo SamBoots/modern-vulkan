@@ -1,21 +1,14 @@
 #pragma once
 #include <cassert>
+#include "Common.h"
 
 namespace BB
 {
-	using WarningTypeFlags = unsigned int;
-	enum class WarningType : WarningTypeFlags
-	{
-		INFO			= 1 << 0, //No warning, just a message.
-		OPTIMALIZATION	= 1 << 1, //Indicates a possible issue that might cause problems with performance.
-		LOW				= 1 << 2, //Low chance of breaking the application or causing undefined behaviour.
-		MEDIUM			= 1 << 3, //Medium chance of breaking the application or causing undefined behaviour.
-		HIGH			= 1 << 4, //High chance of breaking the application or causing undefined behaviour.
-		ASSERT			= 1 << 5  //Use BB_ASSERT for this
-	};
-
 	namespace Logger
 	{
+		//Is done automatically, but can be useful if you exit the application, this is also handled by DestroyBB()
+		void LoggerWriteToFile();
+
 		//Use BB_LOG for better use.
 		void Log_Message(const char* a_file_name, int a_line, const char* a_formats, ...);
 		//Use BB_WARNING for better use.

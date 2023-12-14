@@ -16,6 +16,7 @@ namespace BB
 	class Basic_String
 	{
 	public:
+		Basic_String() = default;
 		Basic_String(MemoryArena a_arena)
 			: Basic_String(a_arena, String_Specs::standard_size)
 		{}

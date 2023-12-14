@@ -208,9 +208,9 @@ int main(int argc, char** argv)
 {
 	(void)argc;
 
-	BBInitInfo bb_init;
-	bb_init.exePath = argv[0];
-	bb_init.programName = L"Modern Vulkan";
+	BBInitInfo bb_init{};
+	bb_init.exe_path = argv[0];
+	bb_init.program_name = L"Modern Vulkan";
 	InitBB(bb_init);
 
 	SystemInfo sys_info;

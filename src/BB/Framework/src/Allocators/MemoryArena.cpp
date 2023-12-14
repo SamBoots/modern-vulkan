@@ -1,7 +1,10 @@
 #include "MemoryArena.hpp"
 #include "Program.h"
 
-#ifdef _DEBUG_POISON_MEMORY_BOUNDRY
+
+#if __has_feature(address_sanitizer) && defined(_DEBUG_POISON_MEMORY_BOUNDRY)
+#define SANITIZER_ENABLED
+constexpr size_t MEMORY_BOUNDRY_SIZE = 8;
 #include <sanitizer/asan_interface.h>
 #endif // _DEBUG_POISON_MEMORY_BOUNDRY
 
@@ -103,10 +106,17 @@ void BB::MemoryArenaDecommitExess(MemoryArena& a_arena)
 void BB::TagMemory(const MemoryArena& a_arena, void* a_ptr, const char* a_tag_name)
 {
 	BB_ASSERT(PointerWithinArena(a_arena, a_ptr), "Trying to tag memory that is not within the memory arena!");
+#ifdef SANITIZER_ENABLED
+	constexpr size_t SUBTRACT_VALUE = sizeof(MemoryArenaAllocationInfo) + MEMORY_BOUNDRY_SIZE;
+#else
+	constexpr size_t SUBTRACT_VALUE = sizeof(MemoryArenaAllocationInfo);
+#endif // SANITIZER_ENABLED
 
+	MemoryArenaAllocationInfo* allocation_info = reinterpret_cast<MemoryArenaAllocationInfo*>(Pointer::Subtract(a_ptr, SUBTRACT_VALUE));
+	allocation_info->tag_name = a_tag_name;
 }
 
-MemoryArenaAllocationInfo* BB::MemoryArenaGetFrontAllocationLog(const MemoryArena& a_arena)
+const MemoryArenaAllocationInfo* BB::MemoryArenaGetFrontAllocationLog(const MemoryArena& a_arena)
 {
 	return a_arena.first;
 }
@@ -120,15 +130,16 @@ void* BB::ArenaAlloc_f(BB_ARENA_DEBUG MemoryArena& a_arena, size_t a_memory_size
 
 void* BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG MemoryArena& a_arena, size_t a_memory_size, const uint32_t a_align)
 {
-#ifdef _DEBUG_POISON_MEMORY_BOUNDRY
-	constexpr size_t MEMORY_BOUNDRY_SIZE = 8;
+#ifdef SANITIZER_ENABLED
 	// memory region could be poisoned, remove the poison.
 	__asan_unpoison_memory_region(a_arena.at, a_memory_size + MEMORY_BOUNDRY_SIZE * 2);
-#endif // _DEBUG_POISON_MEMORY_BOUNDRY
+#endif // SANITIZER_ENABLED
 
 #ifdef _DEBUG_MEMORY
 	// do debug stuff here
 	MemoryArenaAllocationInfo* debug_address = reinterpret_cast<MemoryArenaAllocationInfo*>(a_arena.at);
+	ChangeArenaAt(a_arena, Pointer::Add(a_arena.at, sizeof(MemoryArenaAllocationInfo)));
+
 	debug_address->file = a_file;
 	debug_address->line = a_line;
 	debug_address->alloc_size = a_memory_size;
@@ -147,22 +158,21 @@ void* BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG MemoryArena& a_arena, size_t a_memor
 		a_arena.last = debug_address;
 	}
 
-	ChangeArenaAt(a_arena, Pointer::Add(a_arena.at, sizeof(MemoryArenaAllocationInfo)));
 #endif // _DEBUG_MEMORY
 	
-#ifdef _DEBUG_POISON_MEMORY_BOUNDRY
+#ifdef SANITIZER_ENABLED
 	a_memory_size += MEMORY_BOUNDRY_SIZE * 2;
 	void* return_address = Pointer::Add(a_arena.at, Pointer::AlignForwardAdjustment(a_arena.at, a_align) + MEMORY_BOUNDRY_SIZE);
 #else
 	void* return_address = Pointer::Add(a_arena.at, Pointer::AlignForwardAdjustment(a_arena.at, a_align));
-#endif // _DEBUG_POISON_MEMORY_BOUNDRY
+#endif // SANITIZER_ENABLED
 	void* new_at = Pointer::Add(return_address, a_memory_size);
 	ChangeArenaAt(a_arena, new_at);
 
-#ifdef _DEBUG_POISON_MEMORY_BOUNDRY
+#ifdef SANITIZER_ENABLED
 	__asan_poison_memory_region(Pointer::Subtract(return_address, MEMORY_BOUNDRY_SIZE), MEMORY_BOUNDRY_SIZE);
 	__asan_poison_memory_region(Pointer::Add(return_address, a_memory_size - MEMORY_BOUNDRY_SIZE), MEMORY_BOUNDRY_SIZE);
-#endif // _DEBUG_POISON_MEMORY_BOUNDRY
+#endif // SANITIZER_ENABLED
 
 	return return_address;
 }

@@ -113,6 +113,7 @@ struct AssetManager
 {
 	BBRWLock asset_lock;
 	StaticOL_HashMap<uint64_t, AssetSlot> asset_table;
+	BBRWLock string_lock;
 	StaticOL_HashMap<uint64_t, char*> string_table;
 	struct StringBuffer
 	{
@@ -140,15 +141,17 @@ using namespace BB;
 
 void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
 {
-	BB_ASSERT(!s_asset_manager->asset_arena.buffer, "Asset Manager already initialized");
+	BB_ASSERT(!s_asset_manager, "Asset Manager already initialized");
 
 	{	//initialize the memory arena and place it into the struct itself.
 		MemoryArena asset_mem_arena = MemoryArenaCreate();
 
 		s_asset_manager = ArenaAllocType(asset_mem_arena, AssetManager);
-		s_asset_manager->asset_lock = OSCreateRWLock();
+	
 		s_asset_manager->asset_arena = asset_mem_arena;
 	}
+	s_asset_manager->asset_lock = OSCreateRWLock();
+	s_asset_manager->string_lock = OSCreateRWLock();
 	s_asset_manager->asset_table.Init(s_asset_manager->asset_arena, a_init_info.asset_count);
 	s_asset_manager->string_table.Init(s_asset_manager->asset_arena, a_init_info.string_entry_count);
 
@@ -171,9 +174,9 @@ const char* Asset::FindOrCreateString(const char* a_string)
 	memcpy(string, a_string, string_size);
 	string[string_size - 1] = '\0';
 
-	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
+	OSAcquireSRWLockWrite(&s_asset_manager->string_lock);
 	s_asset_manager->string_table.emplace(string_hash, string);
-	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
+	OSReleaseSRWLockWrite(&s_asset_manager->string_lock);
 	return string;
 }
 
@@ -260,7 +263,7 @@ const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const 
 
 	AssetSlot asset;
 	asset.hash = CreateAssetHash(hash, ASSET_TYPE::TEXTURE);
-	asset.path = nullptr; //memory loads have nullptr has path.
+	asset.path = nullptr; //memory loads have nullptr as path.
 	asset.image = image;
 
 	s_asset_manager->asset_table.insert(asset.hash.full_hash, asset);
