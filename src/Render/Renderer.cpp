@@ -846,7 +846,7 @@ namespace IMGUI_IMPL
 		int width, height;
 		io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
 
-		UploadImageInfo font_info;
+		UploadImageInfo font_info{};
 		font_info.name = "imgui font";
 		font_info.width = static_cast<uint32_t>(width);
 		font_info.height = static_cast<uint32_t>(height);

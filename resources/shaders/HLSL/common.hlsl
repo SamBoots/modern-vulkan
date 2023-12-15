@@ -12,15 +12,17 @@
 #define _BBCONSTANT(type) [[vk::push_constant]] type
 #endif
 
-#define unpack_uint_to_float4(a_uint) float4(float((a_uint & 0xff000000) >> 24), float((a_uint & 0x00ff0000) >> 16), float((a_uint & 0x0000ff00) >> 8), float((a_uint & 0x000000ff) >> 0))
-#define unpack_uint_to_uint4(a_uint) uint4(uint((a_uint & 0xff000000) >> 24), uint((a_uint & 0x00ff0000) >> 16), uint((a_uint & 0x0000ff00) >> 8), uint((a_uint & 0x000000ff) >> 0))
-
-float4 PackedUintToFloat4Color(const uint a_uint)
+float4 UnpackR8B8G8A8_UNORMToFloat4(uint a_packed)
 {
-    float4 unpacked = unpack_uint_to_float4(a_uint);
-    unpacked = unpacked / 255;
-    unpacked[3] = 1;
-    return unpacked;
+    float4 unpacked;
+    unpacked.x = float((a_packed >> 0) & 0xFF);
+    unpacked.y = float((a_packed >> 8) & 0xFF);
+    unpacked.z = float((a_packed >> 16) & 0xFF);
+    unpacked.w = float((a_packed >> 24) & 0xFF);
+    
+    // taken from imgui, I assume most colors use this at least for UNORM
+    float sc = 1.0f / 255.0f;
+    return unpacked * sc;
 }
 
 float3 CalculatePointLight(const BB::PointLight a_light, float3 a_normal, float3 a_frag_pos)

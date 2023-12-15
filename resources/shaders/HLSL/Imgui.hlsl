@@ -3,7 +3,7 @@
 struct VSOutput
 {
                 float4 pos  : SV_POSITION;
-    _BBEXT(0)   uint4 color : COLOR0;
+    _BBEXT(0)   float4 color : COLOR0;
     _BBEXT(1)   float2 uv   : TEXCOORD0;
 
 };
@@ -20,7 +20,7 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
     
     VSOutput output = (VSOutput) 0;
     output.pos = float4((cur_vertex.position * shader_indices2D.rect_scale) + shader_indices2D.translate, 0, 1);
-    output.color = PackedUintToFloat4Color(cur_vertex.color);
+    output.color = UnpackR8B8G8A8_UNORMToFloat4(cur_vertex.color);
     output.uv = cur_vertex.uv;
     return output;
 }
@@ -28,6 +28,5 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 float4 FragmentMain(VSOutput a_input) : SV_Target
 {
     float4 color = a_input.color * textures_data[shader_indices2D.albedo_texture].Sample(basic_3d_sampler, a_input.uv);
-
     return color;
 }
