@@ -210,30 +210,30 @@ static void DebugWindowMemoryArena(const MemoryArena& a_arena)
 {
 	const MemoryArenaAllocationInfo* a_alloc_info = MemoryArenaGetFrontAllocationLog(a_arena);
 
-	if (ImGui::CollapsingHeader("Main stack memory arena"))
+	if (ImGui::CollapsingHeader("Allocator Info"))
 	{
-		const size_t remaining = MemoryArenaSizeRemaining(a_arena);
-		const size_t commited = MemoryArenaSizeCommited(a_arena);
-		const size_t used = MemoryArenaSizeUsed(a_arena);
+		ImGui::Indent();
+		ImGui::Text("Standard Reserved Memory: %zu", ARENA_DEFAULT_RESERVE);
+		ImGui::Text("Commit size %zu", ARENA_DEFAULT_COMMIT);
 
-		const size_t real_size = commited;
+		if (ImGui::CollapsingHeader("Main stack memory arena"))
+		{
+			ImGui::Indent();
+			const size_t remaining = MemoryArenaSizeRemaining(a_arena);
+			const size_t commited = MemoryArenaSizeCommited(a_arena);
+			const size_t used = MemoryArenaSizeUsed(a_arena);
 
-		ImGui::Text("Memory Remaining: %zu", remaining);
-		ImGui::Text("Memory Commited: %zu", commited);
-		ImGui::Text("Memory Used: %zu", used);
+			const size_t real_size = commited;
 
-		const float perc_calculation = 1.f / static_cast<float>(real_size);
-		ImGui::ProgressBar(perc_calculation * static_cast<float>(remaining));
-		ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
-		ImGui::TextUnformatted("memory remaining");
+			ImGui::Text("Memory Remaining: %zu", remaining);
+			ImGui::Text("Memory Commited: %zu", commited);
+			ImGui::Text("Memory Used: %zu", used);
 
-		ImGui::ProgressBar(perc_calculation * static_cast<float>(commited));
-		ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
-		ImGui::TextUnformatted("memory commited");
-
-		ImGui::ProgressBar(perc_calculation * static_cast<float>(used));
-		ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
-		ImGui::TextUnformatted("memory used");
+			const float perc_calculation = 1.f / static_cast<float>(ARENA_DEFAULT_COMMIT);
+			ImGui::Separator();
+			ImGui::TextUnformatted("memory used till next commit");
+			ImGui::ProgressBar(perc_calculation * static_cast<float>(RoundUp(used, ARENA_DEFAULT_COMMIT) - used));
+		}
 	}
 }
 
