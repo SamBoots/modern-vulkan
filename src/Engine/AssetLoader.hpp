@@ -109,7 +109,6 @@ namespace BB
 				TextureLoadFromDisk texture_disk;
 				MeshLoadFromMemory mesh_memory{};
 				MeshLoadFromDisk mesh_disk;
-
 			};
 		};
 

@@ -9,6 +9,7 @@
 #include "Math.inl"
 
 #include "imgui.h"
+#include "implot/implot.h"
 
 using namespace BB;
 
@@ -632,7 +633,7 @@ namespace IMGUI_IMPL
 		return ImGui::GetCurrentContext() ? reinterpret_cast<ImRenderData*>(ImGui::GetIO().BackendRendererUserData) : nullptr;
 	}
 
-	inline static void ImSetRenderState(const ImDrawData& a_draw_data, const RCommandList a_cmd_list, const ImRenderBuffer& a_rb)
+	inline static void ImSetRenderState(const ImDrawData& a_draw_data, const RCommandList a_cmd_list, const ImRenderBuffer& a_rb, const uint32_t a_vert_pos)
 	{
 		ImRenderData* bd = ImGetRenderData();
 
@@ -645,7 +646,7 @@ namespace IMGUI_IMPL
 		// Our visible imgui space lies from draw_data->DisplayPps (top left) to draw_data->DisplayPos+data_data->DisplaySize (bottom right). DisplayPos is (0,0) for single viewport apps.
 		{
 			ShaderIndices2D shader_indices;
-			shader_indices.vertex_buffer_offset = static_cast<uint32_t>(a_rb.vertex_buffer.offset);
+			shader_indices.vertex_buffer_offset = a_vert_pos;
 			shader_indices.albedo_texture = bd->font_image.handle;
 			shader_indices.rect_scale.x = 2.0f / a_draw_data.DisplaySize.x;
 			shader_indices.rect_scale.y = 2.0f / a_draw_data.DisplaySize.y;
@@ -719,13 +720,15 @@ namespace IMGUI_IMPL
 		Vulkan::StartRenderPass(a_cmd_list, imgui_pass_start, a_render_target_view);
 
 		// Setup desired CrossRenderer state
-		ImSetRenderState(draw_data, a_cmd_list, rb);
+		ImSetRenderState(draw_data, a_cmd_list, rb, 0);
 
 		// Will project scissor/clipping rectangles into framebuffer space
 		const ImVec2 clip_off = draw_data.DisplayPos;    // (0,0) unless using multi-viewports
+		const ImVec2 clip_scale = draw_data.FramebufferScale; // (1,1) unless using retina display which are often (2,2)
 
 		// Because we merged all buffers into a single one, we maintain our own offset into them
 		uint32_t global_idx_offset = 0;
+		uint32_t vertex_offset = rb.vertex_buffer.offset;
 
 		Vulkan::BindIndexBuffer(a_cmd_list, rb.index_buffer.buffer, rb.index_buffer.offset);
 
@@ -733,6 +736,8 @@ namespace IMGUI_IMPL
 		for (int n = 0; n < draw_data.CmdListsCount; n++)
 		{
 			const ImDrawList* cmd_list = draw_data.CmdLists[n];
+			Vulkan::SetPushConstants(a_cmd_list, bd->vertex->pipeline_layout, IM_OFFSETOF(ShaderIndices2D, vertex_buffer_offset), sizeof(vertex_offset), &vertex_offset);
+			
 			for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++)
 			{
 				const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_i];
@@ -741,17 +746,21 @@ namespace IMGUI_IMPL
 					// User callback, registered via ImDrawList::AddCallback()
 					// (ImDrawCallback_ResetRenderState is a special callback value used by the user to request the renderer to reset render state.)
 					if (pcmd->UserCallback == ImDrawCallback_ResetRenderState)
-						ImSetRenderState(draw_data, a_cmd_list, rb);
+						ImSetRenderState(draw_data, a_cmd_list, rb, vertex_offset);
 					else
 						pcmd->UserCallback(cmd_list, pcmd);
 				}
 				else
 				{
 					// Project scissor/clipping rectangles into framebuffer space
-					ImVec2 clip_min(pcmd->ClipRect.x - clip_off.x, pcmd->ClipRect.y - clip_off.y);
-					ImVec2 clip_max(pcmd->ClipRect.z - clip_off.x, pcmd->ClipRect.w - clip_off.y);
+					ImVec2 clip_min((pcmd->ClipRect.x - clip_off.x) * clip_scale.x, (pcmd->ClipRect.y - clip_off.y) * clip_scale.y);
+					ImVec2 clip_max((pcmd->ClipRect.z - clip_off.x) * clip_scale.x, (pcmd->ClipRect.w - clip_off.y) * clip_scale.y);
 
 					// Clamp to viewport as vkCmdSetScissor() won't accept values that are off bounds
+					if (clip_min.x < 0.0f) { clip_min.x = 0.0f; }
+					if (clip_min.y < 0.0f) { clip_min.y = 0.0f; }
+					if (clip_max.x > fb_width) { clip_max.x = (float)fb_width; }
+					if (clip_max.y > fb_height) { clip_max.y = (float)fb_height; }
 					if (clip_max.x <= clip_min.x || clip_max.y <= clip_min.y)
 						continue;
 
@@ -774,6 +783,7 @@ namespace IMGUI_IMPL
 					Vulkan::DrawIndexed(a_cmd_list, pcmd->ElemCount, 1, index_offset, 0, 0);
 				}
 			}
+			vertex_offset += static_cast<uint32_t>(cmd_list->VtxBuffer.size_in_bytes());
 			global_idx_offset += static_cast<uint32_t>(cmd_list->IdxBuffer.Size);
 		}
 
@@ -791,6 +801,11 @@ namespace IMGUI_IMPL
 
 	static bool ImInit(MemoryArena& a_arena, const RCommandList a_cmd_list, UploadBufferView& a_upload_view)
 	{
+		IMGUI_CHECKVERSION();
+		ImGui::CreateContext();
+		ImGui::StyleColorsClassic();
+		ImPlot::CreateContext();
+
 		ImGuiIO& io = ImGui::GetIO();
 		IM_ASSERT(io.BackendRendererUserData == nullptr && "Already initialized a renderer backend!");
 
@@ -860,22 +875,25 @@ namespace IMGUI_IMPL
 		return bd->font_image.IsValid();
 	}
 
-	//inline static void ImShutdown()
-	//{
-	//	ImRenderData* bd = ImGetRenderData();
-	//	BB_ASSERT(bd != nullptr, "No renderer backend to shutdown, or already shutdown?");
-	//	ImGuiIO& io = ImGui::GetIO();
+	inline static void ImShutdown()
+	{
+		ImRenderData* bd = ImGetRenderData();
+		BB_ASSERT(bd != nullptr, "No renderer backend to shutdown, or already shutdown?");
+		ImGuiIO& io = ImGui::GetIO();
 
-	//	//delete my things here.
-	//	FreeTexture(bd->font_image);
-	//	bd->font_image = RTexture(BB_INVALID_HANDLE_32);
+		//delete my things here.
+		FreeTexture(bd->font_image);
+		bd->font_image = RTexture(BB_INVALID_HANDLE_32);
 
-	//	FreeShaderEffect(bd->shader_effects[0]);
-	//	FreeShaderEffect(bd->shader_effects[1]);
+		FreeShaderEffect(bd->shader_effects[0]);
+		FreeShaderEffect(bd->shader_effects[1]);
 
-	//	io.BackendRendererName = nullptr;
-	//	io.BackendRendererUserData = nullptr;
-	//}
+		io.BackendRendererName = nullptr;
+		io.BackendRendererUserData = nullptr;
+
+		ImPlot::DestroyContext();
+		ImGui::DestroyContext();
+	}
 
 	inline static void ImNewFrame()
 	{
@@ -889,29 +907,28 @@ namespace IMGUI_IMPL
 
 static void ImguiDisplayRenderer()
 {
+	ImGui::ShowDemoWindow();
+	ImPlot::ShowDemoWindow();
+	return;
 	if (ImGui::CollapsingHeader("Renderer"))
 	{
 		ImGui::Indent();
 		s_render_inst->texture_manager.DisplayTextureListImgui();
 
-		if (ImGui::CollapsingHeader("Renderer"))
+		if (ImGui::CollapsingHeader("Reload imgui shaders"))
 		{
 			ImGui::Indent();
-			if (ImGui::CollapsingHeader("Reload imgui shaders"))
+			IMGUI_IMPL::ImRenderData* render_data = IMGUI_IMPL::ImGetRenderData();
+			if (ImGui::Button("Vertex"))
 			{
-				auto* render_data = IMGUI_IMPL::ImGetRenderData();
-				if (ImGui::Button("Vertex"))
-				{
-					ReloadShaderEffect(render_data->shader_effects[0]);
-				}
-				if (ImGui::Button("Fragment"))
-				{
-					ReloadShaderEffect(render_data->shader_effects[1]);
-				}
+				ReloadShaderEffect(render_data->shader_effects[0]);
+			}
+			if (ImGui::Button("Fragment"))
+			{
+				ReloadShaderEffect(render_data->shader_effects[1]);
 			}
 			ImGui::Unindent();
 		}
-
 
 		ImGui::Unindent();
 	}
@@ -1541,13 +1558,9 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		}
 	}
 
-	{
-		IMGUI_CHECKVERSION();
-		ImGui::CreateContext();
-		ImGui::StyleColorsClassic();
-
-		IMGUI_IMPL::ImInit(a_arena, list, startup_upload_view);
-	}
+	
+	IMGUI_IMPL::ImInit(a_arena, list, startup_upload_view);
+	
 
 	start_up_pool.EndCommandList(list);
 	return ExecuteGraphicCommands(Slice(&start_up_pool, 1), Slice(&startup_upload_view, 1));
