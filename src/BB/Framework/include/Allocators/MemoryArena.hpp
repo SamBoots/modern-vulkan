@@ -28,11 +28,12 @@ namespace BB
 	{
 		MemoryArenaAllocationInfo* next;//8
 
-		const char* file;				//16
-		int line;						//20
-		uint32_t alignment;				//24
-		size_t alloc_size;				//32
-		const char* tag_name;			//40
+		void* alloc_address;			//16
+		const char* file;				//24
+		int line;						//28
+		uint32_t alignment;				//32
+		size_t alloc_size;				//40
+		const char* tag_name;			//48
 	};
 
 	struct MemoryArena
