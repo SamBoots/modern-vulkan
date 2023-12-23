@@ -2,7 +2,7 @@
 
 #include <Windows.h>
 #include <combaseapi.h>
-#include "dxcapi.h"
+#include "dxc/dxcapi.h"
 
 #include "Logger.h"
 #include "BBMemory.h"

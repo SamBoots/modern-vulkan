@@ -121,10 +121,10 @@ static void MemoryArenaResetTo(MemoryArena& a_arena, void* a_memory_marker)
 #ifdef _DEBUG_MEMORY
 	while (a_arena.last)
 	{
-		if (a_arena.last->alloc_address >= a_memory_marker)
+		if (a_arena.last->alloc_address <= a_memory_marker)
 			break;
 
-		a_arena.last = a_arena.last->next;
+		a_arena.last = a_arena.last->prev;
 	}
 #endif // _DEBUG_MEMORY
 
@@ -193,6 +193,7 @@ void* BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG MemoryArena& a_arena, size_t a_memor
 	debug_address->alignment = a_align;
 	debug_address->tag_name = nullptr;
 	debug_address->next = nullptr;
+	debug_address->prev = a_arena.last;
 
 	if (a_arena.first == nullptr)
 	{
