@@ -329,7 +329,6 @@ static inline void* GetAccessorDataPtr(const cgltf_accessor* a_Accessor)
 static void LoadglTFNode(Allocator a_temp_allocator, Slice<ShaderEffectHandle> a_shader_effects, const RCommandList a_list, UploadBufferView& a_upload_view, const cgltf_node& a_node, Model& a_model, uint32_t& a_node_index, uint32_t& a_primitive_index)
 {
 	Model::Node& mod_node = a_model.linear_nodes[a_node_index++];
-
 	if (a_node.has_matrix)
 		memcpy(&mod_node.transform, a_node.matrix, sizeof(float4x4));
 	else

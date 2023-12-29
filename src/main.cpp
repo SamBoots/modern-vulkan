@@ -237,6 +237,61 @@ static void DebugWindowMemoryArena(const MemoryArena& a_arena)
 	}
 }
 
+struct SceneObject
+{
+	MeshHandle mesh_handle;
+	uint32_t start_index;
+	uint32_t index_count;
+	MaterialHandle material;
+
+	TransformHandle transform;
+
+	//handle for the future
+	const SceneObject* parent;
+};
+
+static inline void DrawRenderObject(const TransformPool& a_trans_pool, const SceneObject& a_render_object)
+{
+	DrawMesh(a_render_object.mesh_handle, a_trans_pool.GetTransform(a_render_object.transform).CreateMatrix(), a_render_object.start_index, a_render_object.index_count, a_render_object.material);
+}
+
+constexpr size_t RENDER_OBJ_MAX = 128;
+static size_t s_render_obj_count = 0;
+static SceneObject s_scene_objects[RENDER_OBJ_MAX];
+
+static void CreateRenderObjectViaModelNode(TransformPool& a_trans_pool, const Model& a_model, const Model::Node& a_node, const SceneObject* a_parent)
+{
+	if (a_node.mesh_handle.IsValid())
+	{
+		for (size_t i = 0; i < a_node.primitive_count; i++)
+		{
+			SceneObject& scene_obj = s_scene_objects[s_render_obj_count] = {};
+			scene_obj.mesh_handle = a_node.mesh_handle;
+			scene_obj.start_index = a_node.primitives[i].index_count;
+			scene_obj.index_count = a_node.primitives[i].start_index;
+			scene_obj.material = a_node.primitives[i].material;
+
+			//scene_obj.transform = 
+
+			scene_obj.parent = a_parent;
+		}
+	}
+	else
+	{
+
+	}
+}
+
+static void CreateRenderObjectViaModel(TransformPool& a_trans_pool, const Model& a_model)
+{
+
+}
+
+static void DrawObjects()
+{
+
+}
+
 int main(int argc, char** argv)
 {
 	(void)argc;
@@ -283,10 +338,10 @@ int main(int argc, char** argv)
 	const TransformHandle transform_gltf = transform_pool.CreateTransform(float3{ 0, 1, 1 });
 
 	{
-		const float4x4 t_ProjMat = Float4x4Perspective(ToRadians(60.0f),
+		const float4x4 projection = Float4x4Perspective(ToRadians(60.0f),
 			static_cast<float>(render_create_info.swapchain_width) / static_cast<float>(render_create_info.swapchain_height),
 			.001f, 10000.0f);
-		BB::SetProjection(t_ProjMat);
+		BB::SetProjection(projection);
 	}
 
 	ShaderEffectHandle shader_effects[2];

@@ -196,7 +196,7 @@ namespace BB
 		return mat;
 	}
 
-	static inline float4x4 operator*(const float4x4 a_lhs, const float4x4 a_rhs)
+	static inline float4x4 operator*(const float4x4& a_lhs, const float4x4 a_rhs)
 	{
 		float4x4 mat;
 		mat.r0 = a_lhs.r0 * a_rhs.r0.x + a_lhs.r1 * a_rhs.r0.y + a_lhs.r2 * a_rhs.r0.z + a_lhs.r3 * a_rhs.r0.w;
@@ -254,7 +254,7 @@ namespace BB
 		return rotMat;
 	}
 
-	static inline float4x4 Float4x4Scale(const float4x4 m, const float3 s)
+	static inline float4x4 Float4x4Scale(const float4x4& m, const float3 s)
 	{
 		float4x4 mat;
 		mat.r0 = m.r0 * s.x;
@@ -299,7 +299,7 @@ namespace BB
 		return mat;
 	}
 
-	static inline float4x4 Float4x4Inverse(const float4x4 m)
+	static inline float4x4 Float4x4Inverse(const float4x4& m)
 	{
 		const float3 a = float3{ m.e[0][0], m.e[1][0], m.e[2][0] };
 		const float3 b = float3{ m.e[0][1], m.e[1][1], m.e[2][1] };
@@ -335,9 +335,99 @@ namespace BB
 			r3.x, r3.y, r3.z, Float3Dot(c, s));
 	}
 
+	static inline float3 Float4x4ExtractTranslation(const float4x4& a_transform)
+	{
+		return float3(a_transform.r0.w, a_transform.r1.w, a_transform.r2.w);
+	}
+
+	static inline float3 Float4x4ExtractScale(const float4x4& a_transform)
+	{
+		return float3(
+			Float3Length(float3(a_transform.r0.x, a_transform.r1.x, a_transform.r2.x)),
+			Float3Length(float3(a_transform.r0.y, a_transform.r1.y, a_transform.r2.y)),
+			Float3Length(float3(a_transform.r0.z, a_transform.r1.z, a_transform.r2.z)));
+	}
+
+	static inline float4x4 Float4x4ExtractRotationAsFloat4x4(const float4x4& a_transform, const float3 a_scale)
+	{
+		return Float4x4FromFloats(
+			a_transform.e[0][0] / a_scale.x, a_transform.e[0][1] / a_scale.x, a_transform.e[0][2] / a_scale.x, 0,
+			a_transform.e[1][0] / a_scale.x, a_transform.e[1][1] / a_scale.x, a_transform.e[1][2] / a_scale.x, 0,
+			a_transform.e[2][0] / a_scale.x, a_transform.e[2][1] / a_scale.x, a_transform.e[2][2] / a_scale.x, 0,
+			0, 0, 0, 1);
+	}
+
+	//thank you Mike Day from Insomniac games for this code, I have no clue how the math works.
+	//https://d3cw3dd2w32x2b.cloudfront.net/wp-content/uploads/2015/01/matrix-to-quat.pdf //may not exist anymore, ah well.
+	static inline Quat Float4x4ExtractRotationAsQuad(const float4x4& a_transform, const float3 a_scale)
+	{
+		const float4x4 rotation_mat = Float4x4ExtractRotationAsFloat4x4(a_transform, a_scale);
+
+		float t = 0;
+		Quat quat;
+
+		//did I miss anything here? Maybe. 
+		if (a_transform.e[2][2] < 0)
+		{
+			if (a_transform.e[0][0] > a_transform.e[1][1])
+			{
+				t = 1 + a_transform.e[0][0] - a_transform.e[1][1] - a_transform.e[2][2];
+				quat = Quat(
+					t,
+					a_transform.e[0][1] + a_transform.e[1][0],
+					a_transform.e[2][0] + a_transform.e[0][2],
+					a_transform.e[1][2] - a_transform.e[2][1]);
+			}
+			else
+			{
+				t = 1 - a_transform.e[0][0] + a_transform.e[1][1] - a_transform.e[2][2];
+				quat = Quat(
+					a_transform.e[0][1] + a_transform.e[1][0],
+					t,
+					a_transform.e[1][2] + a_transform.e[2][1],
+					a_transform.e[2][0] - a_transform.e[0][2]);
+			}
+		}
+		else
+		{
+			if (a_transform.e[0][0] < -a_transform.e[1][1])
+			{
+				t = 1 - a_transform.e[0][0] - a_transform.e[1][1] + a_transform.e[2][2];
+				quat = Quat(
+					a_transform.e[2][0] - a_transform.e[0][2],
+					a_transform.e[1][2] + a_transform.e[2][1],
+					t,
+					a_transform.e[0][1] - a_transform.e[1][0]);
+			}
+			else
+			{
+				t = 1 + a_transform.e[0][0] + a_transform.e[1][1] + a_transform.e[2][2];
+				quat = Quat(
+					a_transform.e[1][2] - a_transform.e[2][1],
+					a_transform.e[2][0] - a_transform.e[0][2],
+					a_transform.e[0][1] - a_transform.e[1][0],
+					t);
+			}
+		}
+
+		quat = quat * (0.5f / sqrtf(t));
+	}
+
+	static inline void Float4x4DecomposeTransform(const float4x4& a_transform, float3& a_translation, Quat& a_rotation, float3& a_scale)
+	{
+		a_translation = Float4x4ExtractTranslation(a_transform);
+		a_scale = Float4x4ExtractScale(a_transform);
+		a_rotation = Float4x4ExtractRotationAsQuad(a_transform, a_scale);
+	}
+
 	// float4x4
 	//--------------------------------------------------------
 	// QUAT
+
+	static inline Quat operator*(const Quat a_lhs, const float a_float)
+	{
+		return Quat{ MulFloat4(a_lhs.vec, a_float) };
+	}
 
 	static inline Quat operator*(const Quat a_lhs, const Quat a_rhs)
 	{
