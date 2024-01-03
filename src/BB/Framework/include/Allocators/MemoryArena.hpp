@@ -72,11 +72,13 @@ namespace BB
 	size_t MemoryArenaSizeCommited(const MemoryArena& a_arena);
 	size_t MemoryArenaSizeUsed(const MemoryArena& a_arena);
 
-	MemoryArenaMarker GetMemoryMarker(const MemoryArena& a_arena);
-	void SetMemoryMarker(MemoryArena& a_arena, const MemoryArenaMarker& a_memory_marker);
+	bool MemoryArenaIsPointerWithinArena(const MemoryArena& a_arena, const void* a_pointer);
+
+	MemoryArenaMarker MemoryArenaGetMemoryMarker(const MemoryArena& a_arena);
+	void MemoryArenaSetMemoryMarker(MemoryArena& a_arena, const MemoryArenaMarker& a_memory_marker);
 
 #define MemoryArenaScope(a_memory_arena) \
-	for (MemoryArenaMarker _stack_marker = GetMemoryMarker(a_memory_arena); _stack_marker.at; SetMemoryMarker(a_memory_arena, _stack_marker), _stack_marker.at = nullptr)
+	for (MemoryArenaMarker _stack_marker = MemoryArenaGetMemoryMarker(a_memory_arena); _stack_marker.at; MemoryArenaSetMemoryMarker(a_memory_arena, _stack_marker), _stack_marker.at = nullptr)
 
 	//don't use this unless you know what you are doing, use ArenaAlloc instead
 	void* ArenaAlloc_f(BB_ARENA_DEBUG MemoryArena& a_arena, size_t a_memory_size, const uint32_t a_align);

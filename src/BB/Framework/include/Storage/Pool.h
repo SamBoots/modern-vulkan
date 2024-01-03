@@ -1,6 +1,6 @@
 #pragma once
 #include "Utils/Logger.h"
-#include "BBMemory.h"
+#include "Allocators/MemoryArena.hpp"
 
 namespace BB
 {
@@ -29,8 +29,8 @@ namespace BB
 		Pool(Pool&& a_pool);
 		Pool& operator =(Pool&& a_rhs);
 
-		void CreatePool(Allocator a_allocator, const size_t a_size);
-		void DestroyPool(Allocator a_allocator);
+		void CreatePool(MemoryArena& a_arena, const size_t a_size);
+		void DestroyPool(MemoryArena& a_arena);
 
 		/// <summary>
 		/// Get an object from the pool, returns nullptr if the pool is empty.
@@ -48,8 +48,6 @@ namespace BB
 		//Debug we can check it's current size.
 		size_t m_size;
  		size_t m_capacity;
-		//Check if we use the same allocator for removal.
-		Allocator m_allocator{};
 #endif // _DEBUG
 
 		void* m_start = nullptr;
@@ -69,17 +67,14 @@ namespace BB
 	{
 		m_start = a_pool.m_start;
 		m_pool = a_pool.m_pool;
-		m_start = nullptr;
-		m_pool = nullptr;
+		a_pool.m_start = nullptr;
+		a_pool.m_pool = nullptr;
 
 #ifdef _DEBUG
 		m_size = a_pool.m_size;
 		m_capacity = a_pool.m_capacity;
-		m_allocator = a_pool.m_allocator;
 		a_pool.m_size = 0;
 		a_pool.m_capacity = 0;
-		a_pool.m_allocator.allocator = nullptr;
-		a_pool.m_allocator.func = nullptr;
 #endif // _DEBUG
 	}
 
@@ -105,7 +100,7 @@ namespace BB
 	}
 
 	template<typename T>
-	inline void Pool<T>::CreatePool(Allocator a_allocator, const size_t a_size)
+	inline void Pool<T>::CreatePool(MemoryArena& a_arena, const size_t a_size)
 	{
 		BB_STATIC_ASSERT(sizeof(T) >= sizeof(void*), "Pool object is smaller then the size of a pointer.");
 		BB_ASSERT(m_start == nullptr, "Trying to create a pool while one already exists!");
@@ -113,7 +108,6 @@ namespace BB
 #ifdef _DEBUG
 		m_size = 0;
 		m_capacity = a_size;
-		m_allocator = a_allocator;
 #endif //_DEBUG
 
 		m_start = BBalloc(a_allocator, a_size * sizeof(T));
@@ -130,11 +124,9 @@ namespace BB
 	}
 
 	template<typename T>
-	inline void Pool<T>::DestroyPool(Allocator a_allocator)
+	inline void Pool<T>::DestroyPool(MemoryArena& a_arena)
 	{
-#ifdef _DEBUG
-		BB_ASSERT(m_allocator.allocator == a_allocator.allocator, "Trying to delete a pool with an allocator that wasn't used in it's CreatePool function.");
-#endif //_DEBUG
+		MemoryArenaPointer
 		BBfree(a_allocator, m_start);
 #ifdef _DEBUG
 		//Set everything to 0 in debug to indicate it was destroyed.

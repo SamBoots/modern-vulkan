@@ -9,6 +9,7 @@ namespace BB
 	public:
 		Transform(const float3 a_position);
 		Transform(const float3 a_position, const float3 a_axis, const float a_radians);
+		Transform(const float3 a_position, const Quat a_rotation, const float3 a_scale);
 		Transform(const float3 a_position, const float3 a_axis, const float a_radians, const float3 a_scale);
 
 		void Translate(const float3 a_translation);
@@ -40,9 +41,11 @@ namespace BB
 
 		TransformHandle CreateTransform(const float3 a_position);
 		TransformHandle CreateTransform(const float3 a_position, const float3 a_axis, const float a_radians);
+		TransformHandle CreateTransform(const float3 a_position, const Quat a_rotation, const float3 a_scale);
 		TransformHandle CreateTransform(const float3 a_position, const float3 a_axis, const float a_radians, const float3 a_scale);
 		void FreeTransform(const TransformHandle a_handle);
 		Transform& GetTransform(const TransformHandle a_handle) const;
+		float4x4 GetTransformMatrix(const TransformHandle a_handle) const;
 
 		uint32_t PoolSize() const;
 			

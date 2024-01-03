@@ -10,14 +10,6 @@ constexpr size_t MEMORY_BOUNDRY_SIZE = 8;
 
 using namespace BB;
 
-static inline bool PointerWithinArena(const MemoryArena& a_arena, const void* a_pointer)
-{
-	if (a_pointer > a_arena.buffer && a_pointer < a_arena.end)
-		return true;
-
-	return false;
-}
-
 static inline size_t GetAddressRange(const void* a_begin, const void* a_end)
 {
 	return reinterpret_cast<uintptr_t>(a_end) - reinterpret_cast<uintptr_t>(a_begin);
@@ -25,7 +17,7 @@ static inline size_t GetAddressRange(const void* a_begin, const void* a_end)
 
 static inline void ChangeArenaAt(MemoryArena& a_arena, void* a_at)
 {
-	BB_ASSERT(PointerWithinArena(a_arena, a_at), "modifying memory arena at that is not inside the arena, arena may be full");
+	BB_ASSERT(MemoryArenaIsPointerWithinArena(a_arena, a_at), "modifying memory arena at that is not inside the arena, arena may be full");
 	if (a_at > a_arena.commited)
 	{
 		const size_t commit_range = RoundUp(GetAddressRange(a_arena.commited, a_at), ARENA_DEFAULT_COMMIT);
@@ -105,7 +97,7 @@ void BB::MemoryArenaDecommitExess(MemoryArena& a_arena)
 
 void BB::TagMemory(const MemoryArena& a_arena, void* a_ptr, const char* a_tag_name)
 {
-	BB_ASSERT(PointerWithinArena(a_arena, a_ptr), "Trying to tag memory that is not within the memory arena!");
+	BB_ASSERT(MemoryArenaIsPointerWithinArena(a_arena, a_ptr), "Trying to tag memory that is not within the memory arena!");
 #ifdef SANITIZER_ENABLED
 	constexpr size_t SUBTRACT_VALUE = sizeof(MemoryArenaAllocationInfo) + MEMORY_BOUNDRY_SIZE;
 #else
@@ -138,15 +130,15 @@ static void MemoryArenaResetTo(MemoryArena& a_arena, void* a_memory_marker)
 	MemoryArenaDecommitExess(a_arena);
 }
 
-MemoryArenaMarker BB::GetMemoryMarker(const MemoryArena& a_arena)
+MemoryArenaMarker BB::MemoryArenaGetMemoryMarker(const MemoryArena& a_arena)
 {
 	return MemoryArenaMarker{ a_arena, a_arena.at };
 }
 
-void BB::SetMemoryMarker(MemoryArena& a_arena, const MemoryArenaMarker& a_memory_marker)
+void BB::MemoryArenaSetMemoryMarker(MemoryArena& a_arena, const MemoryArenaMarker& a_memory_marker)
 {
 	BB_ASSERT(a_arena.buffer == a_memory_marker.owner.buffer, "not the same allocator");
-	BB_ASSERT(PointerWithinArena(a_arena, a_memory_marker.at), "MemoryArenaMarker.at not within memory arena");
+	BB_ASSERT(MemoryArenaIsPointerWithinArena(a_arena, a_memory_marker.at), "MemoryArenaMarker.at not within memory arena");
 
 	MemoryArenaResetTo(a_arena, a_memory_marker.at);
 }
@@ -169,6 +161,14 @@ size_t BB::MemoryArenaSizeCommited(const MemoryArena& a_arena)
 size_t BB::MemoryArenaSizeUsed(const MemoryArena& a_arena)
 {
 	return GetAddressRange(a_arena.buffer, a_arena.at);
+}
+
+bool BB::MemoryArenaIsPointerWithinArena(const MemoryArena& a_arena, const void* a_pointer)
+{
+	if (a_pointer > a_arena.buffer && a_pointer < a_arena.end)
+		return true;
+
+	return false;
 }
 
 void* BB::ArenaAlloc_f(BB_ARENA_DEBUG MemoryArena& a_arena, size_t a_memory_size, const uint32_t a_align)

@@ -19,24 +19,10 @@
 #include "Math.inl"
 
 #include "Storage/FixedArray.h"
+#include "Storage/Slotmap.h"
 
 
 using namespace BB;
-
-static void DrawglTFNode(Model::Node& a_node, const float4x4& a_transform)
-{
-	float4x4 local_transform = a_transform * a_node.transform;
-
-	if (a_node.mesh_handle.handle != BB::BB_INVALID_HANDLE_64)
-		for (uint32_t i = 0; i < a_node.primitive_count; i++)
-			DrawMesh(a_node.mesh_handle, local_transform, a_node.primitives[i].start_index, a_node.primitives[i].index_count, a_node.primitives[i].material);
-
-	for (size_t i = 0; i < a_node.child_count; i++)
-	{
-		DrawglTFNode(a_node.childeren[i], local_transform);
-	}
-}
-
 #include "imgui.h"
 
 struct ImInputData
@@ -237,59 +223,140 @@ static void DebugWindowMemoryArena(const MemoryArena& a_arena)
 	}
 }
 
-struct SceneObject
-{
-	MeshHandle mesh_handle;
-	uint32_t start_index;
-	uint32_t index_count;
-	MaterialHandle material;
-
-	TransformHandle transform;
-
-	//handle for the future
-	const SceneObject* parent;
-};
-
-static inline void DrawRenderObject(const TransformPool& a_trans_pool, const SceneObject& a_render_object)
-{
-	DrawMesh(a_render_object.mesh_handle, a_trans_pool.GetTransform(a_render_object.transform).CreateMatrix(), a_render_object.start_index, a_render_object.index_count, a_render_object.material);
-}
+using SceneObjectHandle = FrameworkHandle<struct SceneObjectHandleTag>;
 
 constexpr size_t RENDER_OBJ_MAX = 128;
-static size_t s_render_obj_count = 0;
-static SceneObject s_scene_objects[RENDER_OBJ_MAX];
+constexpr size_t RENDER_OBJ_CHILD_MAX = 16;
 
-static void CreateRenderObjectViaModelNode(TransformPool& a_trans_pool, const Model& a_model, const Model::Node& a_node, const SceneObject* a_parent)
+struct SceneObject
 {
+	MeshHandle mesh_handle;	//8
+	uint32_t start_index;	//12
+	uint32_t index_count;	//16
+	MaterialHandle material;//24
+
+	TransformHandle transform;	//32
+
+	SceneObjectHandle parent;	//40
+	uint32_t child_count;		//44
+	SceneObjectHandle childeren[RENDER_OBJ_CHILD_MAX];
+};
+
+struct SceneHierarchy
+{
+	StaticSlotmap<SceneObject, SceneObjectHandle> scene_objects;
+
+	size_t top_level_object_count;
+	SceneObjectHandle top_level_objects[RENDER_OBJ_MAX];
+};
+
+static SceneObjectHandle CreateRenderObjectViaModelNode(SceneHierarchy& a_scene_hierarchy, TransformPool& a_trans_pool, const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent)
+{
+	//decompose the matrix.
+	float3 transform;
+	float3 scale;
+	Quat rotation;
+	Float4x4DecomposeTransform(a_node.transform, transform, rotation, scale);
+
+
+	SceneObjectHandle scene_handle = a_scene_hierarchy.scene_objects.emplace(SceneObject());
+	SceneObject& scene_obj = a_scene_hierarchy.scene_objects.find(scene_handle);
+	scene_obj.mesh_handle = MeshHandle(BB_INVALID_HANDLE_64);
+	scene_obj.start_index = 0;
+	scene_obj.index_count = 0;
+	scene_obj.material = MaterialHandle(BB_INVALID_HANDLE_64);
+	scene_obj.transform = a_trans_pool.CreateTransform(transform, rotation, scale);
+	scene_obj.parent = a_parent;
+
 	if (a_node.mesh_handle.IsValid())
 	{
-		for (size_t i = 0; i < a_node.primitive_count; i++)
+		for (uint32_t i = 0; i < a_node.primitive_count; i++)
 		{
-			SceneObject& scene_obj = s_scene_objects[s_render_obj_count] = {};
-			scene_obj.mesh_handle = a_node.mesh_handle;
-			scene_obj.start_index = a_node.primitives[i].index_count;
-			scene_obj.index_count = a_node.primitives[i].start_index;
-			scene_obj.material = a_node.primitives[i].material;
+			BB_ASSERT(scene_obj.child_count < RENDER_OBJ_CHILD_MAX, "Too many childeren for a single scene object!");
+			SceneObject prim_obj{};
+			prim_obj.mesh_handle = a_node.mesh_handle;
+			prim_obj.start_index = a_node.primitives[i].index_count;
+			prim_obj.index_count = a_node.primitives[i].start_index;
+			prim_obj.material = a_node.primitives[i].material;
+			prim_obj.transform = a_trans_pool.CreateTransform(float3(0, 0, 0));
 
-			//scene_obj.transform = 
+			prim_obj.parent = scene_handle;
+			scene_handle = a_scene_hierarchy.scene_objects.emplace(scene_obj);
 
-			scene_obj.parent = a_parent;
+
+			scene_obj.childeren[scene_obj.child_count++] = scene_handle;
 		}
 	}
-	else
-	{
 
+	for (uint32_t i = 0; i < a_node.child_count; i++)
+	{
+		BB_ASSERT(scene_obj.child_count < RENDER_OBJ_CHILD_MAX, "Too many childeren for a single gameobject!");
+		scene_obj.childeren[scene_obj.child_count++] = CreateRenderObjectViaModelNode(a_scene_hierarchy, a_trans_pool, a_model, a_node, a_parent);
+	}
+
+	return scene_handle;
+}
+
+static void CreateRenderObjectViaModel(SceneHierarchy& a_scene_hierarchy, TransformPool& a_trans_pool, const Model& a_model, const float3 a_position)
+{
+	SceneObjectHandle top_level_handle = a_scene_hierarchy.scene_objects.emplace(SceneObject());
+	SceneObject& top_level_object = a_scene_hierarchy.scene_objects.find(top_level_handle);
+	top_level_object.mesh_handle = MeshHandle(BB_INVALID_HANDLE_64);
+	top_level_object.start_index = 0;
+	top_level_object.index_count = 0;
+	top_level_object.material = MaterialHandle(BB_INVALID_HANDLE_64);
+	top_level_object.parent = SceneObjectHandle(BB_INVALID_HANDLE_64);
+	top_level_object.transform = a_trans_pool.CreateTransform(a_position);
+
+	top_level_object.child_count = a_model.root_node_count;
+	BB_ASSERT(top_level_object.child_count < RENDER_OBJ_CHILD_MAX, "Too many childeren for a single scene object!");
+
+	for (uint32_t i = 0; i < a_model.root_node_count; i++)
+	{
+		top_level_object.childeren[i] = CreateRenderObjectViaModelNode(a_scene_hierarchy, a_trans_pool, a_model, a_model.root_nodes[i], top_level_handle);
+	}
+
+	BB_ASSERT(a_scene_hierarchy.top_level_object_count < RENDER_OBJ_MAX, "Too many scene objects, increase the max");
+	a_scene_hierarchy.top_level_objects[a_scene_hierarchy.top_level_object_count++] = top_level_handle;
+}
+
+static void DrawglTFNode(Model::Node& a_node, const float4x4& a_transform)
+{
+	float4x4 local_transform = a_transform * a_node.transform;
+
+	if (a_node.mesh_handle.handle != BB::BB_INVALID_HANDLE_64)
+		for (uint32_t i = 0; i < a_node.primitive_count; i++)
+			DrawMesh(a_node.mesh_handle, local_transform, a_node.primitives[i].start_index, a_node.primitives[i].index_count, a_node.primitives[i].material);
+
+	for (size_t i = 0; i < a_node.child_count; i++)
+	{
+		DrawglTFNode(a_node.childeren[i], local_transform);
 	}
 }
 
-static void CreateRenderObjectViaModel(TransformPool& a_trans_pool, const Model& a_model)
+static void DrawObject(const SceneHierarchy& a_scene_hierarchy, const TransformPool& a_transform_pool, const SceneObjectHandle a_scene_object, const float4x4& a_transform)
 {
+	const SceneObject& scene_object = a_scene_hierarchy.scene_objects.find(a_scene_object);
+	
+	const float4x4 local_transform = a_transform * a_transform_pool.GetTransformMatrix(scene_object.transform);
+
+	if (scene_object.mesh_handle.handle != BB::BB_INVALID_HANDLE_64)
+		DrawMesh(scene_object.mesh_handle, local_transform, scene_object.start_index, scene_object.index_count, scene_object.material);
+
+	for (size_t i = 0; i < scene_object.child_count; i++)
+	{
+		DrawObject(a_scene_hierarchy, a_transform_pool, scene_object.childeren[i], local_transform);
+	}
 
 }
 
-static void DrawObjects()
+static void DrawHierarchy(const SceneHierarchy& a_scene_hierarchy, const TransformPool& a_transform_pool)
 {
-
+	for (size_t i = 0; i < a_scene_hierarchy.top_level_object_count; i++)
+	{
+		// identity hack to awkwardly get the first matrix. 
+		DrawObject(a_scene_hierarchy, a_transform_pool, a_scene_hierarchy.top_level_objects[i], Float4x4Identity());
+	}
 }
 
 int main(int argc, char** argv)

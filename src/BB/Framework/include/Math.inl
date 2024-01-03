@@ -170,6 +170,42 @@ namespace BB
 
 	// FLOAT4
 	//--------------------------------------------------------
+	// QUAT
+
+	static inline Quat operator*(const Quat a_lhs, const float a_float)
+	{
+		return Quat{ MulFloat4(a_lhs.vec, a_float) };
+	}
+
+	static inline Quat operator*(const Quat a_lhs, const Quat a_rhs)
+	{
+		return Quat{ MulFloat4(a_lhs.vec, a_rhs.vec) };
+	}
+
+	static inline Quat IdentityQuat()
+	{
+		return Quat{ LoadFloat4(0, 0, 0, 1) };
+	}
+
+	static inline Quat QuatFromAxisAngle(const float3 axis, const float angle)
+	{
+		//const float3 normAxis = Float3Normalize(axis);
+
+		const float s = sinf(0.5f * angle);
+
+		Quat quat;
+		quat.xyz = axis * s;
+		quat.w = cosf(angle * 0.5f);
+		return quat;
+	}
+
+	static inline Quat QuatRotateQuat(const Quat a, const Quat b)
+	{
+		return Quat{ MulFloat4(a.vec, b.vec) };
+	}
+
+	// QUAT
+	//--------------------------------------------------------
 	// FLOAT4x4
 
 	static inline float4x4 Float4x4FromFloats(
@@ -418,41 +454,5 @@ namespace BB
 		a_translation = Float4x4ExtractTranslation(a_transform);
 		a_scale = Float4x4ExtractScale(a_transform);
 		a_rotation = Float4x4ExtractRotationAsQuad(a_transform, a_scale);
-	}
-
-	// float4x4
-	//--------------------------------------------------------
-	// QUAT
-
-	static inline Quat operator*(const Quat a_lhs, const float a_float)
-	{
-		return Quat{ MulFloat4(a_lhs.vec, a_float) };
-	}
-
-	static inline Quat operator*(const Quat a_lhs, const Quat a_rhs)
-	{
-		return Quat{ MulFloat4(a_lhs.vec, a_rhs.vec) };
-	}
-
-	static inline Quat IdentityQuat()
-	{
-		return Quat{ LoadFloat4(0, 0, 0, 1) };
-	}
-
-	static inline Quat QuatFromAxisAngle(const float3 axis, const float angle)
-	{
-		//const float3 normAxis = Float3Normalize(axis);
-
-		const float s = sinf(0.5f * angle);
-
-		Quat quat;
-		quat.xyz = axis * s;
-		quat.w = cosf(angle * 0.5f);
-		return quat;
-	}
-
-	static inline Quat QuatRotateQuat(const Quat a, const Quat b)
-	{
-		return Quat{ MulFloat4(a.vec, b.vec) };
 	}
 }

@@ -11,6 +11,9 @@ Transform::Transform(const float3 a_position)
 Transform::Transform(const float3 a_position, const float3 a_axis, const float a_radians)
 	: Transform(a_position, a_axis, a_radians, float3{1,1,1}) {}
 
+Transform::Transform(const float3 a_position, const Quat a_rotation, const float3 a_scale)
+	: m_pos(a_position), m_Scale(a_scale), m_rot(a_rotation) {};
+
 Transform::Transform(const float3 a_position, const float3 a_axis, const float a_radians, const float3 a_scale)
 	: m_pos(a_position), m_Scale(a_scale) 
 {
@@ -102,6 +105,18 @@ TransformHandle TransformPool::CreateTransform(const float3 a_position, const fl
 	return TransformHandle(transform_index, node->generation);
 }
 
+TransformHandle TransformPool::CreateTransform(const float3 a_position, const Quat a_rotation, const float3 a_scale)
+{
+	const uint32_t transform_index = m_next_free_transform;
+	TransformNode* node = &m_transforms[transform_index];
+	m_next_free_transform = node->next;
+
+	//WILL OVERWRITE node->next due to it being a union.
+	new (&node->transform) Transform(a_position, a_rotation, a_scale);
+
+	return TransformHandle(transform_index, node->generation);
+}
+
 TransformHandle TransformPool::CreateTransform(const float3 a_position, const float3 a_axis, const float a_radians, const float3 a_scale)
 {
 	const uint32_t transform_index = m_next_free_transform;
@@ -128,6 +143,12 @@ Transform& TransformPool::GetTransform(const TransformHandle a_handle) const
 {
 	BB_ASSERT(a_handle.extra_index == m_transforms[a_handle.index].generation, "Transform likely freed twice.");
 	return m_transforms[a_handle.index].transform;
+}
+
+float4x4 TransformPool::GetTransformMatrix(const TransformHandle a_handle) const
+{
+	BB_ASSERT(a_handle.extra_index == m_transforms[a_handle.index].generation, "Transform likely freed twice.");
+	return m_transforms[a_handle.index].transform.CreateMatrix();
 }
 
 uint32_t TransformPool::PoolSize() const
