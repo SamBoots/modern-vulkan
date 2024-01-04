@@ -1594,6 +1594,12 @@ void BB::EndFrame()
 	RenderPass3D& renderpass_3d = GetRenderPass3D();
 	const auto& cur_frame = renderpass_3d.frames[s_render_inst->render_io.frame_index];
 
+	if (renderpass_3d.draw_list_count == 0)
+	{
+		ImGui::EndFrame();
+		return;
+	}
+
 	renderpass_3d.scene_info.light_count = renderpass_3d.light_container.size();
 
 	const uint32_t scene_upload_size = sizeof(Scene3DInfo);
@@ -1982,7 +1988,6 @@ bool BB::ReloadShaderEffect(const ShaderEffectHandle a_shader_effect)
 #ifdef _ENABLE_REBUILD_SHADERS
 	ShaderEffect& old_effect = s_render_inst->shader_effect_map.find(a_shader_effect);
 	Vulkan::DestroyShaderObject(old_effect.shader_object);
-
 
 	ShaderCode shader_code = CompileShader(s_render_inst->shader_compiler,
 		old_effect.shader_path,

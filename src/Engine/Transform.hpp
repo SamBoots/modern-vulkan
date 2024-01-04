@@ -37,7 +37,7 @@ namespace BB
 	public:
 		/// <param name="a_system_allocator">The allocator that will allocate the pool.</param>
 		/// <param name="a_MatrixSize">The amount of matrices you want to allocate. The a_GPUMemoryRegion needs to have enough space to hold them all.</param>
-		TransformPool(struct MemoryArena& a_arena, const uint32_t a_matrix_size);
+		void Init(struct MemoryArena& a_arena, const uint32_t a_transform_count);
 
 		TransformHandle CreateTransform(const float3 a_position);
 		TransformHandle CreateTransform(const float3 a_position, const float3 a_axis, const float a_radians);

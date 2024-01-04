@@ -66,7 +66,7 @@ struct BB::TransformNode
 	uint32_t generation; //48 bytes
 };
 
-TransformPool::TransformPool(MemoryArena& a_arena, const uint32_t a_transform_count)
+void TransformPool::Init(struct MemoryArena& a_arena, const uint32_t a_transform_count)
 {
 	m_transform_count = a_transform_count;
 	m_next_free_transform = 0;

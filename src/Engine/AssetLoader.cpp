@@ -572,6 +572,10 @@ const Model* Asset::LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, cons
 	Model* model = ArenaAllocType(s_asset_manager->asset_arena, Model);
 	model->linear_nodes = ArenaAllocArr(s_asset_manager->asset_arena, Model::Node, 1);
 	model->primitives = ArenaAllocArr(s_asset_manager->asset_arena, Model::Primitive, 1);
+	model->primitives->material = a_mesh_op.material;
+	model->primitives->start_index = 0;
+	model->primitives->index_count = a_mesh_op.indices.size();
+
 	model->primitive_count = 1;
 	model->root_node_count = 1;
 	model->root_nodes = &model->linear_nodes[0];

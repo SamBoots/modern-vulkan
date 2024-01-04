@@ -244,13 +244,19 @@ struct SceneObject
 
 struct SceneHierarchy
 {
+	TransformPool transform_pool;
 	StaticSlotmap<SceneObject, SceneObjectHandle> scene_objects;
 
 	size_t top_level_object_count;
 	SceneObjectHandle top_level_objects[RENDER_OBJ_MAX];
 };
 
-static SceneObjectHandle CreateRenderObjectViaModelNode(SceneHierarchy& a_scene_hierarchy, TransformPool& a_trans_pool, const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent)
+static void ImguiDisplaySceneHierarchy()
+{
+
+}
+
+static SceneObjectHandle CreateSceneObjectViaModelNode(SceneHierarchy& a_scene_hierarchy, const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent)
 {
 	//decompose the matrix.
 	float3 transform;
@@ -259,13 +265,13 @@ static SceneObjectHandle CreateRenderObjectViaModelNode(SceneHierarchy& a_scene_
 	Float4x4DecomposeTransform(a_node.transform, transform, rotation, scale);
 
 
-	SceneObjectHandle scene_handle = a_scene_hierarchy.scene_objects.emplace(SceneObject());
+	const SceneObjectHandle scene_handle = a_scene_hierarchy.scene_objects.emplace(SceneObject());
 	SceneObject& scene_obj = a_scene_hierarchy.scene_objects.find(scene_handle);
 	scene_obj.mesh_handle = MeshHandle(BB_INVALID_HANDLE_64);
 	scene_obj.start_index = 0;
 	scene_obj.index_count = 0;
 	scene_obj.material = MaterialHandle(BB_INVALID_HANDLE_64);
-	scene_obj.transform = a_trans_pool.CreateTransform(transform, rotation, scale);
+	scene_obj.transform = a_scene_hierarchy.transform_pool.CreateTransform(transform, rotation, scale);
 	scene_obj.parent = a_parent;
 
 	if (a_node.mesh_handle.IsValid())
@@ -275,29 +281,26 @@ static SceneObjectHandle CreateRenderObjectViaModelNode(SceneHierarchy& a_scene_
 			BB_ASSERT(scene_obj.child_count < RENDER_OBJ_CHILD_MAX, "Too many childeren for a single scene object!");
 			SceneObject prim_obj{};
 			prim_obj.mesh_handle = a_node.mesh_handle;
-			prim_obj.start_index = a_node.primitives[i].index_count;
-			prim_obj.index_count = a_node.primitives[i].start_index;
+			prim_obj.start_index = a_node.primitives[i].start_index;
+			prim_obj.index_count = a_node.primitives[i].index_count;
 			prim_obj.material = a_node.primitives[i].material;
-			prim_obj.transform = a_trans_pool.CreateTransform(float3(0, 0, 0));
+			prim_obj.transform = a_scene_hierarchy.transform_pool.CreateTransform(float3(0, 0, 0));
 
 			prim_obj.parent = scene_handle;
-			scene_handle = a_scene_hierarchy.scene_objects.emplace(scene_obj);
-
-
-			scene_obj.childeren[scene_obj.child_count++] = scene_handle;
+			scene_obj.childeren[scene_obj.child_count++] = a_scene_hierarchy.scene_objects.emplace(prim_obj);
 		}
 	}
 
 	for (uint32_t i = 0; i < a_node.child_count; i++)
 	{
 		BB_ASSERT(scene_obj.child_count < RENDER_OBJ_CHILD_MAX, "Too many childeren for a single gameobject!");
-		scene_obj.childeren[scene_obj.child_count++] = CreateRenderObjectViaModelNode(a_scene_hierarchy, a_trans_pool, a_model, a_node, a_parent);
+		scene_obj.childeren[scene_obj.child_count++] = CreateSceneObjectViaModelNode(a_scene_hierarchy, a_model, a_node.childeren[i], a_parent);
 	}
 
 	return scene_handle;
 }
 
-static void CreateRenderObjectViaModel(SceneHierarchy& a_scene_hierarchy, TransformPool& a_trans_pool, const Model& a_model, const float3 a_position)
+static void CreateSceneObjectViaModel(SceneHierarchy& a_scene_hierarchy, const Model& a_model, const float3 a_position)
 {
 	SceneObjectHandle top_level_handle = a_scene_hierarchy.scene_objects.emplace(SceneObject());
 	SceneObject& top_level_object = a_scene_hierarchy.scene_objects.find(top_level_handle);
@@ -306,56 +309,42 @@ static void CreateRenderObjectViaModel(SceneHierarchy& a_scene_hierarchy, Transf
 	top_level_object.index_count = 0;
 	top_level_object.material = MaterialHandle(BB_INVALID_HANDLE_64);
 	top_level_object.parent = SceneObjectHandle(BB_INVALID_HANDLE_64);
-	top_level_object.transform = a_trans_pool.CreateTransform(a_position);
+	top_level_object.transform = a_scene_hierarchy.transform_pool.CreateTransform(a_position);
 
 	top_level_object.child_count = a_model.root_node_count;
 	BB_ASSERT(top_level_object.child_count < RENDER_OBJ_CHILD_MAX, "Too many childeren for a single scene object!");
 
 	for (uint32_t i = 0; i < a_model.root_node_count; i++)
 	{
-		top_level_object.childeren[i] = CreateRenderObjectViaModelNode(a_scene_hierarchy, a_trans_pool, a_model, a_model.root_nodes[i], top_level_handle);
+		top_level_object.childeren[i] = CreateSceneObjectViaModelNode(a_scene_hierarchy, a_model, a_model.root_nodes[i], top_level_handle);
 	}
 
 	BB_ASSERT(a_scene_hierarchy.top_level_object_count < RENDER_OBJ_MAX, "Too many scene objects, increase the max");
 	a_scene_hierarchy.top_level_objects[a_scene_hierarchy.top_level_object_count++] = top_level_handle;
 }
 
-static void DrawglTFNode(Model::Node& a_node, const float4x4& a_transform)
-{
-	float4x4 local_transform = a_transform * a_node.transform;
-
-	if (a_node.mesh_handle.handle != BB::BB_INVALID_HANDLE_64)
-		for (uint32_t i = 0; i < a_node.primitive_count; i++)
-			DrawMesh(a_node.mesh_handle, local_transform, a_node.primitives[i].start_index, a_node.primitives[i].index_count, a_node.primitives[i].material);
-
-	for (size_t i = 0; i < a_node.child_count; i++)
-	{
-		DrawglTFNode(a_node.childeren[i], local_transform);
-	}
-}
-
-static void DrawObject(const SceneHierarchy& a_scene_hierarchy, const TransformPool& a_transform_pool, const SceneObjectHandle a_scene_object, const float4x4& a_transform)
+static void DrawSceneObject(const SceneHierarchy& a_scene_hierarchy, const SceneObjectHandle a_scene_object, const float4x4& a_transform)
 {
 	const SceneObject& scene_object = a_scene_hierarchy.scene_objects.find(a_scene_object);
 	
-	const float4x4 local_transform = a_transform * a_transform_pool.GetTransformMatrix(scene_object.transform);
+	const float4x4 local_transform = a_transform * a_scene_hierarchy.transform_pool.GetTransformMatrix(scene_object.transform);
 
-	if (scene_object.mesh_handle.handle != BB::BB_INVALID_HANDLE_64)
+	if (scene_object.mesh_handle.handle != BB_INVALID_HANDLE_64)
 		DrawMesh(scene_object.mesh_handle, local_transform, scene_object.start_index, scene_object.index_count, scene_object.material);
 
 	for (size_t i = 0; i < scene_object.child_count; i++)
 	{
-		DrawObject(a_scene_hierarchy, a_transform_pool, scene_object.childeren[i], local_transform);
+		DrawSceneObject(a_scene_hierarchy, scene_object.childeren[i], local_transform);
 	}
 
 }
 
-static void DrawHierarchy(const SceneHierarchy& a_scene_hierarchy, const TransformPool& a_transform_pool)
+static void DrawSceneHierarchy(const SceneHierarchy& a_scene_hierarchy)
 {
 	for (size_t i = 0; i < a_scene_hierarchy.top_level_object_count; i++)
 	{
 		// identity hack to awkwardly get the first matrix. 
-		DrawObject(a_scene_hierarchy, a_transform_pool, a_scene_hierarchy.top_level_objects[i], Float4x4Identity());
+		DrawSceneObject(a_scene_hierarchy, a_scene_hierarchy.top_level_objects[i], Float4x4Identity());
 	}
 }
 
@@ -400,9 +389,10 @@ int main(int argc, char** argv)
 	SetupImGuiInput(main_arena, window);
 	Camera camera{ float3{2.0f, 2.0f, 2.0f}, 0.35f };
 
-	TransformPool transform_pool{ main_arena, 32 };
-	const TransformHandle transform_test = transform_pool.CreateTransform(float3{ 0, -1, 1 });
-	const TransformHandle transform_gltf = transform_pool.CreateTransform(float3{ 0, 1, 1 });
+	SceneHierarchy scene_hierarchy;
+	scene_hierarchy.scene_objects.Init(main_arena, RENDER_OBJ_MAX);
+	scene_hierarchy.transform_pool.Init(main_arena, RENDER_OBJ_MAX);
+	scene_hierarchy.top_level_object_count = 0;
 
 	{
 		const float4x4 projection = Float4x4Perspective(ToRadians(60.0f),
@@ -445,8 +435,6 @@ int main(int argc, char** argv)
 		default_mat = CreateMaterial(material_info);
 	}
 
-	const Model* quad_mesh = nullptr;
-	const Model* gltf_model = nullptr;
 	MemoryArenaScope(main_arena)
 	{
 		//Do some simpel model loading and drawing.
@@ -471,11 +459,11 @@ int main(int argc, char** argv)
 		async_assets[1].mesh_memory.name = "basic quad";
 		async_assets[1].mesh_memory.vertices = Slice(vertices, _countof(vertices));
 		async_assets[1].mesh_memory.indices = Slice(indices, _countof(indices));
-		async_assets[1].mesh_memory.shader_effects = Slice(shader_effects, _countof(shader_effects));
+		async_assets[1].mesh_memory.material = default_mat;
 		Asset::LoadASync(Slice(async_assets, _countof(async_assets)));
 
-		gltf_model = Asset::FindModelByPath(async_assets[0].mesh_disk.path);
-		quad_mesh = Asset::FindModelByName(async_assets[1].mesh_memory.name);
+		CreateSceneObjectViaModel(scene_hierarchy, *Asset::FindModelByPath(async_assets[0].mesh_disk.path), float3{ 0, 1, 1 });
+		CreateSceneObjectViaModel(scene_hierarchy, *Asset::FindModelByPath(async_assets[1].mesh_memory.name), float3{ 0, -1, 1 });
 	}
 
 	LightHandle lights[2];
@@ -571,16 +559,7 @@ int main(int argc, char** argv)
 
 			DebugWindowMemoryArena(main_arena);
 
-			for (size_t i = 0; i < gltf_model->root_node_count; i++)
-			{
-				const float4x4 root_matrix = transform_pool.GetTransform(transform_gltf).CreateMatrix();
-				DrawglTFNode(gltf_model->root_nodes[i], root_matrix);
-			}
-			{
-				const float4x4 root_matrix = transform_pool.GetTransform(transform_test).CreateMatrix();
-				DrawMesh(quad_mesh->root_nodes[0].mesh_handle, root_matrix, quad_mesh->primitives[0].start_index, quad_mesh->primitives[0].index_count, default_mat);
-			}
-
+			DrawSceneHierarchy(scene_hierarchy);
 
 			EndFrame();
 		}

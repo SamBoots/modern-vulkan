@@ -446,7 +446,7 @@ namespace BB
 			}
 		}
 
-		quat = quat * (0.5f / sqrtf(t));
+		return quat * (0.5f / sqrtf(t));
 	}
 
 	static inline void Float4x4DecomposeTransform(const float4x4& a_transform, float3& a_translation, Quat& a_rotation, float3& a_scale)

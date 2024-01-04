@@ -87,7 +87,7 @@ namespace BB
 		struct MeshLoadFromMemory
 		{
 			const char* name;
-			Slice<ShaderEffectHandle> shader_effects;
+			MaterialHandle material;
 			Slice<Vertex> vertices;
 			Slice<uint32_t> indices;
 		};
