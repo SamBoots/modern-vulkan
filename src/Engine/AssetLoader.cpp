@@ -334,6 +334,11 @@ static void LoadglTFNode(Allocator a_temp_allocator, Slice<ShaderEffectHandle> a
 	else
 		mod_node.transform = Float4x4Identity();
 
+	if (a_node.name)
+		mod_node.name = Asset::FindOrCreateString(a_node.name);
+	else
+		mod_node.name = "unnamed";
+
 	if (a_node.mesh != nullptr)
 	{
 		const cgltf_mesh& mesh = *a_node.mesh;
@@ -372,6 +377,8 @@ static void LoadglTFNode(Allocator a_temp_allocator, Slice<ShaderEffectHandle> a
 			Model::Primitive& model_prim = a_model.primitives[a_primitive_index++];
 			model_prim.start_index = index_offset;
 			model_prim.index_count = static_cast<uint32_t>(prim.indices->count);
+
+			model_prim.name = "primitive [NUM]";
 
 			CreateMaterialInfo material_info{};
 			material_info.shader_effects = a_shader_effects;
@@ -572,6 +579,7 @@ const Model* Asset::LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, cons
 	Model* model = ArenaAllocType(s_asset_manager->asset_arena, Model);
 	model->linear_nodes = ArenaAllocArr(s_asset_manager->asset_arena, Model::Node, 1);
 	model->primitives = ArenaAllocArr(s_asset_manager->asset_arena, Model::Primitive, 1);
+	model->primitives->name = "PRIMITIVE [NUM]";
 	model->primitives->material = a_mesh_op.material;
 	model->primitives->start_index = 0;
 	model->primitives->index_count = a_mesh_op.indices.size();
@@ -580,6 +588,7 @@ const Model* Asset::LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, cons
 	model->root_node_count = 1;
 	model->root_nodes = &model->linear_nodes[0];
 
+	model->linear_nodes[0].name = a_mesh_op.name;
 	model->linear_nodes[0].child_count = 0;
 	model->linear_nodes[0].mesh_handle = CreateMesh(a_list, mesh_info, a_upload_view);
 	model->linear_nodes[0].primitives = model->primitives;

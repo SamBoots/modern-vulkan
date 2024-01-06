@@ -230,15 +230,16 @@ constexpr size_t RENDER_OBJ_CHILD_MAX = 16;
 
 struct SceneObject
 {
-	MeshHandle mesh_handle;	//8
-	uint32_t start_index;	//12
-	uint32_t index_count;	//16
-	MaterialHandle material;//24
+	const char* name;			//8
+	MeshHandle mesh_handle;		//16
+	uint32_t start_index;		//20
+	uint32_t index_count;		//24
+	MaterialHandle material;	//32
 
-	TransformHandle transform;	//32
+	TransformHandle transform;	//40
 
-	SceneObjectHandle parent;	//40
-	uint32_t child_count;		//44
+	SceneObjectHandle parent;	//48
+	uint32_t child_count;		//52
 	SceneObjectHandle childeren[RENDER_OBJ_CHILD_MAX];
 };
 
@@ -251,9 +252,51 @@ struct SceneHierarchy
 	SceneObjectHandle top_level_objects[RENDER_OBJ_MAX];
 };
 
-static void ImguiDisplaySceneHierarchy()
+static void ImGuiDisplaySceneObject(const SceneHierarchy& a_scene_hierarchy, const SceneObjectHandle& a_object)
 {
+	ImGui::Indent();
 
+	const SceneObject& scene_object = a_scene_hierarchy.scene_objects.find(a_object);
+
+	if (ImGui::CollapsingHeader(scene_object.name))
+	{
+		Transform& transform = a_scene_hierarchy.transform_pool.GetTransform(scene_object.transform);
+
+		ImGui::InputFloat3("position", transform.m_pos.e);
+		ImGui::InputFloat4("Rotation Quat (XYZW)", transform.m_pos.e);
+		ImGui::InputFloat3("scale", transform.m_pos.e);
+
+		for (size_t i = 0; i < scene_object.child_count; i++)
+		{
+			ImGui::PushID(static_cast<int>(i));
+
+			ImGuiDisplaySceneObject(a_scene_hierarchy, scene_object.childeren[i]);
+
+			ImGui::PopID();
+		}
+	}
+
+
+	ImGui::Unindent();
+}
+
+static void ImguiDisplaySceneHierarchy(const SceneHierarchy& a_scene_hierarchy)
+{
+	if (ImGui::CollapsingHeader("Scene Hierarchy"))
+	{
+		ImGui::Indent();
+
+		for (size_t i = 0; i < a_scene_hierarchy.top_level_object_count; i++)
+		{
+			ImGui::PushID(static_cast<int>(i));
+
+			ImGuiDisplaySceneObject(a_scene_hierarchy, a_scene_hierarchy.top_level_objects[i]);
+			
+			ImGui::PopID();
+		}
+
+		ImGui::Unindent();
+	}
 }
 
 static SceneObjectHandle CreateSceneObjectViaModelNode(SceneHierarchy& a_scene_hierarchy, const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent)
@@ -264,9 +307,9 @@ static SceneObjectHandle CreateSceneObjectViaModelNode(SceneHierarchy& a_scene_h
 	Quat rotation;
 	Float4x4DecomposeTransform(a_node.transform, transform, rotation, scale);
 
-
 	const SceneObjectHandle scene_handle = a_scene_hierarchy.scene_objects.emplace(SceneObject());
 	SceneObject& scene_obj = a_scene_hierarchy.scene_objects.find(scene_handle);
+	scene_obj.name = a_node.name;
 	scene_obj.mesh_handle = MeshHandle(BB_INVALID_HANDLE_64);
 	scene_obj.start_index = 0;
 	scene_obj.index_count = 0;
@@ -280,6 +323,7 @@ static SceneObjectHandle CreateSceneObjectViaModelNode(SceneHierarchy& a_scene_h
 		{
 			BB_ASSERT(scene_obj.child_count < RENDER_OBJ_CHILD_MAX, "Too many childeren for a single scene object!");
 			SceneObject prim_obj{};
+			prim_obj.name = a_node.primitives[i].name;
 			prim_obj.mesh_handle = a_node.mesh_handle;
 			prim_obj.start_index = a_node.primitives[i].start_index;
 			prim_obj.index_count = a_node.primitives[i].index_count;
@@ -300,10 +344,11 @@ static SceneObjectHandle CreateSceneObjectViaModelNode(SceneHierarchy& a_scene_h
 	return scene_handle;
 }
 
-static void CreateSceneObjectViaModel(SceneHierarchy& a_scene_hierarchy, const Model& a_model, const float3 a_position)
+static void CreateSceneObjectViaModel(SceneHierarchy& a_scene_hierarchy, const Model& a_model, const float3 a_position, const char* a_name)
 {
 	SceneObjectHandle top_level_handle = a_scene_hierarchy.scene_objects.emplace(SceneObject());
 	SceneObject& top_level_object = a_scene_hierarchy.scene_objects.find(top_level_handle);
+	top_level_object.name = a_name;
 	top_level_object.mesh_handle = MeshHandle(BB_INVALID_HANDLE_64);
 	top_level_object.start_index = 0;
 	top_level_object.index_count = 0;
@@ -462,8 +507,8 @@ int main(int argc, char** argv)
 		async_assets[1].mesh_memory.material = default_mat;
 		Asset::LoadASync(Slice(async_assets, _countof(async_assets)));
 
-		CreateSceneObjectViaModel(scene_hierarchy, *Asset::FindModelByPath(async_assets[0].mesh_disk.path), float3{ 0, 1, 1 });
-		CreateSceneObjectViaModel(scene_hierarchy, *Asset::FindModelByPath(async_assets[1].mesh_memory.name), float3{ 0, -1, 1 });
+		CreateSceneObjectViaModel(scene_hierarchy, *Asset::FindModelByPath(async_assets[0].mesh_disk.path), float3{ 0, 1, 1 }, "duck-y");
+		CreateSceneObjectViaModel(scene_hierarchy, *Asset::FindModelByPath(async_assets[1].mesh_memory.name), float3{ 0, -1, 1 }, "quat-y");
 	}
 
 	LightHandle lights[2];
@@ -558,6 +603,7 @@ int main(int argc, char** argv)
 			StartFrame();
 
 			DebugWindowMemoryArena(main_arena);
+			ImguiDisplaySceneHierarchy(scene_hierarchy);
 
 			DrawSceneHierarchy(scene_hierarchy);
 

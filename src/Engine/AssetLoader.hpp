@@ -25,6 +25,7 @@ namespace BB
 			uint32_t start_index;	//4
 			uint32_t index_count;	//8
 			MaterialHandle material; //16
+			const char* name;
 		};
 
 		struct Node
@@ -35,6 +36,7 @@ namespace BB
 			uint32_t child_count;		 //84
 			Model::Primitive* primitives;//92
 			uint32_t primitive_count;    //96
+			const char* name;
 		};
 
 		Primitive* primitives;
