@@ -907,9 +907,6 @@ namespace IMGUI_IMPL
 
 static void ImguiDisplayRenderer()
 {
-	ImGui::ShowDemoWindow();
-	ImPlot::ShowDemoWindow();
-	return;
 	if (ImGui::CollapsingHeader("Renderer"))
 	{
 		ImGui::Indent();

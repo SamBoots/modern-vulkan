@@ -24,7 +24,7 @@ namespace BB
 		//44 bytes class
 		float3 m_pos; //12
 		Quat m_rot; //28
-		float3 m_Scale; //40
+		float3 m_scale; //40
 	};
 
 	using TransformHandle = FrameworkHandle<struct TransformHandleTag>;

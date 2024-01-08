@@ -12,10 +12,10 @@ Transform::Transform(const float3 a_position, const float3 a_axis, const float a
 	: Transform(a_position, a_axis, a_radians, float3{1,1,1}) {}
 
 Transform::Transform(const float3 a_position, const Quat a_rotation, const float3 a_scale)
-	: m_pos(a_position), m_Scale(a_scale), m_rot(a_rotation) {};
+	: m_pos(a_position), m_scale(a_scale), m_rot(a_rotation) {};
 
 Transform::Transform(const float3 a_position, const float3 a_axis, const float a_radians, const float3 a_scale)
-	: m_pos(a_position), m_Scale(a_scale) 
+	: m_pos(a_position), m_scale(a_scale)
 {
 	m_rot = QuatFromAxisAngle(a_axis, a_radians); //glm::angleAxis(glm::radians(a_radians), a_axis);
 }
@@ -42,7 +42,7 @@ void Transform::SetRotation(const float3 a_axis, const float a_radians)
 
 void Transform::SetScale(const float3 a_scale)
 {
-	m_Scale = a_scale;
+	m_scale = a_scale;
 }
 
 const float4x4 Transform::CreateMatrix()
@@ -50,7 +50,7 @@ const float4x4 Transform::CreateMatrix()
 	float4x4 t_Matrix = Float4x4Identity();
 	t_Matrix = t_Matrix * Float4x4FromTranslation(m_pos);
 	t_Matrix = t_Matrix * Float4x4FromQuat(m_rot);
-	t_Matrix = Float4x4Scale(t_Matrix, m_Scale);
+	t_Matrix = Float4x4Scale(t_Matrix, m_scale);
 	return t_Matrix;
 }
 

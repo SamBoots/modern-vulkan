@@ -403,45 +403,45 @@ namespace BB
 		Quat quat;
 
 		//did I miss anything here? Maybe. 
-		if (a_transform.e[2][2] < 0)
+		if (rotation_mat.e[2][2] < 0)
 		{
-			if (a_transform.e[0][0] > a_transform.e[1][1])
+			if (rotation_mat.e[0][0] > rotation_mat.e[1][1])
 			{
-				t = 1 + a_transform.e[0][0] - a_transform.e[1][1] - a_transform.e[2][2];
+				t = 1 + rotation_mat.e[0][0] - rotation_mat.e[1][1] - rotation_mat.e[2][2];
 				quat = Quat(
 					t,
-					a_transform.e[0][1] + a_transform.e[1][0],
-					a_transform.e[2][0] + a_transform.e[0][2],
-					a_transform.e[1][2] - a_transform.e[2][1]);
+					rotation_mat.e[0][1] + rotation_mat.e[1][0],
+					rotation_mat.e[2][0] + rotation_mat.e[0][2],
+					rotation_mat.e[1][2] - rotation_mat.e[2][1]);
 			}
 			else
 			{
-				t = 1 - a_transform.e[0][0] + a_transform.e[1][1] - a_transform.e[2][2];
+				t = 1 - rotation_mat.e[0][0] + rotation_mat.e[1][1] - rotation_mat.e[2][2];
 				quat = Quat(
-					a_transform.e[0][1] + a_transform.e[1][0],
+					rotation_mat.e[0][1] + rotation_mat.e[1][0],
 					t,
-					a_transform.e[1][2] + a_transform.e[2][1],
-					a_transform.e[2][0] - a_transform.e[0][2]);
+					rotation_mat.e[1][2] + rotation_mat.e[2][1],
+					rotation_mat.e[2][0] - rotation_mat.e[0][2]);
 			}
 		}
 		else
 		{
-			if (a_transform.e[0][0] < -a_transform.e[1][1])
+			if (rotation_mat.e[0][0] < -rotation_mat.e[1][1])
 			{
-				t = 1 - a_transform.e[0][0] - a_transform.e[1][1] + a_transform.e[2][2];
+				t = 1 - rotation_mat.e[0][0] - rotation_mat.e[1][1] + rotation_mat.e[2][2];
 				quat = Quat(
-					a_transform.e[2][0] - a_transform.e[0][2],
-					a_transform.e[1][2] + a_transform.e[2][1],
+					rotation_mat.e[2][0] - rotation_mat.e[0][2],
+					rotation_mat.e[1][2] + rotation_mat.e[2][1],
 					t,
-					a_transform.e[0][1] - a_transform.e[1][0]);
+					rotation_mat.e[0][1] - rotation_mat.e[1][0]);
 			}
 			else
 			{
-				t = 1 + a_transform.e[0][0] + a_transform.e[1][1] + a_transform.e[2][2];
+				t = 1 + rotation_mat.e[0][0] + rotation_mat.e[1][1] + rotation_mat.e[2][2];
 				quat = Quat(
-					a_transform.e[1][2] - a_transform.e[2][1],
-					a_transform.e[2][0] - a_transform.e[0][2],
-					a_transform.e[0][1] - a_transform.e[1][0],
+					rotation_mat.e[1][2] - rotation_mat.e[2][1],
+					rotation_mat.e[2][0] - rotation_mat.e[0][2],
+					rotation_mat.e[0][1] - rotation_mat.e[1][0],
 					t);
 			}
 		}

@@ -148,9 +148,6 @@ static bool ImProcessInput(const BB::InputEvent& a_input_event)
 		const ImGuiKey imgui_key = ImBBKeyToImGuiKey(key_info.scan_code);
 
 		io.AddKeyEvent(imgui_key, key_info.key_pressed);
-		//THIS IS WRONG! It gives no UTF16 character.
-		//But i'll keep it in here to test if imgui input actually works.
-		io.AddInputCharacterUTF16(static_cast<ImWchar16>(key_info.scan_code));
 
 		return io.WantCaptureKeyboard;
 	}
@@ -263,8 +260,8 @@ static void ImGuiDisplaySceneObject(const SceneHierarchy& a_scene_hierarchy, con
 		Transform& transform = a_scene_hierarchy.transform_pool.GetTransform(scene_object.transform);
 
 		ImGui::InputFloat3("position", transform.m_pos.e);
-		ImGui::InputFloat4("Rotation Quat (XYZW)", transform.m_pos.e);
-		ImGui::InputFloat3("scale", transform.m_pos.e);
+		ImGui::InputFloat4("Rotation Quat (XYZW)", transform.m_rot.xyzw.e);
+		ImGui::InputFloat3("scale", transform.m_scale.e);
 
 		for (size_t i = 0; i < scene_object.child_count; i++)
 		{
@@ -543,6 +540,9 @@ int main(int argc, char** argv)
 		ProcessMessages(window);
 		PollInputEvents(input_events, input_event_count);
 
+		BB::SetView(camera.CalculateView());
+		StartFrame();
+
 		for (size_t i = 0; i < input_event_count; i++)
 		{
 			const InputEvent& ip = input_events[i];
@@ -596,19 +596,13 @@ int main(int argc, char** argv)
 					UnfreezeMouseOnWindow();
 			}
 		}
-		
-		MemoryArenaScope(main_arena)
-		{
-			BB::SetView(camera.CalculateView());
-			StartFrame();
 
-			DebugWindowMemoryArena(main_arena);
-			ImguiDisplaySceneHierarchy(scene_hierarchy);
+		DebugWindowMemoryArena(main_arena);
+		ImguiDisplaySceneHierarchy(scene_hierarchy);
 
-			DrawSceneHierarchy(scene_hierarchy);
+		DrawSceneHierarchy(scene_hierarchy);
 
-			EndFrame();
-		}
+		EndFrame();
 
 		delta_time = std::chrono::duration<float, std::chrono::seconds::period>(current_time - start_time).count();
 		current_time = std::chrono::high_resolution_clock::now();
