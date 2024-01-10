@@ -12,7 +12,7 @@ Transform::Transform(const float3 a_position, const float3 a_axis, const float a
 	: Transform(a_position, a_axis, a_radians, float3{1,1,1}) {}
 
 Transform::Transform(const float3 a_position, const Quat a_rotation, const float3 a_scale)
-	: m_pos(a_position), m_scale(a_scale), m_rot(a_rotation) {};
+	: m_pos(a_position), m_rot(a_rotation), m_scale(a_scale){};
 
 Transform::Transform(const float3 a_position, const float3 a_axis, const float a_radians, const float3 a_scale)
 	: m_pos(a_position), m_scale(a_scale)

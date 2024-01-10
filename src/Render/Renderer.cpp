@@ -9,7 +9,6 @@
 #include "Math.inl"
 
 #include "imgui.h"
-#include "implot/implot.h"
 
 using namespace BB;
 
@@ -633,7 +632,7 @@ namespace IMGUI_IMPL
 		return ImGui::GetCurrentContext() ? reinterpret_cast<ImRenderData*>(ImGui::GetIO().BackendRendererUserData) : nullptr;
 	}
 
-	inline static void ImSetRenderState(const ImDrawData& a_draw_data, const RCommandList a_cmd_list, const ImRenderBuffer& a_rb, const uint32_t a_vert_pos)
+	inline static void ImSetRenderState(const ImDrawData& a_draw_data, const RCommandList a_cmd_list, const uint32_t a_vert_pos)
 	{
 		ImRenderData* bd = ImGetRenderData();
 
@@ -720,7 +719,7 @@ namespace IMGUI_IMPL
 		Vulkan::StartRenderPass(a_cmd_list, imgui_pass_start, a_render_target_view);
 
 		// Setup desired CrossRenderer state
-		ImSetRenderState(draw_data, a_cmd_list, rb, 0);
+		ImSetRenderState(draw_data, a_cmd_list, 0);
 
 		// Will project scissor/clipping rectangles into framebuffer space
 		const ImVec2 clip_off = draw_data.DisplayPos;    // (0,0) unless using multi-viewports
@@ -728,7 +727,7 @@ namespace IMGUI_IMPL
 
 		// Because we merged all buffers into a single one, we maintain our own offset into them
 		uint32_t global_idx_offset = 0;
-		uint32_t vertex_offset = rb.vertex_buffer.offset;
+		uint32_t vertex_offset = static_cast<uint32_t>(rb.vertex_buffer.offset);
 
 		Vulkan::BindIndexBuffer(a_cmd_list, rb.index_buffer.buffer, rb.index_buffer.offset);
 
@@ -746,7 +745,7 @@ namespace IMGUI_IMPL
 					// User callback, registered via ImDrawList::AddCallback()
 					// (ImDrawCallback_ResetRenderState is a special callback value used by the user to request the renderer to reset render state.)
 					if (pcmd->UserCallback == ImDrawCallback_ResetRenderState)
-						ImSetRenderState(draw_data, a_cmd_list, rb, vertex_offset);
+						ImSetRenderState(draw_data, a_cmd_list, vertex_offset);
 					else
 						pcmd->UserCallback(cmd_list, pcmd);
 				}
@@ -759,8 +758,8 @@ namespace IMGUI_IMPL
 					// Clamp to viewport as vkCmdSetScissor() won't accept values that are off bounds
 					if (clip_min.x < 0.0f) { clip_min.x = 0.0f; }
 					if (clip_min.y < 0.0f) { clip_min.y = 0.0f; }
-					if (clip_max.x > fb_width) { clip_max.x = (float)fb_width; }
-					if (clip_max.y > fb_height) { clip_max.y = (float)fb_height; }
+					if (clip_max.x > static_cast<float>(fb_width)) { clip_max.x = static_cast<float>(fb_width); }
+					if (clip_max.y > static_cast<float>(fb_height)) { clip_max.y = static_cast<float>(fb_height); }
 					if (clip_max.x <= clip_min.x || clip_max.y <= clip_min.y)
 						continue;
 
@@ -804,7 +803,6 @@ namespace IMGUI_IMPL
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
 		ImGui::StyleColorsClassic();
-		ImPlot::CreateContext();
 
 		ImGuiIO& io = ImGui::GetIO();
 		IM_ASSERT(io.BackendRendererUserData == nullptr && "Already initialized a renderer backend!");
@@ -891,7 +889,6 @@ namespace IMGUI_IMPL
 		io.BackendRendererName = nullptr;
 		io.BackendRendererUserData = nullptr;
 
-		ImPlot::DestroyContext();
 		ImGui::DestroyContext();
 	}
 
@@ -1879,6 +1876,18 @@ void BB::FreeMesh(const MeshHandle a_mesh)
 	s_render_inst->mesh_map.erase(a_mesh);
 }
 
+LightHandle BB::CreateLight(const CreateLightInfo& a_create_info)
+{
+	RenderPass3D& renderpass_3d = GetRenderPass3D();
+
+	PointLight light;
+	light.pos = a_create_info.pos;
+	light.color = a_create_info.color;
+	light.radius_linear = a_create_info.linear_distance;
+	light.radius_quadratic = a_create_info.quadratic_distance;
+	return renderpass_3d.light_container.insert(light);
+}
+
 void BB::CreateLights(const Slice<CreateLightInfo> a_create_infos, LightHandle* const a_light_handles)
 {
 	RenderPass3D& renderpass_3d = GetRenderPass3D();
@@ -1897,6 +1906,11 @@ void BB::CreateLights(const Slice<CreateLightInfo> a_create_infos, LightHandle* 
 void BB::FreeLight(const LightHandle a_light)
 {
 	GetRenderPass3D().light_container.erase(a_light);
+}
+
+PointLight& BB::GetLight(const LightHandle a_light)
+{
+	return GetRenderPass3D().light_container.find(a_light);
 }
 
 bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles)

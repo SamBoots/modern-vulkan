@@ -582,7 +582,7 @@ const Model* Asset::LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, cons
 	model->primitives->name = "PRIMITIVE [NUM]";
 	model->primitives->material = a_mesh_op.material;
 	model->primitives->start_index = 0;
-	model->primitives->index_count = a_mesh_op.indices.size();
+	model->primitives->index_count = static_cast<uint32_t>(a_mesh_op.indices.size());
 
 	model->primitive_count = 1;
 	model->root_node_count = 1;

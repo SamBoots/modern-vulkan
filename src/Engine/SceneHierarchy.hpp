@@ -1,0 +1,55 @@
+#pragma once
+#include "Common.h"
+#include "Storage/Slotmap.h"
+#include "Transform.hpp"
+#include "Renderer.hpp"
+#include "AssetLoader.hpp"
+
+namespace BB
+{
+	using SceneObjectHandle = FrameworkHandle<struct SceneObjectHandleTag>;
+
+	constexpr uint32_t DEFAULT_SCENE_OBJ_MAX = 128;
+	constexpr uint32_t SCENE_OBJ_CHILD_MAX = 16;
+
+	struct SceneObject
+	{
+		const char* name;			//8
+		MeshHandle mesh_handle;		//16
+		uint32_t start_index;		//20
+		uint32_t index_count;		//24
+		MaterialHandle material;	//32
+
+		LightHandle light_handle;	//40
+
+		TransformHandle transform;	//48
+
+		SceneObjectHandle parent;	//56
+		uint32_t child_count;		//60
+		SceneObjectHandle childeren[SCENE_OBJ_CHILD_MAX];
+	};
+	
+	class SceneHierarchy
+	{
+	public:
+		void InitializeSceneHierarchy(MemoryArena& a_memory_arena, const uint32_t a_scene_obj_max = DEFAULT_SCENE_OBJ_MAX);
+
+		void DrawSceneHierarchy() const;
+		void CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name);
+		void CreateSceneObjectAsLight(const CreateLightInfo& a_light_create_info, const char* a_name);
+
+		void ImguiDisplaySceneHierarchy();
+
+	private:
+		SceneObjectHandle CreateSceneObjectEmpty(const SceneObjectHandle a_parent);
+		SceneObjectHandle CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent);
+		void DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform) const;
+		void ImGuiDisplaySceneObject(const SceneObjectHandle a_object);
+
+		TransformPool m_transform_pool;
+		StaticSlotmap<SceneObject, SceneObjectHandle> m_scene_objects;
+
+		uint32_t m_top_level_object_count;
+		SceneObjectHandle* m_top_level_objects;
+	};
+}

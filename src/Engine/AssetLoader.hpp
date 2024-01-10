@@ -24,8 +24,8 @@ namespace BB
 			//change this with material.
 			uint32_t start_index;	//4
 			uint32_t index_count;	//8
-			MaterialHandle material; //16
-			const char* name;
+			MaterialHandle material;//16
+			const char* name;		//24
 		};
 
 		struct Node

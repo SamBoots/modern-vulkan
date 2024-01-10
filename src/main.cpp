@@ -6,21 +6,15 @@
 #include "HID.h"
 
 #include "Camera.hpp"
-#include "Transform.hpp"
-#include "AssetLoader.hpp"
+#include "SceneHierarchy.hpp"
 
 #include <chrono>
 
 #include "shared_common.hlsl.h"
-#include "Renderer.hpp"
-
-#include "MemoryArena.hpp"
 
 #include "Math.inl"
 
 #include "Storage/FixedArray.h"
-#include "Storage/Slotmap.h"
-
 
 using namespace BB;
 #include "imgui.h"
@@ -191,202 +185,30 @@ static inline void DestroyImGuiInput()
 
 static void DebugWindowMemoryArena(const MemoryArena& a_arena)
 {
-	const MemoryArenaAllocationInfo* a_alloc_info = MemoryArenaGetFrontAllocationLog(a_arena);
-
-	if (ImGui::CollapsingHeader("Allocator Info"))
+	if (ImGui::CollapsingHeader("allocator info"))
 	{
 		ImGui::Indent();
-		ImGui::Text("Standard Reserved Memory: %zu", ARENA_DEFAULT_RESERVE);
-		ImGui::Text("Commit size %zu", ARENA_DEFAULT_COMMIT);
+		ImGui::Text("standard reserved memory: %zu", ARENA_DEFAULT_RESERVE);
+		ImGui::Text("commit size %zu", ARENA_DEFAULT_COMMIT);
 
-		if (ImGui::CollapsingHeader("Main stack memory arena"))
+		if (ImGui::CollapsingHeader("main stack memory arena"))
 		{
 			ImGui::Indent();
 			const size_t remaining = MemoryArenaSizeRemaining(a_arena);
 			const size_t commited = MemoryArenaSizeCommited(a_arena);
 			const size_t used = MemoryArenaSizeUsed(a_arena);
 
-			const size_t real_size = commited;
-
-			ImGui::Text("Memory Remaining: %zu", remaining);
-			ImGui::Text("Memory Commited: %zu", commited);
-			ImGui::Text("Memory Used: %zu", used);
+			ImGui::Text("memory remaining: %zu", remaining);
+			ImGui::Text("memory commited: %zu", commited);
+			ImGui::Text("memory used: %zu", used);
 
 			const float perc_calculation = 1.f / static_cast<float>(ARENA_DEFAULT_COMMIT);
 			ImGui::Separator();
 			ImGui::TextUnformatted("memory used till next commit");
 			ImGui::ProgressBar(perc_calculation * static_cast<float>(RoundUp(used, ARENA_DEFAULT_COMMIT) - used));
+			ImGui::Unindent();
 		}
-	}
-}
-
-using SceneObjectHandle = FrameworkHandle<struct SceneObjectHandleTag>;
-
-constexpr size_t RENDER_OBJ_MAX = 128;
-constexpr size_t RENDER_OBJ_CHILD_MAX = 16;
-
-struct SceneObject
-{
-	const char* name;			//8
-	MeshHandle mesh_handle;		//16
-	uint32_t start_index;		//20
-	uint32_t index_count;		//24
-	MaterialHandle material;	//32
-
-	TransformHandle transform;	//40
-
-	SceneObjectHandle parent;	//48
-	uint32_t child_count;		//52
-	SceneObjectHandle childeren[RENDER_OBJ_CHILD_MAX];
-};
-
-struct SceneHierarchy
-{
-	TransformPool transform_pool;
-	StaticSlotmap<SceneObject, SceneObjectHandle> scene_objects;
-
-	size_t top_level_object_count;
-	SceneObjectHandle top_level_objects[RENDER_OBJ_MAX];
-};
-
-static void ImGuiDisplaySceneObject(const SceneHierarchy& a_scene_hierarchy, const SceneObjectHandle& a_object)
-{
-	ImGui::Indent();
-
-	const SceneObject& scene_object = a_scene_hierarchy.scene_objects.find(a_object);
-
-	if (ImGui::CollapsingHeader(scene_object.name))
-	{
-		Transform& transform = a_scene_hierarchy.transform_pool.GetTransform(scene_object.transform);
-
-		ImGui::InputFloat3("position", transform.m_pos.e);
-		ImGui::InputFloat4("Rotation Quat (XYZW)", transform.m_rot.xyzw.e);
-		ImGui::InputFloat3("scale", transform.m_scale.e);
-
-		for (size_t i = 0; i < scene_object.child_count; i++)
-		{
-			ImGui::PushID(static_cast<int>(i));
-
-			ImGuiDisplaySceneObject(a_scene_hierarchy, scene_object.childeren[i]);
-
-			ImGui::PopID();
-		}
-	}
-
-
-	ImGui::Unindent();
-}
-
-static void ImguiDisplaySceneHierarchy(const SceneHierarchy& a_scene_hierarchy)
-{
-	if (ImGui::CollapsingHeader("Scene Hierarchy"))
-	{
-		ImGui::Indent();
-
-		for (size_t i = 0; i < a_scene_hierarchy.top_level_object_count; i++)
-		{
-			ImGui::PushID(static_cast<int>(i));
-
-			ImGuiDisplaySceneObject(a_scene_hierarchy, a_scene_hierarchy.top_level_objects[i]);
-			
-			ImGui::PopID();
-		}
-
 		ImGui::Unindent();
-	}
-}
-
-static SceneObjectHandle CreateSceneObjectViaModelNode(SceneHierarchy& a_scene_hierarchy, const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent)
-{
-	//decompose the matrix.
-	float3 transform;
-	float3 scale;
-	Quat rotation;
-	Float4x4DecomposeTransform(a_node.transform, transform, rotation, scale);
-
-	const SceneObjectHandle scene_handle = a_scene_hierarchy.scene_objects.emplace(SceneObject());
-	SceneObject& scene_obj = a_scene_hierarchy.scene_objects.find(scene_handle);
-	scene_obj.name = a_node.name;
-	scene_obj.mesh_handle = MeshHandle(BB_INVALID_HANDLE_64);
-	scene_obj.start_index = 0;
-	scene_obj.index_count = 0;
-	scene_obj.material = MaterialHandle(BB_INVALID_HANDLE_64);
-	scene_obj.transform = a_scene_hierarchy.transform_pool.CreateTransform(transform, rotation, scale);
-	scene_obj.parent = a_parent;
-
-	if (a_node.mesh_handle.IsValid())
-	{
-		for (uint32_t i = 0; i < a_node.primitive_count; i++)
-		{
-			BB_ASSERT(scene_obj.child_count < RENDER_OBJ_CHILD_MAX, "Too many childeren for a single scene object!");
-			SceneObject prim_obj{};
-			prim_obj.name = a_node.primitives[i].name;
-			prim_obj.mesh_handle = a_node.mesh_handle;
-			prim_obj.start_index = a_node.primitives[i].start_index;
-			prim_obj.index_count = a_node.primitives[i].index_count;
-			prim_obj.material = a_node.primitives[i].material;
-			prim_obj.transform = a_scene_hierarchy.transform_pool.CreateTransform(float3(0, 0, 0));
-
-			prim_obj.parent = scene_handle;
-			scene_obj.childeren[scene_obj.child_count++] = a_scene_hierarchy.scene_objects.emplace(prim_obj);
-		}
-	}
-
-	for (uint32_t i = 0; i < a_node.child_count; i++)
-	{
-		BB_ASSERT(scene_obj.child_count < RENDER_OBJ_CHILD_MAX, "Too many childeren for a single gameobject!");
-		scene_obj.childeren[scene_obj.child_count++] = CreateSceneObjectViaModelNode(a_scene_hierarchy, a_model, a_node.childeren[i], a_parent);
-	}
-
-	return scene_handle;
-}
-
-static void CreateSceneObjectViaModel(SceneHierarchy& a_scene_hierarchy, const Model& a_model, const float3 a_position, const char* a_name)
-{
-	SceneObjectHandle top_level_handle = a_scene_hierarchy.scene_objects.emplace(SceneObject());
-	SceneObject& top_level_object = a_scene_hierarchy.scene_objects.find(top_level_handle);
-	top_level_object.name = a_name;
-	top_level_object.mesh_handle = MeshHandle(BB_INVALID_HANDLE_64);
-	top_level_object.start_index = 0;
-	top_level_object.index_count = 0;
-	top_level_object.material = MaterialHandle(BB_INVALID_HANDLE_64);
-	top_level_object.parent = SceneObjectHandle(BB_INVALID_HANDLE_64);
-	top_level_object.transform = a_scene_hierarchy.transform_pool.CreateTransform(a_position);
-
-	top_level_object.child_count = a_model.root_node_count;
-	BB_ASSERT(top_level_object.child_count < RENDER_OBJ_CHILD_MAX, "Too many childeren for a single scene object!");
-
-	for (uint32_t i = 0; i < a_model.root_node_count; i++)
-	{
-		top_level_object.childeren[i] = CreateSceneObjectViaModelNode(a_scene_hierarchy, a_model, a_model.root_nodes[i], top_level_handle);
-	}
-
-	BB_ASSERT(a_scene_hierarchy.top_level_object_count < RENDER_OBJ_MAX, "Too many scene objects, increase the max");
-	a_scene_hierarchy.top_level_objects[a_scene_hierarchy.top_level_object_count++] = top_level_handle;
-}
-
-static void DrawSceneObject(const SceneHierarchy& a_scene_hierarchy, const SceneObjectHandle a_scene_object, const float4x4& a_transform)
-{
-	const SceneObject& scene_object = a_scene_hierarchy.scene_objects.find(a_scene_object);
-	
-	const float4x4 local_transform = a_transform * a_scene_hierarchy.transform_pool.GetTransformMatrix(scene_object.transform);
-
-	if (scene_object.mesh_handle.handle != BB_INVALID_HANDLE_64)
-		DrawMesh(scene_object.mesh_handle, local_transform, scene_object.start_index, scene_object.index_count, scene_object.material);
-
-	for (size_t i = 0; i < scene_object.child_count; i++)
-	{
-		DrawSceneObject(a_scene_hierarchy, scene_object.childeren[i], local_transform);
-	}
-
-}
-
-static void DrawSceneHierarchy(const SceneHierarchy& a_scene_hierarchy)
-{
-	for (size_t i = 0; i < a_scene_hierarchy.top_level_object_count; i++)
-	{
-		// identity hack to awkwardly get the first matrix. 
-		DrawSceneObject(a_scene_hierarchy, a_scene_hierarchy.top_level_objects[i], Float4x4Identity());
 	}
 }
 
@@ -432,9 +254,7 @@ int main(int argc, char** argv)
 	Camera camera{ float3{2.0f, 2.0f, 2.0f}, 0.35f };
 
 	SceneHierarchy scene_hierarchy;
-	scene_hierarchy.scene_objects.Init(main_arena, RENDER_OBJ_MAX);
-	scene_hierarchy.transform_pool.Init(main_arena, RENDER_OBJ_MAX);
-	scene_hierarchy.top_level_object_count = 0;
+	scene_hierarchy.InitializeSceneHierarchy(main_arena);
 
 	{
 		const float4x4 projection = Float4x4Perspective(ToRadians(60.0f),
@@ -504,11 +324,9 @@ int main(int argc, char** argv)
 		async_assets[1].mesh_memory.material = default_mat;
 		Asset::LoadASync(Slice(async_assets, _countof(async_assets)));
 
-		CreateSceneObjectViaModel(scene_hierarchy, *Asset::FindModelByPath(async_assets[0].mesh_disk.path), float3{ 0, 1, 1 }, "duck-y");
-		CreateSceneObjectViaModel(scene_hierarchy, *Asset::FindModelByPath(async_assets[1].mesh_memory.name), float3{ 0, -1, 1 }, "quat-y");
+		scene_hierarchy.CreateSceneObjectViaModel(*Asset::FindModelByPath(async_assets[0].mesh_disk.path), float3{ 0, 1, 1 }, "ducky");
+		scene_hierarchy.CreateSceneObjectViaModel(*Asset::FindModelByPath(async_assets[1].mesh_memory.name), float3{ 0, -1, 1 }, "quaty");
 	}
-
-	LightHandle lights[2];
 
 	{	//add some basic lights
 		BB::FixedArray<CreateLightInfo, 2> light_create_info;
@@ -522,7 +340,8 @@ int main(int argc, char** argv)
 		light_create_info[1].quadratic_distance = 0.44f;
 		light_create_info[1].pos = float3(0, 4, 0);
 
-		CreateLights(light_create_info, lights);
+		scene_hierarchy.CreateSceneObjectAsLight(light_create_info[0], "light 0");
+		scene_hierarchy.CreateSceneObjectAsLight(light_create_info[1], "light 1");
 	}
 
 	bool freeze_cam = false;
@@ -598,9 +417,9 @@ int main(int argc, char** argv)
 		}
 
 		DebugWindowMemoryArena(main_arena);
-		ImguiDisplaySceneHierarchy(scene_hierarchy);
+		scene_hierarchy.ImguiDisplaySceneHierarchy();
 
-		DrawSceneHierarchy(scene_hierarchy);
+		scene_hierarchy.DrawSceneHierarchy();
 
 		EndFrame();
 

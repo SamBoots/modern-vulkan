@@ -40,6 +40,7 @@ add_executable(Engine
 	"Engine/Camera.cpp"
 	"Engine/Transform.cpp"
 	"Engine/AssetLoader.cpp"
+	"Engine/SceneHierarchy.cpp"
 	"main.cpp")
 
 target_include_directories(Engine PUBLIC

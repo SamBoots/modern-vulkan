@@ -148,8 +148,10 @@ namespace BB
 	const MeshHandle CreateMesh(const RCommandList a_list, const CreateMeshInfo& a_create_info, UploadBufferView& a_upload_view);
 	void FreeMesh(const MeshHandle a_mesh);
 
+	LightHandle CreateLight(const CreateLightInfo& a_create_info);
 	void CreateLights(const Slice<CreateLightInfo> a_create_infos, LightHandle* const a_light_handles);
 	void FreeLight(const LightHandle a_light);
+	PointLight& GetLight(const LightHandle a_light);
 
 	bool CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles);
 	void FreeShaderEffect(const ShaderEffectHandle a_shader_effect);

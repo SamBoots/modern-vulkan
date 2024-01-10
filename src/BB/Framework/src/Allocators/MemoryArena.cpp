@@ -184,7 +184,7 @@ void* BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG MemoryArena& a_arena, size_t a_memor
 	// do debug stuff here
 	MemoryArenaAllocationInfo* debug_address = reinterpret_cast<MemoryArenaAllocationInfo*>(a_arena.at);
 	ChangeArenaAt(a_arena, Pointer::Add(a_arena.at, sizeof(MemoryArenaAllocationInfo)));
-	memset(debug_address, 0, sizeof(debug_address));
+	memset(debug_address, 0, sizeof(MemoryArenaAllocationInfo));
 
 	debug_address->alloc_address = Pointer::AlignAddress(a_arena.at, a_align);
 	debug_address->file = a_file;

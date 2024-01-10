@@ -1,6 +1,7 @@
 #pragma once
 #include "Utils/Utils.h"
 #include "BBMemory.h"
+#include "Slice.h"
 
 #include "Common.h"
 
@@ -466,6 +467,8 @@ namespace BB
 				}
 			}
 		}
+
+		Slice<T> slice() const { return Slice(m_obj_arr, m_size); }
 
 		uint32_t size() const { return m_size; }
 		uint32_t capacity() const { return m_capacity; }
