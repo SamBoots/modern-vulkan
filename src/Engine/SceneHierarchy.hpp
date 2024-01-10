@@ -46,6 +46,7 @@ namespace BB
 		void DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform) const;
 		void ImGuiDisplaySceneObject(const SceneObjectHandle a_object);
 
+		//TODO, maybe remember all the transforms from the previous frames?
 		TransformPool m_transform_pool;
 		StaticSlotmap<SceneObject, SceneObjectHandle> m_scene_objects;
 

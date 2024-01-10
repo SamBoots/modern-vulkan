@@ -498,9 +498,7 @@ constexpr uint32_t UPLOAD_BUFFER_POOL_SIZE = mbSize * 8;
 constexpr uint32_t UPLOAD_BUFFER_POOL_COUNT = 8;
 constexpr uint32_t BACK_BUFFER_MAX = 3;
 
-constexpr size_t LIGHT_MAX = 128;
-
-struct RenderPass3D
+struct Scene3D
 {
 	struct Frame
 	{
@@ -519,10 +517,9 @@ struct RenderPass3D
 		uint64_t fence_value;
 		RTexture back_buffer_image;
 	};
+
 	Frame* frames;
 	Scene3DInfo scene_info;
-
-	RDescriptorLayout descriptor_layout;
 
 	RImage depth_image;
 	RImageView depth_image_view;
@@ -531,6 +528,7 @@ struct RenderPass3D
 	uint32_t draw_list_max;
 	DrawList draw_list_data;
 
+	//we have different scenes but the light handles are the same. Meaning we can accidently mess this up. Maybe make this a freelist instead of a slotmap.
 	StaticSlotmap<PointLight, LightHandle> light_container;
 };
 
@@ -556,6 +554,8 @@ struct RenderInterface_inst
 	RDescriptorLayout static_sampler_descriptor_set;
 	RDescriptorLayout global_descriptor_set;
 	DescriptorAllocation global_descriptor_allocation;
+
+	RDescriptorLayout scene3d_descriptor_layout;
 
 	struct VertexBuffer
 	{
@@ -585,19 +585,12 @@ struct RenderInterface_inst
 		void* start_mapped;
 	} cpu_index_buffer;
 
-
-	RenderPass3D renderpass_3d;
-
 	StaticSlotmap<Mesh, MeshHandle> mesh_map{};
 	StaticSlotmap<ShaderEffect, ShaderEffectHandle> shader_effect_map{};
 	StaticSlotmap<Material, MaterialHandle> material_map{};
 };
 
 static RenderInterface_inst* s_render_inst;
-static RenderPass3D& GetRenderPass3D()
-{
-	return s_render_inst->renderpass_3d;
-}
 
 namespace IMGUI_IMPL
 {
@@ -710,9 +703,9 @@ namespace IMGUI_IMPL
 			}
 		}
 		StartRenderingInfo imgui_pass_start{};
-		imgui_pass_start.viewport_width = render_io.screen_width;
-		imgui_pass_start.viewport_height = render_io.screen_height;
-		imgui_pass_start.depth_view = {};
+		imgui_pass_start.viewport_size.x = render_io.screen_width;
+		imgui_pass_start.viewport_size.y = render_io.screen_height;
+		imgui_pass_start.depth_view = RImageView(BB_INVALID_HANDLE_64);
 		imgui_pass_start.load_color = true;
 		imgui_pass_start.store_color = true;
 		imgui_pass_start.layout = IMAGE_LAYOUT::GENERAL;
@@ -1338,13 +1331,6 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		}
 	}
 
-	RenderDepthCreateInfo depth_create_info;
-	depth_create_info.name = "stamdard depth buffer";
-	depth_create_info.width = a_render_create_info.swapchain_width;
-	depth_create_info.height = a_render_create_info.swapchain_height;
-	depth_create_info.depth = 1;
-	depth_create_info.depth_format = DEPTH_FORMAT::D24_UNORM_S8_UINT;
-
 	{
 		GPUBufferCreateInfo vertex_buffer;
 		vertex_buffer.name = "global vertex buffer";
@@ -1435,123 +1421,25 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		s_render_inst->black = UploadTexture(list, image_info, startup_upload_view);
 	}
 
-	{	//3d renderpass
-		RenderPass3D& render_pass3d = GetRenderPass3D();
-		render_pass3d.frames = ArenaAllocArr(a_arena, RenderPass3D::Frame, s_render_inst->render_io.frame_count);
-		render_pass3d.draw_list_max = 128;
-		render_pass3d.draw_list_count = 0;
-		render_pass3d.draw_list_data.mesh_draw_call = ArenaAllocArr(a_arena, MeshDrawCall, GetRenderPass3D().draw_list_max);
-		render_pass3d.draw_list_data.transform = ArenaAllocArr(a_arena, ShaderTransform, GetRenderPass3D().draw_list_max);
+	{
+		//per-frame descriptor set 1 for renderpass
+		DescriptorBindingInfo descriptor_bindings[3];
+		descriptor_bindings[0].binding = PER_SCENE_SCENE_DATA_BINDING;
+		descriptor_bindings[0].count = 1;
+		descriptor_bindings[0].shader_stage = SHADER_STAGE::ALL;
+		descriptor_bindings[0].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
 
-		Vulkan::CreateDepthBuffer(depth_create_info, render_pass3d.depth_image, render_pass3d.depth_image_view);
+		descriptor_bindings[1].binding = PER_SCENE_TRANSFORM_DATA_BINDING;
+		descriptor_bindings[1].count = 1;
+		descriptor_bindings[1].shader_stage = SHADER_STAGE::VERTEX;
+		descriptor_bindings[1].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
 
-		{
-			//per-frame descriptor set 1 for renderpass
-			DescriptorBindingInfo descriptor_bindings[3];
-			descriptor_bindings[0].binding = PER_SCENE_SCENE_DATA_BINDING;
-			descriptor_bindings[0].count = 1;
-			descriptor_bindings[0].shader_stage = SHADER_STAGE::ALL;
-			descriptor_bindings[0].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-
-			descriptor_bindings[1].binding = PER_SCENE_TRANSFORM_DATA_BINDING;
-			descriptor_bindings[1].count = 1;
-			descriptor_bindings[1].shader_stage = SHADER_STAGE::VERTEX;
-			descriptor_bindings[1].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-
-			descriptor_bindings[2].binding = PER_SCENE_LIGHT_DATA_BINDING;
-			descriptor_bindings[2].count = 1;
-			descriptor_bindings[2].shader_stage = SHADER_STAGE::FRAGMENT_PIXEL;
-			descriptor_bindings[2].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-			render_pass3d.descriptor_layout = Vulkan::CreateDescriptorLayout(a_arena, Slice(descriptor_bindings, _countof(descriptor_bindings)));
-		}
-
-
-		render_pass3d.light_container.Init(a_arena, LIGHT_MAX);
-
-		constexpr uint32_t scene_size = sizeof(Scene3DInfo);
-		const uint32_t shader_transform_size = render_pass3d.draw_list_max * sizeof(ShaderTransform);
-		const uint32_t light_buffer_size = render_pass3d.light_container.capacity() * sizeof(PointLight);
-
-		const uint32_t per_frame_buffer_size = scene_size + shader_transform_size + light_buffer_size;
-
-		//per frame stuff
-		GPUBufferCreateInfo per_frame_buffer_info;
-		per_frame_buffer_info.name = "per_frame_buffer";
-		per_frame_buffer_info.size = per_frame_buffer_size;
-		per_frame_buffer_info.type = BUFFER_TYPE::STORAGE;
-		UploadImageInfo back_buffer_image_info;
-		back_buffer_image_info.name = "back buffer image";
-		back_buffer_image_info.width = a_render_create_info.swapchain_width;
-		back_buffer_image_info.height = a_render_create_info.swapchain_height;
-		back_buffer_image_info.format = IMAGE_FORMAT::RGBA16_SFLOAT;
-		back_buffer_image_info.usage = IMAGE_USAGE::RENDER_TARGET;
-		back_buffer_image_info.pixels = nullptr;
-
-		for (uint32_t i = 0; i < s_render_inst->render_io.frame_count; i++)
-		{
-			RenderPass3D::Frame& pf = render_pass3d.frames[i];
-			{
-				pf.back_buffer_image = UploadTexture(list, back_buffer_image_info, startup_upload_view);
-			}
-			{
-				pf.per_frame_buffer = Vulkan::CreateBuffer(per_frame_buffer_info);
-				pf.per_frame_buffer_size = static_cast<uint32_t>(per_frame_buffer_info.size);
-			}
-
-			uint32_t buffer_used = 0;
-			{
-				pf.scene_buffer.size = scene_size;
-				pf.scene_buffer.offset = buffer_used;
-
-				buffer_used += static_cast<uint32_t>(pf.scene_buffer.size);
-			}
-			{
-				pf.transform_buffer.size = shader_transform_size;
-				pf.transform_buffer.offset = buffer_used;
-
-				buffer_used += static_cast<uint32_t>(pf.transform_buffer.size);
-			}
-			{
-				pf.light_buffer.size = light_buffer_size;
-				pf.light_buffer.offset = buffer_used;
-
-				buffer_used += static_cast<uint32_t>(pf.light_buffer.size);
-			}
-
-			//descriptors
-			pf.desc_alloc = Vulkan::AllocateDescriptor(render_pass3d.descriptor_layout);
-
-			WriteDescriptorData per_scene_buffer_desc[3]{};
-			per_scene_buffer_desc[0].binding = PER_SCENE_SCENE_DATA_BINDING;
-			per_scene_buffer_desc[0].descriptor_index = 0;
-			per_scene_buffer_desc[0].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-			per_scene_buffer_desc[0].buffer_view.buffer = pf.per_frame_buffer;
-			per_scene_buffer_desc[0].buffer_view.size = pf.scene_buffer.size;
-			per_scene_buffer_desc[0].buffer_view.offset = pf.scene_buffer.offset;
-
-			per_scene_buffer_desc[1].binding = PER_SCENE_TRANSFORM_DATA_BINDING;
-			per_scene_buffer_desc[1].descriptor_index = 0;
-			per_scene_buffer_desc[1].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-			per_scene_buffer_desc[1].buffer_view.buffer = pf.per_frame_buffer;
-			per_scene_buffer_desc[1].buffer_view.size = pf.transform_buffer.size;
-			per_scene_buffer_desc[1].buffer_view.offset = pf.transform_buffer.offset;
-
-			per_scene_buffer_desc[2].binding = PER_SCENE_LIGHT_DATA_BINDING;
-			per_scene_buffer_desc[2].descriptor_index = 0;
-			per_scene_buffer_desc[2].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-			per_scene_buffer_desc[2].buffer_view.buffer = pf.per_frame_buffer;
-			per_scene_buffer_desc[2].buffer_view.size = pf.light_buffer.size;
-			per_scene_buffer_desc[2].buffer_view.offset = pf.light_buffer.offset;
-
-			WriteDescriptorInfos frame_desc_write;
-			frame_desc_write.allocation = pf.desc_alloc;
-			frame_desc_write.descriptor_layout = render_pass3d.descriptor_layout;
-			frame_desc_write.data = Slice(per_scene_buffer_desc, _countof(per_scene_buffer_desc));
-
-			Vulkan::WriteDescriptors(frame_desc_write);
-		}
+		descriptor_bindings[2].binding = PER_SCENE_LIGHT_DATA_BINDING;
+		descriptor_bindings[2].count = 1;
+		descriptor_bindings[2].shader_stage = SHADER_STAGE::FRAGMENT_PIXEL;
+		descriptor_bindings[2].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
+		s_render_inst->scene3d_descriptor_layout = Vulkan::CreateDescriptorLayout(a_arena, Slice(descriptor_bindings, _countof(descriptor_bindings)));
 	}
-
 	
 	IMGUI_IMPL::ImInit(a_arena, list, startup_upload_view);
 	
@@ -1567,12 +1455,7 @@ const RenderIO& BB::GetRenderIO()
 
 void BB::StartFrame()
 {
-	RenderPass3D& renderpass_3d = GetRenderPass3D();
-	s_render_inst->graphics_queue.WaitFenceValue(renderpass_3d.frames[s_render_inst->render_io.frame_index].fence_value);
 	s_render_inst->upload_buffers.CheckIfInFlightDone();
-
-	//clear the drawlist, maybe do this on a per-frame basis of we do GPU upload?
-	renderpass_3d.draw_list_count = 0;
 
 	IMGUI_IMPL::ImNewFrame();
 	ImGui::NewFrame();
@@ -1583,33 +1466,200 @@ void BB::StartFrame()
 	ImguiDisplayRenderer();
 }
 
-void BB::EndFrame()
+void BB::EndFrame(bool a_skip)
 {
-	RenderPass3D& renderpass_3d = GetRenderPass3D();
-	const auto& cur_frame = renderpass_3d.frames[s_render_inst->render_io.frame_index];
-
-	if (renderpass_3d.draw_list_count == 0)
+	if (a_skip)
 	{
 		ImGui::EndFrame();
 		return;
 	}
 
-	renderpass_3d.scene_info.light_count = renderpass_3d.light_container.size();
+	//present
+	ImGui::Render();
+	IMGUI_IMPL::ImRenderFrame(current_command_list, render_target.view);
+	ImGui::EndFrame();
+
+	{
+		PipelineBarrierImageInfo image_transitions[1]{};
+		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
+		image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
+		image_transitions[0].image = render_target.image;
+		image_transitions[0].old_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+		image_transitions[0].new_layout = IMAGE_LAYOUT::TRANSFER_SRC;
+		image_transitions[0].layer_count = 1;
+		image_transitions[0].level_count = 1;
+		image_transitions[0].base_array_layer = 0;
+		image_transitions[0].base_mip_level = 0;
+		image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
+		image_transitions[0].dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
+
+		PipelineBarrierInfo pipeline_info{};
+		pipeline_info.image_info_count = _countof(image_transitions);
+		pipeline_info.image_infos = image_transitions;
+		Vulkan::PipelineBarriers(current_command_list, pipeline_info);
+	}
+
+	const int2 swapchain_size =
+	{
+		{
+		static_cast<int>(s_render_inst->render_io.screen_width),
+		static_cast<int>(s_render_inst->render_io.screen_height)
+		}
+	};
+	Vulkan::UploadImageToSwapchain(current_command_list, render_target.image, swapchain_size, swapchain_size, s_render_inst->render_io.frame_index);
+	current_use_pool->EndCommandList(current_command_list);
+
+	s_render_inst->graphics_queue.ExecutePresentCommands(current_command_list, &upload_fence, &upload_fence_value, 1, nullptr, nullptr, 0, s_render_inst->render_io.frame_index);
+	//swap images after execute present commands
+	s_render_inst->render_io.frame_index = (s_render_inst->render_io.frame_index + 1) % s_render_inst->render_io.frame_count;
+	s_render_inst->graphics_queue.ReturnPool(*current_use_pool);
+}
+
+RenderScene3DHandle BB::Create3DRenderScene(MemoryArena& a_arena, const RCommandList a_list, UploadBufferView& a_upload_view, const SceneCreateInfo& a_info)
+{
+	Scene3D* scene_3d = ArenaAllocType(a_arena, Scene3D);
+
+	scene_3d->scene_info.ambient_light = a_info.ambient_light_color;
+	scene_3d->scene_info.ambient_strength = a_info.ambient_light_strength;
+
+	scene_3d->frames = ArenaAllocArr(a_arena, Scene3D::Frame, s_render_inst->render_io.frame_count);
+	scene_3d->draw_list_max = a_info.draw_entry_max;
+	scene_3d->draw_list_count = 0;
+	scene_3d->draw_list_data.mesh_draw_call = ArenaAllocArr(a_arena, MeshDrawCall, scene_3d->draw_list_max);
+	scene_3d->draw_list_data.transform = ArenaAllocArr(a_arena, ShaderTransform, scene_3d->draw_list_max);
+
+	RenderDepthCreateInfo depth_create_info;
+	depth_create_info.name = "standard depth buffer";
+	depth_create_info.width = s_render_inst->render_io.screen_width;
+	depth_create_info.height = s_render_inst->render_io.screen_height;
+	depth_create_info.depth = 1;
+	depth_create_info.depth_format = DEPTH_FORMAT::D24_UNORM_S8_UINT;
+	Vulkan::CreateDepthBuffer(depth_create_info, scene_3d->depth_image, scene_3d->depth_image_view);
+
+	scene_3d->light_container.Init(a_arena, a_info.light_max);
+
+	constexpr uint32_t scene_size = sizeof(Scene3DInfo);
+	const uint32_t shader_transform_size = scene_3d->draw_list_max * sizeof(ShaderTransform);
+	const uint32_t light_buffer_size = scene_3d->light_container.capacity() * sizeof(PointLight);
+
+	const uint32_t per_frame_buffer_size = scene_size + shader_transform_size + light_buffer_size;
+
+	//per frame stuff
+	GPUBufferCreateInfo per_frame_buffer_info;
+	per_frame_buffer_info.name = "per_frame_buffer";
+	per_frame_buffer_info.size = per_frame_buffer_size;
+	per_frame_buffer_info.type = BUFFER_TYPE::STORAGE;
+	UploadImageInfo back_buffer_image_info;
+	back_buffer_image_info.name = "back buffer image";
+	back_buffer_image_info.width = s_render_inst->render_io.screen_width;
+	back_buffer_image_info.height = s_render_inst->render_io.screen_height;
+	back_buffer_image_info.format = IMAGE_FORMAT::RGBA16_SFLOAT;
+	back_buffer_image_info.usage = IMAGE_USAGE::RENDER_TARGET;
+	back_buffer_image_info.pixels = nullptr;
+
+	for (uint32_t i = 0; i < s_render_inst->render_io.frame_count; i++)
+	{
+		Scene3D::Frame& pf = scene_3d->frames[i];
+		{
+			pf.back_buffer_image = UploadTexture(a_list, back_buffer_image_info, a_upload_view);
+		}
+		{
+			pf.per_frame_buffer = Vulkan::CreateBuffer(per_frame_buffer_info);
+			pf.per_frame_buffer_size = static_cast<uint32_t>(per_frame_buffer_info.size);
+		}
+
+		uint32_t buffer_used = 0;
+		{
+			pf.scene_buffer.size = scene_size;
+			pf.scene_buffer.offset = buffer_used;
+
+			buffer_used += static_cast<uint32_t>(pf.scene_buffer.size);
+		}
+		{
+			pf.transform_buffer.size = shader_transform_size;
+			pf.transform_buffer.offset = buffer_used;
+
+			buffer_used += static_cast<uint32_t>(pf.transform_buffer.size);
+		}
+		{
+			pf.light_buffer.size = light_buffer_size;
+			pf.light_buffer.offset = buffer_used;
+
+			buffer_used += static_cast<uint32_t>(pf.light_buffer.size);
+		}
+
+		//descriptors
+		pf.desc_alloc = Vulkan::AllocateDescriptor(s_render_inst->scene3d_descriptor_layout);
+
+		WriteDescriptorData per_scene_buffer_desc[3]{};
+		per_scene_buffer_desc[0].binding = PER_SCENE_SCENE_DATA_BINDING;
+		per_scene_buffer_desc[0].descriptor_index = 0;
+		per_scene_buffer_desc[0].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
+		per_scene_buffer_desc[0].buffer_view.buffer = pf.per_frame_buffer;
+		per_scene_buffer_desc[0].buffer_view.size = pf.scene_buffer.size;
+		per_scene_buffer_desc[0].buffer_view.offset = pf.scene_buffer.offset;
+
+		per_scene_buffer_desc[1].binding = PER_SCENE_TRANSFORM_DATA_BINDING;
+		per_scene_buffer_desc[1].descriptor_index = 0;
+		per_scene_buffer_desc[1].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
+		per_scene_buffer_desc[1].buffer_view.buffer = pf.per_frame_buffer;
+		per_scene_buffer_desc[1].buffer_view.size = pf.transform_buffer.size;
+		per_scene_buffer_desc[1].buffer_view.offset = pf.transform_buffer.offset;
+
+		per_scene_buffer_desc[2].binding = PER_SCENE_LIGHT_DATA_BINDING;
+		per_scene_buffer_desc[2].descriptor_index = 0;
+		per_scene_buffer_desc[2].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
+		per_scene_buffer_desc[2].buffer_view.buffer = pf.per_frame_buffer;
+		per_scene_buffer_desc[2].buffer_view.size = pf.light_buffer.size;
+		per_scene_buffer_desc[2].buffer_view.offset = pf.light_buffer.offset;
+
+		WriteDescriptorInfos frame_desc_write;
+		frame_desc_write.allocation = pf.desc_alloc;
+		frame_desc_write.descriptor_layout = s_render_inst->scene3d_descriptor_layout;
+		frame_desc_write.data = Slice(per_scene_buffer_desc, _countof(per_scene_buffer_desc));
+
+		Vulkan::WriteDescriptors(frame_desc_write);
+	}
+
+	return RenderScene3DHandle(reinterpret_cast<uintptr_t>(scene_3d));
+}
+
+void BB::StartRenderScene(const RenderScene3DHandle a_scene)
+{
+	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
+	s_render_inst->graphics_queue.WaitFenceValue(render_scene3d.frames[s_render_inst->render_io.frame_index].fence_value);
+	s_render_inst->upload_buffers.CheckIfInFlightDone();
+
+	//clear the drawlist, maybe do this on a per-frame basis of we do GPU upload?
+	render_scene3d.draw_list_count = 0;
+}
+
+void BB::EndRenderScene(const RenderScene3DHandle a_scene, const uint2 a_draw_area_size, const int2 a_draw_area_offset, bool a_skip = false)
+{
+	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
+	const auto& cur_frame = render_scene3d.frames[s_render_inst->render_io.frame_index];
+
+	if (render_scene3d.draw_list_count == 0 || a_skip)
+	{
+		return;
+	}
+
+	render_scene3d.scene_info.light_count = render_scene3d.light_container.size();
 
 	const uint32_t scene_upload_size = sizeof(Scene3DInfo);
-	const uint32_t matrices_upload_size = sizeof(ShaderTransform) * renderpass_3d.draw_list_count;
-	const uint32_t light_upload_size = sizeof(Light) * renderpass_3d.light_container.size();
+	const uint32_t matrices_upload_size = sizeof(ShaderTransform) * render_scene3d.draw_list_count;
+	const uint32_t light_upload_size = sizeof(Light) * render_scene3d.light_container.size();
 
 	//upload matrices
 	//optimalization, upload previous frame matrices when using transfer buffer?
 	UploadBufferView& matrix_upload_view = s_render_inst->upload_buffers.GetUploadView(static_cast<size_t>(scene_upload_size) + matrices_upload_size);
 
 	uint32_t scene_offset = 0;
-	matrix_upload_view.AllocateAndMemoryCopy(&renderpass_3d.scene_info, scene_upload_size, scene_offset);
+	matrix_upload_view.AllocateAndMemoryCopy(&render_scene3d.scene_info, scene_upload_size, scene_offset);
 	uint32_t matrix_offset = 0;
-	matrix_upload_view.AllocateAndMemoryCopy(renderpass_3d.draw_list_data.transform, matrices_upload_size, matrix_offset);
+	matrix_upload_view.AllocateAndMemoryCopy(render_scene3d.draw_list_data.transform, matrices_upload_size, matrix_offset);
 	uint32_t light_offset = 0;
-	matrix_upload_view.AllocateAndMemoryCopy(renderpass_3d.light_container.data(), light_upload_size, light_offset);
+	matrix_upload_view.AllocateAndMemoryCopy(render_scene3d.light_container.data(), light_upload_size, light_offset);
 
 	//upload to some GPU buffer here.
 	RenderCopyBuffer matrix_buffer_copy;
@@ -1656,7 +1706,7 @@ void BB::EndFrame()
 
 		image_transitions[1].src_mask = BARRIER_ACCESS_MASK::NONE;
 		image_transitions[1].dst_mask = BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE;
-		image_transitions[1].image = renderpass_3d.depth_image;
+		image_transitions[1].image = render_scene3d.depth_image;
 		image_transitions[1].old_layout = IMAGE_LAYOUT::UNDEFINED;
 		image_transitions[1].new_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
 		image_transitions[1].layer_count = 1;
@@ -1674,9 +1724,10 @@ void BB::EndFrame()
 
 	//render
 	StartRenderingInfo start_rendering_info;
-	start_rendering_info.viewport_width = s_render_inst->render_io.screen_width;
-	start_rendering_info.viewport_height = s_render_inst->render_io.screen_height;
-	start_rendering_info.depth_view = renderpass_3d.depth_image_view;
+	start_rendering_info.viewport_size = uint2{ s_render_inst->render_io.screen_width, s_render_inst->render_io.screen_height };
+	start_rendering_info.scissor_extent = a_draw_area_size;
+	start_rendering_info.scissor_offset = a_draw_area_offset;
+	start_rendering_info.depth_view = render_scene3d.depth_image_view;
 	start_rendering_info.layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 	start_rendering_info.load_color = false;
 	start_rendering_info.store_color = true;
@@ -1685,7 +1736,7 @@ void BB::EndFrame()
 
 	{
 		//set the first data to get the first 3 descriptor sets.
-		const MeshDrawCall& mesh_draw_call = renderpass_3d.draw_list_data.mesh_draw_call[0];
+		const MeshDrawCall& mesh_draw_call = render_scene3d.draw_list_data.mesh_draw_call[0];
 		const Material& material = s_render_inst->material_map.find(mesh_draw_call.material);
 
 		//set 0
@@ -1695,7 +1746,7 @@ void BB::EndFrame()
 		//set 1-2
 		Vulkan::SetDescriptorBufferOffset(current_command_list,
 			material.shader.pipeline_layout,
-			SPACE_GLOBAL,
+			SPACE_GLOBAL, 
 			_countof(buffer_offsets),
 			buffer_indices,
 			buffer_offsets);
@@ -1703,15 +1754,15 @@ void BB::EndFrame()
 
 	Vulkan::BindIndexBuffer(current_command_list, s_render_inst->index_buffer.buffer, 0);
 
-	for (uint32_t i = 0; i < renderpass_3d.draw_list_count; i++)
+	for (uint32_t i = 0; i < render_scene3d.draw_list_count; i++)
 	{
-		const MeshDrawCall& mesh_draw_call = renderpass_3d.draw_list_data.mesh_draw_call[i];
+		const MeshDrawCall& mesh_draw_call = render_scene3d.draw_list_data.mesh_draw_call[i];
 		const Material& material = s_render_inst->material_map.find(mesh_draw_call.material);
 		const Mesh& mesh = s_render_inst->mesh_map.find(mesh_draw_call.mesh);
 
-		Vulkan::BindShaders(current_command_list, 
-			material.shader.shader_effect_count, 
-			material.shader.shader_stages, 
+		Vulkan::BindShaders(current_command_list,
+			material.shader.shader_effect_count,
+			material.shader.shader_stages,
 			material.shader.shader_objects);
 
 		ShaderIndices shader_indices;
@@ -1730,11 +1781,6 @@ void BB::EndFrame()
 	}
 
 	Vulkan::EndRenderPass(current_command_list);
-
-	//present
-	ImGui::Render();
-	IMGUI_IMPL::ImRenderFrame(current_command_list, render_target.view);
-	ImGui::EndFrame();
 
 	{
 		PipelineBarrierImageInfo image_transitions[1]{};
@@ -1766,21 +1812,22 @@ void BB::EndFrame()
 	Vulkan::UploadImageToSwapchain(current_command_list, render_target.image, swapchain_size, swapchain_size, s_render_inst->render_io.frame_index);
 	current_use_pool->EndCommandList(current_command_list);
 
-	renderpass_3d.frames[s_render_inst->render_io.frame_index].fence_value = s_render_inst->graphics_queue.GetNextFenceValue();
-	s_render_inst->graphics_queue.ExecutePresentCommands(current_command_list, &upload_fence, &upload_fence_value, 1, nullptr, nullptr, 0, s_render_inst->render_io.frame_index);
-	//swap images after execute present commands
+	render_scene3d.frames[s_render_inst->render_io.frame_index].fence_value = s_render_inst->graphics_queue.GetNextFenceValue();
+
 	s_render_inst->render_io.frame_index = (s_render_inst->render_io.frame_index + 1) % s_render_inst->render_io.frame_count;
 	s_render_inst->graphics_queue.ReturnPool(*current_use_pool);
 }
 
-void BB::SetView(const float4x4& a_view)
+void BB::SetView(const RenderScene3DHandle a_scene, const float4x4& a_view)
 {
-	GetRenderPass3D().scene_info.view = a_view;
+	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
+	render_scene3d.scene_info.view = a_view;
 }
 
-void BB::SetProjection(const float4x4& a_proj)
+void BB::SetProjection(const RenderScene3DHandle a_scene, const float4x4& a_proj)
 {
-	GetRenderPass3D().scene_info.proj = a_proj;
+	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
+	render_scene3d.scene_info.proj = a_proj;
 }
 
 UploadBufferView& BB::GetUploadView(const size_t a_upload_size)
@@ -1876,21 +1923,21 @@ void BB::FreeMesh(const MeshHandle a_mesh)
 	s_render_inst->mesh_map.erase(a_mesh);
 }
 
-LightHandle BB::CreateLight(const CreateLightInfo& a_create_info)
+LightHandle BB::CreateLight(const RenderScene3DHandle a_scene, const CreateLightInfo& a_create_info)
 {
-	RenderPass3D& renderpass_3d = GetRenderPass3D();
+	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
 
 	PointLight light;
 	light.pos = a_create_info.pos;
 	light.color = a_create_info.color;
 	light.radius_linear = a_create_info.linear_distance;
 	light.radius_quadratic = a_create_info.quadratic_distance;
-	return renderpass_3d.light_container.insert(light);
+	return render_scene3d.light_container.insert(light);
 }
 
-void BB::CreateLights(const Slice<CreateLightInfo> a_create_infos, LightHandle* const a_light_handles)
+void BB::CreateLights(const RenderScene3DHandle a_scene, const Slice<CreateLightInfo> a_create_infos, LightHandle* const a_light_handles)
 {
-	RenderPass3D& renderpass_3d = GetRenderPass3D();
+	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
 
 	for (size_t i = 0; i < a_create_infos.size(); i++)
 	{
@@ -1899,18 +1946,20 @@ void BB::CreateLights(const Slice<CreateLightInfo> a_create_infos, LightHandle* 
 		light.color = a_create_infos[i].color;
 		light.radius_linear = a_create_infos[i].linear_distance;
 		light.radius_quadratic = a_create_infos[i].quadratic_distance;
-		a_light_handles[i] = renderpass_3d.light_container.insert(light);
+		a_light_handles[i] = render_scene3d.light_container.insert(light);
 	}
 }
 
-void BB::FreeLight(const LightHandle a_light)
+void BB::FreeLight(const RenderScene3DHandle a_scene, const LightHandle a_light)
 {
-	GetRenderPass3D().light_container.erase(a_light);
+	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
+	render_scene3d.light_container.erase(a_light);
 }
 
-PointLight& BB::GetLight(const LightHandle a_light)
+PointLight& BB::GetLight(const RenderScene3DHandle a_scene, const LightHandle a_light)
 {
-	return GetRenderPass3D().light_container.find(a_light);
+	const Scene3D& render_scene3d = *reinterpret_cast<const Scene3D*>(a_scene.handle);
+	return render_scene3d.light_container.find(a_light);
 }
 
 bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles)
@@ -1938,7 +1987,7 @@ bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderE
 		switch (a_create_infos[i].pass_type)
 		{
 		case RENDER_PASS_TYPE::STANDARD_3D:
-			desc_layouts[SPACE_PER_SCENE] = GetRenderPass3D().descriptor_layout;
+			desc_layouts[SPACE_PER_SCENE] = s_render_inst->scene3d_descriptor_layout;
 			break;
 		default:
 			BB_ASSERT(false, "Unsupported/Unimplemented RENDER_PASS_TYPE");
@@ -2092,15 +2141,15 @@ void BB::UnmapGPUBuffer(const GPUBuffer a_buffer)
 	Vulkan::UnmapBufferMemory(a_buffer);
 }
 
-void BB::DrawMesh(const MeshHandle a_mesh, const float4x4& a_transform, const uint32_t a_index_start, const uint32_t a_index_count, const MaterialHandle a_material)
+void BB::DrawMesh(const RenderScene3DHandle a_scene, const MeshHandle a_mesh, const float4x4& a_transform, const uint32_t a_index_start, const uint32_t a_index_count, const MaterialHandle a_material)
 {
-	RenderPass3D& renderpass_3d = GetRenderPass3D();
-	renderpass_3d.draw_list_data.mesh_draw_call[renderpass_3d.draw_list_count].mesh = a_mesh;
-	renderpass_3d.draw_list_data.mesh_draw_call[renderpass_3d.draw_list_count].material = a_material;
-	renderpass_3d.draw_list_data.mesh_draw_call[renderpass_3d.draw_list_count].index_start = a_index_start;
-	renderpass_3d.draw_list_data.mesh_draw_call[renderpass_3d.draw_list_count].index_count = a_index_count;
-	renderpass_3d.draw_list_data.transform[renderpass_3d.draw_list_count].transform = a_transform;
-	renderpass_3d.draw_list_data.transform[renderpass_3d.draw_list_count++].inverse = Float4x4Inverse(a_transform);
+	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
+	render_scene3d.draw_list_data.mesh_draw_call[render_scene3d.draw_list_count].mesh = a_mesh;
+	render_scene3d.draw_list_data.mesh_draw_call[render_scene3d.draw_list_count].material = a_material;
+	render_scene3d.draw_list_data.mesh_draw_call[render_scene3d.draw_list_count].index_start = a_index_start;
+	render_scene3d.draw_list_data.mesh_draw_call[render_scene3d.draw_list_count].index_count = a_index_count;
+	render_scene3d.draw_list_data.transform[render_scene3d.draw_list_count].transform = a_transform;
+	render_scene3d.draw_list_data.transform[render_scene3d.draw_list_count++].inverse = Float4x4Inverse(a_transform);
 }
 
 RTexture BB::GetWhiteTexture()

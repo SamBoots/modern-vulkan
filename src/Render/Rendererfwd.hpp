@@ -89,8 +89,9 @@ namespace BB
 
 	struct StartRenderingInfo
 	{
-		uint32_t viewport_width;
-		uint32_t viewport_height;
+		uint2 viewport_size;
+		uint2 scissor_extent;
+		int2 scissor_offset;
 
 		bool load_color;
 		bool store_color;

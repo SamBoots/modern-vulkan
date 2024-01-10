@@ -2244,9 +2244,10 @@ void Vulkan::StartRenderPass(const RCommandList a_list, const StartRenderingInfo
 	rendering_attachment.clearValue.color.float32[3] = a_render_info.clear_color_rgba.w;
 
 	VkRect2D scissor{};
-	scissor.offset = { 0, 0 };
-	scissor.extent.width = a_render_info.viewport_width;
-	scissor.extent.height = a_render_info.viewport_height;
+	scissor.offset.x = a_render_info.scissor_offset.x;
+	scissor.offset.y = a_render_info.scissor_offset.y;
+	scissor.extent.width = a_render_info.scissor_extent.x;
+	scissor.extent.height = a_render_info.scissor_extent.y;
 
 	rendering_info.renderArea = scissor;
 	rendering_info.layerCount = 1;
@@ -2258,8 +2259,8 @@ void Vulkan::StartRenderPass(const RCommandList a_list, const StartRenderingInfo
 	VkViewport viewport{};
 	viewport.x = 0.0f;
 	viewport.y = 0.0f;
-	viewport.width = static_cast<float>(a_render_info.viewport_width);
-	viewport.height = static_cast<float>(a_render_info.viewport_height);
+	viewport.width = static_cast<float>(a_render_info.viewport_size.x);
+	viewport.height = static_cast<float>(a_render_info.viewport_size.y);
 	viewport.minDepth = 0.0f;
 	viewport.maxDepth = 1.0f;
 	vkCmdSetViewportWithCount(cmd_buffer, 1, &viewport);
