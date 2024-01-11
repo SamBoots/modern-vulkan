@@ -32,13 +32,15 @@ namespace BB
 	class SceneHierarchy
 	{
 	public:
-		void InitializeSceneHierarchy(MemoryArena& a_memory_arena, const uint32_t a_scene_obj_max = DEFAULT_SCENE_OBJ_MAX);
+		void InitializeSceneHierarchy(MemoryArena& a_memory_arena, const RCommandList a_cmd_list, const uint32_t a_scene_obj_max = DEFAULT_SCENE_OBJ_MAX);
 
-		void DrawSceneHierarchy() const;
+		void DrawSceneHierarchy(const uint2 a_draw_area_size, const int2 a_draw_area_offset) const;
 		void CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name);
 		void CreateSceneObjectAsLight(const CreateLightInfo& a_light_create_info, const char* a_name);
 
 		void ImguiDisplaySceneHierarchy();
+
+		RenderScene3DHandle GetRenderSceneHandle() const { return m_render_scene; }
 
 	private:
 		SceneObjectHandle CreateSceneObjectEmpty(const SceneObjectHandle a_parent);
@@ -52,5 +54,7 @@ namespace BB
 
 		uint32_t m_top_level_object_count;
 		SceneObjectHandle* m_top_level_objects;
+
+		RenderScene3DHandle m_render_scene;
 	};
 }

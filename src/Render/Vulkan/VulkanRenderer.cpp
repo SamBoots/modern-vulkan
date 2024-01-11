@@ -2095,6 +2095,37 @@ void Vulkan::CopyBufferImage(const RCommandList a_list, const RenderCopyBufferTo
 		&copy_image);
 }
 
+void Vulkan::CopyImage(const RCommandList a_list, const RenderCopyImage& a_copy_info)
+{
+	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+
+	VkImageCopy image_copy;
+	image_copy.extent.width = a_copy_info.copy_info.size_x;
+	image_copy.extent.height = a_copy_info.copy_info.size_y;
+	image_copy.extent.depth = a_copy_info.copy_info.size_z;
+
+	image_copy.srcOffset.x = a_copy_info.copy_info.offset_x;
+	image_copy.srcOffset.y = a_copy_info.copy_info.offset_y;
+	image_copy.srcOffset.z = a_copy_info.copy_info.offset_z;
+	image_copy.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	image_copy.srcSubresource.mipLevel = a_copy_info.copy_info.mip_level;
+	image_copy.srcSubresource.baseArrayLayer = a_copy_info.copy_info.base_array_layer;
+	image_copy.srcSubresource.layerCount = a_copy_info.copy_info.layer_count;
+
+	image_copy.dstOffset.x = a_copy_info.copy_info.offset_x;
+	image_copy.dstOffset.y = a_copy_info.copy_info.offset_y;
+	image_copy.dstOffset.z = a_copy_info.copy_info.offset_z;
+	image_copy.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	image_copy.dstSubresource.mipLevel = a_copy_info.copy_info.mip_level;
+	image_copy.dstSubresource.baseArrayLayer = a_copy_info.copy_info.base_array_layer;
+	image_copy.dstSubresource.layerCount = a_copy_info.copy_info.layer_count;
+
+	vkCmdCopyImage(cmd_list,
+		reinterpret_cast<VkImage>(a_copy_info.dst_image.handle), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+		reinterpret_cast<VkImage>(a_copy_info.dst_image.handle), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		1, &image_copy);
+}
+
 static inline uint32_t QueueTransitionIndex(const QUEUE_TRANSITION a_Transition)
 {
 	switch (a_Transition)

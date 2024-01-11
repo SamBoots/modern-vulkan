@@ -5,13 +5,23 @@
 
 using namespace BB;
 
-void SceneHierarchy::InitializeSceneHierarchy(MemoryArena& a_memory_arena, const uint32_t a_scene_obj_max)
+void SceneHierarchy::InitializeSceneHierarchy(MemoryArena& a_memory_arena, const RCommandList a_cmd_list, const uint32_t a_scene_obj_max)
 {
 	m_transform_pool.Init(a_memory_arena, a_scene_obj_max);
 	m_scene_objects.Init(a_memory_arena, a_scene_obj_max);
 	m_top_level_objects = ArenaAllocArr(a_memory_arena, SceneObjectHandle, a_scene_obj_max);
 
 	m_top_level_object_count = 0;
+
+	SceneCreateInfo create_info;
+	create_info.ambient_light_color = float3(1.f, 1.f, 1.f);
+	create_info.ambient_light_strength = 1;
+	create_info.draw_entry_max = a_scene_obj_max;
+	create_info.light_max = 128; // magic number jank yes shoot me
+
+	UploadBufferView empty; //HACK HACK, need to find a way to upload a texture without an upload buffer view that is not needed
+
+	m_render_scene = Create3DRenderScene(a_memory_arena, a_cmd_list, empty, create_info);
 }
 
 SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent)
@@ -96,7 +106,7 @@ void SceneHierarchy::CreateSceneObjectAsLight(const CreateLightInfo& a_light_cre
 	scene_object_light.index_count = 0;
 	scene_object_light.material = MaterialHandle(BB_INVALID_HANDLE_64);
 	scene_object_light.parent = SceneObjectHandle(BB_INVALID_HANDLE_64);
-	scene_object_light.light_handle = CreateLight(a_light_create_info);
+	scene_object_light.light_handle = CreateLight(m_render_scene, a_light_create_info);
 	scene_object_light.transform = m_transform_pool.CreateTransform(a_light_create_info.pos);
 
 	scene_object_light.child_count = 0;
@@ -105,13 +115,15 @@ void SceneHierarchy::CreateSceneObjectAsLight(const CreateLightInfo& a_light_cre
 	m_top_level_objects[m_top_level_object_count++] = scene_object_handle;
 }
 
-void SceneHierarchy::DrawSceneHierarchy() const
+void SceneHierarchy::DrawSceneHierarchy(const uint2 a_draw_area_size, const int2 a_draw_area_offset) const
 {
+	StartRenderScene(m_render_scene);
 	for (size_t i = 0; i < m_top_level_object_count; i++)
 	{
 		// identity hack to awkwardly get the first matrix. 
 		DrawSceneObject(m_top_level_objects[i], Float4x4Identity());
 	}
+	EndRenderScene(m_render_scene, a_draw_area_size, a_draw_area_offset);
 }
 
 void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform) const
@@ -121,7 +133,7 @@ void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, con
 	const float4x4 local_transform = a_transform * m_transform_pool.GetTransformMatrix(scene_object.transform);
 
 	if (scene_object.mesh_handle.handle != BB_INVALID_HANDLE_64)
-		DrawMesh(scene_object.mesh_handle, local_transform, scene_object.start_index, scene_object.index_count, scene_object.material);
+		DrawMesh(m_render_scene, scene_object.mesh_handle, local_transform, scene_object.start_index, scene_object.index_count, scene_object.material);
 
 	for (size_t i = 0; i < scene_object.child_count; i++)
 	{
@@ -200,7 +212,7 @@ void SceneHierarchy::ImGuiDisplaySceneObject(const SceneObjectHandle a_object)
 			if (ImGui::TreeNodeEx("light object", ImGuiTreeNodeFlags_NoTreePushOnOpen))
 			{
 				ImGui::Indent();
-				PointLight& light = GetLight(scene_object.light_handle);
+				PointLight& light = GetLight(m_render_scene, scene_object.light_handle);
 
 				if (position_changed)
 				{
@@ -213,7 +225,7 @@ void SceneHierarchy::ImGuiDisplaySceneObject(const SceneObjectHandle a_object)
 
 				if (ImGui::Button("remove light"))
 				{
-					FreeLight(scene_object.light_handle);
+					FreeLight(m_render_scene, scene_object.light_handle);
 					scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 				}
 				ImGui::Unindent();
@@ -228,7 +240,7 @@ void SceneHierarchy::ImGuiDisplaySceneObject(const SceneObjectHandle a_object)
 				light_create_info.color = float3(1.f, 1.f, 1.f);
 				light_create_info.linear_distance = 0.35f;
 				light_create_info.quadratic_distance = 0.44f;
-				scene_object.light_handle = CreateLight(light_create_info);
+				scene_object.light_handle = CreateLight(m_render_scene, light_create_info);
 			}
 		}
 

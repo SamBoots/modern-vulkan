@@ -254,13 +254,20 @@ int main(int argc, char** argv)
 	Camera camera{ float3{2.0f, 2.0f, 2.0f}, 0.35f };
 
 	SceneHierarchy scene_hierarchy;
-	scene_hierarchy.InitializeSceneHierarchy(main_arena);
+	CommandPool& graphics_command_pool = GetGraphicsCommandPool();
+	{
+		const RCommandList startup_command_list = graphics_command_pool.StartCommandList("startup list");
+		scene_hierarchy.InitializeSceneHierarchy(main_arena, startup_command_list);
+		graphics_command_pool.EndCommandList(startup_command_list);
+		ExecuteGraphicCommands(Slice(&graphics_command_pool, 1), Slice<UploadBufferView>());
+	}
+
 
 	{
 		const float4x4 projection = Float4x4Perspective(ToRadians(60.0f),
 			static_cast<float>(render_create_info.swapchain_width) / static_cast<float>(render_create_info.swapchain_height),
 			.001f, 10000.0f);
-		BB::SetProjection(projection);
+		BB::SetProjection(scene_hierarchy.GetRenderSceneHandle(), projection);
 	}
 
 	ShaderEffectHandle shader_effects[2];
@@ -359,7 +366,7 @@ int main(int argc, char** argv)
 		ProcessMessages(window);
 		PollInputEvents(input_events, input_event_count);
 
-		BB::SetView(camera.CalculateView());
+		BB::SetView(scene_hierarchy.GetRenderSceneHandle(), camera.CalculateView());
 		StartFrame();
 
 		for (size_t i = 0; i < input_event_count; i++)
@@ -419,9 +426,15 @@ int main(int argc, char** argv)
 		DebugWindowMemoryArena(main_arena);
 		scene_hierarchy.ImguiDisplaySceneHierarchy();
 
-		scene_hierarchy.DrawSceneHierarchy();
+		int x, y;
+		GetWindowSize(window, x, y);
+		scene_hierarchy.DrawSceneHierarchy(uint2{ {static_cast<uint32_t>(x), static_cast<uint32_t>(y)} }, int2{ {0, 0} });
 
-		EndFrame();
+		SceneImageInfo scene_image_info[1];
+		scene_image_info[0].scene = scene_hierarchy.GetRenderSceneHandle();
+		scene_image_info[0].image_size = uint2{ {static_cast<uint32_t>(x), static_cast<uint32_t>(y)} };
+		scene_image_info[0].image_offset = int2{ {0, 0} };
+		EndFrame(Slice(scene_image_info, 1));
 
 		delta_time = std::chrono::duration<float, std::chrono::seconds::period>(current_time - start_time).count();
 		current_time = std::chrono::high_resolution_clock::now();

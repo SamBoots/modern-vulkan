@@ -540,6 +540,12 @@ struct RenderInterface_inst
 	{}
 
 	RenderIO render_io;
+
+	struct Frame
+	{
+		RTexture render_target;
+	};
+	Frame* frames;
 	bool debug;
 
 	ShaderCompiler shader_compiler;
@@ -920,9 +926,6 @@ static void ImguiDisplayRenderer()
 		ImGui::Unindent();
 	}
 }
-
-static CommandPool* current_use_pool;
-static RCommandList current_command_list;
 
 GPUBufferView BB::AllocateFromVertexBuffer(const size_t a_size_in_bytes)
 {
@@ -1422,6 +1425,22 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	}
 
 	{
+		s_render_inst->frames = ArenaAllocArr(a_arena, RenderInterface_inst::Frame, s_render_inst->render_io.frame_count);
+		for (size_t i = 0; i < s_render_inst->render_io.frame_count; i++)
+		{
+			UploadImageInfo back_buffer_image_info;
+			back_buffer_image_info.name = "render_target image before transfer to swapchain";
+			back_buffer_image_info.width = s_render_inst->render_io.screen_width;
+			back_buffer_image_info.height = s_render_inst->render_io.screen_height;
+			back_buffer_image_info.format = IMAGE_FORMAT::RGBA16_SFLOAT;
+			back_buffer_image_info.usage = IMAGE_USAGE::RENDER_TARGET;
+			back_buffer_image_info.pixels = nullptr;
+
+			s_render_inst->frames[i].render_target = UploadTexture(list, back_buffer_image_info, startup_upload_view);
+		}
+	}
+
+	{
 		//per-frame descriptor set 1 for renderpass
 		DescriptorBindingInfo descriptor_bindings[3];
 		descriptor_bindings[0].binding = PER_SCENE_SCENE_DATA_BINDING;
@@ -1460,18 +1479,59 @@ void BB::StartFrame()
 	IMGUI_IMPL::ImNewFrame();
 	ImGui::NewFrame();
 
-	current_use_pool = &s_render_inst->graphics_queue.GetCommandPool("test getting thing command pool");
-	current_command_list = current_use_pool->StartCommandList("test getting thing command list");
-
 	ImguiDisplayRenderer();
 }
 
-void BB::EndFrame(bool a_skip)
+void BB::EndFrame(const Slice<SceneImageInfo> a_scene_image_infos, bool a_skip)
 {
 	if (a_skip)
 	{
 		ImGui::EndFrame();
 		return;
+	}
+	const uint32_t frame_index = s_render_inst->render_io.frame_index;
+	const RenderInterface_inst::Frame& cur_frame = s_render_inst->frames[frame_index];
+	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(cur_frame.render_target);
+
+	{
+		PipelineBarrierImageInfo image_transitions[1]{};
+		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
+		image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
+		image_transitions[0].image = render_target.image;
+		image_transitions[0].old_layout = IMAGE_LAYOUT::UNDEFINED;
+		image_transitions[0].new_layout = IMAGE_LAYOUT::TRANSFER_DST;
+		image_transitions[0].layer_count = 1;
+		image_transitions[0].level_count = 1;
+		image_transitions[0].base_array_layer = 0;
+		image_transitions[0].base_mip_level = 0;
+		image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
+		image_transitions[0].dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
+
+		PipelineBarrierInfo pipeline_info{};
+		pipeline_info.image_info_count = _countof(image_transitions);
+		pipeline_info.image_infos = image_transitions;
+		Vulkan::PipelineBarriers(current_command_list, pipeline_info);
+	}
+
+	//get all the scene images in here, or nothing if we have no scenes :(
+	for (size_t i = 0; i < a_scene_image_infos.size(); i++)
+	{
+		const Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene_image_infos[i].scene.handle);
+		const GPUTextureManager::TextureSlot scene_image = s_render_inst->texture_manager.GetTextureSlot(render_scene3d.frames[frame_index].back_buffer_image);
+
+		RenderCopyImage copy_image;
+		copy_image.dst_image = render_target.image;
+		copy_image.src_image = scene_image.image;
+		copy_image.copy_info.size_x = a_scene_image_infos[i].image_size.x;
+		copy_image.copy_info.size_y= a_scene_image_infos[i].image_size.y;
+		copy_image.copy_info.size_z = 1;
+		copy_image.copy_info.offset_x = a_scene_image_infos[i].image_offset.x;
+		copy_image.copy_info.offset_y = a_scene_image_infos[i].image_offset.y;
+		copy_image.copy_info.offset_z = 0;
+		copy_image.copy_info.mip_level = 0;
+		copy_image.copy_info.layer_count = 1;
+		copy_image.copy_info.base_array_layer = 0;
+		Vulkan::CopyImage(current_command_list, copy_image);
 	}
 
 	//present
@@ -1484,13 +1544,13 @@ void BB::EndFrame(bool a_skip)
 		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
 		image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
 		image_transitions[0].image = render_target.image;
-		image_transitions[0].old_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+		image_transitions[0].old_layout = IMAGE_LAYOUT::TRANSFER_DST;
 		image_transitions[0].new_layout = IMAGE_LAYOUT::TRANSFER_SRC;
 		image_transitions[0].layer_count = 1;
 		image_transitions[0].level_count = 1;
 		image_transitions[0].base_array_layer = 0;
 		image_transitions[0].base_mip_level = 0;
-		image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
+		image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
 		image_transitions[0].dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
 
 		PipelineBarrierInfo pipeline_info{};
@@ -1509,7 +1569,7 @@ void BB::EndFrame(bool a_skip)
 	Vulkan::UploadImageToSwapchain(current_command_list, render_target.image, swapchain_size, swapchain_size, s_render_inst->render_io.frame_index);
 	current_use_pool->EndCommandList(current_command_list);
 
-	s_render_inst->graphics_queue.ExecutePresentCommands(current_command_list, &upload_fence, &upload_fence_value, 1, nullptr, nullptr, 0, s_render_inst->render_io.frame_index);
+	s_render_inst->graphics_queue.ExecutePresentCommands(current_command_list, nullptr, nullptr, 0, nullptr, nullptr, 0, s_render_inst->render_io.frame_index);
 	//swap images after execute present commands
 	s_render_inst->render_io.frame_index = (s_render_inst->render_io.frame_index + 1) % s_render_inst->render_io.frame_count;
 	s_render_inst->graphics_queue.ReturnPool(*current_use_pool);
@@ -1634,10 +1694,10 @@ void BB::StartRenderScene(const RenderScene3DHandle a_scene)
 	render_scene3d.draw_list_count = 0;
 }
 
-void BB::EndRenderScene(const RenderScene3DHandle a_scene, const uint2 a_draw_area_size, const int2 a_draw_area_offset, bool a_skip = false)
+void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const uint2 a_draw_area_size, const int2 a_draw_area_offset, bool a_skip)
 {
 	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
-	const auto& cur_frame = render_scene3d.frames[s_render_inst->render_io.frame_index];
+	const auto& scene_frame = render_scene3d.frames[s_render_inst->render_io.frame_index];
 
 	if (render_scene3d.draw_list_count == 0 || a_skip)
 	{
@@ -1664,28 +1724,28 @@ void BB::EndRenderScene(const RenderScene3DHandle a_scene, const uint2 a_draw_ar
 	//upload to some GPU buffer here.
 	RenderCopyBuffer matrix_buffer_copy;
 	matrix_buffer_copy.src = matrix_upload_view.GetBufferHandle();
-	matrix_buffer_copy.dst = cur_frame.per_frame_buffer;
+	matrix_buffer_copy.dst = scene_frame.per_frame_buffer;
 	RenderCopyBufferRegion buffer_regions[3]; // 0 = scene, 1 = matrix
 	buffer_regions[0].src_offset = scene_offset;
-	buffer_regions[0].dst_offset = cur_frame.scene_buffer.offset;
-	buffer_regions[0].size = cur_frame.scene_buffer.size;
+	buffer_regions[0].dst_offset = scene_frame.scene_buffer.offset;
+	buffer_regions[0].size = scene_frame.scene_buffer.size;
 
 	buffer_regions[1].src_offset = matrix_offset;
-	buffer_regions[1].dst_offset = cur_frame.transform_buffer.offset;
+	buffer_regions[1].dst_offset = scene_frame.transform_buffer.offset;
 	buffer_regions[1].size = matrices_upload_size;
 
 	buffer_regions[2].src_offset = light_offset;
-	buffer_regions[2].dst_offset = cur_frame.light_buffer.offset;
+	buffer_regions[2].dst_offset = scene_frame.light_buffer.offset;
 	buffer_regions[2].size = light_upload_size;
 	matrix_buffer_copy.regions = Slice(buffer_regions, _countof(buffer_regions));
-	Vulkan::CopyBuffer(current_command_list, matrix_buffer_copy);
+	Vulkan::CopyBuffer(a_cmd_list, matrix_buffer_copy);
 
 	RFence upload_fence;
 	uint64_t upload_fence_value;
 	s_render_inst->upload_buffers.ReturnUploadViews(Slice(&matrix_upload_view, 1), upload_fence, upload_fence_value);
 	s_render_inst->upload_buffers.IncrementNextFenceValue();
 
-	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(cur_frame.back_buffer_image);
+	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(scene_frame.back_buffer_image);
 
 	//transition depth buffer
 	{
@@ -1719,12 +1779,12 @@ void BB::EndRenderScene(const RenderScene3DHandle a_scene, const uint2 a_draw_ar
 		PipelineBarrierInfo pipeline_info{};
 		pipeline_info.image_info_count = _countof(image_transitions);
 		pipeline_info.image_infos = image_transitions;
-		Vulkan::PipelineBarriers(current_command_list, pipeline_info);
+		Vulkan::PipelineBarriers(a_cmd_list, pipeline_info);
 	}
 
 	//render
 	StartRenderingInfo start_rendering_info;
-	start_rendering_info.viewport_size = uint2{ s_render_inst->render_io.screen_width, s_render_inst->render_io.screen_height };
+	start_rendering_info.viewport_size = uint2{ {s_render_inst->render_io.screen_width, s_render_inst->render_io.screen_height} };
 	start_rendering_info.scissor_extent = a_draw_area_size;
 	start_rendering_info.scissor_offset = a_draw_area_offset;
 	start_rendering_info.depth_view = render_scene3d.depth_image_view;
@@ -1732,7 +1792,7 @@ void BB::EndRenderScene(const RenderScene3DHandle a_scene, const uint2 a_draw_ar
 	start_rendering_info.load_color = false;
 	start_rendering_info.store_color = true;
 	start_rendering_info.clear_color_rgba = float4{ 0.f, 0.5f, 0.f, 1.f };
-	Vulkan::StartRenderPass(current_command_list, start_rendering_info, render_target.view);
+	Vulkan::StartRenderPass(a_cmd_list, start_rendering_info, render_target.view);
 
 	{
 		//set the first data to get the first 3 descriptor sets.
@@ -1740,11 +1800,11 @@ void BB::EndRenderScene(const RenderScene3DHandle a_scene, const uint2 a_draw_ar
 		const Material& material = s_render_inst->material_map.find(mesh_draw_call.material);
 
 		//set 0
-		Vulkan::SetDescriptorImmutableSamplers(current_command_list, material.shader.pipeline_layout);
+		Vulkan::SetDescriptorImmutableSamplers(a_cmd_list, material.shader.pipeline_layout);
 		const uint32_t buffer_indices[] = { 0, 0 };
-		const size_t buffer_offsets[]{ s_render_inst->global_descriptor_allocation.offset, cur_frame.desc_alloc.offset };
+		const size_t buffer_offsets[]{ s_render_inst->global_descriptor_allocation.offset, scene_frame.desc_alloc.offset };
 		//set 1-2
-		Vulkan::SetDescriptorBufferOffset(current_command_list,
+		Vulkan::SetDescriptorBufferOffset(a_cmd_list,
 			material.shader.pipeline_layout,
 			SPACE_GLOBAL, 
 			_countof(buffer_offsets),
@@ -1752,7 +1812,7 @@ void BB::EndRenderScene(const RenderScene3DHandle a_scene, const uint2 a_draw_ar
 			buffer_offsets);
 	}
 
-	Vulkan::BindIndexBuffer(current_command_list, s_render_inst->index_buffer.buffer, 0);
+	Vulkan::BindIndexBuffer(a_cmd_list, s_render_inst->index_buffer.buffer, 0);
 
 	for (uint32_t i = 0; i < render_scene3d.draw_list_count; i++)
 	{
@@ -1760,7 +1820,7 @@ void BB::EndRenderScene(const RenderScene3DHandle a_scene, const uint2 a_draw_ar
 		const Material& material = s_render_inst->material_map.find(mesh_draw_call.material);
 		const Mesh& mesh = s_render_inst->mesh_map.find(mesh_draw_call.mesh);
 
-		Vulkan::BindShaders(current_command_list,
+		Vulkan::BindShaders(a_cmd_list,
 			material.shader.shader_effect_count,
 			material.shader.shader_stages,
 			material.shader.shader_objects);
@@ -1770,9 +1830,9 @@ void BB::EndRenderScene(const RenderScene3DHandle a_scene, const uint2 a_draw_ar
 		shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh.vertex_buffer.offset);
 		shader_indices.albedo_texture = material.base_color.handle;
 
-		Vulkan::SetPushConstants(current_command_list, material.shader.pipeline_layout, 0, sizeof(ShaderIndices), &shader_indices);
+		Vulkan::SetPushConstants(a_cmd_list, material.shader.pipeline_layout, 0, sizeof(ShaderIndices), &shader_indices);
 
-		Vulkan::DrawIndexed(current_command_list,
+		Vulkan::DrawIndexed(a_cmd_list,
 			static_cast<uint32_t>(mesh.index_buffer.size / sizeof(uint32_t)) + mesh_draw_call.index_count,
 			1,
 			static_cast<uint32_t>(mesh.index_buffer.offset / sizeof(uint32_t)) + mesh_draw_call.index_start,
@@ -1780,7 +1840,7 @@ void BB::EndRenderScene(const RenderScene3DHandle a_scene, const uint2 a_draw_ar
 			0);
 	}
 
-	Vulkan::EndRenderPass(current_command_list);
+	Vulkan::EndRenderPass(a_cmd_list);
 
 	{
 		PipelineBarrierImageInfo image_transitions[1]{};
@@ -1799,23 +1859,8 @@ void BB::EndRenderScene(const RenderScene3DHandle a_scene, const uint2 a_draw_ar
 		PipelineBarrierInfo pipeline_info{};
 		pipeline_info.image_info_count = _countof(image_transitions);
 		pipeline_info.image_infos = image_transitions;
-		Vulkan::PipelineBarriers(current_command_list, pipeline_info);
+		Vulkan::PipelineBarriers(a_cmd_list, pipeline_info);
 	}
-
-	const int2 swapchain_size =
-	{
-		{
-		static_cast<int>(s_render_inst->render_io.screen_width),
-		static_cast<int>(s_render_inst->render_io.screen_height)
-		}
-	};
-	Vulkan::UploadImageToSwapchain(current_command_list, render_target.image, swapchain_size, swapchain_size, s_render_inst->render_io.frame_index);
-	current_use_pool->EndCommandList(current_command_list);
-
-	render_scene3d.frames[s_render_inst->render_io.frame_index].fence_value = s_render_inst->graphics_queue.GetNextFenceValue();
-
-	s_render_inst->render_io.frame_index = (s_render_inst->render_io.frame_index + 1) % s_render_inst->render_io.frame_count;
-	s_render_inst->graphics_queue.ReturnPool(*current_use_pool);
 }
 
 void BB::SetView(const RenderScene3DHandle a_scene, const float4x4& a_view)

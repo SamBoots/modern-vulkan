@@ -177,6 +177,13 @@ namespace BB
 		ImageCopyInfo dst_image_info;
 	};
 
+	struct RenderCopyImage
+	{
+		RImage src_image;
+		RImage dst_image;
+		ImageCopyInfo copy_info;
+	};
+
 	enum class QUEUE_TRANSITION : uint32_t
 	{
 		NO_TRANSITION,
