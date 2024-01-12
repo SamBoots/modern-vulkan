@@ -308,6 +308,13 @@ public:
 	{
 		(void)a_pool_name; //not used yet.
 		OSAcquireSRWLockWrite(&m_lock);
+
+		if (m_free_pools.head == nullptr)
+		{
+			OSReleaseSRWLockWrite(&m_lock);
+			WaitIdle();	// TODO: wait idle optimal? No
+			OSAcquireSRWLockWrite(&m_lock);
+		}
 		CommandPool& pool = *m_free_pools.Pop();
 		//TODO, handle nullptr, maybe just wait or do the reset here?
 		OSReleaseSRWLockWrite(&m_lock);
@@ -535,7 +542,7 @@ struct Scene3D
 struct RenderInterface_inst
 {
 	RenderInterface_inst(MemoryArena& a_arena)
-		: graphics_queue(a_arena, QUEUE_TYPE::GRAPHICS, "graphics queue", 8, 8),
+		: graphics_queue(a_arena, QUEUE_TYPE::GRAPHICS, "graphics queue", 16, 16),
 		upload_buffers(a_arena, UPLOAD_BUFFER_POOL_SIZE, UPLOAD_BUFFER_POOL_COUNT)
 	{}
 
@@ -711,6 +718,8 @@ namespace IMGUI_IMPL
 		StartRenderingInfo imgui_pass_start{};
 		imgui_pass_start.viewport_size.x = render_io.screen_width;
 		imgui_pass_start.viewport_size.y = render_io.screen_height;
+		imgui_pass_start.scissor_extent = imgui_pass_start.viewport_size;
+		imgui_pass_start.scissor_offset = {};
 		imgui_pass_start.depth_view = RImageView(BB_INVALID_HANDLE_64);
 		imgui_pass_start.load_color = true;
 		imgui_pass_start.store_color = true;
@@ -1166,6 +1175,7 @@ const RTexture GPUTextureManager::UploadTexture(const RCommandList a_list, const
 		//shitty for now.
 		switch (image_info.usage)
 		{
+		case BB::IMAGE_USAGE::UPLOAD_SRC_DST:
 		case BB::IMAGE_USAGE::RENDER_TARGET:
 		case BB::IMAGE_USAGE::DEPTH:
 			//nothing here
@@ -1429,11 +1439,11 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		for (size_t i = 0; i < s_render_inst->render_io.frame_count; i++)
 		{
 			UploadImageInfo back_buffer_image_info;
-			back_buffer_image_info.name = "render_target image before transfer to swapchain";
+			back_buffer_image_info.name = "image before transfer to swapchain";
 			back_buffer_image_info.width = s_render_inst->render_io.screen_width;
 			back_buffer_image_info.height = s_render_inst->render_io.screen_height;
 			back_buffer_image_info.format = IMAGE_FORMAT::RGBA16_SFLOAT;
-			back_buffer_image_info.usage = IMAGE_USAGE::RENDER_TARGET;
+			back_buffer_image_info.usage = IMAGE_USAGE::UPLOAD_SRC_DST;
 			back_buffer_image_info.pixels = nullptr;
 
 			s_render_inst->frames[i].render_target = UploadTexture(list, back_buffer_image_info, startup_upload_view);
@@ -1493,10 +1503,14 @@ void BB::EndFrame(const Slice<SceneImageInfo> a_scene_image_infos, bool a_skip)
 	const RenderInterface_inst::Frame& cur_frame = s_render_inst->frames[frame_index];
 	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(cur_frame.render_target);
 
+	// TODO: jank cuz the user does not control this?
+	CommandPool& submit_pool = GetGraphicsCommandPool();
+	const RCommandList submit_list = submit_pool.StartCommandList();
+
 	{
 		PipelineBarrierImageInfo image_transitions[1]{};
-		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
-		image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
+		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::NONE;
+		image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
 		image_transitions[0].image = render_target.image;
 		image_transitions[0].old_layout = IMAGE_LAYOUT::UNDEFINED;
 		image_transitions[0].new_layout = IMAGE_LAYOUT::TRANSFER_DST;
@@ -1510,7 +1524,7 @@ void BB::EndFrame(const Slice<SceneImageInfo> a_scene_image_infos, bool a_skip)
 		PipelineBarrierInfo pipeline_info{};
 		pipeline_info.image_info_count = _countof(image_transitions);
 		pipeline_info.image_infos = image_transitions;
-		Vulkan::PipelineBarriers(current_command_list, pipeline_info);
+		Vulkan::PipelineBarriers(submit_list, pipeline_info);
 	}
 
 	//get all the scene images in here, or nothing if we have no scenes :(
@@ -1518,6 +1532,16 @@ void BB::EndFrame(const Slice<SceneImageInfo> a_scene_image_infos, bool a_skip)
 	{
 		const Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene_image_infos[i].scene.handle);
 		const GPUTextureManager::TextureSlot scene_image = s_render_inst->texture_manager.GetTextureSlot(render_scene3d.frames[frame_index].back_buffer_image);
+
+		render_scene3d.frames[s_render_inst->render_io.frame_index].fence_value = s_render_inst->graphics_queue.GetNextFenceValue();
+
+		// HACK! XD
+		if (a_scene_image_infos.size() - 1 == i)
+		{
+			ImGui::Render();
+			IMGUI_IMPL::ImRenderFrame(submit_list, scene_image.view);
+			ImGui::EndFrame();
+		}
 
 		RenderCopyImage copy_image;
 		copy_image.dst_image = render_target.image;
@@ -1531,17 +1555,13 @@ void BB::EndFrame(const Slice<SceneImageInfo> a_scene_image_infos, bool a_skip)
 		copy_image.copy_info.mip_level = 0;
 		copy_image.copy_info.layer_count = 1;
 		copy_image.copy_info.base_array_layer = 0;
-		Vulkan::CopyImage(current_command_list, copy_image);
+		//I think vulkan has an API where you can batch them it it's different images and 1 dst. 
+		Vulkan::CopyImage(submit_list, copy_image);
 	}
-
-	//present
-	ImGui::Render();
-	IMGUI_IMPL::ImRenderFrame(current_command_list, render_target.view);
-	ImGui::EndFrame();
 
 	{
 		PipelineBarrierImageInfo image_transitions[1]{};
-		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
+		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
 		image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
 		image_transitions[0].image = render_target.image;
 		image_transitions[0].old_layout = IMAGE_LAYOUT::TRANSFER_DST;
@@ -1556,7 +1576,7 @@ void BB::EndFrame(const Slice<SceneImageInfo> a_scene_image_infos, bool a_skip)
 		PipelineBarrierInfo pipeline_info{};
 		pipeline_info.image_info_count = _countof(image_transitions);
 		pipeline_info.image_infos = image_transitions;
-		Vulkan::PipelineBarriers(current_command_list, pipeline_info);
+		Vulkan::PipelineBarriers(submit_list, pipeline_info);
 	}
 
 	const int2 swapchain_size =
@@ -1566,13 +1586,13 @@ void BB::EndFrame(const Slice<SceneImageInfo> a_scene_image_infos, bool a_skip)
 		static_cast<int>(s_render_inst->render_io.screen_height)
 		}
 	};
-	Vulkan::UploadImageToSwapchain(current_command_list, render_target.image, swapchain_size, swapchain_size, s_render_inst->render_io.frame_index);
-	current_use_pool->EndCommandList(current_command_list);
+	Vulkan::UploadImageToSwapchain(submit_list, render_target.image, swapchain_size, swapchain_size, s_render_inst->render_io.frame_index);
+	submit_pool.EndCommandList(submit_list);
 
-	s_render_inst->graphics_queue.ExecutePresentCommands(current_command_list, nullptr, nullptr, 0, nullptr, nullptr, 0, s_render_inst->render_io.frame_index);
+	s_render_inst->graphics_queue.ExecutePresentCommands(submit_list, nullptr, nullptr, 0, nullptr, nullptr, 0, s_render_inst->render_io.frame_index);
 	//swap images after execute present commands
 	s_render_inst->render_io.frame_index = (s_render_inst->render_io.frame_index + 1) % s_render_inst->render_io.frame_count;
-	s_render_inst->graphics_queue.ReturnPool(*current_use_pool);
+	s_render_inst->graphics_queue.ReturnPool(submit_pool);
 }
 
 RenderScene3DHandle BB::Create3DRenderScene(MemoryArena& a_arena, const RCommandList a_list, UploadBufferView& a_upload_view, const SceneCreateInfo& a_info)
@@ -1694,7 +1714,7 @@ void BB::StartRenderScene(const RenderScene3DHandle a_scene)
 	render_scene3d.draw_list_count = 0;
 }
 
-void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const uint2 a_draw_area_size, const int2 a_draw_area_offset, bool a_skip)
+void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, bool a_skip)
 {
 	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
 	const auto& scene_frame = render_scene3d.frames[s_render_inst->render_io.frame_index];
@@ -1791,7 +1811,7 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 	start_rendering_info.layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 	start_rendering_info.load_color = false;
 	start_rendering_info.store_color = true;
-	start_rendering_info.clear_color_rgba = float4{ 0.f, 0.5f, 0.f, 1.f };
+	start_rendering_info.clear_color_rgba = float4{ a_clear_color.x, a_clear_color.y, a_clear_color.z, 1.f };
 	Vulkan::StartRenderPass(a_cmd_list, start_rendering_info, render_target.view);
 
 	{

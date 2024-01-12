@@ -5,7 +5,7 @@
 
 using namespace BB;
 
-void SceneHierarchy::InitializeSceneHierarchy(MemoryArena& a_memory_arena, const RCommandList a_cmd_list, const uint32_t a_scene_obj_max)
+void SceneHierarchy::InitializeSceneHierarchy(MemoryArena& a_memory_arena, const RCommandList a_cmd_list, const uint32_t a_scene_obj_max, const char* a_name)
 {
 	m_transform_pool.Init(a_memory_arena, a_scene_obj_max);
 	m_scene_objects.Init(a_memory_arena, a_scene_obj_max);
@@ -22,6 +22,7 @@ void SceneHierarchy::InitializeSceneHierarchy(MemoryArena& a_memory_arena, const
 	UploadBufferView empty; //HACK HACK, need to find a way to upload a texture without an upload buffer view that is not needed
 
 	m_render_scene = Create3DRenderScene(a_memory_arena, a_cmd_list, empty, create_info);
+	m_scene_name = a_name;
 }
 
 SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent)
@@ -115,7 +116,7 @@ void SceneHierarchy::CreateSceneObjectAsLight(const CreateLightInfo& a_light_cre
 	m_top_level_objects[m_top_level_object_count++] = scene_object_handle;
 }
 
-void SceneHierarchy::DrawSceneHierarchy(const uint2 a_draw_area_size, const int2 a_draw_area_offset) const
+void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const uint2 a_draw_area_size, const int2 a_draw_area_offset) const
 {
 	StartRenderScene(m_render_scene);
 	for (size_t i = 0; i < m_top_level_object_count; i++)
@@ -123,7 +124,7 @@ void SceneHierarchy::DrawSceneHierarchy(const uint2 a_draw_area_size, const int2
 		// identity hack to awkwardly get the first matrix. 
 		DrawSceneObject(m_top_level_objects[i], Float4x4Identity());
 	}
-	EndRenderScene(m_render_scene, a_draw_area_size, a_draw_area_offset);
+	EndRenderScene(a_list, m_render_scene, a_draw_area_size, a_draw_area_offset, m_clear_color);
 }
 
 void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform) const
@@ -163,7 +164,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectEmpty(const SceneObjectHandle
 
 void SceneHierarchy::ImguiDisplaySceneHierarchy()
 {
-	if (ImGui::CollapsingHeader("Scene Hierarchy"))
+	if (ImGui::CollapsingHeader(m_scene_name))
 	{
 		ImGui::Indent();
 		if (ImGui::Button("create scene object"))

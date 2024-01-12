@@ -507,6 +507,7 @@ struct Vulkan_inst
 
 		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::DEPTH)] = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::TEXTURE)] = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::UPLOAD_SRC_DST)] = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::RENDER_TARGET)] = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 #endif //ENUM_CONVERSATION_BY_ARRAY
 	}
@@ -852,7 +853,8 @@ static inline VkImageUsageFlags ImageUsage(const IMAGE_USAGE a_usage)
 	{
 	case IMAGE_USAGE::DEPTH:			return VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT; 
 	case IMAGE_USAGE::TEXTURE:			return VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-	case IMAGE_USAGE::RENDER_TARGET:	return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+	case IMAGE_USAGE::UPLOAD_SRC_DST	return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	case IMAGE_USAGE::RENDER_TARGET:	return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 	default:
 		BB_ASSERT(false, "Vulkan: IMAGE_USAGE failed to convert to a VkImageUsageFlags.");
 		return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
@@ -2121,7 +2123,7 @@ void Vulkan::CopyImage(const RCommandList a_list, const RenderCopyImage& a_copy_
 	image_copy.dstSubresource.layerCount = a_copy_info.copy_info.layer_count;
 
 	vkCmdCopyImage(cmd_list,
-		reinterpret_cast<VkImage>(a_copy_info.dst_image.handle), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+		reinterpret_cast<VkImage>(a_copy_info.src_image.handle), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 		reinterpret_cast<VkImage>(a_copy_info.dst_image.handle), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 		1, &image_copy);
 }

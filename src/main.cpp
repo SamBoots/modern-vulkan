@@ -251,23 +251,36 @@ int main(int argc, char** argv)
 	render_create_info.debug = true;
 	InitializeRenderer(main_arena, render_create_info);
 	SetupImGuiInput(main_arena, window);
-	Camera camera{ float3{2.0f, 2.0f, 2.0f}, 0.35f };
+	Camera camera{ float3{1.0f, 0.0f, 0.0f}, 0.35f };
 
 	SceneHierarchy scene_hierarchy;
-	CommandPool& graphics_command_pool = GetGraphicsCommandPool();
+	SceneHierarchy object_viewer_scene;
 	{
+		CommandPool& graphics_command_pool = GetGraphicsCommandPool();
 		const RCommandList startup_command_list = graphics_command_pool.StartCommandList("startup list");
-		scene_hierarchy.InitializeSceneHierarchy(main_arena, startup_command_list);
+		scene_hierarchy.InitializeSceneHierarchy(main_arena, startup_command_list, 128, "normal scene");
+		object_viewer_scene.InitializeSceneHierarchy(main_arena, startup_command_list, 16, "object viewer scene");
 		graphics_command_pool.EndCommandList(startup_command_list);
 		ExecuteGraphicCommands(Slice(&graphics_command_pool, 1), Slice<UploadBufferView>());
+
+		scene_hierarchy.SetClearColor(float3{ 0.1f, 0.1f, 0.1f });
+		object_viewer_scene.SetClearColor(float3{ 0.6f, 0.6f, 0.6f });
 	}
 
 
 	{
-		const float4x4 projection = Float4x4Perspective(ToRadians(60.0f),
+		float4x4 projection = Float4x4Perspective(ToRadians(60.0f),
 			static_cast<float>(render_create_info.swapchain_width) / static_cast<float>(render_create_info.swapchain_height),
 			.001f, 10000.0f);
 		BB::SetProjection(scene_hierarchy.GetRenderSceneHandle(), projection);
+
+
+		projection = Float4x4Perspective(ToRadians(60.0f),
+			static_cast<float>(render_create_info.swapchain_width / 2) / static_cast<float>(render_create_info.swapchain_height / 2),
+			.001f, 10000.0f);
+
+		BB::SetProjection(object_viewer_scene.GetRenderSceneHandle(), projection);
+		BB::SetView(object_viewer_scene.GetRenderSceneHandle(), camera.CalculateView());
 	}
 
 	ShaderEffectHandle shader_effects[2];
@@ -331,8 +344,9 @@ int main(int argc, char** argv)
 		async_assets[1].mesh_memory.material = default_mat;
 		Asset::LoadASync(Slice(async_assets, _countof(async_assets)));
 
-		scene_hierarchy.CreateSceneObjectViaModel(*Asset::FindModelByPath(async_assets[0].mesh_disk.path), float3{ 0, 1, 1 }, "ducky");
+		scene_hierarchy.CreateSceneObjectViaModel(*Asset::FindModelByPath(async_assets[0].mesh_disk.path), float3{ 0, 2, 1 }, "ducky");
 		scene_hierarchy.CreateSceneObjectViaModel(*Asset::FindModelByPath(async_assets[1].mesh_memory.name), float3{ 0, -1, 1 }, "quaty");
+		object_viewer_scene.CreateSceneObjectViaModel(*Asset::FindModelByPath(async_assets[0].mesh_disk.path), float3{ 0, 2, 1 }, "ducky");
 	}
 
 	{	//add some basic lights
@@ -349,6 +363,8 @@ int main(int argc, char** argv)
 
 		scene_hierarchy.CreateSceneObjectAsLight(light_create_info[0], "light 0");
 		scene_hierarchy.CreateSceneObjectAsLight(light_create_info[1], "light 1");
+
+		object_viewer_scene.CreateSceneObjectAsLight(light_create_info[0], "light 0");
 	}
 
 	bool freeze_cam = false;
@@ -366,8 +382,11 @@ int main(int argc, char** argv)
 		ProcessMessages(window);
 		PollInputEvents(input_events, input_event_count);
 
-		BB::SetView(scene_hierarchy.GetRenderSceneHandle(), camera.CalculateView());
+		BB::SetView(object_viewer_scene.GetRenderSceneHandle(), camera.CalculateView());
 		StartFrame();
+
+		CommandPool& graphics_command_pool = GetGraphicsCommandPool();
+		const RCommandList graphics_command_list = graphics_command_pool.StartCommandList();
 
 		for (size_t i = 0; i < input_event_count; i++)
 		{
@@ -425,16 +444,26 @@ int main(int argc, char** argv)
 
 		DebugWindowMemoryArena(main_arena);
 		scene_hierarchy.ImguiDisplaySceneHierarchy();
+		object_viewer_scene.ImguiDisplaySceneHierarchy();
 
 		int x, y;
 		GetWindowSize(window, x, y);
-		scene_hierarchy.DrawSceneHierarchy(uint2{ {static_cast<uint32_t>(x), static_cast<uint32_t>(y)} }, int2{ {0, 0} });
+		scene_hierarchy.DrawSceneHierarchy(graphics_command_list, uint2{ {static_cast<uint32_t>(x), static_cast<uint32_t>(y)} }, int2{ {0, 0} });
+		object_viewer_scene.DrawSceneHierarchy(graphics_command_list, uint2{ {static_cast<uint32_t>(x) / 2, static_cast<uint32_t>(y) / 2} }, int2{ {0, 0} });
 
-		SceneImageInfo scene_image_info[1];
+		graphics_command_pool.EndCommandList(graphics_command_list);
+
+		ExecuteGraphicCommands(Slice(&graphics_command_pool, 1), Slice<UploadBufferView>());
+		SceneImageInfo scene_image_info[2];
 		scene_image_info[0].scene = scene_hierarchy.GetRenderSceneHandle();
 		scene_image_info[0].image_size = uint2{ {static_cast<uint32_t>(x), static_cast<uint32_t>(y)} };
 		scene_image_info[0].image_offset = int2{ {0, 0} };
-		EndFrame(Slice(scene_image_info, 1));
+
+		scene_image_info[1].scene = object_viewer_scene.GetRenderSceneHandle();
+		scene_image_info[1].image_size = uint2{ {static_cast<uint32_t>(x) / 2, static_cast<uint32_t>(y) / 2} };
+		scene_image_info[1].image_offset = int2{ {0, 0} };
+
+		EndFrame(Slice(scene_image_info, _countof(scene_image_info)));
 
 		delta_time = std::chrono::duration<float, std::chrono::seconds::period>(current_time - start_time).count();
 		current_time = std::chrono::high_resolution_clock::now();

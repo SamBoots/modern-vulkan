@@ -145,7 +145,7 @@ namespace BB
 
 	RenderScene3DHandle Create3DRenderScene(MemoryArena& a_arena, const RCommandList a_list, UploadBufferView& a_upload_view, const SceneCreateInfo& a_info);
 	void StartRenderScene(const RenderScene3DHandle a_scene);
-	void EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const uint2 a_draw_area_size, const int2 a_draw_area_offset, bool a_skip = false);
+	void EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, bool a_skip = false);
 
 	void SetView(const RenderScene3DHandle a_scene, const float4x4& a_view);
 	void SetProjection(const RenderScene3DHandle a_scene, const float4x4& a_projection);
