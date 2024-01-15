@@ -257,10 +257,14 @@ void ResizeViewport(RenderViewPort& a_viewport, const RCommandList a_list, const
 	a_viewport.extent = a_new_size;
 }
 
-void DrawViewport(RenderViewPort& a_viewport)
+void DrawViewport(RenderViewPort& a_viewport, const RCommandList a_list)
 {
 	if (ImGui::Begin(a_viewport.name))
 	{
+		const uint2 window_size = { {static_cast<uint32_t>(ImGui::GetContentRegionAvail().x), static_cast<uint32_t>(ImGui::GetContentRegionAvail().y) } };
+		if (window_size != a_viewport.extent)
+			ResizeViewport(a_viewport, a_list, window_size);
+
 		ImGui::Image(a_viewport.render_target.handle, ImVec2(a_viewport.extent.x, a_viewport.extent.y));
 	}
 }
