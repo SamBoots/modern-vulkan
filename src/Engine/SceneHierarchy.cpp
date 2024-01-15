@@ -61,6 +61,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 			prim_obj.parent = scene_handle;
 			scene_obj.childeren[scene_obj.child_count++] = m_scene_objects.emplace(prim_obj);
 		}
+		
 	}
 
 	for (uint32_t i = 0; i < a_node.child_count; i++)
@@ -99,7 +100,7 @@ void SceneHierarchy::CreateSceneObjectViaModel(const Model& a_model, const float
 
 void SceneHierarchy::CreateSceneObjectAsLight(const CreateLightInfo& a_light_create_info, const char* a_name)
 {
-	SceneObjectHandle scene_object_handle = m_scene_objects.emplace(SceneObject());
+	const SceneObjectHandle scene_object_handle = m_scene_objects.emplace(SceneObject());
 	SceneObject& scene_object_light = m_scene_objects.find(scene_object_handle);
 	scene_object_light.name = a_name;
 	scene_object_light.mesh_handle = MeshHandle(BB_INVALID_HANDLE_64);
@@ -113,10 +114,11 @@ void SceneHierarchy::CreateSceneObjectAsLight(const CreateLightInfo& a_light_cre
 	scene_object_light.child_count = 0;
 
 	BB_ASSERT(m_top_level_object_count < m_scene_objects.capacity(), "Too many scene objects, increase the max");
+
 	m_top_level_objects[m_top_level_object_count++] = scene_object_handle;
 }
 
-void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const uint2 a_draw_area_size, const int2 a_draw_area_offset) const
+void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, UploadBufferView& a_upload_buffer_view, const uint2 a_draw_area_size, const int2 a_draw_area_offset) const
 {
 	StartRenderScene(m_render_scene);
 	for (size_t i = 0; i < m_top_level_object_count; i++)
@@ -124,7 +126,7 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const uint2 a
 		// identity hack to awkwardly get the first matrix. 
 		DrawSceneObject(m_top_level_objects[i], Float4x4Identity());
 	}
-	EndRenderScene(a_list, m_render_scene, a_draw_area_size, a_draw_area_offset, m_clear_color);
+	EndRenderScene(a_list, a_upload_buffer_view, m_render_scene, a_draw_area_size, a_draw_area_offset, m_clear_color);
 }
 
 void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform) const

@@ -130,22 +130,16 @@ namespace BB
 		uint32_t light_max;
 		uint32_t draw_entry_max;
 	};
-	struct SceneImageInfo
-	{
-		RenderScene3DHandle scene;
-		uint2 image_size;
-		int2 image_offset;
-	};
 
 	const RenderIO& GetRenderIO();
 
 	bool InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_render_create_info);
 	void StartFrame(const RCommandList a_list);
-	void EndFrame(const RCommandList a_list, const Slice<SceneImageInfo> a_scene_image_infos, bool a_skip = false);
+	void EndFrame(const RCommandList a_list, bool a_skip = false);
 
 	RenderScene3DHandle Create3DRenderScene(MemoryArena& a_arena, const RCommandList a_list, UploadBufferView& a_upload_view, const SceneCreateInfo& a_info);
 	void StartRenderScene(const RenderScene3DHandle a_scene);
-	void EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, bool a_skip = false);
+	void EndRenderScene(const RCommandList a_cmd_list, UploadBufferView& a_upload_buffer_view, const RenderScene3DHandle a_scene, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, bool a_skip = false);
 
 	void SetView(const RenderScene3DHandle a_scene, const float4x4& a_view);
 	void SetProjection(const RenderScene3DHandle a_scene, const float4x4& a_projection);
@@ -157,7 +151,7 @@ namespace BB
 	bool PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<UploadBufferView> a_upload_views);
 	bool ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<UploadBufferView> a_upload_views);
 	bool ExecuteTransferCommands(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<UploadBufferView> a_upload_views);
-
+	
 	GPUBufferView AllocateFromVertexBuffer(const size_t a_size_in_bytes);
 	GPUBufferView AllocateFromIndexBuffer(const size_t a_size_in_bytes);
 

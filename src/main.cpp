@@ -142,7 +142,7 @@ static bool ImProcessInput(const BB::InputEvent& a_input_event)
 		const ImGuiKey imgui_key = ImBBKeyToImGuiKey(key_info.scan_code);
 
 		io.AddKeyEvent(imgui_key, key_info.key_pressed);
-
+		io.AddInputCharacterUTF16(static_cast<uint32_t>(key_info.utf16));
 		return io.WantCaptureKeyboard;
 	}
 
@@ -383,10 +383,12 @@ int main(int argc, char** argv)
 		PollInputEvents(input_events, input_event_count);
 
 		BB::SetView(object_viewer_scene.GetRenderSceneHandle(), camera.CalculateView());
-		StartFrame();
 
 		CommandPool& graphics_command_pool = GetGraphicsCommandPool();
 		const RCommandList graphics_command_list = graphics_command_pool.StartCommandList();
+		UploadBufferView& upload_buffer_view = GetUploadView(mbSize * 4);
+
+		StartFrame(graphics_command_list);
 
 		for (size_t i = 0; i < input_event_count; i++)
 		{
@@ -448,22 +450,13 @@ int main(int argc, char** argv)
 
 		int x, y;
 		GetWindowSize(window, x, y);
-		scene_hierarchy.DrawSceneHierarchy(graphics_command_list, uint2{ {static_cast<uint32_t>(x), static_cast<uint32_t>(y)} }, int2{ {0, 0} });
-		object_viewer_scene.DrawSceneHierarchy(graphics_command_list, uint2{ {static_cast<uint32_t>(x) / 2, static_cast<uint32_t>(y) / 2} }, int2{ {0, 0} });
+		scene_hierarchy.DrawSceneHierarchy(graphics_command_list, upload_buffer_view, uint2{ {static_cast<uint32_t>(x), static_cast<uint32_t>(y)} }, int2{ {0, 0} });
+		object_viewer_scene.DrawSceneHierarchy(graphics_command_list, upload_buffer_view, uint2{ {static_cast<uint32_t>(x) / 2, static_cast<uint32_t>(y) / 2} }, int2{ {0, 0} });
+
+		EndFrame(graphics_command_list);
 
 		graphics_command_pool.EndCommandList(graphics_command_list);
-
-		ExecuteGraphicCommands(Slice(&graphics_command_pool, 1), Slice<UploadBufferView>());
-		SceneImageInfo scene_image_info[2];
-		scene_image_info[0].scene = scene_hierarchy.GetRenderSceneHandle();
-		scene_image_info[0].image_size = uint2{ {static_cast<uint32_t>(x), static_cast<uint32_t>(y)} };
-		scene_image_info[0].image_offset = int2{ {0, 0} };
-
-		scene_image_info[1].scene = object_viewer_scene.GetRenderSceneHandle();
-		scene_image_info[1].image_size = uint2{ {static_cast<uint32_t>(x) / 2, static_cast<uint32_t>(y) / 2} };
-		scene_image_info[1].image_offset = int2{ {0, 0} };
-
-		EndFrame(Slice(scene_image_info, _countof(scene_image_info)));
+		PresentFrame(Slice(&graphics_command_pool, 1), Slice(&upload_buffer_view, 1));
 
 		delta_time = std::chrono::duration<float, std::chrono::seconds::period>(current_time - start_time).count();
 		current_time = std::chrono::high_resolution_clock::now();

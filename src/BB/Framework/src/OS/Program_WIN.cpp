@@ -79,6 +79,8 @@ void BB::InitProgram()
 }
 
 //Custom callback for the Windows proc.
+// with assistance from https://handmade.network/forums/t/2011-keyboard_inputs_-_scancodes%252C_raw_input%252C_text_input%252C_key_names#10467
+// to help with handling the unicode
 static LRESULT wm_input(HWND a_hwnd, WPARAM a_wparam, LPARAM a_lparam)
 {
 	HRAWINPUT h_raw_input = reinterpret_cast<HRAWINPUT>(a_lparam);
@@ -92,15 +94,54 @@ static LRESULT wm_input(HWND a_hwnd, WPARAM a_wparam, LPARAM a_lparam)
 
 	if (input.header.dwType == RIM_TYPEKEYBOARD)
 	{
+		const RAWKEYBOARD& rk = input.data.keyboard;
 		event.input_type = INPUT_TYPE::KEYBOARD;
-		uint16_t scan_code = input.data.keyboard.MakeCode;
+		uint16_t scan_code = rk.MakeCode;
 
-		// Scan codes could contain 0xe0 or 0xe1 one-byte prefix.
-		//scan_code |= (input->data.keyboard.Flags & RI_KEY_E0) ? 0xe000 : 0;
-		//scan_code |= (t_Raw->data.keyboard.Flags & RI_KEY_E1) ? 0xe100 : 0;
+		static unsigned char KEY_STATES[256] = {};
+
+		bool e0 = rk.Flags & RI_KEY_E0;
+		bool e1 = rk.Flags & RI_KEY_E1;
+
+#define UPDATE_KEY_STATE(key) do{KEY_STATES[key] = (rk.Flags & 1) ? 0 : 0xff;}while(0)
+
+		switch (rk.VKey)
+		{
+
+		case VK_CONTROL:
+			if (e0)
+				UPDATE_KEY_STATE(VK_RCONTROL);
+			else
+				UPDATE_KEY_STATE(VK_LCONTROL);
+			KEY_STATES[VK_CONTROL] = KEY_STATES[VK_RCONTROL] | KEY_STATES[VK_LCONTROL];
+			break;
+
+		case VK_SHIFT:
+			UPDATE_KEY_STATE(MapVirtualKey(rk.MakeCode, MAPVK_VSC_TO_VK_EX));
+			KEY_STATES[VK_SHIFT] = KEY_STATES[VK_LSHIFT] | KEY_STATES[VK_RSHIFT];
+			break;
+		case VK_MENU:
+			if (e0)
+				UPDATE_KEY_STATE(VK_LMENU);
+			else
+				UPDATE_KEY_STATE(VK_RMENU);
+			KEY_STATES[VK_MENU] = KEY_STATES[VK_RMENU] | KEY_STATES[VK_LMENU];
+			break;
+		default:
+			UPDATE_KEY_STATE(rk.VKey);
+			break;
+		}
+
+		wchar unicode[16] = {};
+		if (!(rk.Flags & 0x1)) //down
+		{
+			ToUnicode(input.data.keyboard.VKey, scan_code, KEY_STATES, unicode, _countof(unicode), 0);
+		}
 
 		event.key_info.scan_code = s_translate_key[scan_code];
 		event.key_info.key_pressed = !(input.data.keyboard.Flags & RI_KEY_BREAK);
+		event.key_info.utf16 = unicode[0];
+
 		PushInput(event);
 	}
 	else if (input.header.dwType == RIM_TYPEMOUSE && s_program_info.tracking_mouse)

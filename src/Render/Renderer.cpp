@@ -345,12 +345,21 @@ public:
 	{
 		BB_ASSERT(m_queue_type == QUEUE_TYPE::GRAPHICS, "calling a present commands on a non-graphics command queue is not valid");
 
+		//better way to do this?
+		const uint32_t signal_fence_count = 1 + a_signal_count;
+		RFence* signal_fences = BBstackAlloc(signal_fence_count, RFence);
+		uint64_t* signal_values = BBstackAlloc(signal_fence_count, uint64_t);
+		Memory::Copy(signal_fences, a_signal_fences, a_signal_count);
+		signal_fences[a_signal_count] = m_fence.fence;
+		Memory::Copy(signal_values, a_signal_values, a_signal_count);
+		signal_values[a_signal_count] = m_fence.next_fence_value;
+
 		ExecuteCommandsInfo execute_info;
 		execute_info.lists = a_lists;
 		execute_info.list_count = a_list_count;
-		execute_info.signal_fences = a_signal_fences;
-		execute_info.signal_values = a_signal_values;
-		execute_info.signal_count = a_signal_count;
+		execute_info.signal_fences = signal_fences;
+		execute_info.signal_values = signal_values;
+		execute_info.signal_count = signal_fence_count;
 		execute_info.wait_fences = a_wait_fences;
 		execute_info.wait_values = a_wait_values;
 		execute_info.wait_count = a_wait_count;
@@ -365,12 +374,20 @@ public:
 	{
 		BB_ASSERT(m_queue_type == QUEUE_TYPE::GRAPHICS, "calling a present commands on a non-graphics command queue is not valid");
 		
+		const uint32_t signal_fence_count = 1 + a_signal_count;
+		RFence* signal_fences = BBstackAlloc(signal_fence_count, RFence);
+		uint64_t* signal_values = BBstackAlloc(signal_fence_count, uint64_t);
+		Memory::Copy(signal_fences, a_signal_fences, a_signal_count);
+		signal_fences[a_signal_count] = m_fence.fence;
+		Memory::Copy(signal_values, a_signal_values, a_signal_count);
+		signal_values[a_signal_count] = m_fence.next_fence_value;
+
 		ExecuteCommandsInfo execute_info;
 		execute_info.lists = a_lists;
 		execute_info.list_count = a_list_count;
-		execute_info.signal_fences = a_signal_fences;
-		execute_info.signal_values = a_signal_values;
-		execute_info.signal_count = a_signal_count;
+		execute_info.signal_fences = signal_fences;
+		execute_info.signal_values = signal_values;
+		execute_info.signal_count = signal_fence_count;
 		execute_info.wait_fences = a_wait_fences;
 		execute_info.wait_values = a_wait_values;
 		execute_info.wait_count = a_wait_count;
@@ -542,6 +559,7 @@ struct RenderInterface_inst
 	struct Frame
 	{
 		RTexture render_target;
+		uint64_t graphics_queue_fence_value;
 	};
 	Frame* frames;
 	bool debug;
@@ -1436,10 +1454,11 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 			back_buffer_image_info.width = s_render_inst->render_io.screen_width;
 			back_buffer_image_info.height = s_render_inst->render_io.screen_height;
 			back_buffer_image_info.format = IMAGE_FORMAT::RGBA16_SFLOAT;
-			back_buffer_image_info.usage = IMAGE_USAGE::UPLOAD_SRC_DST;
+			back_buffer_image_info.usage = IMAGE_USAGE::RENDER_TARGET;
 			back_buffer_image_info.pixels = nullptr;
 
 			s_render_inst->frames[i].render_target = UploadTexture(list, back_buffer_image_info, startup_upload_view);
+			s_render_inst->frames[i].graphics_queue_fence_value = 0;
 		}
 	}
 
@@ -1481,6 +1500,7 @@ void BB::StartFrame(const RCommandList a_list)
 	const RenderInterface_inst::Frame& cur_frame = s_render_inst->frames[frame_index];
 
 	s_render_inst->upload_buffers.CheckIfInFlightDone();
+	s_render_inst->graphics_queue.WaitFenceValue(cur_frame.graphics_queue_fence_value);
 
 	{
 		const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(cur_frame.render_target);
@@ -1509,7 +1529,7 @@ void BB::StartFrame(const RCommandList a_list)
 	ImguiDisplayRenderer();
 }
 
-void BB::EndFrame(const RCommandList a_list, const Slice<SceneImageInfo> a_scene_image_infos, bool a_skip)
+void BB::EndFrame(const RCommandList a_list, bool a_skip)
 {
 	if (a_skip)
 	{
@@ -1552,11 +1572,6 @@ void BB::EndFrame(const RCommandList a_list, const Slice<SceneImageInfo> a_scene
 		}
 	};
 	Vulkan::UploadImageToSwapchain(a_list, render_target.image, swapchain_size, swapchain_size, s_render_inst->render_io.frame_index);
-
-	s_render_inst->graphics_queue.ExecutePresentCommands(submit_list, nullptr, nullptr, 0, nullptr, nullptr, 0, s_render_inst->render_io.frame_index);
-	//swap images after execute present commands
-	s_render_inst->render_io.frame_index = (s_render_inst->render_io.frame_index + 1) % s_render_inst->render_io.frame_count;
-	s_render_inst->graphics_queue.ReturnPool(submit_pool);
 }
 
 RenderScene3DHandle BB::Create3DRenderScene(MemoryArena& a_arena, const RCommandList a_list, UploadBufferView& a_upload_view, const SceneCreateInfo& a_info)
@@ -1675,7 +1690,7 @@ void BB::StartRenderScene(const RenderScene3DHandle a_scene)
 	render_scene3d.draw_list_count = 0;
 }
 
-void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, bool a_skip)
+void BB::EndRenderScene(const RCommandList a_cmd_list, UploadBufferView& a_upload_buffer_view, const RenderScene3DHandle a_scene, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, bool a_skip)
 {
 	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
 	const auto& scene_frame = render_scene3d.frames[s_render_inst->render_io.frame_index];
@@ -1691,20 +1706,16 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 	const uint32_t matrices_upload_size = sizeof(ShaderTransform) * render_scene3d.draw_list_count;
 	const uint32_t light_upload_size = sizeof(Light) * render_scene3d.light_container.size();
 
-	//upload matrices
-	//optimalization, upload previous frame matrices when using transfer buffer?
-	UploadBufferView& matrix_upload_view = s_render_inst->upload_buffers.GetUploadView(static_cast<size_t>(scene_upload_size) + matrices_upload_size);
-
 	uint32_t scene_offset = 0;
-	matrix_upload_view.AllocateAndMemoryCopy(&render_scene3d.scene_info, scene_upload_size, scene_offset);
+	a_upload_buffer_view.AllocateAndMemoryCopy(&render_scene3d.scene_info, scene_upload_size, scene_offset);
 	uint32_t matrix_offset = 0;
-	matrix_upload_view.AllocateAndMemoryCopy(render_scene3d.draw_list_data.transform, matrices_upload_size, matrix_offset);
+	a_upload_buffer_view.AllocateAndMemoryCopy(render_scene3d.draw_list_data.transform, matrices_upload_size, matrix_offset);
 	uint32_t light_offset = 0;
-	matrix_upload_view.AllocateAndMemoryCopy(render_scene3d.light_container.data(), light_upload_size, light_offset);
+	a_upload_buffer_view.AllocateAndMemoryCopy(render_scene3d.light_container.data(), light_upload_size, light_offset);
 
 	//upload to some GPU buffer here.
 	RenderCopyBuffer matrix_buffer_copy;
-	matrix_buffer_copy.src = matrix_upload_view.GetBufferHandle();
+	matrix_buffer_copy.src = a_upload_buffer_view.GetBufferHandle();
 	matrix_buffer_copy.dst = scene_frame.per_frame_buffer;
 	RenderCopyBufferRegion buffer_regions[3]; // 0 = scene, 1 = matrix
 	buffer_regions[0].src_offset = scene_offset;
@@ -1720,13 +1731,6 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 	buffer_regions[2].size = light_upload_size;
 	matrix_buffer_copy.regions = Slice(buffer_regions, _countof(buffer_regions));
 	Vulkan::CopyBuffer(a_cmd_list, matrix_buffer_copy);
-
-	RFence upload_fence;
-	uint64_t upload_fence_value;
-	s_render_inst->upload_buffers.ReturnUploadViews(Slice(&matrix_upload_view, 1), upload_fence, upload_fence_value);
-	s_render_inst->upload_buffers.IncrementNextFenceValue();
-
-	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(s_render_inst->frames[s_render_inst->render_io.frame_index].render_target);
 
 	//transition depth buffer
 	{
@@ -1752,6 +1756,7 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 		Vulkan::PipelineBarriers(a_cmd_list, pipeline_info);
 	}
 
+	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(s_render_inst->frames[s_render_inst->render_io.frame_index].render_target);
 	//render
 	StartRenderingInfo start_rendering_info;
 	start_rendering_info.viewport_size = uint2{ {s_render_inst->render_io.screen_width, s_render_inst->render_io.screen_height} };
@@ -1862,8 +1867,13 @@ bool BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<
 	s_render_inst->upload_buffers.ReturnUploadViews(a_upload_views, upload_fence, upload_fence_value);
 	s_render_inst->upload_buffers.IncrementNextFenceValue();
 
+	//set the next fence value for the frame
+	s_render_inst->frames[s_render_inst->render_io.frame_index].graphics_queue_fence_value = s_render_inst->graphics_queue.GetNextFenceValue();
+
 	s_render_inst->graphics_queue.ExecutePresentCommands(lists, list_count, &upload_fence, &upload_fence_value, 1, nullptr, nullptr, 0, s_render_inst->render_io.frame_index);
+	s_render_inst->render_io.frame_index = (s_render_inst->render_io.frame_index + 1) % s_render_inst->render_io.frame_count;
 	s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
+
 	return true;
 }
 
