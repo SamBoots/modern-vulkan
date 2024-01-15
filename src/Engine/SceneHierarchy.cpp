@@ -116,7 +116,7 @@ void SceneHierarchy::CreateSceneObjectAsLight(const CreateLightInfo& a_light_cre
 	m_top_level_objects[m_top_level_object_count++] = scene_object_handle;
 }
 
-void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, UploadBufferView& a_upload_buffer_view, const uint2 a_draw_area_size, const int2 a_draw_area_offset) const
+void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, UploadBufferView& a_upload_buffer_view, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset) const
 {
 	StartRenderScene(m_render_scene);
 	for (size_t i = 0; i < m_top_level_object_count; i++)
@@ -124,7 +124,7 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, UploadBufferV
 		// identity hack to awkwardly get the first matrix. 
 		DrawSceneObject(m_top_level_objects[i], Float4x4Identity());
 	}
-	EndRenderScene(a_list, a_upload_buffer_view, m_render_scene, a_draw_area_size, a_draw_area_offset, m_clear_color);
+	EndRenderScene(a_list, a_upload_buffer_view, a_render_target, m_render_scene, a_draw_area_size, a_draw_area_offset, m_clear_color);
 }
 
 void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform) const

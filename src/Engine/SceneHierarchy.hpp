@@ -34,7 +34,7 @@ namespace BB
 	public:
 		void InitializeSceneHierarchy(MemoryArena& a_memory_arena, const uint32_t a_scene_obj_max = DEFAULT_SCENE_OBJ_MAX, const char* a_name = "default");
 
-		void DrawSceneHierarchy(const RCommandList a_list, UploadBufferView& a_upload_buffer_view, const uint2 a_draw_area_size, const int2 a_draw_area_offset) const;
+		void DrawSceneHierarchy(const RCommandList a_list, UploadBufferView& a_upload_buffer_view, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset) const;
 		void CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name);
 		void CreateSceneObjectAsLight(const CreateLightInfo& a_light_create_info, const char* a_name);
 

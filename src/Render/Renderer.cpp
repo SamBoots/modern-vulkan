@@ -35,7 +35,7 @@ public:
 
 	void Init(const RCommandList a_list, UploadBufferView& a_upload_view);
 
-	const RTexture UploadTexture(const RCommandList a_list, const UploadImageInfo& a_upload_info, UploadBufferView& a_upload_buffer);
+	const RTexture UploadTexture(const RCommandList a_list, const UploadImageInfo& a_upload_info, UploadBufferView* a_upload_buffer);
 	void FreeTexture(const RTexture a_texture);
 
 	const TextureSlot& GetTextureSlot(const RTexture a_texture)
@@ -1131,7 +1131,7 @@ void GPUTextureManager::Init(const RCommandList a_list, UploadBufferView& a_uplo
 	m_textures[MAX_TEXTURES - 1].next_free = UINT32_MAX;
 }
 
-const RTexture GPUTextureManager::UploadTexture(const RCommandList a_list, const UploadImageInfo& a_upload_info, UploadBufferView& a_upload_buffer)
+const RTexture GPUTextureManager::UploadTexture(const RCommandList a_list, const UploadImageInfo& a_upload_info, UploadBufferView* a_upload_buffer)
 {
 	OSAcquireSRWLockWrite(&m_lock);
 	const RTexture texture_slot = RTexture(m_next_free);
@@ -1240,14 +1240,16 @@ const RTexture GPUTextureManager::UploadTexture(const RCommandList a_list, const
 	//if we have no data to upload then just return the empty image.
 	if (a_upload_info.pixels == nullptr)
 		return texture_slot;
+	
+	BB_ASSERT(a_upload_buffer, "no upload buffer send while sending pixels for upload!");
 
 	//now upload the image.
 	uint32_t allocation_offset;
-	a_upload_buffer.AllocateAndMemoryCopy(a_upload_info.pixels, byte_per_pixel * a_upload_info.width * a_upload_info.height, allocation_offset);
+	a_upload_buffer->AllocateAndMemoryCopy(a_upload_info.pixels, byte_per_pixel * a_upload_info.width * a_upload_info.height, allocation_offset);
 
 
 	RenderCopyBufferToImageInfo buffer_to_image;
-	buffer_to_image.src_buffer = a_upload_buffer.GetBufferHandle();
+	buffer_to_image.src_buffer = a_upload_buffer->GetBufferHandle();
 	buffer_to_image.src_offset = allocation_offset;
 
 	buffer_to_image.dst_image = slot.image;
@@ -1693,7 +1695,7 @@ void BB::StartRenderScene(const RenderScene3DHandle a_scene)
 	render_scene3d.draw_list_count = 0;
 }
 
-void BB::EndRenderScene(const RCommandList a_cmd_list, UploadBufferView& a_upload_buffer_view, const RenderScene3DHandle a_scene, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, bool a_skip)
+void BB::EndRenderScene(const RCommandList a_cmd_list, UploadBufferView& a_upload_buffer_view, const RenderScene3DHandle a_scene, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, bool a_skip)
 {
 	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
 	const auto& scene_frame = render_scene3d.frames[s_render_inst->render_io.frame_index];
@@ -1759,7 +1761,7 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, UploadBufferView& a_uploa
 		Vulkan::PipelineBarriers(a_cmd_list, pipeline_info);
 	}
 
-	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(s_render_inst->frames[s_render_inst->render_io.frame_index].render_target);
+	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(a_render_target);
 	//render
 	StartRenderingInfo start_rendering_info;
 	start_rendering_info.viewport_size = uint2{ {s_render_inst->render_io.screen_width, s_render_inst->render_io.screen_height} };
@@ -2145,7 +2147,7 @@ void BB::FreeMaterial(const MaterialHandle a_material)
 }
 
 //maybe not handle a_upload_view_offset
-const RTexture BB::UploadTexture(const RCommandList a_list, const UploadImageInfo& a_upload_info, UploadBufferView& a_upload_view)
+const RTexture BB::UploadTexture(const RCommandList a_list, const UploadImageInfo& a_upload_info, UploadBufferView* a_upload_view)
 {
 	return s_render_inst->texture_manager.UploadTexture(a_list, a_upload_info, a_upload_view);
 }

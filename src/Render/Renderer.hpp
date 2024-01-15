@@ -139,7 +139,7 @@ namespace BB
 
 	RenderScene3DHandle Create3DRenderScene(MemoryArena& a_arena, const SceneCreateInfo& a_info);
 	void StartRenderScene(const RenderScene3DHandle a_scene);
-	void EndRenderScene(const RCommandList a_cmd_list, UploadBufferView& a_upload_buffer_view, const RenderScene3DHandle a_scene, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, bool a_skip = false);
+	void EndRenderScene(const RCommandList a_cmd_list, UploadBufferView& a_upload_buffer_view, const RenderScene3DHandle a_scene, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, bool a_skip = false);
 
 	void SetView(const RenderScene3DHandle a_scene, const float4x4& a_view);
 	void SetProjection(const RenderScene3DHandle a_scene, const float4x4& a_projection);
@@ -173,7 +173,7 @@ namespace BB
 	const MaterialHandle CreateMaterial(const CreateMaterialInfo& a_create_info);
 	void FreeMaterial(const MaterialHandle a_material);
 
-	const RTexture UploadTexture(const RCommandList a_list, const UploadImageInfo& a_upload_info, UploadBufferView& a_upload_view);
+	const RTexture UploadTexture(const RCommandList a_list, const UploadImageInfo& a_upload_info, UploadBufferView* a_upload_view);
 	void FreeTexture(const RTexture a_texture);
 
 	const GPUBuffer CreateGPUBuffer(const GPUBufferCreateInfo& a_create_info);

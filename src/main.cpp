@@ -212,6 +212,59 @@ static void DebugWindowMemoryArena(const MemoryArena& a_arena)
 	}
 }
 
+struct RenderViewPort
+{
+	RTexture render_target;
+	int2 offset;
+	uint2 extent;
+	const char* name;
+};
+
+RenderViewPort CreateViewport(const RCommandList a_list, const uint2 a_viewport_size, const int2 a_viewport_offset, const char* a_name = "default")
+{
+	UploadImageInfo upload_image_info;
+	upload_image_info.usage = IMAGE_USAGE::RENDER_TARGET;
+	upload_image_info.format = IMAGE_FORMAT::RGBA16_SFLOAT;
+	upload_image_info.width = a_viewport_size.x;
+	upload_image_info.height = a_viewport_size.x;
+	upload_image_info.name = a_name;
+	upload_image_info.pixels = nullptr;
+
+	RenderViewPort viewport;
+	viewport.render_target = UploadTexture(a_list, upload_image_info, nullptr);
+	viewport.extent = a_viewport_size;
+	viewport.offset = a_viewport_offset;
+	return viewport;
+}
+
+void MoveViewport(RenderViewPort& a_viewport, const int2 a_new_offset)
+{
+	a_viewport.offset = a_new_offset;
+}
+
+void ResizeViewport(RenderViewPort& a_viewport, const RCommandList a_list, const uint2 a_new_size)
+{
+	FreeTexture(a_viewport.render_target);
+	UploadImageInfo upload_image_info;
+	upload_image_info.usage = IMAGE_USAGE::RENDER_TARGET;
+	upload_image_info.format = IMAGE_FORMAT::RGBA16_SFLOAT;
+	upload_image_info.width = a_new_size.x;
+	upload_image_info.height = a_new_size.x;
+	upload_image_info.name = a_viewport.name;
+	upload_image_info.pixels = nullptr;
+
+	a_viewport.render_target = UploadTexture(a_list, upload_image_info, nullptr);
+	a_viewport.extent = a_new_size;
+}
+
+void DrawViewport(RenderViewPort& a_viewport)
+{
+	if (ImGui::Begin(a_viewport.name))
+	{
+		ImGui::Image(a_viewport.render_target.handle, ImVec2(a_viewport.extent.x, a_viewport.extent.y));
+	}
+}
+
 int main(int argc, char** argv)
 {
 	(void)argc;
