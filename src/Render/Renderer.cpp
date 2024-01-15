@@ -823,7 +823,11 @@ namespace IMGUI_IMPL
 		ImGui::CreateContext();
 		ImGui::StyleColorsClassic();
 
+		BB_STATIC_ASSERT(sizeof(ImDrawIdx) == sizeof(uint32_t), "Index size is not 32 bit, it must be 32 bit.");
+
 		ImGuiIO& io = ImGui::GetIO();
+		io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
+		io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
 		IM_ASSERT(io.BackendRendererUserData == nullptr && "Already initialized a renderer backend!");
 
 		// Setup backend capabilities flags
@@ -923,9 +927,8 @@ namespace IMGUI_IMPL
 
 static void ImguiDisplayRenderer()
 {
-	if (ImGui::CollapsingHeader("Renderer"))
+	if (ImGui::Begin("Renderer"))
 	{
-		ImGui::Indent();
 		s_render_inst->texture_manager.DisplayTextureListImgui();
 
 		if (ImGui::CollapsingHeader("Reload imgui shaders"))
@@ -943,7 +946,7 @@ static void ImguiDisplayRenderer()
 			ImGui::Unindent();
 		}
 
-		ImGui::Unindent();
+		ImGui::End();
 	}
 }
 
@@ -1574,7 +1577,7 @@ void BB::EndFrame(const RCommandList a_list, bool a_skip)
 	Vulkan::UploadImageToSwapchain(a_list, render_target.image, swapchain_size, swapchain_size, s_render_inst->render_io.frame_index);
 }
 
-RenderScene3DHandle BB::Create3DRenderScene(MemoryArena& a_arena, const RCommandList a_list, UploadBufferView& a_upload_view, const SceneCreateInfo& a_info)
+RenderScene3DHandle BB::Create3DRenderScene(MemoryArena& a_arena, const SceneCreateInfo& a_info)
 {
 	Scene3D* scene_3d = ArenaAllocType(a_arena, Scene3D);
 

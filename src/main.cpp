@@ -142,7 +142,7 @@ static bool ImProcessInput(const BB::InputEvent& a_input_event)
 		const ImGuiKey imgui_key = ImBBKeyToImGuiKey(key_info.scan_code);
 
 		io.AddKeyEvent(imgui_key, key_info.key_pressed);
-		io.AddInputCharacterUTF16(static_cast<uint32_t>(key_info.utf16));
+		io.AddInputCharacterUTF16(key_info.utf16);
 		return io.WantCaptureKeyboard;
 	}
 
@@ -185,7 +185,7 @@ static inline void DestroyImGuiInput()
 
 static void DebugWindowMemoryArena(const MemoryArena& a_arena)
 {
-	if (ImGui::CollapsingHeader("allocator info"))
+	if (ImGui::Begin("allocator info"))
 	{
 		ImGui::Indent();
 		ImGui::Text("standard reserved memory: %zu", ARENA_DEFAULT_RESERVE);
@@ -208,7 +208,7 @@ static void DebugWindowMemoryArena(const MemoryArena& a_arena)
 			ImGui::ProgressBar(perc_calculation * static_cast<float>(RoundUp(used, ARENA_DEFAULT_COMMIT) - used));
 			ImGui::Unindent();
 		}
-		ImGui::Unindent();
+		ImGui::End();
 	}
 }
 
@@ -255,18 +255,11 @@ int main(int argc, char** argv)
 
 	SceneHierarchy scene_hierarchy;
 	SceneHierarchy object_viewer_scene;
-	{
-		CommandPool& graphics_command_pool = GetGraphicsCommandPool();
-		const RCommandList startup_command_list = graphics_command_pool.StartCommandList("startup list");
-		scene_hierarchy.InitializeSceneHierarchy(main_arena, startup_command_list, 128, "normal scene");
-		object_viewer_scene.InitializeSceneHierarchy(main_arena, startup_command_list, 16, "object viewer scene");
-		graphics_command_pool.EndCommandList(startup_command_list);
-		ExecuteGraphicCommands(Slice(&graphics_command_pool, 1), Slice<UploadBufferView>());
+	scene_hierarchy.InitializeSceneHierarchy(main_arena, 128, "normal scene");
+	object_viewer_scene.InitializeSceneHierarchy(main_arena, 16, "object viewer scene");
 
-		scene_hierarchy.SetClearColor(float3{ 0.1f, 0.1f, 0.1f });
-		object_viewer_scene.SetClearColor(float3{ 0.6f, 0.6f, 0.6f });
-	}
-
+	scene_hierarchy.SetClearColor(float3{ 0.1f, 0.6f, 0.1f });
+	object_viewer_scene.SetClearColor(float3{ 0.1f, 0.1f, 0.1f });
 
 	{
 		float4x4 projection = Float4x4Perspective(ToRadians(60.0f),

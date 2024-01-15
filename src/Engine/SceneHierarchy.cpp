@@ -5,7 +5,7 @@
 
 using namespace BB;
 
-void SceneHierarchy::InitializeSceneHierarchy(MemoryArena& a_memory_arena, const RCommandList a_cmd_list, const uint32_t a_scene_obj_max, const char* a_name)
+void SceneHierarchy::InitializeSceneHierarchy(MemoryArena& a_memory_arena, const uint32_t a_scene_obj_max, const char* a_name)
 {
 	m_transform_pool.Init(a_memory_arena, a_scene_obj_max);
 	m_scene_objects.Init(a_memory_arena, a_scene_obj_max);
@@ -19,9 +19,7 @@ void SceneHierarchy::InitializeSceneHierarchy(MemoryArena& a_memory_arena, const
 	create_info.draw_entry_max = a_scene_obj_max;
 	create_info.light_max = 128; // magic number jank yes shoot me
 
-	UploadBufferView empty; //HACK HACK, need to find a way to upload a texture without an upload buffer view that is not needed
-
-	m_render_scene = Create3DRenderScene(a_memory_arena, a_cmd_list, empty, create_info);
+	m_render_scene = Create3DRenderScene(a_memory_arena, create_info);
 	m_scene_name = a_name;
 }
 
