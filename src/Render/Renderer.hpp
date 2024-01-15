@@ -140,8 +140,8 @@ namespace BB
 	const RenderIO& GetRenderIO();
 
 	bool InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_render_create_info);
-	void StartFrame();
-	void EndFrame(const Slice<SceneImageInfo> a_scene_image_infos, bool a_skip = false);
+	void StartFrame(const RCommandList a_list);
+	void EndFrame(const RCommandList a_list, const Slice<SceneImageInfo> a_scene_image_infos, bool a_skip = false);
 
 	RenderScene3DHandle Create3DRenderScene(MemoryArena& a_arena, const RCommandList a_list, UploadBufferView& a_upload_view, const SceneCreateInfo& a_info);
 	void StartRenderScene(const RenderScene3DHandle a_scene);
@@ -154,6 +154,7 @@ namespace BB
 	CommandPool& GetGraphicsCommandPool();
 	CommandPool& GetTransferCommandPool();
 
+	bool PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<UploadBufferView> a_upload_views);
 	bool ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<UploadBufferView> a_upload_views);
 	bool ExecuteTransferCommands(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<UploadBufferView> a_upload_views);
 

@@ -341,7 +341,7 @@ public:
 		OSReleaseSRWLockWrite(&m_in_flight_lock);
 	}
 
-	void ExecuteCommands(RCommandList* a_lists, const uint32_t a_list_count, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const uint32_t a_wait_count)
+	void ExecuteCommands(RCommandList* const a_lists, const uint32_t a_list_count, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const uint32_t a_wait_count)
 	{
 		BB_ASSERT(m_queue_type == QUEUE_TYPE::GRAPHICS, "calling a present commands on a non-graphics command queue is not valid");
 
@@ -361,24 +361,16 @@ public:
 		OSReleaseSRWLockWrite(&m_lock);
 	}
 
-	void ExecutePresentCommands(const RCommandList a_list, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const uint32_t a_wait_count, const uint32_t a_backbuffer_index)
+	void ExecutePresentCommands(RCommandList* const a_lists, const uint32_t a_list_count, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const uint32_t a_wait_count, const uint32_t a_backbuffer_index)
 	{
 		BB_ASSERT(m_queue_type == QUEUE_TYPE::GRAPHICS, "calling a present commands on a non-graphics command queue is not valid");
 		
-		const uint32_t signal_fence_count = 1 + a_signal_count;
-		RFence* signal_fences = BBstackAlloc(signal_fence_count, RFence);
-		uint64_t* signal_values = BBstackAlloc(signal_fence_count, uint64_t);
-		Memory::Copy(signal_fences, a_signal_fences, a_signal_count);
-		signal_fences[a_signal_count] = m_fence.fence;
-		Memory::Copy(signal_values, a_signal_values, a_signal_count);
-		signal_values[a_signal_count] = m_fence.next_fence_value;
-
 		ExecuteCommandsInfo execute_info;
-		execute_info.lists = &a_list;
-		execute_info.list_count = 1;
-		execute_info.signal_fences = signal_fences;
-		execute_info.signal_values = signal_values;
-		execute_info.signal_count = signal_fence_count;
+		execute_info.lists = a_lists;
+		execute_info.list_count = a_list_count;
+		execute_info.signal_fences = a_signal_fences;
+		execute_info.signal_values = a_signal_values;
+		execute_info.signal_count = a_signal_count;
 		execute_info.wait_fences = a_wait_fences;
 		execute_info.wait_values = a_wait_values;
 		execute_info.wait_count = a_wait_count;
@@ -522,7 +514,6 @@ struct Scene3D
 		PerFrameBufferPart light_buffer;
 		DescriptorAllocation desc_alloc;
 		uint64_t fence_value;
-		RTexture back_buffer_image;
 	};
 
 	Frame* frames;
@@ -672,7 +663,8 @@ namespace IMGUI_IMPL
 
 
 	// Render function
-	static void ImRenderFrame(const RCommandList a_cmd_list, const RImageView a_render_target_view)
+	// return value is the 
+	static void ImRenderFrame(const RCommandList a_cmd_list, const RImageView render_target_view)
 	{
 		const ImDrawData& draw_data = *ImGui::GetDrawData();
 		// Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
@@ -715,6 +707,7 @@ namespace IMGUI_IMPL
 				idx_dst += cmd_list->IdxBuffer.Size;
 			}
 		}
+
 		StartRenderingInfo imgui_pass_start{};
 		imgui_pass_start.viewport_size.x = render_io.screen_width;
 		imgui_pass_start.viewport_size.y = render_io.screen_height;
@@ -724,7 +717,7 @@ namespace IMGUI_IMPL
 		imgui_pass_start.load_color = true;
 		imgui_pass_start.store_color = true;
 		imgui_pass_start.layout = IMAGE_LAYOUT::GENERAL;
-		Vulkan::StartRenderPass(a_cmd_list, imgui_pass_start, a_render_target_view);
+		Vulkan::StartRenderPass(a_cmd_list, imgui_pass_start, render_target_view);
 
 		// Setup desired CrossRenderer state
 		ImSetRenderState(draw_data, a_cmd_list, 0);
@@ -744,7 +737,7 @@ namespace IMGUI_IMPL
 		{
 			const ImDrawList* cmd_list = draw_data.CmdLists[n];
 			Vulkan::SetPushConstants(a_cmd_list, bd->vertex->pipeline_layout, IM_OFFSETOF(ShaderIndices2D, vertex_buffer_offset), sizeof(vertex_offset), &vertex_offset);
-			
+
 			for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++)
 			{
 				const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_i];
@@ -1482,9 +1475,33 @@ const RenderIO& BB::GetRenderIO()
 	return s_render_inst->render_io;
 }
 
-void BB::StartFrame()
+void BB::StartFrame(const RCommandList a_list)
 {
+	const uint32_t frame_index = s_render_inst->render_io.frame_index;
+	const RenderInterface_inst::Frame& cur_frame = s_render_inst->frames[frame_index];
+
 	s_render_inst->upload_buffers.CheckIfInFlightDone();
+
+	{
+		const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(cur_frame.render_target);
+		PipelineBarrierImageInfo image_transitions[1]{};
+		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::NONE;
+		image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
+		image_transitions[0].image = render_target.image;
+		image_transitions[0].old_layout = IMAGE_LAYOUT::UNDEFINED;
+		image_transitions[0].new_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+		image_transitions[0].layer_count = 1;
+		image_transitions[0].level_count = 1;
+		image_transitions[0].base_array_layer = 0;
+		image_transitions[0].base_mip_level = 0;
+		image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
+		image_transitions[0].dst_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
+
+		PipelineBarrierInfo pipeline_info{};
+		pipeline_info.image_info_count = _countof(image_transitions);
+		pipeline_info.image_infos = image_transitions;
+		Vulkan::PipelineBarriers(a_list, pipeline_info);
+	}
 
 	IMGUI_IMPL::ImNewFrame();
 	ImGui::NewFrame();
@@ -1492,7 +1509,7 @@ void BB::StartFrame()
 	ImguiDisplayRenderer();
 }
 
-void BB::EndFrame(const Slice<SceneImageInfo> a_scene_image_infos, bool a_skip)
+void BB::EndFrame(const RCommandList a_list, const Slice<SceneImageInfo> a_scene_image_infos, bool a_skip)
 {
 	if (a_skip)
 	{
@@ -1503,80 +1520,28 @@ void BB::EndFrame(const Slice<SceneImageInfo> a_scene_image_infos, bool a_skip)
 	const RenderInterface_inst::Frame& cur_frame = s_render_inst->frames[frame_index];
 	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(cur_frame.render_target);
 
-	// TODO: jank cuz the user does not control this?
-	CommandPool& submit_pool = GetGraphicsCommandPool();
-	const RCommandList submit_list = submit_pool.StartCommandList();
+	ImGui::Render();
+	IMGUI_IMPL::ImRenderFrame(a_list, render_target.view);
+	ImGui::EndFrame();
 
 	{
 		PipelineBarrierImageInfo image_transitions[1]{};
-		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::NONE;
-		image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
-		image_transitions[0].image = render_target.image;
-		image_transitions[0].old_layout = IMAGE_LAYOUT::UNDEFINED;
-		image_transitions[0].new_layout = IMAGE_LAYOUT::TRANSFER_DST;
-		image_transitions[0].layer_count = 1;
-		image_transitions[0].level_count = 1;
-		image_transitions[0].base_array_layer = 0;
-		image_transitions[0].base_mip_level = 0;
-		image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
-		image_transitions[0].dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
-
-		PipelineBarrierInfo pipeline_info{};
-		pipeline_info.image_info_count = _countof(image_transitions);
-		pipeline_info.image_infos = image_transitions;
-		Vulkan::PipelineBarriers(submit_list, pipeline_info);
-	}
-
-	//get all the scene images in here, or nothing if we have no scenes :(
-	for (size_t i = 0; i < a_scene_image_infos.size(); i++)
-	{
-		const Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene_image_infos[i].scene.handle);
-		const GPUTextureManager::TextureSlot scene_image = s_render_inst->texture_manager.GetTextureSlot(render_scene3d.frames[frame_index].back_buffer_image);
-
-		render_scene3d.frames[s_render_inst->render_io.frame_index].fence_value = s_render_inst->graphics_queue.GetNextFenceValue();
-
-		// HACK! XD
-		if (a_scene_image_infos.size() - 1 == i)
-		{
-			ImGui::Render();
-			IMGUI_IMPL::ImRenderFrame(submit_list, scene_image.view);
-			ImGui::EndFrame();
-		}
-
-		RenderCopyImage copy_image;
-		copy_image.dst_image = render_target.image;
-		copy_image.src_image = scene_image.image;
-		copy_image.copy_info.size_x = a_scene_image_infos[i].image_size.x;
-		copy_image.copy_info.size_y= a_scene_image_infos[i].image_size.y;
-		copy_image.copy_info.size_z = 1;
-		copy_image.copy_info.offset_x = a_scene_image_infos[i].image_offset.x;
-		copy_image.copy_info.offset_y = a_scene_image_infos[i].image_offset.y;
-		copy_image.copy_info.offset_z = 0;
-		copy_image.copy_info.mip_level = 0;
-		copy_image.copy_info.layer_count = 1;
-		copy_image.copy_info.base_array_layer = 0;
-		//I think vulkan has an API where you can batch them it it's different images and 1 dst. 
-		Vulkan::CopyImage(submit_list, copy_image);
-	}
-
-	{
-		PipelineBarrierImageInfo image_transitions[1]{};
-		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
+		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
 		image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
 		image_transitions[0].image = render_target.image;
-		image_transitions[0].old_layout = IMAGE_LAYOUT::TRANSFER_DST;
+		image_transitions[0].old_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 		image_transitions[0].new_layout = IMAGE_LAYOUT::TRANSFER_SRC;
 		image_transitions[0].layer_count = 1;
 		image_transitions[0].level_count = 1;
 		image_transitions[0].base_array_layer = 0;
 		image_transitions[0].base_mip_level = 0;
-		image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
+		image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
 		image_transitions[0].dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
 
 		PipelineBarrierInfo pipeline_info{};
 		pipeline_info.image_info_count = _countof(image_transitions);
 		pipeline_info.image_infos = image_transitions;
-		Vulkan::PipelineBarriers(submit_list, pipeline_info);
+		Vulkan::PipelineBarriers(a_list, pipeline_info);
 	}
 
 	const int2 swapchain_size =
@@ -1586,8 +1551,7 @@ void BB::EndFrame(const Slice<SceneImageInfo> a_scene_image_infos, bool a_skip)
 		static_cast<int>(s_render_inst->render_io.screen_height)
 		}
 	};
-	Vulkan::UploadImageToSwapchain(submit_list, render_target.image, swapchain_size, swapchain_size, s_render_inst->render_io.frame_index);
-	submit_pool.EndCommandList(submit_list);
+	Vulkan::UploadImageToSwapchain(a_list, render_target.image, swapchain_size, swapchain_size, s_render_inst->render_io.frame_index);
 
 	s_render_inst->graphics_queue.ExecutePresentCommands(submit_list, nullptr, nullptr, 0, nullptr, nullptr, 0, s_render_inst->render_io.frame_index);
 	//swap images after execute present commands
@@ -1640,9 +1604,6 @@ RenderScene3DHandle BB::Create3DRenderScene(MemoryArena& a_arena, const RCommand
 	for (uint32_t i = 0; i < s_render_inst->render_io.frame_count; i++)
 	{
 		Scene3D::Frame& pf = scene_3d->frames[i];
-		{
-			pf.back_buffer_image = UploadTexture(a_list, back_buffer_image_info, a_upload_view);
-		}
 		{
 			pf.per_frame_buffer = Vulkan::CreateBuffer(per_frame_buffer_info);
 			pf.per_frame_buffer_size = static_cast<uint32_t>(per_frame_buffer_info.size);
@@ -1765,36 +1726,25 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 	s_render_inst->upload_buffers.ReturnUploadViews(Slice(&matrix_upload_view, 1), upload_fence, upload_fence_value);
 	s_render_inst->upload_buffers.IncrementNextFenceValue();
 
-	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(scene_frame.back_buffer_image);
+	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(s_render_inst->frames[s_render_inst->render_io.frame_index].render_target);
 
 	//transition depth buffer
 	{
 		//pipeline barrier
 		//0 = color image, 1 = depth image
-		PipelineBarrierImageInfo image_transitions[2]{};
+		PipelineBarrierImageInfo image_transitions[1]{};
+
 		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::NONE;
-		image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
-		image_transitions[0].image = render_target.image;
+		image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE;
+		image_transitions[0].image = render_scene3d.depth_image;
 		image_transitions[0].old_layout = IMAGE_LAYOUT::UNDEFINED;
-		image_transitions[0].new_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+		image_transitions[0].new_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
 		image_transitions[0].layer_count = 1;
 		image_transitions[0].level_count = 1;
 		image_transitions[0].base_array_layer = 0;
 		image_transitions[0].base_mip_level = 0;
-		image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
-		image_transitions[0].dst_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
-
-		image_transitions[1].src_mask = BARRIER_ACCESS_MASK::NONE;
-		image_transitions[1].dst_mask = BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE;
-		image_transitions[1].image = render_scene3d.depth_image;
-		image_transitions[1].old_layout = IMAGE_LAYOUT::UNDEFINED;
-		image_transitions[1].new_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
-		image_transitions[1].layer_count = 1;
-		image_transitions[1].level_count = 1;
-		image_transitions[1].base_array_layer = 0;
-		image_transitions[1].base_mip_level = 0;
-		image_transitions[1].src_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
-		image_transitions[1].dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
+		image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
+		image_transitions[0].dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
 
 		PipelineBarrierInfo pipeline_info{};
 		pipeline_info.image_info_count = _countof(image_transitions);
@@ -1861,26 +1811,6 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 	}
 
 	Vulkan::EndRenderPass(a_cmd_list);
-
-	{
-		PipelineBarrierImageInfo image_transitions[1]{};
-		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
-		image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
-		image_transitions[0].image = render_target.image;
-		image_transitions[0].old_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-		image_transitions[0].new_layout = IMAGE_LAYOUT::TRANSFER_SRC;
-		image_transitions[0].layer_count = 1;
-		image_transitions[0].level_count = 1;
-		image_transitions[0].base_array_layer = 0;
-		image_transitions[0].base_mip_level = 0;
-		image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
-		image_transitions[0].dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
-
-		PipelineBarrierInfo pipeline_info{};
-		pipeline_info.image_info_count = _countof(image_transitions);
-		pipeline_info.image_infos = image_transitions;
-		Vulkan::PipelineBarriers(a_cmd_list, pipeline_info);
-	}
 }
 
 void BB::SetView(const RenderScene3DHandle a_scene, const float4x4& a_view)
@@ -1909,6 +1839,32 @@ CommandPool& BB::GetGraphicsCommandPool()
 CommandPool& BB::GetTransferCommandPool()
 {
 	return GetGraphicsCommandPool();
+}
+
+bool BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<UploadBufferView> a_upload_views)
+{
+	uint32_t list_count = 0;
+	for (size_t i = 0; i < a_cmd_pools.size(); i++)
+		list_count += a_cmd_pools[i].GetListsRecorded();
+
+	RCommandList* lists = BBstackAlloc(list_count, RCommandList);
+	list_count = 0;
+	for (size_t i = 0; i < a_cmd_pools.size(); i++)
+	{
+		Memory::Copy(&lists[list_count],
+			a_cmd_pools[i].GetLists(),
+			a_cmd_pools[i].GetListsRecorded());
+		list_count += a_cmd_pools[i].GetListsRecorded();
+	}
+
+	RFence upload_fence;
+	uint64_t upload_fence_value;
+	s_render_inst->upload_buffers.ReturnUploadViews(a_upload_views, upload_fence, upload_fence_value);
+	s_render_inst->upload_buffers.IncrementNextFenceValue();
+
+	s_render_inst->graphics_queue.ExecutePresentCommands(lists, list_count, &upload_fence, &upload_fence_value, 1, nullptr, nullptr, 0, s_render_inst->render_io.frame_index);
+	s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
+	return true;
 }
 
 bool BB::ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<UploadBufferView> a_upload_views)
