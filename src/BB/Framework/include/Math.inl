@@ -14,6 +14,40 @@ namespace BB
 
 	// UTILITY
 	//--------------------------------------------------------
+	// UINT2
+
+	static inline uint2 operator+(const uint2 a_lhs, const uint2 a_rhs)
+	{
+		return uint2{ a_lhs.x + a_rhs.x, a_lhs.y + a_rhs.y };
+	}
+
+	static inline uint2 operator-(const uint2 a_lhs, const uint2 a_rhs)
+	{
+		return uint2{ a_lhs.x - a_rhs.x, a_lhs.y - a_rhs.y };
+	}
+
+	static inline uint2 operator*(const uint2 a_lhs, const uint2 a_rhs)
+	{
+		return uint2{ a_lhs.x * a_rhs.x, a_lhs.y * a_rhs.y };
+	}
+	
+	static inline uint2 operator*(const uint2 a_lhs, const unsigned int a_rhs)
+	{
+		return uint2{ a_lhs.x * a_rhs, a_lhs.y * a_rhs };
+	}
+
+	static inline uint2 operator/(const uint2 a_lhs, const uint2 a_rhs)
+	{
+		return uint2{ a_lhs.x / a_rhs.x, a_lhs.y / a_rhs.y };
+	}
+
+	static inline uint2 operator/(const uint2 a_lhs, const unsigned int a_rhs)
+	{
+		return uint2{ a_lhs.x / a_rhs, a_lhs.y / a_rhs };
+	}
+
+	// UINT2
+	//--------------------------------------------------------
 	// FLOAT2
 
 	static inline float2 operator+(const float2 a_lhs, const float2 a_rhs)
@@ -39,6 +73,11 @@ namespace BB
 	static inline float2 operator/(const float2 a_lhs, const float2 a_rhs)
 	{
 		return float2{ a_lhs.x / a_rhs.x, a_lhs.y / a_rhs.y };
+	}
+
+	static inline float2 operator/(const float2 a_lhs, const float a_rhs)
+	{
+		return float2{ a_lhs.x / a_rhs, a_lhs.y / a_rhs };
 	}
 
 	// FLOAT2

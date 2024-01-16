@@ -48,12 +48,11 @@ namespace BB
 		RTexture normal_texture;
 	};
 
-	struct UploadImageInfo
+	struct UploadTextureInfo
 	{
 		const char* name;
 		const void* pixels;
 		IMAGE_FORMAT format;
-		IMAGE_USAGE usage;
 		uint32_t width;
 		uint32_t height;
 	};
@@ -173,7 +172,8 @@ namespace BB
 	const MaterialHandle CreateMaterial(const CreateMaterialInfo& a_create_info);
 	void FreeMaterial(const MaterialHandle a_material);
 
-	const RTexture UploadTexture(const RCommandList a_list, const UploadImageInfo& a_upload_info, UploadBufferView* a_upload_view);
+	const RTexture UploadTexture(const RCommandList a_list, const UploadTextureInfo& a_upload_info, UploadBufferView& a_upload_view);
+	const RTexture CreateRenderTarget(const RCommandList a_list, const uint2 a_render_target_extent, const char* a_name);
 	void FreeTexture(const RTexture a_texture);
 
 	const GPUBuffer CreateGPUBuffer(const GPUBufferCreateInfo& a_create_info);

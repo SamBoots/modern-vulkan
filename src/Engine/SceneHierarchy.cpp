@@ -124,7 +124,7 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, UploadBufferV
 		// identity hack to awkwardly get the first matrix. 
 		DrawSceneObject(m_top_level_objects[i], Float4x4Identity());
 	}
-	EndRenderScene(a_list, a_upload_buffer_view, a_render_target, m_render_scene, a_draw_area_size, a_draw_area_offset, m_clear_color);
+	EndRenderScene(a_list, a_upload_buffer_view, m_render_scene, a_render_target, a_draw_area_size, a_draw_area_offset, m_clear_color);
 }
 
 void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform) const

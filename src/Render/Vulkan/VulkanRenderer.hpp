@@ -54,6 +54,7 @@ namespace BB
 		void CopyImage(const RCommandList a_list, const RenderCopyImage& a_copy_info);
 		void CopyBufferImage(const RCommandList a_list, const RenderCopyBufferToImageInfo& a_copy_info);
 		void PipelineBarriers(const RCommandList a_list, const PipelineBarrierInfo& a_BarrierInfo);
+		void ClearImage(const RCommandList a_list, const RImage a_image, const IMAGE_LAYOUT a_layout, const float4 a_clear_color);
 
 		void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info, const RImageView a_rendering_image_view);
 		void EndRenderPass(const RCommandList a_list);

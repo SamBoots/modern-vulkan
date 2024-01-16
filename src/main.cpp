@@ -212,60 +212,53 @@ static void DebugWindowMemoryArena(const MemoryArena& a_arena)
 	}
 }
 
-struct RenderViewPort
+struct RenderViewport
 {
 	RTexture render_target;
-	int2 offset;
 	uint2 extent;
 	const char* name;
 };
 
-RenderViewPort CreateViewport(const RCommandList a_list, const uint2 a_viewport_size, const int2 a_viewport_offset, const char* a_name = "default")
+static RenderViewport CreateViewport(const RCommandList a_list, const uint2 a_viewport_size, const char* a_name = "default")
 {
-	UploadImageInfo upload_image_info;
-	upload_image_info.usage = IMAGE_USAGE::RENDER_TARGET;
-	upload_image_info.format = IMAGE_FORMAT::RGBA16_SFLOAT;
-	upload_image_info.width = a_viewport_size.x;
-	upload_image_info.height = a_viewport_size.x;
-	upload_image_info.name = a_name;
-	upload_image_info.pixels = nullptr;
-
-	RenderViewPort viewport;
-	viewport.render_target = UploadTexture(a_list, upload_image_info, nullptr);
+	RenderViewport viewport;
+	viewport.render_target = CreateRenderTarget(a_list, a_viewport_size, a_name);
 	viewport.extent = a_viewport_size;
-	viewport.offset = a_viewport_offset;
+	viewport.name = a_name;
 	return viewport;
 }
 
-void MoveViewport(RenderViewPort& a_viewport, const int2 a_new_offset)
-{
-	a_viewport.offset = a_new_offset;
-}
-
-void ResizeViewport(RenderViewPort& a_viewport, const RCommandList a_list, const uint2 a_new_size)
+static void ResizeViewport(RenderViewport& a_viewport, const RCommandList a_list, const uint2 a_new_size)
 {
 	FreeTexture(a_viewport.render_target);
-	UploadImageInfo upload_image_info;
-	upload_image_info.usage = IMAGE_USAGE::RENDER_TARGET;
-	upload_image_info.format = IMAGE_FORMAT::RGBA16_SFLOAT;
-	upload_image_info.width = a_new_size.x;
-	upload_image_info.height = a_new_size.x;
-	upload_image_info.name = a_viewport.name;
-	upload_image_info.pixels = nullptr;
 
-	a_viewport.render_target = UploadTexture(a_list, upload_image_info, nullptr);
+	a_viewport.render_target = CreateRenderTarget(a_list, a_new_size, a_viewport.name);
 	a_viewport.extent = a_new_size;
 }
 
-void DrawViewport(RenderViewPort& a_viewport, const RCommandList a_list)
+static void DrawViewport(RenderViewport& a_viewport, const RCommandList a_list, const uint2 a_minimum_size = uint2(160, 80))
 {
 	if (ImGui::Begin(a_viewport.name))
 	{
-		const uint2 window_size = { {static_cast<uint32_t>(ImGui::GetContentRegionAvail().x), static_cast<uint32_t>(ImGui::GetContentRegionAvail().y) } };
-		if (window_size != a_viewport.extent)
-			ResizeViewport(a_viewport, a_list, window_size);
+		ImGuiIO im_io = ImGui::GetIO();
 
-		ImGui::Image(a_viewport.render_target.handle, ImVec2(a_viewport.extent.x, a_viewport.extent.y));
+		if (static_cast<unsigned int>(ImGui::GetWindowSize().x) < a_minimum_size.x ||
+			static_cast<unsigned int>(ImGui::GetWindowSize().y) < a_minimum_size.y)
+		{
+			ImGui::SetWindowSize(ImVec2(static_cast<float>(a_minimum_size.x), static_cast<float>(a_minimum_size.y)));
+			ImGui::End();
+			return;
+		}
+
+		const ImVec2 viewport_draw_area = ImGui::GetContentRegionAvail();
+
+		const uint2 window_size_u = uint2(static_cast<unsigned int>(viewport_draw_area.x), static_cast<unsigned int>(viewport_draw_area.y));
+		if (window_size_u != a_viewport.extent && !im_io.WantCaptureMouse)
+			ResizeViewport(a_viewport, a_list, window_size_u);
+
+		ImGui::Image(a_viewport.render_target.handle, viewport_draw_area);
+
+		ImGui::End();
 	}
 }
 
@@ -284,14 +277,13 @@ int main(int argc, char** argv)
 
 	MemoryArena main_arena = MemoryArenaCreate();
 
-	int window_width = 1280;
-	int window_height = 720;
+	uint2 window_extent = { 1280, 720 };
 	const WindowHandle window = CreateOSWindow(
 		BB::OS_WINDOW_STYLE::MAIN,
-		250,
-		200,
-		window_width,
-		window_height,
+		static_cast<int>(window_extent.x) / 4,
+		static_cast<int>(window_extent.y) / 4,
+		static_cast<int>(window_extent.x),
+		static_cast<int>(window_extent.y),
 		L"Modern Vulkan");
 
 	{
@@ -301,10 +293,10 @@ int main(int argc, char** argv)
 
 	RendererCreateInfo render_create_info;
 	render_create_info.app_name = "modern vulkan";
-	render_create_info.engine_name = "Building Block Engine";
+	render_create_info.engine_name = "building block engine";
 	render_create_info.window_handle = window;
-	render_create_info.swapchain_width = static_cast<uint32_t>(window_width);
-	render_create_info.swapchain_height = static_cast<uint32_t>(window_height);
+	render_create_info.swapchain_width = window_extent.x;
+	render_create_info.swapchain_height = window_extent.y;
 	render_create_info.debug = true;
 	InitializeRenderer(main_arena, render_create_info);
 	SetupImGuiInput(main_arena, window);
@@ -312,8 +304,19 @@ int main(int argc, char** argv)
 
 	SceneHierarchy scene_hierarchy;
 	SceneHierarchy object_viewer_scene;
+	RenderViewport viewport_scene;
+	RenderViewport viewport_object_viewer;
 	scene_hierarchy.InitializeSceneHierarchy(main_arena, 128, "normal scene");
 	object_viewer_scene.InitializeSceneHierarchy(main_arena, 16, "object viewer scene");
+
+	{
+		CommandPool& startup_pool = GetGraphicsCommandPool();
+		const RCommandList startup_list = startup_pool.StartCommandList();
+		viewport_scene = CreateViewport(startup_list, window_extent, "game scene");
+		viewport_object_viewer = CreateViewport(startup_list, window_extent / 2u, "object viewer");
+		startup_pool.EndCommandList(startup_list);
+		ExecuteGraphicCommands(Slice(&startup_pool, 1), Slice<UploadBufferView>());
+	}
 
 	scene_hierarchy.SetClearColor(float3{ 0.1f, 0.6f, 0.1f });
 	object_viewer_scene.SetClearColor(float3{ 0.1f, 0.1f, 0.1f });
@@ -498,10 +501,11 @@ int main(int argc, char** argv)
 		scene_hierarchy.ImguiDisplaySceneHierarchy();
 		object_viewer_scene.ImguiDisplaySceneHierarchy();
 
-		int x, y;
-		GetWindowSize(window, x, y);
-		scene_hierarchy.DrawSceneHierarchy(graphics_command_list, upload_buffer_view, uint2{ {static_cast<uint32_t>(x), static_cast<uint32_t>(y)} }, int2{ {0, 0} });
-		object_viewer_scene.DrawSceneHierarchy(graphics_command_list, upload_buffer_view, uint2{ {static_cast<uint32_t>(x) / 2, static_cast<uint32_t>(y) / 2} }, int2{ {0, 0} });
+		scene_hierarchy.DrawSceneHierarchy(graphics_command_list, upload_buffer_view, viewport_scene.render_target, viewport_scene.extent, int2{ {0, 0} });
+		object_viewer_scene.DrawSceneHierarchy(graphics_command_list, upload_buffer_view, viewport_object_viewer.render_target, viewport_object_viewer.extent, int2{ {0, 0} });
+
+		DrawViewport(viewport_scene, graphics_command_list);
+		DrawViewport(viewport_object_viewer, graphics_command_list);
 
 		EndFrame(graphics_command_list);
 

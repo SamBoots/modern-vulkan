@@ -240,6 +240,9 @@ namespace BB
 
 	union uint2
 	{
+		constexpr uint2() : x(0), y(0) {}
+		constexpr uint2(const unsigned int a_value) : x(a_value), y(a_value) {}
+		constexpr uint2(const unsigned int a_x, const unsigned int a_y) : x(a_x), y(a_y) {}
 		unsigned int e[2];
 		struct
 		{
@@ -247,6 +250,20 @@ namespace BB
 			unsigned int y;
 		};
 	};
+
+	static inline bool operator==(const uint2 a_lhs, const uint2 a_rhs)
+	{
+		if (a_lhs.x == a_rhs.x && a_lhs.y == a_rhs.y)
+			return true;
+		return false;
+	}
+
+	static inline bool operator!=(const uint2 a_lhs, const uint2 a_rhs)
+	{
+		if (a_lhs.x != a_rhs.x || a_lhs.y != a_rhs.y)
+			return true;
+		return false;
+	}
 
 	union uint3
 	{

@@ -238,13 +238,12 @@ const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const 
 		return nullptr;
 	}
 
-	UploadImageInfo upload_image_info;
+	UploadTextureInfo upload_image_info;
 	upload_image_info.name = a_name;
 	upload_image_info.pixels = pixels;
 	upload_image_info.width = static_cast<uint32_t>(x);
 	upload_image_info.height = static_cast<uint32_t>(y);
 	upload_image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
-	upload_image_info.usage = IMAGE_USAGE::TEXTURE;
 
 	const RTexture gpu_image = UploadTexture(a_list, upload_image_info, a_upload_view);
 
@@ -276,12 +275,11 @@ const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const 
 
 const Image* Asset::LoadImageMemory(const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view)
 {
-	UploadImageInfo upload_image_info;
+	UploadTextureInfo upload_image_info;
 	upload_image_info.name = a_name;
 	upload_image_info.pixels = a_image.GetPixels();
 	upload_image_info.width = a_image.GetWidth();
 	upload_image_info.height = a_image.GetWidth();
-	upload_image_info.usage = IMAGE_USAGE::TEXTURE;
 	switch (a_image.GetBitCount())
 	{
 	case 32:

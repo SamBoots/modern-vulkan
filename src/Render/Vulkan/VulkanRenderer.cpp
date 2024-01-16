@@ -508,7 +508,7 @@ struct Vulkan_inst
 		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::DEPTH)] = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::TEXTURE)] = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::UPLOAD_SRC_DST)] = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::RENDER_TARGET)] = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::RENDER_TARGET)] = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 #endif //ENUM_CONVERSATION_BY_ARRAY
 	}
 
@@ -2126,6 +2126,26 @@ void Vulkan::CopyImage(const RCommandList a_list, const RenderCopyImage& a_copy_
 		reinterpret_cast<VkImage>(a_copy_info.src_image.handle), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
 		reinterpret_cast<VkImage>(a_copy_info.dst_image.handle), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 		1, &image_copy);
+}
+
+void Vulkan::ClearImage(const RCommandList a_list, const RImage a_image, const IMAGE_LAYOUT a_layout, const float4 a_clear_color)
+{
+	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+
+	VkClearColorValue clear_color;
+	clear_color.float32[0] = a_clear_color.e[0];
+	clear_color.float32[1] = a_clear_color.e[1];
+	clear_color.float32[2] = a_clear_color.e[2];
+	clear_color.float32[3] = a_clear_color.e[3];
+
+	VkImageSubresourceRange subresource;
+	subresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	subresource.layerCount = 1;
+	subresource.levelCount = 1;
+	subresource.baseArrayLayer = 0;
+	subresource.baseMipLevel = 0;
+
+	vkCmdClearColorImage(cmd_list, reinterpret_cast<VkImage>(a_image.handle), ImageLayout(a_layout), &clear_color, 1, &subresource);
 }
 
 static inline uint32_t QueueTransitionIndex(const QUEUE_TRANSITION a_Transition)
