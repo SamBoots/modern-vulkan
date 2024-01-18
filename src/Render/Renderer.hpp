@@ -129,6 +129,8 @@ namespace BB
 		uint32_t light_max;
 		uint32_t draw_entry_max;
 	};
+	using RenderTarget = FrameworkHandle<struct RenderTargetTag>;
+
 
 	const RenderIO& GetRenderIO();
 
@@ -136,9 +138,14 @@ namespace BB
 	void StartFrame(const RCommandList a_list);
 	void EndFrame(const RCommandList a_list, bool a_skip = false);
 
+	RenderTarget CreateRenderTarget(const uint2 a_render_target_extent, const char* a_name = "default");
+	void ResizeRenderTarget(const RCommandList a_list, const RenderTarget render_target, const uint2 a_render_target_extent);
+	void StartRenderTarget(const RCommandList a_list, const RenderTarget render_target);
+	void EndRenderTarget(const RCommandList a_list, const RenderTarget render_target);
+
 	RenderScene3DHandle Create3DRenderScene(MemoryArena& a_arena, const SceneCreateInfo& a_info);
 	void StartRenderScene(const RenderScene3DHandle a_scene);
-	void EndRenderScene(const RCommandList a_cmd_list, UploadBufferView& a_upload_buffer_view, const RenderScene3DHandle a_scene, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, bool a_skip = false);
+	void EndRenderScene(const RCommandList a_cmd_list, UploadBufferView& a_upload_buffer_view, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, bool a_skip = false);
 
 	void SetView(const RenderScene3DHandle a_scene, const float4x4& a_view);
 	void SetProjection(const RenderScene3DHandle a_scene, const float4x4& a_projection);
@@ -173,7 +180,6 @@ namespace BB
 	void FreeMaterial(const MaterialHandle a_material);
 
 	const RTexture UploadTexture(const RCommandList a_list, const UploadTextureInfo& a_upload_info, UploadBufferView& a_upload_view);
-	const RTexture CreateRenderTarget(const RCommandList a_list, const uint2 a_render_target_extent, const char* a_name);
 	void FreeTexture(const RTexture a_texture);
 
 	const GPUBuffer CreateGPUBuffer(const GPUBufferCreateInfo& a_create_info);

@@ -1058,7 +1058,9 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, cons
 		}
 
 		{	//descriptor info & general device properties
-			VkPhysicalDeviceDescriptorBufferPropertiesEXT desc_info{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_PROPERTIES_EXT, nullptr };
+			VkPhysicalDeviceTimelineSemaphoreProperties timeline_properties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_PROPERTIES };
+			VkPhysicalDeviceDescriptorBufferPropertiesEXT desc_info{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_PROPERTIES_EXT };
+			desc_info.pNext = &timeline_properties;
 			VkPhysicalDeviceProperties2 device_properties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
 			device_properties.pNext = &desc_info;
 			vkGetPhysicalDeviceProperties2(s_vulkan_inst->phys_device, &device_properties);
@@ -1351,7 +1353,7 @@ const GPUBuffer Vulkan::CreateBuffer(const GPUBufferCreateInfo& a_create_info)
 	if (a_create_info.host_writable)
 	{
 		vma_alloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
-		vma_alloc.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+		vma_alloc.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
 	}
 	else
 		vma_alloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;

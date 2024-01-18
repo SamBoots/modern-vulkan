@@ -39,7 +39,7 @@ public:
 	void Init(const RCommandList a_list, UploadBufferView& a_upload_view);
 
 	const RTexture UploadTexture(const RCommandList a_list, const UploadTextureInfo& a_upload_info, UploadBufferView& a_upload_buffer);
-	const RTexture CreateRenderTarget(const RCommandList a_list, const uint2 a_render_target_extent, const char* a_name);
+	const RTexture CreateRenderTarget(const uint2 a_render_target_extent, const char* a_name);
 	const RTexture CreateDepthImage(const uint2 a_depth_image_extent, const char* a_name);
 	void FreeTexture(const RTexture a_texture);
 
@@ -1276,7 +1276,7 @@ const RTexture GPUTextureManager::UploadTexture(const RCommandList a_list, const
 	return texture_slot;
 }
 
-const RTexture GPUTextureManager::CreateRenderTarget(const RCommandList a_list, const uint2 a_render_target_extent, const char* a_name)
+const RTexture GPUTextureManager::CreateRenderTarget(const uint2 a_render_target_extent, const char* a_name)
 {
 	OSAcquireSRWLockWrite(&m_lock);
 	const RTexture texture_slot = RTexture(m_next_free);
@@ -1307,28 +1307,6 @@ const RTexture GPUTextureManager::CreateRenderTarget(const RCommandList a_list, 
 	image_view_info.type = image_info.type;
 	image_view_info.format = image_info.format;
 	slot.view = Vulkan::CreateViewImage(image_view_info);
-
-
-	{
-		PipelineBarrierImageInfo render_target_transition;
-		render_target_transition.src_mask = BARRIER_ACCESS_MASK::NONE;
-		render_target_transition.dst_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
-		render_target_transition.image = slot.image;
-		render_target_transition.old_layout = IMAGE_LAYOUT::UNDEFINED;
-		render_target_transition.new_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-		render_target_transition.layer_count = 1;
-		render_target_transition.level_count = 1;
-		render_target_transition.base_array_layer = 0;
-		render_target_transition.base_mip_level = 0;
-		render_target_transition.src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
-		render_target_transition.dst_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
-
-		PipelineBarrierInfo pipeline_info{};
-		pipeline_info.image_info_count = 1;
-		pipeline_info.image_infos = &render_target_transition;
-		Vulkan::PipelineBarriers(a_list, pipeline_info);
-	}
-
 
 	WriteDescriptorData write_desc{};
 	write_desc.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
@@ -1699,6 +1677,66 @@ void BB::EndFrame(const RCommandList a_list, bool a_skip)
 	Vulkan::UploadImageToSwapchain(a_list, render_target.image, swapchain_size, swapchain_size, s_render_inst->render_io.frame_index);
 }
 
+struct RenderViewport
+{
+	uint32_t cur_target = 0;
+	RTexture render_target[3];
+	uint2 extent;
+	const char* name;
+};
+
+RenderTarget BB::CreateRenderTarget(const uint2 a_render_target_extent, const char* a_name = "default")
+{
+	RenderViewport viewport;
+	for (size_t i = 0; i < _countof(viewport.render_target); i++)
+	{
+		viewport.render_target[i] = s_render_inst->texture_manager.CreateRenderTarget(a_render_target_extent, a_name);
+	}
+	viewport.extent = a_viewport_size;
+	viewport.name = a_name;
+	return viewport;
+}
+
+void BB::ResizeRenderTarget(const RCommandList a_list, const RenderTarget render_target, const uint2 a_render_target_extent)
+{
+	for (size_t i = 0; i < _countof(a_viewport.render_target); i++)
+	{
+		FreeTexture(a_viewport.render_target[i]);
+		a_viewport.render_target[i] = CreateRenderTarget(a_list, a_render_target_extent, a_viewport.name);
+	}
+	a_viewport.extent = a_render_target_extent;
+}
+
+void BB::StartRenderTarget(const RCommandList a_list, const RenderTarget render_target)
+{
+
+	GPUTextureManager::TextureSlot slot = 
+	{
+		PipelineBarrierImageInfo render_target_transition;
+		render_target_transition.src_mask = BARRIER_ACCESS_MASK::NONE;
+		render_target_transition.dst_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
+		render_target_transition.image = slot.image;
+		render_target_transition.old_layout = IMAGE_LAYOUT::UNDEFINED;
+		render_target_transition.new_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+		render_target_transition.layer_count = 1;
+		render_target_transition.level_count = 1;
+		render_target_transition.base_array_layer = 0;
+		render_target_transition.base_mip_level = 0;
+		render_target_transition.src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
+		render_target_transition.dst_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
+
+		PipelineBarrierInfo pipeline_info{};
+		pipeline_info.image_info_count = 1;
+		pipeline_info.image_infos = &render_target_transition;
+		Vulkan::PipelineBarriers(a_list, pipeline_info);
+	}
+}
+
+void BB::EndRenderTarget(const RCommandList a_list, const RenderTarget render_target)
+{
+
+}
+
 RenderScene3DHandle BB::Create3DRenderScene(MemoryArena& a_arena, const SceneCreateInfo& a_info)
 {
 	Scene3D* scene_3d = ArenaAllocType(a_arena, Scene3D);
@@ -1802,13 +1840,12 @@ void BB::StartRenderScene(const RenderScene3DHandle a_scene)
 {
 	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
 	s_render_inst->graphics_queue.WaitFenceValue(render_scene3d.frames[s_render_inst->render_io.frame_index].fence_value);
-	s_render_inst->upload_buffers.CheckIfInFlightDone();
 
 	//clear the drawlist, maybe do this on a per-frame basis of we do GPU upload?
 	render_scene3d.draw_list_count = 0;
 }
 
-void BB::EndRenderScene(const RCommandList a_cmd_list, UploadBufferView& a_upload_buffer_view, const RenderScene3DHandle a_scene, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, bool a_skip)
+void BB::EndRenderScene(const RCommandList a_cmd_list, UploadBufferView& a_upload_buffer_view, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, bool a_skip)
 {
 	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
 	const auto& scene_frame = render_scene3d.frames[s_render_inst->render_io.frame_index];
@@ -2274,11 +2311,6 @@ void BB::FreeMaterial(const MaterialHandle a_material)
 const RTexture BB::UploadTexture(const RCommandList a_list, const UploadTextureInfo& a_upload_info, UploadBufferView& a_upload_view)
 {
 	return s_render_inst->texture_manager.UploadTexture(a_list, a_upload_info, a_upload_view);
-}
-
-const RTexture BB::CreateRenderTarget(const RCommandList a_list, const uint2 a_render_target_extent, const char* a_name)
-{
-	return s_render_inst->texture_manager.CreateRenderTarget(a_list, a_render_target_extent, a_name);
 }
 
 void BB::FreeTexture(const RTexture a_texture)

@@ -212,30 +212,6 @@ static void DebugWindowMemoryArena(const MemoryArena& a_arena)
 	}
 }
 
-struct RenderViewport
-{
-	RTexture render_target;
-	uint2 extent;
-	const char* name;
-};
-
-static RenderViewport CreateViewport(const RCommandList a_list, const uint2 a_viewport_size, const char* a_name = "default")
-{
-	RenderViewport viewport;
-	viewport.render_target = CreateRenderTarget(a_list, a_viewport_size, a_name);
-	viewport.extent = a_viewport_size;
-	viewport.name = a_name;
-	return viewport;
-}
-
-static void ResizeViewport(RenderViewport& a_viewport, const RCommandList a_list, const uint2 a_new_size)
-{
-	FreeTexture(a_viewport.render_target);
-
-	a_viewport.render_target = CreateRenderTarget(a_list, a_new_size, a_viewport.name);
-	a_viewport.extent = a_new_size;
-}
-
 static void DrawViewport(RenderViewport& a_viewport, const RCommandList a_list, const uint2 a_minimum_size = uint2(160, 80))
 {
 	if (ImGui::Begin(a_viewport.name))
@@ -256,8 +232,9 @@ static void DrawViewport(RenderViewport& a_viewport, const RCommandList a_list, 
 		if (window_size_u != a_viewport.extent && !im_io.WantCaptureMouse)
 			ResizeViewport(a_viewport, a_list, window_size_u);
 
-		ImGui::Image(a_viewport.render_target.handle, viewport_draw_area);
-
+		ImGui::Image(a_viewport.render_target[a_viewport.cur_target].handle, viewport_draw_area);
+		//set the next fence value for the frame
+		a_viewport.cur_target = (a_viewport.cur_target + 1) % _countof(a_viewport.render_target);
 		ImGui::End();
 	}
 }
@@ -319,7 +296,7 @@ int main(int argc, char** argv)
 	}
 
 	scene_hierarchy.SetClearColor(float3{ 0.1f, 0.6f, 0.1f });
-	object_viewer_scene.SetClearColor(float3{ 0.1f, 0.1f, 0.1f });
+	object_viewer_scene.SetClearColor(float3{ 0.5f, 0.1f, 0.1f });
 
 	{
 		float4x4 projection = Float4x4Perspective(ToRadians(60.0f),
@@ -501,10 +478,10 @@ int main(int argc, char** argv)
 		scene_hierarchy.ImguiDisplaySceneHierarchy();
 		object_viewer_scene.ImguiDisplaySceneHierarchy();
 
-		scene_hierarchy.DrawSceneHierarchy(graphics_command_list, upload_buffer_view, viewport_scene.render_target, viewport_scene.extent, int2{ {0, 0} });
-		object_viewer_scene.DrawSceneHierarchy(graphics_command_list, upload_buffer_view, viewport_object_viewer.render_target, viewport_object_viewer.extent, int2{ {0, 0} });
+		//scene_hierarchy.DrawSceneHierarchy(graphics_command_list, upload_buffer_view, viewport_scene.render_target, viewport_scene.extent, int2{ {0, 0} });
+		object_viewer_scene.DrawSceneHierarchy(graphics_command_list, upload_buffer_view, viewport_object_viewer.render_target[viewport_object_viewer.cur_target], viewport_object_viewer.extent, int2{{0, 0}});
 
-		DrawViewport(viewport_scene, graphics_command_list);
+		//DrawViewport(viewport_scene, graphics_command_list);
 		DrawViewport(viewport_object_viewer, graphics_command_list);
 
 		EndFrame(graphics_command_list);
