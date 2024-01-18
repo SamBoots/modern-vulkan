@@ -1679,38 +1679,60 @@ void BB::EndFrame(const RCommandList a_list, bool a_skip)
 
 struct RenderViewport
 {
-	uint32_t cur_target = 0;
-	RTexture render_target[3];
+	struct ViewportFrame
+	{
+		uint64_t semaphore_value;
+		RTexture render_target;
+	};
+	uint32_t current_frame;
+	ViewportFrame* frames; // same amount as back buffer amount
 	uint2 extent;
 	const char* name;
+
+	ViewportFrame& GetFrame() const { frames[current_frame]; };
 };
 
-RenderTarget BB::CreateRenderTarget(const uint2 a_render_target_extent, const char* a_name = "default")
+RenderTarget BB::CreateRenderTarget(MemoryArena& a_arena, const uint2 a_render_target_extent, const char* a_name = "default")
 {
-	RenderViewport viewport;
-	for (size_t i = 0; i < _countof(viewport.render_target); i++)
+	RenderViewport* viewport = ArenaAllocType(a_arena, RenderViewport);
+	for (uint32_t i = 0; i < s_render_inst->render_io.frame_count; i++)
 	{
-		viewport.render_target[i] = s_render_inst->texture_manager.CreateRenderTarget(a_render_target_extent, a_name);
+		viewport->frames[i].render_target = s_render_inst->texture_manager.CreateRenderTarget(a_render_target_extent, a_name);
+		viewport->frames[i].semaphore_value = 0;
 	}
-	viewport.extent = a_viewport_size;
-	viewport.name = a_name;
-	return viewport;
+	viewport->current_frame = 0;
+	viewport->extent = a_render_target_extent;
+	viewport->name = a_name;
+	return RenderTarget(reinterpret_cast<uintptr_t>(viewport));
 }
 
-void BB::ResizeRenderTarget(const RCommandList a_list, const RenderTarget render_target, const uint2 a_render_target_extent)
+void BB::ResizeRenderTarget(const RenderTarget render_target, const uint2 a_render_target_extent)
 {
-	for (size_t i = 0; i < _countof(a_viewport.render_target); i++)
+	RenderViewport* viewport = reinterpret_cast<RenderViewport*>(render_target.handle);
+
+	uint64_t highest_fence_value = 0;
+	for (uint32_t i = 0; i < s_render_inst->render_io.frame_count; i++)
 	{
-		FreeTexture(a_viewport.render_target[i]);
-		a_viewport.render_target[i] = CreateRenderTarget(a_list, a_render_target_extent, a_viewport.name);
+		highest_fence_value = Max(viewport->frames[i].semaphore_value, highest_fence_value);
 	}
-	a_viewport.extent = a_render_target_extent;
+
+	s_render_inst->graphics_queue.WaitFenceValue(highest_fence_value);
+
+	for (uint32_t i = 0; i < s_render_inst->render_io.frame_count; i++)
+	{
+		FreeTexture(viewport->frames[i].render_target);
+		viewport->frames[i].render_target = s_render_inst->texture_manager.CreateRenderTarget(a_render_target_extent, viewport->name);
+	}
+	viewport->extent = a_render_target_extent;
 }
 
 void BB::StartRenderTarget(const RCommandList a_list, const RenderTarget render_target)
 {
+	const RenderViewport::ViewportFrame viewport_frame = reinterpret_cast<RenderViewport*>(render_target.handle)->GetFrame();
 
-	GPUTextureManager::TextureSlot slot = 
+	s_render_inst->graphics_queue.WaitFenceValue(viewport_frame.semaphore_value);
+
+	const GPUTextureManager::TextureSlot slot = s_render_inst->texture_manager.GetTextureSlot(viewport_frame.render_target);
 	{
 		PipelineBarrierImageInfo render_target_transition;
 		render_target_transition.src_mask = BARRIER_ACCESS_MASK::NONE;
@@ -1734,7 +1756,28 @@ void BB::StartRenderTarget(const RCommandList a_list, const RenderTarget render_
 
 void BB::EndRenderTarget(const RCommandList a_list, const RenderTarget render_target)
 {
+	const RenderViewport::ViewportFrame viewport_frame = reinterpret_cast<RenderViewport*>(render_target.handle)->GetFrame();
 
+	const GPUTextureManager::TextureSlot slot = s_render_inst->texture_manager.GetTextureSlot(viewport_frame.render_target);
+	{
+		PipelineBarrierImageInfo render_target_transition;
+		render_target_transition.src_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
+		render_target_transition.dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
+		render_target_transition.image = slot.image;
+		render_target_transition.old_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+		render_target_transition.new_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+		render_target_transition.layer_count = 1;
+		render_target_transition.level_count = 1;
+		render_target_transition.base_array_layer = 0;
+		render_target_transition.base_mip_level = 0;
+		render_target_transition.src_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
+		render_target_transition.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
+
+		PipelineBarrierInfo pipeline_info{};
+		pipeline_info.image_info_count = 1;
+		pipeline_info.image_infos = &render_target_transition;
+		Vulkan::PipelineBarriers(a_list, pipeline_info);
+	}
 }
 
 RenderScene3DHandle BB::Create3DRenderScene(MemoryArena& a_arena, const SceneCreateInfo& a_info)
@@ -1910,9 +1953,9 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, UploadBufferView& a_uploa
 		pipeline_info.image_infos = image_transitions;
 		Vulkan::PipelineBarriers(a_cmd_list, pipeline_info);
 	}
-
-	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(a_render_target);
-	//render
+	const RenderViewport::ViewportFrame viewport_frame = reinterpret_cast<RenderViewport*>(a_render_target.handle)->GetFrame();
+	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(viewport_frame.render_target);
+	// render
 	StartRenderingInfo start_rendering_info;
 	start_rendering_info.viewport_size = uint2{ s_render_inst->render_io.screen_width, s_render_inst->render_io.screen_height };
 	start_rendering_info.scissor_extent = a_draw_area_size;
