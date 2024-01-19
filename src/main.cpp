@@ -212,7 +212,33 @@ static void DebugWindowMemoryArena(const MemoryArena& a_arena)
 	}
 }
 
-static void DrawViewport(RenderViewport& a_viewport, const RCommandList a_list, const uint2 a_minimum_size = uint2(160, 80))
+struct Viewport
+{
+	uint2 extent;
+	uint2 offset; // offset into main window NOT USED NOW 
+	RenderTarget render_target;
+	const char* name;
+};
+static Viewport CreateViewport(MemoryArena& a_arena, const uint2 a_extent, const uint2 a_offset, const char* a_name)
+{
+	Viewport viewport;
+	viewport.extent = a_extent;
+	viewport.offset = a_offset;
+	viewport.render_target = CreateRenderTarget(a_arena, a_extent, a_name);
+	viewport.name = a_name;
+	return viewport;
+}
+
+static void ViewportResize(Viewport& a_viewport, const uint2 a_new_extent)
+{
+	if (a_viewport.extent == a_new_extent)
+		return;
+
+	a_viewport.extent = a_new_extent;
+	ResizeRenderTarget(a_viewport.render_target, a_new_extent);
+}
+
+static void DrawImGuiViewport(Viewport& a_viewport, const uint2 a_minimum_size = uint2(160, 80))
 {
 	if (ImGui::Begin(a_viewport.name))
 	{
@@ -230,11 +256,9 @@ static void DrawViewport(RenderViewport& a_viewport, const RCommandList a_list, 
 
 		const uint2 window_size_u = uint2(static_cast<unsigned int>(viewport_draw_area.x), static_cast<unsigned int>(viewport_draw_area.y));
 		if (window_size_u != a_viewport.extent && !im_io.WantCaptureMouse)
-			ResizeViewport(a_viewport, a_list, window_size_u);
+			ViewportResize(a_viewport, window_size_u);
 
-		ImGui::Image(a_viewport.render_target[a_viewport.cur_target].handle, viewport_draw_area);
-		//set the next fence value for the frame
-		a_viewport.cur_target = (a_viewport.cur_target + 1) % _countof(a_viewport.render_target);
+		ImGui::Image(GetCurrentRenderTargetTexture(a_viewport.render_target).handle, viewport_draw_area);
 		ImGui::End();
 	}
 }
@@ -281,16 +305,16 @@ int main(int argc, char** argv)
 
 	SceneHierarchy scene_hierarchy;
 	SceneHierarchy object_viewer_scene;
-	RenderViewport viewport_scene;
-	RenderViewport viewport_object_viewer;
+	Viewport viewport_scene;
+	Viewport viewport_object_viewer;
 	scene_hierarchy.InitializeSceneHierarchy(main_arena, 128, "normal scene");
 	object_viewer_scene.InitializeSceneHierarchy(main_arena, 16, "object viewer scene");
 
 	{
 		CommandPool& startup_pool = GetGraphicsCommandPool();
 		const RCommandList startup_list = startup_pool.StartCommandList();
-		viewport_scene = CreateViewport(startup_list, window_extent, "game scene");
-		viewport_object_viewer = CreateViewport(startup_list, window_extent / 2u, "object viewer");
+		viewport_scene = CreateViewport(main_arena, window_extent, uint2(), "game scene");
+		viewport_object_viewer = CreateViewport(main_arena, window_extent / 2u, uint2(), "object viewer");
 		startup_pool.EndCommandList(startup_list);
 		ExecuteGraphicCommands(Slice(&startup_pool, 1), Slice<UploadBufferView>());
 	}
@@ -478,11 +502,16 @@ int main(int argc, char** argv)
 		scene_hierarchy.ImguiDisplaySceneHierarchy();
 		object_viewer_scene.ImguiDisplaySceneHierarchy();
 
+		DrawImGuiViewport(viewport_object_viewer);
+		StartRenderTarget(graphics_command_list, viewport_object_viewer.render_target);
+
 		//scene_hierarchy.DrawSceneHierarchy(graphics_command_list, upload_buffer_view, viewport_scene.render_target, viewport_scene.extent, int2{ {0, 0} });
-		object_viewer_scene.DrawSceneHierarchy(graphics_command_list, upload_buffer_view, viewport_object_viewer.render_target[viewport_object_viewer.cur_target], viewport_object_viewer.extent, int2{{0, 0}});
+		object_viewer_scene.DrawSceneHierarchy(graphics_command_list, upload_buffer_view, viewport_object_viewer.render_target, viewport_object_viewer.extent, int2{{0, 0}});
+
+		EndRenderTarget(graphics_command_list, viewport_object_viewer.render_target);
 
 		//DrawViewport(viewport_scene, graphics_command_list);
-		DrawViewport(viewport_object_viewer, graphics_command_list);
+	
 
 		EndFrame(graphics_command_list);
 

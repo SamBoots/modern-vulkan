@@ -139,9 +139,10 @@ namespace BB
 	void EndFrame(const RCommandList a_list, bool a_skip = false);
 
 	RenderTarget CreateRenderTarget(MemoryArena& a_arena, const uint2 a_render_target_extent, const char* a_name = "default");
-	void ResizeRenderTarget(,const RenderTarget render_target, const uint2 a_render_target_extent);
-	void StartRenderTarget(const RCommandList a_list, const RenderTarget render_target);
-	void EndRenderTarget(const RCommandList a_list, const RenderTarget render_target);
+	void ResizeRenderTarget(const RenderTarget render_target, const uint2 a_render_target_extent);
+	void StartRenderTarget(const RCommandList a_list, const RenderTarget a_render_target);
+	void EndRenderTarget(const RCommandList a_list, const RenderTarget a_render_target);
+	RTexture GetCurrentRenderTargetTexture(const RenderTarget a_render_target);
 
 	RenderScene3DHandle Create3DRenderScene(MemoryArena& a_arena, const SceneCreateInfo& a_info);
 	void StartRenderScene(const RenderScene3DHandle a_scene);

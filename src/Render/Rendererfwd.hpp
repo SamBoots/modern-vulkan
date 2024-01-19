@@ -82,7 +82,7 @@ namespace BB
 	{
 		DEPTH,
 		TEXTURE,
-		UPLOAD_SRC_DST, //maybe finally use bitflags.
+		SWAPCHAIN_COPY_IMG, //maybe finally use bitflags.
 		RENDER_TARGET,
 
 		ENUM_SIZE

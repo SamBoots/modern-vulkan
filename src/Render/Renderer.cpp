@@ -40,6 +40,7 @@ public:
 
 	const RTexture UploadTexture(const RCommandList a_list, const UploadTextureInfo& a_upload_info, UploadBufferView& a_upload_buffer);
 	const RTexture CreateRenderTarget(const uint2 a_render_target_extent, const char* a_name);
+	const RTexture CreateUploadTarget(const uint2 a_extent, const char* a_name);
 	const RTexture CreateDepthImage(const uint2 a_depth_image_extent, const char* a_name);
 	void FreeTexture(const RTexture a_texture);
 
@@ -687,7 +688,7 @@ namespace IMGUI_IMPL
 
 	// Render function
 	// return value is the 
-	static void ImRenderFrame(const RCommandList a_cmd_list, const RImageView render_target_view)
+	static void ImRenderFrame(const RCommandList a_cmd_list, const RImageView render_target_view, const bool a_clear_image)
 	{
 		const ImDrawData& draw_data = *ImGui::GetDrawData();
 		// Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
@@ -737,7 +738,7 @@ namespace IMGUI_IMPL
 		imgui_pass_start.scissor_extent = imgui_pass_start.viewport_size;
 		imgui_pass_start.scissor_offset = {};
 		imgui_pass_start.depth_view = RImageView(BB_INVALID_HANDLE_64);
-		imgui_pass_start.load_color = true;
+		imgui_pass_start.load_color = !a_clear_image;
 		imgui_pass_start.store_color = true;
 		imgui_pass_start.layout = IMAGE_LAYOUT::GENERAL;
 		Vulkan::StartRenderPass(a_cmd_list, imgui_pass_start, render_target_view);
@@ -1324,6 +1325,54 @@ const RTexture GPUTextureManager::CreateRenderTarget(const uint2 a_render_target
 	return texture_slot;
 }
 
+const RTexture GPUTextureManager::CreateUploadTarget(const uint2 a_extent, const char* a_name)
+{
+	OSAcquireSRWLockWrite(&m_lock);
+	const RTexture texture_slot = RTexture(m_next_free);
+	TextureSlot& slot = m_textures[texture_slot.handle];
+	m_next_free = slot.next_free;
+	OSReleaseSRWLockWrite(&m_lock);
+
+	ImageCreateInfo image_info;
+	image_info.name = a_name;
+	image_info.width = a_extent.x;
+	image_info.height = a_extent.y;
+	image_info.depth = 1;
+	image_info.array_layers = 1;
+	image_info.mip_levels = 1;
+
+	image_info.type = IMAGE_TYPE::TYPE_2D;
+	image_info.tiling = IMAGE_TILING::OPTIMAL;
+	image_info.format = RENDER_TARGET_IMAGE_FORMAT;
+	image_info.usage = IMAGE_USAGE::SWAPCHAIN_COPY_IMG;
+
+	slot.image = Vulkan::CreateImage(image_info);
+
+	ImageViewCreateInfo image_view_info;
+	image_view_info.image = slot.image;
+	image_view_info.name = a_name;
+	image_view_info.array_layers = 1;
+	image_view_info.mip_levels = 1;
+	image_view_info.type = image_info.type;
+	image_view_info.format = image_info.format;
+	slot.view = Vulkan::CreateViewImage(image_view_info);
+
+	WriteDescriptorData write_desc{};
+	write_desc.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
+	write_desc.descriptor_index = texture_slot.handle; //handle is also the descriptor index
+	write_desc.type = DESCRIPTOR_TYPE::IMAGE;
+	write_desc.image_view.view = slot.view;
+	write_desc.image_view.layout = IMAGE_LAYOUT::TRANSFER_SRC;
+
+	WriteDescriptorInfos image_write_infos;
+	image_write_infos.allocation = s_render_inst->global_descriptor_allocation;
+	image_write_infos.descriptor_layout = s_render_inst->global_descriptor_set;
+	image_write_infos.data = Slice(&write_desc, 1);
+
+	Vulkan::WriteDescriptors(image_write_infos);
+	return texture_slot;
+}
+
 const RTexture GPUTextureManager::CreateDepthImage(const uint2 a_depth_image_extent, const char* a_name)
 {
 	OSAcquireSRWLockWrite(&m_lock);
@@ -1537,7 +1586,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		for (size_t i = 0; i < s_render_inst->render_io.frame_count; i++)
 		{
 			const uint2 render_target_extent = { s_render_inst->render_io.screen_width, s_render_inst->render_io.screen_height };
-			s_render_inst->frames[i].render_target = CreateRenderTarget(list, render_target_extent, "image before transfer to swapchain");
+			s_render_inst->frames[i].render_target = s_render_inst->texture_manager.CreateUploadTarget(render_target_extent, "image before transfer to swapchain");
 			s_render_inst->frames[i].graphics_queue_fence_value = 0;
 		}
 	}
@@ -1587,37 +1636,15 @@ void BB::StartFrame(const RCommandList a_list)
 	{
 		PipelineBarrierImageInfo image_transitions[1]{};
 		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::NONE;
-		image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
-		image_transitions[0].image = render_target.image;
-		image_transitions[0].old_layout = IMAGE_LAYOUT::UNDEFINED;
-		image_transitions[0].new_layout = IMAGE_LAYOUT::TRANSFER_DST;
-		image_transitions[0].layer_count = 1;
-		image_transitions[0].level_count = 1;
-		image_transitions[0].base_array_layer = 0;
-		image_transitions[0].base_mip_level = 0;
-		image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
-		image_transitions[0].dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
-
-		PipelineBarrierInfo pipeline_info{};
-		pipeline_info.image_info_count = _countof(image_transitions);
-		pipeline_info.image_infos = image_transitions;
-		Vulkan::PipelineBarriers(a_list, pipeline_info);
-	}
-
-	Vulkan::ClearImage(a_list, render_target.image, IMAGE_LAYOUT::TRANSFER_DST, float4(0.f, 0.f, 0.f, 0.f));
-
-	{
-		PipelineBarrierImageInfo image_transitions[1]{};
-		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
 		image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
 		image_transitions[0].image = render_target.image;
-		image_transitions[0].old_layout = IMAGE_LAYOUT::TRANSFER_DST;
+		image_transitions[0].old_layout = IMAGE_LAYOUT::UNDEFINED;
 		image_transitions[0].new_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 		image_transitions[0].layer_count = 1;
 		image_transitions[0].level_count = 1;
 		image_transitions[0].base_array_layer = 0;
 		image_transitions[0].base_mip_level = 0;
-		image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
+		image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
 		image_transitions[0].dst_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
 
 		PipelineBarrierInfo pipeline_info{};
@@ -1644,7 +1671,7 @@ void BB::EndFrame(const RCommandList a_list, bool a_skip)
 	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(cur_frame.render_target);
 
 	ImGui::Render();
-	IMGUI_IMPL::ImRenderFrame(a_list, render_target.view);
+	IMGUI_IMPL::ImRenderFrame(a_list, render_target.view, true);
 	ImGui::EndFrame();
 
 	{
@@ -1677,30 +1704,22 @@ void BB::EndFrame(const RCommandList a_list, bool a_skip)
 	Vulkan::UploadImageToSwapchain(a_list, render_target.image, swapchain_size, swapchain_size, s_render_inst->render_io.frame_index);
 }
 
-struct RenderViewport
+struct RenderTargetStruct
 {
-	struct ViewportFrame
-	{
-		uint64_t semaphore_value;
-		RTexture render_target;
-	};
-	uint32_t current_frame;
-	ViewportFrame* frames; // same amount as back buffer amount
+	RTexture render_targets[3]; // same amount as back buffer amount
 	uint2 extent;
 	const char* name;
 
-	ViewportFrame& GetFrame() const { frames[current_frame]; };
+	RTexture GetTargetTexture() const { return render_targets[s_render_inst->render_io.frame_index]; }
 };
 
-RenderTarget BB::CreateRenderTarget(MemoryArena& a_arena, const uint2 a_render_target_extent, const char* a_name = "default")
+RenderTarget BB::CreateRenderTarget(MemoryArena& a_arena, const uint2 a_render_target_extent, const char* a_name)
 {
-	RenderViewport* viewport = ArenaAllocType(a_arena, RenderViewport);
+	RenderTargetStruct* viewport = ArenaAllocType(a_arena, RenderTargetStruct);
 	for (uint32_t i = 0; i < s_render_inst->render_io.frame_count; i++)
 	{
-		viewport->frames[i].render_target = s_render_inst->texture_manager.CreateRenderTarget(a_render_target_extent, a_name);
-		viewport->frames[i].semaphore_value = 0;
+		viewport->render_targets[i] = s_render_inst->texture_manager.CreateRenderTarget(a_render_target_extent, a_name);
 	}
-	viewport->current_frame = 0;
 	viewport->extent = a_render_target_extent;
 	viewport->name = a_name;
 	return RenderTarget(reinterpret_cast<uintptr_t>(viewport));
@@ -1708,31 +1727,24 @@ RenderTarget BB::CreateRenderTarget(MemoryArena& a_arena, const uint2 a_render_t
 
 void BB::ResizeRenderTarget(const RenderTarget render_target, const uint2 a_render_target_extent)
 {
-	RenderViewport* viewport = reinterpret_cast<RenderViewport*>(render_target.handle);
-
-	uint64_t highest_fence_value = 0;
-	for (uint32_t i = 0; i < s_render_inst->render_io.frame_count; i++)
-	{
-		highest_fence_value = Max(viewport->frames[i].semaphore_value, highest_fence_value);
-	}
-
-	s_render_inst->graphics_queue.WaitFenceValue(highest_fence_value);
+	RenderTargetStruct* viewport = reinterpret_cast<RenderTargetStruct*>(render_target.handle);
+	
+	// we can't garuntee that the viewport is not being worked on or used in copy commands, so wait all commands.
+	s_render_inst->graphics_queue.WaitIdle();
 
 	for (uint32_t i = 0; i < s_render_inst->render_io.frame_count; i++)
 	{
-		FreeTexture(viewport->frames[i].render_target);
-		viewport->frames[i].render_target = s_render_inst->texture_manager.CreateRenderTarget(a_render_target_extent, viewport->name);
+		FreeTexture(viewport->render_targets[i]);
+		viewport->render_targets[i] = s_render_inst->texture_manager.CreateRenderTarget(a_render_target_extent, viewport->name);
 	}
 	viewport->extent = a_render_target_extent;
 }
 
-void BB::StartRenderTarget(const RCommandList a_list, const RenderTarget render_target)
+void BB::StartRenderTarget(const RCommandList a_list, const RenderTarget a_render_target)
 {
-	const RenderViewport::ViewportFrame viewport_frame = reinterpret_cast<RenderViewport*>(render_target.handle)->GetFrame();
+	const RTexture render_target = reinterpret_cast<RenderTargetStruct*>(a_render_target.handle)->GetTargetTexture();
 
-	s_render_inst->graphics_queue.WaitFenceValue(viewport_frame.semaphore_value);
-
-	const GPUTextureManager::TextureSlot slot = s_render_inst->texture_manager.GetTextureSlot(viewport_frame.render_target);
+	const GPUTextureManager::TextureSlot slot = s_render_inst->texture_manager.GetTextureSlot(render_target);
 	{
 		PipelineBarrierImageInfo render_target_transition;
 		render_target_transition.src_mask = BARRIER_ACCESS_MASK::NONE;
@@ -1754,11 +1766,11 @@ void BB::StartRenderTarget(const RCommandList a_list, const RenderTarget render_
 	}
 }
 
-void BB::EndRenderTarget(const RCommandList a_list, const RenderTarget render_target)
+void BB::EndRenderTarget(const RCommandList a_list, const RenderTarget a_render_target)
 {
-	const RenderViewport::ViewportFrame viewport_frame = reinterpret_cast<RenderViewport*>(render_target.handle)->GetFrame();
+	const RTexture render_target = reinterpret_cast<RenderTargetStruct*>(a_render_target.handle)->GetTargetTexture();
 
-	const GPUTextureManager::TextureSlot slot = s_render_inst->texture_manager.GetTextureSlot(viewport_frame.render_target);
+	const GPUTextureManager::TextureSlot slot = s_render_inst->texture_manager.GetTextureSlot(render_target);
 	{
 		PipelineBarrierImageInfo render_target_transition;
 		render_target_transition.src_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
@@ -1778,6 +1790,11 @@ void BB::EndRenderTarget(const RCommandList a_list, const RenderTarget render_ta
 		pipeline_info.image_infos = &render_target_transition;
 		Vulkan::PipelineBarriers(a_list, pipeline_info);
 	}
+}
+
+RTexture BB::GetCurrentRenderTargetTexture(const RenderTarget a_render_target)
+{
+	return reinterpret_cast<RenderTargetStruct*>(a_render_target.handle)->GetTargetTexture();
 }
 
 RenderScene3DHandle BB::Create3DRenderScene(MemoryArena& a_arena, const SceneCreateInfo& a_info)
@@ -1953,8 +1970,8 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, UploadBufferView& a_uploa
 		pipeline_info.image_infos = image_transitions;
 		Vulkan::PipelineBarriers(a_cmd_list, pipeline_info);
 	}
-	const RenderViewport::ViewportFrame viewport_frame = reinterpret_cast<RenderViewport*>(a_render_target.handle)->GetFrame();
-	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(viewport_frame.render_target);
+	const RTexture render_target_texture = reinterpret_cast<RenderTargetStruct*>(a_render_target.handle)->GetTargetTexture();
+	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(render_target_texture);
 	// render
 	StartRenderingInfo start_rendering_info;
 	start_rendering_info.viewport_size = uint2{ s_render_inst->render_io.screen_width, s_render_inst->render_io.screen_height };
@@ -2100,15 +2117,12 @@ bool BB::ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const 
 
 		s_render_inst->graphics_queue.ExecuteCommands(lists, list_count, &upload_fence, &upload_fence_value, 1, nullptr, nullptr, 0);
 		s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
-		return true;
 	}
 	else
 	{
 		s_render_inst->graphics_queue.ExecuteCommands(lists, list_count, nullptr, nullptr, 0, nullptr, nullptr, 0);
 		s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
-		return true;
 	}
-
 	return true;
 }
 

@@ -116,7 +116,7 @@ void SceneHierarchy::CreateSceneObjectAsLight(const CreateLightInfo& a_light_cre
 	m_top_level_objects[m_top_level_object_count++] = scene_object_handle;
 }
 
-void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, UploadBufferView& a_upload_buffer_view, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset) const
+void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, UploadBufferView& a_upload_buffer_view, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset) const
 {
 	StartRenderScene(m_render_scene);
 	for (size_t i = 0; i < m_top_level_object_count; i++)
