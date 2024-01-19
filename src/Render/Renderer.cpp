@@ -51,9 +51,6 @@ public:
 
 	void DisplayTextureListImgui()
 	{
-		//if (!g_ShowEditor)
-		//	return;
-
 		if (ImGui::CollapsingHeader("Texture Manager"))
 		{
 			ImGui::Indent();
@@ -70,7 +67,7 @@ public:
 			{
 				const TextureSlot& slot = m_textures[i];
 
-				if (ImGui::TreeNodeEx(reinterpret_cast<void*>(i), ImGuiTreeNodeFlags_CollapsingHeader, "Texture Slot: %u", i))
+				if (ImGui::TreeNodeEx(reinterpret_cast<void*>(i), 0, "Texture Slot: %u", i))
 				{
 					ImGui::Indent();
 					if (slot.name != nullptr)
@@ -80,6 +77,7 @@ public:
 					const ImVec2 image_size = { 160, 160 };
 					ImGui::Image(i, image_size);
 					ImGui::Unindent();
+					ImGui::TreePop();
 				}
 			}
 			ImGui::Unindent();
@@ -950,9 +948,8 @@ static void ImguiDisplayRenderer()
 			}
 			ImGui::Unindent();
 		}
-
-		ImGui::End();
 	}
+	ImGui::End();
 }
 
 GPUBufferView BB::AllocateFromVertexBuffer(const size_t a_size_in_bytes)

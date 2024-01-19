@@ -208,8 +208,8 @@ static void DebugWindowMemoryArena(const MemoryArena& a_arena)
 			ImGui::ProgressBar(perc_calculation * static_cast<float>(RoundUp(used, ARENA_DEFAULT_COMMIT) - used));
 			ImGui::Unindent();
 		}
-		ImGui::End();
 	}
+	ImGui::End();
 }
 
 struct Viewport
@@ -259,8 +259,8 @@ static void DrawImGuiViewport(Viewport& a_viewport, const uint2 a_minimum_size =
 			ViewportResize(a_viewport, window_size_u);
 
 		ImGui::Image(GetCurrentRenderTargetTexture(a_viewport.render_target).handle, viewport_draw_area);
-		ImGui::End();
 	}
+	ImGui::End();
 }
 
 int main(int argc, char** argv)
@@ -301,7 +301,7 @@ int main(int argc, char** argv)
 	render_create_info.debug = true;
 	InitializeRenderer(main_arena, render_create_info);
 	SetupImGuiInput(main_arena, window);
-	Camera camera{ float3{1.0f, 0.0f, 0.0f}, 0.35f };
+	Camera camera{ float3{0.0f, 0.0f, 1.0f}, 0.35f };
 
 	SceneHierarchy scene_hierarchy;
 	SceneHierarchy object_viewer_scene;
@@ -502,16 +502,17 @@ int main(int argc, char** argv)
 		scene_hierarchy.ImguiDisplaySceneHierarchy();
 		object_viewer_scene.ImguiDisplaySceneHierarchy();
 
+		DrawImGuiViewport(viewport_scene);
 		DrawImGuiViewport(viewport_object_viewer);
+
+		StartRenderTarget(graphics_command_list, viewport_scene.render_target);
 		StartRenderTarget(graphics_command_list, viewport_object_viewer.render_target);
 
-		//scene_hierarchy.DrawSceneHierarchy(graphics_command_list, upload_buffer_view, viewport_scene.render_target, viewport_scene.extent, int2{ {0, 0} });
+		scene_hierarchy.DrawSceneHierarchy(graphics_command_list, upload_buffer_view, viewport_scene.render_target, viewport_scene.extent, int2{ {0, 0} });
 		object_viewer_scene.DrawSceneHierarchy(graphics_command_list, upload_buffer_view, viewport_object_viewer.render_target, viewport_object_viewer.extent, int2{{0, 0}});
 
+		EndRenderTarget(graphics_command_list, viewport_scene.render_target);
 		EndRenderTarget(graphics_command_list, viewport_object_viewer.render_target);
-
-		//DrawViewport(viewport_scene, graphics_command_list);
-	
 
 		EndFrame(graphics_command_list);
 

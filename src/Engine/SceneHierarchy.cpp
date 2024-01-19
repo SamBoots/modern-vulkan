@@ -164,7 +164,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectEmpty(const SceneObjectHandle
 
 void SceneHierarchy::ImguiDisplaySceneHierarchy()
 {
-	if (ImGui::CollapsingHeader(m_scene_name))
+	if (ImGui::Begin(m_scene_name))
 	{
 		ImGui::Indent();
 		if (ImGui::Button("create scene object"))
@@ -184,11 +184,13 @@ void SceneHierarchy::ImguiDisplaySceneHierarchy()
 
 		ImGui::Unindent();
 	}
+	ImGui::End();
 }
 
 void SceneHierarchy::ImGuiDisplaySceneObject(const SceneObjectHandle a_object)
 {
 	SceneObject& scene_object = m_scene_objects.find(a_object);
+	ImGui::PushID(a_object.handle);
 
 	if (ImGui::CollapsingHeader(scene_object.name))
 	{
@@ -197,7 +199,7 @@ void SceneHierarchy::ImGuiDisplaySceneObject(const SceneObjectHandle a_object)
 
 		bool position_changed = false;
 
-		if (ImGui::TreeNodeEx("transform", ImGuiTreeNodeFlags_NoTreePushOnOpen))
+		if (ImGui::TreeNodeEx("transform"))
 		{
 			if (ImGui::InputFloat3("position", transform.m_pos.e))
 			{
@@ -206,11 +208,12 @@ void SceneHierarchy::ImGuiDisplaySceneObject(const SceneObjectHandle a_object)
 
 			ImGui::InputFloat4("rotation quat (xyzw)", transform.m_rot.xyzw.e);
 			ImGui::InputFloat3("scale", transform.m_scale.e);
+			ImGui::TreePop();
 		}
 
 		if (scene_object.light_handle.IsValid())
 		{
-			if (ImGui::TreeNodeEx("light object", ImGuiTreeNodeFlags_NoTreePushOnOpen))
+			if (ImGui::TreeNodeEx("light object"))
 			{
 				ImGui::Indent();
 				PointLight& light = GetLight(m_render_scene, scene_object.light_handle);
@@ -230,6 +233,7 @@ void SceneHierarchy::ImGuiDisplaySceneObject(const SceneObjectHandle a_object)
 					scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 				}
 				ImGui::Unindent();
+				ImGui::TreePop();
 			}
 		}
 		else
@@ -247,11 +251,7 @@ void SceneHierarchy::ImGuiDisplaySceneObject(const SceneObjectHandle a_object)
 
 		for (size_t i = 0; i < scene_object.child_count; i++)
 		{
-			ImGui::PushID(static_cast<int>(i));
-
 			ImGuiDisplaySceneObject(scene_object.childeren[i]);
-
-			ImGui::PopID();
 		}
 
 		if (ImGui::Button("create scene object"))
@@ -262,4 +262,7 @@ void SceneHierarchy::ImGuiDisplaySceneObject(const SceneObjectHandle a_object)
 
 		ImGui::Unindent();
 	}
+
+	ImGui::TreePop
+	();
 }
