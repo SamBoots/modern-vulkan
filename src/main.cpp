@@ -134,7 +134,7 @@ static bool ImProcessInput(const BB::InputEvent& a_input_event)
 		if (mouse_info.middle_released)
 			io.AddMouseButtonEvent(middle_button, false);
 
-		return io.WantCaptureMouse;
+		return false;
 	}
 	else if (a_input_event.input_type == INPUT_TYPE::KEYBOARD)
 	{
@@ -183,45 +183,56 @@ static inline void DestroyImGuiInput()
 	IM_DELETE(pd);
 }
 
-static void DebugWindowMemoryArena(const MemoryArena& a_arena)
-{
-	if (ImGui::Begin("allocator info"))
-	{
-		ImGui::Indent();
-		ImGui::Text("standard reserved memory: %zu", ARENA_DEFAULT_RESERVE);
-		ImGui::Text("commit size %zu", ARENA_DEFAULT_COMMIT);
-
-		if (ImGui::CollapsingHeader("main stack memory arena"))
-		{
-			ImGui::Indent();
-			const size_t remaining = MemoryArenaSizeRemaining(a_arena);
-			const size_t commited = MemoryArenaSizeCommited(a_arena);
-			const size_t used = MemoryArenaSizeUsed(a_arena);
-
-			ImGui::Text("memory remaining: %zu", remaining);
-			ImGui::Text("memory commited: %zu", commited);
-			ImGui::Text("memory used: %zu", used);
-
-			const float perc_calculation = 1.f / static_cast<float>(ARENA_DEFAULT_COMMIT);
-			ImGui::Separator();
-			ImGui::TextUnformatted("memory used till next commit");
-			ImGui::ProgressBar(perc_calculation * static_cast<float>(RoundUp(used, ARENA_DEFAULT_COMMIT) - used));
-			ImGui::Unindent();
-		}
-	}
-	ImGui::End();
-}
-
 struct Viewport
 {
 	uint2 extent;
 	uint2 offset; // offset into main window NOT USED NOW 
 	RenderTarget render_target;
 	const char* name;
+	Camera camera{ float3{0.0f, 0.0f, 1.0f}, 0.35f };
 };
+
+static void MainDebugWindow(const MemoryArena& a_arena, const Viewport* a_selected_viewport)
+{
+	if (ImGui::Begin("general engine info"))
+	{
+		if (a_selected_viewport == nullptr)
+			ImGui::Text("Current viewport: None");
+		else
+			ImGui::Text("Current viewport: %s", a_selected_viewport->name);
+
+		if (ImGui::CollapsingHeader("main allocator"))
+		{
+			ImGui::Indent();
+			ImGui::Text("standard reserved memory: %zu", ARENA_DEFAULT_RESERVE);
+			ImGui::Text("commit size %zu", ARENA_DEFAULT_COMMIT);
+
+			if (ImGui::CollapsingHeader("main stack memory arena"))
+			{
+				ImGui::Indent();
+				const size_t remaining = MemoryArenaSizeRemaining(a_arena);
+				const size_t commited = MemoryArenaSizeCommited(a_arena);
+				const size_t used = MemoryArenaSizeUsed(a_arena);
+
+				ImGui::Text("memory remaining: %zu", remaining);
+				ImGui::Text("memory commited: %zu", commited);
+				ImGui::Text("memory used: %zu", used);
+
+				const float perc_calculation = 1.f / static_cast<float>(ARENA_DEFAULT_COMMIT);
+				ImGui::Separator();
+				ImGui::TextUnformatted("memory used till next commit");
+				ImGui::ProgressBar(perc_calculation * static_cast<float>(RoundUp(used, ARENA_DEFAULT_COMMIT) - used));
+				ImGui::Unindent();
+			}
+		}
+	}
+	ImGui::End();
+}
+
+
 static Viewport CreateViewport(MemoryArena& a_arena, const uint2 a_extent, const uint2 a_offset, const char* a_name)
 {
-	Viewport viewport;
+	Viewport viewport{};
 	viewport.extent = a_extent;
 	viewport.offset = a_offset;
 	viewport.render_target = CreateRenderTarget(a_arena, a_extent, a_name);
@@ -238,11 +249,15 @@ static void ViewportResize(Viewport& a_viewport, const uint2 a_new_extent)
 	ResizeRenderTarget(a_viewport.render_target, a_new_extent);
 }
 
-static void DrawImGuiViewport(Viewport& a_viewport, const uint2 a_minimum_size = uint2(160, 80))
+static void DrawImGuiViewport(Viewport& a_viewport, bool& a_resized, const uint2 a_minimum_size = uint2(160, 80))
 {
+	a_resized = false;
 	if (ImGui::Begin(a_viewport.name))
 	{
 		ImGuiIO im_io = ImGui::GetIO();
+
+		const ImVec2 window_offset = ImGui::GetWindowPos();
+		a_viewport.offset = uint2(static_cast<unsigned int>(window_offset.x), static_cast<unsigned int>(window_offset.y));
 
 		if (static_cast<unsigned int>(ImGui::GetWindowSize().x) < a_minimum_size.x ||
 			static_cast<unsigned int>(ImGui::GetWindowSize().y) < a_minimum_size.y)
@@ -256,11 +271,34 @@ static void DrawImGuiViewport(Viewport& a_viewport, const uint2 a_minimum_size =
 
 		const uint2 window_size_u = uint2(static_cast<unsigned int>(viewport_draw_area.x), static_cast<unsigned int>(viewport_draw_area.y));
 		if (window_size_u != a_viewport.extent && !im_io.WantCaptureMouse)
+		{
+			a_resized = true;
 			ViewportResize(a_viewport, window_size_u);
+		}
 
 		ImGui::Image(GetCurrentRenderTargetTexture(a_viewport.render_target).handle, viewport_draw_area);
 	}
 	ImGui::End();
+}
+
+static bool PositionWithinViewport(const Viewport& a_viewport, const uint2 a_pos)
+{
+	if (a_viewport.offset.x < a_pos.x &&
+		a_viewport.offset.y < a_pos.y &&
+		a_viewport.offset.x + a_viewport.extent.x > a_pos.x &&
+		a_viewport.offset.y + a_viewport.extent.y > a_pos.y)
+		return true;
+	return false;
+}
+
+static bool MousePositionWithinViewport(const Viewport& a_viewport, const uint2 a_pos)
+{
+
+}
+
+static float4x4 CalculateProjection(float2 a_extent)
+{
+	return Float4x4Perspective(ToRadians(60.0f), a_extent.x / a_extent.y, 0.001f, 10000.0f);
 }
 
 int main(int argc, char** argv)
@@ -301,7 +339,6 @@ int main(int argc, char** argv)
 	render_create_info.debug = true;
 	InitializeRenderer(main_arena, render_create_info);
 	SetupImGuiInput(main_arena, window);
-	Camera camera{ float3{0.0f, 0.0f, 1.0f}, 0.35f };
 
 	SceneHierarchy scene_hierarchy;
 	SceneHierarchy object_viewer_scene;
@@ -321,21 +358,6 @@ int main(int argc, char** argv)
 
 	scene_hierarchy.SetClearColor(float3{ 0.1f, 0.6f, 0.1f });
 	object_viewer_scene.SetClearColor(float3{ 0.5f, 0.1f, 0.1f });
-
-	{
-		float4x4 projection = Float4x4Perspective(ToRadians(60.0f),
-			static_cast<float>(render_create_info.swapchain_width) / static_cast<float>(render_create_info.swapchain_height),
-			.001f, 10000.0f);
-		BB::SetProjection(scene_hierarchy.GetRenderSceneHandle(), projection);
-
-
-		projection = Float4x4Perspective(ToRadians(60.0f),
-			static_cast<float>(render_create_info.swapchain_width / 2) / static_cast<float>(render_create_info.swapchain_height / 2),
-			.001f, 10000.0f);
-
-		BB::SetProjection(object_viewer_scene.GetRenderSceneHandle(), projection);
-		BB::SetView(object_viewer_scene.GetRenderSceneHandle(), camera.CalculateView());
-	}
 
 	ShaderEffectHandle shader_effects[2];
 	MemoryArenaScope(main_arena)
@@ -398,9 +420,9 @@ int main(int argc, char** argv)
 		async_assets[1].mesh_memory.material = default_mat;
 		Asset::LoadASync(Slice(async_assets, _countof(async_assets)));
 
-		scene_hierarchy.CreateSceneObjectViaModel(*Asset::FindModelByPath(async_assets[0].mesh_disk.path), float3{ 0, 2, 1 }, "ducky");
+		scene_hierarchy.CreateSceneObjectViaModel(*Asset::FindModelByPath(async_assets[0].mesh_disk.path), float3{ 0, -2, 3 }, "ducky");
 		scene_hierarchy.CreateSceneObjectViaModel(*Asset::FindModelByPath(async_assets[1].mesh_memory.name), float3{ 0, -1, 1 }, "quaty");
-		object_viewer_scene.CreateSceneObjectViaModel(*Asset::FindModelByPath(async_assets[0].mesh_disk.path), float3{ 0, 2, 1 }, "ducky");
+		object_viewer_scene.CreateSceneObjectViaModel(*Asset::FindModelByPath(async_assets[0].mesh_disk.path), float3{ 0, -2, 3 }, "ducky");
 	}
 
 	{	//add some basic lights
@@ -421,6 +443,9 @@ int main(int argc, char** argv)
 		object_viewer_scene.CreateSceneObjectAsLight(light_create_info[0], "light 0");
 	}
 
+	scene_hierarchy.SetView(viewport_scene.camera.CalculateView());
+	object_viewer_scene.SetView(viewport_object_viewer.camera.CalculateView());
+
 	bool freeze_cam = false;
 	bool quit_app = false;
 	float delta_time = 0;
@@ -431,12 +456,13 @@ int main(int argc, char** argv)
 	InputEvent input_events[INPUT_EVENT_BUFFER_MAX]{};
 	size_t input_event_count = 0;
 
+	//jank? Yeah. Make it a system
+	Viewport* active_viewport = nullptr;
+
 	while (!quit_app)
 	{
 		ProcessMessages(window);
 		PollInputEvents(input_events, input_event_count);
-
-		BB::SetView(object_viewer_scene.GetRenderSceneHandle(), camera.CalculateView());
 
 		CommandPool& graphics_command_pool = GetGraphicsCommandPool();
 		const RCommandList graphics_command_list = graphics_command_pool.StartCommandList();
@@ -482,28 +508,59 @@ int main(int argc, char** argv)
 					default:
 						break;
 					}
-				camera.Move(cam_move);
+				if (!freeze_cam && active_viewport)
+				{
+					active_viewport->camera.Move(cam_move);
+				}
+
 			}
 			else if (ip.input_type == INPUT_TYPE::MOUSE)
 			{
 				const MouseInfo& mi = ip.mouse_info;
 				const float2 mouse_move = (mi.move_offset * delta_time) * 0.001f;
-				if (!freeze_cam)
-					camera.Rotate(mouse_move.x, mouse_move.y);
+
 
 				if (mi.right_released)
 					FreezeMouseOnWindow(window);
 				if (mi.left_released)
 					UnfreezeMouseOnWindow();
+
+				{
+					Viewport* new_active = nullptr;
+					if (PositionWithinViewport(viewport_scene, uint2(static_cast<unsigned int>(mi.mouse_pos.x), static_cast<unsigned int>(mi.mouse_pos.y))))
+					{
+						new_active = &viewport_scene;
+					}
+					if (PositionWithinViewport(viewport_object_viewer, uint2(static_cast<unsigned int>(mi.mouse_pos.x), static_cast<unsigned int>(mi.mouse_pos.y))))
+					{
+						new_active = &viewport_object_viewer;
+					}
+					active_viewport = new_active;
+				}
+
+				if (!freeze_cam && active_viewport)
+					active_viewport->camera.Rotate(mouse_move.x, mouse_move.y);
 			}
 		}
 
-		DebugWindowMemoryArena(main_arena);
+		scene_hierarchy.SetView(viewport_scene.camera.CalculateView());
+		object_viewer_scene.SetView(viewport_object_viewer.camera.CalculateView());
+
+		MainDebugWindow(main_arena, active_viewport);
 		scene_hierarchy.ImguiDisplaySceneHierarchy();
 		object_viewer_scene.ImguiDisplaySceneHierarchy();
 
-		DrawImGuiViewport(viewport_scene);
-		DrawImGuiViewport(viewport_object_viewer);
+		bool resized = false;
+		DrawImGuiViewport(viewport_scene, resized);
+		if (resized)
+		{
+			scene_hierarchy.SetProjection(CalculateProjection(float2(static_cast<float>(viewport_scene.extent.x), static_cast<float>(viewport_scene.extent.y))));
+		}
+		DrawImGuiViewport(viewport_object_viewer, resized);
+		if (resized)
+		{
+			object_viewer_scene.SetProjection(CalculateProjection(float2(static_cast<float>(viewport_object_viewer.extent.x), static_cast<float>(viewport_object_viewer.extent.y))));
+		}
 
 		StartRenderTarget(graphics_command_list, viewport_scene.render_target);
 		StartRenderTarget(graphics_command_list, viewport_object_viewer.render_target);

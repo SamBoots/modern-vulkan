@@ -38,6 +38,9 @@ namespace BB
 		void CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name);
 		void CreateSceneObjectAsLight(const CreateLightInfo& a_light_create_info, const char* a_name);
 
+		void SetView(const float4x4& a_view);
+		void SetProjection(const float4x4& a_projection);
+
 		void ImguiDisplaySceneHierarchy();
 
 		RenderScene3DHandle GetRenderSceneHandle() const { return m_render_scene; }

@@ -160,7 +160,7 @@ static LRESULT wm_input(HWND a_hwnd, WPARAM a_wparam, LPARAM a_lparam)
 		{
 			event.mouse_info.move_offset = move_input;
 			POINT point;
-			GetCursorPos(&point);
+			BB_ASSERT(GetCursorPos(&point), "failed to get cursor pos");
 			ScreenToClient(a_hwnd, &point);
 			event.mouse_info.mouse_pos = { static_cast<float>(point.x), static_cast<float>(point.y) };
 		}

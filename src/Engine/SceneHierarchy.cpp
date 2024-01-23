@@ -116,6 +116,16 @@ void SceneHierarchy::CreateSceneObjectAsLight(const CreateLightInfo& a_light_cre
 	m_top_level_objects[m_top_level_object_count++] = scene_object_handle;
 }
 
+void SceneHierarchy::SetView(const float4x4& a_view)
+{
+	::SetView(m_render_scene, a_view);
+}
+
+void SceneHierarchy::SetProjection(const float4x4& a_projection)
+{
+	::SetProjection(m_render_scene, a_projection);
+}
+
 void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, UploadBufferView& a_upload_buffer_view, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset) const
 {
 	StartRenderScene(m_render_scene);
@@ -263,6 +273,5 @@ void SceneHierarchy::ImGuiDisplaySceneObject(const SceneObjectHandle a_object)
 		ImGui::Unindent();
 	}
 
-	ImGui::TreePop
-	();
+	ImGui::PopID();
 }
