@@ -301,6 +301,31 @@ static float4x4 CalculateProjection(float2 a_extent)
 	return Float4x4Perspective(ToRadians(60.0f), a_extent.x / a_extent.y, 0.001f, 10000.0f);
 }
 
+struct ThreadFuncForDrawing_Params
+{
+	//IN
+	Viewport& viewport;
+	SceneHierarchy& scene_hierarchy;
+	RCommandList command_list;
+	UploadBufferView& upload_view;
+};
+
+static void ThreadFuncForDrawing(void* a_param)
+{
+	ThreadFuncForDrawing_Params* param_in = reinterpret_cast<ThreadFuncForDrawing_Params*>(a_param);
+
+	Viewport& viewport = param_in->viewport;
+	SceneHierarchy& scene_hierarchy = param_in->scene_hierarchy;
+	RCommandList list = param_in->command_list;
+	UploadBufferView& upload_view = param_in->upload_view;
+
+	StartRenderTarget(list, viewport.render_target);
+
+	scene_hierarchy.DrawSceneHierarchy(list, upload_view, viewport.render_target, viewport.extent, int2{ {0, 0} });
+
+	EndRenderTarget(list, viewport.render_target);
+}
+
 int main(int argc, char** argv)
 {
 	(void)argc;
@@ -464,11 +489,11 @@ int main(int argc, char** argv)
 		ProcessMessages(window);
 		PollInputEvents(input_events, input_event_count);
 
-		CommandPool& graphics_command_pool = GetGraphicsCommandPool();
-		const RCommandList graphics_command_list = graphics_command_pool.StartCommandList();
-		UploadBufferView& upload_buffer_view = GetUploadView(mbSize * 4);
+		CommandPool graphics_command_pools[2]{ GetGraphicsCommandPool(), GetGraphicsCommandPool() };
+		const RCommandList main_list = graphics_command_pools[0].StartCommandList();
+		UploadBufferView upload_buffer_view[]{ GetUploadView(mbSize * 4), GetUploadView(mbSize * 4) };
 
-		StartFrame(graphics_command_list);
+		StartFrame(main_list);
 
 		for (size_t i = 0; i < input_event_count; i++)
 		{
@@ -556,25 +581,43 @@ int main(int argc, char** argv)
 		{
 			scene_hierarchy.SetProjection(CalculateProjection(float2(static_cast<float>(viewport_scene.extent.x), static_cast<float>(viewport_scene.extent.y))));
 		}
+
+		resized = false;
 		DrawImGuiViewport(viewport_object_viewer, resized);
 		if (resized)
 		{
 			object_viewer_scene.SetProjection(CalculateProjection(float2(static_cast<float>(viewport_object_viewer.extent.x), static_cast<float>(viewport_object_viewer.extent.y))));
 		}
 
-		StartRenderTarget(graphics_command_list, viewport_scene.render_target);
-		StartRenderTarget(graphics_command_list, viewport_object_viewer.render_target);
 
-		scene_hierarchy.DrawSceneHierarchy(graphics_command_list, upload_buffer_view, viewport_scene.render_target, viewport_scene.extent, int2{ {0, 0} });
-		object_viewer_scene.DrawSceneHierarchy(graphics_command_list, upload_buffer_view, viewport_object_viewer.render_target, viewport_object_viewer.extent, int2{{0, 0}});
+		ThreadFuncForDrawing_Params main_scene_params{
+			viewport_scene,
+			scene_hierarchy,
+			main_list,
+			upload_buffer_view[0]
+		};
 
-		EndRenderTarget(graphics_command_list, viewport_scene.render_target);
-		EndRenderTarget(graphics_command_list, viewport_object_viewer.render_target);
+		const RCommandList object_viewer_list = graphics_command_pools[1].StartCommandList();
 
-		EndFrame(graphics_command_list);
+		ThreadFuncForDrawing_Params object_viewer_params{
+			viewport_object_viewer,
+			object_viewer_scene,
+			object_viewer_list,
+			upload_buffer_view[1]
+		};
 
-		graphics_command_pool.EndCommandList(graphics_command_list);
-		PresentFrame(Slice(&graphics_command_pool, 1), Slice(&upload_buffer_view, 1));
+		ThreadTask main_scene_task = Threads::StartTaskThread(ThreadFuncForDrawing, &main_scene_params);
+		ThreadTask object_viewer_task = Threads::StartTaskThread(ThreadFuncForDrawing, &object_viewer_params);
+
+		Threads::WaitForTask(main_scene_task);
+		Threads::WaitForTask(object_viewer_task);
+
+		graphics_command_pools[1].EndCommandList(object_viewer_list);
+
+		EndFrame(main_list);
+
+		graphics_command_pools[0].EndCommandList(main_list);
+		PresentFrame(Slice(graphics_command_pools, _countof(graphics_command_pools)), Slice(upload_buffer_view, _countof(upload_buffer_view)));
 
 		delta_time = std::chrono::duration<float, std::chrono::seconds::period>(current_time - start_time).count();
 		current_time = std::chrono::high_resolution_clock::now();
