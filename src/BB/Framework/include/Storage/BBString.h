@@ -41,7 +41,7 @@ namespace BB
 			m_capacity = RoundUp(a_size + 1, String_Specs::multiple_value);
 			m_size = a_size;
 
-			m_string = reinterpret_cast<CharT*>(ArenaAlloArrc(a_arena, CharT, m_capacity);
+			m_string = reinterpret_cast<CharT*>(ArenaAlloArrc(a_arena, CharT, m_capacity));
 			Memory::Copy(m_string, a_string, a_size);
 			Memory::Set(m_string + a_size, NULL, m_capacity - a_size);
 		}
@@ -203,7 +203,7 @@ namespace BB
 		void reallocate(MemoryArena a_arena, size_t a_new_capacity)
 		{
 			//do a realloc maybe?
-			CharT* new_string = reinterpret_cast<CharT*>(ArenaAlloArrc(a_arena, CharT, a_new_capacity);
+			CharT* new_string = reinterpret_cast<CharT*>(ArenaAlloArrc(a_arena, CharT, a_new_capacity));
 
 			Memory::Copy(new_string, m_string, m_size);
 

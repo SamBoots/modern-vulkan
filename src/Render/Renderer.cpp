@@ -180,7 +180,7 @@ namespace BB
 			OSAcquireSRWLockWrite(&m_in_flight_lock);
 			for (size_t i = 0; i < a_views.size(); i++)
 			{
-				a_views[i].fence_value = m_next_fence_value;
+				m_views[a_views[i].pool_index].fence_value = m_next_fence_value;
 				m_in_flight_views.Push(&m_views[a_views[i].pool_index]);
 			}
 			a_out_fence = m_fence;
@@ -320,7 +320,6 @@ public:
 			OSAcquireSRWLockWrite(&m_lock);
 		}
 		CommandPool& pool = *m_free_pools.Pop();
-		//TODO, handle nullptr, maybe just wait or do the reset here?
 		OSReleaseSRWLockWrite(&m_lock);
 		return pool;
 	}
@@ -338,7 +337,7 @@ public:
 		OSAcquireSRWLockWrite(&m_in_flight_lock);
 		for (size_t i = 0; i < a_pools.size(); i++)
 		{
-			a_pools[i].m_fence_value = m_fence.next_fence_value;
+			m_pools[a_pools[i].pool_index].m_fence_value = m_fence.next_fence_value;
 			m_in_flight_pools.Push(&m_pools[a_pools[i].pool_index]);
 		}
 
@@ -432,6 +431,7 @@ public:
 
 		if (local_list_free.HasEntry())
 			m_free_pools.MergeList(local_list_free);
+
 
 		OSReleaseSRWLockWrite(&m_in_flight_lock);
 	}
@@ -554,7 +554,7 @@ struct Scene3D
 struct RenderInterface_inst
 {
 	RenderInterface_inst(MemoryArena& a_arena)
-		: graphics_queue(a_arena, QUEUE_TYPE::GRAPHICS, "graphics queue", 16, 16),
+		: graphics_queue(a_arena, QUEUE_TYPE::GRAPHICS, "graphics queue", 32, 32),
 		upload_buffers(a_arena, UPLOAD_BUFFER_POOL_SIZE, UPLOAD_BUFFER_POOL_COUNT)
 	{}
 
@@ -2077,14 +2077,14 @@ bool BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<
 	RFence upload_fence;
 	uint64_t upload_fence_value;
 	s_render_inst->upload_buffers.ReturnUploadViews(a_upload_views, upload_fence, upload_fence_value);
-	s_render_inst->upload_buffers.IncrementNextFenceValue();
 
 	//set the next fence value for the frame
 	s_render_inst->frames[s_render_inst->render_io.frame_index].graphics_queue_fence_value = s_render_inst->graphics_queue.GetNextFenceValue();
 
-	s_render_inst->graphics_queue.ExecutePresentCommands(lists, list_count, &upload_fence, &upload_fence_value, 1, nullptr, nullptr, 0, s_render_inst->render_io.frame_index);
-	s_render_inst->render_io.frame_index = (s_render_inst->render_io.frame_index + 1) % s_render_inst->render_io.frame_count;
 	s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
+	s_render_inst->graphics_queue.ExecutePresentCommands(lists, list_count, &upload_fence, &upload_fence_value, 1, nullptr, nullptr, 0, s_render_inst->render_io.frame_index);
+	s_render_inst->upload_buffers.IncrementNextFenceValue();
+	s_render_inst->render_io.frame_index = (s_render_inst->render_io.frame_index + 1) % s_render_inst->render_io.frame_count;
 
 	return true;
 }
@@ -2112,13 +2112,13 @@ bool BB::ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const 
 		s_render_inst->upload_buffers.ReturnUploadViews(a_upload_views, upload_fence, upload_fence_value);
 		s_render_inst->upload_buffers.IncrementNextFenceValue();
 
-		s_render_inst->graphics_queue.ExecuteCommands(lists, list_count, &upload_fence, &upload_fence_value, 1, nullptr, nullptr, 0);
 		s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
+		s_render_inst->graphics_queue.ExecuteCommands(lists, list_count, &upload_fence, &upload_fence_value, 1, nullptr, nullptr, 0);
 	}
 	else
 	{
-		s_render_inst->graphics_queue.ExecuteCommands(lists, list_count, nullptr, nullptr, 0, nullptr, nullptr, 0);
 		s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
+		s_render_inst->graphics_queue.ExecuteCommands(lists, list_count, nullptr, nullptr, 0, nullptr, nullptr, 0);
 	}
 	return true;
 }
