@@ -14,7 +14,6 @@ namespace BB
 		uint32_t height;	//8
 
 		RTexture gpu_image;	//16
-		AssetHandle asset_handle;	//24
 	};
 
 	struct Model
@@ -45,8 +44,6 @@ namespace BB
 		Node* linear_nodes;
 		Node* root_nodes;
 		uint32_t root_node_count;
-
-		AssetHandle asset_handle;
 	};
 
 	namespace Asset
@@ -127,6 +124,8 @@ namespace BB
 
 		const Model* FindModelByPath(const char* a_path);
 		const Model* FindModelByName(const char* a_name);
+
+		void ShowAssetMenu();
 
 		void FreeAsset(const AssetHandle a_asset_handle);
 	};

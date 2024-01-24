@@ -515,7 +515,7 @@ union Light
 };
 
 constexpr uint32_t UPLOAD_BUFFER_POOL_SIZE = mbSize * 8;
-constexpr uint32_t UPLOAD_BUFFER_POOL_COUNT = 8;
+constexpr uint32_t UPLOAD_BUFFER_POOL_COUNT = 32;
 constexpr uint32_t BACK_BUFFER_MAX = 3;
 
 struct Scene3D

@@ -1,7 +1,7 @@
 #include "AssetLoader.hpp"
 
 #include "Storage/Hashmap.h"
-#include "MemoryArena.hpp"
+#include "Storage/Array.h"
 #include "BBIntrin.h"
 #include "BBImage.hpp"
 #include "Math.inl"
@@ -102,6 +102,7 @@ struct AssetSlot
 {
 	AssetHash hash;
 	const char* path;
+	AssetHandle asset_handle;
 	union
 	{
 		Model* model;
@@ -113,6 +114,7 @@ struct AssetManager
 {
 	BBRWLock asset_lock;
 	StaticOL_HashMap<uint64_t, AssetSlot> asset_table;
+	StaticArray<AssetSlot*> linear_asset_table;
 	BBRWLock string_lock;
 	StaticOL_HashMap<uint64_t, char*> string_table;
 	struct StringBuffer
@@ -137,6 +139,11 @@ static inline char* AllocateStringSpace(const size_t a_string_size)
 	return string_mem;
 }
 
+static inline void AddElementToAssetTable(const AssetSlot& a_slot)
+{
+
+}
+
 using namespace BB;
 
 void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
@@ -153,7 +160,9 @@ void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
 	s_asset_manager->asset_lock = OSCreateRWLock();
 	s_asset_manager->string_lock = OSCreateRWLock();
 	s_asset_manager->asset_table.Init(s_asset_manager->asset_arena, a_init_info.asset_count);
+	s_asset_manager->linear_asset_table.Init(s_asset_manager->asset_arena, a_init_info.asset_count);
 	s_asset_manager->string_table.Init(s_asset_manager->asset_arena, a_init_info.string_entry_count);
+
 
 	s_asset_manager->string_buffer.current_memory_pos = ArenaAllocArr(s_asset_manager->asset_arena, char, a_init_info.string_memory_size);
 	s_asset_manager->string_buffer.mem_remaining = a_init_info.string_memory_size;
@@ -266,7 +275,7 @@ const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const 
 	asset.image = image;
 
 	s_asset_manager->asset_table.insert(asset.hash.full_hash, asset);
-	image->asset_handle = AssetHandle(asset.hash.full_hash);
+	asset.asset_handle = AssetHandle(asset.hash.full_hash);
 
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 
@@ -623,6 +632,11 @@ const Model* Asset::FindModelByName(const char* a_name)
 		return slot->model;
 	}
 	return nullptr;
+}
+
+void Asset::ShowAssetMenu()
+{
+
 }
 
 void Asset::FreeAsset(const AssetHandle a_asset_handle)

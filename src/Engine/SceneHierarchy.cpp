@@ -200,7 +200,7 @@ void SceneHierarchy::ImguiDisplaySceneHierarchy()
 void SceneHierarchy::ImGuiDisplaySceneObject(const SceneObjectHandle a_object)
 {
 	SceneObject& scene_object = m_scene_objects.find(a_object);
-	ImGui::PushID(a_object.handle);
+	ImGui::PushID(static_cast<int>(a_object.handle));
 
 	if (ImGui::CollapsingHeader(scene_object.name))
 	{
