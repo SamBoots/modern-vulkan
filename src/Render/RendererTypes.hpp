@@ -314,6 +314,7 @@ namespace BB
 		};
 
 		DEPTH_FORMAT depth_format;
+		IMAGE_FORMAT rendering_format;
 
 		ShaderCode vertex;
 		ShaderCode fragment;

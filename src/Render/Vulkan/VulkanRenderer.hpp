@@ -14,6 +14,7 @@ namespace BB
 		bool InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, const char* a_engine_name, const bool a_debug);
 
 		bool CreateSwapchain(MemoryArena& a_arena, const WindowHandle a_window_handle, const uint32_t a_width, const uint32_t a_height, uint32_t& a_backbuffer_count);
+		bool RecreateSwapchain(const uint32_t a_width, const uint32_t a_height);
 
 		void CreateCommandPool(const QUEUE_TYPE a_queue_type, const uint32_t a_command_list_count, RCommandPool& a_pool, RCommandList* a_plists);
 		void FreeCommandPool(const RCommandPool a_pool);

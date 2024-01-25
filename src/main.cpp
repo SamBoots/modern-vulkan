@@ -321,6 +321,16 @@ static void ThreadFuncForDrawing(void* a_param)
 	EndRenderTarget(list, viewport.render_target);
 }
 
+void CustomCloseWindow(const BB::WindowHandle a_window_handle)
+{
+	BB_ASSERT(false, "unimplemented");
+}
+
+void CustomResizeWindow(const BB::WindowHandle a_window_handle, const uint32_t a_x, const uint32_t a_y)
+{
+	BB_ASSERT(BB::ResizeRendererSwapchain(a_x, a_y), "failed to resize window");
+}
+
 int main(int argc, char** argv)
 {
 	(void)argc;
@@ -359,6 +369,9 @@ int main(int argc, char** argv)
 	render_create_info.debug = true;
 	InitializeRenderer(main_arena, render_create_info);
 	SetupImGuiInput(main_arena, window);
+
+	SetWindowCloseEvent(CustomCloseWindow);
+	SetWindowResizeEvent(CustomResizeWindow);
 
 	SceneHierarchy scene_hierarchy;
 	SceneHierarchy object_viewer_scene;

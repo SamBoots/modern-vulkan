@@ -134,9 +134,9 @@ namespace BB
 	bool UnfreezeMouseOnWindow();
 
 	//The function that will be called when a window is closed.
-	void SetCloseWindowPtr(PFN_WindowCloseEvent a_func);
+	void SetWindowCloseEvent(PFN_WindowCloseEvent a_func);
 	//The function that will be called when a window is resized.
-	void SetResizeEventPtr(PFN_WindowResizeEvent a_func);
+	void SetWindowResizeEvent(PFN_WindowResizeEvent a_func);
 
 	//Exits the application.
 	BB_NO_RETURN void ExitApp();

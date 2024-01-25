@@ -1617,6 +1617,15 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	return ExecuteGraphicCommands(Slice(&start_up_pool, 1), Slice(&startup_upload_view, 1));
 }
 
+bool BB::ResizeRendererSwapchain(const uint32_t a_width, const uint32_t a_height)
+{
+	s_render_inst->graphics_queue.WaitIdle();
+	Vulkan::RecreateSwapchain(a_width, a_height);
+	s_render_inst->render_io.screen_width = a_width;
+	s_render_inst->render_io.screen_height = a_height;
+	return true;
+}
+
 const RenderIO& BB::GetRenderIO()
 {
 	return s_render_inst->render_io;
@@ -1624,12 +1633,14 @@ const RenderIO& BB::GetRenderIO()
 
 void BB::StartFrame(const RCommandList a_list)
 {
+	BB_ASSERT(s_render_inst->render_io.frame_started == false, "did not call EndFrame before a new StartFrame");
+	s_render_inst->render_io.frame_started = true;
+
 	const uint32_t frame_index = s_render_inst->render_io.frame_index;
 	const RenderInterface_inst::Frame& cur_frame = s_render_inst->frames[frame_index];
 
 	s_render_inst->upload_buffers.CheckIfInFlightDone();
 	s_render_inst->graphics_queue.WaitFenceValue(cur_frame.graphics_queue_fence_value);
-
 
 	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(cur_frame.render_target);
 	{
@@ -1660,6 +1671,8 @@ void BB::StartFrame(const RCommandList a_list)
 
 void BB::EndFrame(const RCommandList a_list, bool a_skip)
 {
+	BB_ASSERT(s_render_inst->render_io.frame_started == true, "did not call StartFrame before a EndFrame");
+
 	if (a_skip)
 	{
 		ImGui::EndFrame();
@@ -1701,6 +1714,7 @@ void BB::EndFrame(const RCommandList a_list, bool a_skip)
 		}
 	};
 	Vulkan::UploadImageToSwapchain(a_list, render_target.image, swapchain_size, swapchain_size, s_render_inst->render_io.frame_index);
+	s_render_inst->render_io.frame_ended = true;
 }
 
 struct RenderTargetStruct
@@ -2062,6 +2076,11 @@ CommandPool& BB::GetTransferCommandPool()
 
 bool BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<UploadBufferView> a_upload_views)
 {
+	BB_ASSERT(s_render_inst->render_io.frame_started == true, "did not call StartFrame before a presenting");
+	BB_ASSERT(s_render_inst->render_io.frame_ended == true, "did not call EndFrame before a presenting");
+
+	s_render_inst->render_io.frame_started = true;
+
 	uint32_t list_count = 0;
 	for (size_t i = 0; i < a_cmd_pools.size(); i++)
 		list_count += a_cmd_pools[i].GetListsRecorded();
@@ -2087,6 +2106,9 @@ bool BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<
 	s_render_inst->graphics_queue.ExecutePresentCommands(lists, list_count, &upload_fence, &upload_fence_value, 1, nullptr, nullptr, 0, s_render_inst->render_io.frame_index);
 	s_render_inst->upload_buffers.IncrementNextFenceValue();
 	s_render_inst->render_io.frame_index = (s_render_inst->render_io.frame_index + 1) % s_render_inst->render_io.frame_count;
+
+	s_render_inst->render_io.frame_ended = false;
+	s_render_inst->render_io.frame_started = false;
 
 	return true;
 }

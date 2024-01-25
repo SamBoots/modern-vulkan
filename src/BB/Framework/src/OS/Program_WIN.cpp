@@ -742,12 +742,12 @@ bool BB::UnfreezeMouseOnWindow()
 	return ClipCursor(nullptr);
 }
 
-void BB::SetCloseWindowPtr(PFN_WindowCloseEvent a_func)
+void BB::SetWindowCloseEvent(PFN_WindowCloseEvent a_func)
 {
 	s_pfn_close_event = a_func;
 }
 
-void BB::SetResizeEventPtr(PFN_WindowResizeEvent a_func)
+void BB::SetWindowResizeEvent(PFN_WindowResizeEvent a_func)
 {
 	s_pfn_resize_event = a_func;
 }

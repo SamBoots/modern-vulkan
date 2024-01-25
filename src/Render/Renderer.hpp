@@ -135,6 +135,8 @@ namespace BB
 	const RenderIO& GetRenderIO();
 
 	bool InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_render_create_info);
+	bool ResizeRendererSwapchain(const uint32_t a_width, const uint32_t a_height);
+
 	void StartFrame(const RCommandList a_list);
 	void EndFrame(const RCommandList a_list, bool a_skip = false);
 

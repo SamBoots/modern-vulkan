@@ -585,7 +585,7 @@ struct Vulkan_swapchain
 {
 	VkSurfaceKHR surface;
 	VkSwapchainKHR swapchain;
-	VkFormat image_format;
+
 	struct swapchain_frame
 	{
 		VkImage image;
@@ -595,6 +595,10 @@ struct Vulkan_swapchain
 	};
 	uint32_t frame_count;
 	swapchain_frame* frames;
+
+	//used for recreation
+	VkPresentModeKHR optimal_present;
+	VkSurfaceFormatKHR optimal_surface_format;
 };
 
 static Vulkan_inst* s_vulkan_inst = nullptr;
@@ -1106,6 +1110,111 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, cons
 	return true;
 }
 
+static void CreateVkSwapchain(const uint32_t a_width, const uint32_t a_height, uint32_t& a_backbuffer_count)
+{
+	VkSurfaceCapabilitiesKHR capabilities;
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(s_vulkan_inst->phys_device, s_vulkan_swapchain->surface, &capabilities);
+
+	const VkExtent2D swapchain_extent
+	{
+		Clamp(a_width,
+			capabilities.minImageExtent.width,
+			capabilities.maxImageExtent.width),
+		Clamp(a_height,
+			capabilities.minImageExtent.height,
+			capabilities.maxImageExtent.height)
+	};
+
+	VkSwapchainCreateInfoKHR swapchain_create_info{};
+	swapchain_create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+	swapchain_create_info.surface = s_vulkan_swapchain->surface;
+	swapchain_create_info.imageFormat = s_vulkan_swapchain->optimal_surface_format.format;
+	swapchain_create_info.imageColorSpace = s_vulkan_swapchain->optimal_surface_format.colorSpace;
+	swapchain_create_info.imageExtent = swapchain_extent;
+	swapchain_create_info.imageArrayLayers = 1;
+	swapchain_create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	swapchain_create_info.preTransform = capabilities.currentTransform;
+	swapchain_create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	swapchain_create_info.presentMode = s_vulkan_swapchain->optimal_present;
+	swapchain_create_info.clipped = VK_TRUE;
+	swapchain_create_info.oldSwapchain = s_vulkan_swapchain->swapchain;
+
+
+	const uint32_t graphics_family = s_vulkan_inst->queue_indices.graphics;
+	const uint32_t present_family = s_vulkan_inst->queue_indices.present;
+	const uint32_t concurrent_family_indices[]{ graphics_family, present_family };
+	if (graphics_family != present_family)
+	{
+		swapchain_create_info.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+		swapchain_create_info.queueFamilyIndexCount = 2;
+		swapchain_create_info.pQueueFamilyIndices = concurrent_family_indices;
+	}
+	else
+	{
+		swapchain_create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		swapchain_create_info.queueFamilyIndexCount = 0;
+		swapchain_create_info.pQueueFamilyIndices = nullptr;
+	}
+
+	//Now create the swapchain and set the framecount.
+	const uint32_t backbuffer_count = Clamp(a_backbuffer_count, capabilities.minImageCount, capabilities.maxImageCount);
+	swapchain_create_info.minImageCount = backbuffer_count;
+	s_vulkan_swapchain->frame_count = backbuffer_count;
+	a_backbuffer_count = backbuffer_count;
+
+	VKASSERT(vkCreateSwapchainKHR(s_vulkan_inst->device,
+		&swapchain_create_info,
+		nullptr,
+		&s_vulkan_swapchain->swapchain),
+		"Vulkan: Failed to create swapchain.");
+}
+
+static void GetSwapchainImages()
+{
+	VkImage* swapchain_images = BBstackAlloc(s_vulkan_swapchain->frame_count, VkImage);
+	vkGetSwapchainImagesKHR(s_vulkan_inst->device,
+		s_vulkan_swapchain->swapchain,
+		&s_vulkan_swapchain->frame_count,
+		swapchain_images);
+
+	VkImageViewCreateInfo image_view_create_info{};
+	image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	image_view_create_info.format = s_vulkan_swapchain->optimal_surface_format.format;
+	image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	image_view_create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+	image_view_create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+	image_view_create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+	image_view_create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+	image_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	image_view_create_info.subresourceRange.baseMipLevel = 0;
+	image_view_create_info.subresourceRange.levelCount = 1;
+	image_view_create_info.subresourceRange.baseArrayLayer = 0;
+	image_view_create_info.subresourceRange.layerCount = 1;
+
+	const VkSemaphoreCreateInfo sem_info{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
+
+	for (uint32_t i = 0; i < s_vulkan_swapchain->frame_count; i++)
+	{
+		s_vulkan_swapchain->frames[i].image = swapchain_images[i];
+
+		image_view_create_info.image = swapchain_images[i];
+		VKASSERT(vkCreateImageView(s_vulkan_inst->device,
+			&image_view_create_info,
+			nullptr,
+			&s_vulkan_swapchain->frames[i].image_view),
+			"Vulkan: Failed to create swapchain image views.");
+
+		vkCreateSemaphore(s_vulkan_inst->device,
+			&sem_info,
+			nullptr,
+			&s_vulkan_swapchain->frames[i].image_available_semaphore);
+		vkCreateSemaphore(s_vulkan_inst->device,
+			&sem_info,
+			nullptr,
+			&s_vulkan_swapchain->frames[i].present_finished_semaphore);
+	}
+}
+
 bool Vulkan::CreateSwapchain(MemoryArena& a_arena, const WindowHandle a_window_handle, const uint32_t a_width, const uint32_t a_height, uint32_t& a_backbuffer_count)
 {
 	BB_ASSERT(s_vulkan_inst != nullptr, "trying to create a swapchain while vulkan is not initialized");
@@ -1123,10 +1232,7 @@ bool Vulkan::CreateSwapchain(MemoryArena& a_arena, const WindowHandle a_window_h
 			&surface_create_info,
 			nullptr,
 			&s_vulkan_swapchain->surface),
-			"Failed to create Win32 vulkan surface.");
-
-		VkSurfaceCapabilitiesKHR capabilities;
-		vkGetPhysicalDeviceSurfaceCapabilitiesKHR(s_vulkan_inst->phys_device, s_vulkan_swapchain->surface, &capabilities);
+			"Failed to create in32 vulkan surface");
 
 		VkSurfaceFormatKHR* formats;
 		uint32_t format_count;
@@ -1162,113 +1268,33 @@ bool Vulkan::CreateSwapchain(MemoryArena& a_arena, const WindowHandle a_window_h
 			}
 		}
 
-		VkExtent2D swapchain_extent
-		{
-			Clamp(a_width,
-				capabilities.minImageExtent.width,
-				capabilities.maxImageExtent.width),
-			Clamp(a_height,
-				capabilities.minImageExtent.height,
-				capabilities.maxImageExtent.height)
-		};
+		s_vulkan_swapchain->optimal_present = optimal_present;
+		s_vulkan_swapchain->optimal_surface_format = optimal_surface_format;
 
-		const uint32_t graphics_family = s_vulkan_inst->queue_indices.graphics;
-		const uint32_t present_family = s_vulkan_inst->queue_indices.present;
-		const uint32_t queue_family_indices[] = 
-		{ 
-			graphics_family,
-			present_family
-		};
-
-		VkSwapchainCreateInfoKHR swapchain_create_info{};
-		swapchain_create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-		swapchain_create_info.surface = s_vulkan_swapchain->surface;
-		swapchain_create_info.imageFormat = optimal_surface_format.format;
-		swapchain_create_info.imageColorSpace = optimal_surface_format.colorSpace;
-		swapchain_create_info.imageExtent = swapchain_extent;
-		swapchain_create_info.imageArrayLayers = 1;
-		swapchain_create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-		swapchain_create_info.preTransform = capabilities.currentTransform;
-		swapchain_create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-		swapchain_create_info.presentMode = optimal_present;
-		swapchain_create_info.clipped = VK_TRUE;
-		swapchain_create_info.oldSwapchain = nullptr;
-
-		if (graphics_family != present_family)
-		{
-			swapchain_create_info.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-			swapchain_create_info.queueFamilyIndexCount = 2;
-			swapchain_create_info.pQueueFamilyIndices = queue_family_indices;
-		}
-		else
-		{
-			swapchain_create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-			swapchain_create_info.queueFamilyIndexCount = 0;
-			swapchain_create_info.pQueueFamilyIndices = nullptr;
-		}
-		s_vulkan_swapchain->image_format = optimal_surface_format.format;
-
-		//Now create the swapchain and set the framecount.
-		const uint32_t backbuffer_count = Clamp(a_backbuffer_count, capabilities.minImageCount, capabilities.maxImageCount);
-		swapchain_create_info.minImageCount = backbuffer_count;
-		s_vulkan_swapchain->frame_count = backbuffer_count;
-		a_backbuffer_count = backbuffer_count;
-
-		VKASSERT(vkCreateSwapchainKHR(s_vulkan_inst->device, 
-			&swapchain_create_info, 
-			nullptr, 
-			&s_vulkan_swapchain->swapchain), 
-			"Vulkan: Failed to create swapchain.");
+		CreateVkSwapchain(a_width, a_height, a_backbuffer_count);
 	}
 
 	s_vulkan_swapchain->frames = ArenaAllocArr(a_arena, Vulkan_swapchain::swapchain_frame, s_vulkan_swapchain->frame_count);
 
-	MemoryArenaScope(a_arena)
+	GetSwapchainImages();
+
+	return true;
+}
+
+bool Vulkan::RecreateSwapchain(const uint32_t a_width, const uint32_t a_height)
+{
+	for (uint32_t i = 0; i < s_vulkan_swapchain->frame_count; i++)
 	{
-		VkImage* swapchain_images = ArenaAllocArr(a_arena, VkImage, s_vulkan_swapchain->frame_count);
-		vkGetSwapchainImagesKHR(s_vulkan_inst->device,
-			s_vulkan_swapchain->swapchain,
-			&s_vulkan_swapchain->frame_count,
-			swapchain_images);
-
-		VkImageViewCreateInfo image_view_create_info{};
-		image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		image_view_create_info.format = s_vulkan_swapchain->image_format;
-		image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		image_view_create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-		image_view_create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-		image_view_create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-		image_view_create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-		image_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		image_view_create_info.subresourceRange.baseMipLevel = 0;
-		image_view_create_info.subresourceRange.levelCount = 1;
-		image_view_create_info.subresourceRange.baseArrayLayer = 0;
-		image_view_create_info.subresourceRange.layerCount = 1;
-
-		VkSemaphoreCreateInfo sem_info{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
-
-		for (uint32_t i = 0; i < s_vulkan_swapchain->frame_count; i++)
-		{
-			s_vulkan_swapchain->frames[i].image = swapchain_images[i];
-
-			image_view_create_info.image = swapchain_images[i];
-			VKASSERT(vkCreateImageView(s_vulkan_inst->device,
-				&image_view_create_info,
-				nullptr,
-				&s_vulkan_swapchain->frames[i].image_view),
-				"Vulkan: Failed to create swapchain image views.");
-
-			vkCreateSemaphore(s_vulkan_inst->device,
-				&sem_info,
-				nullptr,
-				&s_vulkan_swapchain->frames[i].image_available_semaphore);
-			vkCreateSemaphore(s_vulkan_inst->device,
-				&sem_info,
-				nullptr,
-				&s_vulkan_swapchain->frames[i].present_finished_semaphore);
-		}
+		vkDestroyImageView(s_vulkan_inst->device, s_vulkan_swapchain->frames[i].image_view, nullptr);
+		vkDestroySemaphore(s_vulkan_inst->device, s_vulkan_swapchain->frames[i].image_available_semaphore, nullptr);
+		vkDestroySemaphore(s_vulkan_inst->device, s_vulkan_swapchain->frames[i].present_finished_semaphore, nullptr);
 	}
+	const uint32_t current_back_buffer_count = s_vulkan_swapchain->frame_count;
+	uint32_t new_back_buffer_count = s_vulkan_swapchain->frame_count;
+	CreateVkSwapchain(a_width, a_height, new_back_buffer_count);
+	BB_ASSERT(new_back_buffer_count == current_back_buffer_count, "back buffer amount should not change during resize");
 
+	GetSwapchainImages();
 	return true;
 }
 
@@ -1824,9 +1850,10 @@ RPipeline Vulkan::CreatePipeline(const CreatePipelineInfo& a_info)
 	multi_sampling.minSampleShading = 1.0f; // Optional
 	multi_sampling.pSampleMask = nullptr; // Optional
 
+	const VkFormat rendering_format = ImageFormats(a_info.rendering_format);
 	VkPipelineRenderingCreateInfo pipeline_dynamic_rendering{ VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO }; //attachment for dynamic rendering.
 	pipeline_dynamic_rendering.colorAttachmentCount = 1;
-	pipeline_dynamic_rendering.pColorAttachmentFormats = &s_vulkan_swapchain->image_format;
+	pipeline_dynamic_rendering.pColorAttachmentFormats = &rendering_format;
 	pipeline_dynamic_rendering.depthAttachmentFormat = DepthFormat(a_info.depth_format);
 	pipeline_dynamic_rendering.stencilAttachmentFormat = DepthFormat(a_info.depth_format);
 	pipeline_dynamic_rendering.pNext = nullptr;

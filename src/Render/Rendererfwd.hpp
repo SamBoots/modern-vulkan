@@ -13,6 +13,10 @@ namespace BB
 
 		uint32_t frame_index;
 		uint32_t frame_count;
+
+		//these will be set to false when an image is presented
+		bool frame_started = false;
+		bool frame_ended = false;
 	};
 
 	struct GPUBufferView;
