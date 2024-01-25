@@ -15,7 +15,7 @@ namespace BB
 		WarningTypeFlags enabled_warning_flags;
 		String cache_string;
 		String upload_string;
-		ThreadTask last_thread_task = ThreadTask(BB_INVALID_HANDLE_64);
+		ThreadTask last_thread_task{};
 		BBMutex write_to_file_mutex;
 		OSFileHandle log_file;
 	};

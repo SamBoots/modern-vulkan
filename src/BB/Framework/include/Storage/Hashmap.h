@@ -838,7 +838,7 @@ namespace BB
 		StaticOL_HashMap<Key, Value>& operator=(const StaticOL_HashMap<Key, Value>& a_rhs) = delete;
 		StaticOL_HashMap<Key, Value>& operator=(StaticOL_HashMap<Key, Value>&& a_rhs) = delete;
 
-		void insert(const Key& a_key, Value& a_res)
+		void insert(const Key& a_key, const Value& a_res)
 		{
 			emplace(a_key, a_res);
 		}

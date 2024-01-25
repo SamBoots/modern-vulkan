@@ -28,8 +28,11 @@ static void WriteLogInfoToFile(const char* a_msg, const size_t a_size)
 		g_logger.upload_string.clear();
 		g_logger.upload_string.append(g_logger.cache_string);
 		if (g_logger.last_thread_task.IsValid())
+		{
 			Threads::WaitForTask(g_logger.last_thread_task);
-		g_logger.last_thread_task = Threads::StartTaskThread(LoggerWriteToFile_async, nullptr);
+		}
+		// don't use the last thread handle, this bool should be sync enough for this instance.
+		Threads::StartTaskThread(LoggerWriteToFile_async, nullptr);
 		g_logger.cache_string.clear();
 	}
 

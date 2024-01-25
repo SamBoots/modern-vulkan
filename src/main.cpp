@@ -291,11 +291,6 @@ static bool PositionWithinViewport(const Viewport& a_viewport, const uint2 a_pos
 	return false;
 }
 
-static bool MousePositionWithinViewport(const Viewport& a_viewport, const uint2 a_pos)
-{
-
-}
-
 static float4x4 CalculateProjection(float2 a_extent)
 {
 	return Float4x4Perspective(ToRadians(60.0f), a_extent.x / a_extent.y, 0.001f, 10000.0f);
@@ -351,7 +346,7 @@ int main(int argc, char** argv)
 		L"Modern Vulkan");
 
 	{
-		const Asset::AssetManagerInitInfo asset_manager_info{};
+		const Asset::AssetManagerInitInfo asset_manager_info = {};
 		Asset::InitializeAssetManager(asset_manager_info);
 	}
 
@@ -571,6 +566,7 @@ int main(int argc, char** argv)
 		scene_hierarchy.SetView(viewport_scene.camera.CalculateView());
 		object_viewer_scene.SetView(viewport_object_viewer.camera.CalculateView());
 
+		Asset::ShowAssetMenu();
 		MainDebugWindow(main_arena, active_viewport);
 		scene_hierarchy.ImguiDisplaySceneHierarchy();
 		object_viewer_scene.ImguiDisplaySceneHierarchy();

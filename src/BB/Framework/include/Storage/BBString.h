@@ -17,10 +17,10 @@ namespace BB
 	{
 	public:
 		Basic_String() = default;
-		Basic_String(MemoryArena a_arena)
+		Basic_String(MemoryArena& a_arena)
 			: Basic_String(a_arena, String_Specs::standard_size)
 		{}
-		Basic_String(MemoryArena a_arena, size_t a_size)
+		Basic_String(MemoryArena& a_arena, size_t a_size)
 		{
 			constexpr bool is_char = std::is_same_v<CharT, char> || std::is_same_v<CharT, wchar_t>;
 			BB_STATIC_ASSERT(is_char, "String is not a char or wchar");
@@ -30,10 +30,10 @@ namespace BB
 			m_string = reinterpret_cast<CharT*>(ArenaAllocArr(a_arena, CharT, m_capacity));
 			Memory::Set(m_string, NULL, m_capacity);
 		}
-		Basic_String(MemoryArena a_arena, const CharT* const a_string)
+		Basic_String(MemoryArena& a_arena, const CharT* const a_string)
 			: Basic_String(a_arena, a_string, Memory::StrLength(a_string))
 		{}
-		Basic_String(MemoryArena a_arena, const CharT* const a_string, size_t a_size)
+		Basic_String(MemoryArena& a_arena, const CharT* const a_string, size_t a_size)
 		{
 			constexpr bool is_char = std::is_same_v<CharT, char> || std::is_same_v<CharT, wchar_t>;
 			BB_STATIC_ASSERT(is_char, "String is not a char or wchar");
@@ -184,7 +184,7 @@ namespace BB
 			m_size = 0;
 		}
 
-		void reserve(MemoryArena a_arena, const size_t a_size)
+		void reserve(MemoryArena& a_arena, const size_t a_size)
 		{
 			if (a_size > m_capacity)
 			{
@@ -200,7 +200,7 @@ namespace BB
 		const CharT* c_str() const { return m_string; }
 
 	private:
-		void reallocate(MemoryArena a_arena, size_t a_new_capacity)
+		void reallocate(MemoryArena& a_arena, size_t a_new_capacity)
 		{
 			//do a realloc maybe?
 			CharT* new_string = reinterpret_cast<CharT*>(ArenaAlloArrc(a_arena, CharT, a_new_capacity));
@@ -212,8 +212,8 @@ namespace BB
 		}
 
 		CharT* m_string;
-		size_t m_size = 0;
-		size_t m_capacity = 64;
+		size_t m_size;
+		size_t m_capacity;
 	};
 
 	using String = Basic_String<char>;

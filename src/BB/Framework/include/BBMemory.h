@@ -74,7 +74,9 @@ namespace BB
 		BB_ASSERT(a_ptr != nullptr, "Trying to free a nullptr");
 		if constexpr (!std::is_trivially_destructible<T>::value)
 		{
+			BB_WARNINGS_OFF // turn off warnings here due to CLANG thinking this will destruct a type void, which it won't due to is_trivially_destructible
 			a_ptr->~T();
+			BB_WARNINGS_ON
 		}
 		a_allocator.func(BB_MEMORY_DEBUG_FREE a_allocator.allocator, 0, 0, a_ptr);
 	}

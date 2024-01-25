@@ -84,6 +84,8 @@ public:
 		}
 	}
 
+	RTexture GetDebugTexture() const { return RTexture(0); }
+
 private:
 	uint32_t m_next_free;
 	TextureSlot m_textures[MAX_TEXTURES];
@@ -2411,4 +2413,9 @@ RTexture BB::GetWhiteTexture()
 RTexture BB::GetBlackTexture()
 {
 	return s_render_inst->black;
+}
+
+RTexture BB::GetDebugTexture()
+{
+	return s_render_inst->texture_manager.GetDebugTexture();
 }

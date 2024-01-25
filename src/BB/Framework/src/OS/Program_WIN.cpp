@@ -78,7 +78,7 @@ void BB::InitProgram()
 	SetupHIDTranslates();
 }
 
-//Custom callback for the Windows proc.
+// Custom callback for the Windows proc.
 // with assistance from https://handmade.network/forums/t/2011-keyboard_inputs_-_scancodes%252C_raw_input%252C_text_input%252C_key_names#10467
 // to help with handling the unicode
 static LRESULT wm_input(HWND a_hwnd, WPARAM a_wparam, LPARAM a_lparam)
@@ -102,6 +102,7 @@ static LRESULT wm_input(HWND a_hwnd, WPARAM a_wparam, LPARAM a_lparam)
 
 		bool e0 = rk.Flags & RI_KEY_E0;
 		bool e1 = rk.Flags & RI_KEY_E1;
+		(void)e1; // maybe used later
 
 #define UPDATE_KEY_STATE(key) do{KEY_STATES[key] = (rk.Flags & 1) ? 0 : 0xff;}while(0)
 

@@ -192,4 +192,5 @@ namespace BB
 
 	RTexture GetWhiteTexture();
 	RTexture GetBlackTexture();
+	RTexture GetDebugTexture();
 }

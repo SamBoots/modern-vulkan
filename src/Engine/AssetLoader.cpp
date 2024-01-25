@@ -102,7 +102,7 @@ struct AssetSlot
 {
 	AssetHash hash;
 	const char* path;
-	AssetHandle asset_handle;
+	const char* name;
 	union
 	{
 		Model* model;
@@ -114,7 +114,7 @@ struct AssetManager
 {
 	BBRWLock asset_lock;
 	StaticOL_HashMap<uint64_t, AssetSlot> asset_table;
-	StaticArray<AssetSlot*> linear_asset_table;
+	StaticArray<const AssetSlot*> linear_asset_table;
 	BBRWLock string_lock;
 	StaticOL_HashMap<uint64_t, char*> string_table;
 	struct StringBuffer
@@ -139,9 +139,11 @@ static inline char* AllocateStringSpace(const size_t a_string_size)
 	return string_mem;
 }
 
-static inline void AddElementToAssetTable(const AssetSlot& a_slot)
+static inline void AddElementToAssetTable(AssetSlot& a_asset_slot)
 {
-
+	s_asset_manager->asset_table.insert(a_asset_slot.hash.full_hash, a_asset_slot);
+	const AssetSlot* slot = s_asset_manager->asset_table.find(a_asset_slot.hash.full_hash);
+	s_asset_manager->linear_asset_table.push_back(slot);
 }
 
 using namespace BB;
@@ -273,9 +275,10 @@ const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const 
 	asset.hash = CreateAssetHash(hash, ASSET_TYPE::TEXTURE);
 	asset.path = nullptr; //memory loads have nullptr as path.
 	asset.image = image;
+	asset.name = a_name;
 
-	s_asset_manager->asset_table.insert(asset.hash.full_hash, asset);
-	asset.asset_handle = AssetHandle(asset.hash.full_hash);
+	AddElementToAssetTable(asset);
+	asset.image->asset_handle = AssetHandle(asset.hash.full_hash);
 
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 
@@ -319,8 +322,9 @@ const Image* Asset::LoadImageMemory(const BB::BBImage& a_image, const char* a_na
 	asset.hash = CreateAssetHash(hash, ASSET_TYPE::TEXTURE);
 	asset.path = nullptr; //memory loads have nullptr has path.
 	asset.image = image;
+	asset.name = a_name;
 
-	s_asset_manager->asset_table.insert(asset.hash.full_hash, asset);
+	AddElementToAssetTable(asset);
 	image->asset_handle = AssetHandle(asset.hash.full_hash);
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 
@@ -562,8 +566,9 @@ const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const MeshLoadFrom
 	asset.hash = asset_hash;
 	asset.path = FindOrCreateString(a_mesh_op.path);
 	asset.model = model;
+	asset.name = a_mesh_op.name;
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
-	s_asset_manager->asset_table.insert(asset.hash.full_hash, asset);
+	AddElementToAssetTable(asset);
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 	model->asset_handle = AssetHandle(asset.hash.full_hash);
 	return model;
@@ -606,8 +611,9 @@ const Model* Asset::LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, cons
 	asset.hash = asset_hash;
 	asset.path = FindOrCreateString(a_mesh_op.name);
 	asset.model = model;
+	asset.name = a_mesh_op.name;
 
-	s_asset_manager->asset_table.insert(asset.hash.full_hash, asset);
+	AddElementToAssetTable(asset);
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 
 	model->asset_handle = AssetHandle(asset.hash.full_hash);
@@ -634,11 +640,6 @@ const Model* Asset::FindModelByName(const char* a_name)
 	return nullptr;
 }
 
-void Asset::ShowAssetMenu()
-{
-
-}
-
 void Asset::FreeAsset(const AssetHandle a_asset_handle)
 {
 	AssetSlot* slot = s_asset_manager->asset_table.find(a_asset_handle.handle);
@@ -655,6 +656,71 @@ void Asset::FreeAsset(const AssetHandle a_asset_handle)
 	}
 
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
+	// TODO, erase from the linear array as well
 	s_asset_manager->asset_table.erase(a_asset_handle.handle);
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
+}
+
+#include "imgui.h"
+
+void Asset::ShowAssetMenu()
+{
+	if (ImGui::Begin("Asset Menu"))
+	{
+		constexpr int column = 5;
+		if (ImGui::BeginTable("assets", column, ImGuiTableFlags_Hideable | ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable))
+		{
+			int current_column_index = 0;
+			ImGui::TableNextRow();
+			for (size_t i = 0; i < s_asset_manager->linear_asset_table.size(); i++)
+			{
+				ImGui::PushID(static_cast<int>(i));
+				const AssetSlot* const slot = s_asset_manager->linear_asset_table[i];
+				if (slot == nullptr)
+					continue;
+
+
+				if (current_column_index >= column)
+				{
+					ImGui::TableNextRow();
+					current_column_index = 0;
+				}
+
+				ImGui::TableSetColumnIndex(current_column_index++);
+
+				const char* asset_name = slot->name;
+				if (!asset_name)
+				{
+					asset_name = "unnamed";
+				}
+
+
+				if (ImGui::CollapsingHeader(asset_name))
+				{
+					if (slot->path)
+						ImGui::Text("Path: %s", slot->path);
+					else
+						ImGui::Text("Path: None");
+
+					switch (slot->hash.type)
+					{
+					case ASSET_TYPE::MODEL:
+						ImGui::Image(GetDebugTexture().handle, ImVec2(160, 160));
+						break;
+					case ASSET_TYPE::TEXTURE:
+						ImGui::Image(slot->image->gpu_image.handle, ImVec2(160, 160));
+						break;
+					default:
+						BB_ASSERT(false, "unimplemented ASSET_TYPE case");
+						break;
+					}
+				}
+
+
+				ImGui::PopID();
+			}
+			ImGui::EndTable();
+		}
+	}
+	ImGui::End();
 }

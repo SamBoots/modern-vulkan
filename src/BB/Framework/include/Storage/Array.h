@@ -338,12 +338,12 @@ namespace BB
 		StaticArray<T>& operator=(const StaticArray<T>& a_rhs) = delete;
 		StaticArray<T>& operator=(StaticArray<T>&& a_rhs) = delete;
 
-		void Init(MemoryArena& a_arena, size_t a_size)
+		void Init(MemoryArena& a_arena, const uint32_t a_size)
 		{
 			BB_ASSERT(a_size != 0, "StaticArray size is specified to be 0");
 			m_capacity = a_size;
 
-			m_Arr = reinterpret_cast<T*>(ArenaAlloc(a_arena, m_capacity * sizeof(T), alignof(T));
+			m_Arr = reinterpret_cast<T*>(ArenaAlloc(a_arena, m_capacity * sizeof(T), alignof(T)));
 		}
 
 		void DestroyAllElements()
@@ -370,9 +370,9 @@ namespace BB
 		{
 			emplace_back(a_Element);
 		}
-		void push_back(const T* a_Elements, size_t a_count)
+		void push_back(const T* a_Elements, uint32_t a_count)
 		{
-			BB_ASSERT(m_size + a_count > m_capacity, "StaticArray is full");
+			BB_ASSERT(m_size + a_count < m_capacity, "StaticArray is full");
 
 			Memory::Copy<T>(m_Arr, a_Elements, a_count);
 
@@ -385,7 +385,7 @@ namespace BB
 		template <class... Args>
 		void emplace_back(Args&&... a_args)
 		{
-			BB_ASSERT(m_size >= m_capacity, "StaticArray is full");
+			BB_ASSERT(m_size <= m_capacity, "StaticArray is full");
 
 			new (&m_Arr[m_size]) T(std::forward<Args>(a_args)...);
 			m_size++;
@@ -393,8 +393,8 @@ namespace BB
 		template <class... Args>
 		void emplace(size_t a_position, Args&&... a_args)
 		{
-			BB_ASSERT(m_size >= a_position, "trying to insert in a position that is bigger then the current StaticArray size!");
-			BB_ASSERT(m_size >= m_capacity, "StaticArray is full");
+			BB_ASSERT(m_size <= a_position, "trying to insert in a position that is bigger then the current StaticArray size!");
+			BB_ASSERT(m_size <= m_capacity, "StaticArray is full");
 
 			if constexpr (!trivialDestructible_T)
 			{
@@ -438,8 +438,8 @@ namespace BB
 			m_size = 0;
 		}
 
-		size_t size() const { return m_size; }
-		size_t capacity() const { return m_capacity; }
+		uint32_t size() const { return m_size; }
+		uint32_t capacity() const { return m_capacity; }
 		T* data() const { return m_Arr; }
 
 		Iterator begin() { return Iterator(m_Arr); }
