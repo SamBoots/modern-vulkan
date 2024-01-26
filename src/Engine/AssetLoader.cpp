@@ -12,6 +12,8 @@
 
 #include "MemoryArena.hpp"
 
+#include "BBThreadScheduler.hpp"
+
 
 
 BB_WARNINGS_OFF
@@ -201,17 +203,26 @@ const char* Asset::FindOrCreateString(const char* a_string, const size_t a_strin
 	return string;
 }
 
-void Asset::LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_task_name)
+struct LoadAsyncFunc_Params
 {
-	MemoryArena load_arena = MemoryArenaCreate();
+	MemoryArena memory_arena;
+	Asset::AsyncAsset* assets;
+	size_t asset_count;
+	const char* task_name;
+};
+
+static void LoadAsync_func(void* a_param)
+{
+	using namespace Asset;
+	LoadAsyncFunc_Params* params = reinterpret_cast<LoadAsyncFunc_Params*>(a_param);
 
 	UploadBufferView& upload_buffer_view = GetUploadView(0);
 	CommandPool& cmd_pool = GetTransferCommandPool();
-	const RCommandList cmd_list = cmd_pool.StartCommandList(a_task_name);
+	const RCommandList cmd_list = cmd_pool.StartCommandList(params->task_name);
 
-	for (size_t i = 0; i < a_asyn_assets.size(); i++)
+	for (size_t i = 0; i < params->asset_count; i++)
 	{
-		const AsyncAsset& task = a_asyn_assets[i];
+		const AsyncAsset& task = params->assets[i];
 		switch (task.asset_type)
 		{
 		case ASYNC_ASSET_TYPE::MODEL:
@@ -219,7 +230,7 @@ void Asset::LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_t
 			switch (task.load_type)
 			{
 			case ASYNC_LOAD_TYPE::DISK:
-				LoadglTFModel(load_arena, task.mesh_disk, cmd_list, upload_buffer_view);
+				LoadglTFModel(params->memory_arena, task.mesh_disk, cmd_list, upload_buffer_view);
 				break;
 			case ASYNC_LOAD_TYPE::MEMORY:
 				LoadMeshFromMemory(task.mesh_memory, cmd_list, upload_buffer_view);
@@ -244,7 +255,21 @@ void Asset::LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_t
 	}
 	cmd_pool.EndCommandList(cmd_list);
 	BB_ASSERT(ExecuteTransferCommands(Slice(&cmd_pool, 1), Slice(&upload_buffer_view, 1)), "Failed to execute async gpu transfer commands");
-	MemoryArenaFree(load_arena);
+	MemoryArenaFree(params->memory_arena);
+}
+
+ThreadTask Asset::LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_task_name)
+{
+	MemoryArena load_arena = MemoryArenaCreate();
+
+	LoadAsyncFunc_Params* params = ArenaAllocType(load_arena, LoadAsyncFunc_Params);
+	params->assets = ArenaAllocArr(load_arena, Asset::AsyncAsset, a_asyn_assets.size());
+	memcpy(params->assets, a_asyn_assets.data(), a_asyn_assets.sizeInBytes());
+	params->asset_count = a_asyn_assets.size();
+	params->task_name = a_task_name;
+	params->memory_arena = load_arena;
+
+	return Threads::StartTaskThread(LoadAsync_func, params);
 }
 
 const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view)
@@ -685,7 +710,7 @@ static void LoadAssetViaSearch()
 		BB_ASSERT(get_file_name != size_t(-1), "i fucked up");
 
 		//get asset name
-		const char* asset_name = Asset::FindOrCreateString(&search_path_view.c_str()[get_file_name], get_extension_pos - get_file_name);
+		const char* asset_name = Asset::FindOrCreateString(&search_path_view.c_str()[get_file_name + 1], get_extension_pos - get_file_name - 1);
 
 		Asset::AsyncAsset asset{};
 		asset.load_type = Asset::ASYNC_LOAD_TYPE::DISK;
@@ -718,16 +743,20 @@ static void LoadAssetViaSearch()
 
 void Asset::ShowAssetMenu()
 {
-	if (ImGui::Begin("Asset Menu"))
+	if (ImGui::Begin("Asset Menu", nullptr, ImGuiWindowFlags_MenuBar))
 	{
-		if (ImGui::BeginMenu("loader"))
+		if (ImGui::BeginMenuBar())
 		{
-			if (ImGui::MenuItem("load new asset"))
+			if (ImGui::BeginMenu("loader"))
 			{
-				LoadAssetViaSearch();
-			}
+				if (ImGui::MenuItem("load new asset"))
+				{
+					LoadAssetViaSearch();
+				}
 
-			ImGui::EndMenu();
+				ImGui::EndMenu();
+			}
+			ImGui::EndMenuBar();
 		}
 
 

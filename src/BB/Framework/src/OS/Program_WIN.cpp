@@ -506,7 +506,6 @@ bool BB::OSFindFileNameDialogWindow(char* a_str_buffer, const size_t a_str_buffe
 	{
 		return true;
 	}
-	LatestOSError();
 	return false;
 }
 

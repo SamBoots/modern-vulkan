@@ -55,14 +55,9 @@ MemoryArena BB::MemoryArenaCreate(MemoryArena& a_memory_source, const size_t a_m
 
 void BB::MemoryArenaFree(MemoryArena& a_arena)
 {
-	if (a_arena.owns_memory)
-	{
-		BB_ASSERT(ReleaseVirtualMemory(a_arena.buffer), "failed to release memory");
-	}
-	else
-	{
-		MemoryArenaReset(a_arena);
-	}
+	// sometimes in the engine the memory arena is responsible for holding the memory of it's own struct.
+	// yes i'm sane why do you ask.
+	void* buffer = a_arena.buffer;
 
 	a_arena.buffer = nullptr;
 	a_arena.commited = nullptr;
@@ -70,6 +65,15 @@ void BB::MemoryArenaFree(MemoryArena& a_arena)
 	a_arena.at = nullptr;
 
 	a_arena.owns_memory = false;
+
+	if (a_arena.owns_memory)
+	{
+		BB_ASSERT(ReleaseVirtualMemory(buffer), "failed to release memory");
+	}
+	else
+	{
+		MemoryArenaReset(a_arena);
+	}
 }
 
 void BB::MemoryArenaReset(MemoryArena& a_arena)
