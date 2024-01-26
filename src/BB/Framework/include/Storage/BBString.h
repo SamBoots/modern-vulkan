@@ -324,9 +324,9 @@ namespace BB
 			Memory::Copy(m_string + a_pos, a_string, a_size);
 			m_size += a_size;
 		}
-		void push_back(const CharT a_Char)
+		void push_back(const CharT a_char)
 		{
-			m_string[m_size++] = a_Char;
+			m_string[m_size++] = a_char;
 			BB_ASSERT(m_size < sizeof(m_string), "Stack string overflow");
 		}
 
@@ -334,6 +334,46 @@ namespace BB
 		{
 			m_size -= a_count;
 			memset(Pointer::Add(m_string, m_size), NULL, a_count);
+		}
+
+		size_t find_first_of(const CharT a_char) const
+		{
+			for (size_t i = 0; i < m_size; i++)
+			{
+				if (m_string[i] == a_char)
+					return i;
+			}
+			return size_t(-1);
+		}
+
+		size_t find_last_of(const CharT a_char) const
+		{
+			size_t last_pos = size_t(-1);
+
+			for (size_t i = 0; i < m_size; i++)
+			{
+				if (m_string[i] == a_char)
+					last_pos = i;
+			}
+
+			return last_pos;
+		}
+
+		bool compare(const size_t a_pos, const CharT* a_str) const
+		{
+			return compare(a_pos, a_str, Memory::StrLength(a_str));
+		}
+
+		bool compare(const size_t a_pos, const CharT* a_str, const size_t a_str_size) const
+		{
+			BB_ASSERT(a_pos + a_str_size >= m_size, "trying to read the string out of bounds");
+
+			for (size_t i = 0; i < a_str_size; i++)
+			{
+				if (m_string[a_pos + i] != a_str[i])
+					return false;
+			}
+			return true;
 		}
 
 		void clear()
@@ -356,4 +396,70 @@ namespace BB
 	using StackString = Stack_String<char, string_size>;
 	template<size_t string_size>
 	using StackWString = Stack_String<wchar_t, string_size>;
+
+	template<typename CharT>
+	class String_View
+	{
+	public:
+		String_View(const CharT* a_string) : String_View(a_string, Memory::StrLength(a_string)) {}
+		String_View(const CharT* a_string, const size_t a_size) : m_string_view(a_string), m_size(a_size) {}
+
+		bool operator==(const String_View<CharT>& a_rhs) const
+		{
+			return Compare(a_rhs.c_str(), a_rhs.size);
+		}
+
+		size_t find_first_of(const CharT a_char) const
+		{
+			for (size_t i = 0; i < m_size; i++)
+			{
+				if (m_string_view[i] == a_char)
+					return i;
+			}
+			return size_t(-1);
+		}
+
+		size_t find_last_of(const CharT a_char) const
+		{
+			size_t last_pos = size_t(-1);
+
+			for (size_t i = 0; i < m_size; i++)
+			{
+				if (m_string_view[i] == a_char)
+					last_pos = i;
+			}
+
+			return last_pos;
+		}
+
+		bool compare(const size_t a_pos, const CharT* a_str) const
+		{
+			return compare(a_pos, a_str, Memory::StrLength(a_str) - 1);
+		}
+
+		bool compare(const size_t a_pos, const CharT* a_str, const size_t a_str_size) const
+		{
+			BB_ASSERT(a_pos + a_str_size <= m_size, "trying to read the string out of bounds");
+
+			// maybe optimize that big strings are early out'd and see if memcmp works better
+
+			for (size_t i = 0; i < a_str_size; i++)
+			{
+				if (m_string_view[a_pos + i] != a_str[i])
+					return false;
+			}
+			return true;
+		}
+
+		size_t size() const { return m_size; }
+		const CharT* data() const { return m_string_view; }
+		const CharT* c_str() const { return m_string_view; }
+
+	private:
+		const CharT* m_string_view;
+		const size_t m_size;
+	};
+
+	using StringView = String_View<char>;
+	using StringWView = String_View<wchar_t>;
 }

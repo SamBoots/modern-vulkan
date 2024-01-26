@@ -12,6 +12,7 @@
 #include <libloaderapi.h>
 #include <WinUser.h>
 #include <hidusage.h>
+#include <commdlg.h>
 
 #include <mutex>
 
@@ -483,6 +484,30 @@ void BB::SetOSFilePosition(const OSFileHandle a_file_handle, const uint32_t a_of
 			WarningType::HIGH);
 	}
 #endif //_DEBUG
+}
+
+bool BB::OSFindFileNameDialogWindow(char* a_str_buffer, const size_t a_str_buffer_size, const char* a_initial_directory)
+{
+	OPENFILENAMEA open_file_name;
+
+	ZeroMemory(&open_file_name, sizeof(OPENFILENAME));
+	open_file_name.lStructSize = sizeof(OPENFILENAME);
+	open_file_name.lpstrFile = a_str_buffer;
+	open_file_name.nMaxFile = static_cast<DWORD>(a_str_buffer_size);
+	open_file_name.lpstrFilter = nullptr; // TODO, docs are weird on this
+	open_file_name.nFilterIndex = 0; // TODO, docs are weird on this.
+	if (a_initial_directory == nullptr)
+		open_file_name.lpstrInitialDir = g_exe_path;
+	else
+		open_file_name.lpstrInitialDir = a_initial_directory;
+	open_file_name.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+
+	if (GetOpenFileNameA(&open_file_name) == TRUE)
+	{
+		return true;
+	}
+	LatestOSError();
+	return false;
 }
 
 bool BB::CloseOSFile(const OSFileHandle a_file_handle)

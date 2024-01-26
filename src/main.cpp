@@ -189,7 +189,7 @@ struct Viewport
 	uint2 offset; // offset into main window NOT USED NOW 
 	RenderTarget render_target;
 	const char* name;
-	Camera camera{ float3{0.0f, 0.0f, 1.0f}, 0.35f };
+	Camera camera{ float3{0.0f, 0.0f, 1.0f}, 0.0f };
 };
 
 static void MainDebugWindow(const MemoryArena& a_arena, const Viewport* a_selected_viewport)
@@ -321,13 +321,17 @@ static void ThreadFuncForDrawing(void* a_param)
 	EndRenderTarget(list, viewport.render_target);
 }
 
-void CustomCloseWindow(const BB::WindowHandle a_window_handle)
+static void CustomCloseWindow(const BB::WindowHandle a_window_handle)
 {
+	(void)a_window_handle;
 	BB_ASSERT(false, "unimplemented");
 }
 
-void CustomResizeWindow(const BB::WindowHandle a_window_handle, const uint32_t a_x, const uint32_t a_y)
+static void CustomResizeWindow(const BB::WindowHandle a_window_handle, const uint32_t a_x, const uint32_t a_y)
 {
+	(void)a_x;
+	(void)a_y;
+	(void)a_window_handle;
 	BB::RequestResize();
 }
 
@@ -335,8 +339,19 @@ int main(int argc, char** argv)
 {
 	(void)argc;
 
+	StackString<512> exe_path;
+
+	{
+		const StringView exe_path_manipulator{ argv[0] };
+		const size_t path_end = exe_path_manipulator.find_last_of('\\');
+
+		exe_path.append(exe_path_manipulator.c_str(), path_end);
+	}
+
+	
+
 	BBInitInfo bb_init{};
-	bb_init.exe_path = argv[0];
+	bb_init.exe_path = exe_path.c_str();
 	bb_init.program_name = L"Modern Vulkan";
 	InitBB(bb_init);
 

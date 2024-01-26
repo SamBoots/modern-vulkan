@@ -11,6 +11,7 @@
 #include <cstdint>
 #include "Common.h"
 #include "BBMemory.h"
+#include "MemoryArena.hpp"
 #include "Storage/BBString.h"
 
 namespace BB
@@ -98,6 +99,7 @@ namespace BB
 	uint64_t GetOSFileSize(const OSFileHandle a_file_handle);
 	//Set the file position, a_offset can be 0 if you just want to move it to BEGIN or END.
 	void SetOSFilePosition(const OSFileHandle a_file_handle, const uint32_t a_offset, const OS_FILE_READ_POINT a_file_read_point);
+	bool OSFindFileNameDialogWindow(char* a_str_buffer, const size_t a_str_buffer_size, const char* a_initial_directory = nullptr);
 
 	bool CloseOSFile(const OSFileHandle a_file_handle);
 

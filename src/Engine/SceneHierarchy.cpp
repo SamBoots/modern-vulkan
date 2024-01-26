@@ -19,7 +19,7 @@ void SceneHierarchy::InitializeSceneHierarchy(MemoryArena& a_memory_arena, const
 	create_info.draw_entry_max = a_scene_obj_max;
 	create_info.light_max = 128; // magic number jank yes shoot me
 
-	m_render_scene = Create3DRenderScene(a_memory_arena, create_info);
+	m_render_scene = Create3DRenderScene(a_memory_arena, create_info, a_name);
 	m_scene_name = a_name;
 }
 

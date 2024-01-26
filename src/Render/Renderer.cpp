@@ -545,10 +545,13 @@ struct Scene3D
 
 	RImage depth_image;
 	RImageView depth_image_view;
+	uint2 previous_draw_area;
 
 	uint32_t draw_list_count;
 	uint32_t draw_list_max;
 	DrawList draw_list_data;
+
+	const char* scene_name;
 
 	//we have different scenes but the light handles are the same. Meaning we can accidently mess this up. Maybe make this a freelist instead of a slotmap.
 	StaticSlotmap<PointLight, LightHandle> light_container;
@@ -1839,10 +1842,11 @@ RTexture BB::GetCurrentRenderTargetTexture(const RenderTarget a_render_target)
 	return reinterpret_cast<RenderTargetStruct*>(a_render_target.handle)->GetTargetTexture();
 }
 
-RenderScene3DHandle BB::Create3DRenderScene(MemoryArena& a_arena, const SceneCreateInfo& a_info)
+RenderScene3DHandle BB::Create3DRenderScene(MemoryArena& a_arena, const SceneCreateInfo& a_info, const char* a_name)
 {
 	Scene3D* scene_3d = ArenaAllocType(a_arena, Scene3D);
 
+	scene_3d->scene_name = a_name;
 	scene_3d->scene_info.ambient_light = a_info.ambient_light_color;
 	scene_3d->scene_info.ambient_strength = a_info.ambient_light_strength;
 
@@ -1852,13 +1856,7 @@ RenderScene3DHandle BB::Create3DRenderScene(MemoryArena& a_arena, const SceneCre
 	scene_3d->draw_list_data.mesh_draw_call = ArenaAllocArr(a_arena, MeshDrawCall, scene_3d->draw_list_max);
 	scene_3d->draw_list_data.transform = ArenaAllocArr(a_arena, ShaderTransform, scene_3d->draw_list_max);
 
-	RenderDepthCreateInfo depth_create_info;
-	depth_create_info.name = "standard depth buffer";
-	depth_create_info.width = s_render_inst->render_io.screen_width;
-	depth_create_info.height = s_render_inst->render_io.screen_height;
-	depth_create_info.depth = 1;
-	depth_create_info.depth_format = DEPTH_FORMAT::D24_UNORM_S8_UINT;
-	Vulkan::CreateDepthBuffer(depth_create_info, scene_3d->depth_image, scene_3d->depth_image_view);
+	scene_3d->previous_draw_area = uint2(0, 0);
 
 	scene_3d->light_container.Init(a_arena, a_info.light_max);
 
@@ -1988,6 +1986,24 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, UploadBufferView& a_uploa
 	buffer_regions[2].size = light_upload_size;
 	matrix_buffer_copy.regions = Slice(buffer_regions, _countof(buffer_regions));
 	Vulkan::CopyBuffer(a_cmd_list, matrix_buffer_copy);
+
+	if (render_scene3d.previous_draw_area != a_draw_area_size)
+	{
+		if (render_scene3d.depth_image.IsValid())
+		{
+			Vulkan::FreeViewImage(render_scene3d.depth_image_view);
+			Vulkan::FreeImage(render_scene3d.depth_image);
+		}
+
+		RenderDepthCreateInfo depth_create_info;
+		depth_create_info.name = "standard depth buffer";
+		depth_create_info.width = a_draw_area_size.x;
+		depth_create_info.height = a_draw_area_size.y;
+		depth_create_info.depth = 1;
+		depth_create_info.depth_format = DEPTH_FORMAT::D24_UNORM_S8_UINT;
+		Vulkan::CreateDepthBuffer(depth_create_info, render_scene3d.depth_image, render_scene3d.depth_image_view);
+		render_scene3d.previous_draw_area = a_draw_area_size;
+	}
 
 	//transition depth buffer
 	{

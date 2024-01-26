@@ -146,7 +146,7 @@ namespace BB
 	void EndRenderTarget(const RCommandList a_list, const RenderTarget a_render_target);
 	RTexture GetCurrentRenderTargetTexture(const RenderTarget a_render_target);
 
-	RenderScene3DHandle Create3DRenderScene(MemoryArena& a_arena, const SceneCreateInfo& a_info);
+	RenderScene3DHandle Create3DRenderScene(MemoryArena& a_arena, const SceneCreateInfo& a_info, const char* a_name);
 	void StartRenderScene(const RenderScene3DHandle a_scene);
 	void EndRenderScene(const RCommandList a_cmd_list, UploadBufferView& a_upload_buffer_view, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, bool a_skip = false);
 

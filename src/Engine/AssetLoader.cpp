@@ -10,6 +10,8 @@
 #include "shared_common.hlsl.h"
 #include "Renderer.hpp"
 
+#include "MemoryArena.hpp"
+
 
 
 BB_WARNINGS_OFF
@@ -27,11 +29,11 @@ using namespace BB;
 //constexpr const char SHADERS_DIRECTORY[] = "../Resources/Shaders/";
 constexpr const char TEXTURE_DIRECTORY[] = "../Resources/Textures/";
 
-static char* CreateGLTFImagePath(Allocator a_temp_allocator, const char* a_image_path)
+static char* CreateGLTFImagePath(MemoryArena& a_temp_arena, const char* a_image_path)
 {
 	const size_t image_path_size = strlen(a_image_path);
 	const size_t texture_directory_size = sizeof(TEXTURE_DIRECTORY);
-	char* new_path = BBnewArr(a_temp_allocator, texture_directory_size + image_path_size, char);
+	char* new_path = ArenaAllocArr(a_temp_arena, char, texture_directory_size + image_path_size);
 
 	Memory::Copy(new_path, TEXTURE_DIRECTORY, sizeof(TEXTURE_DIRECTORY));
 	Memory::Copy(&new_path[sizeof(TEXTURE_DIRECTORY) - 1], a_image_path, image_path_size);
@@ -41,13 +43,16 @@ static char* CreateGLTFImagePath(Allocator a_temp_allocator, const char* a_image
 }
 
 //crappy hash, don't care for now.
-static uint64_t StringHash(const char* a_string)
+static uint64_t StringHash(const char* a_string, const size_t a_size)
 {
 	uint64_t hash = 5381;
 	uint32_t c;
 
-	while ((c = *reinterpret_cast<const uint8_t*>(a_string++)))
+	for (size_t i = 0; i < a_size; i++)
+	{
+		c = *reinterpret_cast<const uint8_t*>(a_string++);
 		hash = ((hash << 5) + hash) + c;
+	}
 
 	return hash;
 }
@@ -174,12 +179,17 @@ void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
 
 const char* Asset::FindOrCreateString(const char* a_string)
 {
-	const uint64_t string_hash = StringHash(a_string);
+	return FindOrCreateString(a_string, strlen(a_string));
+}
+
+const char* Asset::FindOrCreateString(const char* a_string, const size_t a_string_size)
+{
+	const uint64_t string_hash = StringHash(a_string, a_string_size);
 	char** string_ptr = s_asset_manager->string_table.find(string_hash);
 	if (string_ptr != nullptr)
 		return *string_ptr;
 
-	const uint32_t string_size = static_cast<uint32_t>(strlen(a_string) + 1);
+	const uint32_t string_size = static_cast<uint32_t>(a_string_size + 1);
 
 	char* const string = AllocateStringSpace(string_size);
 	memcpy(string, a_string, string_size);
@@ -193,11 +203,11 @@ const char* Asset::FindOrCreateString(const char* a_string)
 
 void Asset::LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_task_name)
 {
-	LinearAllocator_t load_async_allocator = { 8 * mbSize, a_task_name };
+	MemoryArena load_arena = MemoryArenaCreate();
 
 	UploadBufferView& upload_buffer_view = GetUploadView(0);
 	CommandPool& cmd_pool = GetTransferCommandPool();
-	const RCommandList cmd_list = cmd_pool.StartCommandList();
+	const RCommandList cmd_list = cmd_pool.StartCommandList(a_task_name);
 
 	for (size_t i = 0; i < a_asyn_assets.size(); i++)
 	{
@@ -209,7 +219,7 @@ void Asset::LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_t
 			switch (task.load_type)
 			{
 			case ASYNC_LOAD_TYPE::DISK:
-				LoadglTFModel(load_async_allocator, task.mesh_disk, cmd_list, upload_buffer_view);
+				LoadglTFModel(load_arena, task.mesh_disk, cmd_list, upload_buffer_view);
 				break;
 			case ASYNC_LOAD_TYPE::MEMORY:
 				LoadMeshFromMemory(task.mesh_memory, cmd_list, upload_buffer_view);
@@ -222,7 +232,7 @@ void Asset::LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_t
 			switch (task.load_type)
 			{
 			case ASYNC_LOAD_TYPE::DISK:
-				BB_ASSERT(false, "no disk load for textures yet.");
+				LoadImageDisk(task.texture_disk.path, task.texture_disk.name, cmd_list, upload_buffer_view);
 				break;
 			case ASYNC_LOAD_TYPE::MEMORY:
 				LoadImageMemory(*task.texture_memory.image, task.texture_memory.name, cmd_list, upload_buffer_view);
@@ -234,7 +244,7 @@ void Asset::LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_t
 	}
 	cmd_pool.EndCommandList(cmd_list);
 	BB_ASSERT(ExecuteTransferCommands(Slice(&cmd_pool, 1), Slice(&upload_buffer_view, 1)), "Failed to execute async gpu transfer commands");
-	load_async_allocator.Clear();
+	MemoryArenaFree(load_arena);
 }
 
 const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view)
@@ -337,7 +347,7 @@ static inline void* GetAccessorDataPtr(const cgltf_accessor* a_Accessor)
 	return Pointer::Add(a_Accessor->buffer_view->buffer->data, accessor_offset);
 }
 
-static void LoadglTFNode(Allocator a_temp_allocator, Slice<ShaderEffectHandle> a_shader_effects, const RCommandList a_list, UploadBufferView& a_upload_view, const cgltf_node& a_node, Model& a_model, uint32_t& a_node_index, uint32_t& a_primitive_index)
+static void LoadglTFNode(MemoryArena& a_temp_arena, Slice<ShaderEffectHandle> a_shader_effects, const RCommandList a_list, UploadBufferView& a_upload_view, const cgltf_node& a_node, Model& a_model, uint32_t& a_node_index, uint32_t& a_primitive_index)
 {
 	Model::Node& mod_node = a_model.linear_nodes[a_node_index++];
 	if (a_node.has_matrix)
@@ -375,8 +385,8 @@ static void LoadglTFNode(Allocator a_temp_allocator, Slice<ShaderEffectHandle> a
 			}
 		}
 
-		uint32_t* indices = BBnewArr(a_temp_allocator, index_count, uint32_t);
-		Vertex* vertices = BBnewArr(a_temp_allocator, vertex_count, Vertex);
+		uint32_t* indices = ArenaAllocArr(a_temp_arena, uint32_t, index_count);
+		Vertex* vertices = ArenaAllocArr(a_temp_arena, Vertex, vertex_count);
 		uint32_t index_offset = 0;
 		uint32_t vertex_pos_offset = 0;
 		uint32_t vertex_normal_offset = 0;
@@ -397,7 +407,7 @@ static void LoadglTFNode(Allocator a_temp_allocator, Slice<ShaderEffectHandle> a
 			{
 				const cgltf_image& image = *prim.material->pbr_metallic_roughness.base_color_texture.texture->image;
 
-				const char* full_image_path = CreateGLTFImagePath(a_temp_allocator, image.uri);
+				const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
 				const Image* img = Asset::LoadImageDisk(full_image_path, image.name, a_list, a_upload_view);
 
 				material_info.base_color = img->gpu_image;
@@ -407,7 +417,7 @@ static void LoadglTFNode(Allocator a_temp_allocator, Slice<ShaderEffectHandle> a
 			{
 				const cgltf_image& image = *prim.material->normal_texture.texture->image;
 
-				const char* full_image_path = CreateGLTFImagePath(a_temp_allocator, image.uri);
+				const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
 				const Image* img = Asset::LoadImageDisk(full_image_path, image.name, a_list, a_upload_view);
 	
 				material_info.normal_texture = img->gpu_image;
@@ -501,14 +511,14 @@ static void LoadglTFNode(Allocator a_temp_allocator, Slice<ShaderEffectHandle> a
 		mod_node.childeren = &a_model.linear_nodes[a_node_index]; //childeren are loaded linearly, i'm quite sure.
 		for (size_t i = 0; i < mod_node.child_count; i++)
 		{
-			LoadglTFNode(a_temp_allocator, a_shader_effects, a_list, a_upload_view, *a_node.children[i], a_model, a_node_index, a_primitive_index);
+			LoadglTFNode(a_temp_arena, a_shader_effects, a_list, a_upload_view, *a_node.children[i], a_model, a_node_index, a_primitive_index);
 		}
 	}
 }
 
-const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const MeshLoadFromDisk& a_mesh_op, const RCommandList a_list, UploadBufferView& a_upload_view)
+const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op, const RCommandList a_list, UploadBufferView& a_upload_view)
 {
-	const AssetHash asset_hash = CreateAssetHash(StringHash(a_mesh_op.path), ASSET_TYPE::MODEL);
+	const AssetHash asset_hash = CreateAssetHash(StringHash(a_mesh_op.path, Memory::StrLength(a_mesh_op.path)), ASSET_TYPE::MODEL);
 	
 	if (AssetSlot* slot = s_asset_manager->asset_table.find(asset_hash.full_hash))
 	{
@@ -557,7 +567,7 @@ const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const MeshLoadFrom
 
 	for (size_t i = 0; i < gltf_data->scene->nodes_count; i++)
 	{
-		LoadglTFNode(a_temp_allocator, a_mesh_op.shader_effects, a_list, a_upload_view, *gltf_data->scene->nodes[i], *model, current_node, current_primitive);
+		LoadglTFNode(a_temp_arena, a_mesh_op.shader_effects, a_list, a_upload_view, *gltf_data->scene->nodes[i], *model, current_node, current_primitive);
 	}
 
 	cgltf_free(gltf_data);
@@ -576,7 +586,7 @@ const Model* Asset::LoadglTFModel(Allocator a_temp_allocator, const MeshLoadFrom
 
 const Model* Asset::LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, const RCommandList a_list, UploadBufferView& a_upload_view)
 {
-	const AssetHash asset_hash = CreateAssetHash(StringHash(a_mesh_op.name), ASSET_TYPE::MODEL);
+	const AssetHash asset_hash = CreateAssetHash(StringHash(a_mesh_op.name, Memory::StrLength(a_mesh_op.name)), ASSET_TYPE::MODEL);
 
 	if (AssetSlot* slot = s_asset_manager->asset_table.find(asset_hash.full_hash))
 	{
@@ -622,7 +632,7 @@ const Model* Asset::LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, cons
 
 const Model* Asset::FindModelByPath(const char* a_path)
 {
-	AssetHash asset_hash = CreateAssetHash(StringHash(a_path), ASSET_TYPE::MODEL);
+	AssetHash asset_hash = CreateAssetHash(StringHash(a_path, Memory::StrLength(a_path)), ASSET_TYPE::MODEL);
 	if (AssetSlot* slot = s_asset_manager->asset_table.find(asset_hash.full_hash))
 	{
 		return slot->model;
@@ -632,7 +642,7 @@ const Model* Asset::FindModelByPath(const char* a_path)
 
 const Model* Asset::FindModelByName(const char* a_name)
 {
-	AssetHash asset_hash = CreateAssetHash(StringHash(a_name), ASSET_TYPE::MODEL);
+	AssetHash asset_hash = CreateAssetHash(StringHash(a_name, Memory::StrLength(a_name)), ASSET_TYPE::MODEL);
 	if (AssetSlot* slot = s_asset_manager->asset_table.find(asset_hash.full_hash))
 	{
 		return slot->model;
@@ -663,10 +673,64 @@ void Asset::FreeAsset(const AssetHandle a_asset_handle)
 
 #include "imgui.h"
 
+static void LoadAssetViaSearch()
+{
+	constexpr size_t MAX_SEARCH_PATH = 512;
+	char search_path[MAX_SEARCH_PATH] = {};
+	if (OSFindFileNameDialogWindow(search_path, MAX_SEARCH_PATH))
+	{
+		StringView search_path_view = search_path;
+		const size_t get_extension_pos = search_path_view.find_last_of('.');
+		const size_t get_file_name = search_path_view.find_last_of('\\');
+		BB_ASSERT(get_file_name != size_t(-1), "i fucked up");
+
+		//get asset name
+		const char* asset_name = Asset::FindOrCreateString(&search_path_view.c_str()[get_file_name], get_extension_pos - get_file_name);
+
+		Asset::AsyncAsset asset{};
+		asset.load_type = Asset::ASYNC_LOAD_TYPE::DISK;
+
+		if (search_path_view.compare(get_extension_pos, ".gltf"))
+		{
+			BB_ASSERT(false, "NEED TO REWORK HOW TO SEND SHADER EFFECTS!");
+			asset.asset_type = Asset::ASYNC_ASSET_TYPE::MODEL;
+
+			asset.mesh_disk.name = asset_name;
+			asset.mesh_disk.path = search_path_view.c_str();
+			//asset.mesh_disk.shader_effects = oops;
+		}
+		else if (search_path_view.compare(get_extension_pos, ".png") || search_path_view.compare(get_extension_pos, ".jpg"))
+		{
+			asset.asset_type = Asset::ASYNC_ASSET_TYPE::TEXTURE;
+
+			asset.texture_disk.name = asset_name;
+			asset.texture_disk.path = search_path_view.c_str();
+		}
+		else
+		{
+			BB_ASSERT(false, "NOT SUPPORTED FILE NAME!");
+		}
+
+
+		Asset::LoadASync(Slice(&asset, 1), "load asset via search");
+	}
+}
+
 void Asset::ShowAssetMenu()
 {
 	if (ImGui::Begin("Asset Menu"))
 	{
+		if (ImGui::BeginMenu("loader"))
+		{
+			if (ImGui::MenuItem("load new asset"))
+			{
+				LoadAssetViaSearch();
+			}
+
+			ImGui::EndMenu();
+		}
+
+
 		constexpr int column = 5;
 		if (ImGui::BeginTable("assets", column, ImGuiTableFlags_Hideable | ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable))
 		{

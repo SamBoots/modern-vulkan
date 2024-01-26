@@ -116,12 +116,13 @@ namespace BB
 		void InitializeAssetManager(const AssetManagerInitInfo& a_init_info);
 
 		const char* FindOrCreateString(const char* a_string);
+		const char* FindOrCreateString(const char* a_string, const size_t a_string_size);
 
 		void LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_task_name = "upload asset task");
 
 		const Image* LoadImageDisk(const char* a_path, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view);
 		const Image* LoadImageMemory(const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view);
-		const Model* LoadglTFModel(Allocator a_temp_allocator, const MeshLoadFromDisk& a_mesh_op, const RCommandList a_list, UploadBufferView& a_upload_view);
+		const Model* LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op, const RCommandList a_list, UploadBufferView& a_upload_view);
 		const Model* LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, const RCommandList a_list, UploadBufferView& a_upload_view);
 
 		const Model* FindModelByPath(const char* a_path);
