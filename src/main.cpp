@@ -328,7 +328,7 @@ void CustomCloseWindow(const BB::WindowHandle a_window_handle)
 
 void CustomResizeWindow(const BB::WindowHandle a_window_handle, const uint32_t a_x, const uint32_t a_y)
 {
-	BB_ASSERT(BB::ResizeRendererSwapchain(a_x, a_y), "failed to resize window");
+	BB::RequestResize();
 }
 
 int main(int argc, char** argv)

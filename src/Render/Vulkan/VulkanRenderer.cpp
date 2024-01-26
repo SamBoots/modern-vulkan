@@ -2469,16 +2469,24 @@ void Vulkan::DrawIndexed(const RCommandList a_list, const uint32_t a_index_count
 	vkCmdDrawIndexed(cmd_buffer, a_index_count, a_instance_count, a_first_index, a_vertex_offset, a_first_instance);
 }
 
-bool Vulkan::UploadImageToSwapchain(const RCommandList a_list, const RImage a_src_image, const int2 a_src_image_size, const int2 a_swapchain_size, const uint32_t a_backbuffer_index)
+PRESENT_IMAGE_RESULT Vulkan::UploadImageToSwapchain(const RCommandList a_list, const RImage a_src_image, const int2 a_src_image_size, const int2 a_swapchain_size, const uint32_t a_backbuffer_index)
 {
 	uint32_t image_index;
-	VKASSERT(vkAcquireNextImageKHR(s_vulkan_inst->device,
+	const VkResult result = vkAcquireNextImageKHR(s_vulkan_inst->device,
 		s_vulkan_swapchain->swapchain,
 		UINT64_MAX,
 		s_vulkan_swapchain->frames[a_backbuffer_index].image_available_semaphore,
 		VK_NULL_HANDLE,
-		&image_index),
-		"Vulkan: failed to get next image.");
+		&image_index);
+
+	if (result == VK_ERROR_OUT_OF_DATE_KHR)
+	{
+		return PRESENT_IMAGE_RESULT::SWAPCHAIN_OUT_OF_DATE;
+	}
+	else if (result != VK_SUCCESS)
+	{
+		BB_ASSERT(false, "Vulkan: failed to get next image.");
+	}
 
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 
@@ -2562,7 +2570,7 @@ bool Vulkan::UploadImageToSwapchain(const RCommandList a_list, const RImage a_sr
 		vkCmdPipelineBarrier2(cmd_buffer, &barrier_info);
 	}
 
-	return true;
+	return PRESENT_IMAGE_RESULT::SUCCESS;
 }
 
 void Vulkan::ExecuteCommandLists(const RQueue a_queue, const ExecuteCommandsInfo* a_execute_infos, const uint32_t a_execute_info_count)
@@ -2605,7 +2613,7 @@ void Vulkan::ExecuteCommandLists(const RQueue a_queue, const ExecuteCommandsInfo
 		"Vulkan: failed to submit to queue.");
 }
 
-void Vulkan::ExecutePresentCommandList(const RQueue a_queue, const ExecuteCommandsInfo& a_execute_info, const uint32_t a_backbuffer_index)
+PRESENT_IMAGE_RESULT Vulkan::ExecutePresentCommandList(const RQueue a_queue, const ExecuteCommandsInfo& a_execute_info, const uint32_t a_backbuffer_index)
 {
 	// TEMP
 	constexpr VkPipelineStageFlags WAIT_STAGES[8] = { VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT };
@@ -2663,8 +2671,17 @@ void Vulkan::ExecutePresentCommandList(const RQueue a_queue, const ExecuteComman
 	present_info.pImageIndices = &a_backbuffer_index; //THIS MAY BE WRONG
 	present_info.pResults = nullptr;
 
-	VKASSERT(vkQueuePresentKHR(s_vulkan_inst->present_queue, &present_info),
-		"Vulkan: Failed to queuepresentKHR.");
+	const VkResult result = vkQueuePresentKHR(s_vulkan_inst->present_queue, &present_info);
+	if (result == VK_ERROR_OUT_OF_DATE_KHR)
+	{
+		return PRESENT_IMAGE_RESULT::SWAPCHAIN_OUT_OF_DATE;
+	}
+	else if (result != VK_SUCCESS)
+	{
+		BB_ASSERT(false, "Vulkan: Failed to queuepresentKHR.");
+	}
+
+	return PRESENT_IMAGE_RESULT::SUCCESS;
 }
 
 RFence Vulkan::CreateFence(const uint64_t a_initial_value, const char* a_name)

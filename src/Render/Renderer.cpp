@@ -375,7 +375,7 @@ public:
 		OSReleaseSRWLockWrite(&m_lock);
 	}
 
-	void ExecutePresentCommands(RCommandList* const a_lists, const uint32_t a_list_count, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const uint32_t a_wait_count, const uint32_t a_backbuffer_index)
+	PRESENT_IMAGE_RESULT ExecutePresentCommands(RCommandList* const a_lists, const uint32_t a_list_count, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const uint32_t a_wait_count, const uint32_t a_backbuffer_index)
 	{
 		BB_ASSERT(m_queue_type == QUEUE_TYPE::GRAPHICS, "calling a present commands on a non-graphics command queue is not valid");
 		
@@ -398,9 +398,10 @@ public:
 		execute_info.wait_count = a_wait_count;
 
 		OSAcquireSRWLockWrite(&m_lock);
-		Vulkan::ExecutePresentCommandList(m_queue, execute_info, a_backbuffer_index);
+		const PRESENT_IMAGE_RESULT result = Vulkan::ExecutePresentCommandList(m_queue, execute_info, a_backbuffer_index);
 		++m_fence.next_fence_value;
 		OSReleaseSRWLockWrite(&m_lock);
+		return result;
 	}
 
 	//void ExecutePresentCommands(CommandList* a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const PIPELINE_STAGE* a_WaitStages, const uint32_t a_FenceCount);
@@ -1436,6 +1437,11 @@ void GPUTextureManager::FreeTexture(const RTexture a_texture)
 	slot.view = m_debug_texture.view;
 }
 
+const RenderIO& BB::GetRenderIO()
+{
+	return s_render_inst->render_io;
+}
+
 bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_render_create_info)
 {
 	Vulkan::InitializeVulkan(a_arena, a_render_create_info.app_name, a_render_create_info.engine_name, a_render_create_info.debug);
@@ -1617,22 +1623,43 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	return ExecuteGraphicCommands(Slice(&start_up_pool, 1), Slice(&startup_upload_view, 1));
 }
 
-bool BB::ResizeRendererSwapchain(const uint32_t a_width, const uint32_t a_height)
+void BB::RequestResize()
+{
+	s_render_inst->render_io.resizing_request = true;
+}
+
+static void ResizeRendererSwapchain(const uint32_t a_width, const uint32_t a_height)
 {
 	s_render_inst->graphics_queue.WaitIdle();
 	Vulkan::RecreateSwapchain(a_width, a_height);
 	s_render_inst->render_io.screen_width = a_width;
 	s_render_inst->render_io.screen_height = a_height;
-	return true;
-}
 
-const RenderIO& BB::GetRenderIO()
-{
-	return s_render_inst->render_io;
+	for (size_t i = 0; i < s_render_inst->render_io.frame_count; i++)
+	{
+		FreeTexture(s_render_inst->frames[i].render_target);
+
+		const uint2 render_target_extent = { s_render_inst->render_io.screen_width, s_render_inst->render_io.screen_height };
+		s_render_inst->frames[i].render_target = s_render_inst->texture_manager.CreateUploadTarget(render_target_extent, "image before transfer to swapchain");
+		s_render_inst->frames[i].graphics_queue_fence_value = 0;
+	}
+
+	// also reset the render debug state
+	s_render_inst->render_io.frame_started = false;
+	s_render_inst->render_io.frame_ended = false;
+	s_render_inst->render_io.resizing_request = false;
 }
 
 void BB::StartFrame(const RCommandList a_list)
 {
+	// check if we need to resize
+	if (s_render_inst->render_io.resizing_request)
+	{
+		int x, y;
+		GetWindowSize(s_render_inst->render_io.window_handle, x, y);
+		ResizeRendererSwapchain(static_cast<uint32_t>(x), static_cast<uint32_t>(y));
+	}
+
 	BB_ASSERT(s_render_inst->render_io.frame_started == false, "did not call EndFrame before a new StartFrame");
 	s_render_inst->render_io.frame_started = true;
 
@@ -1673,7 +1700,7 @@ void BB::EndFrame(const RCommandList a_list, bool a_skip)
 {
 	BB_ASSERT(s_render_inst->render_io.frame_started == true, "did not call StartFrame before a EndFrame");
 
-	if (a_skip)
+	if (a_skip || s_render_inst->render_io.resizing_request)
 	{
 		ImGui::EndFrame();
 		return;
@@ -1713,7 +1740,9 @@ void BB::EndFrame(const RCommandList a_list, bool a_skip)
 		static_cast<int>(s_render_inst->render_io.screen_height)
 		}
 	};
-	Vulkan::UploadImageToSwapchain(a_list, render_target.image, swapchain_size, swapchain_size, s_render_inst->render_io.frame_index);
+	const PRESENT_IMAGE_RESULT result = Vulkan::UploadImageToSwapchain(a_list, render_target.image, swapchain_size, swapchain_size, s_render_inst->render_io.frame_index);
+	if (result == PRESENT_IMAGE_RESULT::SWAPCHAIN_OUT_OF_DATE)
+		s_render_inst->render_io.resizing_request = true;
 	s_render_inst->render_io.frame_ended = true;
 }
 
@@ -1987,7 +2016,7 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, UploadBufferView& a_uploa
 	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(render_target_texture);
 	// render
 	StartRenderingInfo start_rendering_info;
-	start_rendering_info.viewport_size = uint2{ s_render_inst->render_io.screen_width, s_render_inst->render_io.screen_height };
+	start_rendering_info.viewport_size = a_draw_area_size;
 	start_rendering_info.scissor_extent = a_draw_area_size;
 	start_rendering_info.scissor_offset = a_draw_area_offset;
 	start_rendering_info.depth_view = render_scene3d.depth_image_view;
@@ -2076,6 +2105,16 @@ CommandPool& BB::GetTransferCommandPool()
 
 bool BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<UploadBufferView> a_upload_views)
 {
+	if (s_render_inst->render_io.resizing_request)
+	{
+		s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
+		RFence upload_fence;
+		uint64_t upload_fence_value;
+		s_render_inst->upload_buffers.ReturnUploadViews(a_upload_views, upload_fence, upload_fence_value);
+		return false;
+	}
+
+
 	BB_ASSERT(s_render_inst->render_io.frame_started == true, "did not call StartFrame before a presenting");
 	BB_ASSERT(s_render_inst->render_io.frame_ended == true, "did not call EndFrame before a presenting");
 
@@ -2103,12 +2142,15 @@ bool BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<
 	s_render_inst->frames[s_render_inst->render_io.frame_index].graphics_queue_fence_value = s_render_inst->graphics_queue.GetNextFenceValue();
 
 	s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
-	s_render_inst->graphics_queue.ExecutePresentCommands(lists, list_count, &upload_fence, &upload_fence_value, 1, nullptr, nullptr, 0, s_render_inst->render_io.frame_index);
+	const PRESENT_IMAGE_RESULT result = s_render_inst->graphics_queue.ExecutePresentCommands(lists, list_count, &upload_fence, &upload_fence_value, 1, nullptr, nullptr, 0, s_render_inst->render_io.frame_index);
 	s_render_inst->upload_buffers.IncrementNextFenceValue();
 	s_render_inst->render_io.frame_index = (s_render_inst->render_io.frame_index + 1) % s_render_inst->render_io.frame_count;
 
 	s_render_inst->render_io.frame_ended = false;
 	s_render_inst->render_io.frame_started = false;
+
+	if (result == PRESENT_IMAGE_RESULT::SWAPCHAIN_OUT_OF_DATE)
+		s_render_inst->render_io.resizing_request = true;
 
 	return true;
 }

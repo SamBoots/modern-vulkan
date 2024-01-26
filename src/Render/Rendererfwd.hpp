@@ -17,6 +17,7 @@ namespace BB
 		//these will be set to false when an image is presented
 		bool frame_started = false;
 		bool frame_ended = false;
+		bool resizing_request = false;
 	};
 
 	struct GPUBufferView;

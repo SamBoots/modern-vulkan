@@ -63,6 +63,12 @@ namespace BB
 		ENUM_SIZE
 	};
 
+	enum class PRESENT_IMAGE_RESULT
+	{
+		SWAPCHAIN_OUT_OF_DATE,
+		SUCCESS
+	};
+
 	struct ImageCreateInfo
 	{
 		const char* name = nullptr;	//8
