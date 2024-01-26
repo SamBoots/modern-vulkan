@@ -350,6 +350,7 @@ public:
 	{
 		BB_ASSERT(m_queue_type == QUEUE_TYPE::GRAPHICS, "calling a present commands on a non-graphics command queue is not valid");
 
+		OSAcquireSRWLockWrite(&m_lock);
 		//better way to do this?
 		const uint32_t signal_fence_count = 1 + a_signal_count;
 		RFence* signal_fences = BBstackAlloc(signal_fence_count, RFence);
@@ -369,7 +370,7 @@ public:
 		execute_info.wait_values = a_wait_values;
 		execute_info.wait_count = a_wait_count;
 
-		OSAcquireSRWLockWrite(&m_lock);
+
 		Vulkan::ExecuteCommandLists(m_queue, &execute_info, 1);
 		++m_fence.next_fence_value;
 		OSReleaseSRWLockWrite(&m_lock);

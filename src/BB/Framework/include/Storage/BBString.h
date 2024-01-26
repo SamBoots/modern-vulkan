@@ -26,6 +26,7 @@ namespace BB
 			BB_STATIC_ASSERT(is_char, "String is not a char or wchar");
 
 			m_capacity = RoundUp(a_size, String_Specs::multiple_value);
+			m_size = 0;
 
 			m_string = reinterpret_cast<CharT*>(ArenaAllocArr(a_arena, CharT, m_capacity));
 			Memory::Set(m_string, NULL, m_capacity);
@@ -184,33 +185,12 @@ namespace BB
 			m_size = 0;
 		}
 
-		void reserve(MemoryArena& a_arena, const size_t a_size)
-		{
-			if (a_size > m_capacity)
-			{
-				size_t modified_capacity = RoundUp(a_size + 1, String_Specs::multiple_value);
-
-				reallocate(a_arena, modified_capacity);
-			}
-		}
-
 		size_t size() const { return m_size; }
 		size_t capacity() const { return m_capacity; }
 		CharT* data() const { return m_string; }
 		const CharT* c_str() const { return m_string; }
 
 	private:
-		void reallocate(MemoryArena& a_arena, size_t a_new_capacity)
-		{
-			//do a realloc maybe?
-			CharT* new_string = reinterpret_cast<CharT*>(ArenaAlloArrc(a_arena, CharT, a_new_capacity));
-
-			Memory::Copy(new_string, m_string, m_size);
-
-			m_string = new_string;
-			m_capacity = a_new_capacity;
-		}
-
 		CharT* m_string;
 		size_t m_size;
 		size_t m_capacity;

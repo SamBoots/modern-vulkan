@@ -711,7 +711,7 @@ static void LoadAssetViaSearch()
 
 		//get asset name
 		const char* asset_name = Asset::FindOrCreateString(&search_path_view.c_str()[get_file_name + 1], get_extension_pos - get_file_name - 1);
-
+		const char* path_str = Asset::FindOrCreateString(search_path);
 		Asset::AsyncAsset asset{};
 		asset.load_type = Asset::ASYNC_LOAD_TYPE::DISK;
 
@@ -721,7 +721,7 @@ static void LoadAssetViaSearch()
 			asset.asset_type = Asset::ASYNC_ASSET_TYPE::MODEL;
 
 			asset.mesh_disk.name = asset_name;
-			asset.mesh_disk.path = search_path_view.c_str();
+			asset.mesh_disk.path = path_str;
 			//asset.mesh_disk.shader_effects = oops;
 		}
 		else if (search_path_view.compare(get_extension_pos, ".png") || search_path_view.compare(get_extension_pos, ".jpg"))
@@ -729,7 +729,7 @@ static void LoadAssetViaSearch()
 			asset.asset_type = Asset::ASYNC_ASSET_TYPE::TEXTURE;
 
 			asset.texture_disk.name = asset_name;
-			asset.texture_disk.path = search_path_view.c_str();
+			asset.texture_disk.path = path_str;
 		}
 		else
 		{
