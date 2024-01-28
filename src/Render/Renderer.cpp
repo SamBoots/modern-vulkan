@@ -101,6 +101,80 @@ private:
 
 namespace BB
 {
+
+	struct UploadBuffer
+	{
+		void* begin;
+		void* at;
+		void* end;
+	};
+
+	constexpr size_t UPLOAD_BUFFER_PAGE_SIZE = kbSize * 4;
+	constexpr size_t UPLOAD_BUNDLE_MAX = 4096;
+	struct UploadBufferPageSystem
+	{
+		struct PageBundle
+		{
+			uint32_t page_index;	//4
+			uint32_t page_count;	//8
+			uint64_t fence_value;	//16
+			PageBundle* next;		//24
+			//PageBundle* previous;	//32 // possible for fragmentation performance
+		};
+
+		void* mem_start;
+		void* mem_end;
+
+		PageBundle* current_bundle;
+
+		uint32_t bundle_current;
+		PageBundle bundles[UPLOAD_BUNDLE_MAX];
+
+		uint32_t locked_bundle_current;
+		PageBundle locked_bundles[UPLOAD_BUNDLE_MAX];
+
+		BBRWLock lock;
+
+		// this fence should be send to all execute commandlists when they include a upload buffer from here.
+		RFence fence;
+		volatile uint64_t next_fence_value;
+		uint64_t last_completed_fence_value;
+	};
+
+	UploadBuffer GetUploadBuffer(UploadBufferPageSystem& a_page_system, const size_t a_size)
+	{
+		const size_t page_requirement = a_size / UPLOAD_BUFFER_PAGE_SIZE;
+
+		OSAcquireSRWLockWrite(&a_page_system.lock);
+
+		UploadBufferPageSystem::PageBundle* bundle = a_page_system.current_bundle;
+		while (bundle->page_count < page_requirement)
+		{
+			BB_ASSERT(bundle->next == nullptr, "next is nullptr, memory is turbo fragmented or just not enough");
+			bundle = bundle->next;
+		}
+
+		UploadBuffer upload_buffer{};
+		upload_buffer.begin = Pointer::Add(a_page_system.mem_start, bundle->page_index * UPLOAD_BUFFER_PAGE_SIZE);
+		upload_buffer.end = Pointer::Add(upload_buffer.begin, page_requirement * UPLOAD_BUFFER_PAGE_SIZE);
+		upload_buffer.at = upload_buffer.begin;
+
+		bundle->page_index += page_requirement;
+		bundle->page_count -= page_requirement;
+
+		OSReleaseSRWLockWrite(&a_page_system.lock);
+		return upload_buffer;
+	}
+
+	void ReturnUploadBuffers(UploadBufferPageSystem& a_page_system, Slice<UploadBuffer> a_upload_buffers)
+	{
+		OSAcquireSRWLockWrite(&a_page_system.lock);
+
+		// translate the memory spaces to indices again.
+
+		OSReleaseSRWLockWrite(&a_page_system.lock);
+	}
+
 	/// <summary>
 	/// Handles one large upload buffer and handles it as if it's seperate buffers by handling chunks.
 	/// </summary>
