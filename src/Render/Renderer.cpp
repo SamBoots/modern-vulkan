@@ -104,34 +104,49 @@ namespace BB
 
 	struct UploadBuffer
 	{
+		GPUBuffer gpu_buffer;
 		void* begin;
-		void* at;
 		void* end;
+		uint32_t used;			// will we exceed 2 gb? maybe, assert for that.
 	};
 
 	constexpr size_t UPLOAD_BUFFER_PAGE_SIZE = kbSize * 4;
+	// how many bundles we will make
 	constexpr size_t UPLOAD_BUNDLE_MAX = 4096;
+	constexpr size_t UPLOAD_LOCKED_BUNDLE_MAX = UPLOAD_BUNDLE_MAX / 2;
+
+	constexpr uint32_t INVALID_UPLOAD_BUNDLE_INDEX = UINT32_MAX;
 	struct UploadBufferPageSystem
 	{
 		struct PageBundle
 		{
 			uint32_t page_index;	//4
 			uint32_t page_count;	//8
-			uint64_t fence_value;	//16
-			PageBundle* next;		//24
-			//PageBundle* previous;	//32 // possible for fragmentation performance
+			union
+			{
+				struct // empty state
+				{
+					uint32_t next_free_bundle;
+				};
+				struct // locked state
+				{
+					uint64_t fence_value;
+				};
+				struct // unlocked state
+				{
+					uint32_t next;
+					uint32_t previous;
+				};
+			};
+
+			const uint32_t bundle_index;
 		};
 
 		void* mem_start;
 		void* mem_end;
 
-		PageBundle* current_bundle;
-
-		uint32_t bundle_current;
-		PageBundle bundles[UPLOAD_BUNDLE_MAX];
-
-		uint32_t locked_bundle_current;
-		PageBundle locked_bundles[UPLOAD_BUNDLE_MAX];
+		PageBundle* free_bundles_head;
+		LinkedList<PageBundle> locked_bundles_head; // PageBundle::next here is different
 
 		BBRWLock lock;
 
@@ -139,38 +154,92 @@ namespace BB
 		RFence fence;
 		volatile uint64_t next_fence_value;
 		uint64_t last_completed_fence_value;
+
+		uint32_t next_free_bundle_index;
+		PageBundle bundles[UPLOAD_BUNDLE_MAX];
 	};
 
 	UploadBuffer GetUploadBuffer(UploadBufferPageSystem& a_page_system, const size_t a_size)
 	{
+		BB_ASSERT(a_size < UINT32_MAX, "trying to allocate more then UINT32_MAX");
 		const size_t page_requirement = a_size / UPLOAD_BUFFER_PAGE_SIZE;
 
 		OSAcquireSRWLockWrite(&a_page_system.lock);
 
-		UploadBufferPageSystem::PageBundle* bundle = a_page_system.current_bundle;
+		UploadBufferPageSystem::PageBundle* bundle = a_page_system.free_bundles_head;
 		while (bundle->page_count < page_requirement)
 		{
-			BB_ASSERT(bundle->next == nullptr, "next is nullptr, memory is turbo fragmented or just not enough");
-			bundle = bundle->next;
+			BB_ASSERT(bundle->next != INVALID_UPLOAD_BUNDLE_INDEX, "next_bundle is invalid, memory is turbo fragmented or just not enough");
+			bundle = &a_page_system.bundles[bundle->next];
 		}
 
 		UploadBuffer upload_buffer{};
 		upload_buffer.begin = Pointer::Add(a_page_system.mem_start, bundle->page_index * UPLOAD_BUFFER_PAGE_SIZE);
 		upload_buffer.end = Pointer::Add(upload_buffer.begin, page_requirement * UPLOAD_BUFFER_PAGE_SIZE);
-		upload_buffer.at = upload_buffer.begin;
+		upload_buffer.used = 0;
 
 		bundle->page_index += page_requirement;
 		bundle->page_count -= page_requirement;
+
+		// if it's empty we remove the slot and set it to next free.
+		if (bundle->page_count == 0)
+		{
+			a_page_system.next_free_bundle_index = bundle->bundle_index;
+			a_page_system.bundles[bundle->previous].next = a_page_system.bundles[bundle->next].previous;
+
+			bundle->next_free_bundle = a_page_system.next_free_bundle_index;
+			a_page_system.next_free_bundle_index = bundle->bundle_index;
+		}
 
 		OSReleaseSRWLockWrite(&a_page_system.lock);
 		return upload_buffer;
 	}
 
-	void ReturnUploadBuffers(UploadBufferPageSystem& a_page_system, Slice<UploadBuffer> a_upload_buffers)
+	void ReturnUploadBuffers(MemoryArena& a_temp_arena, UploadBufferPageSystem& a_page_system, const Slice<UploadBuffer> a_upload_buffers, uint64_t& a_upload_fence_value, RFence& a_upload_fence)
 	{
-		OSAcquireSRWLockWrite(&a_page_system.lock);
+		struct Indices
+		{
+			uint32_t page_index;
+			uint32_t page_count;
+		};
+
+		Indices* page_indices = ArenaAllocArr(a_temp_arena, Indices, a_upload_buffers.size());
 
 		// translate the memory spaces to indices again.
+		for (size_t i = 0; i < a_upload_buffers.size(); i++)
+		{
+			const UploadBuffer& ub = a_upload_buffers[i];
+			Indices& pi = page_indices[i];
+
+			const size_t address_from_start = reinterpret_cast<size_t>(Pointer::Subtract(ub.begin, reinterpret_cast<size_t>(a_page_system.mem_start)));
+			pi.page_index = address_from_start / UPLOAD_BUFFER_PAGE_SIZE;
+			const size_t memory_size = reinterpret_cast<uintptr_t>(Pointer::Subtract(ub.end, reinterpret_cast<size_t>(ub.begin)));
+			pi.page_count = memory_size / UPLOAD_BUFFER_PAGE_SIZE;
+		}
+
+		// now do some operations that will touch internal state
+		OSAcquireSRWLockWrite(&a_page_system.lock);
+
+		a_upload_fence = a_page_system.fence;
+		a_upload_fence_value = a_page_system.next_fence_value++;
+
+		for (size_t i = 0; i < a_upload_buffers.size(); i++)
+		{
+			const UploadBuffer& ub = a_upload_buffers[i];
+			const Indices& pi = page_indices[i];
+
+			const uint32_t free_page_bundle = a_page_system.next_free_bundle_index;
+			BB_ASSERT(free_page_bundle != INVALID_UPLOAD_BUNDLE_INDEX, "invalid page bundle");
+
+			UploadBufferPageSystem::PageBundle& write_bundle = a_page_system.bundles[free_page_bundle];
+			a_page_system.next_free_bundle_index = write_bundle.next_free_bundle;
+
+			write_bundle.page_index = pi.page_index;
+			write_bundle.page_count = pi.page_count;
+			// TODO LATER 
+			;...
+
+		}
 
 		OSReleaseSRWLockWrite(&a_page_system.lock);
 	}
