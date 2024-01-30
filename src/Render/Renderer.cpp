@@ -2,6 +2,7 @@
 #include "VulkanRenderer.hpp"
 
 #include "Storage/Slotmap.h"
+#include "Storage/Queue.hpp"
 #include "Program.h"
 
 #include "ShaderCompiler.h"
@@ -101,152 +102,6 @@ private:
 
 namespace BB
 {
-
-	struct UploadBuffer
-	{
-		GPUBuffer gpu_buffer;
-		void* begin;
-		void* end;
-		uint32_t used;			// will we exceed 2 gb? maybe, assert for that.
-	};
-
-	constexpr size_t UPLOAD_BUFFER_PAGE_SIZE = kbSize * 4;
-	// how many bundles we will make
-	constexpr size_t UPLOAD_BUNDLE_MAX = 4096;
-	constexpr size_t UPLOAD_LOCKED_BUNDLE_MAX = UPLOAD_BUNDLE_MAX / 2;
-
-	constexpr uint32_t INVALID_UPLOAD_BUNDLE_INDEX = UINT32_MAX;
-	struct UploadBufferPageSystem
-	{
-		struct PageBundle
-		{
-			uint32_t page_index;	//4
-			uint32_t page_count;	//8
-			union
-			{
-				struct // empty state
-				{
-					uint32_t next_free_bundle;
-				};
-				struct // locked state
-				{
-					uint64_t fence_value;
-				};
-				struct // unlocked state
-				{
-					uint32_t next;
-					uint32_t previous;
-				};
-			};
-
-			const uint32_t bundle_index;
-		};
-
-		void* mem_start;
-		void* mem_end;
-
-		PageBundle* free_bundles_head;
-		LinkedList<PageBundle> locked_bundles_head; // PageBundle::next here is different
-
-		BBRWLock lock;
-
-		// this fence should be send to all execute commandlists when they include a upload buffer from here.
-		RFence fence;
-		volatile uint64_t next_fence_value;
-		uint64_t last_completed_fence_value;
-
-		uint32_t next_free_bundle_index;
-		PageBundle bundles[UPLOAD_BUNDLE_MAX];
-	};
-
-	UploadBuffer GetUploadBuffer(UploadBufferPageSystem& a_page_system, const size_t a_size)
-	{
-		BB_ASSERT(a_size < UINT32_MAX, "trying to allocate more then UINT32_MAX");
-		const size_t page_requirement = a_size / UPLOAD_BUFFER_PAGE_SIZE;
-
-		OSAcquireSRWLockWrite(&a_page_system.lock);
-
-		UploadBufferPageSystem::PageBundle* bundle = a_page_system.free_bundles_head;
-		while (bundle->page_count < page_requirement)
-		{
-			BB_ASSERT(bundle->next != INVALID_UPLOAD_BUNDLE_INDEX, "next_bundle is invalid, memory is turbo fragmented or just not enough");
-			bundle = &a_page_system.bundles[bundle->next];
-		}
-
-		UploadBuffer upload_buffer{};
-		upload_buffer.begin = Pointer::Add(a_page_system.mem_start, bundle->page_index * UPLOAD_BUFFER_PAGE_SIZE);
-		upload_buffer.end = Pointer::Add(upload_buffer.begin, page_requirement * UPLOAD_BUFFER_PAGE_SIZE);
-		upload_buffer.used = 0;
-
-		bundle->page_index += page_requirement;
-		bundle->page_count -= page_requirement;
-
-		// if it's empty we remove the slot and set it to next free.
-		if (bundle->page_count == 0)
-		{
-			a_page_system.next_free_bundle_index = bundle->bundle_index;
-			a_page_system.bundles[bundle->previous].next = a_page_system.bundles[bundle->next].previous;
-
-			bundle->next_free_bundle = a_page_system.next_free_bundle_index;
-			a_page_system.next_free_bundle_index = bundle->bundle_index;
-		}
-
-		OSReleaseSRWLockWrite(&a_page_system.lock);
-		return upload_buffer;
-	}
-
-	void ReturnUploadBuffers(MemoryArena& a_temp_arena, UploadBufferPageSystem& a_page_system, const Slice<UploadBuffer> a_upload_buffers, uint64_t& a_upload_fence_value, RFence& a_upload_fence)
-	{
-		struct Indices
-		{
-			uint32_t page_index;
-			uint32_t page_count;
-		};
-
-		Indices* page_indices = ArenaAllocArr(a_temp_arena, Indices, a_upload_buffers.size());
-
-		// translate the memory spaces to indices again.
-		for (size_t i = 0; i < a_upload_buffers.size(); i++)
-		{
-			const UploadBuffer& ub = a_upload_buffers[i];
-			Indices& pi = page_indices[i];
-
-			const size_t address_from_start = reinterpret_cast<size_t>(Pointer::Subtract(ub.begin, reinterpret_cast<size_t>(a_page_system.mem_start)));
-			pi.page_index = address_from_start / UPLOAD_BUFFER_PAGE_SIZE;
-			const size_t memory_size = reinterpret_cast<uintptr_t>(Pointer::Subtract(ub.end, reinterpret_cast<size_t>(ub.begin)));
-			pi.page_count = memory_size / UPLOAD_BUFFER_PAGE_SIZE;
-		}
-
-		// now do some operations that will touch internal state
-		OSAcquireSRWLockWrite(&a_page_system.lock);
-
-		a_upload_fence = a_page_system.fence;
-		a_upload_fence_value = a_page_system.next_fence_value++;
-
-		for (size_t i = 0; i < a_upload_buffers.size(); i++)
-		{
-			const UploadBuffer& ub = a_upload_buffers[i];
-			const Indices& pi = page_indices[i];
-
-			const uint32_t free_page_bundle = a_page_system.next_free_bundle_index;
-			BB_ASSERT(free_page_bundle != INVALID_UPLOAD_BUNDLE_INDEX, "invalid page bundle");
-
-			UploadBufferPageSystem::PageBundle& write_bundle = a_page_system.bundles[free_page_bundle];
-			a_page_system.next_free_bundle_index = write_bundle.next_free_bundle;
-
-			write_bundle.page_index = pi.page_index;
-			write_bundle.page_count = pi.page_count;
-			// TODO LATER 
-			;...
-
-		}
-
-		OSReleaseSRWLockWrite(&a_page_system.lock);
-	}
-
-	/// <summary>
-	/// Handles one large upload buffer and handles it as if it's seperate buffers by handling chunks.
-	/// </summary>
 	class UploadBufferPool
 	{
 	public:
@@ -405,6 +260,90 @@ void CommandPool::ResetPool()
 	BB_ASSERT(m_recording == false, "trying to reset a pool while still recording");
 	Vulkan::ResetCommandPool(m_api_cmd_pool);
 	m_list_current_free = 0;
+}
+
+constexpr size_t RING_BUFFER_QUEUE_ELEMENT_COUNT = 8;
+struct UploadRingAllocator
+{
+	struct LockedRegions
+	{
+		uint32_t pos;
+		uint32_t size;
+		uint64_t fence_value;
+	};
+
+	BBRWLock lock;
+	GPUBuffer buffer;
+	
+	void* begin;
+	void* free_until;
+	void* write_at;
+	void* end;
+	Queue<LockedRegions> locked_queue;
+};
+
+static UploadRingAllocator CreateUploadAllocator(MemoryArena& a_arena, const size_t a_ring_buffer_size, const char* a_name)
+{
+	GPUBufferCreateInfo create_info;
+	create_info.type = BUFFER_TYPE::UPLOAD;
+	create_info.size = a_ring_buffer_size;
+	create_info.name = a_name;
+	create_info.host_writable = true;
+
+
+	UploadRingAllocator upload_buffer;
+	upload_buffer.lock = OSCreateRWLock();
+	upload_buffer.buffer = Vulkan::CreateBuffer(create_info);
+	upload_buffer.begin = Vulkan::MapBufferMemory(upload_buffer.buffer);
+	upload_buffer.write_at = upload_buffer.begin;
+	upload_buffer.end = Pointer::Add(upload_buffer.begin, a_ring_buffer_size);
+	upload_buffer.free_until = upload_buffer.end;
+	upload_buffer.locked_queue.Init(a_arena, RING_BUFFER_QUEUE_ELEMENT_COUNT);
+	return upload_buffer;
+}
+
+static size_t GetUploadAllocatorCapacity(const UploadRingAllocator& a_upload_allocator)
+{
+	return reinterpret_cast<size_t>(a_upload_allocator.end) - reinterpret_cast<size_t>(a_upload_allocator.begin);
+}
+
+struct UploadBuffer
+{
+	void* begin;
+	void* end;
+};
+
+static UploadBuffer GetUploadBuffer(UploadRingAllocator& a_upload_allocator, const size_t a_byte_amount)
+{
+	BB_ASSERT(a_byte_amount < GetUploadAllocatorCapacity(a_upload_allocator), "trying to upload more memory then the ringbuffer size");
+	void* begin = a_upload_allocator.write_at;
+	void* end = Pointer::Add(a_upload_allocator.write_at, a_byte_amount);
+
+	bool safe_to_allocate = end < a_upload_allocator.free_until ? true : false;
+
+	// if we go over the end, but not over the readpointer then recalculate
+	if (end > a_upload_allocator.end)
+	{
+		void* begin = a_upload_allocator.begin;
+		end = Pointer::Add(a_upload_allocator.begin, a_byte_amount);
+		// is free_until larger then end? if yes then we can allocate without waiting
+		safe_to_allocate = end < a_upload_allocator.free_until ? true : false;
+	}
+
+	if (safe_to_allocate)
+	{
+		// fence value wait
+
+		while ()
+		{
+
+		}
+	}
+
+	UploadBuffer upload_buffer;
+	upload_buffer.begin = begin;
+	upload_buffer.end = end;
+	return upload_buffer;
 }
 
 //THREAD SAFE: TRUE

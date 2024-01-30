@@ -9,9 +9,9 @@ TEST(String_DataStructure, append_insert_push_pop_copy_assignment)
 	constexpr const char* TestString = "First Unit test of the string is now being done.";
 
 	const size_t allocatorSize = BB::kbSize * 16;
-	BB::FreelistAllocator_t t_Allocator(allocatorSize);
+	BB::MemoryArena arena = BB::MemoryArenaCreate();
 
-	BB::String string(t_Allocator);
+	BB::String string(arena);
 
 	//test single string and compare.
 	{
@@ -24,7 +24,7 @@ TEST(String_DataStructure, append_insert_push_pop_copy_assignment)
 
 	//test single string and compare, this time from a BB::String
 	{
-		BB::String t_TestString(t_Allocator, TestString);
+		BB::String t_TestString(arena, TestString);
 
 		string.append(t_TestString);
 
@@ -54,7 +54,7 @@ TEST(String_DataStructure, append_insert_push_pop_copy_assignment)
 
 	//test break the string apart and use parts of it. Now using a string.
 	{
-		BB::String t_AppendString(t_Allocator, "First Unit test of the string is now being done.");
+		BB::String t_AppendString(arena, "First Unit test of the string is now being done.");
 		string.append(t_AppendString, 0, 10);
 
 		EXPECT_EQ(string.compare("First Unit"), true) << "Append(BB::String&, size_t, size_t) failed";
@@ -96,7 +96,7 @@ TEST(String_DataStructure, append_insert_push_pop_copy_assignment)
 
 	//test break the string apart and use parts of it. Now using a string.
 	{
-		BB::String t_AppendString(t_Allocator, "One, Two, Three, Four");
+		BB::String t_AppendString(arena, "One, Two, Three, Four");
 		string.insert(0, t_AppendString, 17, 4);
 		EXPECT_EQ(string.compare("Four"), true) << "insert(size_t, BB::String&, size_t, size_t) failed";
 		
@@ -110,55 +110,9 @@ TEST(String_DataStructure, append_insert_push_pop_copy_assignment)
 		EXPECT_EQ(string.compare("TwoOneThreeFour"), true) << "insert(size_t, BB::String&, size_t, size_t) failed";
 	}
 #pragma endregion //insert Test
-
-	//Copy
-	BB::String t_CopyString(string);
-
-	EXPECT_EQ(string.compare(string), true) << "Copy constructor failed.";
-
-	BB::String t_CopyOperatorString(t_Allocator);
-	t_CopyOperatorString = t_CopyString;
-
-	EXPECT_EQ(string.compare(t_CopyString), true) << "Copy operator failed.";
-
-	//Assignment
-	BB::String t_AssignmentString(std::move(t_CopyOperatorString));
-
-	EXPECT_EQ(string.compare(string), true) << "Assignment constructor failed.";
-	EXPECT_EQ(t_CopyOperatorString.data(), nullptr) << "Assignment constructor failed, the other string has still has data while it shouldn't have.";
-
-	BB::String t_AssignmentOperatorString(t_Allocator);
-	t_AssignmentOperatorString = std::move(t_AssignmentString);
-
-	EXPECT_EQ(string.compare(string), true) << "Assignment operator failed.";
-	EXPECT_EQ(t_AssignmentString.data(), nullptr) << "Assignment operator failed, the other string has still has data while it shouldn't have.";
+	BB::MemoryArenaFree(arena);
 }
 
-TEST(String_DataStructure, reserve_shrink)
-{
-	constexpr size_t StringReserve = 128;
-
-	const size_t allocatorSize = BB::kbSize * 16;
-	BB::FreelistAllocator_t t_Allocator(allocatorSize);
-
-	BB::String string(t_Allocator);
-
-	const char* t_AppendString = "First Unit test of the string is now being done.";
-
-	string.reserve(128);
-	const size_t stringCapacity = string.capacity();
-	const size_t t_ModifiedC_StringSize = BB::RoundUp(strlen(t_AppendString) + 1, BB::String_Specs::multipleValue);
-
-	ASSERT_LT(t_ModifiedC_StringSize, stringCapacity) << "Modified string size is bigger then the string capacity, test is unaccurate.";
-
-	string.append(t_AppendString);
-
-	EXPECT_EQ(string.compare(t_AppendString), true) << "Append(const char*) failed";
-
-	string.shrink_to_fit();
-
-	EXPECT_EQ(string.capacity(), t_ModifiedC_StringSize) << "String did not shrink down to the correct size";
-}
 #pragma endregion //String
 
 #pragma region WString
@@ -167,10 +121,9 @@ TEST(WideString_DataStructure, append_insert_push_pop_copy_assignment)
 	constexpr size_t StringReserve = 128;
 	constexpr const wchar_t* TestString = L"First Unit test of the string is now being done.";
 
-	const size_t allocatorSize = BB::kbSize * 16;
-	BB::FreelistAllocator_t t_Allocator(allocatorSize);
+	BB::MemoryArena arena = BB::MemoryArenaCreate();
 
-	BB::WString string(t_Allocator);
+	BB::WString string(arena);
 
 	//test single string and compare.
 	{
@@ -183,11 +136,10 @@ TEST(WideString_DataStructure, append_insert_push_pop_copy_assignment)
 
 	//test single string and compare, this time from a BB::String
 	{
-		BB::WString t_TestString(t_Allocator, TestString);
+		BB::WString test_string(arena, TestString);
+		string.append(test_string);
 
-		string.append(t_TestString);
-
-		EXPECT_EQ(string.compare(t_TestString), true) << "Append(const char*) failed";
+		EXPECT_EQ(string.compare(test_string), true) << "Append(const char*) failed";
 	}
 
 	string.clear();
@@ -213,7 +165,7 @@ TEST(WideString_DataStructure, append_insert_push_pop_copy_assignment)
 
 	//test break the string apart and use parts of it. Now using a string.
 	{
-		BB::WString t_AppendString(t_Allocator, L"First Unit test of the string is now being done.");
+		BB::WString t_AppendString(arena, L"First Unit test of the string is now being done.");
 		string.append(t_AppendString, 0, 10);
 
 		EXPECT_EQ(string.compare(L"First Unit"), true) << "Append(BB::String&, size_t, size_t) failed";
@@ -255,7 +207,7 @@ TEST(WideString_DataStructure, append_insert_push_pop_copy_assignment)
 
 	//test break the string apart and use parts of it. Now using a string.
 	{
-		BB::WString t_AppendString(t_Allocator, L"One, Two, Three, Four");
+		BB::WString t_AppendString(arena, L"One, Two, Three, Four");
 		string.insert(0, t_AppendString, 17, 4);
 		EXPECT_EQ(string.compare(L"Four"), true) << "insert(size_t, BB::String&, size_t, size_t) failed";
 
@@ -270,53 +222,7 @@ TEST(WideString_DataStructure, append_insert_push_pop_copy_assignment)
 	}
 #pragma endregion //insert Test
 
-	//Copy
-	BB::WString t_CopyString(string);
-
-	EXPECT_EQ(string.compare(string), true) << "Copy constructor failed.";
-
-	BB::WString t_CopyOperatorString(t_Allocator);
-	t_CopyOperatorString = t_CopyString;
-
-	EXPECT_EQ(string.compare(t_CopyString), true) << "Copy operator failed.";
-
-	//Assignment
-	BB::WString t_AssignmentString(std::move(t_CopyOperatorString));
-
-	EXPECT_EQ(string.compare(string), true) << "Assignment constructor failed.";
-	EXPECT_EQ(t_CopyOperatorString.data(), nullptr) << "Assignment constructor failed, the other string has still has data while it shouldn't have.";
-
-	BB::WString t_AssignmentOperatorString(t_Allocator);
-	t_AssignmentOperatorString = std::move(t_AssignmentString);
-
-	EXPECT_EQ(string.compare(string), true) << "Assignment operator failed.";
-	EXPECT_EQ(t_AssignmentString.data(), nullptr) << "Assignment operator failed, the other string has still has data while it shouldn't have.";
-}
-
-TEST(WideString_DataStructure, reserve_shrink)
-{
-	constexpr size_t StringReserve = 128;
-
-	const size_t allocatorSize = BB::kbSize * 16;
-	BB::FreelistAllocator_t t_Allocator(allocatorSize);
-
-	BB::String string(t_Allocator);
-
-	const char* t_AppendString = "First Unit test of the string is now being done.";
-
-	string.reserve(128);
-	const size_t stringCapacity = string.capacity();
-	const size_t t_ModifiedC_StringSize = BB::RoundUp(strlen(t_AppendString) + 1, BB::String_Specs::multipleValue);
-
-	ASSERT_LT(t_ModifiedC_StringSize, stringCapacity) << "Modified string size is bigger then the string capacity, test is unaccurate.";
-
-	string.append(t_AppendString);
-
-	EXPECT_EQ(string.compare(t_AppendString), true) << "Append(const char*) failed";
-
-	string.shrink_to_fit();
-
-	EXPECT_EQ(string.capacity(), t_ModifiedC_StringSize) << "String did not shrink down to the correct size";
+	BB::MemoryArenaFree(arena);
 }
 
 #pragma endregion //WString

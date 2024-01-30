@@ -14,9 +14,9 @@ TEST(BBjson, Small_Local_Memory_JSON)
 }
 	)";
 
-	BB::FreelistAllocator_t t_Allocator{ BB::mbSize * 2 };
+	BB::MemoryArena arena = BB::MemoryArenaCreate();
 	BB::Buffer t_JsonBuffer{ t_JsonFile,  _countof(t_JsonFile) };
-	BB::String t_JsonString{ t_Allocator, BB::mbSize * 2 };
+	BB::String t_JsonString{ arena, BB::mbSize * 2 };
 
 	{
 		BB::JsonParser t_Parser(t_JsonBuffer);
@@ -39,15 +39,15 @@ TEST(BBjson, Small_Local_Memory_JSON)
 	}
 	//call the destructor as I want to clear the allocator.
 	t_JsonString.~Basic_String();
-	t_Allocator.Clear();
+	BB::MemoryArenaFree(arena);
 }
 
 TEST(BBjson, Big_Disk_JSON)
 {
 	const char* a_JsonPath = "Resources/unittest_2.json";
 
-	BB::FreelistAllocator_t t_Allocator{ BB::mbSize * 2 };
-	BB::String t_JsonString{ t_Allocator, BB::mbSize * 2 };
+	BB::MemoryArena arena = BB::MemoryArenaCreate();
+	BB::String t_JsonString{ arena, BB::mbSize * 2 };
 
 	{
 		BB::JsonParser t_Parser(a_JsonPath);
@@ -71,5 +71,5 @@ TEST(BBjson, Big_Disk_JSON)
 
 	//call the destructor as I want to clear the allocator.
 	t_JsonString.~Basic_String();
-	t_Allocator.Clear();
+	BB::MemoryArenaFree(arena);
 }

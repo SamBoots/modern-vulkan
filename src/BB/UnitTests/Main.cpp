@@ -16,8 +16,8 @@ using namespace BB;
 int main(int argc, char** argv)
 {
 	BBInitInfo t_BBInitInfo;
-	t_BBInitInfo.exePath = argv[0];
-	t_BBInitInfo.programName = L"BB_UNIT_TEST";
+	t_BBInitInfo.exe_path = argv[0];
+	t_BBInitInfo.program_name = L"BB_UNIT_TEST";
 	InitBB(t_BBInitInfo);
 
 	Threads::InitThreads(8);
@@ -30,7 +30,7 @@ int main(int argc, char** argv)
 	Logger::EnableLogTypes(UINT32_MAX);
 
 	bool hasWindows = true;
-	InputEvent t_InputEvents[INPUT_EVENbuffer_MAX]{};
+	InputEvent t_InputEvents[INPUT_EVENT_BUFFER_MAX]{};
 	size_t t_InputEventCount = 0;
 	while (hasWindows)
 	{

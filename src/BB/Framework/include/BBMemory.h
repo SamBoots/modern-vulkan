@@ -131,7 +131,7 @@ namespace BB
 			BB_ASSERT(log->is_array, "BBTagAlloc tries to correct for an array write but the memory is not an array!");
 		}
 
-		log->tagName = a_tag_name;
+		log->tag_name = a_tag_name;
 	}
 }
 #pragma endregion // AllocationFunctions

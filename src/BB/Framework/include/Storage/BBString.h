@@ -42,7 +42,7 @@ namespace BB
 			m_capacity = RoundUp(a_size + 1, String_Specs::multiple_value);
 			m_size = a_size;
 
-			m_string = reinterpret_cast<CharT*>(ArenaAlloArrc(a_arena, CharT, m_capacity));
+			m_string = reinterpret_cast<CharT*>(ArenaAllocArr(a_arena, CharT, m_capacity));
 			Memory::Copy(m_string, a_string, a_size);
 			Memory::Set(m_string + a_size, NULL, m_capacity - a_size);
 		}
