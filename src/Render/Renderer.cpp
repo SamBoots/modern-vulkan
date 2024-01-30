@@ -267,12 +267,13 @@ struct UploadRingAllocator
 {
 	struct LockedRegions
 	{
-		uint32_t pos;
-		uint32_t size;
+		void* memory_end;
 		uint64_t fence_value;
 	};
 
 	BBRWLock lock;
+	RFence fence;
+	//uint64_t last_fence_value;
 	GPUBuffer buffer;
 	
 	void* begin;
@@ -282,7 +283,7 @@ struct UploadRingAllocator
 	Queue<LockedRegions> locked_queue;
 };
 
-static UploadRingAllocator CreateUploadAllocator(MemoryArena& a_arena, const size_t a_ring_buffer_size, const char* a_name)
+static UploadRingAllocator CreateUploadAllocator(MemoryArena& a_arena, const size_t a_ring_buffer_size, const RFence a_fence, const char* a_name)
 {
 	GPUBufferCreateInfo create_info;
 	create_info.type = BUFFER_TYPE::UPLOAD;
@@ -290,9 +291,10 @@ static UploadRingAllocator CreateUploadAllocator(MemoryArena& a_arena, const siz
 	create_info.name = a_name;
 	create_info.host_writable = true;
 
-
 	UploadRingAllocator upload_buffer;
 	upload_buffer.lock = OSCreateRWLock();
+	upload_buffer.fence = a_fence;
+	//upload_buffer.last_fence_value = 0;
 	upload_buffer.buffer = Vulkan::CreateBuffer(create_info);
 	upload_buffer.begin = Vulkan::MapBufferMemory(upload_buffer.buffer);
 	upload_buffer.write_at = upload_buffer.begin;
@@ -313,9 +315,11 @@ struct UploadBuffer
 	void* end;
 };
 
-static UploadBuffer GetUploadBuffer(UploadRingAllocator& a_upload_allocator, const size_t a_byte_amount)
+static UploadBuffer GetUploadBuffer(UploadRingAllocator& a_upload_allocator, const size_t a_byte_amount, const uint64_t a_fence_value)
 {
 	BB_ASSERT(a_byte_amount < GetUploadAllocatorCapacity(a_upload_allocator), "trying to upload more memory then the ringbuffer size");
+	OSAcquireSRWLockWrite(&a_upload_allocator.lock);
+
 	void* begin = a_upload_allocator.write_at;
 	void* end = Pointer::Add(a_upload_allocator.write_at, a_byte_amount);
 
@@ -332,13 +336,27 @@ static UploadBuffer GetUploadBuffer(UploadRingAllocator& a_upload_allocator, con
 
 	if (safe_to_allocate)
 	{
-		// fence value wait
-
-		while ()
+		// unoptimized, 
+		const uint64_t fence_value = Vulkan::GetCurrentFenceValue(a_upload_allocator.fence);
+		
+		while (const UploadRingAllocator::LockedRegions* locked_region = a_upload_allocator.locked_queue.Peek())
 		{
-
+			if (locked_region->fence_value <= fence_value)
+			{
+				a_upload_allocator.free_until = locked_region->memory_end;
+				a_upload_allocator.locked_queue.DeQueue();
+			}
+			else
+				break;
 		}
 	}
+
+	UploadRingAllocator::LockedRegions locked_region;
+	locked_region.memory_end = end;
+	locked_region.fence_value = a_fence_value;
+	a_upload_allocator.locked_queue.EnQueue(locked_region);
+
+	OSReleaseSRWLockWrite(&a_upload_allocator.lock);
 
 	UploadBuffer upload_buffer;
 	upload_buffer.begin = begin;
@@ -659,7 +677,9 @@ struct RenderInterface_inst
 
 	ShaderCompiler shader_compiler;
 
+	//UploadRingAllocator graphics_upload_allocator;
 	RenderQueue graphics_queue;
+
 	UploadBufferPool upload_buffers;
 	GPUTextureManager texture_manager;
 
