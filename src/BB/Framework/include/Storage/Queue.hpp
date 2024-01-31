@@ -11,14 +11,14 @@ namespace BB
 		void Init(MemoryArena& a_arena, const size_t a_element_count)
 		{
 			m_begin = ArenaAllocArr(a_arena, T, a_element_count);
-			m_end = Pointer::Add(m_begin, sizeof(T) * a_element_count);
+			m_end = m_begin + a_element_count;
 			m_front_queue = -1u;
 			m_back_queue = 0;
 		}
 
 		void EnQueue(T& a_element)
 		{
-			BB_ASSERT(IsFull(), "trying to add a queue element while the queue is full");
+			BB_ASSERT(!IsFull(), "trying to add a queue element while the queue is full");
 
 			// if we are empty then set all elements back to the beginning of the memory
 			if (IsEmpty())
@@ -27,22 +27,22 @@ namespace BB
 				m_back_queue = 0;
 			}
 
-			m_back_queue[0] = a_element;
+			m_begin[m_back_queue] = a_element;
 
 			if (&m_begin[++m_back_queue] == m_end)
-				m_back_queue = m_begin;
+				m_back_queue = 0;
 		}
 
 		void DeQueue()
 		{
-			BB_ASSERT(IsEmpty(), "trying to remove a queue element while the queue is empty");
+			BB_ASSERT(!IsEmpty(), "trying to remove a queue element while the queue is empty");
 
 			if (&m_begin[++m_front_queue] == m_end)
-				m_front_queue = m_begin;
+				m_front_queue = 0;
 
 			if (m_front_queue == m_back_queue)
 			{
-				m_front_queue = -1u
+				m_front_queue = -1u;
 			}
 		}
 
@@ -50,7 +50,7 @@ namespace BB
 		{
 			if (IsEmpty())
 				return nullptr;
-			return &m_front_queue[0]; 
+			return &m_begin[m_front_queue];
 		}
 
 		inline bool IsEmpty() const 
@@ -60,10 +60,10 @@ namespace BB
 
 		inline bool IsFull() const 
 		{ 
-			return return m_front_queue == m_back_queue;
+			return m_front_queue == m_back_queue;
 		}
 
-		inline const size_t Capacity() const { return reinterpret_cast<size_t>(Pointer::Subtract(m_end, reinterpret_cast<size_t>(m_begin))); }
+		inline size_t Capacity() const { return reinterpret_cast<size_t>(Pointer::Subtract(m_end, reinterpret_cast<size_t>(m_begin))); }
 
 	private:
 		T* m_begin;

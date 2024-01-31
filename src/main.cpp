@@ -302,7 +302,6 @@ struct ThreadFuncForDrawing_Params
 	Viewport& viewport;
 	SceneHierarchy& scene_hierarchy;
 	RCommandList command_list;
-	UploadBufferView& upload_view;
 };
 
 static void ThreadFuncForDrawing(void* a_param)
@@ -312,11 +311,10 @@ static void ThreadFuncForDrawing(void* a_param)
 	Viewport& viewport = param_in->viewport;
 	SceneHierarchy& scene_hierarchy = param_in->scene_hierarchy;
 	RCommandList list = param_in->command_list;
-	UploadBufferView& upload_view = param_in->upload_view;
 
 	StartRenderTarget(list, viewport.render_target);
 
-	scene_hierarchy.DrawSceneHierarchy(list, upload_view, viewport.render_target, viewport.extent, int2{ {0, 0} });
+	scene_hierarchy.DrawSceneHierarchy(list, viewport.render_target, viewport.extent, int2{ {0, 0} });
 
 	EndRenderTarget(list, viewport.render_target);
 }
@@ -619,8 +617,7 @@ int main(int argc, char** argv)
 		ThreadFuncForDrawing_Params main_scene_params{
 			viewport_scene,
 			scene_hierarchy,
-			main_list,
-			upload_buffer_view[0]
+			main_list
 		};
 
 		const RCommandList object_viewer_list = graphics_command_pools[1].StartCommandList();
@@ -628,8 +625,7 @@ int main(int argc, char** argv)
 		ThreadFuncForDrawing_Params object_viewer_params{
 			viewport_object_viewer,
 			object_viewer_scene,
-			object_viewer_list,
-			upload_buffer_view[1]
+			object_viewer_list
 		};
 
 		ThreadTask main_scene_task = Threads::StartTaskThread(ThreadFuncForDrawing, &main_scene_params);

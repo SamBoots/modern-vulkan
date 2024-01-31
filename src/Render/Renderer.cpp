@@ -262,113 +262,112 @@ void CommandPool::ResetPool()
 	m_list_current_free = 0;
 }
 
-constexpr size_t RING_BUFFER_QUEUE_ELEMENT_COUNT = 8;
-struct UploadRingAllocator
+struct UploadBuffer
 {
+	GPUBuffer buffer;
+	void* begin;
+	void* end;
+};
+
+constexpr size_t RING_BUFFER_QUEUE_ELEMENT_COUNT = 8;
+class UploadRingAllocator
+{
+public:
+	void Init(MemoryArena& a_arena, const size_t a_ring_buffer_size, const RFence a_fence, const char* a_name)
+	{
+		GPUBufferCreateInfo create_info;
+		create_info.type = BUFFER_TYPE::UPLOAD;
+		create_info.size = a_ring_buffer_size;
+		create_info.name = a_name;
+		create_info.host_writable = true;
+
+		m_lock = OSCreateRWLock();
+		m_fence = a_fence;
+		m_buffer = Vulkan::CreateBuffer(create_info);
+		m_begin = Vulkan::MapBufferMemory(m_buffer);
+		m_write_at = m_begin;
+		m_end = Pointer::Add(m_begin, a_ring_buffer_size);
+		m_free_until = m_end;
+		m_locked_queue.Init(a_arena, RING_BUFFER_QUEUE_ELEMENT_COUNT);
+	}
+
+	UploadBuffer AllocateUploadMemory(const size_t a_byte_amount, const uint64_t a_fence_value)
+	{
+		BB_ASSERT(a_byte_amount < GetUploadAllocatorCapacity(), "trying to upload more memory then the ringbuffer size");
+		OSAcquireSRWLockWrite(&m_lock);
+
+		void* begin = m_write_at;
+		void* end = Pointer::Add(m_write_at, a_byte_amount);
+
+		bool safe_to_allocate = end < m_free_until ? true : false;
+
+		// if we go over the end, but not over the readpointer then recalculate
+		if (end > m_end)
+		{
+			begin = m_begin;
+			end = Pointer::Add(m_begin, a_byte_amount);
+			// is free_until larger then end? if yes then we can allocate without waiting
+			safe_to_allocate = end < m_free_until ? true : false;
+		}
+
+		if (safe_to_allocate)
+		{
+			// unoptimized, 
+			const uint64_t fence_value = Vulkan::GetCurrentFenceValue(m_fence);
+
+			while (const UploadRingAllocator::LockedRegions* locked_region = m_locked_queue.Peek())
+			{
+				if (locked_region->fence_value <= fence_value)
+				{
+					m_free_until = locked_region->memory_end;
+					m_locked_queue.DeQueue();
+				}
+				else
+					break;
+			}
+		}
+
+		UploadRingAllocator::LockedRegions locked_region;
+		locked_region.memory_end = end;
+		locked_region.fence_value = a_fence_value;
+		m_locked_queue.EnQueue(locked_region);
+
+		OSReleaseSRWLockWrite(&m_lock);
+
+		UploadBuffer upload_buffer;
+		upload_buffer.buffer = m_buffer;
+		upload_buffer.begin = begin;
+		upload_buffer.end = end;
+		return upload_buffer;
+	}
+
+	size_t GetUploadAllocatorCapacity() const
+	{
+		return reinterpret_cast<size_t>(m_end) - reinterpret_cast<size_t>(m_begin);
+	}
+
+private:
 	struct LockedRegions
 	{
 		void* memory_end;
 		uint64_t fence_value;
 	};
 
-	BBRWLock lock;
-	RFence fence;
-	//uint64_t last_fence_value;
-	GPUBuffer buffer;
+	BBRWLock m_lock;
+	RFence m_fence;
+	GPUBuffer m_buffer;
 	
-	void* begin;
-	void* free_until;
-	void* write_at;
-	void* end;
-	Queue<LockedRegions> locked_queue;
+	void* m_begin;
+	void* m_free_until;
+	void* m_write_at;
+	void* m_end;
+	Queue<LockedRegions> m_locked_queue;
 };
-
-static UploadRingAllocator CreateUploadAllocator(MemoryArena& a_arena, const size_t a_ring_buffer_size, const RFence a_fence, const char* a_name)
-{
-	GPUBufferCreateInfo create_info;
-	create_info.type = BUFFER_TYPE::UPLOAD;
-	create_info.size = a_ring_buffer_size;
-	create_info.name = a_name;
-	create_info.host_writable = true;
-
-	UploadRingAllocator upload_buffer;
-	upload_buffer.lock = OSCreateRWLock();
-	upload_buffer.fence = a_fence;
-	//upload_buffer.last_fence_value = 0;
-	upload_buffer.buffer = Vulkan::CreateBuffer(create_info);
-	upload_buffer.begin = Vulkan::MapBufferMemory(upload_buffer.buffer);
-	upload_buffer.write_at = upload_buffer.begin;
-	upload_buffer.end = Pointer::Add(upload_buffer.begin, a_ring_buffer_size);
-	upload_buffer.free_until = upload_buffer.end;
-	upload_buffer.locked_queue.Init(a_arena, RING_BUFFER_QUEUE_ELEMENT_COUNT);
-	return upload_buffer;
-}
-
-static size_t GetUploadAllocatorCapacity(const UploadRingAllocator& a_upload_allocator)
-{
-	return reinterpret_cast<size_t>(a_upload_allocator.end) - reinterpret_cast<size_t>(a_upload_allocator.begin);
-}
-
-struct UploadBuffer
-{
-	void* begin;
-	void* end;
-};
-
-static UploadBuffer GetUploadBuffer(UploadRingAllocator& a_upload_allocator, const size_t a_byte_amount, const uint64_t a_fence_value)
-{
-	BB_ASSERT(a_byte_amount < GetUploadAllocatorCapacity(a_upload_allocator), "trying to upload more memory then the ringbuffer size");
-	OSAcquireSRWLockWrite(&a_upload_allocator.lock);
-
-	void* begin = a_upload_allocator.write_at;
-	void* end = Pointer::Add(a_upload_allocator.write_at, a_byte_amount);
-
-	bool safe_to_allocate = end < a_upload_allocator.free_until ? true : false;
-
-	// if we go over the end, but not over the readpointer then recalculate
-	if (end > a_upload_allocator.end)
-	{
-		void* begin = a_upload_allocator.begin;
-		end = Pointer::Add(a_upload_allocator.begin, a_byte_amount);
-		// is free_until larger then end? if yes then we can allocate without waiting
-		safe_to_allocate = end < a_upload_allocator.free_until ? true : false;
-	}
-
-	if (safe_to_allocate)
-	{
-		// unoptimized, 
-		const uint64_t fence_value = Vulkan::GetCurrentFenceValue(a_upload_allocator.fence);
-		
-		while (const UploadRingAllocator::LockedRegions* locked_region = a_upload_allocator.locked_queue.Peek())
-		{
-			if (locked_region->fence_value <= fence_value)
-			{
-				a_upload_allocator.free_until = locked_region->memory_end;
-				a_upload_allocator.locked_queue.DeQueue();
-			}
-			else
-				break;
-		}
-	}
-
-	UploadRingAllocator::LockedRegions locked_region;
-	locked_region.memory_end = end;
-	locked_region.fence_value = a_fence_value;
-	a_upload_allocator.locked_queue.EnQueue(locked_region);
-
-	OSReleaseSRWLockWrite(&a_upload_allocator.lock);
-
-	UploadBuffer upload_buffer;
-	upload_buffer.begin = begin;
-	upload_buffer.end = end;
-	return upload_buffer;
-}
 
 //THREAD SAFE: TRUE
 class BB::RenderQueue
 {
 public:
-
 	RenderQueue(MemoryArena& a_arena, const QUEUE_TYPE a_queue_type, const char* a_name, const uint32_t a_command_pool_count, const uint32_t a_command_lists_per_pool)
 		:	m_pool_count(a_command_pool_count)
 	{
@@ -677,7 +676,7 @@ struct RenderInterface_inst
 
 	ShaderCompiler shader_compiler;
 
-	//UploadRingAllocator graphics_upload_allocator;
+	UploadRingAllocator frame_upload_allocator;
 	RenderQueue graphics_queue;
 
 	UploadBufferPool upload_buffers;
@@ -1565,6 +1564,9 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	s_render_inst->shader_effect_map.Init(a_arena, 32);
 	s_render_inst->material_map.Init(a_arena, 64);
 
+	s_render_inst->frame_upload_allocator.Init(a_arena, a_render_create_info.frame_upload_buffer_size, s_render_inst->graphics_queue.GetFence().fence, "frame upload allocator");
+	// do transfer upload allocator here
+
 	s_render_inst->shader_compiler = CreateShaderCompiler(a_arena);
 
 	MemoryArenaScope(a_arena)
@@ -2048,7 +2050,7 @@ void BB::StartRenderScene(const RenderScene3DHandle a_scene)
 	render_scene3d.draw_list_count = 0;
 }
 
-void BB::EndRenderScene(const RCommandList a_cmd_list, UploadBufferView& a_upload_buffer_view, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, bool a_skip)
+void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, bool a_skip)
 {
 	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
 	const auto& scene_frame = render_scene3d.frames[s_render_inst->render_io.frame_index];
@@ -2060,20 +2062,30 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, UploadBufferView& a_uploa
 
 	render_scene3d.scene_info.light_count = render_scene3d.light_container.size();
 
-	const uint32_t scene_upload_size = sizeof(Scene3DInfo);
-	const uint32_t matrices_upload_size = sizeof(ShaderTransform) * render_scene3d.draw_list_count;
-	const uint32_t light_upload_size = sizeof(Light) * render_scene3d.light_container.size();
+	const size_t scene_upload_size = sizeof(Scene3DInfo);
+	const size_t matrices_upload_size = sizeof(ShaderTransform) * render_scene3d.draw_list_count;
+	const size_t light_upload_size = sizeof(Light) * render_scene3d.light_container.size();
+	// optimize this
+	const size_t total_size = scene_upload_size + matrices_upload_size + light_upload_size;
 
-	uint32_t scene_offset = 0;
-	a_upload_buffer_view.AllocateAndMemoryCopy(&render_scene3d.scene_info, scene_upload_size, scene_offset);
-	uint32_t matrix_offset = 0;
-	a_upload_buffer_view.AllocateAndMemoryCopy(render_scene3d.draw_list_data.transform, matrices_upload_size, matrix_offset);
-	uint32_t light_offset = 0;
-	a_upload_buffer_view.AllocateAndMemoryCopy(render_scene3d.light_container.data(), light_upload_size, light_offset);
+	const UploadBuffer upload_buffer = s_render_inst->frame_upload_allocator.AllocateUploadMemory(total_size, scene_frame.fence_value + 1);
+
+	size_t bytes_uploaded = 0;
+	memcpy(Pointer::Add(upload_buffer.begin, bytes_uploaded), &render_scene3d.scene_info, scene_upload_size);
+	bytes_uploaded += scene_upload_size;
+	const size_t scene_offset = bytes_uploaded;
+
+	memcpy(Pointer::Add(upload_buffer.begin, bytes_uploaded), render_scene3d.draw_list_data.transform, matrices_upload_size);
+	bytes_uploaded += matrices_upload_size;
+	const size_t matrix_offset = bytes_uploaded;
+
+	memcpy(Pointer::Add(upload_buffer.begin, bytes_uploaded), render_scene3d.light_container.data(), light_upload_size);
+	bytes_uploaded += matrices_upload_size;
+	const size_t light_offset = bytes_uploaded;
 
 	//upload to some GPU buffer here.
 	RenderCopyBuffer matrix_buffer_copy;
-	matrix_buffer_copy.src = a_upload_buffer_view.GetBufferHandle();
+	matrix_buffer_copy.src = upload_buffer.buffer;
 	matrix_buffer_copy.dst = scene_frame.per_frame_buffer;
 	RenderCopyBufferRegion buffer_regions[3]; // 0 = scene, 1 = matrix
 	buffer_regions[0].src_offset = scene_offset;
