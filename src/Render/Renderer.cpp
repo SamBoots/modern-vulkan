@@ -269,7 +269,7 @@ struct UploadBuffer
 	void* end;
 };
 
-constexpr size_t RING_BUFFER_QUEUE_ELEMENT_COUNT = 8;
+constexpr size_t RING_BUFFER_QUEUE_ELEMENT_COUNT = 64;
 class UploadRingAllocator
 {
 public:
@@ -299,7 +299,7 @@ public:
 		void* begin = m_write_at;
 		void* end = Pointer::Add(m_write_at, a_byte_amount);
 
-		bool safe_to_allocate = end < m_free_until ? true : false;
+		bool must_free_memory = end > m_free_until ? true : false;
 
 		// if we go over the end, but not over the readpointer then recalculate
 		if (end > m_end)
@@ -307,12 +307,11 @@ public:
 			begin = m_begin;
 			end = Pointer::Add(m_begin, a_byte_amount);
 			// is free_until larger then end? if yes then we can allocate without waiting
-			safe_to_allocate = end < m_free_until ? true : false;
+			must_free_memory = end > m_free_until ? true : false;
 		}
 
-		if (safe_to_allocate)
+		if (must_free_memory)
 		{
-			// unoptimized, 
 			const uint64_t fence_value = Vulkan::GetCurrentFenceValue(m_fence);
 
 			while (const UploadRingAllocator::LockedRegions* locked_region = m_locked_queue.Peek())

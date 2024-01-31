@@ -14,6 +14,10 @@ namespace BB
 			m_end = m_begin + a_element_count;
 			m_front_queue = -1u;
 			m_back_queue = 0;
+
+#ifdef _DEBUG
+			m_size = 0;
+#endif // _DEBUG
 		}
 
 		void EnQueue(T& a_element)
@@ -31,6 +35,10 @@ namespace BB
 
 			if (&m_begin[++m_back_queue] == m_end)
 				m_back_queue = 0;
+
+#ifdef _DEBUG
+			++m_size;
+#endif // _DEBUG
 		}
 
 		void DeQueue()
@@ -44,6 +52,10 @@ namespace BB
 			{
 				m_front_queue = -1u;
 			}
+
+#ifdef _DEBUG
+			--m_size;
+#endif // _DEBUG
 		}
 
 		inline const T* Peek() const 
@@ -70,5 +82,8 @@ namespace BB
 		T* m_end;
 		uint32_t m_front_queue;
 		uint32_t m_back_queue;
+#ifdef _DEBUG
+		uint32_t m_size;
+#endif // _DEBUG
 	};
 }
