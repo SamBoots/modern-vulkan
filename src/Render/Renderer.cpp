@@ -310,6 +310,9 @@ public:
 			must_free_memory = end > m_free_until ? true : false;
 		}
 
+		if (m_locked_queue.IsFull())
+			must_free_memory = true;
+
 		if (must_free_memory)
 		{
 			const uint64_t fence_value = Vulkan::GetCurrentFenceValue(m_fence);
