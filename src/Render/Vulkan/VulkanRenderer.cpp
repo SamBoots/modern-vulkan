@@ -523,7 +523,7 @@ struct Vulkan_inst
 
 	//takes a VkHandle
 	StaticOL_HashMap<uintptr_t, VmaAllocation> allocation_map;
-	StaticOL_HashMap<uint64_t, VkPipelineLayout> pipeline_layout_cache;
+	StaticOL_HashMap<uintptr_t, VkPipelineLayout> pipeline_layout_cache;
 	
 	VulkanQueuesIndices queue_indices;
 	struct DeviceInfo
@@ -1449,11 +1449,16 @@ const RImage Vulkan::CreateImage(const ImageCreateInfo& a_create_info)
 
 void Vulkan::FreeImage(const RImage a_image)
 {
-	const VmaAllocation allocation = *s_vulkan_inst->allocation_map.find(a_image.handle);
+	const VmaAllocation* allocation = s_vulkan_inst->allocation_map.find(a_image.handle);
+	if (allocation == nullptr)
+	{
+		BB_WARNING(false, "Trying to find VmaAllocation but it returns nullptr, possibly leaking an image or trying to delete an image that does not exist!", WarningType::HIGH);
+		return;
+	}
 	vmaDestroyImage(s_vulkan_inst->vma,
 		reinterpret_cast<VkImage>(a_image.handle),
-		allocation);
-
+		*allocation);
+	
 	s_vulkan_inst->allocation_map.erase(a_image.handle);
 }
 

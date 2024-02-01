@@ -67,8 +67,8 @@ public:
 			for (uint32_t i = 0; i < MAX_TEXTURES; i++)
 			{
 				const TextureSlot& slot = m_textures[i];
-
-				if (ImGui::TreeNodeEx(reinterpret_cast<void*>(i), 0, "Texture Slot: %u", i))
+				const size_t id = i;
+				if (ImGui::TreeNodeEx(reinterpret_cast<void*>(id), 0, "Texture Slot: %u", i))
 				{
 					ImGui::Indent();
 					if (slot.name != nullptr)
@@ -264,9 +264,18 @@ void CommandPool::ResetPool()
 
 struct UploadBuffer
 {
+	void UploadBufferSafeMemcpy(const size_t a_dest_offset, const void* a_src, const size_t a_src_size) const
+	{
+		void* copy_pos = Pointer::Add(begin, a_dest_offset);
+		BB_ASSERT(Pointer::Add(copy_pos, a_src_size) <= end, "gpu upload buffer writing out of bounds");
+
+		memcpy(copy_pos, a_src, a_src_size);
+	}
+
 	GPUBuffer buffer;
 	void* begin;
 	void* end;
+	size_t base_offset;
 };
 
 constexpr size_t RING_BUFFER_QUEUE_ELEMENT_COUNT = 64;
@@ -333,6 +342,7 @@ public:
 		locked_region.memory_end = end;
 		locked_region.fence_value = a_fence_value;
 		m_locked_queue.EnQueue(locked_region);
+		m_write_at = end;
 
 		OSReleaseSRWLockWrite(&m_lock);
 
@@ -340,6 +350,7 @@ public:
 		upload_buffer.buffer = m_buffer;
 		upload_buffer.begin = begin;
 		upload_buffer.end = end;
+		upload_buffer.base_offset = reinterpret_cast<size_t>(Pointer::Subtract(begin, reinterpret_cast<size_t>(m_begin)));
 		return upload_buffer;
 	}
 
@@ -2073,17 +2084,17 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 	const UploadBuffer upload_buffer = s_render_inst->frame_upload_allocator.AllocateUploadMemory(total_size, scene_frame.fence_value + 1);
 
 	size_t bytes_uploaded = 0;
-	memcpy(Pointer::Add(upload_buffer.begin, bytes_uploaded), &render_scene3d.scene_info, scene_upload_size);
+	upload_buffer.UploadBufferSafeMemcpy(bytes_uploaded, &render_scene3d.scene_info, scene_upload_size);
+	const size_t scene_offset = bytes_uploaded + upload_buffer.base_offset;
 	bytes_uploaded += scene_upload_size;
-	const size_t scene_offset = bytes_uploaded;
 
-	memcpy(Pointer::Add(upload_buffer.begin, bytes_uploaded), render_scene3d.draw_list_data.transform, matrices_upload_size);
+	upload_buffer.UploadBufferSafeMemcpy(bytes_uploaded, render_scene3d.draw_list_data.transform, matrices_upload_size);
+	const size_t matrix_offset = bytes_uploaded + upload_buffer.base_offset;
 	bytes_uploaded += matrices_upload_size;
-	const size_t matrix_offset = bytes_uploaded;
 
-	memcpy(Pointer::Add(upload_buffer.begin, bytes_uploaded), render_scene3d.light_container.data(), light_upload_size);
-	bytes_uploaded += matrices_upload_size;
-	const size_t light_offset = bytes_uploaded;
+	upload_buffer.UploadBufferSafeMemcpy(bytes_uploaded, render_scene3d.light_container.data(), light_upload_size);
+	const size_t light_offset = bytes_uploaded + upload_buffer.base_offset;
+	bytes_uploaded += light_upload_size;
 
 	//upload to some GPU buffer here.
 	RenderCopyBuffer matrix_buffer_copy;
@@ -2499,7 +2510,7 @@ bool BB::ReloadShaderEffect(const ShaderEffectHandle a_shader_effect)
 	ShaderEffect& old_effect = s_render_inst->shader_effect_map.find(a_shader_effect);
 	Vulkan::DestroyShaderObject(old_effect.shader_object);
 
-	ShaderCode shader_code = CompileShader(s_render_inst->shader_compiler,
+	const ShaderCode shader_code = CompileShader(s_render_inst->shader_compiler,
 		old_effect.shader_path,
 		old_effect.shader_entry,
 		old_effect.shader_stage);
