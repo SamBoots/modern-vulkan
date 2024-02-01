@@ -399,7 +399,7 @@ int main(int argc, char** argv)
 		viewport_scene = CreateViewport(main_arena, window_extent, uint2(), "game scene");
 		viewport_object_viewer = CreateViewport(main_arena, window_extent / 2u, uint2(), "object viewer");
 		startup_pool.EndCommandList(startup_list);
-		ExecuteGraphicCommands(Slice(&startup_pool, 1), Slice<UploadBufferView>());
+		ExecuteGraphicCommands(Slice(&startup_pool, 1));
 	}
 
 	scene_hierarchy.SetClearColor(float3{ 0.1f, 0.6f, 0.1f });
@@ -514,7 +514,6 @@ int main(int argc, char** argv)
 
 		CommandPool graphics_command_pools[2]{ GetGraphicsCommandPool(), GetGraphicsCommandPool() };
 		const RCommandList main_list = graphics_command_pools[0].StartCommandList();
-		UploadBufferView upload_buffer_view[]{ GetUploadView(mbSize * 4), GetUploadView(mbSize * 4) };
 
 		StartFrame(main_list);
 
@@ -627,8 +626,8 @@ int main(int argc, char** argv)
 			object_viewer_list
 		};
 
-		ThreadTask main_scene_task = Threads::StartTaskThread(ThreadFuncForDrawing, &main_scene_params);
-		ThreadTask object_viewer_task = Threads::StartTaskThread(ThreadFuncForDrawing, &object_viewer_params);
+		ThreadTask main_scene_task = Threads::StartTaskThread(ThreadFuncForDrawing, &main_scene_params, L"main scene task");
+		ThreadTask object_viewer_task = Threads::StartTaskThread(ThreadFuncForDrawing, &object_viewer_params, L"object viewer task");
 
 		Threads::WaitForTask(main_scene_task);
 		Threads::WaitForTask(object_viewer_task);
@@ -638,7 +637,7 @@ int main(int argc, char** argv)
 		EndFrame(main_list);
 
 		graphics_command_pools[0].EndCommandList(main_list);
-		PresentFrame(Slice(graphics_command_pools, _countof(graphics_command_pools)), Slice(upload_buffer_view, _countof(upload_buffer_view)));
+		PresentFrame(Slice(graphics_command_pools, _countof(graphics_command_pools)));
 
 		delta_time = std::chrono::duration<float, std::chrono::seconds::period>(current_time - start_time).count();
 		current_time = std::chrono::high_resolution_clock::now();

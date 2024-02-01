@@ -17,6 +17,7 @@ struct ThreadInfo
 	THREAD_STATUS thread_status;
 	//debug value for the ThreadHandle extra_index;
 	BBConditionalVariable condition;
+	const wchar_t* task_name;
 	uint32_t generation;
 };
 
@@ -30,11 +31,13 @@ static void ThreadStartFunc(void* a_args)
 	while (thread_info->thread_status != THREAD_STATUS::DESTROY)
 	{
 		OSWaitConditionalVariableExclusive(&thread_info->condition, &lock);
+		OSSetThreadName(thread_info->task_name);
 		thread_info->function(thread_info->function_parameter);
 		++thread_info->generation;
 		thread_info->function = nullptr;
 		thread_info->function_parameter = nullptr;
 		thread_info->thread_status = THREAD_STATUS::IDLE;
+		OSSetThreadName(L"none");
 	}
 }
 #pragma optimize( "", on )
@@ -103,12 +106,13 @@ void BB::Threads::DestroyThreads()
 	}
 }
 
-ThreadTask BB::Threads::StartTaskThread(void(*a_Function)(void*), void* a_FuncParameter)
+ThreadTask BB::Threads::StartTaskThread(void(*a_Function)(void*), void* a_FuncParameter, const wchar_t* a_task_name)
 {
 	for (uint32_t i = 0; i < s_ThreadScheduler.thread_count; i++)
 	{
 		if (s_ThreadScheduler.threads[i].thread_info.thread_status == THREAD_STATUS::IDLE)
 		{
+			s_ThreadScheduler.threads[i].thread_info.task_name = a_task_name;
 			s_ThreadScheduler.threads[i].thread_info.function = a_Function;
 			s_ThreadScheduler.threads[i].thread_info.function_parameter = a_FuncParameter;
 			s_ThreadScheduler.threads[i].thread_info.thread_status = THREAD_STATUS::BUSY;

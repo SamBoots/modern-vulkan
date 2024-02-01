@@ -100,144 +100,6 @@ private:
 	} m_debug_texture;
 };
 
-namespace BB
-{
-	class UploadBufferPool
-	{
-	public:
-		UploadBufferPool(MemoryArena& a_arena, const size_t a_size_per_pool, const uint32_t a_pool_count)
-			: m_upload_view_count(a_pool_count)
-		{
-			const size_t upload_buffer_size = a_size_per_pool * m_upload_view_count;
-			BB_ASSERT(upload_buffer_size < UINT32_MAX, "we use uint32_t for offset and size but the uploadbuffer size is bigger then UINT32_MAX");
-
-			GPUBufferCreateInfo buffer_info;
-			buffer_info.type = BUFFER_TYPE::UPLOAD;
-			buffer_info.size = upload_buffer_size;
-			buffer_info.host_writable = true;
-			buffer_info.name = "upload_buffer_pool";
-			m_upload_buffer = Vulkan::CreateBuffer(buffer_info);
-			m_upload_mem_start = Vulkan::MapBufferMemory(m_upload_buffer);
-
-			m_views = ArenaAllocArr(a_arena, UploadBufferView, m_upload_view_count);
-			for (uint32_t i = 0; i < m_upload_view_count; i++)
-			{
-				m_views[i].upload_buffer_handle = m_upload_buffer;
-				m_views[i].size = static_cast<uint32_t>(a_size_per_pool);
-				m_views[i].offset = static_cast<uint32_t>(i * a_size_per_pool);
-				m_views[i].used = 0;
-				m_views[i].pool_index = i;
-				m_views[i].view_mem_start = Pointer::Add(m_upload_mem_start, m_views[i].offset);
-				m_views[i].fence_value = 0;
-			}
-
-			for (uint32_t i = 0; i < m_upload_view_count - 1; i++)
-			{
-				m_views[i].next = &m_views[i + 1];
-			}
-
-			m_free_views = m_views;
-			m_in_flight_views = nullptr;
-			m_lock = OSCreateRWLock();
-			m_in_flight_lock = OSCreateRWLock();
-
-			m_fence = Vulkan::CreateFence(0, "upload buffer fence");
-			m_last_completed_fence_value = 0;
-			m_next_fence_value = 1;
-		}
-		~UploadBufferPool()
-		{
-			Vulkan::UnmapBufferMemory(m_upload_buffer);
-			Vulkan::FreeBuffer(m_upload_buffer);
-		}
-
-		UploadBufferView& GetUploadView(const size_t a_upload_size)
-		{
-			(void)a_upload_size; //not used yet.
-			OSAcquireSRWLockWrite(&m_lock);
-			UploadBufferView& view = *m_free_views.Pop();
-			//TODO, handle nullptr, maybe just wait or do the reset here?
-			OSReleaseSRWLockWrite(&m_lock);
-			return view;
-		}
-
-		void IncrementNextFenceValue()
-		{
-			//yes
-			//maybe a lock is faster as it can be uncontested. Which may often be the case.
-			BBInterlockedIncrement64(reinterpret_cast<volatile long long*>(&m_next_fence_value));
-		}
-
-		void GetFence(RFence& a_fence, uint64_t& a_next_fence_value)
-		{
-			a_fence = m_fence;
-			a_next_fence_value = m_next_fence_value;
-		}
-
-		//return a upload view and set the fence value to the next fence value.
-		void ReturnUploadViews(const BB::Slice<UploadBufferView> a_views, RFence& a_out_fence, uint64_t& a_out_next_fence_value)
-		{
-			OSAcquireSRWLockWrite(&m_in_flight_lock);
-			for (size_t i = 0; i < a_views.size(); i++)
-			{
-				m_views[a_views[i].pool_index].fence_value = m_next_fence_value;
-				m_in_flight_views.Push(&m_views[a_views[i].pool_index]);
-			}
-			a_out_fence = m_fence;
-			a_out_next_fence_value = m_next_fence_value;
-			OSReleaseSRWLockWrite(&m_in_flight_lock);
-		}
-
-		void CheckIfInFlightDone()
-		{
-			LinkedList<UploadBufferView> local_view_free{};
-
-			//lock as a write can be attempetd in m_in_flight_pools.
-			OSAcquireSRWLockWrite(&m_in_flight_lock);
-			m_last_completed_fence_value = Vulkan::GetCurrentFenceValue(m_fence);
-
-			//Thank you Descent Raytracer teammates for the great code that I can steal
-			for (UploadBufferView** in_flight_views = &m_in_flight_views.head; *in_flight_views;)
-			{
-				UploadBufferView* view = *in_flight_views;
-
-				if (view->fence_value <= m_last_completed_fence_value)
-				{
-					//Get next in-flight commandlist
-					*in_flight_views = view->next;
-					local_view_free.Push(view);
-				}
-				else
-				{
-					in_flight_views = &view->next;
-				}
-			}
-
-			if (local_view_free.HasEntry())
-				m_free_views.MergeList(local_view_free);
-
-			OSReleaseSRWLockWrite(&m_in_flight_lock);
-		}
-
-	private:
-		GPUBuffer m_upload_buffer;			  //8
-		void* m_upload_mem_start;			  //16
-
-		UploadBufferView* m_views;			  //24
-		LinkedList<UploadBufferView> m_free_views;		 //32
-		LinkedList<UploadBufferView> m_in_flight_views;  //40
-		BBRWLock m_in_flight_lock;		      //48
-		BBRWLock m_lock;					  //56
-
-		//this fence should be send to all execute commandlists when they include a upload buffer from here.
-		RFence m_fence;						  //64
-		volatile uint64_t m_next_fence_value; //72
-		uint64_t m_last_completed_fence_value;//80
-
-		const uint32_t m_upload_view_count;	  //84
-	};
-}
-
 RCommandList CommandPool::StartCommandList(const char* a_name)
 {
 	BB_ASSERT(m_recording == false, "already recording a commandlist from this commandpool!");
@@ -458,7 +320,7 @@ public:
 		OSReleaseSRWLockWrite(&m_in_flight_lock);
 	}
 
-	void ExecuteCommands(RCommandList* const a_lists, const uint32_t a_list_count, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const uint32_t a_wait_count)
+	void ExecuteCommands(const RCommandList* const a_lists, const uint32_t a_list_count, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const uint32_t a_wait_count)
 	{
 		BB_ASSERT(m_queue_type == QUEUE_TYPE::GRAPHICS, "calling a present commands on a non-graphics command queue is not valid");
 
@@ -630,8 +492,6 @@ union Light
 	PointLight point_light;
 };
 
-constexpr uint32_t UPLOAD_BUFFER_POOL_SIZE = mbSize * 8;
-constexpr uint32_t UPLOAD_BUFFER_POOL_COUNT = 32;
 constexpr uint32_t BACK_BUFFER_MAX = 3;
 
 struct Scene3D
@@ -673,8 +533,7 @@ struct Scene3D
 struct RenderInterface_inst
 {
 	RenderInterface_inst(MemoryArena& a_arena)
-		: graphics_queue(a_arena, QUEUE_TYPE::GRAPHICS, "graphics queue", 32, 32),
-		upload_buffers(a_arena, UPLOAD_BUFFER_POOL_SIZE, UPLOAD_BUFFER_POOL_COUNT)
+		: graphics_queue(a_arena, QUEUE_TYPE::GRAPHICS, "graphics queue", 32, 32)
 	{}
 
 	RenderIO render_io;
@@ -698,7 +557,6 @@ struct RenderInterface_inst
 	UploadRingAllocator frame_upload_allocator;
 	RenderQueue graphics_queue;
 
-	UploadBufferPool upload_buffers;
 	GPUTextureManager texture_manager;
 
 	RTexture white;
@@ -1177,7 +1035,7 @@ void GPUTextureManager::Init(const RCommandList a_list, const uint64_t a_upload_
 
 		//now upload the image.
 		UploadBuffer upload_buffer = s_render_inst->asset_upload_allocator.AllocateUploadMemory(sizeof(debug_purple), a_upload_fence_value);
-		upload_buffer.SafeMemcpy(0, &debug_purple, sizeof(sizeof(debug_purple)));
+		upload_buffer.SafeMemcpy(0, &debug_purple, sizeof(debug_purple));
 
 		RenderCopyBufferToImageInfo buffer_to_image;
 		buffer_to_image.src_buffer = upload_buffer.buffer;
@@ -1582,9 +1440,11 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	s_render_inst->shader_effect_map.Init(a_arena, 32);
 	s_render_inst->material_map.Init(a_arena, 64);
 
+
 	s_render_inst->frame_upload_allocator.Init(a_arena, a_render_create_info.frame_upload_buffer_size, s_render_inst->graphics_queue.GetFence().fence, "frame upload allocator");
 
 	{	// do asset upload allocator here
+		s_render_inst->asset_upload_value_lock = OSCreateRWLock();
 		s_render_inst->asset_upload_fence = Vulkan::CreateFence(0, "asset upload fence");
 		s_render_inst->asset_upload_next_fence_value = 1;
 		s_render_inst->asset_upload_allocator.Init(a_arena, a_render_create_info.asset_upload_buffer_size, s_render_inst->asset_upload_fence, "asset upload buffer");
@@ -1696,8 +1556,11 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	CommandPool& start_up_pool = s_render_inst->graphics_queue.GetCommandPool("startup pool");
 	const RCommandList list = start_up_pool.StartCommandList();
 
+
+	uint64_t asset_fence_value = GetNextAssetTransferFenceValueAndIncrement();
+
 	{	//initialize texture system
-		s_render_inst->texture_manager.Init(list, s_render_inst->asset_upload_next_fence_value);
+		s_render_inst->texture_manager.Init(list, asset_fence_value);
 
 		//some basic colors
 		const uint32_t white = UINT32_MAX;
@@ -1710,11 +1573,11 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
 		image_info.pixels = &white;
 
-		s_render_inst->white = UploadTexture(list, image_info);
+		s_render_inst->white = UploadTexture(list, image_info, asset_fence_value);
 
 		image_info.name = "black";
 		image_info.pixels = &black;
-		s_render_inst->black = UploadTexture(list, image_info);
+		s_render_inst->black = UploadTexture(list, image_info, asset_fence_value);
 	}
 
 	{
@@ -1751,7 +1614,10 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	
 
 	start_up_pool.EndCommandList(list);
-	return ExecuteGraphicCommands(Slice(&start_up_pool, 1));
+	//special upload here, due to uploading as well
+	s_render_inst->graphics_queue.ReturnPool(start_up_pool);
+	s_render_inst->graphics_queue.ExecuteCommands(&list, 1, &s_render_inst->asset_upload_fence, &asset_fence_value, 1, nullptr, nullptr, 0);
+	return true;
 }
 
 void BB::RequestResize()
@@ -1797,7 +1663,6 @@ void BB::StartFrame(const RCommandList a_list)
 	const uint32_t frame_index = s_render_inst->render_io.frame_index;
 	const RenderInterface_inst::Frame& cur_frame = s_render_inst->frames[frame_index];
 
-	s_render_inst->upload_buffers.CheckIfInFlightDone();
 	s_render_inst->graphics_queue.WaitFenceValue(cur_frame.graphics_queue_fence_value);
 
 	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(cur_frame.render_target);
@@ -2241,11 +2106,6 @@ void BB::SetProjection(const RenderScene3DHandle a_scene, const float4x4& a_proj
 	render_scene3d.scene_info.proj = a_proj;
 }
 
-UploadBufferView& BB::GetUploadView(const size_t a_upload_size)
-{
-	return s_render_inst->upload_buffers.GetUploadView(a_upload_size);
-}
-
 CommandPool& BB::GetGraphicsCommandPool()
 {
 	return s_render_inst->graphics_queue.GetCommandPool();
@@ -2257,17 +2117,13 @@ CommandPool& BB::GetTransferCommandPool()
 	return GetGraphicsCommandPool();
 }
 
-bool BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<UploadBufferView> a_upload_views)
+bool BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools)
 {
 	if (s_render_inst->render_io.resizing_request)
 	{
 		s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
-		RFence upload_fence;
-		uint64_t upload_fence_value;
-		s_render_inst->upload_buffers.ReturnUploadViews(a_upload_views, upload_fence, upload_fence_value);
 		return false;
 	}
-
 
 	BB_ASSERT(s_render_inst->render_io.frame_started == true, "did not call StartFrame before a presenting");
 	BB_ASSERT(s_render_inst->render_io.frame_ended == true, "did not call EndFrame before a presenting");
@@ -2288,16 +2144,11 @@ bool BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<
 		list_count += a_cmd_pools[i].GetListsRecorded();
 	}
 
-	RFence upload_fence;
-	uint64_t upload_fence_value;
-	s_render_inst->upload_buffers.ReturnUploadViews(a_upload_views, upload_fence, upload_fence_value);
-
 	//set the next fence value for the frame
 	s_render_inst->frames[s_render_inst->render_io.frame_index].graphics_queue_fence_value = s_render_inst->graphics_queue.GetNextFenceValue();
 
 	s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
-	const PRESENT_IMAGE_RESULT result = s_render_inst->graphics_queue.ExecutePresentCommands(lists, list_count, &upload_fence, &upload_fence_value, 1, nullptr, nullptr, 0, s_render_inst->render_io.frame_index);
-	s_render_inst->upload_buffers.IncrementNextFenceValue();
+	const PRESENT_IMAGE_RESULT result = s_render_inst->graphics_queue.ExecutePresentCommands(lists, list_count, nullptr, nullptr, 0, nullptr, nullptr, 0, s_render_inst->render_io.frame_index);
 	s_render_inst->render_io.frame_index = (s_render_inst->render_io.frame_index + 1) % s_render_inst->render_io.frame_count;
 
 	s_render_inst->render_io.frame_ended = false;
@@ -2357,7 +2208,7 @@ bool BB::ExecuteAssetTransfer(const BB::Slice<CommandPool> a_cmd_pools, const ui
 
 	s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
 	s_render_inst->graphics_queue.ExecuteCommands(lists, list_count, &s_render_inst->asset_upload_fence, &a_asset_transfer_fence_value, 1, nullptr, nullptr, 0);
-	return ExecuteGraphicCommands(a_cmd_pools);
+	return true;
 }
 
 const MeshHandle BB::CreateMesh(const RCommandList a_list, const CreateMeshInfo& a_create_info, const uint64_t a_transfer_fence_value)

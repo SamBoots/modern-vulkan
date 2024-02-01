@@ -524,6 +524,11 @@ bool BB::OSWaitThreadfinish(const OSThreadHandle a_thread)
 	return WaitForSingleObject(reinterpret_cast<HANDLE>(a_thread.handle), INFINITE);
 }
 
+bool BB::OSSetThreadName(const wchar_t* a_wstr)
+{
+	return SetThreadDescription(GetCurrentThread(), a_wstr);
+}
+
 BBMutex BB::OSCreateMutex()
 {
 	return BBMutex(reinterpret_cast<uintptr_t>(CreateMutex(nullptr, false, nullptr)));

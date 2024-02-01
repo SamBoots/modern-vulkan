@@ -105,6 +105,7 @@ namespace BB
 
 	OSThreadHandle OSCreateThread(void(*a_func)(void*), const unsigned int a_stack_size, void* a_arg_list);
 	bool OSWaitThreadfinish(const OSThreadHandle a_thread);
+	bool OSSetThreadName(const wchar_t* a_wstr);
 
 	BBMutex OSCreateMutex();
 	bool OSWaitAndLockMutex(const BBMutex a_mutex);
