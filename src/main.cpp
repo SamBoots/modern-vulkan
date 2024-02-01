@@ -143,7 +143,7 @@ static bool ImProcessInput(const BB::InputEvent& a_input_event)
 
 		io.AddKeyEvent(imgui_key, key_info.key_pressed);
 		io.AddInputCharacterUTF16(key_info.utf16);
-		return io.WantCaptureKeyboard;
+		return false;
 	}
 
 	return false;
@@ -189,7 +189,7 @@ struct Viewport
 	uint2 offset; // offset into main window NOT USED NOW 
 	RenderTarget render_target;
 	const char* name;
-	Camera camera{ float3{0.0f, 0.0f, 1.0f}, 0.0f };
+	Camera camera{ float3{0.0f, 0.0f, 1.0f}, 0.35f };
 };
 
 static void MainDebugWindow(const MemoryArena& a_arena, const Viewport* a_selected_viewport)
@@ -566,7 +566,6 @@ int main(int argc, char** argv)
 			{
 				const MouseInfo& mi = ip.mouse_info;
 				const float2 mouse_move = (mi.move_offset * delta_time) * 0.001f;
-
 
 				if (mi.right_released)
 					FreezeMouseOnWindow(window);

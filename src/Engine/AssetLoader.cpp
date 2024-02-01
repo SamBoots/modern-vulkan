@@ -216,9 +216,10 @@ static void LoadAsync_func(void* a_param)
 	using namespace Asset;
 	LoadAsyncFunc_Params* params = reinterpret_cast<LoadAsyncFunc_Params*>(a_param);
 
-	UploadBufferView& upload_buffer_view = GetUploadView(0);
 	CommandPool& cmd_pool = GetTransferCommandPool();
 	const RCommandList cmd_list = cmd_pool.StartCommandList(params->task_name);
+
+	const uint64_t asset_fence_value = GetNextAssetTransferFenceValueAndIncrement();
 
 	for (size_t i = 0; i < params->asset_count; i++)
 	{
@@ -230,10 +231,10 @@ static void LoadAsync_func(void* a_param)
 			switch (task.load_type)
 			{
 			case ASYNC_LOAD_TYPE::DISK:
-				LoadglTFModel(params->memory_arena, task.mesh_disk, cmd_list, upload_buffer_view);
+				LoadglTFModel(params->memory_arena, task.mesh_disk, cmd_list, asset_fence_value);
 				break;
 			case ASYNC_LOAD_TYPE::MEMORY:
-				LoadMeshFromMemory(task.mesh_memory, cmd_list, upload_buffer_view);
+				LoadMeshFromMemory(task.mesh_memory, cmd_list, asset_fence_value);
 				break;
 			}
 			break;
@@ -243,10 +244,10 @@ static void LoadAsync_func(void* a_param)
 			switch (task.load_type)
 			{
 			case ASYNC_LOAD_TYPE::DISK:
-				LoadImageDisk(task.texture_disk.path, task.texture_disk.name, cmd_list, upload_buffer_view);
+				LoadImageDisk(task.texture_disk.path, task.texture_disk.name, cmd_list, asset_fence_value);
 				break;
 			case ASYNC_LOAD_TYPE::MEMORY:
-				LoadImageMemory(*task.texture_memory.image, task.texture_memory.name, cmd_list, upload_buffer_view);
+				LoadImageMemory(*task.texture_memory.image, task.texture_memory.name, cmd_list, asset_fence_value);
 				break;
 			}
 		}
@@ -254,7 +255,7 @@ static void LoadAsync_func(void* a_param)
 		}
 	}
 	cmd_pool.EndCommandList(cmd_list);
-	BB_ASSERT(ExecuteTransferCommands(Slice(&cmd_pool, 1), Slice(&upload_buffer_view, 1)), "Failed to execute async gpu transfer commands");
+	BB_ASSERT(ExecuteAssetTransfer(Slice(&cmd_pool, 1), asset_fence_value), "Failed to execute async gpu transfer commands");
 	MemoryArenaFree(params->memory_arena);
 }
 
@@ -272,7 +273,7 @@ ThreadTask Asset::LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const cha
 	return Threads::StartTaskThread(LoadAsync_func, params);
 }
 
-const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view)
+const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const RCommandList a_list, const uint64_t a_transfer_fence_value)
 {
 	int x = 0, y = 0, channels = 0;
 	//hacky way, whatever we do it for now.
@@ -291,7 +292,7 @@ const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const 
 	upload_image_info.height = static_cast<uint32_t>(y);
 	upload_image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
 
-	const RTexture gpu_image = UploadTexture(a_list, upload_image_info, a_upload_view);
+	const RTexture gpu_image = UploadTexture(a_list, upload_image_info, a_transfer_fence_value);
 
 
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
@@ -320,7 +321,7 @@ const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const 
 	return image;
 }
 
-const Image* Asset::LoadImageMemory(const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view)
+const Image* Asset::LoadImageMemory(const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, const uint64_t a_transfer_fence_value)
 {
 	UploadTextureInfo upload_image_info;
 	upload_image_info.name = a_name;
@@ -342,7 +343,7 @@ const Image* Asset::LoadImageMemory(const BB::BBImage& a_image, const char* a_na
 	}
 
 
-	const RTexture gpu_image = UploadTexture(a_list, upload_image_info, a_upload_view);
+	const RTexture gpu_image = UploadTexture(a_list, upload_image_info, a_transfer_fence_value);
 
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
 	Image* image = ArenaAllocType(s_asset_manager->asset_arena, Image);
@@ -372,7 +373,7 @@ static inline void* GetAccessorDataPtr(const cgltf_accessor* a_Accessor)
 	return Pointer::Add(a_Accessor->buffer_view->buffer->data, accessor_offset);
 }
 
-static void LoadglTFNode(MemoryArena& a_temp_arena, Slice<ShaderEffectHandle> a_shader_effects, const RCommandList a_list, UploadBufferView& a_upload_view, const cgltf_node& a_node, Model& a_model, uint32_t& a_node_index, uint32_t& a_primitive_index)
+static void LoadglTFNode(MemoryArena& a_temp_arena, Slice<ShaderEffectHandle> a_shader_effects, const RCommandList a_list, const uint64_t a_transfer_fence_value, const cgltf_node& a_node, Model& a_model, uint32_t& a_node_index, uint32_t& a_primitive_index)
 {
 	Model::Node& mod_node = a_model.linear_nodes[a_node_index++];
 	if (a_node.has_matrix)
@@ -433,7 +434,7 @@ static void LoadglTFNode(MemoryArena& a_temp_arena, Slice<ShaderEffectHandle> a_
 				const cgltf_image& image = *prim.material->pbr_metallic_roughness.base_color_texture.texture->image;
 
 				const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
-				const Image* img = Asset::LoadImageDisk(full_image_path, image.name, a_list, a_upload_view);
+				const Image* img = Asset::LoadImageDisk(full_image_path, image.name, a_list, a_transfer_fence_value);
 
 				material_info.base_color = img->gpu_image;
 			}
@@ -443,7 +444,7 @@ static void LoadglTFNode(MemoryArena& a_temp_arena, Slice<ShaderEffectHandle> a_
 				const cgltf_image& image = *prim.material->normal_texture.texture->image;
 
 				const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
-				const Image* img = Asset::LoadImageDisk(full_image_path, image.name, a_list, a_upload_view);
+				const Image* img = Asset::LoadImageDisk(full_image_path, image.name, a_list, a_transfer_fence_value);
 	
 				material_info.normal_texture = img->gpu_image;
 			}
@@ -525,7 +526,7 @@ static void LoadglTFNode(MemoryArena& a_temp_arena, Slice<ShaderEffectHandle> a_
 		create_mesh.vertices = Slice(vertices, vertex_count);
 		create_mesh.indices = Slice(indices, index_count);
 
-		mod_node.mesh_handle = CreateMesh(a_list, create_mesh, a_upload_view);
+		mod_node.mesh_handle = CreateMesh(a_list, create_mesh, a_transfer_fence_value);
 	}
 	else
 		mod_node.mesh_handle = MeshHandle(BB_INVALID_HANDLE_64);
@@ -536,12 +537,12 @@ static void LoadglTFNode(MemoryArena& a_temp_arena, Slice<ShaderEffectHandle> a_
 		mod_node.childeren = &a_model.linear_nodes[a_node_index]; //childeren are loaded linearly, i'm quite sure.
 		for (size_t i = 0; i < mod_node.child_count; i++)
 		{
-			LoadglTFNode(a_temp_arena, a_shader_effects, a_list, a_upload_view, *a_node.children[i], a_model, a_node_index, a_primitive_index);
+			LoadglTFNode(a_temp_arena, a_shader_effects, a_list, a_transfer_fence_value, *a_node.children[i], a_model, a_node_index, a_primitive_index);
 		}
 	}
 }
 
-const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op, const RCommandList a_list, UploadBufferView& a_upload_view)
+const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op, const RCommandList a_list, const uint64_t a_transfer_fence_value)
 {
 	const AssetHash asset_hash = CreateAssetHash(StringHash(a_mesh_op.path, Memory::StrLength(a_mesh_op.path)), ASSET_TYPE::MODEL);
 	
@@ -592,7 +593,7 @@ const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 
 	for (size_t i = 0; i < gltf_data->scene->nodes_count; i++)
 	{
-		LoadglTFNode(a_temp_arena, a_mesh_op.shader_effects, a_list, a_upload_view, *gltf_data->scene->nodes[i], *model, current_node, current_primitive);
+		LoadglTFNode(a_temp_arena, a_mesh_op.shader_effects, a_list, a_transfer_fence_value, *gltf_data->scene->nodes[i], *model, current_node, current_primitive);
 	}
 
 	cgltf_free(gltf_data);
@@ -609,7 +610,7 @@ const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 	return model;
 }
 
-const Model* Asset::LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, const RCommandList a_list, UploadBufferView& a_upload_view)
+const Model* Asset::LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, const RCommandList a_list, const uint64_t a_transfer_fence_value)
 {
 	const AssetHash asset_hash = CreateAssetHash(StringHash(a_mesh_op.name, Memory::StrLength(a_mesh_op.name)), ASSET_TYPE::MODEL);
 
@@ -637,7 +638,7 @@ const Model* Asset::LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, cons
 
 	model->linear_nodes[0].name = a_mesh_op.name;
 	model->linear_nodes[0].child_count = 0;
-	model->linear_nodes[0].mesh_handle = CreateMesh(a_list, mesh_info, a_upload_view);
+	model->linear_nodes[0].mesh_handle = CreateMesh(a_list, mesh_info, a_transfer_fence_value);
 	model->linear_nodes[0].primitives = model->primitives;
 	model->linear_nodes[0].primitive_count = model->primitive_count;
 	model->linear_nodes[0].transform = Float4x4Identity();

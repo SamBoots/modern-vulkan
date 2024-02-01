@@ -20,7 +20,7 @@ namespace BB
 
 		// EXTRA STUFF
 		size_t frame_upload_buffer_size = mbSize * 64;
-		size_t transfer_upload_buffer_size = mbSize * 128;
+		size_t asset_upload_buffer_size = mbSize * 128;
 	};
 
 	struct CreateMeshInfo
@@ -162,8 +162,10 @@ namespace BB
 	CommandPool& GetTransferCommandPool();
 
 	bool PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<UploadBufferView> a_upload_views);
-	bool ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<UploadBufferView> a_upload_views);
-	bool ExecuteTransferCommands(const BB::Slice<CommandPool> a_cmd_pools, const BB::Slice<UploadBufferView> a_upload_views);
+	bool ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools);
+
+	uint64_t GetNextAssetTransferFenceValueAndIncrement();
+	bool ExecuteAssetTransfer(const BB::Slice<CommandPool> a_cmd_pools, const uint64_t a_asset_transfer_fence_value);
 	
 	GPUBufferView AllocateFromVertexBuffer(const size_t a_size_in_bytes);
 	GPUBufferView AllocateFromIndexBuffer(const size_t a_size_in_bytes);
@@ -171,7 +173,7 @@ namespace BB
 	WriteableGPUBufferView AllocateFromWritableVertexBuffer(const size_t a_size_in_bytes);
 	WriteableGPUBufferView AllocateFromWritableIndexBuffer(const size_t a_size_in_bytes);
 
-	const MeshHandle CreateMesh(const RCommandList a_list, const CreateMeshInfo& a_create_info, UploadBufferView& a_upload_view);
+	const MeshHandle CreateMesh(const RCommandList a_list, const CreateMeshInfo& a_create_info, const uint64_t a_transfer_fence_value);
 	void FreeMesh(const MeshHandle a_mesh);
 
 	LightHandle CreateLight(const RenderScene3DHandle a_scene, const CreateLightInfo& a_create_info);
@@ -186,7 +188,7 @@ namespace BB
 	const MaterialHandle CreateMaterial(const CreateMaterialInfo& a_create_info);
 	void FreeMaterial(const MaterialHandle a_material);
 
-	const RTexture UploadTexture(const RCommandList a_list, const UploadTextureInfo& a_upload_info, UploadBufferView& a_upload_view);
+	const RTexture UploadTexture(const RCommandList a_list, const UploadTextureInfo& a_upload_info, const uint64_t a_transfer_fence_value);
 	void FreeTexture(const RTexture a_texture);
 
 	const GPUBuffer CreateGPUBuffer(const GPUBufferCreateInfo& a_create_info);

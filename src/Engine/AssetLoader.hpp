@@ -120,10 +120,10 @@ namespace BB
 
 		ThreadTask LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_task_name = "upload asset task");
 
-		const Image* LoadImageDisk(const char* a_path, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view);
-		const Image* LoadImageMemory(const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, UploadBufferView& a_upload_view);
-		const Model* LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op, const RCommandList a_list, UploadBufferView& a_upload_view);
-		const Model* LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, const RCommandList a_list, UploadBufferView& a_upload_view);
+		const Image* LoadImageDisk(const char* a_path, const char* a_name, const RCommandList a_list, const uint64_t a_transfer_fence_value);
+		const Image* LoadImageMemory(const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, const uint64_t a_transfer_fence_value);
+		const Model* LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op, const RCommandList a_list, const uint64_t a_transfer_fence_value);
+		const Model* LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, const RCommandList a_list, const uint64_t a_transfer_fence_value);
 
 		const Model* FindModelByPath(const char* a_path);
 		const Model* FindModelByName(const char* a_name);

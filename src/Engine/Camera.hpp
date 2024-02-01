@@ -6,17 +6,17 @@ namespace BB
 	class Camera
 	{
 	public:
-		Camera(const float3 a_Pos, const float a_CamSpeed = 0.15f);
+		Camera(const float3 a_pos, const float a_cam_speed = 0.15f);
 
 		void Move(const float3 a_movement);
-		void Rotate(const float a_Yaw, const float a_Pitch);
-		void SetSpeed(const float a_SpeedModifier);
+		void Rotate(const float a_yaw, const float a_pitch);
+		void SetSpeed(const float a_speed_mod);
 
 		const float4x4 CalculateView();
 	private:
-		float m_Yaw;
-		float m_Pitch;
-		float m_Speed;
+		float m_yaw;
+		float m_pitch;
+		float m_speed;
 
 		float3 m_pos;
 		float3 m_forward;
