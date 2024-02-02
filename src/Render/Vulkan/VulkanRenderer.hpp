@@ -12,6 +12,7 @@ namespace BB
 	namespace Vulkan //annoying, but many function names actually overlap.
 	{
 		bool InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, const char* a_engine_name, const bool a_debug);
+		GPUDeviceInfo GetGPUDeviceInfo(MemoryArena& a_arena);
 
 		bool CreateSwapchain(MemoryArena& a_arena, const WindowHandle a_window_handle, const uint32_t a_width, const uint32_t a_height, uint32_t& a_backbuffer_count);
 		bool RecreateSwapchain(const uint32_t a_width, const uint32_t a_height);

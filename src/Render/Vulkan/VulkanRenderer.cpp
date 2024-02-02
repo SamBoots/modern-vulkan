@@ -40,6 +40,7 @@ BB_PRAGMA(clang diagnostic ignored "-Wcast-function-type-strict")
 //for performance reasons this can be turned off. I need to profile this.
 #define ENUM_CONVERSATION_BY_ARRAY
 
+
 struct VulkanQueuesIndices
 {
 	uint32_t present; //Is currently always same as graphics.
@@ -1108,6 +1109,55 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, cons
 		&s_vulkan_inst->present_queue);
 
 	return true;
+}
+
+GPUDeviceInfo Vulkan::GetGPUDeviceInfo(MemoryArena& a_arena)
+{
+	VkPhysicalDeviceProperties2 properties{};
+	vkGetPhysicalDeviceProperties2(s_vulkan_inst->phys_device, &properties);
+	VkPhysicalDeviceMemoryProperties memory_prop{};
+	vkGetPhysicalDeviceMemoryProperties(s_vulkan_inst->phys_device, &memory_prop);
+
+	GPUDeviceInfo device;
+	const size_t device_name_size = strnlen(properties.properties.deviceName, VK_MAX_PHYSICAL_DEVICE_NAME_SIZE);
+	device.name = ArenaAllocArr(a_arena, char, device_name_size);
+	strncpy(device.name, properties.properties.deviceName, device_name_size);
+
+	// get the memory heaps
+	device.memory_heaps.Init(a_arena, memory_prop.memoryHeapCount);
+
+	for (size_t i = 0; i < device.memory_heaps.capacity(); i++)
+	{
+		GPUDeviceInfo::MemoryHeapInfo heap_info;
+		heap_info.heap_num = i;
+		heap_info.heap_size = memory_prop.memoryHeaps[i].size;
+		heap_info.heap_device_local &= (memory_prop.memoryHeaps[i].flags << VK_MEMORY_HEAP_DEVICE_LOCAL_BIT);
+		device.memory_heaps.emplace_back(heap_info);
+	}
+
+	
+	uint32_t queue_family_count = 0;
+	vkGetPhysicalDeviceQueueFamilyProperties(s_vulkan_inst->phys_device, &queue_family_count, nullptr);
+	device.queue_families.Init(a_arena, queue_family_count);
+
+	MemoryArenaScope(a_arena)
+	{
+		VkQueueFamilyProperties* const queue_families = ArenaAllocArr(a_arena, VkQueueFamilyProperties, queue_family_count);
+		vkGetPhysicalDeviceQueueFamilyProperties(s_vulkan_inst->phys_device, &queue_family_count, queue_families);
+
+		for (uint32_t i = 0; i < queue_family_count; i++)
+		{
+			GPUDeviceInfo::QueueFamily queue_family;
+			queue_family.queue_family_index = i;
+			queue_family.queue_count = queue_families[i].queueCount;
+			queue_family.support_compute &= queue_families[i].queueFlags;
+			queue_family.support_graphics &= queue_families[i].queueFlags;
+			queue_family.support_transfer &= queue_families[i].queueFlags;
+			device.queue_families.emplace_back(queue_family);
+		}
+	}
+
+	return device;
 }
 
 static void CreateVkSwapchain(const uint32_t a_width, const uint32_t a_height, uint32_t& a_backbuffer_count)

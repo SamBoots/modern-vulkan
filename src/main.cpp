@@ -464,7 +464,7 @@ int main(int argc, char** argv)
 		async_assets[1].mesh_memory.vertices = Slice(vertices, _countof(vertices));
 		async_assets[1].mesh_memory.indices = Slice(indices, _countof(indices));
 		async_assets[1].mesh_memory.material = default_mat;
-		ThreadTask asset_job = Asset::LoadASync(Slice(async_assets, _countof(async_assets)));
+		ThreadTask asset_job = Asset::LoadAssetsASync(Slice(async_assets, _countof(async_assets)));
 
 		Threads::WaitForTask(asset_job);
 

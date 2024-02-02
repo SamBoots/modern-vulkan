@@ -140,6 +140,7 @@ namespace BB
 	WriteableGPUBufferView AllocateFromWritableVertexBuffer(const size_t a_size_in_bytes);
 	WriteableGPUBufferView AllocateFromWritableIndexBuffer(const size_t a_size_in_bytes);
 
+	// returns invalid mesh when not enough upload buffer space
 	const MeshHandle CreateMesh(const RCommandList a_list, const CreateMeshInfo& a_create_info, const uint64_t a_transfer_fence_value);
 	void FreeMesh(const MeshHandle a_mesh);
 
@@ -155,6 +156,7 @@ namespace BB
 	const MaterialHandle CreateMaterial(const CreateMaterialInfo& a_create_info);
 	void FreeMaterial(const MaterialHandle a_material);
 
+	// returns invalid texture when not enough upload buffer space
 	const RTexture UploadTexture(const RCommandList a_list, const UploadTextureInfo& a_upload_info, const uint64_t a_transfer_fence_value);
 	void FreeTexture(const RTexture a_texture);
 

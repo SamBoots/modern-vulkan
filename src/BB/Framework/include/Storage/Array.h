@@ -332,11 +332,6 @@ namespace BB
 			pointer m_ptr;
 		};
 		StaticArray() = default;
-		StaticArray(const StaticArray<T>& a_Array) = delete;
-		StaticArray(StaticArray<T>&& a_Array) = delete;
-
-		StaticArray<T>& operator=(const StaticArray<T>& a_rhs) = delete;
-		StaticArray<T>& operator=(StaticArray<T>&& a_rhs) = delete;
 
 		void Init(MemoryArena& a_arena, const uint32_t a_size)
 		{

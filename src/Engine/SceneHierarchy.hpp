@@ -9,8 +9,8 @@ namespace BB
 {
 	using SceneObjectHandle = FrameworkHandle<struct SceneObjectHandleTag>;
 
-	constexpr uint32_t DEFAULT_SCENE_OBJ_MAX = 128;
-	constexpr uint32_t SCENE_OBJ_CHILD_MAX = 16;
+	constexpr uint32_t DEFAULT_SCENE_OBJ_MAX = 512;
+	constexpr uint32_t SCENE_OBJ_CHILD_MAX = 128;
 
 	struct SceneObject
 	{

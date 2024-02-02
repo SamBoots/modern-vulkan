@@ -176,7 +176,6 @@ void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
 	s_asset_manager->string_buffer.current_memory_pos = ArenaAllocArr(s_asset_manager->asset_arena, char, a_init_info.string_memory_size);
 	s_asset_manager->string_buffer.mem_remaining = a_init_info.string_memory_size;
 	Memory::Set(s_asset_manager->string_buffer.current_memory_pos, 0, a_init_info.string_memory_size);
-	//now store the memory arena
 }
 
 const char* Asset::FindOrCreateString(const char* a_string)
@@ -203,27 +202,16 @@ const char* Asset::FindOrCreateString(const char* a_string, const size_t a_strin
 	return string;
 }
 
-struct LoadAsyncFunc_Params
+void Asset::LoadAssets(MemoryArena& memory_arena, const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_cmd_list_name)
 {
-	MemoryArena memory_arena;
-	Asset::AsyncAsset* assets;
-	size_t asset_count;
-	const char* task_name;
-};
-
-static void LoadAsync_func(void* a_param)
-{
-	using namespace Asset;
-	LoadAsyncFunc_Params* params = reinterpret_cast<LoadAsyncFunc_Params*>(a_param);
-
 	CommandPool& cmd_pool = GetTransferCommandPool();
-	const RCommandList cmd_list = cmd_pool.StartCommandList(params->task_name);
+	const RCommandList cmd_list = cmd_pool.StartCommandList(a_cmd_list_name);
 
 	const uint64_t asset_fence_value = GetNextAssetTransferFenceValueAndIncrement();
 
-	for (size_t i = 0; i < params->asset_count; i++)
+	for (size_t i = 0; i < a_asyn_assets.size(); i++)
 	{
-		const AsyncAsset& task = params->assets[i];
+		const AsyncAsset& task = a_asyn_assets[i];
 		switch (task.asset_type)
 		{
 		case ASYNC_ASSET_TYPE::MODEL:
@@ -231,7 +219,7 @@ static void LoadAsync_func(void* a_param)
 			switch (task.load_type)
 			{
 			case ASYNC_LOAD_TYPE::DISK:
-				LoadglTFModel(params->memory_arena, task.mesh_disk, cmd_list, asset_fence_value);
+				LoadglTFModel(memory_arena, task.mesh_disk, cmd_list, asset_fence_value);
 				break;
 			case ASYNC_LOAD_TYPE::MEMORY:
 				LoadMeshFromMemory(task.mesh_memory, cmd_list, asset_fence_value);
@@ -256,18 +244,36 @@ static void LoadAsync_func(void* a_param)
 	}
 	cmd_pool.EndCommandList(cmd_list);
 	BB_ASSERT(ExecuteAssetTransfer(Slice(&cmd_pool, 1), asset_fence_value), "Failed to execute async gpu transfer commands");
+}
+
+struct LoadAsyncFunc_Params
+{
+	MemoryArena memory_arena;
+	Asset::AsyncAsset* assets;
+	size_t asset_count;
+	const char* cmd_list_name;
+};
+
+static void LoadAsync_func(void* a_param)
+{
+	using namespace Asset;
+	LoadAsyncFunc_Params* params = reinterpret_cast<LoadAsyncFunc_Params*>(a_param);
+
+	LoadAssets(params->memory_arena, Slice(params->assets, params->asset_count), params->cmd_list_name);
+
 	MemoryArenaFree(params->memory_arena);
 }
 
-ThreadTask Asset::LoadASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_task_name)
+ThreadTask Asset::LoadAssetsASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_cmd_list_name)
 {
+	// maybe have each thread have it's own memory arena
 	MemoryArena load_arena = MemoryArenaCreate();
 
 	LoadAsyncFunc_Params* params = ArenaAllocType(load_arena, LoadAsyncFunc_Params);
 	params->assets = ArenaAllocArr(load_arena, Asset::AsyncAsset, a_asyn_assets.size());
 	memcpy(params->assets, a_asyn_assets.data(), a_asyn_assets.sizeInBytes());
 	params->asset_count = a_asyn_assets.size();
-	params->task_name = a_task_name;
+	params->cmd_list_name = a_cmd_list_name;
 	params->memory_arena = load_arena;
 
 	return Threads::StartTaskThread(LoadAsync_func, params);
@@ -303,7 +309,7 @@ const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const 
 	image->gpu_image = gpu_image;
 
 	const uint64_t hash = TurboCrappyImageHash(pixels, static_cast<size_t>(image->width) + image->height + static_cast<uint32_t>(channels));
-	BB_ASSERT(hash != 0, "Image hashing failed");
+	//BB_ASSERT(hash != 0, "Image hashing failed");
 
 	STBI_FREE(pixels);
 
@@ -352,7 +358,7 @@ const Image* Asset::LoadImageMemory(const BB::BBImage& a_image, const char* a_na
 	image->gpu_image = gpu_image;
 
 	const uint64_t hash = TurboCrappyImageHash(a_image.GetPixels(), static_cast<size_t>(image->width) + image->height + (a_image.GetBitCount() / 8));
-	BB_ASSERT(hash != 0, "Image hashing failed");
+	//BB_ASSERT(hash != 0, "Image hashing failed");
 
 	AssetSlot asset;
 	asset.hash = CreateAssetHash(hash, ASSET_TYPE::TEXTURE);
@@ -385,7 +391,7 @@ static void LoadglTFNode(MemoryArena& a_temp_arena, Slice<ShaderEffectHandle> a_
 		mod_node.name = Asset::FindOrCreateString(a_node.name);
 	else
 		mod_node.name = "unnamed";
-
+	
 	if (a_node.mesh != nullptr)
 	{
 		const cgltf_mesh& mesh = *a_node.mesh;
@@ -738,7 +744,7 @@ static void LoadAssetViaSearch()
 		}
 
 
-		Asset::LoadASync(Slice(&asset, 1), "load asset via search");
+		Asset::LoadAssetsASync(Slice(&asset, 1), "load asset via search");
 	}
 }
 

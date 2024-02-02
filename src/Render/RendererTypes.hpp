@@ -364,4 +364,27 @@ namespace BB
 
 		BB::Slice<WriteDescriptorData> data;
 	};
+
+	struct GPUDeviceInfo
+	{
+		char* name;
+
+		struct MemoryHeapInfo
+		{
+			uint32_t heap_num;
+			size_t heap_size;
+			bool heap_device_local;
+		};
+		StaticArray<MemoryHeapInfo> memory_heaps;
+
+		struct QueueFamily
+		{
+			uint32_t queue_family_index;
+			uint32_t queue_count;
+			bool support_compute;
+			bool support_graphics;
+			bool support_transfer;
+		};
+		StaticArray<QueueFamily> queue_families;
+	};
 }

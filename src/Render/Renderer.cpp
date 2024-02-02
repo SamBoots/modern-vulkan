@@ -37,7 +37,7 @@ public:
 		uint32_t next_free;
 	};
 
-	void Init(const RCommandList a_list, const uint64_t a_upload_fence_value);
+	void Init(MemoryArena& a_arena, const RCommandList a_list, const uint64_t a_upload_fence_value);
 
 	const RTexture UploadTexture(const RCommandList a_list, const UploadTextureInfo& a_upload_info, const uint64_t a_upload_fence_value);
 	const RTexture CreateRenderTarget(const uint2 a_render_target_extent, const char* a_name);
@@ -48,6 +48,19 @@ public:
 	const TextureSlot& GetTextureSlot(const RTexture a_texture) const
 	{
 		return m_textures[a_texture.handle];
+	}
+
+	void TransitionGraphicsQueueTexture(const RCommandList a_list)
+	{
+		if (m_graphics_texture_transitions.size() == 0)
+			return;
+		OSAcquireSRWLockWrite(&m_lock);
+		PipelineBarrierInfo barrier_info{};
+		barrier_info.image_infos = m_graphics_texture_transitions.data();
+		barrier_info.image_info_count = m_graphics_texture_transitions.size();
+		Vulkan::PipelineBarriers(a_list, barrier_info);
+		m_graphics_texture_transitions.clear();
+		OSReleaseSRWLockWrite(&m_lock);
 	}
 
 	void DisplayTextureListImgui()
@@ -91,6 +104,14 @@ private:
 	uint32_t m_next_free;
 	TextureSlot m_textures[MAX_TEXTURES];
 	BBRWLock m_lock;
+
+	struct TextureTransitions
+	{
+		TextureSlot slot;
+
+	};
+
+	StaticArray<PipelineBarrierImageInfo> m_graphics_texture_transitions;
 
 	//purple color
 	struct DebugTexture
@@ -140,7 +161,7 @@ struct UploadBuffer
 	size_t base_offset;
 };
 
-constexpr size_t RING_BUFFER_QUEUE_ELEMENT_COUNT = 64;
+constexpr size_t RING_BUFFER_QUEUE_ELEMENT_COUNT = 1024;
 class UploadRingAllocator
 {
 public:
@@ -322,8 +343,6 @@ public:
 
 	void ExecuteCommands(const RCommandList* const a_lists, const uint32_t a_list_count, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const uint32_t a_wait_count)
 	{
-		BB_ASSERT(m_queue_type == QUEUE_TYPE::GRAPHICS, "calling a present commands on a non-graphics command queue is not valid");
-
 		OSAcquireSRWLockWrite(&m_lock);
 		//better way to do this?
 		const uint32_t signal_fence_count = 1 + a_signal_count;
@@ -533,7 +552,8 @@ struct Scene3D
 struct RenderInterface_inst
 {
 	RenderInterface_inst(MemoryArena& a_arena)
-		: graphics_queue(a_arena, QUEUE_TYPE::GRAPHICS, "graphics queue", 32, 32)
+		: graphics_queue(a_arena, QUEUE_TYPE::GRAPHICS, "graphics queue", 32, 32),
+		  transfer_queue(a_arena, QUEUE_TYPE::TRANSFER, "transfer queue", 8, 8)
 	{}
 
 	RenderIO render_io;
@@ -556,6 +576,7 @@ struct RenderInterface_inst
 
 	UploadRingAllocator frame_upload_allocator;
 	RenderQueue graphics_queue;
+	RenderQueue transfer_queue;
 
 	GPUTextureManager texture_manager;
 
@@ -599,6 +620,8 @@ struct RenderInterface_inst
 	StaticSlotmap<Mesh, MeshHandle> mesh_map{};
 	StaticSlotmap<ShaderEffect, ShaderEffectHandle> shader_effect_map{};
 	StaticSlotmap<Material, MaterialHandle> material_map{};
+
+	GPUDeviceInfo gpu_device;
 };
 
 static RenderInterface_inst* s_render_inst;
@@ -913,10 +936,47 @@ namespace IMGUI_IMPL
 	}
 } // IMGUI_IMPL
 
+static void DisplayGPUInfo()
+{
+	if (ImGui::CollapsingHeader("gpu info"))
+	{
+		ImGui::Indent();
+		const GPUDeviceInfo& gpu = s_render_inst->gpu_device;
+		ImGui::Text(gpu.name);
+		if (ImGui::CollapsingHeader("memory heaps"))
+		{
+			ImGui::Indent();
+			for (size_t i = 0; i < gpu.memory_heaps.size(); i++)
+			{
+				ImGui::Text("heap: %u", gpu.memory_heaps[i].heap_num);
+				ImGui::Text("heap size: %u", gpu.memory_heaps[i].heap_size);
+				ImGui::Text("heap is device local %d", gpu.memory_heaps[i].heap_device_local);
+			}
+			ImGui::Unindent();
+		}
+
+		if (ImGui::CollapsingHeader("queue families"))
+		{
+			ImGui::Indent();
+			for (size_t i = 0; i < gpu.queue_families.size(); i++)
+			{
+				ImGui::Text("family index: %u", gpu.queue_families[i].queue_family_index);
+				ImGui::Text("queue count: %u", gpu.queue_families[i].queue_count);
+				ImGui::Text("support compute: %d", gpu.queue_families[i].support_compute);
+				ImGui::Text("support graphics: %d", gpu.queue_families[i].support_graphics);
+				ImGui::Text("support transfer: %d", gpu.queue_families[i].support_transfer);
+			}
+			ImGui::Unindent();
+		}
+		ImGui::Unindent();
+	}
+}
+
 static void ImguiDisplayRenderer()
 {
 	if (ImGui::Begin("Renderer"))
 	{
+		DisplayGPUInfo();
 		s_render_inst->texture_manager.DisplayTextureListImgui();
 
 		if (ImGui::CollapsingHeader("Reload imgui shaders"))
@@ -986,8 +1046,10 @@ WriteableGPUBufferView BB::AllocateFromWritableIndexBuffer(const size_t a_size_i
 	return view;
 }
 
-void GPUTextureManager::Init(const RCommandList a_list, const uint64_t a_upload_fence_value)
+void GPUTextureManager::Init(MemoryArena& a_arena, const RCommandList a_list, const uint64_t a_upload_fence_value)
 {
+	m_graphics_texture_transitions.Init(a_arena, MAX_TEXTURES / 4);
+
 	{	//special debug image that gets placed on ALL empty or fried texture slots.
 		ImageCreateInfo image_info;
 		image_info.name = "debug purple";
@@ -1019,6 +1081,7 @@ void GPUTextureManager::Init(const RCommandList a_list, const uint64_t a_upload_
 			image_write_transition.image = m_debug_texture.img;
 			image_write_transition.old_layout = IMAGE_LAYOUT::UNDEFINED;
 			image_write_transition.new_layout = IMAGE_LAYOUT::TRANSFER_DST;
+			image_write_transition.src_queue = QUEUE_TRANSITION::TRANSFER;
 			image_write_transition.layer_count = 1;
 			image_write_transition.level_count = 1;
 			image_write_transition.base_array_layer = 0;
@@ -1062,6 +1125,8 @@ void GPUTextureManager::Init(const RCommandList a_list, const uint64_t a_upload_
 			image_shader_transition.image = m_debug_texture.img;
 			image_shader_transition.old_layout = IMAGE_LAYOUT::TRANSFER_DST;
 			image_shader_transition.new_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+			image_shader_transition.src_queue = QUEUE_TRANSITION::TRANSFER;
+			image_shader_transition.dst_queue = QUEUE_TRANSITION::GRAPHICS;
 			image_shader_transition.layer_count = 1;
 			image_shader_transition.level_count = 1;
 			image_shader_transition.base_array_layer = 0;
@@ -1069,10 +1134,7 @@ void GPUTextureManager::Init(const RCommandList a_list, const uint64_t a_upload_
 			image_shader_transition.src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
 			image_shader_transition.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
 
-			PipelineBarrierInfo pipeline_info{};
-			pipeline_info.image_info_count = 1;
-			pipeline_info.image_infos = &image_shader_transition;
-			Vulkan::PipelineBarriers(a_list, pipeline_info);
+			m_graphics_texture_transitions.emplace_back(image_shader_transition);
 		}
 
 
@@ -1179,6 +1241,7 @@ const RTexture GPUTextureManager::UploadTexture(const RCommandList a_list, const
 		image_write_transition.image = slot.image;
 		image_write_transition.old_layout = IMAGE_LAYOUT::UNDEFINED;
 		image_write_transition.new_layout = IMAGE_LAYOUT::TRANSFER_DST;
+		image_write_transition.src_queue = QUEUE_TRANSITION::TRANSFER;
 		image_write_transition.layer_count = 1;
 		image_write_transition.level_count = 1;
 		image_write_transition.base_array_layer = 0;
@@ -1243,17 +1306,15 @@ const RTexture GPUTextureManager::UploadTexture(const RCommandList a_list, const
 		image_shader_transition.image = slot.image;
 		image_shader_transition.old_layout = IMAGE_LAYOUT::TRANSFER_DST;
 		image_shader_transition.new_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+		image_shader_transition.src_queue = QUEUE_TRANSITION::TRANSFER;
+		image_shader_transition.dst_queue = QUEUE_TRANSITION::GRAPHICS;
 		image_shader_transition.layer_count = 1;
 		image_shader_transition.level_count = 1;
 		image_shader_transition.base_array_layer = 0;
 		image_shader_transition.base_mip_level = 0;
 		image_shader_transition.src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
 		image_shader_transition.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
-
-		PipelineBarrierInfo pipeline_info{};
-		pipeline_info.image_info_count = 1;
-		pipeline_info.image_infos = &image_shader_transition;
-		Vulkan::PipelineBarriers(a_list, pipeline_info);
+		m_graphics_texture_transitions.emplace_back(image_shader_transition);
 	}
 
 	return texture_slot;
@@ -1429,6 +1490,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	s_render_inst = ArenaAllocType(a_arena, RenderInterface_inst)(a_arena);
 	s_render_inst->render_io.frame_count = BACK_BUFFER_MAX;
 	s_render_inst->render_io.frame_index = 0;
+
 	Vulkan::CreateSwapchain(a_arena, a_render_create_info.window_handle, a_render_create_info.swapchain_width, a_render_create_info.swapchain_height, s_render_inst->render_io.frame_count);
 
 	s_render_inst->render_io.window_handle = a_render_create_info.window_handle;
@@ -1436,9 +1498,9 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	s_render_inst->render_io.screen_height = a_render_create_info.swapchain_height;
 	s_render_inst->debug = a_render_create_info.debug;
 
-	s_render_inst->mesh_map.Init(a_arena, 32);
-	s_render_inst->shader_effect_map.Init(a_arena, 32);
-	s_render_inst->material_map.Init(a_arena, 64);
+	s_render_inst->mesh_map.Init(a_arena, 256);
+	s_render_inst->shader_effect_map.Init(a_arena, 64);
+	s_render_inst->material_map.Init(a_arena, 256);
 
 
 	s_render_inst->frame_upload_allocator.Init(a_arena, a_render_create_info.frame_upload_buffer_size, s_render_inst->graphics_queue.GetFence().fence, "frame upload allocator");
@@ -1556,11 +1618,10 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	CommandPool& start_up_pool = s_render_inst->graphics_queue.GetCommandPool("startup pool");
 	const RCommandList list = start_up_pool.StartCommandList();
 
-
-	uint64_t asset_fence_value = GetNextAssetTransferFenceValueAndIncrement();
+	const uint64_t asset_fence_value = GetNextAssetTransferFenceValueAndIncrement();
 
 	{	//initialize texture system
-		s_render_inst->texture_manager.Init(list, asset_fence_value);
+		s_render_inst->texture_manager.Init(a_arena, list, asset_fence_value);
 
 		//some basic colors
 		const uint32_t white = UINT32_MAX;
@@ -1611,7 +1672,8 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	}
 	
 	IMGUI_IMPL::ImInit(a_arena, list, s_render_inst->asset_upload_next_fence_value);
-	
+
+	s_render_inst->gpu_device = Vulkan::GetGPUDeviceInfo(a_arena);
 
 	start_up_pool.EndCommandList(list);
 	//special upload here, due to uploading as well
@@ -1728,6 +1790,8 @@ void BB::EndFrame(const RCommandList a_list, bool a_skip)
 		pipeline_info.image_infos = image_transitions;
 		Vulkan::PipelineBarriers(a_list, pipeline_info);
 	}
+
+	s_render_inst->texture_manager.TransitionGraphicsQueueTexture(a_list);
 
 	const int2 swapchain_size =
 	{
@@ -2114,7 +2178,7 @@ CommandPool& BB::GetGraphicsCommandPool()
 //MOCK, todo, uses graphics queue
 CommandPool& BB::GetTransferCommandPool()
 {
-	return GetGraphicsCommandPool();
+	return s_render_inst->transfer_queue.GetCommandPool();
 }
 
 bool BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools)
@@ -2206,13 +2270,15 @@ bool BB::ExecuteAssetTransfer(const BB::Slice<CommandPool> a_cmd_pools, const ui
 		list_count += a_cmd_pools[i].GetListsRecorded();
 	}
 
-	s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
-	s_render_inst->graphics_queue.ExecuteCommands(lists, list_count, &s_render_inst->asset_upload_fence, &a_asset_transfer_fence_value, 1, nullptr, nullptr, 0);
+	s_render_inst->transfer_queue.ReturnPools(a_cmd_pools);
+	s_render_inst->transfer_queue.ExecuteCommands(lists, list_count, &s_render_inst->asset_upload_fence, &a_asset_transfer_fence_value, 1, nullptr, nullptr, 0);
 	return true;
 }
 
 const MeshHandle BB::CreateMesh(const RCommandList a_list, const CreateMeshInfo& a_create_info, const uint64_t a_transfer_fence_value)
 {
+	UploadBuffer upload_buffer = s_render_inst->asset_upload_allocator.AllocateUploadMemory(a_create_info.vertices.sizeInBytes() + a_create_info.indices.sizeInBytes(), a_transfer_fence_value);
+
 	Mesh mesh;
 	mesh.vertex_buffer = AllocateFromVertexBuffer(a_create_info.vertices.sizeInBytes());
 	mesh.index_buffer = AllocateFromIndexBuffer(a_create_info.indices.sizeInBytes());
@@ -2220,7 +2286,6 @@ const MeshHandle BB::CreateMesh(const RCommandList a_list, const CreateMeshInfo&
 
 	const size_t vertex_offset = 0;
 	const size_t index_offset = a_create_info.vertices.sizeInBytes();
-	UploadBuffer upload_buffer = s_render_inst->asset_upload_allocator.AllocateUploadMemory(a_create_info.vertices.sizeInBytes() + a_create_info.indices.sizeInBytes(), a_transfer_fence_value);
 	upload_buffer.SafeMemcpy(vertex_offset, a_create_info.vertices.data(), a_create_info.vertices.sizeInBytes());
 	upload_buffer.SafeMemcpy(index_offset, a_create_info.indices.data(), a_create_info.indices.sizeInBytes());
 
