@@ -1131,11 +1131,10 @@ GPUDeviceInfo Vulkan::GetGPUDeviceInfo(MemoryArena& a_arena)
 		GPUDeviceInfo::MemoryHeapInfo heap_info;
 		heap_info.heap_num = i;
 		heap_info.heap_size = memory_prop.memoryHeaps[i].size;
-		heap_info.heap_device_local &= (memory_prop.memoryHeaps[i].flags << VK_MEMORY_HEAP_DEVICE_LOCAL_BIT);
+		heap_info.heap_device_local = memory_prop.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT;
 		device.memory_heaps.emplace_back(heap_info);
 	}
 
-	
 	uint32_t queue_family_count = 0;
 	vkGetPhysicalDeviceQueueFamilyProperties(s_vulkan_inst->phys_device, &queue_family_count, nullptr);
 	device.queue_families.Init(a_arena, queue_family_count);
@@ -1150,13 +1149,12 @@ GPUDeviceInfo Vulkan::GetGPUDeviceInfo(MemoryArena& a_arena)
 			GPUDeviceInfo::QueueFamily queue_family;
 			queue_family.queue_family_index = i;
 			queue_family.queue_count = queue_families[i].queueCount;
-			queue_family.support_compute &= queue_families[i].queueFlags;
-			queue_family.support_graphics &= queue_families[i].queueFlags;
-			queue_family.support_transfer &= queue_families[i].queueFlags;
+			queue_family.support_compute = queue_families[i].queueFlags & VK_QUEUE_COMPUTE_BIT;
+			queue_family.support_graphics = queue_families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT;
+			queue_family.support_transfer = queue_families[i].queueFlags & VK_QUEUE_TRANSFER_BIT;
 			device.queue_families.emplace_back(queue_family);
 		}
 	}
-
 	return device;
 }
 
