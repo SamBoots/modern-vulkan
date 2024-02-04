@@ -942,14 +942,14 @@ static void DisplayGPUInfo()
 	{
 		ImGui::Indent();
 		const GPUDeviceInfo& gpu = s_render_inst->gpu_device;
-		ImGui::Text(gpu.name);
+		ImGui::TextUnformatted(gpu.name);
 		if (ImGui::CollapsingHeader("memory heaps"))
 		{
 			ImGui::Indent();
-			for (size_t i = 0; i < gpu.memory_heaps.size(); i++)
+			for (uint32_t i = 0; i < static_cast<uint32_t>(gpu.memory_heaps.size()); i++)
 			{
 				ImGui::Text("heap: %u", gpu.memory_heaps[i].heap_num);
-				ImGui::Text("heap size: %u", gpu.memory_heaps[i].heap_size);
+				ImGui::Text("heap size: %lld", gpu.memory_heaps[i].heap_size);
 				ImGui::Text("heap is device local %d", gpu.memory_heaps[i].heap_device_local);
 			}
 			ImGui::Unindent();
@@ -1005,6 +1005,7 @@ GPUBufferView BB::AllocateFromVertexBuffer(const size_t a_size_in_bytes)
 	view.offset = s_render_inst->vertex_buffer.used;
 
 	s_render_inst->vertex_buffer.used += static_cast<uint32_t>(a_size_in_bytes);
+	BB_ASSERT(s_render_inst->vertex_buffer.size > s_render_inst->vertex_buffer.used, "out of vertex buffer space!");
 
 	return view;
 }
@@ -1017,6 +1018,8 @@ GPUBufferView BB::AllocateFromIndexBuffer(const size_t a_size_in_bytes)
 	view.offset = s_render_inst->index_buffer.used;
 
 	s_render_inst->index_buffer.used += static_cast<uint32_t>(a_size_in_bytes);
+	BB_ASSERT(s_render_inst->index_buffer.size > s_render_inst->index_buffer.used, "out of index buffer space!");
+
 	return view;
 }
 
@@ -1081,7 +1084,8 @@ void GPUTextureManager::Init(MemoryArena& a_arena, const RCommandList a_list, co
 			image_write_transition.image = m_debug_texture.img;
 			image_write_transition.old_layout = IMAGE_LAYOUT::UNDEFINED;
 			image_write_transition.new_layout = IMAGE_LAYOUT::TRANSFER_DST;
-			image_write_transition.src_queue = QUEUE_TRANSITION::TRANSFER;
+			image_write_transition.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
+			image_write_transition.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
 			image_write_transition.layer_count = 1;
 			image_write_transition.level_count = 1;
 			image_write_transition.base_array_layer = 0;
@@ -1125,8 +1129,8 @@ void GPUTextureManager::Init(MemoryArena& a_arena, const RCommandList a_list, co
 			image_shader_transition.image = m_debug_texture.img;
 			image_shader_transition.old_layout = IMAGE_LAYOUT::TRANSFER_DST;
 			image_shader_transition.new_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
-			image_shader_transition.src_queue = QUEUE_TRANSITION::TRANSFER;
-			image_shader_transition.dst_queue = QUEUE_TRANSITION::GRAPHICS;
+			image_shader_transition.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
+			image_shader_transition.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
 			image_shader_transition.layer_count = 1;
 			image_shader_transition.level_count = 1;
 			image_shader_transition.base_array_layer = 0;
@@ -1241,7 +1245,8 @@ const RTexture GPUTextureManager::UploadTexture(const RCommandList a_list, const
 		image_write_transition.image = slot.image;
 		image_write_transition.old_layout = IMAGE_LAYOUT::UNDEFINED;
 		image_write_transition.new_layout = IMAGE_LAYOUT::TRANSFER_DST;
-		image_write_transition.src_queue = QUEUE_TRANSITION::TRANSFER;
+		image_write_transition.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
+		image_write_transition.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
 		image_write_transition.layer_count = 1;
 		image_write_transition.level_count = 1;
 		image_write_transition.base_array_layer = 0;
@@ -1306,8 +1311,8 @@ const RTexture GPUTextureManager::UploadTexture(const RCommandList a_list, const
 		image_shader_transition.image = slot.image;
 		image_shader_transition.old_layout = IMAGE_LAYOUT::TRANSFER_DST;
 		image_shader_transition.new_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
-		image_shader_transition.src_queue = QUEUE_TRANSITION::TRANSFER;
-		image_shader_transition.dst_queue = QUEUE_TRANSITION::GRAPHICS;
+		image_shader_transition.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
+		image_shader_transition.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
 		image_shader_transition.layer_count = 1;
 		image_shader_transition.level_count = 1;
 		image_shader_transition.base_array_layer = 0;

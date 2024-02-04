@@ -444,25 +444,24 @@ static void LoadglTFNode(MemoryArena& a_temp_arena, Slice<ShaderEffectHandle> a_
 
 				material_info.base_color = img->gpu_image;
 			}
-
+			if (0)
 			if (prim.material->normal_texture.texture)
 			{
 				const cgltf_image& image = *prim.material->normal_texture.texture->image;
 
 				const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
 				const Image* img = Asset::LoadImageDisk(full_image_path, image.name, a_list, a_transfer_fence_value);
-	
+
 				material_info.normal_texture = img->gpu_image;
 			}
 
 			model_prim.material = CreateMaterial(material_info);
 
-			{	//get indices
+			{	// get indices
 				void* index_data = GetAccessorDataPtr(prim.indices);
 				if (prim.indices->component_type == cgltf_component_type_r_32u)
 				{
-					Memory::Copy(&indices[index_offset], index_data, prim.indices->count);
-					index_offset += static_cast<uint32_t>(prim.indices->count);
+					indices = reinterpret_cast<uint32_t*>(index_data);
 				}
 				else if (prim.indices->component_type == cgltf_component_type_r_16u)
 				{

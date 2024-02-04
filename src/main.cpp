@@ -355,7 +355,7 @@ int main(int argc, char** argv)
 
 	SystemInfo sys_info;
 	OSSystemInfo(sys_info);
-	Threads::InitThreads(sys_info.processor_num);
+	Threads::InitThreads(sys_info.processor_num / 2);
 
 	MemoryArena main_arena = MemoryArenaCreate();
 
@@ -451,7 +451,7 @@ int main(int argc, char** argv)
 		uint32_t indices[] = { 0, 1, 2, 2, 3, 0 };
 
 
-		Asset::AsyncAsset async_assets[2]{};
+		Asset::AsyncAsset async_assets[3]{};
 		async_assets[0].asset_type = Asset::ASYNC_ASSET_TYPE::MODEL;
 		async_assets[0].load_type = Asset::ASYNC_LOAD_TYPE::DISK;
 		async_assets[0].mesh_disk.name = "duck gltf";
@@ -459,21 +459,27 @@ int main(int argc, char** argv)
 		async_assets[0].mesh_disk.shader_effects = Slice(shader_effects, _countof(shader_effects));
 
 		async_assets[1].asset_type = Asset::ASYNC_ASSET_TYPE::MODEL;
-		async_assets[1].load_type = Asset::ASYNC_LOAD_TYPE::MEMORY;
-		async_assets[1].mesh_memory.name = "basic quad";
-		async_assets[1].mesh_memory.vertices = Slice(vertices, _countof(vertices));
-		async_assets[1].mesh_memory.indices = Slice(indices, _countof(indices));
-		async_assets[1].mesh_memory.material = default_mat;
+		async_assets[1].load_type = Asset::ASYNC_LOAD_TYPE::DISK;
+		async_assets[1].mesh_disk.name = "Sponza gltf";
+		async_assets[1].mesh_disk.path = "../resources/models/Sponza.gltf";
+		async_assets[1].mesh_disk.shader_effects = Slice(shader_effects, _countof(shader_effects));
+
+		async_assets[2].asset_type = Asset::ASYNC_ASSET_TYPE::MODEL;
+		async_assets[2].load_type = Asset::ASYNC_LOAD_TYPE::MEMORY;
+		async_assets[2].mesh_memory.name = "basic quad";
+		async_assets[2].mesh_memory.vertices = Slice(vertices, _countof(vertices));
+		async_assets[2].mesh_memory.indices = Slice(indices, _countof(indices));
+		async_assets[2].mesh_memory.material = default_mat;
 		ThreadTask asset_job = Asset::LoadAssetsASync(Slice(async_assets, _countof(async_assets)));
 
 		Threads::WaitForTask(asset_job);
 
-		scene_hierarchy.CreateSceneObjectViaModel(*Asset::FindModelByPath(async_assets[0].mesh_disk.path), float3{ 0, -2, 3 }, "ducky");
-		scene_hierarchy.CreateSceneObjectViaModel(*Asset::FindModelByPath(async_assets[1].mesh_memory.name), float3{ 0, -1, 1 }, "quaty");
+		scene_hierarchy.CreateSceneObjectViaModel(*Asset::FindModelByPath(async_assets[1].mesh_disk.path), float3{ 0, -2, 3 }, "sponzay");
+		scene_hierarchy.CreateSceneObjectViaModel(*Asset::FindModelByPath(async_assets[2].mesh_memory.name), float3{ 0, -1, 1 }, "quaty");
 		object_viewer_scene.CreateSceneObjectViaModel(*Asset::FindModelByPath(async_assets[0].mesh_disk.path), float3{ 0, -2, 3 }, "ducky");
 	}
 
-	{	//add some basic lights
+	{	// add some basic lights
 		BB::FixedArray<CreateLightInfo, 2> light_create_info;
 		light_create_info[0].color = float3(1, 1, 1);
 		light_create_info[0].linear_distance = 0.35f;

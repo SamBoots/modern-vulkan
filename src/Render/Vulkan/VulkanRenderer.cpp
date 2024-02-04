@@ -1113,20 +1113,20 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, cons
 
 GPUDeviceInfo Vulkan::GetGPUDeviceInfo(MemoryArena& a_arena)
 {
-	VkPhysicalDeviceProperties2 properties{};
+	VkPhysicalDeviceProperties2 properties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
 	vkGetPhysicalDeviceProperties2(s_vulkan_inst->phys_device, &properties);
 	VkPhysicalDeviceMemoryProperties memory_prop{};
 	vkGetPhysicalDeviceMemoryProperties(s_vulkan_inst->phys_device, &memory_prop);
 
 	GPUDeviceInfo device;
 	const size_t device_name_size = strnlen(properties.properties.deviceName, VK_MAX_PHYSICAL_DEVICE_NAME_SIZE);
-	device.name = ArenaAllocArr(a_arena, char, device_name_size);
-	strncpy(device.name, properties.properties.deviceName, device_name_size);
+	device.name = ArenaAllocArr(a_arena, char, device_name_size + 1);
+	strncpy_s(device.name, device_name_size + 1, properties.properties.deviceName, device_name_size);
 
 	// get the memory heaps
 	device.memory_heaps.Init(a_arena, memory_prop.memoryHeapCount);
 
-	for (size_t i = 0; i < device.memory_heaps.capacity(); i++)
+	for (uint32_t i = 0; i < static_cast<uint32_t>(device.memory_heaps.capacity()); i++)
 	{
 		GPUDeviceInfo::MemoryHeapInfo heap_info;
 		heap_info.heap_num = i;
