@@ -183,6 +183,15 @@ namespace BB
 		ImageCopyInfo dst_image_info;
 	};
 
+	struct RenderCopyImageToBufferInfo
+	{
+		RImage src_image;
+		ImageCopyInfo src_image_info;
+
+		GPUBuffer dst_buffer;
+		uint32_t dst_offset;
+	};
+
 	struct RenderCopyImage
 	{
 		RImage src_image;

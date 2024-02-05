@@ -7,6 +7,8 @@
 #include "Storage/LinkedList.h"
 #include "MemoryArena.hpp"
 
+#include "BBImage.hpp"
+
 namespace BB
 {
 	struct RendererCreateInfo
@@ -109,6 +111,8 @@ namespace BB
 	bool InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_render_create_info);
 	void RequestResize();
 
+	void GPUWaitIdle();
+
 	void StartFrame(const RCommandList a_list);
 	void EndFrame(const RCommandList a_list, bool a_skip = false);
 
@@ -159,6 +163,7 @@ namespace BB
 	// returns invalid texture when not enough upload buffer space
 	const RTexture UploadTexture(const RCommandList a_list, const UploadTextureInfo& a_upload_info, const uint64_t a_transfer_fence_value);
 	void FreeTexture(const RTexture a_texture);
+	BBImage RTextureToBBImage(MemoryArena& a_arena, const RTexture a_texture);
 
 	const GPUBuffer CreateGPUBuffer(const GPUBufferCreateInfo& a_create_info);
 	void FreeGPUBuffer(const GPUBuffer a_buffer);

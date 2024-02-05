@@ -645,6 +645,9 @@ int main(int argc, char** argv)
 		graphics_command_pools[0].EndCommandList(main_list);
 		PresentFrame(Slice(graphics_command_pools, _countof(graphics_command_pools)));
 
+		BBImage image = RTextureToBBImage(main_arena, GetCurrentRenderTargetTexture(viewport_scene.render_target));
+		image.WriteAsBMP("meme.bmp");
+
 		delta_time = std::chrono::duration<float, std::chrono::seconds::period>(current_time - start_time).count();
 		current_time = std::chrono::high_resolution_clock::now();
 	}

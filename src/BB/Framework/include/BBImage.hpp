@@ -4,11 +4,14 @@
 
 namespace BB
 {
+	struct MemoryArena;
+
 	class BBImage
 	{
 	public:
 		BBImage(Allocator a_allocator, const char* a_file_path);
 		BBImage(Allocator a_allocator, const BBImage& a_image);
+		BBImage(MemoryArena& a_arena, void* a_pixels_to_copy, const uint32_t a_width, const uint32_t a_height, const uint32_t a_bytes_per_pixel);
 
 		BBImage& operator=(const BBImage& a_rhs);
 

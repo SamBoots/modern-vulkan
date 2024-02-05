@@ -4,6 +4,8 @@
 
 #include "Math.inl"
 
+#include "MemoryArena.hpp"
+
 #define PACK_RGBA(r, g, b, a) static_cast<uint32_t>((static_cast<uint32_t>(r)<<24|static_cast<uint32_t>(g)<<16|static_cast<uint32_t>(b)<<8|static_cast<uint32_t>(a)))
 
 using namespace BB;
@@ -115,6 +117,17 @@ BBImage::BBImage(Allocator a_allocator, const BBImage& a_image)
 	Memory::Copy(m_pixels, a_image.m_pixels, pixel_count);
 }
 
+BBImage::BBImage(MemoryArena& a_arena, void* a_pixels_to_copy, const uint32_t a_width, const uint32_t a_height, const uint32_t a_bytes_per_pixel)
+{
+	BB_ASSERT(a_bytes_per_pixel == 4, "not supporting non 4 bytes per pixels images now");
+	m_width = a_width;
+	m_height = a_height;
+
+	const size_t pixel_count = static_cast<size_t>(m_width) * m_height;
+	m_pixels = ArenaAllocArr(a_arena, RGBA_Pixel, pixel_count);
+	memcpy(m_pixels, a_pixels_to_copy, pixel_count * a_bytes_per_pixel);
+}
+
 BBImage& BBImage::operator=(const BBImage& a_rhs)
 {
 	BB_ASSERT(m_width == a_rhs.m_width && m_height == a_rhs.m_height, "trying to do a copy operation on a image that is not the same width and height!");
@@ -125,7 +138,6 @@ BBImage& BBImage::operator=(const BBImage& a_rhs)
 	Memory::Copy(m_pixels, a_rhs.m_pixels, pixel_count);
 	return *this;
 }
-
 
 struct process_image_part_params
 {
