@@ -249,57 +249,62 @@ static void ViewportResize(Viewport& a_viewport, const uint2 a_new_extent)
 	ResizeRenderTarget(a_viewport.render_target, a_new_extent);
 }
 
-static void DrawImGuiViewport(Viewport& a_viewport, bool& a_resized, const uint2 a_minimum_size)
+static void DrawImGuiViewport(MemoryArena& a_arena, Viewport& a_viewport, bool& a_resized, const uint2 a_minimum_size = uint2(160, 80))
 {
 	a_resized = false;
-	ImGuiIO im_io = ImGui::GetIO();
-
-	const ImVec2 window_offset = ImGui::GetWindowPos();
-	a_viewport.offset = uint2(static_cast<unsigned int>(window_offset.x), static_cast<unsigned int>(window_offset.y));
-
-	if (static_cast<unsigned int>(ImGui::GetWindowSize().x) < a_minimum_size.x ||
-		static_cast<unsigned int>(ImGui::GetWindowSize().y) < a_minimum_size.y)
+	if (ImGui::Begin(a_viewport.name, nullptr, ImGuiWindowFlags_MenuBar))
 	{
-		ImGui::SetWindowSize(ImVec2(static_cast<float>(a_minimum_size.x), static_cast<float>(a_minimum_size.y)));
-		ImGui::End();
-		return;
-	}
-
-	const ImVec2 viewport_draw_area = ImGui::GetContentRegionAvail();
-
-	const uint2 window_size_u = uint2(static_cast<unsigned int>(viewport_draw_area.x), static_cast<unsigned int>(viewport_draw_area.y));
-	if (window_size_u != a_viewport.extent && !im_io.WantCaptureMouse)
-	{
-		a_resized = true;
-		ViewportResize(a_viewport, window_size_u);
-	}
-
-	ImGui::Image(GetCurrentRenderTargetTexture(a_viewport.render_target).handle, viewport_draw_area);
-}
-
-static void DrawViewportObjectViewer(Viewport& a_viewport, bool& a_resized, const uint2 a_minimum_size = uint2(160, 80))
-{
-	a_resized = false;
-	if (ImGui::Begin(a_viewport.name))
-	{
-		if (ImGui::BeginMenu("asset menu"))
+		const RTexture render_target = GetCurrentRenderTargetTexture(a_viewport.render_target);
+		if (ImGui::BeginMenuBar())
 		{
-			if (ImGui::MenuItem("lmao"))
+			if (ImGui::BeginMenu("screenshot"))
 			{
+				static char image_name[128]{};
+				ImGui::InputText("sceenshot name", image_name, 128);
 
+				if (ImGui::Button("make screenshot"))
+				{
+					BBImage image{};
+					RTextureToBBImage(a_arena, render_target, image);
+					StackString<256> image_name_bmp{ "screenshots" };
+
+					// create directory first
+					OSCreateDirectory(image_name_bmp.c_str());
+					image_name_bmp.push_back('/');
+					image_name_bmp.append(image_name);
+					image_name_bmp.append(".bmp");
+					image.WriteAsBMP(image_name_bmp.c_str());
+				}
+
+				ImGui::EndMenu();
 			}
+			ImGui::EndMenuBar();
 		}
-		DrawImGuiViewport(a_viewport, a_resized, a_minimum_size);
-	}
-	ImGui::End();
-}
 
-static void DrawViewportSceneViewer(Viewport& a_viewport, bool& a_resized, const uint2 a_minimum_size = uint2(160, 80))
-{
-	a_resized = false;
-	if (ImGui::Begin(a_viewport.name))
-	{
-		DrawImGuiViewport(a_viewport, a_resized, a_minimum_size);
+
+		ImGuiIO im_io = ImGui::GetIO();
+
+		const ImVec2 window_offset = ImGui::GetWindowPos();
+		a_viewport.offset = uint2(static_cast<unsigned int>(window_offset.x), static_cast<unsigned int>(window_offset.y));
+
+		if (static_cast<unsigned int>(ImGui::GetWindowSize().x) < a_minimum_size.x ||
+			static_cast<unsigned int>(ImGui::GetWindowSize().y) < a_minimum_size.y)
+		{
+			ImGui::SetWindowSize(ImVec2(static_cast<float>(a_minimum_size.x), static_cast<float>(a_minimum_size.y)));
+			ImGui::End();
+			return;
+		}
+
+		const ImVec2 viewport_draw_area = ImGui::GetContentRegionAvail();
+
+		const uint2 window_size_u = uint2(static_cast<unsigned int>(viewport_draw_area.x), static_cast<unsigned int>(viewport_draw_area.y));
+		if (window_size_u != a_viewport.extent && !im_io.WantCaptureMouse)
+		{
+			a_resized = true;
+			ViewportResize(a_viewport, window_size_u);
+		}
+
+		ImGui::Image(render_target.handle, viewport_draw_area);
 	}
 	ImGui::End();
 }
@@ -617,62 +622,58 @@ int main(int argc, char** argv)
 					active_viewport->camera.Rotate(mouse_move.x, mouse_move.y);
 			}
 		}
-
-		scene_hierarchy.SetView(viewport_scene.camera.CalculateView());
-		object_viewer_scene.SetView(viewport_object_viewer.camera.CalculateView());
-
-		Asset::ShowAssetMenu();
-		MainDebugWindow(main_arena, active_viewport);
-		scene_hierarchy.ImguiDisplaySceneHierarchy();
-		object_viewer_scene.ImguiDisplaySceneHierarchy();
-
-		bool resized = false;
-		DrawViewportSceneViewer(viewport_scene, resized);
-		if (resized)
-		{
-			scene_hierarchy.SetProjection(CalculateProjection(float2(static_cast<float>(viewport_scene.extent.x), static_cast<float>(viewport_scene.extent.y))));
-		}
-
-		resized = false;
-		DrawViewportObjectViewer(viewport_object_viewer, resized);
-		if (resized)
-		{
-			object_viewer_scene.SetProjection(CalculateProjection(float2(static_cast<float>(viewport_object_viewer.extent.x), static_cast<float>(viewport_object_viewer.extent.y))));
-		}
-
-
-		ThreadFuncForDrawing_Params main_scene_params{
-			viewport_scene,
-			scene_hierarchy,
-			main_list
-		};
-
-		const RCommandList object_viewer_list = graphics_command_pools[1].StartCommandList();
-
-		ThreadFuncForDrawing_Params object_viewer_params{
-			viewport_object_viewer,
-			object_viewer_scene,
-			object_viewer_list
-		};
-
-		ThreadTask main_scene_task = Threads::StartTaskThread(ThreadFuncForDrawing, &main_scene_params, L"main scene task");
-		ThreadTask object_viewer_task = Threads::StartTaskThread(ThreadFuncForDrawing, &object_viewer_params, L"object viewer task");
-
-		Threads::WaitForTask(main_scene_task);
-		Threads::WaitForTask(object_viewer_task);
-
-		graphics_command_pools[1].EndCommandList(object_viewer_list);
-
-		EndFrame(main_list);
-
-		graphics_command_pools[0].EndCommandList(main_list);
-		PresentFrame(Slice(graphics_command_pools, _countof(graphics_command_pools)));
-
 		MemoryArenaScope(main_arena)
 		{
-			BBImage image = {};
-			RTextureToBBImage(main_arena, GetCurrentRenderTargetTexture(viewport_object_viewer.render_target), image);
-			image.WriteAsBMP("meme.bmp");
+
+			scene_hierarchy.SetView(viewport_scene.camera.CalculateView());
+			object_viewer_scene.SetView(viewport_object_viewer.camera.CalculateView());
+
+			Asset::ShowAssetMenu();
+			MainDebugWindow(main_arena, active_viewport);
+			scene_hierarchy.ImguiDisplaySceneHierarchy();
+			object_viewer_scene.ImguiDisplaySceneHierarchy();
+
+			bool resized = false;
+			DrawImGuiViewport(main_arena, viewport_scene, resized);
+			if (resized)
+			{
+				scene_hierarchy.SetProjection(CalculateProjection(float2(static_cast<float>(viewport_scene.extent.x), static_cast<float>(viewport_scene.extent.y))));
+			}
+
+			resized = false;
+			DrawImGuiViewport(main_arena, viewport_object_viewer, resized);
+			if (resized)
+			{
+				object_viewer_scene.SetProjection(CalculateProjection(float2(static_cast<float>(viewport_object_viewer.extent.x), static_cast<float>(viewport_object_viewer.extent.y))));
+			}
+
+
+			ThreadFuncForDrawing_Params main_scene_params{
+				viewport_scene,
+				scene_hierarchy,
+				main_list
+			};
+
+			const RCommandList object_viewer_list = graphics_command_pools[1].StartCommandList();
+
+			ThreadFuncForDrawing_Params object_viewer_params{
+				viewport_object_viewer,
+				object_viewer_scene,
+				object_viewer_list
+			};
+
+			ThreadTask main_scene_task = Threads::StartTaskThread(ThreadFuncForDrawing, &main_scene_params, L"main scene task");
+			ThreadTask object_viewer_task = Threads::StartTaskThread(ThreadFuncForDrawing, &object_viewer_params, L"object viewer task");
+
+			Threads::WaitForTask(main_scene_task);
+			Threads::WaitForTask(object_viewer_task);
+
+			graphics_command_pools[1].EndCommandList(object_viewer_list);
+
+			EndFrame(main_list);
+
+			graphics_command_pools[0].EndCommandList(main_list);
+			PresentFrame(Slice(graphics_command_pools, _countof(graphics_command_pools)));
 		}
 		delta_time = std::chrono::duration<float, std::chrono::seconds::period>(current_time - start_time).count();
 		current_time = std::chrono::high_resolution_clock::now();
