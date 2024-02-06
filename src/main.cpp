@@ -249,34 +249,54 @@ static void ViewportResize(Viewport& a_viewport, const uint2 a_new_extent)
 	ResizeRenderTarget(a_viewport.render_target, a_new_extent);
 }
 
-static void DrawImGuiViewport(Viewport& a_viewport, bool& a_resized, const uint2 a_minimum_size = uint2(160, 80))
+static void DrawImGuiViewport(Viewport& a_viewport, bool& a_resized, const uint2 a_minimum_size)
+{
+	a_resized = false;
+	ImGuiIO im_io = ImGui::GetIO();
+
+	const ImVec2 window_offset = ImGui::GetWindowPos();
+	a_viewport.offset = uint2(static_cast<unsigned int>(window_offset.x), static_cast<unsigned int>(window_offset.y));
+
+	if (static_cast<unsigned int>(ImGui::GetWindowSize().x) < a_minimum_size.x ||
+		static_cast<unsigned int>(ImGui::GetWindowSize().y) < a_minimum_size.y)
+	{
+		ImGui::SetWindowSize(ImVec2(static_cast<float>(a_minimum_size.x), static_cast<float>(a_minimum_size.y)));
+		ImGui::End();
+		return;
+	}
+
+	const ImVec2 viewport_draw_area = ImGui::GetContentRegionAvail();
+
+	const uint2 window_size_u = uint2(static_cast<unsigned int>(viewport_draw_area.x), static_cast<unsigned int>(viewport_draw_area.y));
+	if (window_size_u != a_viewport.extent && !im_io.WantCaptureMouse)
+	{
+		a_resized = true;
+		ViewportResize(a_viewport, window_size_u);
+	}
+
+	ImGui::Image(GetCurrentRenderTargetTexture(a_viewport.render_target).handle, viewport_draw_area);
+}
+
+static void DrawViewportObjectViewer(Viewport& a_viewport, bool& a_resized, const uint2 a_minimum_size = uint2(160, 80))
 {
 	a_resized = false;
 	if (ImGui::Begin(a_viewport.name))
 	{
-		ImGuiIO im_io = ImGui::GetIO();
-
-		const ImVec2 window_offset = ImGui::GetWindowPos();
-		a_viewport.offset = uint2(static_cast<unsigned int>(window_offset.x), static_cast<unsigned int>(window_offset.y));
-
-		if (static_cast<unsigned int>(ImGui::GetWindowSize().x) < a_minimum_size.x ||
-			static_cast<unsigned int>(ImGui::GetWindowSize().y) < a_minimum_size.y)
+		if (ImGui::BeginMenu("asset menu"))
 		{
-			ImGui::SetWindowSize(ImVec2(static_cast<float>(a_minimum_size.x), static_cast<float>(a_minimum_size.y)));
-			ImGui::End();
-			return;
+
 		}
+		DrawImGuiViewport(a_viewport, a_resized, a_minimum_size);
+	}
+	ImGui::End();
+}
 
-		const ImVec2 viewport_draw_area = ImGui::GetContentRegionAvail();
-
-		const uint2 window_size_u = uint2(static_cast<unsigned int>(viewport_draw_area.x), static_cast<unsigned int>(viewport_draw_area.y));
-		if (window_size_u != a_viewport.extent && !im_io.WantCaptureMouse)
-		{
-			a_resized = true;
-			ViewportResize(a_viewport, window_size_u);
-		}
-
-		ImGui::Image(GetCurrentRenderTargetTexture(a_viewport.render_target).handle, viewport_draw_area);
+static void DrawViewportSceneViewer(Viewport& a_viewport, bool& a_resized, const uint2 a_minimum_size = uint2(160, 80))
+{
+	a_resized = false;
+	if (ImGui::Begin(a_viewport.name))
+	{
+		DrawImGuiViewport(a_viewport, a_resized, a_minimum_size);
 	}
 	ImGui::End();
 }
@@ -604,14 +624,14 @@ int main(int argc, char** argv)
 		object_viewer_scene.ImguiDisplaySceneHierarchy();
 
 		bool resized = false;
-		DrawImGuiViewport(viewport_scene, resized);
+		DrawViewportSceneViewer(viewport_scene, resized);
 		if (resized)
 		{
 			scene_hierarchy.SetProjection(CalculateProjection(float2(static_cast<float>(viewport_scene.extent.x), static_cast<float>(viewport_scene.extent.y))));
 		}
 
 		resized = false;
-		DrawImGuiViewport(viewport_object_viewer, resized);
+		DrawViewportObjectViewer(viewport_object_viewer, resized);
 		if (resized)
 		{
 			object_viewer_scene.SetProjection(CalculateProjection(float2(static_cast<float>(viewport_object_viewer.extent.x), static_cast<float>(viewport_object_viewer.extent.y))));
