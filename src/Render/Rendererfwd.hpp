@@ -117,6 +117,7 @@ namespace BB
 	enum class BUFFER_TYPE : uint32_t
 	{
 		UPLOAD,
+		READBACK,
 		STORAGE,
 		UNIFORM,
 		VERTEX,

@@ -349,6 +349,9 @@ namespace BB
 		mat.e[2][2] = -(farField + nearField) / (farField - nearField);
 		mat.e[2][3] = -1.f;
 		mat.e[3][2] = -(2.f * farField * nearField) / (farField - nearField);
+
+		// SPECIAL VULKAN JANK :)
+		mat.e[1][1] *= -1;
 		return mat;
 	}
 
