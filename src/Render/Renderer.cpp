@@ -692,8 +692,6 @@ namespace IMGUI_IMPL
 	}
 
 
-	// Render function
-	// return value is the 
 	static void ImRenderFrame(const RCommandList a_cmd_list, const RImageView render_target_view, const bool a_clear_image)
 	{
 		const ImDrawData& draw_data = *ImGui::GetDrawData();
@@ -2062,7 +2060,7 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 
 	const size_t scene_upload_size = sizeof(Scene3DInfo);
 	const size_t matrices_upload_size = sizeof(ShaderTransform) * render_scene3d.draw_list_count;
-	const size_t light_upload_size = sizeof(Light) * render_scene3d.light_container.size();
+	const size_t light_upload_size = sizeof(Light) * render_scene3d.light_container.capacity();
 	// optimize this
 	const size_t total_size = scene_upload_size + matrices_upload_size + light_upload_size;
 
@@ -2221,7 +2219,6 @@ CommandPool& BB::GetGraphicsCommandPool()
 	return s_render_inst->graphics_queue.GetCommandPool();
 }
 
-//MOCK, todo, uses graphics queue
 CommandPool& BB::GetTransferCommandPool()
 {
 	return s_render_inst->transfer_queue.GetCommandPool();
@@ -2299,7 +2296,6 @@ uint64_t BB::GetNextAssetTransferFenceValueAndIncrement()
 	return fence_value;
 }
 
-//MOCK, todo, uses graphics queue
 bool BB::ExecuteAssetTransfer(const BB::Slice<CommandPool> a_cmd_pools, const uint64_t a_asset_transfer_fence_value)
 {
 	uint32_t list_count = 0;
@@ -2392,6 +2388,7 @@ void BB::CreateLights(const RenderScene3DHandle a_scene, const Slice<CreateLight
 void BB::FreeLight(const RenderScene3DHandle a_scene, const LightHandle a_light)
 {
 	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
+	render_scene3d.light_container.find(a_light) = {0};
 	render_scene3d.light_container.erase(a_light);
 }
 

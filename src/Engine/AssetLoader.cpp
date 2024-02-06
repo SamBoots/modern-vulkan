@@ -615,6 +615,7 @@ const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 	AddElementToAssetTable(asset);
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 	model->asset_handle = AssetHandle(asset.hash.full_hash);
+	model->asset_icon = GetDebugTexture();
 	return model;
 }
 
@@ -661,6 +662,7 @@ const Model* Asset::LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, cons
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 
 	model->asset_handle = AssetHandle(asset.hash.full_hash);
+	model->asset_icon = GetDebugTexture();
 	return model;
 }
 
@@ -707,7 +709,7 @@ void Asset::FreeAsset(const AssetHandle a_asset_handle)
 
 #include "imgui.h"
 
-static void LoadAssetViaSearch()
+static void LoadAssetViaSearch(bool load_async)
 {
 	constexpr size_t MAX_SEARCH_PATH = 512;
 	char search_path[MAX_SEARCH_PATH] = {};
@@ -745,8 +747,28 @@ static void LoadAssetViaSearch()
 			BB_ASSERT(false, "NOT SUPPORTED FILE NAME!");
 		}
 
+		if (load_async)
+			Asset::LoadAssetsASync(Slice(&asset, 1), "load asset via search");
+		else
+		{
+			CommandPool& cmd_pool = GetTransferCommandPool();
+			const RCommandList cmd_list = cmd_pool.StartCommandList(asset_name);
 
-		Asset::LoadAssetsASync(Slice(&asset, 1), "load asset via search");
+			const uint64_t asset_fence_value = GetNextAssetTransferFenceValueAndIncrement();
+
+			switch (asset.asset_type)
+			{
+			case  Asset::ASYNC_ASSET_TYPE::MODEL:
+
+				break;
+			case  Asset::ASYNC_ASSET_TYPE::TEXTURE:
+				return Asset::LoadImageDisk(path_str, asset_name, cmd_list, asset_fence_value);
+				break;
+			default:
+				BB_ASSERT(false, "unsupported asset type");
+				break;
+			}
+		}
 	}
 }
 
@@ -807,7 +829,12 @@ void Asset::ShowAssetMenu()
 					switch (slot->hash.type)
 					{
 					case ASSET_TYPE::MODEL:
-						ImGui::Image(GetDebugTexture().handle, ImVec2(160, 160));
+						if (ImGui::Button("Set Icon"))
+						{
+
+						}
+
+						ImGui::Image(slot->model->asset_icon.handle, ImVec2(160, 160));
 						break;
 					case ASSET_TYPE::TEXTURE:
 						ImGui::Image(slot->image->gpu_image.handle, ImVec2(160, 160));

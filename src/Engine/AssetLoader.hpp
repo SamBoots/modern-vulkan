@@ -46,6 +46,8 @@ namespace BB
 		Node* root_nodes;
 		uint32_t root_node_count;
 		AssetHandle asset_handle;
+
+		RTexture asset_icon;
 	};
 
 	namespace Asset
