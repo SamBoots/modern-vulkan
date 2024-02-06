@@ -24,7 +24,7 @@ constexpr uint32_t MAX_TEXTURES = 1024;
 constexpr const char* DEBUG_TEXTURE_NAME = "debug texture";
 
 static IMAGE_FORMAT DEPTH_IMAGE_FORMAT;
-constexpr IMAGE_FORMAT RENDER_TARGET_IMAGE_FORMAT = IMAGE_FORMAT::RGBA8_UNORM;
+constexpr IMAGE_FORMAT RENDER_TARGET_IMAGE_FORMAT = IMAGE_FORMAT::RGBA16_SFLOAT;
 
 class GPUTextureManager
 {
@@ -1395,6 +1395,7 @@ const RTexture GPUTextureManager::CreateRenderTarget(const uint2 a_render_target
 
 	slot.name = a_name;
 	slot.texture_info.current_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+	slot.texture_info.format = RENDER_TARGET_IMAGE_FORMAT;
 	slot.texture_info.width = a_render_target_extent.x;
 	slot.texture_info.height = a_render_target_extent.y;
 

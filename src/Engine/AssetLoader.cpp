@@ -334,12 +334,15 @@ const Image* Asset::LoadImageMemory(const BB::BBImage& a_image, const char* a_na
 	upload_image_info.pixels = a_image.GetPixels();
 	upload_image_info.width = a_image.GetWidth();
 	upload_image_info.height = a_image.GetWidth();
-	switch (a_image.GetBitCount())
+	switch (a_image.GetBytesPerPixel())
 	{
-	case 32:
+	case 8:
+		upload_image_info.format = IMAGE_FORMAT::RGBA16_UNORM;
+		break;
+	case 4:
 		upload_image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
 		break;
-	case 8:
+	case 1:
 		upload_image_info.format = IMAGE_FORMAT::A8_UNORM;
 		break;
 	default:
@@ -357,7 +360,7 @@ const Image* Asset::LoadImageMemory(const BB::BBImage& a_image, const char* a_na
 	image->height = upload_image_info.height;
 	image->gpu_image = gpu_image;
 
-	const uint64_t hash = TurboCrappyImageHash(a_image.GetPixels(), static_cast<size_t>(image->width) + image->height + (a_image.GetBitCount() / 8));
+	const uint64_t hash = TurboCrappyImageHash(a_image.GetPixels(), static_cast<size_t>(image->width) + image->height + a_image.GetBytesPerPixel());
 	//BB_ASSERT(hash != 0, "Image hashing failed");
 
 	AssetSlot asset;
