@@ -284,7 +284,10 @@ static void DrawViewportObjectViewer(Viewport& a_viewport, bool& a_resized, cons
 	{
 		if (ImGui::BeginMenu("asset menu"))
 		{
+			if (ImGui::MenuItem("lmao"))
+			{
 
+			}
 		}
 		DrawImGuiViewport(a_viewport, a_resized, a_minimum_size);
 	}
