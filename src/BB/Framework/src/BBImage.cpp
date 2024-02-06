@@ -102,41 +102,32 @@ namespace TARGA
 #pragma pack(pop)
 }
 
-BBImage::BBImage(Allocator a_allocator, const char* a_file_path)
+void BBImage::Init(MemoryArena& a_arena, const char* a_file_path)
 {
-	LoadBMP(a_allocator, a_file_path);
+	LoadBMP(a_arena, a_file_path);
 }
 
-BBImage::BBImage(Allocator a_allocator, const BBImage& a_image)
+void BBImage::Init(MemoryArena& a_arena, const BBImage& a_image)
 {
 	m_width = a_image.m_width;
 	m_height = a_image.m_height;
+	m_bytes_per_pixel = a_image.m_bytes_per_pixel;
 
-	const uint32_t pixel_count = m_width * m_height;
-	m_pixels = BBnewArr(a_allocator, pixel_count, RGBA_Pixel);
-	Memory::Copy(m_pixels, a_image.m_pixels, pixel_count);
-}
-
-BBImage& BBImage::operator=(const BBImage& a_rhs)
-{
-	BB_ASSERT(m_width == a_rhs.m_width && m_height == a_rhs.m_height, "trying to do a copy operation on a image that is not the same width and height!");
-	m_width = a_rhs.m_width;
-	m_height = a_rhs.m_height;
-
-	const uint32_t pixel_count = m_width * m_height;
-	Memory::Copy(m_pixels, a_rhs.m_pixels, pixel_count);
-	return *this;
+	const uint32_t image_size = m_width * m_height * m_bytes_per_pixel;
+	m_pixels = ArenaAlloc(a_arena, image_size, alignof(size_t));
+	memcpy(m_pixels, a_image.m_pixels, image_size);
 }
 
 void BBImage::Init(MemoryArena& a_arena, void* a_pixels_to_copy, const uint32_t a_width, const uint32_t a_height, const uint32_t a_bytes_per_pixel)
 {
-	BB_ASSERT(a_bytes_per_pixel == 4, "not supporting non 4 bytes per pixels images now");
+	BB_ASSERT(a_bytes_per_pixel == 4 || a_bytes_per_pixel == 8, "not supporting non 4 bytes per pixels images now");
 	m_width = a_width;
 	m_height = a_height;
+	m_bytes_per_pixel = a_bytes_per_pixel;
 
-	const size_t pixel_count = static_cast<size_t>(m_width) * m_height;
-	m_pixels = ArenaAllocArr(a_arena, RGBA_Pixel, pixel_count);
-	memcpy(m_pixels, a_pixels_to_copy, pixel_count * a_bytes_per_pixel);
+	const uint32_t image_size = m_width * m_height * m_bytes_per_pixel;
+	m_pixels = ArenaAlloc(a_arena, image_size, alignof(size_t));
+	memcpy(m_pixels, a_pixels_to_copy, image_size);
 }
 
 struct process_image_part_params
@@ -203,11 +194,11 @@ static void FilterImagePart(void* a_param)
 	params.barrier->Signal();
 }
 
-void BBImage::FilterImage(Allocator a_temp_allocator, const float* a_filter, const uint32_t a_filter_width, const uint32_t a_filter_height, const float a_factor, const float a_bias, const uint32_t a_thread_count)
+void BBImage::FilterImage(MemoryArena& a_temp_arena, const float* a_filter, const uint32_t a_filter_width, const uint32_t a_filter_height, const float a_factor, const float a_bias, const uint32_t a_thread_count)
 {
-	const uint32_t pixel_count = m_width * m_height;
-	RGBA_Pixel* old_data = BBnewArr(a_temp_allocator, pixel_count, RGBA_Pixel);
-	Memory::Copy(old_data, m_pixels, pixel_count);
+	const uint32_t pixel_count = m_width * m_height * m_bytes_per_pixel;
+	void* old_data = ArenaAlloc(a_temp_arena, pixel_count, alignof(size_t));
+	memcpy(old_data, m_pixels, pixel_count);
 
 	if (a_thread_count > 1)
 	{
@@ -215,9 +206,9 @@ void BBImage::FilterImage(Allocator a_temp_allocator, const float* a_filter, con
 		const uint32_t worker_threads = a_thread_count - 1;
 
 		//allocate on heap for better memory locality :) maybe.
-		Threads::Barrier* thread_barrier = BBnew(a_temp_allocator, Threads::Barrier)(a_thread_count);
+		Threads::Barrier* thread_barrier = ArenaAllocType(a_temp_arena, Threads::Barrier)(a_thread_count);
 
-		process_image_part_params* params = BBnewArr(a_temp_allocator, a_thread_count, process_image_part_params);
+		process_image_part_params* params = ArenaAllocArr(a_temp_arena, process_image_part_params, a_thread_count);
 		params[0].barrier = thread_barrier;
 		params[0].img_start_new_pixel = reinterpret_cast<uint32_t*>(m_pixels);
 		params[0].img_start_old_pixel = reinterpret_cast<const uint32_t*>(old_data);
@@ -289,7 +280,7 @@ void BBImage::FilterImage(Allocator a_temp_allocator, const float* a_filter, con
 	}
 }
 
-void BBImage::SharpenImage(Allocator a_temp_allocator, const float a_factor, const uint32_t a_thread_count)
+void BBImage::SharpenImage(MemoryArena& a_temp_arena, const float a_factor, const uint32_t a_thread_count)
 {
 	constexpr float sharpen3x3_bias = 0;
 	constexpr float sharpen3x3_filter[3 * 3]
@@ -298,12 +289,12 @@ void BBImage::SharpenImage(Allocator a_temp_allocator, const float a_factor, con
 		-1,  9, -1,
 		-1, -1, -1
 	};
-	FilterImage(a_temp_allocator, sharpen3x3_filter, 3, 3, a_factor, sharpen3x3_bias, a_thread_count);
+	FilterImage(a_temp_arena, sharpen3x3_filter, 3, 3, a_factor, sharpen3x3_bias, a_thread_count);
 }
 
 void BBImage::WriteAsBMP(const char* a_file_path)
 {
-	const size_t data_size = static_cast<size_t>(m_width) * static_cast<size_t>(m_height) * sizeof(RGBA_Pixel);
+	const size_t data_size = static_cast<size_t>(m_width) * static_cast<size_t>(m_height) * m_bytes_per_pixel;
 	const OSFileHandle write_bmp = CreateOSFile(a_file_path);
 
 	BMP::File file = {};
@@ -315,7 +306,7 @@ void BBImage::WriteAsBMP(const char* a_file_path)
 	file_header.size = sizeof(BMP::Header) + sizeof(BMP::ColorHeader);
 	file_header.width = static_cast<int32_t>(m_width);
 	file_header.height = static_cast<int32_t>(m_height);
-	file_header.bit_count = m_bit_count;
+	file_header.bit_count = m_bytes_per_pixel * 8;
 
 	BMP::ColorHeader color_header = {};
 	color_header.red_mask = 0x00ff0000;
@@ -334,7 +325,7 @@ void BBImage::WriteAsBMP(const char* a_file_path)
 
 void BBImage::WriteAsTARGA(const char* a_file_path)
 {
-	const size_t data_size = static_cast<size_t>(m_width) * static_cast<size_t>(m_height) * sizeof(RGBA_Pixel);
+	const size_t data_size = static_cast<size_t>(m_width) * static_cast<size_t>(m_height) * sizeof(m_bytes_per_pixel);
 	const OSFileHandle write_targa = CreateOSFile(a_file_path);
 
 	TARGA::File file = {};
@@ -345,7 +336,7 @@ void BBImage::WriteAsTARGA(const char* a_file_path)
 	file.image.y_origin = 0;
 	file.image.width = static_cast<int16_t>(m_width);
 	file.image.height = static_cast<int16_t>(m_height);
-	file.image.bits_per_pixel = static_cast<int8_t>(m_bit_count);
+	file.image.bits_per_pixel = static_cast<int8_t>(m_bytes_per_pixel * 8);
 	file.image.image_descriptor = 0;
 
 	WriteToOSFile(write_targa, &file, sizeof(TARGA::File));
@@ -354,27 +345,30 @@ void BBImage::WriteAsTARGA(const char* a_file_path)
 	CloseOSFile(write_targa);
 }
 
-void BBImage::LoadBMP(Allocator a_allocator, const char* a_file_path)
+void BBImage::LoadBMP(MemoryArena& a_arena, const char* a_file_path)
 {
-	const Buffer load_image = ReadOSFile(a_allocator, a_file_path);
-	void* current_data = load_image.data;
+	const OSFileHandle image_file = LoadOSFile(a_file_path);
 
 	BMP::File file;
-	Memory::Copy(&file, current_data, 1);
-	current_data = Pointer::Add(current_data, sizeof(BMP::File));
+	ReadOSFile(image_file, &file, sizeof(file));
 
 	BB_ASSERT(file.file_type == 0x4D42, "tried to load a file that is not a BMP image!");
 
 	BMP::Header file_header;
-	Memory::Copy(&file_header, current_data, 1);
-	current_data = Pointer::Add(current_data, sizeof(BMP::Header));
+	ReadOSFile(image_file, &file_header, sizeof(file_header));
 
 	BB_ASSERT(file_header.height > 0, "currently not supporting negative height BMP's.");
+	BB_ASSERT(file_header.bit_count == 24 || file_header.bit_count == 32 || file_header.bit_count == 64, "unsupported bit_count");
+	m_bytes_per_pixel = file_header.bit_count / 8;
+	if (file_header.bit_count == 24) // force 24 to be 32 bit
+		m_bytes_per_pixel = 4;
 
 	m_width = static_cast<uint32_t>(file_header.width);
 	m_height = static_cast<uint32_t>(file_header.height);
-	const uint32_t pixel_count = m_width * m_height;
-	m_pixels = BBnewArr(a_allocator, pixel_count, RGBA_Pixel);
+	const uint32_t image_size = m_width * m_height * m_bytes_per_pixel;
+
+
+	m_pixels = ArenaAlloc(a_arena, image_size, alignof(size_t));
 
 	//uint32_t red_mask = 0x00ff0000;
 	//uint32_t green_mask = 0x0000ff00;
@@ -385,7 +379,7 @@ void BBImage::LoadBMP(Allocator a_allocator, const char* a_file_path)
 	if (has_color_header)
 	{
 		BMP::ColorHeader color_header;
-		Memory::Copy(&color_header, current_data, 1);
+		ReadOSFile(image_file, &color_header, sizeof(color_header));
 		BB_WARNING(is_rgba = BMP::isRGBA(color_header), "non-RGBA bitmaps, still in testing", WarningType::MEDIUM);
 
 		//red_mask = color_header.red_mask;
@@ -393,35 +387,41 @@ void BBImage::LoadBMP(Allocator a_allocator, const char* a_file_path)
 		//blue_mask = color_header.blue_mask;
 		//alpha_mask = color_header.alpha_mask;
 	}
-
-	current_data = Pointer::Add(load_image.data, file.offset_data);
-
-	//check to account for padding
-	if (file_header.bit_count == 32)
+	SetOSFilePosition(image_file, file.offset_data, OS_FILE_READ_POINT::BEGIN);
+	MemoryArenaScope(a_arena)
 	{
-		Memory::Copy(m_pixels, current_data, pixel_count);
-	}
-	else if (file_header.bit_count == 24)
-	{
+		void* file_pixels = ArenaAlloc(a_arena, image_size, alignof(size_t));
+		ReadOSFile(image_file, file_pixels, image_size);
+
+		//check to account for padding when not doing 32 or 64
+		if (file_header.bit_count != 24)
+		{
+			memcpy(m_pixels, file_pixels, image_size);
+		}
+		else
+		{
 #pragma pack(push, 1)
-		struct bit24pixel
-		{
-			uint8_t r;
-			uint8_t g;
-			uint8_t b;
-		};
+			struct bit24pixel
+			{
+				uint8_t r;
+				uint8_t g;
+				uint8_t b;
+			};
 #pragma pack(pop)
-		const bit24pixel* source_pixel = reinterpret_cast<const bit24pixel*>(current_data);
-		for (uint32_t i = 0; i < pixel_count; i++)
-		{
-			m_pixels[i].r = source_pixel[i].r;
-			m_pixels[i].g = source_pixel[i].g;
-			m_pixels[i].b = source_pixel[i].b;
-			m_pixels[i].a = 255;
+
+			const bit24pixel* source_pixel = reinterpret_cast<const bit24pixel*>(file_pixels);
+			uint8_t* write_pixels = reinterpret_cast<uint8_t*>(m_pixels);
+			const uint32_t pixel_count = m_width * m_height;
+			for (uint32_t i = 0; i < pixel_count; i++)
+			{
+				write_pixels[0] = source_pixel[i].r;
+				write_pixels[1] = source_pixel[i].g;
+				write_pixels[2] = source_pixel[i].b;
+				write_pixels[3] = 255;
+				write_pixels += 4;
+			}
+
 		}
 	}
-	else
-	{
-		BB_ASSERT(false, "unsupported bitmap bit count");
-	}
+	CloseOSFile(image_file);
 }

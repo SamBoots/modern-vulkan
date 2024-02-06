@@ -71,10 +71,12 @@ namespace BB
 			Pair* next = nullptr;
 		};
 
-		JsonObject(Allocator a_allocator, const uint32_t a_mapSize, Pair* a_pair_head)
-			: map(a_allocator, a_mapSize), pairLL(a_pair_head)
-		{}
-		OL_HashMap<char*, JsonNode*, String_KeyComp> map;
+		JsonObject(MemoryArena& a_arena, const uint32_t a_map_size, Pair* a_pair_head)
+			: pairLL(a_pair_head)
+		{
+			map.Init(a_arena, a_map_size);
+		}
+		StaticOL_HashMap<char*, JsonNode*, String_KeyComp> map;
 		Pair* pairLL;
 	};
 
@@ -110,7 +112,7 @@ namespace BB
 		
 		//jank
 		JsonNode* PraseSingleToken(const Token& a_token);
-		LinearAllocator_t m_allocator;
+		MemoryArena m_arena;
 		JsonFile m_json_file;
 
 		JsonNode* m_RootNode = nullptr;

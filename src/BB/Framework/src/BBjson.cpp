@@ -198,23 +198,23 @@ void BB::JsonNodeToString(const JsonNode* a_Node, String& a_string)
 }
 
 JsonParser::JsonParser(const char* a_path)
-	: m_allocator(mbSize * 8, a_path)
 {
-	Buffer buffer = ReadOSFile(m_allocator, a_path);
+	m_arena = MemoryArenaCreate();
+	Buffer buffer = ReadOSFile(m_arena, a_path);
 	m_json_file.data = reinterpret_cast<char*>(buffer.data);
 	m_json_file.size = static_cast<uint32_t>(buffer.size);
 }
 
 JsonParser::JsonParser(const Buffer& a_Buffer)
-	: m_allocator(mbSize * 8, "Json from memory read")
 {
+	m_arena = MemoryArenaCreate();
 	m_json_file.data = reinterpret_cast<char*>(a_Buffer.data);
 	m_json_file.size = static_cast<uint32_t>(a_Buffer.size);
 }
 
 JsonParser::~JsonParser()
 {
-	m_allocator.Clear();
+	MemoryArenaFree(m_arena);
 }
 
 JsonNode* JsonParser::PraseSingleToken(const Token& a_token)
@@ -264,10 +264,10 @@ void JsonParser::Parse()
 
 JsonNode* JsonParser::ParseObject()
 {
-	JsonNode* object_node = BBnew(m_allocator, JsonNode);
+	JsonNode* object_node = ArenaAllocType(m_arena, JsonNode);
 	object_node->type = JSON_TYPE::OBJECT;
 
-	JsonObject::Pair* pair_head = BBnew(m_allocator, JsonObject::Pair);
+	JsonObject::Pair* pair_head = ArenaAllocType(m_arena, JsonObject::Pair);
 	uint32_t pair_count = 0;
 
 	Token next_token = GetToken(m_json_file);
@@ -277,7 +277,7 @@ JsonNode* JsonParser::ParseObject()
 	while (continue_loop)
 	{
 		BB_WARNING(next_token.type == TOKEN_TYPE::STRING, "Object does not start with a string!", WarningType::HIGH);
-		char* element_name = BBnewArr(m_allocator, next_token.str_size + 1, char);
+		char* element_name = ArenaAllocArr(m_arena, char, next_token.str_size + 1);
 		Memory::Copy(element_name, next_token.str, next_token.str_size);
 		element_name[next_token.str_size] = '\0';
 
@@ -325,11 +325,11 @@ JsonNode* JsonParser::ParseObject()
 		{
 			BB_ASSERT(next_token.type == TOKEN_TYPE::COMMA, "the token after a object pair should be a } or ,");
 			next_token = GetToken(m_json_file);
-			pair->next = BBnew(m_allocator, JsonObject::Pair);
+			pair->next = ArenaAllocType(m_arena, JsonObject::Pair);
 			pair = pair->next;
 		}
 	}
-	object_node->object = BBnew(m_allocator, JsonObject)(m_allocator, pair_count, pair_head);
+	object_node->object = ArenaAllocType(m_arena, JsonObject)(m_arena, pair_count, pair_head);
 	pair = pair_head;
 	for (size_t i = 0; i < pair_count; i++)
 	{
@@ -342,7 +342,7 @@ JsonNode* JsonParser::ParseObject()
 
 JsonNode* JsonParser::ParseList()
 {
-	JsonNode* node = BBnew(m_allocator, JsonNode);
+	JsonNode* node = ArenaAllocType(m_arena, JsonNode);
 	node->type = JSON_TYPE::LIST;
 
 	uint32_t list_size = 0;
@@ -414,7 +414,7 @@ JsonNode* JsonParser::ParseList()
 	m_json_file.pos = list_start_pos;
 
 	node->list.nodeCount = list_size;
-	node->list.nodes = BBnewArr(m_allocator, node->list.nodeCount, JsonNode*);
+	node->list.nodes = ArenaAllocArr(m_arena, JsonNode*, node->list.nodeCount);
 
 	next_token = GetToken(m_json_file);
 
@@ -457,10 +457,10 @@ JsonNode* JsonParser::ParseList()
 
 JsonNode* JsonParser::ParseString(const Token& a_token)
 {
-	JsonNode* node = BBnew(m_allocator, JsonNode);
+	JsonNode* node = ArenaAllocType(m_arena, JsonNode);
 	node->type = JSON_TYPE::STRING;
 
-	node->string = BBnewArr(m_allocator, a_token.str_size + 1, char);
+	node->string = ArenaAllocArr(m_arena, char, a_token.str_size + 1);
 	Memory::Copy(node->string, a_token.str, a_token.str_size);
 	node->string[a_token.str_size] = '\0';
 
@@ -469,7 +469,7 @@ JsonNode* JsonParser::ParseString(const Token& a_token)
 
 JsonNode* JsonParser::ParseNumber(const Token& a_token)
 {
-	JsonNode* node = BBnew(m_allocator, JsonNode);
+	JsonNode* node = ArenaAllocType(m_arena, JsonNode);
 	node->type = JSON_TYPE::NUMBER;
 
 	node->number = std::stof(a_token.str);
@@ -480,7 +480,7 @@ JsonNode* JsonParser::ParseNumber(const Token& a_token)
 JsonNode* JsonParser::ParseBoolean(const Token& a_token)
 {
 	(void)a_token;
-	JsonNode* node = BBnew(m_allocator, JsonNode);
+	JsonNode* node = ArenaAllocType(m_arena, JsonNode);
 	node->type = JSON_TYPE::BOOL;
 
 	const Token token = GetToken(m_json_file);
@@ -496,7 +496,7 @@ JsonNode* JsonParser::ParseBoolean(const Token& a_token)
 
 JsonNode* JsonParser::ParseNull()
 {
-	JsonNode* node = BBnew(m_allocator, JsonNode);
+	JsonNode* node = ArenaAllocType(m_arena, JsonNode);
 	node->type = JSON_TYPE::NULL_TYPE;
 
 	return node;

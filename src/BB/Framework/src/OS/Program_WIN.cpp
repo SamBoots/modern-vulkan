@@ -382,77 +382,59 @@ OSFileHandle BB::LoadOSFile(const wchar* a_file_name)
 	return OSFileHandle(reinterpret_cast<uintptr_t>(load_file));
 }
 
-//Reads a loaded file.
-//Buffer.data will have a dynamic allocation from the given allocator.
-Buffer BB::ReadOSFile(Allocator a_system_allocator, const OSFileHandle a_file_handle)
+void BB::ReadOSFile(const OSFileHandle a_file_handle, void* a_memory, const size_t a_memory_size)
 {
-	Buffer file_buffer{};
-
-	file_buffer.size = GetOSFileSize(a_file_handle);
-	file_buffer.data = reinterpret_cast<char*>(BBalloc(a_system_allocator, file_buffer.size));
 	DWORD bytes_read = 0;
-
 	if (FALSE == ReadFile(reinterpret_cast<HANDLE>(a_file_handle.handle),
-		file_buffer.data,
-		static_cast<DWORD>(file_buffer.size),
+		a_memory,
+		static_cast<DWORD>(a_memory_size),
 		&bytes_read,
 		nullptr))
 	{
 		LatestOSError();
 		BB_WARNING(false,
-			"OS, failed to load file! This can be severe.",
+			"OS, failed to read file!",
 			WarningType::HIGH);
 	}
+}
+
+Buffer BB::ReadOSFile(MemoryArena& a_arena, const OSFileHandle a_file_handle)
+{
+	Buffer file_buffer{};
+	file_buffer.size = GetOSFileSize(a_file_handle);
+	file_buffer.data = reinterpret_cast<char*>(ArenaAlloc(a_arena, file_buffer.size, alignof(size_t)));
+
+	ReadOSFile(a_file_handle, file_buffer.data, file_buffer.size);
 
 	return file_buffer;
 }
 
-Buffer BB::ReadOSFile(Allocator a_system_allocator, const char* a_path)
+Buffer BB::ReadOSFile(MemoryArena& a_arena, const char* a_path)
 {
-	Buffer file_buffer{};
 	OSFileHandle read_file = LoadOSFile(a_path);
 	BB_ASSERT(OSFileIsValid(read_file), "OS file invalid, will cause errors");
-	file_buffer.size = GetOSFileSize(read_file);
-	file_buffer.data = reinterpret_cast<char*>(BBalloc(a_system_allocator, file_buffer.size));
-	DWORD bytes_read = 0;
 
-	if (FALSE == ReadFile(reinterpret_cast<HANDLE>(read_file.handle),
-		file_buffer.data,
-		static_cast<DWORD>(file_buffer.size),
-		&bytes_read,
-		nullptr))
-	{
-		BB_WARNING(false,
-			"OS, failed to load file! This can be severe.",
-			WarningType::HIGH);
-		LatestOSError();
-	}
+	Buffer file_buffer;
+	file_buffer.size = GetOSFileSize(read_file);
+	file_buffer.data = reinterpret_cast<char*>(ArenaAlloc(a_arena, file_buffer.size, alignof(size_t)));
+
+	ReadOSFile(read_file, file_buffer.data, file_buffer.size);
 
 	CloseOSFile(read_file);
 
 	return file_buffer;
 }
 
-Buffer BB::ReadOSFile(Allocator a_system_allocator, const wchar* a_path)
+Buffer BB::ReadOSFile(MemoryArena& a_arena, const wchar* a_path)
 {
-	Buffer file_buffer{};
 	OSFileHandle read_file = LoadOSFile(a_path);
 	BB_ASSERT(OSFileIsValid(read_file), "OS file invalid, will cause errors");
-	file_buffer.size = GetOSFileSize(read_file);
-	file_buffer.data = reinterpret_cast<char*>(BBalloc(a_system_allocator, file_buffer.size));
-	DWORD bytes_read = 0;
 
-	if (FALSE == ReadFile(reinterpret_cast<HANDLE>(read_file.handle),
-		file_buffer.data,
-		static_cast<DWORD>(file_buffer.size),
-		&bytes_read,
-		nullptr))
-	{
-		BB_WARNING(false,
-			"OS, failed to load file! This can be severe.",
-			WarningType::HIGH);
-		LatestOSError();
-	}
+	Buffer file_buffer;
+	file_buffer.size = GetOSFileSize(read_file);
+	file_buffer.data = reinterpret_cast<char*>(ArenaAlloc(a_arena, file_buffer.size, alignof(size_t)));
+
+	ReadOSFile(read_file, file_buffer.data, file_buffer.size);
 
 	CloseOSFile(read_file);
 

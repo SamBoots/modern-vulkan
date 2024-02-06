@@ -64,19 +64,22 @@ constexpr float gaussian3x3_filter[3 * 3]
 
 int main(int argc, char** argv)
 {
+	(void)argc;
 	BBInitInfo bb_init;
-	bb_init.exePath = argv[0];
-	bb_init.programName = L"Modern Vulkan";
+	bb_init.exe_path = argv[0];
+	bb_init.program_name = L"Modern Vulkan";
 	InitBB(bb_init);
 
 	SystemInfo sys_info;
 	OSSystemInfo(sys_info);
 	Threads::InitThreads(sys_info.processor_num);
 
-	StackAllocator_t allocator{ mbSize * 6 };
+	MemoryArena main_arena = MemoryArenaCreate();
 
-	BBImage image{ allocator, "../resources/filter_textures/bmpimage.bmp" };
-	const BBImage image_backup{ allocator, image };
+	BBImage image{};
+	image.Init(main_arena, "../resources/filter_textures/bmpimage.bmp");
+	BBImage image_backup; 
+	image_backup.Init(main_arena, image);
 	image.WriteAsBMP("WriteNormal.bmp");
 	image.WriteAsTARGA("WriteNormal.tga");
 
@@ -93,38 +96,38 @@ int main(int argc, char** argv)
 		OSCreateDirectory(directory_names.c_str());
 		directory_names.append("/");
 
-		BBStackAllocatorScope(allocator)
+		MemoryArenaScope(main_arena)
 		{
 			auto t_Timer = std::chrono::high_resolution_clock::now();
-			image.FilterImage(allocator, gaussian3x3_filter, 3, 3, gaussian3x3_factor, gaussian3x3_bias, thread_count);
+			image.FilterImage(main_arena, gaussian3x3_filter, 3, 3, gaussian3x3_factor, gaussian3x3_bias, thread_count);
 			size_t cur_string_size = directory_names.size();
 			directory_names.append("writegaussian3x3.bmp");
 			image.WriteAsBMP(directory_names.c_str());
 			directory_names.pop_back(static_cast<uint32_t>(directory_names.size() - cur_string_size));
 
 			image = image_backup;
-			image.FilterImage(allocator, gaussian5x5_filter, 5, 5, gaussian5x5_factor, gaussian5x5_bias, thread_count);
+			image.FilterImage(main_arena, gaussian5x5_filter, 5, 5, gaussian5x5_factor, gaussian5x5_bias, thread_count);
 			cur_string_size = directory_names.size();
 			directory_names.append("writegaussian5x5.bmp");
 			image.WriteAsBMP(directory_names.c_str());
 			directory_names.pop_back(static_cast<uint32_t>(directory_names.size() - cur_string_size));
 
 			image = image_backup;
-			image.FilterImage(allocator, blur5x5_filter, 5, 5, blur5x5_factor, blur5x5_bias, thread_count);
+			image.FilterImage(main_arena, blur5x5_filter, 5, 5, blur5x5_factor, blur5x5_bias, thread_count);
 			cur_string_size = directory_names.size();
 			directory_names.append("writeblur5x5.bmp");
 			image.WriteAsBMP(directory_names.c_str());
 			directory_names.pop_back(static_cast<uint32_t>(directory_names.size() - cur_string_size));
 
 			image = image_backup;
-			image.FilterImage(allocator, motion_blur_filter, 9, 9, motion_blur_factor, motion_blur_bias, thread_count);
+			image.FilterImage(main_arena, motion_blur_filter, 9, 9, motion_blur_factor, motion_blur_bias, thread_count);
 			cur_string_size = directory_names.size();
 			directory_names.append("writemotion_blur.bmp");
 			image.WriteAsBMP(directory_names.c_str());
 			directory_names.pop_back(static_cast<uint32_t>(directory_names.size() - cur_string_size));
 
 			image = image_backup;
-			image.SharpenImage(allocator, 1, thread_count);
+			image.SharpenImage(main_arena, 1, thread_count);
 			cur_string_size = directory_names.size();
 			directory_names.append("writesharpen.bmp");
 			image.WriteAsBMP(directory_names.c_str());
@@ -136,7 +139,7 @@ int main(int argc, char** argv)
 		}
 	}
 
-	allocator.Clear();
+	MemoryArenaFree(main_arena);
 
 	return 0;
 }
