@@ -521,6 +521,7 @@ struct Vulkan_inst
 		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::TEXTURE)] = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
 		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::SWAPCHAIN_COPY_IMG)] = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
 		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::RENDER_TARGET)] = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
+		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::COPY_SRC_DST)] =  VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 #endif //ENUM_CONVERSATION_BY_ARRAY
 	}
 
@@ -873,6 +874,7 @@ static inline VkImageUsageFlags ImageUsage(const IMAGE_USAGE a_usage)
 	case IMAGE_USAGE::TEXTURE:			return VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 	case IMAGE_USAGE::UPLOAD_SRC_DST	return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	case IMAGE_USAGE::RENDER_TARGET:	return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	case IMAGE_USAGE::COPY_SRC_DST:		return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	default:
 		BB_ASSERT(false, "Vulkan: IMAGE_USAGE failed to convert to a VkImageUsageFlags.");
 		return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
@@ -2273,6 +2275,43 @@ void Vulkan::ClearImage(const RCommandList a_list, const RImage a_image, const I
 	subresource.baseMipLevel = 0;
 
 	vkCmdClearColorImage(cmd_list, reinterpret_cast<VkImage>(a_image.handle), ImageLayout(a_layout), &clear_color, 1, &subresource);
+}
+
+void Vulkan::BlitImage(const RCommandList a_list, const BlitImageInfo& a_info)
+{
+	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+
+	VkImageBlit image_blit{};
+	image_blit.srcOffsets[0].x = a_info.src_offset_p0.x;
+	image_blit.srcOffsets[0].y = a_info.src_offset_p0.y;
+	image_blit.srcOffsets[0].z = a_info.src_offset_p0.z;
+	image_blit.srcOffsets[1].x = a_info.src_offset_p1.x;
+	image_blit.srcOffsets[1].y = a_info.src_offset_p1.y;
+	image_blit.srcOffsets[1].z = a_info.src_offset_p1.z;
+	image_blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	image_blit.srcSubresource.baseArrayLayer = a_info.src_base_layer;
+	image_blit.srcSubresource.layerCount = a_info.src_layer_count;
+	image_blit.srcSubresource.mipLevel = a_info.src_mip_level;
+
+	image_blit.dstOffsets[0].x = a_info.dst_offset_p0.x;
+	image_blit.dstOffsets[0].y = a_info.dst_offset_p0.y;
+	image_blit.dstOffsets[0].z = a_info.dst_offset_p0.z;
+	image_blit.dstOffsets[1].x = a_info.dst_offset_p1.x;
+	image_blit.dstOffsets[1].y = a_info.dst_offset_p1.y;
+	image_blit.dstOffsets[1].z = a_info.dst_offset_p1.z;
+	image_blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	image_blit.dstSubresource.baseArrayLayer = a_info.dst_base_layer;
+	image_blit.dstSubresource.layerCount = a_info.dst_layer_count;
+	image_blit.dstSubresource.mipLevel = a_info.dst_mip_level;
+
+	vkCmdBlitImage(cmd_list,
+		reinterpret_cast<VkImage>(a_info.src_image.handle),
+		VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+		reinterpret_cast<VkImage>(a_info.dst_image.handle),
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		1,
+		&image_blit,
+		VK_FILTER_NEAREST);
 }
 
 static inline uint32_t QueueTransitionIndex(const QUEUE_TRANSITION a_Transition)

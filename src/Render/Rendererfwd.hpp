@@ -89,6 +89,7 @@ namespace BB
 		TEXTURE,
 		SWAPCHAIN_COPY_IMG, //maybe finally use bitflags.
 		RENDER_TARGET,
+		COPY_SRC_DST,
 
 		ENUM_SIZE
 	};

@@ -199,6 +199,23 @@ namespace BB
 		ImageCopyInfo copy_info;
 	};
 
+	struct BlitImageInfo
+	{
+		RImage src_image;
+		int3 src_offset_p0;
+		int3 src_offset_p1;
+		uint32_t src_mip_level;
+		uint32_t src_layer_count;
+		uint32_t src_base_layer;
+
+		RImage dst_image;
+		int3 dst_offset_p0;
+		int3 dst_offset_p1;
+		uint32_t dst_mip_level;
+		uint32_t dst_layer_count;
+		uint32_t dst_base_layer;
+	};
+
 	enum class QUEUE_TRANSITION : uint32_t
 	{
 		NO_TRANSITION,
