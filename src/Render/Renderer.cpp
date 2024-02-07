@@ -24,7 +24,7 @@ constexpr uint32_t MAX_TEXTURES = 1024;
 constexpr const char* DEBUG_TEXTURE_NAME = "debug texture";
 
 static IMAGE_FORMAT DEPTH_IMAGE_FORMAT;
-constexpr IMAGE_FORMAT RENDER_TARGET_IMAGE_FORMAT = IMAGE_FORMAT::RGBA16_SFLOAT;
+constexpr IMAGE_FORMAT RENDER_TARGET_IMAGE_FORMAT = IMAGE_FORMAT::RGBA8_SRGB;
 
 class GPUTextureManager
 {
@@ -1658,7 +1658,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		//some basic colors
 		const uint32_t white = UINT32_MAX;
 		const uint32_t black = 0x000000FF;
-
+		
 		UploadTextureInfo image_info;
 		image_info.name = "white";
 		image_info.width = 1;
@@ -2556,12 +2556,12 @@ void BB::FreeTexture(const RTexture a_texture)
 	return s_render_inst->texture_manager.FreeTexture(a_texture);
 }
 
-bool BB::RTextureToBBImage(MemoryArena& a_arena, const RTexture a_texture, BBImage& a_created_image)
+bool BB::ReadTexture(MemoryArena& a_arena, const RTexture a_texture, uint32_t& a_width, uint32_t& a_height, uint32_t& a_channels, void*& a_data)
 {
-	BB_ASSERT(a_created_image.GetPixels() == nullptr, "BBImage a_created_image is not empty!");
 	const GPUTextureManager::TextureSlot& texture_slot = s_render_inst->texture_manager.GetTextureSlot(a_texture);
 
 	uint32_t byte_per_pixel;
+	bool requires_formatting = false;
 	switch (texture_slot.texture_info.format)
 	{
 	case IMAGE_FORMAT::RGBA16_UNORM:
@@ -2569,6 +2569,9 @@ bool BB::RTextureToBBImage(MemoryArena& a_arena, const RTexture a_texture, BBIma
 		byte_per_pixel = 8;
 		break;
 	case IMAGE_FORMAT::RGBA8_SRGB:
+		byte_per_pixel = 4;
+		requires_formatting = true;
+		break;
 	case IMAGE_FORMAT::RGBA8_UNORM:
 		byte_per_pixel = 4;
 		break;
@@ -2673,11 +2676,11 @@ bool BB::RTextureToBBImage(MemoryArena& a_arena, const RTexture a_texture, BBIma
 
 	void* readback_memory = Vulkan::MapBufferMemory(readback_buffer);
 
-	a_created_image.Init(a_arena,
-		readback_memory,
-		texture_slot.texture_info.width,
-		texture_slot.texture_info.height,
-		byte_per_pixel);
+	a_data = ArenaAlloc(a_arena, image_size, alignof(size_t));
+	memcpy(a_data, readback_memory, image_size);
+	a_width = texture_slot.texture_info.width;
+	a_height = texture_slot.texture_info.height;
+	a_channels = byte_per_pixel;
 
 	Vulkan::UnmapBufferMemory(readback_buffer);
 	Vulkan::FreeBuffer(readback_buffer);

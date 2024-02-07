@@ -306,7 +306,9 @@ void BBImage::WriteAsBMP(const char* a_file_path)
 	file_header.size = sizeof(BMP::Header) + sizeof(BMP::ColorHeader);
 	file_header.width = static_cast<int32_t>(m_width);
 	file_header.height = static_cast<int32_t>(m_height);
+	file_header.planes = 1; // this should be one at all times? // https://devblogs.microsoft.com/oldnewthing/20041201-00/?p=37163
 	file_header.bit_count = m_bytes_per_pixel * 8;
+
 
 	BMP::ColorHeader color_header = {};
 	color_header.red_mask = 0x00ff0000;

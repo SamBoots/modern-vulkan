@@ -264,16 +264,19 @@ static void DrawImGuiViewport(MemoryArena& a_arena, Viewport& a_viewport, bool& 
 
 				if (ImGui::Button("make screenshot"))
 				{
-					BBImage image{};
-					RTextureToBBImage(a_arena, render_target, image);
+					uint32_t width;
+					uint32_t height;
+					uint32_t channels;
+					void* mem;
+					ReadTexture(a_arena, render_target, width, height, channels, mem);
 					StackString<256> image_name_bmp{ "screenshots" };
 
 					// create directory first
 					OSCreateDirectory(image_name_bmp.c_str());
 					image_name_bmp.push_back('/');
 					image_name_bmp.append(image_name);
-					image_name_bmp.append(".bmp");
-					image.WriteAsBMP(image_name_bmp.c_str());
+					image_name_bmp.append(".png");
+					BB_ASSERT(Asset::WriteImage(image_name_bmp.c_str(), width, height, channels, mem), "failed to write screenshot image to disk");
 				}
 
 				ImGui::EndMenu();

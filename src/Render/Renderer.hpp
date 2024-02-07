@@ -163,7 +163,7 @@ namespace BB
 	// returns invalid texture when not enough upload buffer space
 	const RTexture UploadTexture(const RCommandList a_list, const UploadTextureInfo& a_upload_info, const uint64_t a_transfer_fence_value);
 	void FreeTexture(const RTexture a_texture);
-	bool RTextureToBBImage(MemoryArena& a_arena, const RTexture a_texture, BBImage& a_created_image);
+	bool ReadTexture(MemoryArena& a_arena, const RTexture a_texture, uint32_t& a_width, uint32_t& a_height, uint32_t& a_channels, void*& a_data);
 
 	const GPUBuffer CreateGPUBuffer(const GPUBufferCreateInfo& a_create_info);
 	void FreeGPUBuffer(const GPUBuffer a_buffer);

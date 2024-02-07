@@ -47,7 +47,7 @@ float4 FragmentMain(VSOutput a_input) : SV_Target
         const BB::PointLight point_light = light_data.Load<BB::PointLight>(sizeof(BB::PointLight) * i);
         diffuse += CalculatePointLight(point_light, a_input.normal, a_input.frag_pos).xyz;
     }
-    float4 result = float4(diffuse, 1.f) * 1;
+    float4 result = float4(diffuse, 1.f) * color;
     
     return result;
 }

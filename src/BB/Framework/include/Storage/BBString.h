@@ -13,6 +13,72 @@ namespace BB
 	}
 
 	template<typename CharT>
+	class String_View
+	{
+	public:
+		String_View(const CharT* a_string) : String_View(a_string, Memory::StrLength(a_string)) {}
+		String_View(const CharT* a_string, const size_t a_size) : m_string_view(a_string), m_size(a_size) {}
+
+		bool operator==(const String_View<CharT>& a_rhs) const
+		{
+			return Compare(a_rhs.c_str(), a_rhs.size);
+		}
+
+		size_t find_first_of(const CharT a_char) const
+		{
+			for (size_t i = 0; i < m_size; i++)
+			{
+				if (m_string_view[i] == a_char)
+					return i;
+			}
+			return size_t(-1);
+		}
+
+		size_t find_last_of(const CharT a_char) const
+		{
+			size_t last_pos = size_t(-1);
+
+			for (size_t i = 0; i < m_size; i++)
+			{
+				if (m_string_view[i] == a_char)
+					last_pos = i;
+			}
+
+			return last_pos;
+		}
+
+		bool compare(const size_t a_pos, const CharT* a_str) const
+		{
+			return compare(a_pos, a_str, Memory::StrLength(a_str) - 1);
+		}
+
+		bool compare(const size_t a_pos, const CharT* a_str, const size_t a_str_size) const
+		{
+			BB_ASSERT(a_pos + a_str_size <= m_size, "trying to read the string out of bounds");
+
+			// maybe optimize that big strings are early out'd and see if memcmp works better
+
+			for (size_t i = 0; i < a_str_size; i++)
+			{
+				if (m_string_view[a_pos + i] != a_str[i])
+					return false;
+			}
+			return true;
+		}
+
+		size_t size() const { return m_size; }
+		const CharT* data() const { return m_string_view; }
+		const CharT* c_str() const { return m_string_view; }
+
+	private:
+		const CharT* m_string_view;
+		const size_t m_size;
+	};
+
+	using StringView = String_View<char>;
+	using StringWView = String_View<wchar_t>;
+
+	template<typename CharT>
 	class Basic_String
 	{
 	public:
@@ -199,13 +265,13 @@ namespace BB
 	using String = Basic_String<char>;
 	using WString = Basic_String<wchar_t>;
 
-	template<typename CharT, size_t stringSize>
+	template<typename CharT, size_t STRING_SIZE>
 	class Stack_String
 	{
 	public:
 		Stack_String()
 		{
-			Memory::Set(m_string, 0, stringSize);
+			Memory::Set(m_string, 0, STRING_SIZE);
 		}
 		Stack_String(const CharT* a_string) 
 			: Stack_String(a_string, Memory::StrLength(a_string)) {}
@@ -216,17 +282,17 @@ namespace BB
 			Memory::Copy(m_string, a_string, a_size);
 			m_size = a_size;
 		}
-		Stack_String(const Stack_String<CharT, stringSize>& a_string)
+		Stack_String(const Stack_String<CharT, STRING_SIZE>& a_string)
 		{
 			Memory::Copy(m_string, a_string, sizeof(m_string));
 			m_size = a_string.size;
 		}
-		Stack_String(Stack_String<CharT, stringSize>&& a_string) noexcept
+		Stack_String(Stack_String<CharT, STRING_SIZE>&& a_string) noexcept
 		{
 			Memory::Copy(m_string, a_string, sizeof(m_string));
 			m_size = a_string.size();
 
-			Memory::Set(a_string.m_string, 0, stringSize);
+			Memory::Set(a_string.m_string, 0, STRING_SIZE);
 			a_string.m_size = 0
 		}
 		~Stack_String()
@@ -234,35 +300,35 @@ namespace BB
 			clear();
 		}
 
-		Stack_String& operator=(const Stack_String<CharT, stringSize>& a_rhs)
+		Stack_String& operator=(const Stack_String<CharT, STRING_SIZE>& a_rhs)
 		{
 			this->~Stack_String();
 
 			Memory::Copy(m_string, a_string, sizeof(m_string));
 			m_size = a_string.size();
 		}
-		Stack_String& operator=(Stack_String<CharT, stringSize>&& a_rhs) noexcept
+		Stack_String& operator=(Stack_String<CharT, STRING_SIZE>&& a_rhs) noexcept
 		{
 			this->~Stack_String();
 
 			Memory::Copy(m_string, a_string, sizeof(m_string));
 			m_size = a_string.size();
 
-			Memory::Set(a_rhs.m_string, 0, stringSize);
+			Memory::Set(a_rhs.m_string, 0, STRING_SIZE);
 			a_rhs.m_size = 0
 		}
-		bool operator==(const Stack_String<CharT, stringSize>& a_rhs) const
+		bool operator==(const Stack_String<CharT, STRING_SIZE>& a_rhs) const
 		{
 			if (Memory::Compare(m_string, a_rhs.data(), sizeof(m_string)) == 0)
 				return true;
 			return false;
 		}
 
-		void append(const Stack_String<CharT, stringSize>& a_string)
+		void append(const Stack_String<CharT, STRING_SIZE>& a_string)
 		{
 			append(a_string.c_str(), a_string.size());
 		}
-		void append(const Stack_String<CharT, stringSize>& a_string, size_t a_sub_pos, size_t a_sub_length)
+		void append(const Stack_String<CharT, STRING_SIZE>& a_string, size_t a_sub_pos, size_t a_sub_length)
 		{
 			append(a_string.c_str() + a_sub_pos, a_sub_length);
 		}
@@ -282,11 +348,11 @@ namespace BB
 			BB::Memory::Copy(m_string + m_size, a_string, a_size);
 			m_size += a_size;
 		}
-		void insert(size_t a_pos, const Stack_String<CharT, stringSize>& a_string)
+		void insert(size_t a_pos, const Stack_String<CharT, STRING_SIZE>& a_string)
 		{
 			insert(a_pos, a_string.c_str(), a_string.size());
 		}
-		void insert(size_t a_pos, const Stack_String<CharT, stringSize>& a_string, size_t a_sub_pos, size_t a_sub_length)
+		void insert(size_t a_pos, const Stack_String<CharT, STRING_SIZE>& a_string, size_t a_sub_pos, size_t a_sub_length)
 		{
 			insert(a_pos, a_string.c_str() + a_sub_pos, a_sub_length);
 		}
@@ -314,6 +380,13 @@ namespace BB
 		{
 			m_size -= a_count;
 			memset(Pointer::Add(m_string, m_size), NULL, a_count);
+		}
+
+		// with ::Data() you can modify the string without touching the class such as interacting with some C api's like the windows API. 
+		// this function will recalculate how big the string is.
+		void RecalculateStringSize()
+		{
+			m_size = strnlen_s(m_string, STRING_SIZE);
 		}
 
 		size_t find_first_of(const CharT a_char) const
@@ -346,7 +419,8 @@ namespace BB
 
 		bool compare(const size_t a_pos, const CharT* a_str, const size_t a_str_size) const
 		{
-			BB_ASSERT(a_pos + a_str_size >= m_size, "trying to read the string out of bounds");
+			if (a_pos + a_str_size > m_size)
+				return false;
 
 			for (size_t i = 0; i < a_str_size; i++)
 			{
@@ -358,88 +432,22 @@ namespace BB
 
 		void clear()
 		{
-			Memory::Set(m_string, 0, stringSize);
+			Memory::Set(m_string, 0, STRING_SIZE);
 			m_size = 0;
 		}
 
 		size_t size() const { return m_size; }
-		size_t capacity() const { return stringSize; }
+		constexpr size_t capacity() const { return STRING_SIZE; }
 		CharT* data() { return m_string; }
 		const CharT* c_str() const { return m_string; }
 
 	private:
-		CharT m_string[stringSize + 1];
+		CharT m_string[STRING_SIZE + 1];
 		size_t m_size = 0;
 	};
 
-	template<size_t string_size>
-	using StackString = Stack_String<char, string_size>;
-	template<size_t string_size>
-	using StackWString = Stack_String<wchar_t, string_size>;
-
-	template<typename CharT>
-	class String_View
-	{
-	public:
-		String_View(const CharT* a_string) : String_View(a_string, Memory::StrLength(a_string)) {}
-		String_View(const CharT* a_string, const size_t a_size) : m_string_view(a_string), m_size(a_size) {}
-
-		bool operator==(const String_View<CharT>& a_rhs) const
-		{
-			return Compare(a_rhs.c_str(), a_rhs.size);
-		}
-
-		size_t find_first_of(const CharT a_char) const
-		{
-			for (size_t i = 0; i < m_size; i++)
-			{
-				if (m_string_view[i] == a_char)
-					return i;
-			}
-			return size_t(-1);
-		}
-
-		size_t find_last_of(const CharT a_char) const
-		{
-			size_t last_pos = size_t(-1);
-
-			for (size_t i = 0; i < m_size; i++)
-			{
-				if (m_string_view[i] == a_char)
-					last_pos = i;
-			}
-
-			return last_pos;
-		}
-
-		bool compare(const size_t a_pos, const CharT* a_str) const
-		{
-			return compare(a_pos, a_str, Memory::StrLength(a_str) - 1);
-		}
-
-		bool compare(const size_t a_pos, const CharT* a_str, const size_t a_str_size) const
-		{
-			BB_ASSERT(a_pos + a_str_size <= m_size, "trying to read the string out of bounds");
-
-			// maybe optimize that big strings are early out'd and see if memcmp works better
-
-			for (size_t i = 0; i < a_str_size; i++)
-			{
-				if (m_string_view[a_pos + i] != a_str[i])
-					return false;
-			}
-			return true;
-		}
-
-		size_t size() const { return m_size; }
-		const CharT* data() const { return m_string_view; }
-		const CharT* c_str() const { return m_string_view; }
-
-	private:
-		const CharT* m_string_view;
-		const size_t m_size;
-	};
-
-	using StringView = String_View<char>;
-	using StringWView = String_View<wchar_t>;
+	template<size_t STRING_SIZE>
+	using StackString = Stack_String<char, STRING_SIZE>;
+	template<size_t STRING_SIZE>
+	using StackWString = Stack_String<wchar_t, STRING_SIZE>;
 }

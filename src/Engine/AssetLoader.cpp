@@ -22,6 +22,10 @@ BB_WARNINGS_OFF
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+
 BB_WARNINGS_ON
 
 using namespace BB;
@@ -327,13 +331,22 @@ const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const 
 	return image;
 }
 
+bool Asset::WriteImage(const char* a_file_name, const uint32_t a_width, const uint32_t a_height, const uint32_t a_channels, const void* a_pixels)
+{
+	if (stbi_write_png(a_file_name, static_cast<int>(a_width), static_cast<int>(a_height), static_cast<int>(a_channels), a_pixels, a_width * a_channels))
+		return true;
+
+	BB_WARNING(false, stbi_failure_reason(), WarningType::HIGH);
+	return false;
+}
+
 const Image* Asset::LoadImageMemory(const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, const uint64_t a_transfer_fence_value)
 {
 	UploadTextureInfo upload_image_info;
 	upload_image_info.name = a_name;
 	upload_image_info.pixels = a_image.GetPixels();
 	upload_image_info.width = a_image.GetWidth();
-	upload_image_info.height = a_image.GetWidth();
+	upload_image_info.height = a_image.GetHeight();
 	switch (a_image.GetBytesPerPixel())
 	{
 	case 8:
@@ -690,6 +703,8 @@ void Asset::FreeAsset(const AssetHandle a_asset_handle)
 {
 	AssetSlot* slot = s_asset_manager->asset_table.find(a_asset_handle.handle);
 
+
+	// rework this, preferably NO dynamic allocation. 
 	switch (slot->hash.type)
 	{
 	case ASSET_TYPE::MODEL:
@@ -709,24 +724,28 @@ void Asset::FreeAsset(const AssetHandle a_asset_handle)
 
 #include "imgui.h"
 
-static void LoadAssetViaSearch(bool load_async)
+constexpr size_t ASSET_SEARCH_PATH_SIZE_MAX = 512;
+
+static void LoadAssetViaSearch()
 {
-	constexpr size_t MAX_SEARCH_PATH = 512;
-	char search_path[MAX_SEARCH_PATH] = {};
-	if (OSFindFileNameDialogWindow(search_path, MAX_SEARCH_PATH))
+	StackString<ASSET_SEARCH_PATH_SIZE_MAX> search_path;
+
+	if (OSFindFileNameDialogWindow(search_path.data(), search_path.capacity()))
 	{
-		StringView search_path_view = search_path;
-		const size_t get_extension_pos = search_path_view.find_last_of('.');
-		const size_t get_file_name = search_path_view.find_last_of('\\');
+		search_path.RecalculateStringSize();
+		const size_t get_extension_pos = search_path.find_last_of('.');
+		const size_t get_file_name = search_path.find_last_of('\\');
 		BB_ASSERT(get_file_name != size_t(-1), "i fucked up");
 
-		//get asset name
-		const char* asset_name = Asset::FindOrCreateString(&search_path_view.c_str()[get_file_name + 1], get_extension_pos - get_file_name - 1);
-		const char* path_str = Asset::FindOrCreateString(search_path);
+		// get asset name
+		const char* asset_name = Asset::FindOrCreateString(&search_path.c_str()[get_file_name + 1], get_extension_pos - get_file_name - 1);
+		const char* path_str = Asset::FindOrCreateString(search_path.c_str());
 		Asset::AsyncAsset asset{};
+
+		// we always load from disk due to the nature of loading an asset via a path
 		asset.load_type = Asset::ASYNC_LOAD_TYPE::DISK;
 
-		if (search_path_view.compare(get_extension_pos, ".gltf"))
+		if (search_path.compare(get_extension_pos, ".gltf"))
 		{
 			BB_ASSERT(false, "NEED TO REWORK HOW TO SEND SHADER EFFECTS!");
 			asset.asset_type = Asset::ASYNC_ASSET_TYPE::MODEL;
@@ -735,7 +754,7 @@ static void LoadAssetViaSearch(bool load_async)
 			asset.mesh_disk.path = path_str;
 			//asset.mesh_disk.shader_effects = oops;
 		}
-		else if (search_path_view.compare(get_extension_pos, ".png") || search_path_view.compare(get_extension_pos, ".jpg"))
+		else if (search_path.compare(get_extension_pos, ".png") || search_path.compare(get_extension_pos, ".jpg") || search_path.compare(get_extension_pos, ".bmp"))
 		{
 			asset.asset_type = Asset::ASYNC_ASSET_TYPE::TEXTURE;
 
@@ -747,28 +766,7 @@ static void LoadAssetViaSearch(bool load_async)
 			BB_ASSERT(false, "NOT SUPPORTED FILE NAME!");
 		}
 
-		if (load_async)
-			Asset::LoadAssetsASync(Slice(&asset, 1), "load asset via search");
-		else
-		{
-			CommandPool& cmd_pool = GetTransferCommandPool();
-			const RCommandList cmd_list = cmd_pool.StartCommandList(asset_name);
-
-			const uint64_t asset_fence_value = GetNextAssetTransferFenceValueAndIncrement();
-
-			switch (asset.asset_type)
-			{
-			case  Asset::ASYNC_ASSET_TYPE::MODEL:
-
-				break;
-			case  Asset::ASYNC_ASSET_TYPE::TEXTURE:
-				return Asset::LoadImageDisk(path_str, asset_name, cmd_list, asset_fence_value);
-				break;
-			default:
-				BB_ASSERT(false, "unsupported asset type");
-				break;
-			}
-		}
+		Asset::LoadAssetsASync(Slice(&asset, 1), "load asset via search");
 	}
 }
 
@@ -789,7 +787,6 @@ void Asset::ShowAssetMenu()
 			}
 			ImGui::EndMenuBar();
 		}
-
 
 		constexpr int column = 5;
 		if (ImGui::BeginTable("assets", column, ImGuiTableFlags_Hideable | ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable))

@@ -128,6 +128,9 @@ namespace BB
 		const Model* LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op, const RCommandList a_list, const uint64_t a_transfer_fence_value);
 		const Model* LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, const RCommandList a_list, const uint64_t a_transfer_fence_value);
 
+		bool WriteImage(const char* a_file_name, const uint32_t a_width, const uint32_t a_height, const uint32_t a_channels, const void* a_pixels);
+
+
 		const Model* FindModelByPath(const char* a_path);
 		const Model* FindModelByName(const char* a_name);
 
