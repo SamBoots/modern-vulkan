@@ -114,6 +114,7 @@ struct AssetSlot
 	AssetHash hash;
 	const char* path;
 	const char* name;
+	RTexture icon;
 	union
 	{
 		Model* model;
@@ -125,7 +126,7 @@ struct AssetManager
 {
 	BBRWLock asset_lock;
 	StaticOL_HashMap<uint64_t, AssetSlot> asset_table;
-	StaticArray<const AssetSlot*> linear_asset_table;
+	StaticArray<AssetSlot*> linear_asset_table;
 	BBRWLock string_lock;
 	StaticOL_HashMap<uint64_t, char*> string_table;
 	struct StringBuffer
@@ -153,7 +154,7 @@ static inline char* AllocateStringSpace(const size_t a_string_size)
 static inline void AddElementToAssetTable(AssetSlot& a_asset_slot)
 {
 	s_asset_manager->asset_table.insert(a_asset_slot.hash.full_hash, a_asset_slot);
-	const AssetSlot* slot = s_asset_manager->asset_table.find(a_asset_slot.hash.full_hash);
+	AssetSlot* slot = s_asset_manager->asset_table.find(a_asset_slot.hash.full_hash);
 	s_asset_manager->linear_asset_table.push_back(slot);
 }
 
@@ -323,6 +324,8 @@ const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const 
 	asset.image = image;
 	asset.name = a_name;
 
+	asset.icon = image->gpu_image;
+
 	AddElementToAssetTable(asset);
 	asset.image->asset_handle = AssetHandle(asset.hash.full_hash);
 
@@ -381,6 +384,8 @@ const Image* Asset::LoadImageMemory(const BB::BBImage& a_image, const char* a_na
 	asset.path = nullptr; //memory loads have nullptr has path.
 	asset.image = image;
 	asset.name = a_name;
+
+	asset.icon = image->gpu_image;
 
 	AddElementToAssetTable(asset);
 	image->asset_handle = AssetHandle(asset.hash.full_hash);
@@ -624,11 +629,13 @@ const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 	asset.path = FindOrCreateString(a_mesh_op.path);
 	asset.model = model;
 	asset.name = a_mesh_op.name;
+
+	asset.icon = GetDebugTexture();
+
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
 	AddElementToAssetTable(asset);
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 	model->asset_handle = AssetHandle(asset.hash.full_hash);
-	model->asset_icon = GetDebugTexture();
 	return model;
 }
 
@@ -671,11 +678,12 @@ const Model* Asset::LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, cons
 	asset.model = model;
 	asset.name = a_mesh_op.name;
 
+	asset.icon = GetDebugTexture();
+
 	AddElementToAssetTable(asset);
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 
 	model->asset_handle = AssetHandle(asset.hash.full_hash);
-	model->asset_icon = GetDebugTexture();
 	return model;
 }
 
@@ -770,6 +778,42 @@ static void LoadAssetViaSearch()
 	}
 }
 
+static const Image* LoadImageBySearch()
+{
+	StackString<ASSET_SEARCH_PATH_SIZE_MAX> search_path;
+
+	if (OSFindFileNameDialogWindow(search_path.data(), search_path.capacity()))
+	{
+		search_path.RecalculateStringSize();
+		const size_t get_extension_pos = search_path.find_last_of('.');
+		const size_t get_file_name = search_path.find_last_of('\\');
+		BB_ASSERT(get_file_name != size_t(-1), "i fucked up");
+
+		// get asset name
+		const char* asset_name = Asset::FindOrCreateString(&search_path.c_str()[get_file_name + 1], get_extension_pos - get_file_name - 1);
+		const char* path_str = Asset::FindOrCreateString(search_path.c_str());
+
+		if (search_path.compare(get_extension_pos, ".png") || search_path.compare(get_extension_pos, ".jpg") || search_path.compare(get_extension_pos, ".bmp"))
+		{
+			// jank, batch this
+
+			const uint64_t fence_value = GetNextAssetTransferFenceValueAndIncrement();
+			CommandPool& cmd_pool = GetTransferCommandPool();
+			const RCommandList cmd_list = cmd_pool.StartCommandList("image icon loading");
+			const Image* image = Asset::LoadImageDisk(path_str, asset_name, cmd_list, fence_value);
+			cmd_pool.EndCommandList(cmd_list);
+
+			ExecuteAssetTransfer(Slice(&cmd_pool, 1), fence_value);
+			return image;
+		}
+		else
+		{
+			BB_ASSERT(false, "not an image, sam use the filter thing for the windows api for search k thnx");
+			return nullptr;
+		}
+	}
+}
+
 void Asset::ShowAssetMenu()
 {
 	if (ImGui::Begin("Asset Menu", nullptr, ImGuiWindowFlags_MenuBar))
@@ -796,7 +840,7 @@ void Asset::ShowAssetMenu()
 			for (size_t i = 0; i < s_asset_manager->linear_asset_table.size(); i++)
 			{
 				ImGui::PushID(static_cast<int>(i));
-				const AssetSlot* const slot = s_asset_manager->linear_asset_table[i];
+				AssetSlot* const slot = s_asset_manager->linear_asset_table[i];
 				if (slot == nullptr)
 					continue;
 
@@ -828,13 +872,14 @@ void Asset::ShowAssetMenu()
 					case ASSET_TYPE::MODEL:
 						if (ImGui::Button("Set Icon"))
 						{
-
+							if (const Image* icon = LoadImageBySearch())
+								slot->icon = icon->gpu_image;
 						}
 
-						ImGui::Image(slot->model->asset_icon.handle, ImVec2(160, 160));
+						ImGui::Image(slot->icon.handle, ImVec2(160, 160));
 						break;
 					case ASSET_TYPE::TEXTURE:
-						ImGui::Image(slot->image->gpu_image.handle, ImVec2(160, 160));
+						ImGui::Image(slot->icon.handle, ImVec2(160, 160));
 						break;
 					default:
 						BB_ASSERT(false, "unimplemented ASSET_TYPE case");
