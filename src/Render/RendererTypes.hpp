@@ -307,7 +307,6 @@ namespace BB
 
 	struct DescriptorAllocation
 	{
-		RDescriptorLayout descriptor;
 		uint32_t size;
 		uint32_t offset;
 		void* buffer_start; //Maybe just get this from the descriptor heap? We only have one heap anyway.

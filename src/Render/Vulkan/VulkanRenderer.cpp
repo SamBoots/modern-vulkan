@@ -22,7 +22,7 @@ using namespace BB;
 
 #define BB_ENGINE_TOOLS_ENABLED
 #ifdef BB_ENGINE_TOOLS_ENABLED
-#define BB_EXTENDED_IMAGE_USAGE_FLAGS | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+#define BB_EXTENDED_IMAGE_USAGE_FLAGS | VK_IMAGE_USAGE_TRANSFER_SRC_BIT
 #else
 #define BB_EXTENDED_IMAGE_USAGE_FLAGS
 #endif // BB_ENGINE_TOOLS_ENABLED
@@ -969,7 +969,6 @@ DescriptorAllocation VulkanDescriptorLinearBuffer::AllocateDescriptor(const RDes
 		&descriptors_size);
 
 	BB_ASSERT(m_size > descriptors_size + m_offset, "Not enough space in the descriptor buffer!");
-	allocation.descriptor = a_descriptor;
 	allocation.size = static_cast<uint32_t>(descriptors_size);
 	allocation.offset = m_offset;
 	allocation.buffer_start = m_start; //Maybe just get this from the descriptor heap? We only have one heap anyway.

@@ -55,6 +55,8 @@ namespace BB
 		RGBA8_SRGB,
 		RGBA8_UNORM,
 
+		RGB8_SRGB,
+
 		A8_UNORM,
 
 		ENUM_SIZE

@@ -47,6 +47,14 @@ namespace BB
 		RENDER_PASS_TYPE pass_type;
 	};
 
+	struct WriteTextureInfo
+	{
+		uint2 extent;
+		int2 offset;
+		const void* pixels;
+		bool set_shader_visible;
+	};
+
 	struct CreateMaterialInfo
 	{
 		Slice<ShaderEffectHandle> shader_effects;
@@ -54,11 +62,11 @@ namespace BB
 		RTexture normal_texture;
 	};
 
-	struct UploadTextureInfo
+	struct CreateTextureInfo
 	{
 		const char* name;
-		const void* pixels;
 		IMAGE_FORMAT format;
+		IMAGE_USAGE usage;
 		uint32_t width;
 		uint32_t height;
 	};
@@ -104,7 +112,6 @@ namespace BB
 		uint32_t draw_entry_max;
 	};
 	using RenderTarget = FrameworkHandle<struct RenderTargetTag>;
-
 
 	const RenderIO& GetRenderIO();
 
@@ -161,7 +168,8 @@ namespace BB
 	void FreeMaterial(const MaterialHandle a_material);
 
 	// returns invalid texture when not enough upload buffer space
-	const RTexture UploadTexture(const RCommandList a_list, const UploadTextureInfo& a_upload_info, const uint64_t a_transfer_fence_value);
+	const RTexture CreateTexture(const CreateTextureInfo& a_create_info);
+	void WriteTexture(const RCommandList a_list, const RTexture a_texture, const WriteTextureInfo& a_write_info, const uint64_t a_transfer_fence_value);
 	void FreeTexture(const RTexture a_texture);
 	bool ReadTexture(MemoryArena& a_arena, const RTexture a_texture, uint32_t& a_width, uint32_t& a_height, uint32_t& a_channels, void*& a_data);
 

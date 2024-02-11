@@ -296,21 +296,26 @@ const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const 
 		return nullptr;
 	}
 
-	UploadTextureInfo upload_image_info;
-	upload_image_info.name = a_name;
-	upload_image_info.pixels = pixels;
-	upload_image_info.width = static_cast<uint32_t>(x);
-	upload_image_info.height = static_cast<uint32_t>(y);
-	upload_image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+	CreateTextureInfo create_image_info;
+	create_image_info.name = a_name;
+	create_image_info.width = static_cast<uint32_t>(x);
+	create_image_info.height = static_cast<uint32_t>(y);
+	create_image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+	create_image_info.usage = IMAGE_USAGE::TEXTURE;
 
-	const RTexture gpu_image = UploadTexture(a_list, upload_image_info, a_transfer_fence_value);
+	const RTexture gpu_image = CreateTexture(create_image_info);
 
+	WriteTextureInfo write_info{};
+	write_info.pixels = pixels;
+	write_info.extent = { create_image_info.width, create_image_info.height };
+	write_info.set_shader_visible = true;
+	WriteTexture(a_list, gpu_image, write_info, a_transfer_fence_value);
 
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
 
 	Image* image = ArenaAllocType(s_asset_manager->asset_arena, Image);
-	image->width = upload_image_info.width;
-	image->height = upload_image_info.height;
+	image->width = create_image_info.width;
+	image->height = create_image_info.height;
 	image->gpu_image = gpu_image;
 
 	const uint64_t hash = TurboCrappyImageHash(pixels, static_cast<size_t>(image->width) + image->height + static_cast<uint32_t>(channels));
@@ -336,7 +341,7 @@ const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const 
 
 bool Asset::WriteImage(const char* a_file_name, const uint32_t a_width, const uint32_t a_height, const uint32_t a_channels, const void* a_pixels)
 {
-	if (stbi_write_png(a_file_name, static_cast<int>(a_width), static_cast<int>(a_height), static_cast<int>(a_channels), a_pixels, a_width * a_channels))
+	if (stbi_write_png(a_file_name, static_cast<int>(a_width), static_cast<int>(a_height), static_cast<int>(a_channels), a_pixels, static_cast<int>(a_width * a_channels)))
 		return true;
 
 	BB_WARNING(false, stbi_failure_reason(), WarningType::HIGH);
@@ -345,35 +350,40 @@ bool Asset::WriteImage(const char* a_file_name, const uint32_t a_width, const ui
 
 const Image* Asset::LoadImageMemory(const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, const uint64_t a_transfer_fence_value)
 {
-	UploadTextureInfo upload_image_info;
-	upload_image_info.name = a_name;
-	upload_image_info.pixels = a_image.GetPixels();
-	upload_image_info.width = a_image.GetWidth();
-	upload_image_info.height = a_image.GetHeight();
+	CreateTextureInfo create_image_info;
+	create_image_info.name = a_name;
+	create_image_info.width = a_image.GetWidth();
+	create_image_info.height = a_image.GetHeight();
+	create_image_info.usage = IMAGE_USAGE::TEXTURE;
 	switch (a_image.GetBytesPerPixel())
 	{
 	case 8:
-		upload_image_info.format = IMAGE_FORMAT::RGBA16_UNORM;
+		create_image_info.format = IMAGE_FORMAT::RGBA16_UNORM;
 		break;
 	case 4:
-		upload_image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+		create_image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
 		break;
 	case 1:
-		upload_image_info.format = IMAGE_FORMAT::A8_UNORM;
+		create_image_info.format = IMAGE_FORMAT::A8_UNORM;
 		break;
 	default:
 		BB_ASSERT(false, "Current unsupported image bitcount.");
-		upload_image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+		create_image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
 		break;
 	}
 
+	const RTexture gpu_image = CreateTexture(create_image_info);
 
-	const RTexture gpu_image = UploadTexture(a_list, upload_image_info, a_transfer_fence_value);
+	WriteTextureInfo write_info{};
+	write_info.pixels = a_image.GetPixels();
+	write_info.extent = { create_image_info.width, create_image_info.height };
+	write_info.set_shader_visible = true;
+	WriteTexture(a_list, gpu_image, write_info, a_transfer_fence_value);
 
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
 	Image* image = ArenaAllocType(s_asset_manager->asset_arena, Image);
-	image->width = upload_image_info.width;
-	image->height = upload_image_info.height;
+	image->width = create_image_info.width;
+	image->height = create_image_info.height;
 	image->gpu_image = gpu_image;
 
 	const uint64_t hash = TurboCrappyImageHash(a_image.GetPixels(), static_cast<size_t>(image->width) + image->height + a_image.GetBytesPerPixel());
@@ -812,6 +822,7 @@ static const Image* LoadImageBySearch()
 			return nullptr;
 		}
 	}
+	return nullptr;
 }
 
 void Asset::ShowAssetMenu()
