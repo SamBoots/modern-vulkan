@@ -169,6 +169,21 @@ namespace BB
 
 	// returns invalid texture when not enough upload buffer space
 	const RTexture CreateTexture(const CreateTextureInfo& a_create_info);
+
+	struct BlitTextureInfo
+	{
+		RTexture src;
+		int2 src_point_0;
+		int2 src_point_1;
+		bool src_set_shader_visible;
+
+		RTexture dst;
+		int2 dst_point_0;
+		int2 dst_point_1;
+		bool dst_set_shader_visible;
+	};
+
+	void BlitTexture(const RCommandList a_list, const BlitTextureInfo& a_blit_info);
 	void WriteTexture(const RCommandList a_list, const RTexture a_texture, const WriteTextureInfo& a_write_info, const uint64_t a_transfer_fence_value);
 	void FreeTexture(const RTexture a_texture);
 	bool ReadTexture(MemoryArena& a_arena, const RTexture a_texture, uint32_t& a_width, uint32_t& a_height, uint32_t& a_channels, void*& a_data);

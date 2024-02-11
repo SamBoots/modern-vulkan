@@ -213,6 +213,8 @@ namespace BB
 
 	union int3
 	{
+		int3() = default;
+		int3(const int a_x, const int a_y, const int a_z) { x = a_x; y = a_y; z = a_z; }
 		int e[3];
 		struct
 		{

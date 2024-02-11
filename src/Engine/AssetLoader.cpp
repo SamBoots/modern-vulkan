@@ -721,7 +721,6 @@ void Asset::FreeAsset(const AssetHandle a_asset_handle)
 {
 	AssetSlot* slot = s_asset_manager->asset_table.find(a_asset_handle.handle);
 
-
 	// rework this, preferably NO dynamic allocation. 
 	switch (slot->hash.type)
 	{
