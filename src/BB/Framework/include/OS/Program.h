@@ -76,6 +76,7 @@ namespace BB
 	bool WriteToConsole(const wchar_t* a_string, uint32_t a_str_length);
 
 	bool OSCreateDirectory(const char* a_path_name);
+	bool OSSetCurrentDirectory(const char* a_path_name);
 	
 	bool OSFileIsValid(const OSFileHandle a_file_handle);
 	//char replaced with string view later on.

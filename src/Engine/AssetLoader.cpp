@@ -30,10 +30,68 @@ BB_WARNINGS_ON
 
 using namespace BB;
 
-//constexpr const char JSON_DIRECTORY[] = "../Resources/Json/";
-//constexpr const char MODELS_DIRECTORY[] = "../Resources/Models/";
-//constexpr const char SHADERS_DIRECTORY[] = "../Resources/Shaders/";
-constexpr const char TEXTURE_DIRECTORY[] = "../Resources/Textures/";
+constexpr size_t MAX_PATH_SIZE = 512;
+constexpr size_t MAX_ASSET_NAME_SIZE = 64;
+constexpr uint2 ICON_EXTENT = uint2(64, 64);
+constexpr float2 ICON_EXTENT_F = float2(64.f, 64.f);
+
+constexpr const char TEXTURE_DIRECTORY[] = "../resources/textures/";
+constexpr const char ICON_DIRECTORY[] = "../resources/icons/";
+
+static inline StackString<MAX_ASSET_NAME_SIZE> GetAssetIconName(const char* a_asset_name)
+{
+	StackString<MAX_ASSET_NAME_SIZE> icon_name;
+	icon_name.append(a_asset_name);
+	icon_name.append(" icon");
+	return icon_name;
+}
+
+static inline void GetAssetNameFromPath(const char* a_path, const char*& a_out_name, size_t& a_out_size)
+{
+	StringView path_view = a_path;
+	const size_t name_start = path_view.find_last_of('/');
+	BB_ASSERT(name_start != size_t(-1), "fucked up, / on linux path ?!?!?!?!");
+	const size_t name_end = path_view.find_last_of('.');
+	BB_ASSERT(name_end != size_t(-1), "file has no file extension name");
+	a_out_name = &a_path[name_start + 1];
+	a_out_size = name_end - name_start - 1;
+}
+
+static inline uint32_t ByteSizePerPixelFromImageFormat(const IMAGE_FORMAT a_format)
+{
+	switch (a_format)
+	{
+	case IMAGE_FORMAT::RGBA16_UNORM:
+	case IMAGE_FORMAT::RGBA16_SFLOAT:
+		return 8;
+	case IMAGE_FORMAT::RGBA8_SRGB:
+	case IMAGE_FORMAT::RGBA8_UNORM:
+		return 4;
+	case IMAGE_FORMAT::RGB8_SRGB:
+		return 3;
+	case IMAGE_FORMAT::A8_UNORM:
+		return 1;
+	default:
+		BB_ASSERT(false, "unsupported image format");
+		return 0;
+	}
+}
+
+static inline IMAGE_FORMAT ImageFormatFromChannels(const int a_channels)
+{
+	switch (a_channels)
+	{
+	case 4:
+		return IMAGE_FORMAT::RGBA8_SRGB;
+	case 3:
+		return IMAGE_FORMAT::RGB8_SRGB;
+	case 1:
+		return IMAGE_FORMAT::A8_UNORM;
+	default:
+		BB_ASSERT(false, "unsupported channel count");
+		return IMAGE_FORMAT::RGB8_SRGB;	
+	}
+}
 
 static char* CreateGLTFImagePath(MemoryArena& a_temp_arena, const char* a_image_path)
 {
@@ -237,7 +295,7 @@ void Asset::LoadAssets(MemoryArena& memory_arena, const BB::Slice<AsyncAsset> a_
 			switch (task.load_type)
 			{
 			case ASYNC_LOAD_TYPE::DISK:
-				LoadImageDisk(task.texture_disk.path, task.texture_disk.name, cmd_list, asset_fence_value);
+				LoadImageDisk(task.texture_disk.path, cmd_list, asset_fence_value);
 				break;
 			case ASYNC_LOAD_TYPE::MEMORY:
 				LoadImageMemory(*task.texture_memory.image, task.texture_memory.name, cmd_list, asset_fence_value);
@@ -284,23 +342,30 @@ ThreadTask Asset::LoadAssetsASync(const BB::Slice<AsyncAsset> a_asyn_assets, con
 	return Threads::StartTaskThread(LoadAsync_func, params);
 }
 
-const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const RCommandList a_list, const uint64_t a_transfer_fence_value)
+struct LoadedImage
+{
+	RTexture texture;
+	uint32_t width;
+	uint32_t height;
+	uint32_t channels;
+};
+
+static LoadedImage AssetStbiLoadImage(const char* a_path, const char* a_name, const RCommandList a_list, const uint64_t a_transfer_fence_value, const bool a_set_shader_visible = true)
 {
 	int x = 0, y = 0, channels = 0;
-	//hacky way, whatever we do it for now.
 	stbi_uc* pixels = stbi_load(a_path, &x, &y, &channels, 4);
 
 	if (!pixels)
 	{
 		BB_ASSERT(false, "failed to load image!");
-		return nullptr;
+		return LoadedImage{ RTexture(BB_INVALID_HANDLE_32), 0, 0, 0};
 	}
 
 	CreateTextureInfo create_image_info;
 	create_image_info.name = a_name;
 	create_image_info.width = static_cast<uint32_t>(x);
 	create_image_info.height = static_cast<uint32_t>(y);
-	create_image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+	create_image_info.format = ImageFormatFromChannels(4);
 	create_image_info.usage = IMAGE_USAGE::TEXTURE;
 
 	const RTexture gpu_image = CreateTexture(create_image_info);
@@ -308,26 +373,37 @@ const Image* Asset::LoadImageDisk(const char* a_path, const char* a_name, const 
 	WriteTextureInfo write_info{};
 	write_info.pixels = pixels;
 	write_info.extent = { create_image_info.width, create_image_info.height };
-	write_info.set_shader_visible = true;
+	write_info.set_shader_visible = a_set_shader_visible;
 	WriteTexture(a_list, gpu_image, write_info, a_transfer_fence_value);
+
+	STBI_FREE(pixels);
+
+	return LoadedImage{ gpu_image, create_image_info.width, create_image_info.height, static_cast<uint32_t>(channels) };
+}
+
+const Image* Asset::LoadImageDisk(const char* a_path, const RCommandList a_list, const uint64_t a_transfer_fence_value)
+{
+	const char* asset_name;
+	size_t asset_name_size;
+	GetAssetNameFromPath(a_path, asset_name, asset_name_size);
+	FindOrCreateString(asset_name, asset_name_size);
+
+	const LoadedImage gpu_image = AssetStbiLoadImage(a_path, asset_name, a_list, a_transfer_fence_value);
 
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
 
 	Image* image = ArenaAllocType(s_asset_manager->asset_arena, Image);
-	image->width = create_image_info.width;
-	image->height = create_image_info.height;
-	image->gpu_image = gpu_image;
+	image->width = gpu_image.width;
+	image->height = gpu_image.height;
+	image->gpu_image = gpu_image.texture;
 
-	const uint64_t hash = TurboCrappyImageHash(pixels, static_cast<size_t>(image->width) + image->height + static_cast<uint32_t>(channels));
-	//BB_ASSERT(hash != 0, "Image hashing failed");
-
-	STBI_FREE(pixels);
+	const uint64_t path_hash = StringHash(a_path, strnlen_s(a_path, _MAX_PATH));
 
 	AssetSlot asset;
-	asset.hash = CreateAssetHash(hash, ASSET_TYPE::TEXTURE);
+	asset.hash = CreateAssetHash(path_hash, ASSET_TYPE::TEXTURE);
 	asset.path = nullptr; //memory loads have nullptr as path.
 	asset.image = image;
-	asset.name = a_name;
+	asset.name = asset_name;
 
 	asset.icon = image->gpu_image;
 
@@ -363,6 +439,9 @@ const Image* Asset::LoadImageMemory(const BB::BBImage& a_image, const char* a_na
 	case 4:
 		create_image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
 		break;
+	case 3:
+		create_image_info.format = IMAGE_FORMAT::RGB8_SRGB;
+		break;
 	case 1:
 		create_image_info.format = IMAGE_FORMAT::A8_UNORM;
 		break;
@@ -387,11 +466,11 @@ const Image* Asset::LoadImageMemory(const BB::BBImage& a_image, const char* a_na
 	image->gpu_image = gpu_image;
 
 	const uint64_t hash = TurboCrappyImageHash(a_image.GetPixels(), static_cast<size_t>(image->width) + image->height + a_image.GetBytesPerPixel());
-	//BB_ASSERT(hash != 0, "Image hashing failed");
+	// BB_ASSERT(hash != 0, "Image hashing failed");
 
 	AssetSlot asset;
 	asset.hash = CreateAssetHash(hash, ASSET_TYPE::TEXTURE);
-	asset.path = nullptr; //memory loads have nullptr has path.
+	asset.path = nullptr; // memory loads have nullptr has path.
 	asset.image = image;
 	asset.name = a_name;
 
@@ -471,7 +550,7 @@ static void LoadglTFNode(MemoryArena& a_temp_arena, Slice<ShaderEffectHandle> a_
 				const cgltf_image& image = *prim.material->pbr_metallic_roughness.base_color_texture.texture->image;
 
 				const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
-				const Image* img = Asset::LoadImageDisk(full_image_path, image.name, a_list, a_transfer_fence_value);
+				const Image* img = Asset::LoadImageDisk(full_image_path, a_list, a_transfer_fence_value);
 
 				material_info.base_color = img->gpu_image;
 			}
@@ -481,7 +560,7 @@ static void LoadglTFNode(MemoryArena& a_temp_arena, Slice<ShaderEffectHandle> a_
 				const cgltf_image& image = *prim.material->normal_texture.texture->image;
 
 				const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
-				const Image* img = Asset::LoadImageDisk(full_image_path, image.name, a_list, a_transfer_fence_value);
+				const Image* img = Asset::LoadImageDisk(full_image_path, a_list, a_transfer_fence_value);
 
 				material_info.normal_texture = img->gpu_image;
 			}
@@ -634,11 +713,17 @@ const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 
 	cgltf_free(gltf_data);
 
+
+	const char* asset_name;
+	size_t asset_name_size;
+	GetAssetNameFromPath(a_mesh_op.path, asset_name, asset_name_size);
+	
+
 	AssetSlot asset;
 	asset.hash = asset_hash;
 	asset.path = FindOrCreateString(a_mesh_op.path);
 	asset.model = model;
-	asset.name = a_mesh_op.name;
+	asset.name = FindOrCreateString(asset_name, asset_name_size);
 
 	asset.icon = GetDebugTexture();
 
@@ -755,7 +840,6 @@ static void LoadAssetViaSearch()
 		BB_ASSERT(get_file_name != size_t(-1), "i fucked up");
 
 		// get asset name
-		const char* asset_name = Asset::FindOrCreateString(&search_path.c_str()[get_file_name + 1], get_extension_pos - get_file_name - 1);
 		const char* path_str = Asset::FindOrCreateString(search_path.c_str());
 		Asset::AsyncAsset asset{};
 
@@ -766,16 +850,12 @@ static void LoadAssetViaSearch()
 		{
 			BB_ASSERT(false, "NEED TO REWORK HOW TO SEND SHADER EFFECTS!");
 			asset.asset_type = Asset::ASYNC_ASSET_TYPE::MODEL;
-
-			asset.mesh_disk.name = asset_name;
 			asset.mesh_disk.path = path_str;
 			//asset.mesh_disk.shader_effects = oops;
 		}
 		else if (search_path.compare(get_extension_pos, ".png") || search_path.compare(get_extension_pos, ".jpg") || search_path.compare(get_extension_pos, ".bmp"))
 		{
 			asset.asset_type = Asset::ASYNC_ASSET_TYPE::TEXTURE;
-
-			asset.texture_disk.name = asset_name;
 			asset.texture_disk.path = path_str;
 		}
 		else
@@ -787,7 +867,7 @@ static void LoadAssetViaSearch()
 	}
 }
 
-static const Image* LoadImageBySearch()
+static const RTexture LoadImageBySearch(const uint2 a_set_image_size, const char* a_new_image_name)
 {
 	StackString<ASSET_SEARCH_PATH_SIZE_MAX> search_path;
 
@@ -807,24 +887,52 @@ static const Image* LoadImageBySearch()
 			// jank, batch this
 
 			const uint64_t fence_value = GetNextAssetTransferFenceValueAndIncrement();
-			CommandPool& cmd_pool = GetTransferCommandPool();
+			CommandPool& cmd_pool = GetGraphicsCommandPool();
 			const RCommandList cmd_list = cmd_pool.StartCommandList("image icon loading");
-			const Image* image = Asset::LoadImageDisk(path_str, asset_name, cmd_list, fence_value);
+
+			const LoadedImage loaded_full_image = AssetStbiLoadImage(path_str, asset_name, cmd_list, fence_value, false);
+
+			CreateTextureInfo icon_info;
+			icon_info.name = a_new_image_name;
+			icon_info.width = a_set_image_size.x;
+			icon_info.height = a_set_image_size.y;
+			icon_info.usage = IMAGE_USAGE::TEXTURE;
+			icon_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+			RTexture icon_texture = CreateTexture(icon_info);
+
+			BlitTextureInfo blit_info;
+			blit_info.dst = icon_texture;
+			blit_info.dst_point_0 = {};
+			blit_info.dst_point_1 = int2(static_cast<int>(a_set_image_size.x), static_cast<int>(a_set_image_size.y));
+			blit_info.dst_set_shader_visible = true;
+
+			blit_info.src = loaded_full_image.texture;
+			blit_info.src_point_0 = {};
+			blit_info.src_point_1 = int2(static_cast<int>(loaded_full_image.width), static_cast<int>(loaded_full_image.height));
+			blit_info.src_set_shader_visible = false;
+
+			BlitTexture(cmd_list, blit_info);
+
 			cmd_pool.EndCommandList(cmd_list);
 
-			ExecuteAssetTransfer(Slice(&cmd_pool, 1), fence_value);
-			return image;
+			ExecuteGraphicCommands(Slice(&cmd_pool, 1));
+
+			GPUWaitIdle();
+
+			FreeTexture(loaded_full_image.texture);
+
+			return icon_texture;
 		}
 		else
 		{
 			BB_ASSERT(false, "not an image, sam use the filter thing for the windows api for search k thnx");
-			return nullptr;
+			return RTexture(BB_INVALID_HANDLE_32);
 		}
 	}
-	return nullptr;
+	return RTexture(BB_INVALID_HANDLE_32);
 }
 
-void Asset::ShowAssetMenu()
+void Asset::ShowAssetMenu(MemoryArena& a_arena)
 {
 	if (ImGui::Begin("Asset Menu", nullptr, ImGuiWindowFlags_MenuBar))
 	{
@@ -877,19 +985,34 @@ void Asset::ShowAssetMenu()
 					else
 						ImGui::Text("Path: None");
 
+					if (ImGui::Button("Set new Icon"))
+					{
+						StackString<MAX_ASSET_NAME_SIZE> icon_name = GetAssetIconName(slot->name);
+						const RTexture icon = LoadImageBySearch(ICON_EXTENT, icon_name.c_str());
+						if (icon.IsValid())
+						{
+							slot->icon = icon;
+							// write the icon
+
+							uint32_t width, height, channel;
+							void* pixels;
+							BB_ASSERT(ReadTexture(a_arena, icon, width, height, channel, pixels), "failed to read gpu texture");
+
+							StackString<MAX_PATH_SIZE> write_image_path(ICON_DIRECTORY, _countof(ICON_DIRECTORY) - 1);
+							write_image_path.append(icon_name.c_str(), icon_name.size());
+							write_image_path.append(".png");
+
+							Asset::WriteImage(write_image_path.c_str(), width, height, channel, pixels);
+						}
+					}
+
 					switch (slot->hash.type)
 					{
 					case ASSET_TYPE::MODEL:
-						if (ImGui::Button("Set Icon"))
-						{
-							if (const Image* icon = LoadImageBySearch())
-								slot->icon = icon->gpu_image;
-						}
-
-						ImGui::Image(slot->icon.handle, ImVec2(160, 160));
+						ImGui::Image(slot->icon.handle, ImVec2(ICON_EXTENT_F.x, ICON_EXTENT_F.y));
 						break;
 					case ASSET_TYPE::TEXTURE:
-						ImGui::Image(slot->icon.handle, ImVec2(160, 160));
+						ImGui::Image(slot->icon.handle, ImVec2(ICON_EXTENT_F.x, ICON_EXTENT_F.y));
 						break;
 					default:
 						BB_ASSERT(false, "unimplemented ASSET_TYPE case");

@@ -30,6 +30,9 @@ void BB::InitBB(const BBInitInfo& a_bb_info)
 
 	g_logger.enabled_warning_flags = a_bb_info.logger_enabled_warning_flags;
 
+	if (!OSSetCurrentDirectory(g_exe_path))
+		LatestOSError();
+
 	InitProgram();
 }
 

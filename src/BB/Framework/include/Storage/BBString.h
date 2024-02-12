@@ -200,6 +200,19 @@ namespace BB
 			m_string[m_size++] = a_Char;
 			return true;
 		}
+
+		bool push_directory_slash()
+		{
+#ifdef _WIN32
+			push_back('\\');
+#elif _UNIX
+			push_back('/');
+			return tre;
+#else
+			BB_STATIC_ASSERT(false, "no OS define given for push_directory_slash");
+			return false;
+#endif // OS name
+		}
 		
 		void pop_back()
 		{
@@ -284,16 +297,16 @@ namespace BB
 		}
 		Stack_String(const Stack_String<CharT, STRING_SIZE>& a_string)
 		{
-			Memory::Copy(m_string, a_string, sizeof(m_string));
+			Memory::Copy(m_string, a_string.m_string, sizeof(m_string));
 			m_size = a_string.size;
 		}
 		Stack_String(Stack_String<CharT, STRING_SIZE>&& a_string) noexcept
 		{
-			Memory::Copy(m_string, a_string, sizeof(m_string));
+			Memory::Copy(m_string, a_string.m_string, sizeof(m_string));
 			m_size = a_string.size();
 
 			Memory::Set(a_string.m_string, 0, STRING_SIZE);
-			a_string.m_size = 0
+			a_string.m_size = 0;
 		}
 		~Stack_String()
 		{

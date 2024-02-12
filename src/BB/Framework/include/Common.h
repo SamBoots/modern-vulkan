@@ -203,6 +203,8 @@ namespace BB
 
 	union int2
 	{
+		constexpr int2() : x(0), y(0) {}
+		constexpr int2(const int a_x, const int a_y) : x(a_x), y(a_y) {}
 		int e[2];
 		struct
 		{
@@ -213,8 +215,8 @@ namespace BB
 
 	union int3
 	{
-		int3() = default;
-		int3(const int a_x, const int a_y, const int a_z) { x = a_x; y = a_y; z = a_z; }
+		constexpr int3() : x(0), y(0), z(0) {}
+		constexpr int3(const int a_x, const int a_y, const int a_z) : x(a_x), y(a_y), z(a_z) {}
 		int e[3];
 		struct
 		{
@@ -226,9 +228,9 @@ namespace BB
 
 	union int4
 	{
-		int4() = default;
-		int4(const int a_x, const int a_y, const int a_z, const int a_w) { x = a_x; y = a_y; z = a_z; w = a_w; }
-		int4(const VecInt4 a_vec) { vec = a_vec; }
+		constexpr int4() : x(0), y(0) {}
+		constexpr int4(const int a_x, const int a_y, const int a_z, const int a_w) : x(a_x), y(a_y), z(a_z), w(a_w) {}
+		constexpr int4(const VecInt4 a_vec) : vec(a_vec) {}
 		int e[4];
 		VecInt4 vec;
 		struct

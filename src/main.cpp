@@ -345,7 +345,7 @@ static void ThreadFuncForDrawing(void* a_param)
 
 	StartRenderTarget(list, viewport.render_target);
 
-	scene_hierarchy.DrawSceneHierarchy(list, viewport.render_target, viewport.extent, int2{ {0, 0} });
+	scene_hierarchy.DrawSceneHierarchy(list, viewport.render_target, viewport.extent, int2(0, 0));
 
 	EndRenderTarget(list, viewport.render_target);
 }
@@ -485,7 +485,6 @@ int main(int argc, char** argv)
 		Asset::AsyncAsset async_assets[2]{};
 		async_assets[0].asset_type = Asset::ASYNC_ASSET_TYPE::MODEL;
 		async_assets[0].load_type = Asset::ASYNC_LOAD_TYPE::DISK;
-		async_assets[0].mesh_disk.name = "duck gltf";
 		async_assets[0].mesh_disk.path = "../resources/models/Duck.gltf";
 		async_assets[0].mesh_disk.shader_effects = Slice(shader_effects, _countof(shader_effects));
 
@@ -631,7 +630,7 @@ int main(int argc, char** argv)
 			scene_hierarchy.SetView(viewport_scene.camera.CalculateView());
 			object_viewer_scene.SetView(viewport_object_viewer.camera.CalculateView());
 
-			Asset::ShowAssetMenu();
+			Asset::ShowAssetMenu(main_arena);
 			MainDebugWindow(main_arena, active_viewport);
 			scene_hierarchy.ImguiDisplaySceneHierarchy();
 			object_viewer_scene.ImguiDisplaySceneHierarchy();

@@ -81,7 +81,6 @@ namespace BB
 
 		struct TextureLoadFromDisk
 		{
-			const char* name;
 			const char* path;
 		};
 
@@ -95,7 +94,6 @@ namespace BB
 
 		struct MeshLoadFromDisk
 		{
-			const char* name;
 			const char* path;
 			Slice<ShaderEffectHandle> shader_effects;
 		};
@@ -121,7 +119,7 @@ namespace BB
 		void LoadAssets(MemoryArena& memory_arena, const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_cmd_list_name = "upload asset task");
 		ThreadTask LoadAssetsASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_cmd_list_name = "upload asset task");
 
-		const Image* LoadImageDisk(const char* a_path, const char* a_name, const RCommandList a_list, const uint64_t a_transfer_fence_value);
+		const Image* LoadImageDisk(const char* a_path, const RCommandList a_list, const uint64_t a_transfer_fence_value);
 		const Image* LoadImageMemory(const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, const uint64_t a_transfer_fence_value);
 		const Model* LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op, const RCommandList a_list, const uint64_t a_transfer_fence_value);
 		const Model* LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, const RCommandList a_list, const uint64_t a_transfer_fence_value);
@@ -132,7 +130,7 @@ namespace BB
 		const Model* FindModelByPath(const char* a_path);
 		const Model* FindModelByName(const char* a_name);
 
-		void ShowAssetMenu();
+		void ShowAssetMenu(MemoryArena& a_arena);
 
 		void FreeAsset(const AssetHandle a_asset_handle);
 	};

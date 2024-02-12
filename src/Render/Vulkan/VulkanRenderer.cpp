@@ -474,13 +474,15 @@ struct Vulkan_inst
 		enum_conv.depth_formats[static_cast<uint32_t>(DEPTH_FORMAT::D32_SFLOAT_S8_UINT)] = VK_FORMAT_D32_SFLOAT_S8_UINT;
 		enum_conv.depth_formats[static_cast<uint32_t>(DEPTH_FORMAT::D24_UNORM_S8_UINT)] = VK_FORMAT_D24_UNORM_S8_UINT;
 
-		//64 bit images
+		// 64 bit images
 		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::RGBA16_UNORM)] = VK_FORMAT_R16G16B16A16_UNORM;
 		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::RGBA16_SFLOAT)] = VK_FORMAT_R16G16B16A16_SFLOAT;
-		//32 bit images
+		// 32 bit images
 		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::RGBA8_SRGB)] = VK_FORMAT_R8G8B8A8_SRGB;
 		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::RGBA8_UNORM)] = VK_FORMAT_R8G8B8A8_UNORM;
-		//8 bit images
+		// 24 bit images
+		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::RGB8_SRGB)] = VK_FORMAT_R8G8B8_SRGB;
+		// 8 bit images
 		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::A8_UNORM)] = VK_FORMAT_R8_UNORM;
 
 		enum_conv.image_types[static_cast<uint32_t>(IMAGE_TYPE::TYPE_1D)] = VK_IMAGE_TYPE_1D;
@@ -734,8 +736,11 @@ static inline VkFormat ImageFormats(const IMAGE_FORMAT a_image_format)
 #else
 	switch (a_image_format)
 	{
+	case IMAGE_FORMAT::RGBA16_UNORM:	return VK_FORMAT_R16G16B16A16_UNORM;
+	case IMAGE_FORMAT::RGBA16_SFLOAT:	return VK_FORMAT_R16G16B16A16_SFLOAT;
 	case IMAGE_FORMAT::RGBA8_SRGB:		return VK_FORMAT_R8G8B8A8_SRGB;
 	case IMAGE_FORMAT::RGBA8_UNORM:		return VK_FORMAT_R8G8B8A8_UNORM;
+	case IMAGE_FORMAT::RGB8_SRGB:		return VK_FORMAT_R8G8B8_SRGB;
 	case IMAGE_FORMAT::A8_UNORM:		return VK_FORMAT_R8_UNORM;
 	default:
 		BB_ASSERT(false, "Vulkan: IMAGE_FORMAT failed to convert to a VkFormat.");
@@ -1169,6 +1174,7 @@ GPUDeviceInfo Vulkan::GetGPUDeviceInfo(MemoryArena& a_arena)
 			device.queue_families.emplace_back(queue_family);
 		}
 	}
+
 	return device;
 }
 

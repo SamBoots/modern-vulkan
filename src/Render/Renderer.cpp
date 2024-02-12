@@ -1620,13 +1620,8 @@ void BB::EndFrame(const RCommandList a_list, bool a_skip)
 
 	s_render_inst->texture_manager.TransitionTextures(a_list);
 
-	const int2 swapchain_size =
-	{
-		{
-		static_cast<int>(s_render_inst->render_io.screen_width),
-		static_cast<int>(s_render_inst->render_io.screen_height)
-		}
-	};
+	const int2 swapchain_size(static_cast<int>(s_render_inst->render_io.screen_width), static_cast<int>(s_render_inst->render_io.screen_height));
+
 	const PRESENT_IMAGE_RESULT result = Vulkan::UploadImageToSwapchain(a_list, render_target.texture_info.image, swapchain_size, swapchain_size, s_render_inst->render_io.frame_index);
 	if (result == PRESENT_IMAGE_RESULT::SWAPCHAIN_OUT_OF_DATE)
 		s_render_inst->render_io.resizing_request = true;
@@ -2440,14 +2435,14 @@ void BB::BlitTexture(const RCommandList a_list, const BlitTextureInfo& a_blit_in
 	BlitImageInfo blit_image;
 	blit_image.src_image = src_texture.texture_info.image;
 	blit_image.src_offset_p0 = int3(a_blit_info.src_point_0.x, a_blit_info.src_point_0.y, 0);
-	blit_image.src_offset_p1 = int3(a_blit_info.src_point_1.x, a_blit_info.src_point_1.y, 0);
+	blit_image.src_offset_p1 = int3(a_blit_info.src_point_1.x, a_blit_info.src_point_1.y, 1);
 	blit_image.src_base_layer = 0;
 	blit_image.src_mip_level = 0;
 	blit_image.src_layer_count = 1;
 
 	blit_image.dst_image = dst_texture.texture_info.image;
 	blit_image.dst_offset_p0 = int3(a_blit_info.dst_point_0.x, a_blit_info.dst_point_0.y, 0);
-	blit_image.dst_offset_p1 = int3(a_blit_info.dst_point_1.x, a_blit_info.dst_point_1.y, 0);
+	blit_image.dst_offset_p1 = int3(a_blit_info.dst_point_1.x, a_blit_info.dst_point_1.y, 1);
 	blit_image.dst_base_layer = 0;
 	blit_image.dst_mip_level = 0;
 	blit_image.dst_layer_count = 1;

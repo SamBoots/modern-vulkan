@@ -13,6 +13,7 @@
 #include <WinUser.h>
 #include <hidusage.h>
 #include <commdlg.h>
+#include <ShlObj_core.h>
 
 #include <mutex>
 
@@ -324,6 +325,11 @@ bool BB::OSCreateDirectory(const char* a_path_name)
 	return CreateDirectoryA(a_path_name, nullptr);
 }
 
+bool BB::OSSetCurrentDirectory(const char* a_path_name)
+{
+	return SetCurrentDirectoryA(a_path_name);
+}
+
 bool BB::OSFileIsValid(const OSFileHandle a_file_handle)
 {
 	return a_file_handle.handle != reinterpret_cast<uint64_t>(INVALID_HANDLE_VALUE);
@@ -468,27 +474,54 @@ void BB::SetOSFilePosition(const OSFileHandle a_file_handle, const uint32_t a_of
 #endif //_DEBUG
 }
 
+// OPENFILENAME changed the directory so I did not like it.
+// tutorial for the new file stuff,  https://learn.microsoft.com/en-us/windows/win32/learnwin32/example--the-open-dialog-box
 bool BB::OSFindFileNameDialogWindow(char* a_str_buffer, const size_t a_str_buffer_size, const char* a_initial_directory)
 {
-	OPENFILENAMEA open_file_name;
+	if (!CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE))
+		return false;
 
-	ZeroMemory(&open_file_name, sizeof(OPENFILENAME));
-	open_file_name.lStructSize = sizeof(OPENFILENAME);
-	open_file_name.lpstrFile = a_str_buffer;
-	open_file_name.nMaxFile = static_cast<DWORD>(a_str_buffer_size);
-	open_file_name.lpstrFilter = nullptr; // TODO, docs are weird on this
-	open_file_name.nFilterIndex = 0; // TODO, docs are weird on this.
-	if (a_initial_directory == nullptr)
-		open_file_name.lpstrInitialDir = g_exe_path;
-	else
-		open_file_name.lpstrInitialDir = a_initial_directory;
-	open_file_name.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
-
-	if (GetOpenFileNameA(&open_file_name) == TRUE)
+	IFileDialog* file_open;
+	if (!CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL, IID_IFileOpenDialog, reinterpret_cast<void**>(&file_open)))
 	{
-		return true;
+		CoUninitialize();
+		return false;
 	}
-	return false;
+
+	if (!file_open->Show(NULL))
+	{
+		CoUninitialize();
+		return false;
+	}
+
+	IShellItem* shell_item;
+	if (!file_open->GetResult(&shell_item))
+	{
+		CoUninitialize();
+		return false;
+	}
+
+	wchar* wpath_name;
+	shell_item->GetDisplayName(SIGDN_FILESYSPATH, &wpath_name);
+
+	const size_t wpath_size = wcsnlen_s(wpath_name, MAX_PATH);
+	if (wpath_size > a_str_buffer_size)
+	{
+		BB_WARNING(false, "a_str_buffer_size is smaller then the found path", WarningType::HIGH);
+		CoUninitialize();
+		return false;
+	}
+
+	size_t conv_chars = 0;
+	wcstombs_s(&conv_chars, a_str_buffer, wpath_size, wpath_name, _TRUNCATE);
+
+	CoTaskMemFree(wpath_name);
+	shell_item->Release();
+	file_open->Release();
+
+	CoUninitialize();
+
+	return true;
 }
 
 bool BB::CloseOSFile(const OSFileHandle a_file_handle)
