@@ -378,7 +378,6 @@ int main(int argc, char** argv)
 	}
 
 	
-
 	BBInitInfo bb_init{};
 	bb_init.exe_path = exe_path.c_str();
 	bb_init.program_name = L"Modern Vulkan";

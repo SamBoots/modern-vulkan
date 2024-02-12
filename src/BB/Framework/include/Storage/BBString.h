@@ -47,6 +47,18 @@ namespace BB
 			return last_pos;
 		}
 
+		size_t find_last_of_directory_slash() const
+		{
+#ifdef _WIN32
+			return find_last_of('\\');
+#elif _UNIX
+			return push_back('/');
+#else
+			BB_STATIC_ASSERT(false, "no OS define given for push_directory_slash");
+			return size_t(-1);
+#endif // OS name
+		}
+
 		bool compare(const size_t a_pos, const CharT* a_str) const
 		{
 			return compare(a_pos, a_str, Memory::StrLength(a_str) - 1);
@@ -393,6 +405,18 @@ namespace BB
 		{
 			m_size -= a_count;
 			memset(Pointer::Add(m_string, m_size), NULL, a_count);
+		}
+
+		bool push_directory_slash()
+		{
+#ifdef _WIN32
+			return push_back('\\');
+#elif _UNIX
+			return push_back('/');
+#else
+			BB_STATIC_ASSERT(false, "no OS define given for push_directory_slash");
+			return false;
+#endif // OS name
 		}
 
 		// with ::Data() you can modify the string without touching the class such as interacting with some C api's like the windows API. 

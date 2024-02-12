@@ -49,8 +49,8 @@ static inline StackString<MAX_ASSET_NAME_SIZE> GetAssetIconName(const char* a_as
 static inline void GetAssetNameFromPath(const char* a_path, const char*& a_out_name, size_t& a_out_size)
 {
 	StringView path_view = a_path;
-	const size_t name_start = path_view.find_last_of('/');
-	BB_ASSERT(name_start != size_t(-1), "fucked up, / on linux path ?!?!?!?!");
+	const size_t name_start = path_view.find_last_of_directory_slash();
+	BB_ASSERT(name_start != size_t(-1), "cannot find a directory slash");
 	const size_t name_end = path_view.find_last_of('.');
 	BB_ASSERT(name_end != size_t(-1), "file has no file extension name");
 	a_out_name = &a_path[name_start + 1];
