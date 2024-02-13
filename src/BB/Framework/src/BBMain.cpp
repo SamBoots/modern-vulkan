@@ -18,7 +18,7 @@ void BB::InitBB(const BBInitInfo& a_bb_info)
 	g_exe_path = a_bb_info.exe_path;
 
 #ifdef _DEBUG
-	g_AllocationLogFile = CreateOSFile(L"allocationLogger.txt");
+	g_AllocationLogFile = OSCreateFile(L"allocationLogger.txt");
 #endif //_DEBUG
 
 	g_logger.memory_arena = MemoryArenaCreate();
@@ -26,7 +26,7 @@ void BB::InitBB(const BBInitInfo& a_bb_info)
 	g_logger.cache_string = String(g_logger.memory_arena, a_bb_info.logger_buffer_storage);
 	g_logger.upload_string = String(g_logger.memory_arena, a_bb_info.logger_buffer_storage);
 	g_logger.write_to_file_mutex = OSCreateMutex();
-	g_logger.log_file = CreateOSFile(L"logger.txt");
+	g_logger.log_file = OSCreateFile(L"logger.txt");
 
 	g_logger.enabled_warning_flags = a_bb_info.logger_enabled_warning_flags;
 

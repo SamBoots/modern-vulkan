@@ -295,7 +295,7 @@ void BBImage::SharpenImage(MemoryArena& a_temp_arena, const float a_factor, cons
 void BBImage::WriteAsBMP(const char* a_file_path)
 {
 	const size_t data_size = static_cast<size_t>(m_width) * static_cast<size_t>(m_height) * m_bytes_per_pixel;
-	const OSFileHandle write_bmp = CreateOSFile(a_file_path);
+	const OSFileHandle write_bmp = OSCreateFile(a_file_path);
 
 	BMP::File file = {};
 	file.file_type = BMP::BMP_IMAGE_FILE_TYPE;
@@ -328,7 +328,7 @@ void BBImage::WriteAsBMP(const char* a_file_path)
 void BBImage::WriteAsTARGA(const char* a_file_path)
 {
 	const size_t data_size = static_cast<size_t>(m_width) * static_cast<size_t>(m_height) * sizeof(m_bytes_per_pixel);
-	const OSFileHandle write_targa = CreateOSFile(a_file_path);
+	const OSFileHandle write_targa = OSCreateFile(a_file_path);
 
 	TARGA::File file = {};
 	file.color_map_type = 0;
@@ -349,7 +349,7 @@ void BBImage::WriteAsTARGA(const char* a_file_path)
 
 void BBImage::LoadBMP(MemoryArena& a_arena, const char* a_file_path)
 {
-	const OSFileHandle image_file = LoadOSFile(a_file_path);
+	const OSFileHandle image_file = OSLoadFile(a_file_path);
 
 	BMP::File file;
 	ReadOSFile(image_file, &file, sizeof(file));

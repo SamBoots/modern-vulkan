@@ -216,6 +216,37 @@ static inline void AddElementToAssetTable(AssetSlot& a_asset_slot)
 	s_asset_manager->linear_asset_table.push_back(slot);
 }
 
+//static inline AssetSlot CreateAssetSlotFromPath(const uint64_t a_hash, const AssetSlot::Asset& a_asset, const char* a_relative_path, const RTexture* a_icon = nullptr, const char* a_name = nullptr)
+//{
+//	AssetSlot asset;
+//	asset.hash = CreateAssetHash(a_hash, ASSET_TYPE::TEXTURE);
+//	asset.path = a_relative_path; // memory loads have nullptr has path.
+//	asset.asset = a_asset;
+//	asset.name = a_name;
+//
+//	if (a_icon)
+//		asset.icon = *a_icon;
+//	else // does an icon already exist?
+//	{
+//		OSLoadFile()
+//	}
+//
+//	return asset;
+//}
+//
+//static inline AssetSlot CreateAssetSlotFromName(const uint64_t a_hash, const AssetSlot::Asset& a_asset, const char* a_name, const RTexture* a_icon = nullptr)
+//{
+//	AssetSlot asset;
+//	asset.hash = CreateAssetHash(a_hash, ASSET_TYPE::TEXTURE);
+//	asset.path = nullptr; // memory loads have nullptr has path.
+//	asset.asset = a_asset;
+//	asset.name = a_name;
+//
+//	asset.icon = *a_icon;
+//
+//	return asset;
+//}
+
 using namespace BB;
 
 void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
@@ -239,6 +270,10 @@ void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
 	s_asset_manager->string_buffer.current_memory_pos = ArenaAllocArr(s_asset_manager->asset_arena, char, a_init_info.string_memory_size);
 	s_asset_manager->string_buffer.mem_remaining = a_init_info.string_memory_size;
 	Memory::Set(s_asset_manager->string_buffer.current_memory_pos, 0, a_init_info.string_memory_size);
+
+	// create some directories for files we are going to write
+	if (!OSDirectoryExist(ICON_DIRECTORY))
+		BB_ASSERT(OSCreateDirectory(ICON_DIRECTORY), "failed to create ICON directory");
 }
 
 const char* Asset::FindOrCreateString(const char* a_string)

@@ -325,6 +325,12 @@ bool BB::OSCreateDirectory(const char* a_path_name)
 	return CreateDirectoryA(a_path_name, nullptr);
 }
 
+bool BB::OSDirectoryExist(const char* a_path_name)
+{
+	const DWORD attrib = GetFileAttributesA(a_path_name);
+	return (attrib != INVALID_FILE_ATTRIBUTES && (attrib & FILE_ATTRIBUTE_DIRECTORY));
+}
+
 bool BB::OSSetCurrentDirectory(const char* a_path_name)
 {
 	return SetCurrentDirectoryA(a_path_name);
@@ -335,7 +341,7 @@ bool BB::OSFileIsValid(const OSFileHandle a_file_handle)
 	return a_file_handle.handle != reinterpret_cast<uint64_t>(INVALID_HANDLE_VALUE);
 }
 
-OSFileHandle BB::CreateOSFile(const char* a_file_name)
+OSFileHandle BB::OSCreateFile(const char* a_file_name)
 {
 	const HANDLE created_file = CreateFileA(a_file_name,
 		GENERIC_WRITE | GENERIC_READ,
@@ -348,7 +354,7 @@ OSFileHandle BB::CreateOSFile(const char* a_file_name)
 	return OSFileHandle(reinterpret_cast<uintptr_t>(created_file));
 }
 
-OSFileHandle BB::CreateOSFile(const wchar* a_file_name)
+OSFileHandle BB::OSCreateFile(const wchar* a_file_name)
 {
 	const HANDLE created_file = CreateFileW(a_file_name,
 		GENERIC_WRITE | GENERIC_READ,
@@ -361,7 +367,7 @@ OSFileHandle BB::CreateOSFile(const wchar* a_file_name)
 	return OSFileHandle(reinterpret_cast<uintptr_t>(created_file));
 }
 
-OSFileHandle BB::LoadOSFile(const char* a_file_name)
+OSFileHandle BB::OSLoadFile(const char* a_file_name)
 {
 	const HANDLE load_file = CreateFileA(a_file_name,
 		GENERIC_WRITE | GENERIC_READ,
@@ -375,7 +381,7 @@ OSFileHandle BB::LoadOSFile(const char* a_file_name)
 }
 
 //char replaced with string view later on.
-OSFileHandle BB::LoadOSFile(const wchar* a_file_name)
+OSFileHandle BB::OSLoadFile(const wchar* a_file_name)
 {
 	const HANDLE load_file = CreateFileW(a_file_name,
 		GENERIC_WRITE | GENERIC_READ,
@@ -417,7 +423,7 @@ Buffer BB::ReadOSFile(MemoryArena& a_arena, const OSFileHandle a_file_handle)
 
 Buffer BB::ReadOSFile(MemoryArena& a_arena, const char* a_path)
 {
-	OSFileHandle read_file = LoadOSFile(a_path);
+	OSFileHandle read_file = OSLoadFile(a_path);
 	BB_ASSERT(OSFileIsValid(read_file), "OS file invalid, will cause errors");
 
 	Buffer file_buffer;
@@ -433,7 +439,7 @@ Buffer BB::ReadOSFile(MemoryArena& a_arena, const char* a_path)
 
 Buffer BB::ReadOSFile(MemoryArena& a_arena, const wchar* a_path)
 {
-	OSFileHandle read_file = LoadOSFile(a_path);
+	OSFileHandle read_file = OSLoadFile(a_path);
 	BB_ASSERT(OSFileIsValid(read_file), "OS file invalid, will cause errors");
 
 	Buffer file_buffer;
@@ -472,6 +478,17 @@ void BB::SetOSFilePosition(const OSFileHandle a_file_handle, const uint32_t a_of
 			WarningType::HIGH);
 	}
 #endif //_DEBUG
+}
+
+bool BB::OSFileExist(const char* a_path)
+{
+	if (INVALID_FILE_ATTRIBUTES == GetFileAttributesA(a_path))
+	{
+		// make sure that the error is nothing else
+		BB_ASSERT(GetLastError() == ERROR_FILE_NOT_FOUND, "OSFileExist is false but not related to the file not existing, this should never happen");
+		return false;
+	}
+	return true;
 }
 
 // OPENFILENAME changed the directory so I did not like it.

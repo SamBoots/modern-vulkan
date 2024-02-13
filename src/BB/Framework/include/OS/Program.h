@@ -76,17 +76,18 @@ namespace BB
 	bool WriteToConsole(const wchar_t* a_string, uint32_t a_str_length);
 
 	bool OSCreateDirectory(const char* a_path_name);
+	bool OSDirectoryExist(const char* a_path_name);
 	bool OSSetCurrentDirectory(const char* a_path_name);
 	
 	bool OSFileIsValid(const OSFileHandle a_file_handle);
 	//char replaced with string view later on.
 	//handle is 0 if it failed to create the file, it will assert on failure.
-	OSFileHandle CreateOSFile(const char* a_file_name);
-	OSFileHandle CreateOSFile(const wchar* a_file_name);
+	OSFileHandle OSCreateFile(const char* a_file_name);
+	OSFileHandle OSCreateFile(const wchar* a_file_name);
 	//char replaced with string view later on.
 	//handle is 0 if it failed to load the file.
-	OSFileHandle LoadOSFile(const char* a_file_name);
-	OSFileHandle LoadOSFile(const wchar* a_file_name);
+	OSFileHandle OSLoadFile(const char* a_file_name);
+	OSFileHandle OSLoadFile(const wchar* a_file_name);
 
 	bool WriteToOSFile(const OSFileHandle a_file_handle, const void* a_data, const size_t a_size);
 
@@ -98,6 +99,7 @@ namespace BB
 	uint64_t GetOSFileSize(const OSFileHandle a_file_handle);
 	//Set the file position, a_offset can be 0 if you just want to move it to BEGIN or END.
 	void SetOSFilePosition(const OSFileHandle a_file_handle, const uint32_t a_offset, const OS_FILE_READ_POINT a_file_read_point);
+	bool OSFileExist(const char* a_path);
 	bool OSFindFileNameDialogWindow(char* a_str_buffer, const size_t a_str_buffer_size, const char* a_initial_directory = nullptr);
 
 	bool CloseOSFile(const OSFileHandle a_file_handle);

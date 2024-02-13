@@ -49,14 +49,15 @@ namespace BB
 
 		size_t find_last_of_directory_slash() const
 		{
-#ifdef _WIN32
-			return find_last_of('\\');
-#elif _UNIX
-			return push_back('/');
-#else
-			BB_STATIC_ASSERT(false, "no OS define given for push_directory_slash");
-			return size_t(-1);
-#endif // OS name
+			size_t last_pos = size_t(-1);
+
+			for (size_t i = 0; i < m_size; i++)
+			{
+				if (m_string_view[i] == '\\' || m_string_view[i] == '/')
+					last_pos = i;
+			}
+
+			return last_pos;
 		}
 
 		bool compare(const size_t a_pos, const CharT* a_str) const

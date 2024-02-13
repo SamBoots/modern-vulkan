@@ -9,7 +9,7 @@ TEST(Program_IO, Read_Write_Files)
 	constexpr wchar* DOC_NAME = L"READWRITETEST.txt";
 	constexpr char* DOC_DATA = "HELLO WORLD! I'm a BB engine unit test for file read and writing.";
 
-	BB::OSFileHandle t_TestFile = BB::CreateOSFile(DOC_NAME);
+	BB::OSFileHandle t_TestFile = BB::OSCreateFile(DOC_NAME);
 	
 	BB::WriteToOSFile(t_TestFile, DOC_DATA, strnlen_s(DOC_DATA, 1024));
 
@@ -37,7 +37,7 @@ TEST(Program_IO, Read_Write_Files_Chunks)
 	constexpr char* DOC_DATA_CHUNK_TWO = " I'm a BB engine unit";
 	constexpr char* DOC_DATA_CHUNK_THREE = " test for file read and writing.";
 
-	BB::OSFileHandle t_TestFile = BB::CreateOSFile(DOC_NAME);
+	BB::OSFileHandle t_TestFile = BB::OSCreateFile(DOC_NAME);
 
 	BB::WriteToOSFile(t_TestFile, DOC_DATA_CHUNK_ONE, strnlen_s(DOC_DATA_CHUNK_ONE, 1024));
 	BB::WriteToOSFile(t_TestFile, DOC_DATA_CHUNK_TWO, strnlen_s(DOC_DATA_CHUNK_TWO, 1024));
@@ -65,7 +65,7 @@ TEST(Program_IO, Read_Write_Files_Same_File)
 	constexpr wchar* DOC_NAME = L"READWRITETEST_SAMEFILE.txt";
 	constexpr char* DOC_DATA = "HELLO WORLD! I'm a BB engine unit test for file read and writing.";
 
-	BB::OSFileHandle t_TestFile = BB::CreateOSFile(DOC_NAME);
+	BB::OSFileHandle t_TestFile = BB::OSCreateFile(DOC_NAME);
 
 	BB::WriteToOSFile(t_TestFile, DOC_DATA, strnlen_s(DOC_DATA, 1024));
 
