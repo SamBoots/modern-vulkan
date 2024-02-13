@@ -38,10 +38,10 @@ constexpr float2 ICON_EXTENT_F = float2(64.f, 64.f);
 constexpr const char TEXTURE_DIRECTORY[] = "../resources/textures/";
 constexpr const char ICON_DIRECTORY[] = "../resources/icons/";
 
-static inline StackString<MAX_ASSET_NAME_SIZE> GetAssetIconName(const char* a_asset_name)
+static inline StackString<MAX_ASSET_NAME_SIZE> GetAssetIconName(const char* a_asset_name, const size_t a_asset_name_size)
 {
 	StackString<MAX_ASSET_NAME_SIZE> icon_name;
-	icon_name.append(a_asset_name);
+	icon_name.append(a_asset_name, a_asset_name_size);
 	icon_name.append(" icon");
 	return icon_name;
 }
@@ -211,9 +211,27 @@ static inline char* AllocateStringSpace(const size_t a_string_size)
 
 static inline void AddElementToAssetTable(AssetSlot& a_asset_slot)
 {
+	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
 	s_asset_manager->asset_table.insert(a_asset_slot.hash.full_hash, a_asset_slot);
 	AssetSlot* slot = s_asset_manager->asset_table.find(a_asset_slot.hash.full_hash);
 	s_asset_manager->linear_asset_table.push_back(slot);
+	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
+}
+
+// returns debug texture on failure
+static inline RTexture FindAssetIcon(const char* a_asset_name, const size_t a_asset_name_size, const RCommandList a_list, const uint64_t a_transfer_value)
+{
+	StackString<MAX_PATH_SIZE> icon_path(ICON_DIRECTORY);
+	icon_path.append(GetAssetIconName(a_asset_name, a_asset_name_size));
+	icon_path.append(".png");
+
+	if (OSFileExist(icon_path.c_str()))
+	{
+		const Image* image = Asset::LoadImageDisk(icon_path.c_str(), a_list, a_transfer_value);
+		return image->gpu_image;
+	}
+	
+	return GetDebugTexture();
 }
 
 //static inline AssetSlot CreateAssetSlotFromPath(const uint64_t a_hash, const AssetSlot::Asset& a_asset, const char* a_relative_path, const RTexture* a_icon = nullptr, const char* a_name = nullptr)
@@ -290,11 +308,11 @@ const char* Asset::FindOrCreateString(const char* a_string, const size_t a_strin
 
 	const uint32_t string_size = static_cast<uint32_t>(a_string_size + 1);
 
+	OSAcquireSRWLockWrite(&s_asset_manager->string_lock);
 	char* const string = AllocateStringSpace(string_size);
 	memcpy(string, a_string, string_size);
 	string[string_size - 1] = '\0';
 
-	OSAcquireSRWLockWrite(&s_asset_manager->string_lock);
 	s_asset_manager->string_table.emplace(string_hash, string);
 	OSReleaseSRWLockWrite(&s_asset_manager->string_lock);
 	return string;
@@ -421,13 +439,13 @@ const Image* Asset::LoadImageDisk(const char* a_path, const RCommandList a_list,
 	const char* asset_name;
 	size_t asset_name_size;
 	GetAssetNameFromPath(a_path, asset_name, asset_name_size);
-	FindOrCreateString(asset_name, asset_name_size);
+	const char* image_name = FindOrCreateString(asset_name, asset_name_size);
 
 	const LoadedImage gpu_image = AssetStbiLoadImage(a_path, asset_name, a_list, a_transfer_fence_value);
 
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
-
 	Image* image = ArenaAllocType(s_asset_manager->asset_arena, Image);
+	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 	image->width = gpu_image.width;
 	image->height = gpu_image.height;
 	image->gpu_image = gpu_image.texture;
@@ -436,16 +454,14 @@ const Image* Asset::LoadImageDisk(const char* a_path, const RCommandList a_list,
 
 	AssetSlot asset;
 	asset.hash = CreateAssetHash(path_hash, ASSET_TYPE::TEXTURE);
-	asset.path = nullptr; //memory loads have nullptr as path.
+	asset.path = FindOrCreateString(a_path); //memory loads have nullptr as path.
 	asset.image = image;
-	asset.name = asset_name;
+	asset.name = image_name;
 
 	asset.icon = image->gpu_image;
 
 	AddElementToAssetTable(asset);
 	asset.image->asset_handle = AssetHandle(asset.hash.full_hash);
-
-	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 
 	return image;
 }
@@ -496,6 +512,7 @@ const Image* Asset::LoadImageMemory(const BB::BBImage& a_image, const char* a_na
 
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
 	Image* image = ArenaAllocType(s_asset_manager->asset_arena, Image);
+	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 	image->width = create_image_info.width;
 	image->height = create_image_info.height;
 	image->gpu_image = gpu_image;
@@ -513,7 +530,6 @@ const Image* Asset::LoadImageMemory(const BB::BBImage& a_image, const char* a_na
 
 	AddElementToAssetTable(asset);
 	image->asset_handle = AssetHandle(asset.hash.full_hash);
-	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 
 	return image;
 }
@@ -748,23 +764,19 @@ const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 
 	cgltf_free(gltf_data);
 
-
 	const char* asset_name;
 	size_t asset_name_size;
 	GetAssetNameFromPath(a_mesh_op.path, asset_name, asset_name_size);
 	
-
 	AssetSlot asset;
 	asset.hash = asset_hash;
 	asset.path = FindOrCreateString(a_mesh_op.path);
 	asset.model = model;
 	asset.name = FindOrCreateString(asset_name, asset_name_size);
 
-	asset.icon = GetDebugTexture();
+	asset.icon = FindAssetIcon(asset_name, asset_name_size, a_list, a_transfer_fence_value);
 
-	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
 	AddElementToAssetTable(asset);
-	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 	model->asset_handle = AssetHandle(asset.hash.full_hash);
 	return model;
 }
@@ -786,6 +798,7 @@ const Model* Asset::LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, cons
 	Model* model = ArenaAllocType(s_asset_manager->asset_arena, Model);
 	model->linear_nodes = ArenaAllocArr(s_asset_manager->asset_arena, Model::Node, 1);
 	model->primitives = ArenaAllocArr(s_asset_manager->asset_arena, Model::Primitive, 1);
+	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 	model->primitives->name = "PRIMITIVE [NUM]";
 	model->primitives->material = a_mesh_op.material;
 	model->primitives->start_index = 0;
@@ -808,10 +821,10 @@ const Model* Asset::LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, cons
 	asset.model = model;
 	asset.name = a_mesh_op.name;
 
-	asset.icon = GetDebugTexture();
+	asset.icon = FindAssetIcon(a_mesh_op.name, strnlen(a_mesh_op.name, MAX_ASSET_NAME_SIZE), a_list, a_transfer_fence_value);
 
 	AddElementToAssetTable(asset);
-	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
+
 
 	model->asset_handle = AssetHandle(asset.hash.full_hash);
 	return model;
@@ -1022,7 +1035,7 @@ void Asset::ShowAssetMenu(MemoryArena& a_arena)
 
 					if (ImGui::Button("Set new Icon"))
 					{
-						StackString<MAX_ASSET_NAME_SIZE> icon_name = GetAssetIconName(slot->name);
+						StackString<MAX_ASSET_NAME_SIZE> icon_name = GetAssetIconName(slot->name, strnlen(slot->name, MAX_ASSET_NAME_SIZE));
 						const RTexture icon = LoadImageBySearch(ICON_EXTENT, icon_name.c_str());
 						if (icon.IsValid())
 						{

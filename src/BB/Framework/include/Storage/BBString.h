@@ -350,7 +350,8 @@ namespace BB
 			return false;
 		}
 
-		void append(const Stack_String<CharT, STRING_SIZE>& a_string)
+		template<size_t PARAM_STRING_SIZE>
+		void append(const Stack_String<CharT, PARAM_STRING_SIZE>& a_string)
 		{
 			append(a_string.c_str(), a_string.size());
 		}
