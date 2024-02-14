@@ -480,6 +480,8 @@ namespace BB
 		CharT* data() { return m_string; }
 		const CharT* c_str() const { return m_string; }
 
+		const StringView GetView() const { return StringView(m_string, m_size); }
+
 	private:
 		CharT m_string[STRING_SIZE + 1];
 		size_t m_size = 0;

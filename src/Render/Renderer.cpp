@@ -2644,7 +2644,7 @@ void BB::FreeTexture(const RTexture a_texture)
 	return s_render_inst->texture_manager.FreeTexture(a_texture);
 }
 
-bool BB::ReadTexture(MemoryArena& a_arena, const RTexture a_texture, uint32_t& a_width, uint32_t& a_height, uint32_t& a_channels, void*& a_data)
+bool BB::ReadTextureReformat(MemoryArena& a_arena, const RTexture a_texture, uint32_t& a_width, uint32_t& a_height, uint32_t& a_channels, void*& a_data)
 {
 	const GPUTextureManager::TextureSlot& selected_texture = s_render_inst->texture_manager.GetTextureSlot(a_texture);
 
@@ -2842,6 +2842,106 @@ bool BB::ReadTexture(MemoryArena& a_arena, const RTexture a_texture, uint32_t& a
 
 	if (reformat_image) // delete the reformatted image
 		Vulkan::FreeImage(to_copy_image);
+
+	return true;
+}
+
+bool BB::ReadTexture(MemoryArena& a_arena, const RCommandList a_cmd_list, const RTexture a_texture, uint32_t& a_width, uint32_t& a_height, uint32_t& a_channels, void*& a_data)
+{
+	const GPUTextureManager::TextureSlot& selected_texture = s_render_inst->texture_manager.GetTextureSlot(a_texture);
+	BB_ASSERT(selected_texture.texture_info.format == SCREENSHOT_IMAGE_FORMAT, "image format is not SRGB, image write may not be successful");
+
+	const IMAGE_LAYOUT original_layout = selected_texture.texture_info.current_layout;
+	constexpr IMAGE_LAYOUT transfer_layout = IMAGE_LAYOUT::TRANSFER_SRC;
+
+	{
+		PipelineBarrierImageInfo image_write_transition;
+		image_write_transition.src_mask = BARRIER_ACCESS_MASK::NONE;
+		image_write_transition.dst_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
+		image_write_transition.image = selected_texture.texture_info.image;
+		image_write_transition.old_layout = original_layout;
+		image_write_transition.new_layout = transfer_layout;
+		image_write_transition.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
+		image_write_transition.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
+		image_write_transition.layer_count = 1;
+		image_write_transition.level_count = 1;
+		image_write_transition.base_array_layer = 0;
+		image_write_transition.base_mip_level = 0;
+		image_write_transition.src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
+		image_write_transition.dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
+
+		PipelineBarrierInfo pipeline_info{};
+		pipeline_info.image_info_count = 1;
+		pipeline_info.image_infos = &image_write_transition;
+		Vulkan::PipelineBarriers(a_cmd_list, pipeline_info);
+	}
+
+	const size_t image_size =
+		static_cast<size_t>(selected_texture.texture_info.width) *
+		static_cast<size_t>(selected_texture.texture_info.height) *
+		SCREENSHOT_IMAGE_PIXEL_BYTE_SIZE;
+
+	// not sure if we want a global readback buffer thing.
+	GPUBufferCreateInfo readback_info{};
+	readback_info.name = "readback for screenshot";
+	readback_info.host_writable = true;
+	readback_info.type = BUFFER_TYPE::READBACK;
+	readback_info.size = image_size;
+
+	const GPUBuffer readback_buffer = Vulkan::CreateBuffer(readback_info);
+
+	{
+		RenderCopyImageToBufferInfo image_to_buffer;
+		image_to_buffer.dst_buffer = readback_buffer;
+		image_to_buffer.dst_offset = 0; // change this if i have a global readback buffer thing
+
+		image_to_buffer.src_image = selected_texture.texture_info.image;
+		image_to_buffer.src_image_info.size_x = selected_texture.texture_info.width;
+		image_to_buffer.src_image_info.size_y = selected_texture.texture_info.height;
+		image_to_buffer.src_image_info.size_z = 1;
+		image_to_buffer.src_image_info.offset_x = 0;
+		image_to_buffer.src_image_info.offset_y = 0;
+		image_to_buffer.src_image_info.offset_z = 0;
+		image_to_buffer.src_image_info.layout = IMAGE_LAYOUT::TRANSFER_SRC;
+		image_to_buffer.src_image_info.mip_level = 0;
+		image_to_buffer.src_image_info.layer_count = 1;
+		image_to_buffer.src_image_info.base_array_layer = 0;
+
+		Vulkan::CopyImageToBuffer(a_cmd_list, image_to_buffer);
+	}
+
+	{
+		PipelineBarrierImageInfo image_shader_transition;
+		image_shader_transition.src_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
+		image_shader_transition.dst_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
+		image_shader_transition.image = selected_texture.texture_info.image;
+		image_shader_transition.old_layout = transfer_layout;
+		image_shader_transition.new_layout = original_layout;
+		image_shader_transition.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
+		image_shader_transition.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
+		image_shader_transition.layer_count = 1;
+		image_shader_transition.level_count = 1;
+		image_shader_transition.base_array_layer = 0;
+		image_shader_transition.base_mip_level = 0;
+		image_shader_transition.src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
+		image_shader_transition.dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
+
+		// this could be a graphics queue transition, so just paste it here.
+		s_render_inst->texture_manager.AddGraphicsTransition(image_shader_transition);
+	}
+
+	GPUWaitIdle();
+
+	void* readback_memory = Vulkan::MapBufferMemory(readback_buffer);
+
+	a_data = ArenaAlloc(a_arena, image_size, alignof(size_t));
+	memcpy(a_data, readback_memory, image_size);
+	a_width = selected_texture.texture_info.width;
+	a_height = selected_texture.texture_info.height;
+	a_channels = 4;		// always 4.... for now.....
+
+	Vulkan::UnmapBufferMemory(readback_buffer);
+	Vulkan::FreeBuffer(readback_buffer);
 
 	return true;
 }

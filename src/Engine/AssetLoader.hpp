@@ -52,13 +52,11 @@ namespace BB
 	{
 		constexpr size_t ASSET_COUNT_STANDARD = 512;
 		constexpr size_t STRING_ENTRY_COUNT_STANDARD = 1024;
-		constexpr size_t STRING_MEMORY_SIZE_STANDARD = mbSize * 4;
 
 		struct AssetManagerInitInfo
 		{
 			uint32_t asset_count = ASSET_COUNT_STANDARD;
 			uint32_t string_entry_count = STRING_ENTRY_COUNT_STANDARD;
-			uint32_t string_memory_size = STRING_MEMORY_SIZE_STANDARD;
 		};
 
 		enum class ASYNC_ASSET_TYPE : uint32_t
@@ -119,10 +117,10 @@ namespace BB
 		void LoadAssets(MemoryArena& memory_arena, const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_cmd_list_name = "upload asset task");
 		ThreadTask LoadAssetsASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_cmd_list_name = "upload asset task");
 
-		const Image* LoadImageDisk(const char* a_path, const RCommandList a_list, const uint64_t a_transfer_fence_value);
-		const Image* LoadImageMemory(const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, const uint64_t a_transfer_fence_value);
+		const Image* LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path, const RCommandList a_list, const uint64_t a_transfer_fence_value);
+		const Image* LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, const uint64_t a_transfer_fence_value);
 		const Model* LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op, const RCommandList a_list, const uint64_t a_transfer_fence_value);
-		const Model* LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, const RCommandList a_list, const uint64_t a_transfer_fence_value);
+		const Model* LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoadFromMemory& a_mesh_op, const RCommandList a_list, const uint64_t a_transfer_fence_value);
 
 		bool WriteImage(const char* a_file_name, const uint32_t a_width, const uint32_t a_height, const uint32_t a_channels, const void* a_pixels);
 
@@ -130,7 +128,7 @@ namespace BB
 		const Model* FindModelByPath(const char* a_path);
 		const Model* FindModelByName(const char* a_name);
 
-		void ShowAssetMenu(MemoryArena& a_arena);
+		void ShowAssetMenu(MemoryArena& a_temp_arena);
 
 		void FreeAsset(const AssetHandle a_asset_handle);
 	};

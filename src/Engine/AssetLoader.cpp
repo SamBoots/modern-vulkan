@@ -14,6 +14,8 @@
 
 #include "BBThreadScheduler.hpp"
 
+#include "Storage/Queue.hpp"
+
 
 
 BB_WARNINGS_OFF
@@ -32,30 +34,9 @@ using namespace BB;
 
 constexpr size_t MAX_PATH_SIZE = 512;
 constexpr size_t MAX_ASSET_NAME_SIZE = 64;
-constexpr uint2 ICON_EXTENT = uint2(64, 64);
-constexpr float2 ICON_EXTENT_F = float2(64.f, 64.f);
 
 constexpr const char TEXTURE_DIRECTORY[] = "../resources/textures/";
 constexpr const char ICON_DIRECTORY[] = "../resources/icons/";
-
-static inline StackString<MAX_ASSET_NAME_SIZE> GetAssetIconName(const char* a_asset_name, const size_t a_asset_name_size)
-{
-	StackString<MAX_ASSET_NAME_SIZE> icon_name;
-	icon_name.append(a_asset_name, a_asset_name_size);
-	icon_name.append(" icon");
-	return icon_name;
-}
-
-static inline void GetAssetNameFromPath(const char* a_path, const char*& a_out_name, size_t& a_out_size)
-{
-	StringView path_view = a_path;
-	const size_t name_start = path_view.find_last_of_directory_slash();
-	BB_ASSERT(name_start != size_t(-1), "cannot find a directory slash");
-	const size_t name_end = path_view.find_last_of('.');
-	BB_ASSERT(name_end != size_t(-1), "file has no file extension name");
-	a_out_name = &a_path[name_start + 1];
-	a_out_size = name_end - name_start - 1;
-}
 
 static inline uint32_t ByteSizePerPixelFromImageFormat(const IMAGE_FORMAT a_format)
 {
@@ -154,8 +135,8 @@ union AssetHash
 	uint64_t full_hash;
 	struct
 	{
-		uint8_t hash[7];	// 7
-		ASSET_TYPE type;	// 8
+		ASSET_TYPE type;	// 1
+		uint8_t hash[7];	// 8
 	};
 };
 
@@ -167,12 +148,21 @@ static AssetHash CreateAssetHash(const uint64_t a_hash, const ASSET_TYPE a_type)
 	return hash;
 }
 
+constexpr uint2 ICON_EXTENT = uint2(64, 64);
+constexpr float2 ICON_EXTENT_F = float2(64.f, 64.f);
+
+struct IconSlot
+{
+	uint32_t slot_index;
+	uint32_t next_slot;
+};
+
 struct AssetSlot
 {
 	AssetHash hash;
 	const char* path;
 	const char* name;
-	RTexture icon;
+	IconSlot icon;
 	union
 	{
 		Model* model;
@@ -182,31 +172,189 @@ struct AssetSlot
 
 struct AssetManager
 {
+	// asset storage
 	BBRWLock asset_lock;
+	MemoryArena asset_arena;
 	StaticOL_HashMap<uint64_t, AssetSlot> asset_table;
 	StaticArray<AssetSlot*> linear_asset_table;
-	BBRWLock string_lock;
-	StaticOL_HashMap<uint64_t, char*> string_table;
-	struct StringBuffer
-	{
-		char* current_memory_pos;
-		size_t mem_remaining;
-	} string_buffer;
 
-	MemoryArena asset_arena;
+	struct IconGigaTexture
+	{
+		IconSlot empty_slot{};
+		BBRWLock icon_lock;
+		RTexture texture;
+		IconSlot* slots;
+		uint32_t max_slots;	// a slot is a texture space that is equal to ICON_EXTENT
+		uint32_t next_slot;
+	};
+
+	IconGigaTexture icons_storage;
+
+	// string storage
+	BBRWLock string_lock;
+	MemoryArena string_arena;
+	StaticOL_HashMap<uint64_t, char*> string_table;
+
+	struct TemporaryTexture
+	{
+		RTexture texture;
+		uint64_t transfer_value;
+	};
+
+	BBRWLock cleanup_lock;
+	Queue<TemporaryTexture> cleanup_queue;
 };
 static AssetManager* s_asset_manager;
 
-static inline char* AllocateStringSpace(const size_t a_string_size)
+static inline void AddToCleanupQueue(const RTexture a_texture, const uint64_t a_transfer_value)
 {
-	if (s_asset_manager->string_buffer.mem_remaining > a_string_size)
-		s_asset_manager->string_buffer.mem_remaining -= a_string_size;
-	else
-		BB_ASSERT(false, "not enough string space in asset manager!");
+	OSAcquireSRWLockWrite(&s_asset_manager->cleanup_lock);
+	s_asset_manager->cleanup_queue.EnQueue(AssetManager::TemporaryTexture{ a_texture, a_transfer_value });
+	OSReleaseSRWLockWrite(&s_asset_manager->cleanup_lock);
+}
 
-	char* string_mem = s_asset_manager->string_buffer.current_memory_pos;
-	s_asset_manager->string_buffer.current_memory_pos += a_string_size;
-	return string_mem;
+static inline void CleanupTemporaryData()
+{
+	const uint64_t last_transfer_value = 0; // TODO 
+
+	OSAcquireSRWLockWrite(&s_asset_manager->cleanup_lock);
+	const AssetManager::TemporaryTexture* temp_data = s_asset_manager->cleanup_queue.Peek();
+	while (temp_data || temp_data->transfer_value <= last_transfer_value)
+	{
+		FreeTexture(temp_data->texture);
+		s_asset_manager->cleanup_queue.DeQueue();
+		temp_data = s_asset_manager->cleanup_queue.Peek();
+	}
+	OSReleaseSRWLockWrite(&s_asset_manager->cleanup_lock);
+}
+
+static inline StackString<MAX_PATH_SIZE> GetIconPath(const StringView asset_name)
+{
+	StackString<MAX_PATH_SIZE> icon_path(ICON_DIRECTORY);
+	icon_path.append(GetAssetIconName(asset_name));
+	icon_path.append(".png");
+	return icon_path;
+}
+
+static inline StackString<MAX_ASSET_NAME_SIZE> GetAssetIconName(StringView a_asset_name)
+{
+	StackString<MAX_ASSET_NAME_SIZE> icon_name(a_asset_name.c_str(), a_asset_name.size());
+	icon_name.append(" icon");
+	return icon_name;
+}
+
+static inline void GetAssetNameFromPath(const char* a_path, const char*& a_out_name, size_t& a_out_size)
+{
+	StringView path_view = a_path;
+	const size_t name_start = path_view.find_last_of_directory_slash();
+	BB_ASSERT(name_start != size_t(-1), "cannot find a directory slash");
+	const size_t name_end = path_view.find_last_of('.');
+	BB_ASSERT(name_end != size_t(-1), "file has no file extension name");
+	a_out_name = &a_path[name_start + 1];
+	a_out_size = name_end - name_start - 1;
+}
+
+static inline IconSlot GetEmptyIconSlot()
+{
+	return s_asset_manager->icons_storage.empty_slot;
+}
+
+static inline IconSlot LoadIcon(const RCommandList a_list, const uint64_t a_transfer_value, void* a_pixels)
+{
+	OSAcquireSRWLockWrite(&s_asset_manager->icons_storage.icon_lock);
+	BB_ASSERT(s_asset_manager->icons_storage.next_slot == UINT32_MAX, "icon storage full");
+	const IconSlot icon_slot = s_asset_manager->icons_storage.slots[s_asset_manager->icons_storage.next_slot];
+	s_asset_manager->icons_storage.next_slot = icon_slot.slot_index;
+	OSReleaseSRWLockWrite(&s_asset_manager->icons_storage.icon_lock);
+
+	WriteTextureInfo write_icon_info;
+	write_icon_info.extent = ICON_EXTENT;
+	write_icon_info.offset = int2(icon_slot.slot_index * static_cast<int>(ICON_EXTENT.x), 0);
+	write_icon_info.pixels = a_pixels;
+	write_icon_info.set_shader_visible = true;
+	WriteTexture(a_list, s_asset_manager->icons_storage.texture, write_icon_info, a_transfer_value);
+}
+
+// I really don't like this one, we have to use the graphics queue for blit, we have to stall. sad!
+static inline IconSlot LoadIconFromTextureResize(MemoryArena& a_temp_arena, const RTexture a_src, const uint2 a_src_extent)
+{
+	const uint64_t fence_value = GetNextAssetTransferFenceValueAndIncrement();
+	CommandPool& cmd_pool = GetGraphicsCommandPool();
+	const RCommandList cmd_list = cmd_pool.StartCommandList("image icon loading");
+
+	OSAcquireSRWLockWrite(&s_asset_manager->icons_storage.icon_lock);
+	BB_ASSERT(s_asset_manager->icons_storage.next_slot == UINT32_MAX, "icon storage full");
+	const IconSlot icon_slot = s_asset_manager->icons_storage.slots[s_asset_manager->icons_storage.next_slot];
+	s_asset_manager->icons_storage.next_slot = icon_slot.slot_index;
+	OSReleaseSRWLockWrite(&s_asset_manager->icons_storage.icon_lock);
+
+	BlitTextureInfo blit_info;
+	blit_info.dst = s_asset_manager->icons_storage.texture;
+	blit_info.dst_point_0 = int2(static_cast<int>(ICON_EXTENT.x * icon_slot.slot_index), 0);
+	blit_info.dst_point_1 = int2(static_cast<int>(ICON_EXTENT.x) + blit_info.dst_point_0.x, static_cast<int>(ICON_EXTENT.y));
+	blit_info.dst_set_shader_visible = true;
+
+	blit_info.src = a_src;
+	blit_info.src_point_0 = {};
+	blit_info.src_point_1 = int2(static_cast<int>(a_src_extent.x), static_cast<int>(a_src_extent.y));
+	blit_info.src_set_shader_visible = true;
+
+	BlitTexture(cmd_list, blit_info);
+
+	cmd_pool.EndCommandList(cmd_list);
+
+	ExecuteGraphicCommands(Slice(&cmd_pool, 1));
+
+	GPUWaitIdle();
+
+	return icon_slot;
+}
+
+static inline IconSlot LoadIconFromTexture(MemoryArena& a_temp_arena, const RTexture a_texture, const RCommandList a_list, const uint64_t a_transfer_value)
+{
+	uint32_t width;
+	uint32_t height;
+	uint32_t channels;
+	void* pixels;
+	if (!ReadTexture(a_temp_arena, a_list, a_texture, width, height, channels, pixels))
+	{
+		BB_ASSERT(false, "failed to load icon image!");
+		return IconSlot{};
+	}
+
+	if (!pixels || width != static_cast<int>(ICON_EXTENT.x) || height != static_cast<int>(ICON_EXTENT.y))
+	{
+		BB_ASSERT(false, "failed to load icon image!");
+		return IconSlot{};
+	}
+
+	return LoadIcon(a_list, a_transfer_value, pixels);
+}
+
+static inline IconSlot LoadIconFromPath(const StringView a_icon_path, const RCommandList a_list, const uint64_t a_transfer_value)
+{
+	int x = 0, y = 0, channels = 0;
+	stbi_uc* pixels = stbi_load(a_icon_path.c_str(), &x, &y, &channels, 4);
+
+	if (!pixels || x != static_cast<int>(ICON_EXTENT.x) || y != static_cast<int>(ICON_EXTENT.y))
+	{
+		BB_ASSERT(false, "failed to load image!");
+		return IconSlot{};
+	}
+
+	return LoadIcon(a_list, a_transfer_value, pixels);
+}
+
+static inline const char* AllocateStringSpace(const char* a_str, const size_t a_string_size, const uint64_t a_hash)
+{
+	OSAcquireSRWLockWrite(&s_asset_manager->string_lock);
+	char* const string = ArenaAllocArr(s_asset_manager->string_arena, char, a_string_size);
+	memcpy(string, a_str, a_string_size);
+	string[a_string_size - 1] = '\0';
+
+	s_asset_manager->string_table.emplace(a_hash, string);
+	OSReleaseSRWLockWrite(&s_asset_manager->string_lock);
+	return string;
 }
 
 static inline void AddElementToAssetTable(AssetSlot& a_asset_slot)
@@ -216,22 +364,6 @@ static inline void AddElementToAssetTable(AssetSlot& a_asset_slot)
 	AssetSlot* slot = s_asset_manager->asset_table.find(a_asset_slot.hash.full_hash);
 	s_asset_manager->linear_asset_table.push_back(slot);
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
-}
-
-// returns debug texture on failure
-static inline RTexture FindAssetIcon(const char* a_asset_name, const size_t a_asset_name_size, const RCommandList a_list, const uint64_t a_transfer_value)
-{
-	StackString<MAX_PATH_SIZE> icon_path(ICON_DIRECTORY);
-	icon_path.append(GetAssetIconName(a_asset_name, a_asset_name_size));
-	icon_path.append(".png");
-
-	if (OSFileExist(icon_path.c_str()))
-	{
-		const Image* image = Asset::LoadImageDisk(icon_path.c_str(), a_list, a_transfer_value);
-		return image->gpu_image;
-	}
-	
-	return GetDebugTexture();
 }
 
 //static inline AssetSlot CreateAssetSlotFromPath(const uint64_t a_hash, const AssetSlot::Asset& a_asset, const char* a_relative_path, const RTexture* a_icon = nullptr, const char* a_name = nullptr)
@@ -284,10 +416,31 @@ void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
 	s_asset_manager->linear_asset_table.Init(s_asset_manager->asset_arena, a_init_info.asset_count);
 	s_asset_manager->string_table.Init(s_asset_manager->asset_arena, a_init_info.string_entry_count);
 
+	s_asset_manager->icons_storage.icon_lock = OSCreateRWLock();
+	s_asset_manager->icons_storage.max_slots = a_init_info.asset_count;
+	s_asset_manager->icons_storage.slots = ArenaAllocArr(s_asset_manager->asset_arena, IconSlot, a_init_info.asset_count);
+	s_asset_manager->icons_storage.next_slot = 1;
+	CreateTextureInfo icons_texture_info;
+	icons_texture_info.name = "icon mega texture";
+	icons_texture_info.width = ICON_EXTENT.x * s_asset_manager->icons_storage.max_slots;
+	icons_texture_info.height = ICON_EXTENT.y;
+	icons_texture_info.usage = IMAGE_USAGE::TEXTURE;
+	icons_texture_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+	s_asset_manager->icons_storage.texture = CreateTexture(icons_texture_info);
 
-	s_asset_manager->string_buffer.current_memory_pos = ArenaAllocArr(s_asset_manager->asset_arena, char, a_init_info.string_memory_size);
-	s_asset_manager->string_buffer.mem_remaining = a_init_info.string_memory_size;
-	Memory::Set(s_asset_manager->string_buffer.current_memory_pos, 0, a_init_info.string_memory_size);
+
+	//slot 0 is for debug
+	s_asset_manager->icons_storage.empty_slot = { 0 };
+
+	for (size_t i = s_asset_manager->icons_storage.next_slot; i < s_asset_manager->icons_storage.max_slots - 1; i++)
+	{
+		s_asset_manager->icons_storage.slots[i].slot_index = i;
+		s_asset_manager->icons_storage.slots[i].next_slot = i + 1;
+	}
+	s_asset_manager->icons_storage.slots[s_asset_manager->icons_storage.max_slots - 1].slot_index = s_asset_manager->icons_storage.max_slots - 1;
+	s_asset_manager->icons_storage.slots[s_asset_manager->icons_storage.max_slots - 1].next_slot = UINT32_MAX;
+
+	s_asset_manager->string_arena = MemoryArenaCreate();
 
 	// create some directories for files we are going to write
 	if (!OSDirectoryExist(ICON_DIRECTORY))
@@ -308,14 +461,7 @@ const char* Asset::FindOrCreateString(const char* a_string, const size_t a_strin
 
 	const uint32_t string_size = static_cast<uint32_t>(a_string_size + 1);
 
-	OSAcquireSRWLockWrite(&s_asset_manager->string_lock);
-	char* const string = AllocateStringSpace(string_size);
-	memcpy(string, a_string, string_size);
-	string[string_size - 1] = '\0';
-
-	s_asset_manager->string_table.emplace(string_hash, string);
-	OSReleaseSRWLockWrite(&s_asset_manager->string_lock);
-	return string;
+	return AllocateStringSpace(a_string, string_size, string_hash);
 }
 
 void Asset::LoadAssets(MemoryArena& memory_arena, const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_cmd_list_name)
@@ -338,7 +484,7 @@ void Asset::LoadAssets(MemoryArena& memory_arena, const BB::Slice<AsyncAsset> a_
 				LoadglTFModel(memory_arena, task.mesh_disk, cmd_list, asset_fence_value);
 				break;
 			case ASYNC_LOAD_TYPE::MEMORY:
-				LoadMeshFromMemory(task.mesh_memory, cmd_list, asset_fence_value);
+				LoadMeshFromMemory(memory_arena, task.mesh_memory, cmd_list, asset_fence_value);
 				break;
 			}
 			break;
@@ -348,10 +494,10 @@ void Asset::LoadAssets(MemoryArena& memory_arena, const BB::Slice<AsyncAsset> a_
 			switch (task.load_type)
 			{
 			case ASYNC_LOAD_TYPE::DISK:
-				LoadImageDisk(task.texture_disk.path, cmd_list, asset_fence_value);
+				LoadImageDisk(memory_arena, task.texture_disk.path, cmd_list, asset_fence_value);
 				break;
 			case ASYNC_LOAD_TYPE::MEMORY:
-				LoadImageMemory(*task.texture_memory.image, task.texture_memory.name, cmd_list, asset_fence_value);
+				LoadImageMemory(memory_arena, *task.texture_memory.image, task.texture_memory.name, cmd_list, asset_fence_value);
 				break;
 			}
 		}
@@ -434,7 +580,7 @@ static LoadedImage AssetStbiLoadImage(const char* a_path, const char* a_name, co
 	return LoadedImage{ gpu_image, create_image_info.width, create_image_info.height, static_cast<uint32_t>(channels) };
 }
 
-const Image* Asset::LoadImageDisk(const char* a_path, const RCommandList a_list, const uint64_t a_transfer_fence_value)
+const Image* Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path, const RCommandList a_list, const uint64_t a_transfer_fence_value)
 {
 	const char* asset_name;
 	size_t asset_name_size;
@@ -458,7 +604,15 @@ const Image* Asset::LoadImageDisk(const char* a_path, const RCommandList a_list,
 	asset.image = image;
 	asset.name = image_name;
 
-	asset.icon = image->gpu_image;
+	StackString<MAX_PATH_SIZE> icon_path = GetIconPath(asset.name);
+	if (OSFileExist(icon_path.c_str()))
+		asset.icon = LoadIconFromPath(icon_path.GetView(), a_list, a_transfer_fence_value);
+	else
+	{
+		asset.icon = LoadIconFromTextureResize(a_temp_arena, image->gpu_image, uint2(image->width, image->height));
+		// ALSO WRITE IMAGE, for later.
+	}
+
 
 	AddElementToAssetTable(asset);
 	asset.image->asset_handle = AssetHandle(asset.hash.full_hash);
@@ -475,7 +629,7 @@ bool Asset::WriteImage(const char* a_file_name, const uint32_t a_width, const ui
 	return false;
 }
 
-const Image* Asset::LoadImageMemory(const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, const uint64_t a_transfer_fence_value)
+const Image* Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, const uint64_t a_transfer_fence_value)
 {
 	CreateTextureInfo create_image_info;
 	create_image_info.name = a_name;
@@ -526,7 +680,15 @@ const Image* Asset::LoadImageMemory(const BB::BBImage& a_image, const char* a_na
 	asset.image = image;
 	asset.name = a_name;
 
-	asset.icon = image->gpu_image;
+
+	StackString<MAX_PATH_SIZE> icon_path = GetIconPath(asset.name);
+	if (OSFileExist(icon_path.c_str()))
+		asset.icon = LoadIconFromPath(icon_path.GetView(), a_list, a_transfer_fence_value);
+	else
+	{
+		asset.icon = LoadIconFromTextureResize(a_temp_arena, image->gpu_image, uint2(image->width, image->height));
+		// ALSO WRITE IMAGE, for later.
+	}
 
 	AddElementToAssetTable(asset);
 	image->asset_handle = AssetHandle(asset.hash.full_hash);
@@ -601,7 +763,7 @@ static void LoadglTFNode(MemoryArena& a_temp_arena, Slice<ShaderEffectHandle> a_
 				const cgltf_image& image = *prim.material->pbr_metallic_roughness.base_color_texture.texture->image;
 
 				const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
-				const Image* img = Asset::LoadImageDisk(full_image_path, a_list, a_transfer_fence_value);
+				const Image* img = Asset::LoadImageDisk(a_temp_arena, full_image_path, a_list, a_transfer_fence_value);
 
 				material_info.base_color = img->gpu_image;
 			}
@@ -611,7 +773,7 @@ static void LoadglTFNode(MemoryArena& a_temp_arena, Slice<ShaderEffectHandle> a_
 				const cgltf_image& image = *prim.material->normal_texture.texture->image;
 
 				const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
-				const Image* img = Asset::LoadImageDisk(full_image_path, a_list, a_transfer_fence_value);
+				const Image* img = Asset::LoadImageDisk(a_temp_arena, full_image_path, a_list, a_transfer_fence_value);
 
 				material_info.normal_texture = img->gpu_image;
 			}
@@ -774,14 +936,20 @@ const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 	asset.model = model;
 	asset.name = FindOrCreateString(asset_name, asset_name_size);
 
-	asset.icon = FindAssetIcon(asset_name, asset_name_size, a_list, a_transfer_fence_value);
+	StackString<MAX_PATH_SIZE> icon_path = GetIconPath(asset.name);
+	if (OSFileExist(icon_path.c_str()))
+		asset.icon = LoadIconFromPath(icon_path.GetView(), a_list, a_transfer_fence_value);
+	else
+	{
+		asset.icon = GetEmptyIconSlot();
+	}
 
 	AddElementToAssetTable(asset);
 	model->asset_handle = AssetHandle(asset.hash.full_hash);
 	return model;
 }
 
-const Model* Asset::LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, const RCommandList a_list, const uint64_t a_transfer_fence_value)
+const Model* Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoadFromMemory& a_mesh_op, const RCommandList a_list, const uint64_t a_transfer_fence_value)
 {
 	const AssetHash asset_hash = CreateAssetHash(StringHash(a_mesh_op.name, Memory::StrLength(a_mesh_op.name)), ASSET_TYPE::MODEL);
 
@@ -821,7 +989,13 @@ const Model* Asset::LoadMeshFromMemory(const MeshLoadFromMemory& a_mesh_op, cons
 	asset.model = model;
 	asset.name = a_mesh_op.name;
 
-	asset.icon = FindAssetIcon(a_mesh_op.name, strnlen(a_mesh_op.name, MAX_ASSET_NAME_SIZE), a_list, a_transfer_fence_value);
+	StackString<MAX_PATH_SIZE> icon_path = GetIconPath(asset.name);
+	if (OSFileExist(icon_path.c_str()))
+		asset.icon = LoadIconFromPath(icon_path.GetView(), a_list, a_transfer_fence_value);
+	else
+	{
+		asset.icon = GetEmptyIconSlot();
+	}
 
 	AddElementToAssetTable(asset);
 
@@ -874,6 +1048,37 @@ void Asset::FreeAsset(const AssetHandle a_asset_handle)
 
 #include "imgui.h"
 
+// temporary, this is utter shit
+static const bool LoadImageBySearch(const char* a_new_image_name, const RCommandList a_list, const uint64_t a_transfer_fence_value, LoadedImage& a_out_image)
+{
+	StackString<ASSET_SEARCH_PATH_SIZE_MAX> search_path;
+
+	if (OSFindFileNameDialogWindow(search_path.data(), search_path.capacity()))
+	{
+		search_path.RecalculateStringSize();
+		const size_t get_extension_pos = search_path.find_last_of('.');
+		const size_t get_file_name = search_path.find_last_of('\\');
+		BB_ASSERT(get_file_name != size_t(-1), "i fucked up");
+
+		// get asset name
+		const char* asset_name = Asset::FindOrCreateString(&search_path.c_str()[get_file_name + 1], get_extension_pos - get_file_name - 1);
+		const char* path_str = Asset::FindOrCreateString(search_path.c_str());
+
+		if (search_path.compare(get_extension_pos, ".png") || search_path.compare(get_extension_pos, ".jpg") || search_path.compare(get_extension_pos, ".bmp"))
+		{
+			a_out_image = AssetStbiLoadImage(path_str, asset_name, a_list, a_transfer_fence_value, false);
+			return true;
+		}
+		else
+		{
+			BB_ASSERT(false, "not an image, sam use the filter thing for the windows api for search k thnx");
+			return false;
+		}
+	}
+	return false;
+}
+
+
 constexpr size_t ASSET_SEARCH_PATH_SIZE_MAX = 512;
 
 static void LoadAssetViaSearch()
@@ -913,71 +1118,6 @@ static void LoadAssetViaSearch()
 
 		Asset::LoadAssetsASync(Slice(&asset, 1), "load asset via search");
 	}
-}
-
-static const RTexture LoadImageBySearch(const uint2 a_set_image_size, const char* a_new_image_name)
-{
-	StackString<ASSET_SEARCH_PATH_SIZE_MAX> search_path;
-
-	if (OSFindFileNameDialogWindow(search_path.data(), search_path.capacity()))
-	{
-		search_path.RecalculateStringSize();
-		const size_t get_extension_pos = search_path.find_last_of('.');
-		const size_t get_file_name = search_path.find_last_of('\\');
-		BB_ASSERT(get_file_name != size_t(-1), "i fucked up");
-
-		// get asset name
-		const char* asset_name = Asset::FindOrCreateString(&search_path.c_str()[get_file_name + 1], get_extension_pos - get_file_name - 1);
-		const char* path_str = Asset::FindOrCreateString(search_path.c_str());
-
-		if (search_path.compare(get_extension_pos, ".png") || search_path.compare(get_extension_pos, ".jpg") || search_path.compare(get_extension_pos, ".bmp"))
-		{
-			// jank, batch this
-
-			const uint64_t fence_value = GetNextAssetTransferFenceValueAndIncrement();
-			CommandPool& cmd_pool = GetGraphicsCommandPool();
-			const RCommandList cmd_list = cmd_pool.StartCommandList("image icon loading");
-
-			const LoadedImage loaded_full_image = AssetStbiLoadImage(path_str, asset_name, cmd_list, fence_value, false);
-
-			CreateTextureInfo icon_info;
-			icon_info.name = a_new_image_name;
-			icon_info.width = a_set_image_size.x;
-			icon_info.height = a_set_image_size.y;
-			icon_info.usage = IMAGE_USAGE::TEXTURE;
-			icon_info.format = IMAGE_FORMAT::RGBA8_SRGB;
-			RTexture icon_texture = CreateTexture(icon_info);
-
-			BlitTextureInfo blit_info;
-			blit_info.dst = icon_texture;
-			blit_info.dst_point_0 = {};
-			blit_info.dst_point_1 = int2(static_cast<int>(a_set_image_size.x), static_cast<int>(a_set_image_size.y));
-			blit_info.dst_set_shader_visible = true;
-
-			blit_info.src = loaded_full_image.texture;
-			blit_info.src_point_0 = {};
-			blit_info.src_point_1 = int2(static_cast<int>(loaded_full_image.width), static_cast<int>(loaded_full_image.height));
-			blit_info.src_set_shader_visible = false;
-
-			BlitTexture(cmd_list, blit_info);
-
-			cmd_pool.EndCommandList(cmd_list);
-
-			ExecuteGraphicCommands(Slice(&cmd_pool, 1));
-
-			GPUWaitIdle();
-
-			FreeTexture(loaded_full_image.texture);
-
-			return icon_texture;
-		}
-		else
-		{
-			BB_ASSERT(false, "not an image, sam use the filter thing for the windows api for search k thnx");
-			return RTexture(BB_INVALID_HANDLE_32);
-		}
-	}
-	return RTexture(BB_INVALID_HANDLE_32);
 }
 
 void Asset::ShowAssetMenu(MemoryArena& a_arena)
@@ -1035,37 +1175,58 @@ void Asset::ShowAssetMenu(MemoryArena& a_arena)
 
 					if (ImGui::Button("Set new Icon"))
 					{
-						StackString<MAX_ASSET_NAME_SIZE> icon_name = GetAssetIconName(slot->name, strnlen(slot->name, MAX_ASSET_NAME_SIZE));
-						const RTexture icon = LoadImageBySearch(ICON_EXTENT, icon_name.c_str());
-						if (icon.IsValid())
+						CommandPool& cmd_pool = GetGraphicsCommandPool();
+						const RCommandList list = cmd_pool.StartCommandList();
+						StackString<MAX_ASSET_NAME_SIZE> icon_name = GetAssetIconName(StringView(slot->name, strnlen(slot->name, MAX_ASSET_NAME_SIZE)));
+						LoadedImage loaded_image;
+						if (LoadImageBySearch(icon_name.c_str(), list, 0, loaded_image))
 						{
-							slot->icon = icon;
-							// write the icon
+							if (loaded_image.width != ICON_EXTENT.x || loaded_image.height != ICON_EXTENT.y)
+							{
+								// blit the texture as its not icon size
+
+								BlitTextureInfo blit_info;
+								blit_info.dst = icon_texture;
+								blit_info.dst_point_0 = {};
+								blit_info.dst_point_1 = int2(static_cast<int>(a_set_image_size.x), static_cast<int>(a_set_image_size.y));
+								blit_info.dst_set_shader_visible = true;
+
+								blit_info.src = loaded_full_image.texture;
+								blit_info.src_point_0 = {};
+								blit_info.src_point_1 = int2(static_cast<int>(loaded_full_image.width), static_cast<int>(loaded_full_image.height));
+								blit_info.src_set_shader_visible = false;
+
+								BlitTexture(a_graphics_list, blit_info);
+
+								FreeTexture(loaded_full_image.texture);
+
+							}
+		
+
+
+							slot->icon = LoadIconFromTexture(a_arena, loaded_image.tex, list, 0);
 
 							uint32_t width, height, channel;
 							void* pixels;
-							BB_ASSERT(ReadTexture(a_arena, icon, width, height, channel, pixels), "failed to read gpu texture");
+							BB_ASSERT(ReadTextureReformat(a_arena, icon_text, width, height, channel, pixels), "failed to read gpu texture");
 
 							StackString<MAX_PATH_SIZE> write_image_path(ICON_DIRECTORY, _countof(ICON_DIRECTORY) - 1);
 							write_image_path.append(icon_name.c_str(), icon_name.size());
 							write_image_path.append(".png");
 
 							Asset::WriteImage(write_image_path.c_str(), width, height, channel, pixels);
+							FreeTexture(icon_text);
 						}
 					}
 
-					switch (slot->hash.type)
-					{
-					case ASSET_TYPE::MODEL:
-						ImGui::Image(slot->icon.handle, ImVec2(ICON_EXTENT_F.x, ICON_EXTENT_F.y));
-						break;
-					case ASSET_TYPE::TEXTURE:
-						ImGui::Image(slot->icon.handle, ImVec2(ICON_EXTENT_F.x, ICON_EXTENT_F.y));
-						break;
-					default:
-						BB_ASSERT(false, "unimplemented ASSET_TYPE case");
-						break;
-					}
+					// show icon
+					const float icons_texture_width = static_cast<float>(ICON_EXTENT.x) * s_asset_manager->icons_storage.max_slots;
+					const float slot_size_in_float = static_cast<float>(ICON_EXTENT.x) / icons_texture_width;
+
+					const ImVec2 uv0(slot_size_in_float * slot->icon.slot_index, 0);
+					const ImVec2 uv1(slot_size_in_float * (slot->icon.slot_index + 1), static_cast<float>(ICON_EXTENT.y));
+
+;					ImGui::Image(s_asset_manager->icons_storage.texture.handle, ImVec2(ICON_EXTENT_F.x, ICON_EXTENT_F.y), uv0, uv1);
 				}
 
 
