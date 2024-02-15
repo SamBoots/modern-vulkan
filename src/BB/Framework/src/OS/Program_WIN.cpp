@@ -779,6 +779,13 @@ bool BB::UnfreezeMouseOnWindow()
 	return ClipCursor(nullptr);
 }
 
+bool BB::OSMessageBoxYesNo(const char* a_box_title, const char* a_message)
+{
+	if (MessageBoxA(NULL, a_box_title, a_message, MB_YESNO) == IDYES)
+		return true;
+	return false;
+}
+
 void BB::SetWindowCloseEvent(PFN_WindowCloseEvent a_func)
 {
 	s_pfn_close_event = a_func;

@@ -264,19 +264,20 @@ static void DrawImGuiViewport(MemoryArena& a_arena, Viewport& a_viewport, bool& 
 
 				if (ImGui::Button("make screenshot"))
 				{
-					uint32_t width;
-					uint32_t height;
-					uint32_t channels;
-					void* mem;
-					ReadTexture(a_arena, render_target, width, height, channels, mem);
-					StackString<256> image_name_bmp{ "screenshots" };
+					BB_ASSERT(false, "fix this");
+					//uint32_t width;
+					//uint32_t height;
+					//uint32_t channels;
+					//void* mem;
+					//ReadTexture(a_arena, render_target, width, height, channels, mem);
+					//StackString<256> image_name_bmp{ "screenshots" };
 
-					// create directory first
-					OSCreateDirectory(image_name_bmp.c_str());
-					image_name_bmp.push_back('/');
-					image_name_bmp.append(image_name);
-					image_name_bmp.append(".png");
-					BB_ASSERT(Asset::WriteImage(image_name_bmp.c_str(), width, height, channels, mem), "failed to write screenshot image to disk");
+					//// create directory first
+					//OSCreateDirectory(image_name_bmp.c_str());
+					//image_name_bmp.push_back('/');
+					//image_name_bmp.append(image_name);
+					//image_name_bmp.append(".png");
+					//BB_ASSERT(Asset::WriteImage(image_name_bmp.c_str(), width, height, channels, mem), "failed to write screenshot image to disk");
 				}
 
 				ImGui::EndMenu();
@@ -398,11 +399,6 @@ int main(int argc, char** argv)
 		static_cast<int>(window_extent.y),
 		L"Modern Vulkan");
 
-	{
-		const Asset::AssetManagerInitInfo asset_manager_info = {};
-		Asset::InitializeAssetManager(asset_manager_info);
-	}
-
 	RendererCreateInfo render_create_info;
 	render_create_info.app_name = "modern vulkan";
 	render_create_info.engine_name = "building block engine";
@@ -411,6 +407,12 @@ int main(int argc, char** argv)
 	render_create_info.swapchain_height = window_extent.y;
 	render_create_info.debug = true;
 	InitializeRenderer(main_arena, render_create_info);
+
+	{
+		const Asset::AssetManagerInitInfo asset_manager_info = {};
+		Asset::InitializeAssetManager(asset_manager_info);
+	}
+
 	SetupImGuiInput(main_arena, window);
 
 	SetWindowCloseEvent(CustomCloseWindow);

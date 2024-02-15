@@ -58,6 +58,13 @@ public:
 
 	void TransitionTextures(const RCommandList a_list);
 
+	void AddGraphicsTransition(const PipelineBarrierImageInfo& a_transition_info)
+	{
+		OSAcquireSRWLockWrite(&m_lock);
+		m_graphics_texture_transitions.emplace_back(a_transition_info);
+		OSReleaseSRWLockWrite(&m_lock);
+	}
+
 	void AddGraphicsTransition(const PipelineBarrierImageInfo& a_transition_info, const WriteDescriptorData& a_write_descriptor)
 	{
 		OSAcquireSRWLockWrite(&m_lock);
@@ -2083,6 +2090,11 @@ bool BB::ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools)
 	s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
 	s_render_inst->graphics_queue.ExecuteCommands(lists, list_count, nullptr, nullptr, 0, nullptr, nullptr, 0);
 	return true;
+}
+
+uint64_t BB::GetCurrentAssetTransferFenceValue()
+{
+	const uint64_t fence_value = Vulkan::GetCurrentFenceValue(s_render_inst->asset_upload_fence);
 }
 
 uint64_t BB::GetNextAssetTransferFenceValueAndIncrement()

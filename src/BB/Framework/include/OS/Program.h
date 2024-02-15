@@ -137,6 +137,8 @@ namespace BB
 	bool FreezeMouseOnWindow(const WindowHandle a_handle);
 	bool UnfreezeMouseOnWindow();
 
+	bool OSMessageBoxYesNo(const char* a_box_title, const char* a_message);
+
 	//The function that will be called when a window is closed.
 	void SetWindowCloseEvent(PFN_WindowCloseEvent a_func);
 	//The function that will be called when a window is resized.

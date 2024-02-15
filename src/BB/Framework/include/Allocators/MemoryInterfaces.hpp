@@ -21,6 +21,7 @@ namespace BB
 			FreeBlock* next;
 		};
 
+	private:
 		uint8_t* m_start = nullptr;
 		FreeBlock* m_free_blocks;
 		size_t m_memory_size;

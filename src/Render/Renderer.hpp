@@ -140,8 +140,9 @@ namespace BB
 	CommandPool& GetTransferCommandPool();
 
 	bool PresentFrame(const BB::Slice<CommandPool> a_cmd_pools);
-	bool ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, uint64_t& a_out_fence_value);
+	bool ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools);
 
+	uint64_t GetCurrentAssetTransferFenceValue();
 	uint64_t GetNextAssetTransferFenceValueAndIncrement();
 	bool ExecuteAssetTransfer(const BB::Slice<CommandPool> a_cmd_pools, const uint64_t a_asset_transfer_fence_value);
 	
