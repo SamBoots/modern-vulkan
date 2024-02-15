@@ -1181,6 +1181,7 @@ void Asset::ShowAssetMenu(MemoryArena& a_arena)
 						LoadedImage loaded_image;
 						if (LoadImageBySearch(icon_name.c_str(), list, 0, loaded_image))
 						{
+							// we can just resize this on the CPU and not do this jank
 							if (loaded_image.width != ICON_EXTENT.x || loaded_image.height != ICON_EXTENT.y)
 							{
 								// blit the texture as its not icon size
@@ -1226,7 +1227,7 @@ void Asset::ShowAssetMenu(MemoryArena& a_arena)
 					const ImVec2 uv0(slot_size_in_float * slot->icon.slot_index, 0);
 					const ImVec2 uv1(slot_size_in_float * (slot->icon.slot_index + 1), static_cast<float>(ICON_EXTENT.y));
 
-;					ImGui::Image(s_asset_manager->icons_storage.texture.handle, ImVec2(ICON_EXTENT_F.x, ICON_EXTENT_F.y), uv0, uv1);
+					ImGui::Image(s_asset_manager->icons_storage.texture.handle, ImVec2(ICON_EXTENT_F.x, ICON_EXTENT_F.y), uv0, uv1);
 				}
 
 
