@@ -781,7 +781,7 @@ bool BB::UnfreezeMouseOnWindow()
 
 bool BB::OSMessageBoxYesNo(const char* a_box_title, const char* a_message)
 {
-	if (MessageBoxA(NULL, a_box_title, a_message, MB_YESNO) == IDYES)
+	if (MessageBoxA(nullptr, a_box_title, a_message, MB_YESNO) == IDYES)
 		return true;
 	return false;
 }

@@ -312,7 +312,7 @@ static inline IconSlot LoadIconFromPath(const StringView a_icon_path, const RCom
 
 	WriteTextureInfo write_icon_info;
 	write_icon_info.extent = ICON_EXTENT;
-	write_icon_info.offset = int2(slot.slot_index * static_cast<int>(ICON_EXTENT.x), 0);
+	write_icon_info.offset = int2(static_cast<int>(slot.slot_index * ICON_EXTENT.x), 0);
 	write_icon_info.pixels = pixels;
 	write_icon_info.set_shader_visible = true;
 	WriteTexture(a_list, s_asset_manager->icons_storage.texture, write_icon_info, a_transfer_value);
@@ -410,9 +410,9 @@ void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
 
 
 	//slot 0 is for debug
-	s_asset_manager->icons_storage.empty_slot = { 0 };
+	s_asset_manager->icons_storage.empty_slot = { 0, 0 };
 
-	for (size_t i = s_asset_manager->icons_storage.next_slot; i < s_asset_manager->icons_storage.max_slots - 1; i++)
+	for (uint32_t i = s_asset_manager->icons_storage.next_slot; i < s_asset_manager->icons_storage.max_slots - 1; i++)
 	{
 		s_asset_manager->icons_storage.slots[i].slot_index = i;
 		s_asset_manager->icons_storage.slots[i].next_slot = i + 1;
@@ -1136,11 +1136,11 @@ void Asset::ShowAssetMenu(MemoryArena& a_arena)
 					}
 
 					// show icon
-					const float icons_texture_width = static_cast<float>(ICON_EXTENT.x) * s_asset_manager->icons_storage.max_slots;
+					const float icons_texture_width = static_cast<float>(ICON_EXTENT.x * s_asset_manager->icons_storage.max_slots);
 					const float slot_size_in_float = static_cast<float>(ICON_EXTENT.x) / icons_texture_width;
 
-					const ImVec2 uv0(slot_size_in_float * slot->icon.slot_index, 0);
-					const ImVec2 uv1(slot_size_in_float * (slot->icon.slot_index + 1), static_cast<float>(ICON_EXTENT.y));
+					const ImVec2 uv0(slot_size_in_float * static_cast<float>(slot->icon.slot_index), 9);
+					const ImVec2 uv1(slot_size_in_float * static_cast<float>(slot->icon.slot_index + 1), static_cast<float>(ICON_EXTENT.y));
 
 					ImGui::Image(s_asset_manager->icons_storage.texture.handle, ImVec2(ICON_EXTENT_F.x, ICON_EXTENT_F.y), uv0, uv1);
 				}

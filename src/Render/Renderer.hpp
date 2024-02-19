@@ -139,8 +139,8 @@ namespace BB
 	CommandPool& GetGraphicsCommandPool();
 	CommandPool& GetTransferCommandPool();
 
-	bool PresentFrame(const BB::Slice<CommandPool> a_cmd_pools);
-	bool ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools);
+	bool PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, uint64_t& a_out_fence_value);
+	bool ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, uint64_t& a_out_fence_value);
 
 	uint64_t GetCurrentAssetTransferFenceValue();
 	uint64_t GetNextAssetTransferFenceValueAndIncrement();
@@ -187,8 +187,7 @@ namespace BB
 	void BlitTexture(const RCommandList a_list, const BlitTextureInfo& a_blit_info);
 	void WriteTexture(const RCommandList a_list, const RTexture a_texture, const WriteTextureInfo& a_write_info, const uint64_t a_transfer_fence_value);
 	void FreeTexture(const RTexture a_texture);
-	bool ReadTexture(MemoryArena& a_arena, const RCommandList a_cmd_list, const RTexture a_texture, uint32_t& a_width, uint32_t& a_height, uint32_t& a_channels, void*& a_data);
-	bool ReadTextureReformat(MemoryArena& a_arena, const RTexture a_texture, uint32_t& a_width, uint32_t& a_height, uint32_t& a_channels, void*& a_data);
+	bool ReadTexture(MemoryArena& a_arena, const RCommandList a_cmd_list, const RTexture a_texture, const GPUBuffer a_readback_buffer, const size_t a_readback_buffer_size, void*& a_readback_buffer_mem);
 
 	const GPUBuffer CreateGPUBuffer(const GPUBufferCreateInfo& a_create_info);
 	void FreeGPUBuffer(const GPUBuffer a_buffer);

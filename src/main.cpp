@@ -431,7 +431,8 @@ int main(int argc, char** argv)
 		viewport_scene = CreateViewport(main_arena, window_extent, uint2(), "game scene");
 		viewport_object_viewer = CreateViewport(main_arena, window_extent / 2u, uint2(), "object viewer");
 		startup_pool.EndCommandList(startup_list);
-		ExecuteGraphicCommands(Slice(&startup_pool, 1));
+		uint64_t mock_fence_value;
+		ExecuteGraphicCommands(Slice(&startup_pool, 1), mock_fence_value);
 	}
 
 	scene_hierarchy.SetClearColor(float3{ 0.1f, 0.6f, 0.1f });
@@ -676,7 +677,8 @@ int main(int argc, char** argv)
 			EndFrame(main_list);
 
 			graphics_command_pools[0].EndCommandList(main_list);
-			PresentFrame(Slice(graphics_command_pools, _countof(graphics_command_pools)));
+			uint64_t fence_value;
+			PresentFrame(Slice(graphics_command_pools, _countof(graphics_command_pools)), fence_value);
 		}
 		delta_time = std::chrono::duration<float, std::chrono::seconds::period>(current_time - start_time).count();
 		current_time = std::chrono::high_resolution_clock::now();

@@ -349,7 +349,7 @@ public:
 		OSReleaseSRWLockWrite(&m_in_flight_lock);
 	}
 
-	void ExecuteCommands(const RCommandList* const a_lists, const uint32_t a_list_count, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const uint32_t a_wait_count)
+	bool ExecuteCommands(const RCommandList* const a_lists, const uint32_t a_list_count, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const uint32_t a_wait_count, uint64_t& a_out_fence_value)
 	{
 		OSAcquireSRWLockWrite(&m_lock);
 		//better way to do this?
@@ -373,11 +373,12 @@ public:
 
 
 		Vulkan::ExecuteCommandLists(m_queue, &execute_info, 1);
-		++m_fence.next_fence_value;
+		a_out_fence_value = m_fence.next_fence_value++;
 		OSReleaseSRWLockWrite(&m_lock);
+		return true;
 	}
 
-	PRESENT_IMAGE_RESULT ExecutePresentCommands(RCommandList* const a_lists, const uint32_t a_list_count, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const uint32_t a_wait_count, const uint32_t a_backbuffer_index)
+	PRESENT_IMAGE_RESULT ExecutePresentCommands(RCommandList* const a_lists, const uint32_t a_list_count, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const uint32_t a_wait_count, const uint32_t a_backbuffer_index, uint64_t& a_out_fence_value)
 	{
 		BB_ASSERT(m_queue_type == QUEUE_TYPE::GRAPHICS, "calling a present commands on a non-graphics command queue is not valid");
 		
@@ -401,7 +402,7 @@ public:
 
 		OSAcquireSRWLockWrite(&m_lock);
 		const PRESENT_IMAGE_RESULT result = Vulkan::ExecutePresentCommandList(m_queue, execute_info, a_backbuffer_index);
-		++m_fence.next_fence_value;
+		a_out_fence_value = m_fence.next_fence_value++;
 		OSReleaseSRWLockWrite(&m_lock);
 		return result;
 	}
@@ -1497,7 +1498,9 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	start_up_pool.EndCommandList(list);
 	//special upload here, due to uploading as well
 	s_render_inst->graphics_queue.ReturnPool(start_up_pool);
-	s_render_inst->graphics_queue.ExecuteCommands(&list, 1, &s_render_inst->asset_upload_fence, &asset_fence_value, 1, nullptr, nullptr, 0);
+	uint64_t fence_value_startup;
+	s_render_inst->graphics_queue.ExecuteCommands(&list, 1, &s_render_inst->asset_upload_fence, &asset_fence_value, 1, nullptr, nullptr, 0, fence_value_startup);
+	s_render_inst->graphics_queue.WaitFenceValue(fence_value_startup);
 	return true;
 }
 
@@ -2028,7 +2031,7 @@ CommandPool& BB::GetTransferCommandPool()
 	return s_render_inst->transfer_queue.GetCommandPool();
 }
 
-bool BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools)
+bool BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, uint64_t& a_fence_value)
 {
 	if (s_render_inst->render_io.resizing_request)
 	{
@@ -2059,7 +2062,7 @@ bool BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools)
 	s_render_inst->frames[s_render_inst->render_io.frame_index].graphics_queue_fence_value = s_render_inst->graphics_queue.GetNextFenceValue();
 
 	s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
-	const PRESENT_IMAGE_RESULT result = s_render_inst->graphics_queue.ExecutePresentCommands(lists, list_count, nullptr, nullptr, 0, nullptr, nullptr, 0, s_render_inst->render_io.frame_index);
+	const PRESENT_IMAGE_RESULT result = s_render_inst->graphics_queue.ExecutePresentCommands(lists, list_count, nullptr, nullptr, 0, nullptr, nullptr, 0, s_render_inst->render_io.frame_index, a_fence_value);
 	s_render_inst->render_io.frame_index = (s_render_inst->render_io.frame_index + 1) % s_render_inst->render_io.frame_count;
 
 	s_render_inst->render_io.frame_ended = false;
@@ -2071,7 +2074,7 @@ bool BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools)
 	return true;
 }
 
-bool BB::ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools)
+bool BB::ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, uint64_t& a_out_fence_value)
 {
 	uint32_t list_count = 0;
 	for (size_t i = 0; i < a_cmd_pools.size(); i++)
@@ -2088,13 +2091,14 @@ bool BB::ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools)
 	}
 
 	s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
-	s_render_inst->graphics_queue.ExecuteCommands(lists, list_count, nullptr, nullptr, 0, nullptr, nullptr, 0);
+	s_render_inst->graphics_queue.ExecuteCommands(lists, list_count, nullptr, nullptr, 0, nullptr, nullptr, 0, a_out_fence_value);
 	return true;
 }
 
 uint64_t BB::GetCurrentAssetTransferFenceValue()
 {
 	const uint64_t fence_value = Vulkan::GetCurrentFenceValue(s_render_inst->asset_upload_fence);
+	return fence_value;
 }
 
 uint64_t BB::GetNextAssetTransferFenceValueAndIncrement()
@@ -2656,209 +2660,7 @@ void BB::FreeTexture(const RTexture a_texture)
 	return s_render_inst->texture_manager.FreeTexture(a_texture);
 }
 
-bool BB::ReadTextureReformat(MemoryArena& a_arena, const RTexture a_texture, uint32_t& a_width, uint32_t& a_height, uint32_t& a_channels, void*& a_data)
-{
-	const GPUTextureManager::TextureSlot& selected_texture = s_render_inst->texture_manager.GetTextureSlot(a_texture);
-
-	CommandPool& cmd_pool = GetGraphicsCommandPool();
-	const RCommandList cmd_list = cmd_pool.StartCommandList("gpu image to cpu");
-
-	const IMAGE_LAYOUT original_layout = selected_texture.texture_info.current_layout;
-	constexpr IMAGE_LAYOUT transfer_layout = IMAGE_LAYOUT::TRANSFER_SRC;
-
-	{
-		PipelineBarrierImageInfo image_write_transition;
-		image_write_transition.src_mask = BARRIER_ACCESS_MASK::NONE;
-		image_write_transition.dst_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
-		image_write_transition.image = selected_texture.texture_info.image;
-		image_write_transition.old_layout = original_layout;
-		image_write_transition.new_layout = transfer_layout;
-		image_write_transition.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
-		image_write_transition.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
-		image_write_transition.layer_count = 1;
-		image_write_transition.level_count = 1;
-		image_write_transition.base_array_layer = 0;
-		image_write_transition.base_mip_level = 0;
-		image_write_transition.src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
-		image_write_transition.dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
-
-		PipelineBarrierInfo pipeline_info{};
-		pipeline_info.image_info_count = 1;
-		pipeline_info.image_infos = &image_write_transition;
-		Vulkan::PipelineBarriers(cmd_list, pipeline_info);
-	}
-
-	RImage to_copy_image;
-	const bool reformat_image = selected_texture.texture_info.format != SCREENSHOT_IMAGE_FORMAT;
-	if (reformat_image)
-	{
-		// the image is not equal to RENDER_TARGET_IMAGE_FORMAT, so create a new image and blit the original image into that temporary image.
-		ImageCreateInfo image_create_info{};
-		image_create_info.name = "intermediate screenshot image";
-		image_create_info.width = selected_texture.texture_info.width;
-		image_create_info.height = selected_texture.texture_info.height;
-		image_create_info.depth = 1;
-		image_create_info.array_layers = 1;
-		image_create_info.mip_levels = 1;
-		image_create_info.type = IMAGE_TYPE::TYPE_2D;
-		image_create_info.tiling = IMAGE_TILING::OPTIMAL;
-		image_create_info.format = IMAGE_FORMAT::RGBA8_SRGB;
-		image_create_info.usage = IMAGE_USAGE::TEXTURE;
-
-		to_copy_image = Vulkan::CreateImage(image_create_info);
-
-		{
-			PipelineBarrierImageInfo image_write_transition;
-			image_write_transition.src_mask = BARRIER_ACCESS_MASK::NONE;
-			image_write_transition.dst_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
-			image_write_transition.image = to_copy_image;
-			image_write_transition.old_layout = IMAGE_LAYOUT::UNDEFINED;
-			image_write_transition.new_layout = IMAGE_LAYOUT::TRANSFER_DST;
-			image_write_transition.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
-			image_write_transition.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
-			image_write_transition.layer_count = 1;
-			image_write_transition.level_count = 1;
-			image_write_transition.base_array_layer = 0;
-			image_write_transition.base_mip_level = 0;
-			image_write_transition.src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
-			image_write_transition.dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
-
-			PipelineBarrierInfo pipeline_info{};
-			pipeline_info.image_info_count = 1;
-			pipeline_info.image_infos = &image_write_transition;
-			Vulkan::PipelineBarriers(cmd_list, pipeline_info);
-		}
-
-		//blit image info
-		const int3 image_offset_p0(0, 0, 0);
-		const int3 image_offset_p1(static_cast<int>(selected_texture.texture_info.width), static_cast<int>(selected_texture.texture_info.height), 1);
-
-		BlitImageInfo blit_info{};
-		blit_info.src_image = selected_texture.texture_info.image;
-		blit_info.src_offset_p0 = image_offset_p0;
-		blit_info.src_offset_p1 = image_offset_p1;
-		blit_info.src_base_layer = 0;
-		blit_info.src_mip_level = 0;
-		blit_info.src_layer_count = 1;
-
-		blit_info.dst_image = to_copy_image;
-		blit_info.dst_offset_p0 = image_offset_p0;
-		blit_info.dst_offset_p1 = image_offset_p1;
-		blit_info.dst_base_layer = 0;
-		blit_info.dst_mip_level = 0;
-		blit_info.dst_layer_count = 1;
-		Vulkan::BlitImage(cmd_list, blit_info);
-
-		{
-			PipelineBarrierImageInfo image_write_transition;
-			image_write_transition.src_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
-			image_write_transition.dst_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
-			image_write_transition.image = to_copy_image;
-			image_write_transition.old_layout = IMAGE_LAYOUT::TRANSFER_DST;
-			image_write_transition.new_layout = IMAGE_LAYOUT::TRANSFER_SRC;
-			image_write_transition.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
-			image_write_transition.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
-			image_write_transition.layer_count = 1;
-			image_write_transition.level_count = 1;
-			image_write_transition.base_array_layer = 0;
-			image_write_transition.base_mip_level = 0;
-			image_write_transition.src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
-			image_write_transition.dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
-
-			PipelineBarrierInfo pipeline_info{};
-			pipeline_info.image_info_count = 1;
-			pipeline_info.image_infos = &image_write_transition;
-			Vulkan::PipelineBarriers(cmd_list, pipeline_info);
-		}
-
-	}
-	else
-	{
-		// we can use this image directly for the screenshot
-		to_copy_image = selected_texture.texture_info.image;
-	}
-
-	GPUWaitIdle();
-
-	const size_t image_size = 
-		static_cast<size_t>(selected_texture.texture_info.width) * 
-		static_cast<size_t>(selected_texture.texture_info.height) *
-		SCREENSHOT_IMAGE_PIXEL_BYTE_SIZE;
-
-	// not sure if we want a global readback buffer thing.
-	GPUBufferCreateInfo readback_info{};
-	readback_info.name = "readback for screenshot";
-	readback_info.host_writable = true;
-	readback_info.type = BUFFER_TYPE::READBACK;
-	readback_info.size = image_size;
-
-	const GPUBuffer readback_buffer = Vulkan::CreateBuffer(readback_info);
-
-	{
-		RenderCopyImageToBufferInfo image_to_buffer;
-		image_to_buffer.dst_buffer = readback_buffer;
-		image_to_buffer.dst_offset = 0; // change this if i have a global readback buffer thing
-
-		image_to_buffer.src_image = to_copy_image;
-		image_to_buffer.src_image_info.size_x = selected_texture.texture_info.width;
-		image_to_buffer.src_image_info.size_y = selected_texture.texture_info.height;
-		image_to_buffer.src_image_info.size_z = 1;
-		image_to_buffer.src_image_info.offset_x = 0;
-		image_to_buffer.src_image_info.offset_y = 0;
-		image_to_buffer.src_image_info.offset_z = 0;
-		image_to_buffer.src_image_info.layout = IMAGE_LAYOUT::TRANSFER_SRC;
-		image_to_buffer.src_image_info.mip_level = 0;
-		image_to_buffer.src_image_info.layer_count = 1;
-		image_to_buffer.src_image_info.base_array_layer = 0;
-
-		Vulkan::CopyImageToBuffer(cmd_list, image_to_buffer);
-	}
-
-	{
-		PipelineBarrierImageInfo image_shader_transition;
-		image_shader_transition.src_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
-		image_shader_transition.dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
-		image_shader_transition.image = selected_texture.texture_info.image;
-		image_shader_transition.old_layout = transfer_layout;
-		image_shader_transition.new_layout = original_layout;
-		image_shader_transition.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
-		image_shader_transition.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
-		image_shader_transition.layer_count = 1;
-		image_shader_transition.level_count = 1;
-		image_shader_transition.base_array_layer = 0;
-		image_shader_transition.base_mip_level = 0;
-		image_shader_transition.src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
-		image_shader_transition.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
-
-		PipelineBarrierInfo pipeline_info{};
-		pipeline_info.image_info_count = 1;
-		pipeline_info.image_infos = &image_shader_transition;
-		Vulkan::PipelineBarriers(cmd_list, pipeline_info);
-	}
-
-	cmd_pool.EndCommandList(cmd_list);
-	ExecuteGraphicCommands(Slice(&cmd_pool, 1));
-
-	GPUWaitIdle();
-
-	void* readback_memory = Vulkan::MapBufferMemory(readback_buffer);
-
-	a_data = ArenaAlloc(a_arena, image_size, alignof(size_t));
-	memcpy(a_data, readback_memory, image_size);
-	a_width = selected_texture.texture_info.width;
-	a_height = selected_texture.texture_info.height;
-	a_channels = 4;		// always 4.... for now.....
-
-	Vulkan::UnmapBufferMemory(readback_buffer);
-	Vulkan::FreeBuffer(readback_buffer);
-
-	if (reformat_image) // delete the reformatted image
-		Vulkan::FreeImage(to_copy_image);
-
-	return true;
-}
-
-bool BB::ReadTexture(MemoryArena& a_arena, const RCommandList a_cmd_list, const RTexture a_texture, uint32_t& a_width, uint32_t& a_height, uint32_t& a_channels, void*& a_data)
+bool BB::ReadTexture(MemoryArena& a_arena, const RCommandList a_cmd_list, const RTexture a_texture, const GPUBuffer a_readback_buffer, const size_t a_readback_buffer_size, void*& a_readback_buffer_mem)
 {
 	const GPUTextureManager::TextureSlot& selected_texture = s_render_inst->texture_manager.GetTextureSlot(a_texture);
 	BB_ASSERT(selected_texture.texture_info.format == SCREENSHOT_IMAGE_FORMAT, "image format is not SRGB, image write may not be successful");
@@ -2893,18 +2695,11 @@ bool BB::ReadTexture(MemoryArena& a_arena, const RCommandList a_cmd_list, const 
 		static_cast<size_t>(selected_texture.texture_info.height) *
 		SCREENSHOT_IMAGE_PIXEL_BYTE_SIZE;
 
-	// not sure if we want a global readback buffer thing.
-	GPUBufferCreateInfo readback_info{};
-	readback_info.name = "readback for screenshot";
-	readback_info.host_writable = true;
-	readback_info.type = BUFFER_TYPE::READBACK;
-	readback_info.size = image_size;
-
-	const GPUBuffer readback_buffer = Vulkan::CreateBuffer(readback_info);
+	BB_ASSERT(image_size < a_readback_buffer_size, "readback buffer too small");
 
 	{
 		RenderCopyImageToBufferInfo image_to_buffer;
-		image_to_buffer.dst_buffer = readback_buffer;
+		image_to_buffer.dst_buffer = a_readback_buffer;
 		image_to_buffer.dst_offset = 0; // change this if i have a global readback buffer thing
 
 		image_to_buffer.src_image = selected_texture.texture_info.image;
@@ -2941,19 +2736,6 @@ bool BB::ReadTexture(MemoryArena& a_arena, const RCommandList a_cmd_list, const 
 		// this could be a graphics queue transition, so just paste it here.
 		s_render_inst->texture_manager.AddGraphicsTransition(image_shader_transition);
 	}
-
-	GPUWaitIdle();
-
-	void* readback_memory = Vulkan::MapBufferMemory(readback_buffer);
-
-	a_data = ArenaAlloc(a_arena, image_size, alignof(size_t));
-	memcpy(a_data, readback_memory, image_size);
-	a_width = selected_texture.texture_info.width;
-	a_height = selected_texture.texture_info.height;
-	a_channels = 4;		// always 4.... for now.....
-
-	Vulkan::UnmapBufferMemory(readback_buffer);
-	Vulkan::FreeBuffer(readback_buffer);
 
 	return true;
 }
