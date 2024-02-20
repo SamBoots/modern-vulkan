@@ -311,6 +311,7 @@ static inline IconSlot LoadIconFromTexture(const RCommandList a_list, const RTex
 	info.copy_info.size_x = ICON_EXTENT.x;
 	info.copy_info.size_y = ICON_EXTENT.y;
 	info.copy_info.size_z = 1;
+	info.copy_info.offset_y = ICON_EXTENT.x * slot.slot_index;
 	info.copy_info.base_array_layer = 0;
 	info.copy_info.mip_level = 0;
 	info.copy_info.layer_count = 1;
@@ -481,7 +482,6 @@ void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
 	icons_texture_info.usage = IMAGE_USAGE::TEXTURE;
 	icons_texture_info.format = IMAGE_FORMAT::RGBA8_SRGB;
 	s_asset_manager->icons_storage.texture = CreateTexture(icons_texture_info);
-
 
 	//slot 0 is for debug
 	s_asset_manager->icons_storage.empty_slot = { 0, 0 };
@@ -1238,8 +1238,8 @@ void Asset::ShowAssetMenu(MemoryArena& a_arena)
 					const float icons_texture_width = static_cast<float>(ICON_EXTENT.x * s_asset_manager->icons_storage.max_slots);
 					const float slot_size_in_float = static_cast<float>(ICON_EXTENT.x) / icons_texture_width;
 
-					const ImVec2 uv0(slot_size_in_float * static_cast<float>(slot->icon.slot_index), 9);
-					const ImVec2 uv1(uv0.x + slot_size_in_float, static_cast<float>(ICON_EXTENT.y));
+					const ImVec2 uv0(slot_size_in_float * static_cast<float>(slot->icon.slot_index), 0);
+					const ImVec2 uv1(uv0.x + slot_size_in_float, 1);
 
 					ImGui::Image(s_asset_manager->icons_storage.texture.handle, ImVec2(ICON_EXTENT_F.x, ICON_EXTENT_F.y), uv0, uv1);
 				}
