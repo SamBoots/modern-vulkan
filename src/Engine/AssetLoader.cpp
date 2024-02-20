@@ -290,11 +290,86 @@ static inline IconSlot GetEmptyIconSlot()
 static inline IconSlot GetIconSlotSpace()
 {
 	OSAcquireSRWLockWrite(&s_asset_manager->icons_storage.icon_lock);
-	BB_ASSERT(s_asset_manager->icons_storage.next_slot == UINT32_MAX, "icon storage full");
+	BB_ASSERT(s_asset_manager->icons_storage.next_slot != UINT32_MAX, "icon storage full");
 	const IconSlot icon_slot = s_asset_manager->icons_storage.slots[s_asset_manager->icons_storage.next_slot];
 	s_asset_manager->icons_storage.next_slot = icon_slot.slot_index;
 	OSReleaseSRWLockWrite(&s_asset_manager->icons_storage.icon_lock);
 	return icon_slot;
+}
+
+static inline IconSlot LoadIconFromTexture(const RCommandList a_list, const RTexture a_texture)
+{
+	const IconSlot slot = GetIconSlotSpace();
+
+	CopyTextureInfo info{};
+	info.src = a_texture;
+	info.src_set_shader_visible = false;
+	info.dst = s_asset_manager->icons_storage.texture;
+	info.dst_set_shader_visible = true;
+
+	info.copy_info.layout = IMAGE_LAYOUT::TRANSFER_SRC;
+	info.copy_info.size_x = ICON_EXTENT.x;
+	info.copy_info.size_y = ICON_EXTENT.y;
+	info.copy_info.size_z = 1;
+	info.copy_info.base_array_layer = 0;
+	info.copy_info.mip_level = 0;
+	info.copy_info.layer_count = 1;
+	CopyTexture(a_list, info);
+
+	return slot;
+}
+
+static inline IconSlot LoadIconFromTextureBlit(const RCommandList a_list, const uint64_t a_transfer_value, void* a_pixels, const uint32_t a_x, const uint32_t a_y)
+{
+	CreateTextureInfo create_src_text;
+	create_src_text.name = "src icon blit image";
+	create_src_text.width = a_x;
+	create_src_text.height = a_y;
+	create_src_text.usage = IMAGE_USAGE::TEXTURE;	// TODO, make it sampled or something
+	create_src_text.format = IMAGE_FORMAT::RGBA8_SRGB;
+
+	CreateTextureInfo create_dst_text;
+	create_dst_text.name = "dst icon blit image";
+	create_dst_text.width = ICON_EXTENT.x;
+	create_dst_text.height = ICON_EXTENT.y;
+	create_dst_text.usage = IMAGE_USAGE::TEXTURE;
+	create_dst_text.format = IMAGE_FORMAT::RGBA8_SRGB;
+
+	const RTexture temp_src = CreateTexture(create_src_text);
+#pragma message "image leak here"
+	const RTexture temp_dst = CreateTexture(create_dst_text);
+
+	// we now do everything via a graphics command list
+	CommandPool& graphics_pool = GetGraphicsCommandPool();
+	const RCommandList graphics_list = graphics_pool.StartCommandList("icon blit task");
+
+	WriteTextureInfo write_icon_info;
+	write_icon_info.extent = uint2(a_x, a_y);
+	write_icon_info.offset = int2(0, 0);
+	write_icon_info.pixels = a_pixels;
+	write_icon_info.set_shader_visible = false;
+	WriteTexture(graphics_list, temp_src, write_icon_info, a_transfer_value);
+
+	BlitTextureInfo blit_info;
+	blit_info.src = temp_src;
+	blit_info.src_point_0 = int2(0, 0);
+	blit_info.src_point_1 = int2(static_cast<int>(a_x), static_cast<int>(a_y));
+	blit_info.src_set_shader_visible = false;
+	blit_info.dst = temp_dst;
+	blit_info.dst_point_0 = int2(0, 0);
+	blit_info.dst_point_1 = int2(static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
+	blit_info.dst_set_shader_visible = false;
+	BlitTexture(graphics_list, blit_info);
+
+
+	graphics_pool.EndCommandList(graphics_list);
+	uint64_t task_fence_value;
+	ExecuteGraphicCommands(Slice(&graphics_pool, 1), task_fence_value);
+	GPUWaitIdle();	// TODO, use fence value
+
+	const IconSlot slot = LoadIconFromTexture(a_list, temp_dst);
+
+	return slot;
 }
 
 static inline IconSlot LoadIconFromPath(const StringView a_icon_path, const RCommandList a_list, const uint64_t a_transfer_value)
@@ -304,8 +379,7 @@ static inline IconSlot LoadIconFromPath(const StringView a_icon_path, const RCom
 
 	if (!pixels || x != static_cast<int>(ICON_EXTENT.x) || y != static_cast<int>(ICON_EXTENT.y))
 	{
-		BB_ASSERT(false, "failed to load image!");
-		return IconSlot{};
+		return LoadIconFromTextureBlit(a_list, a_transfer_value, pixels, static_cast<uint32_t>(x), static_cast<uint32_t>(y));
 	}
 
 	const IconSlot slot = GetIconSlotSpace();
@@ -1130,7 +1204,32 @@ void Asset::ShowAssetMenu(MemoryArena& a_arena)
 							path_search.RecalculateStringSize();
 							if (IsPathImage(path_search.GetView()))
 							{
-								//LoadIconFromPath(path_search.GetView(), ); // batch this?
+								CommandPool& pool = GetTransferCommandPool();
+								const RCommandList list = pool.StartCommandList("set new icon task");
+								const uint64_t transfer_fence_value = GetNextAssetTransferFenceValueAndIncrement();
+								slot->icon = LoadIconFromPath(path_search.GetView(), list, transfer_fence_value);
+
+								GPUBufferCreateInfo readback_buff;
+								readback_buff.name = "icon readback";
+								readback_buff.size = static_cast<size_t>(ICON_EXTENT.x * ICON_EXTENT.y) * 4; // 4 color channels
+								readback_buff.host_writable = true;
+								readback_buff.type = BUFFER_TYPE::READBACK;
+								const GPUBuffer readback = CreateGPUBuffer(readback_buff);
+
+								const int2 read_offset(static_cast<int>(slot->icon.slot_index * ICON_EXTENT_F.x), 0);
+
+								BB_ASSERT(ReadTexture(list, s_asset_manager->icons_storage.texture, ICON_EXTENT, read_offset, readback, readback_buff.size), "failed to read texture");
+
+								pool.EndCommandList(list);
+								ExecuteAssetTransfer(Slice(&pool, 1), transfer_fence_value);
+								GPUWaitIdle();
+								
+								const void* mapped = MapGPUBuffer(readback);
+								StackString<MAX_PATH_SIZE> icon_name = GetIconPath(StringView(slot->name));
+								BB_WARNING(WriteImage(icon_name.c_str(), ICON_EXTENT.x, ICON_EXTENT.y, 4, mapped), "failed to write icon image to disk", WarningType::MEDIUM);
+								UnmapGPUBuffer(readback);
+
+								FreeGPUBuffer(readback);
 							}
 						}
 					}
@@ -1140,7 +1239,7 @@ void Asset::ShowAssetMenu(MemoryArena& a_arena)
 					const float slot_size_in_float = static_cast<float>(ICON_EXTENT.x) / icons_texture_width;
 
 					const ImVec2 uv0(slot_size_in_float * static_cast<float>(slot->icon.slot_index), 9);
-					const ImVec2 uv1(slot_size_in_float * static_cast<float>(slot->icon.slot_index + 1), static_cast<float>(ICON_EXTENT.y));
+					const ImVec2 uv1(uv0.x + slot_size_in_float, static_cast<float>(ICON_EXTENT.y));
 
 					ImGui::Image(s_asset_manager->icons_storage.texture.handle, ImVec2(ICON_EXTENT_F.x, ICON_EXTENT_F.y), uv0, uv1);
 				}

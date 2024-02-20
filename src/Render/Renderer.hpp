@@ -184,10 +184,20 @@ namespace BB
 		bool dst_set_shader_visible;
 	};
 
+	struct CopyTextureInfo
+	{
+		RTexture src;
+		bool src_set_shader_visible;
+		RTexture dst;
+		bool dst_set_shader_visible;
+		ImageCopyInfo copy_info;
+	};
+
 	void BlitTexture(const RCommandList a_list, const BlitTextureInfo& a_blit_info);
+	void CopyTexture(const RCommandList a_list, const CopyTextureInfo& a_copy_info);
 	void WriteTexture(const RCommandList a_list, const RTexture a_texture, const WriteTextureInfo& a_write_info, const uint64_t a_transfer_fence_value);
 	void FreeTexture(const RTexture a_texture);
-	bool ReadTexture(MemoryArena& a_arena, const RCommandList a_cmd_list, const RTexture a_texture, const GPUBuffer a_readback_buffer, const size_t a_readback_buffer_size, void*& a_readback_buffer_mem);
+	bool ReadTexture(const RCommandList a_cmd_list, const RTexture a_texture, const uint2 a_extent, const int2 a_offset, const GPUBuffer a_readback_buffer, const size_t a_readback_buffer_size);
 
 	const GPUBuffer CreateGPUBuffer(const GPUBufferCreateInfo& a_create_info);
 	void FreeGPUBuffer(const GPUBuffer a_buffer);

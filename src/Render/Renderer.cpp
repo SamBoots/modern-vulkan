@@ -2126,7 +2126,8 @@ bool BB::ExecuteAssetTransfer(const BB::Slice<CommandPool> a_cmd_pools, const ui
 	}
 
 	s_render_inst->transfer_queue.ReturnPools(a_cmd_pools);
-	s_render_inst->transfer_queue.ExecuteCommands(lists, list_count, &s_render_inst->asset_upload_fence, &a_asset_transfer_fence_value, 1, nullptr, nullptr, 0);
+	uint64_t mock_fence;
+	s_render_inst->transfer_queue.ExecuteCommands(lists, list_count, &s_render_inst->asset_upload_fence, &a_asset_transfer_fence_value, 1, nullptr, nullptr, 0, mock_fence);
 	return true;
 }
 
@@ -2558,6 +2559,156 @@ void BB::BlitTexture(const RCommandList a_list, const BlitTextureInfo& a_blit_in
 	}
 }
 
+void BB::CopyTexture(const RCommandList a_list, const CopyTextureInfo& a_copy_info)
+{
+	GPUTextureManager::TextureSlot& src_texture = s_render_inst->texture_manager.GetTextureSlot(a_copy_info.src);
+	GPUTextureManager::TextureSlot& dst_texture = s_render_inst->texture_manager.GetTextureSlot(a_copy_info.dst);
+
+	uint32_t image_barrier_count = 0;
+	PipelineBarrierImageInfo pipeline_barriers[2];
+	if (src_texture.texture_info.current_layout != IMAGE_LAYOUT::TRANSFER_SRC)
+	{
+		pipeline_barriers[image_barrier_count].src_mask = BARRIER_ACCESS_MASK::NONE;
+		pipeline_barriers[image_barrier_count].dst_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
+		pipeline_barriers[image_barrier_count].image = src_texture.texture_info.image;
+		pipeline_barriers[image_barrier_count].old_layout = src_texture.texture_info.current_layout;
+		pipeline_barriers[image_barrier_count].new_layout = IMAGE_LAYOUT::TRANSFER_SRC;
+		pipeline_barriers[image_barrier_count].src_queue = QUEUE_TRANSITION::NO_TRANSITION;
+		pipeline_barriers[image_barrier_count].dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
+		pipeline_barriers[image_barrier_count].layer_count = 1;
+		pipeline_barriers[image_barrier_count].level_count = 1;
+		pipeline_barriers[image_barrier_count].base_array_layer = 0;
+		pipeline_barriers[image_barrier_count].base_mip_level = 0;
+		pipeline_barriers[image_barrier_count].src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
+		pipeline_barriers[image_barrier_count].dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
+		++image_barrier_count;
+	}
+
+	if (dst_texture.texture_info.current_layout != IMAGE_LAYOUT::TRANSFER_DST)
+	{
+		pipeline_barriers[image_barrier_count].src_mask = BARRIER_ACCESS_MASK::NONE;
+		pipeline_barriers[image_barrier_count].dst_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
+		pipeline_barriers[image_barrier_count].image = dst_texture.texture_info.image;
+		pipeline_barriers[image_barrier_count].old_layout = dst_texture.texture_info.current_layout;
+		pipeline_barriers[image_barrier_count].new_layout = IMAGE_LAYOUT::TRANSFER_DST;
+		pipeline_barriers[image_barrier_count].src_queue = QUEUE_TRANSITION::NO_TRANSITION;
+		pipeline_barriers[image_barrier_count].dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
+		pipeline_barriers[image_barrier_count].layer_count = 1;
+		pipeline_barriers[image_barrier_count].level_count = 1;
+		pipeline_barriers[image_barrier_count].base_array_layer = 0;
+		pipeline_barriers[image_barrier_count].base_mip_level = 0;
+		pipeline_barriers[image_barrier_count].src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
+		pipeline_barriers[image_barrier_count].dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
+		++image_barrier_count;
+	}
+
+	if (image_barrier_count)
+	{
+		PipelineBarrierInfo pipeline_info{};
+		pipeline_info.image_info_count = image_barrier_count;
+		pipeline_info.image_infos = pipeline_barriers;
+		Vulkan::PipelineBarriers(a_list, pipeline_info);
+	}
+
+	RenderCopyImage render_copy_image;
+	render_copy_image.src_image = src_texture.texture_info.image;
+	render_copy_image.dst_image = dst_texture.texture_info.image;
+	render_copy_image.copy_info = a_copy_info.copy_info;
+	Vulkan::CopyImage(a_list, render_copy_image);
+
+	if (a_copy_info.src_set_shader_visible)
+	{
+		PipelineBarrierImageInfo image_shader_transition;
+		image_shader_transition.src_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
+		image_shader_transition.dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
+		image_shader_transition.image = src_texture.texture_info.image;
+		image_shader_transition.old_layout = IMAGE_LAYOUT::TRANSFER_SRC;
+		image_shader_transition.new_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+		image_shader_transition.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
+		image_shader_transition.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
+		image_shader_transition.layer_count = 1;
+		image_shader_transition.level_count = 1;
+		image_shader_transition.base_array_layer = 0;
+		image_shader_transition.base_mip_level = 0;
+		image_shader_transition.src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
+		image_shader_transition.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
+
+		WriteDescriptorData write_data{};
+		write_data.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
+		write_data.descriptor_index = a_copy_info.src.handle;
+		write_data.type = DESCRIPTOR_TYPE::IMAGE;
+		write_data.image_view.view = src_texture.texture_info.view;
+		write_data.image_view.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+
+		s_render_inst->texture_manager.AddGraphicsTransition(image_shader_transition, write_data);
+
+		src_texture.texture_info.current_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+	}
+	else
+	{	// descriptor is in the transfer layout
+		WriteDescriptorData write_data{};
+		write_data.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
+		write_data.descriptor_index = a_copy_info.src.handle;
+		write_data.type = DESCRIPTOR_TYPE::IMAGE;
+		write_data.image_view.view = src_texture.texture_info.view;
+		write_data.image_view.layout = IMAGE_LAYOUT::TRANSFER_SRC;
+
+		WriteDescriptorInfos image_write_info{};
+		image_write_info.allocation = s_render_inst->global_descriptor_allocation;
+		image_write_info.descriptor_layout = s_render_inst->global_descriptor_set;
+		image_write_info.data = Slice(&write_data, 1);
+		Vulkan::WriteDescriptors(image_write_info);
+
+		src_texture.texture_info.current_layout = IMAGE_LAYOUT::TRANSFER_SRC;
+	}
+
+	if (a_copy_info.dst_set_shader_visible)
+	{
+		PipelineBarrierImageInfo image_shader_transition;
+		image_shader_transition.src_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
+		image_shader_transition.dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
+		image_shader_transition.image = dst_texture.texture_info.image;
+		image_shader_transition.old_layout = IMAGE_LAYOUT::TRANSFER_DST;
+		image_shader_transition.new_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+		image_shader_transition.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
+		image_shader_transition.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
+		image_shader_transition.layer_count = 1;
+		image_shader_transition.level_count = 1;
+		image_shader_transition.base_array_layer = 0;
+		image_shader_transition.base_mip_level = 0;
+		image_shader_transition.src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
+		image_shader_transition.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
+
+		WriteDescriptorData write_data{};
+		write_data.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
+		write_data.descriptor_index = a_copy_info.dst.handle;
+		write_data.type = DESCRIPTOR_TYPE::IMAGE;
+		write_data.image_view.view = dst_texture.texture_info.view;
+		write_data.image_view.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+
+		s_render_inst->texture_manager.AddGraphicsTransition(image_shader_transition, write_data);
+
+		dst_texture.texture_info.current_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+	}
+	else
+	{	// descriptor is in the transfer layout
+		WriteDescriptorData write_data{};
+		write_data.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
+		write_data.descriptor_index = a_copy_info.dst.handle;
+		write_data.type = DESCRIPTOR_TYPE::IMAGE;
+		write_data.image_view.view = dst_texture.texture_info.view;
+		write_data.image_view.layout = IMAGE_LAYOUT::TRANSFER_DST;
+
+		WriteDescriptorInfos image_write_info{};
+		image_write_info.allocation = s_render_inst->global_descriptor_allocation;
+		image_write_info.descriptor_layout = s_render_inst->global_descriptor_set;
+		image_write_info.data = Slice(&write_data, 1);
+		Vulkan::WriteDescriptors(image_write_info);
+
+		dst_texture.texture_info.current_layout = IMAGE_LAYOUT::TRANSFER_DST;
+	}
+}
+
 void BB::WriteTexture(const RCommandList a_list, const RTexture a_texture, const WriteTextureInfo& a_write_info, const uint64_t a_transfer_fence_value)
 {
 	GPUTextureManager::TextureSlot& texture_slot = s_render_inst->texture_manager.GetTextureSlot(a_texture);
@@ -2660,10 +2811,12 @@ void BB::FreeTexture(const RTexture a_texture)
 	return s_render_inst->texture_manager.FreeTexture(a_texture);
 }
 
-bool BB::ReadTexture(MemoryArena& a_arena, const RCommandList a_cmd_list, const RTexture a_texture, const GPUBuffer a_readback_buffer, const size_t a_readback_buffer_size, void*& a_readback_buffer_mem)
+bool BB::ReadTexture(const RCommandList a_cmd_list, const RTexture a_texture, const uint2 a_extent, const int2 a_offset, const GPUBuffer a_readback_buffer, const size_t a_readback_buffer_size)
 {
 	const GPUTextureManager::TextureSlot& selected_texture = s_render_inst->texture_manager.GetTextureSlot(a_texture);
 	BB_ASSERT(selected_texture.texture_info.format == SCREENSHOT_IMAGE_FORMAT, "image format is not SRGB, image write may not be successful");
+	BB_ASSERT(selected_texture.texture_info.width >= a_extent.x + a_offset.x, "a_extent.x and a_offset.x go over bounds!");
+	BB_ASSERT(selected_texture.texture_info.height >= a_extent.y + a_offset.y, "a_extent.y and a_offset.y go over bounds!");
 
 	const IMAGE_LAYOUT original_layout = selected_texture.texture_info.current_layout;
 	constexpr IMAGE_LAYOUT transfer_layout = IMAGE_LAYOUT::TRANSFER_SRC;
@@ -2691,11 +2844,11 @@ bool BB::ReadTexture(MemoryArena& a_arena, const RCommandList a_cmd_list, const 
 	}
 
 	const size_t image_size =
-		static_cast<size_t>(selected_texture.texture_info.width) *
-		static_cast<size_t>(selected_texture.texture_info.height) *
+		static_cast<size_t>(a_extent.x) *
+		static_cast<size_t>(a_extent.y) *
 		SCREENSHOT_IMAGE_PIXEL_BYTE_SIZE;
 
-	BB_ASSERT(image_size < a_readback_buffer_size, "readback buffer too small");
+	BB_ASSERT(image_size <= a_readback_buffer_size, "readback buffer too small");
 
 	{
 		RenderCopyImageToBufferInfo image_to_buffer;
@@ -2703,11 +2856,11 @@ bool BB::ReadTexture(MemoryArena& a_arena, const RCommandList a_cmd_list, const 
 		image_to_buffer.dst_offset = 0; // change this if i have a global readback buffer thing
 
 		image_to_buffer.src_image = selected_texture.texture_info.image;
-		image_to_buffer.src_image_info.size_x = selected_texture.texture_info.width;
-		image_to_buffer.src_image_info.size_y = selected_texture.texture_info.height;
+		image_to_buffer.src_image_info.size_x = a_extent.x;
+		image_to_buffer.src_image_info.size_y = a_extent.y;
 		image_to_buffer.src_image_info.size_z = 1;
-		image_to_buffer.src_image_info.offset_x = 0;
-		image_to_buffer.src_image_info.offset_y = 0;
+		image_to_buffer.src_image_info.offset_x = a_offset.x;
+		image_to_buffer.src_image_info.offset_y = a_offset.y;
 		image_to_buffer.src_image_info.offset_z = 0;
 		image_to_buffer.src_image_info.layout = IMAGE_LAYOUT::TRANSFER_SRC;
 		image_to_buffer.src_image_info.mip_level = 0;
