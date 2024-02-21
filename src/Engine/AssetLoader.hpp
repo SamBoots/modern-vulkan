@@ -111,6 +111,8 @@ namespace BB
 
 		void InitializeAssetManager(const AssetManagerInitInfo& a_init_info);
 
+		void Update();
+
 		const char* FindOrCreateString(const char* a_string);
 		const char* FindOrCreateString(const char* a_string, const size_t a_string_size);
 

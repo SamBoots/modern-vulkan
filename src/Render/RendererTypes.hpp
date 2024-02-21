@@ -163,12 +163,14 @@ namespace BB
 		uint32_t src_offset;
 
 		RImage dst_image;
+		uint3 dst_extent;
 		ImageCopyInfo dst_image_info;
 	};
 
 	struct RenderCopyImageToBufferInfo
 	{
 		RImage src_image;
+		uint3 src_extent;
 		ImageCopyInfo src_image_info;
 
 		GPUBuffer dst_buffer;
@@ -177,9 +179,11 @@ namespace BB
 
 	struct RenderCopyImage
 	{
+		uint3 extent;
 		RImage src_image;
+		ImageCopyInfo src_copy_info;
 		RImage dst_image;
-		ImageCopyInfo copy_info;
+		ImageCopyInfo dst_copy_info;
 	};
 
 	struct BlitImageInfo

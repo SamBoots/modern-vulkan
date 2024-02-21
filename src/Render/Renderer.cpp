@@ -1124,13 +1124,10 @@ void GPUTextureManager::Init(MemoryArena& a_arena, const RCommandList a_list, co
 		buffer_to_image.src_offset = static_cast<uint32_t>(upload_buffer.base_offset);
 
 		buffer_to_image.dst_image = m_debug_texture.image;
-		buffer_to_image.dst_image_info.size_x = 1;
-		buffer_to_image.dst_image_info.size_y = 1;
-		buffer_to_image.dst_image_info.size_z = 1;
+		buffer_to_image.dst_extent = uint3(1u, 1u, 1u);
 		buffer_to_image.dst_image_info.offset_x = 0;
 		buffer_to_image.dst_image_info.offset_y = 0;
 		buffer_to_image.dst_image_info.offset_z = 0;
-		buffer_to_image.dst_image_info.layout = IMAGE_LAYOUT::TRANSFER_DST;
 		buffer_to_image.dst_image_info.mip_level = 0;
 		buffer_to_image.dst_image_info.layer_count = 1;
 		buffer_to_image.dst_image_info.base_array_layer = 0;
@@ -2398,6 +2395,14 @@ const RTexture BB::CreateTexture(const CreateTextureInfo& a_create_info)
 	return s_render_inst->texture_manager.SetTextureSlot(tex_info, a_create_info.name);
 }
 
+static inline bool IsImageWithinBounds(const GPUTextureManager::TextureSlot& a_slot, const uint2 a_extent, const int2 a_offset)
+{
+	if (a_slot.texture_info.width >= a_extent.x + static_cast<uint32_t>(a_offset.x) &&
+		a_slot.texture_info.height >= a_extent.y + static_cast<uint32_t>(a_offset.y))
+		return true;
+	return false;
+}
+
 void BB::BlitTexture(const RCommandList a_list, const BlitTextureInfo& a_blit_info)
 {
 	GPUTextureManager::TextureSlot& src_texture = s_render_inst->texture_manager.GetTextureSlot(a_blit_info.src);
@@ -2564,6 +2569,9 @@ void BB::CopyTexture(const RCommandList a_list, const CopyTextureInfo& a_copy_in
 	GPUTextureManager::TextureSlot& src_texture = s_render_inst->texture_manager.GetTextureSlot(a_copy_info.src);
 	GPUTextureManager::TextureSlot& dst_texture = s_render_inst->texture_manager.GetTextureSlot(a_copy_info.dst);
 
+	BB_ASSERT(IsImageWithinBounds(src_texture, uint2(a_copy_info.extent.x, a_copy_info.extent.y), int2(a_copy_info.src_copy_info.offset_x, a_copy_info.src_copy_info.offset_y)), "src image out of bounds");
+	BB_ASSERT(IsImageWithinBounds(dst_texture, uint2(a_copy_info.extent.x, a_copy_info.extent.y), int2(a_copy_info.dst_copy_info.offset_x, a_copy_info.dst_copy_info.offset_y)), "dst image out of bounds");
+
 	uint32_t image_barrier_count = 0;
 	PipelineBarrierImageInfo pipeline_barriers[2];
 	if (src_texture.texture_info.current_layout != IMAGE_LAYOUT::TRANSFER_SRC)
@@ -2611,9 +2619,11 @@ void BB::CopyTexture(const RCommandList a_list, const CopyTextureInfo& a_copy_in
 	}
 
 	RenderCopyImage render_copy_image;
+	render_copy_image.extent = a_copy_info.extent;
 	render_copy_image.src_image = src_texture.texture_info.image;
+	render_copy_image.src_copy_info = a_copy_info.src_copy_info;
 	render_copy_image.dst_image = dst_texture.texture_info.image;
-	render_copy_image.copy_info = a_copy_info.copy_info;
+	render_copy_image.dst_copy_info = a_copy_info.dst_copy_info;
 	Vulkan::CopyImage(a_list, render_copy_image);
 
 	if (a_copy_info.src_set_shader_visible)
@@ -2712,7 +2722,8 @@ void BB::CopyTexture(const RCommandList a_list, const CopyTextureInfo& a_copy_in
 void BB::WriteTexture(const RCommandList a_list, const RTexture a_texture, const WriteTextureInfo& a_write_info, const uint64_t a_transfer_fence_value)
 {
 	GPUTextureManager::TextureSlot& texture_slot = s_render_inst->texture_manager.GetTextureSlot(a_texture);
-
+	BB_ASSERT(IsImageWithinBounds(texture_slot, a_write_info.extent, a_write_info.offset), "write image out of bounds");
+	
 	if (texture_slot.texture_info.current_layout != IMAGE_LAYOUT::TRANSFER_DST)
 	{
 		PipelineBarrierImageInfo image_write_transition;
@@ -2746,13 +2757,12 @@ void BB::WriteTexture(const RCommandList a_list, const RTexture a_texture, const
 	buffer_to_image.src_offset = static_cast<uint32_t>(upload_buffer.base_offset);
 
 	buffer_to_image.dst_image = texture_slot.texture_info.image;
-	buffer_to_image.dst_image_info.size_x = a_write_info.extent.x;
-	buffer_to_image.dst_image_info.size_y = a_write_info.extent.y;
-	buffer_to_image.dst_image_info.size_z = 1;
+	buffer_to_image.dst_extent.x = a_write_info.extent.x;
+	buffer_to_image.dst_extent.y = a_write_info.extent.y;
+	buffer_to_image.dst_extent.z = 1;
 	buffer_to_image.dst_image_info.offset_x = a_write_info.offset.x;
 	buffer_to_image.dst_image_info.offset_y = a_write_info.offset.y;
 	buffer_to_image.dst_image_info.offset_z = 0;
-	buffer_to_image.dst_image_info.layout = IMAGE_LAYOUT::TRANSFER_DST;
 	buffer_to_image.dst_image_info.mip_level = 0;
 	buffer_to_image.dst_image_info.layer_count = 1;
 	buffer_to_image.dst_image_info.base_array_layer = 0;
@@ -2815,8 +2825,7 @@ bool BB::ReadTexture(const RCommandList a_cmd_list, const RTexture a_texture, co
 {
 	const GPUTextureManager::TextureSlot& selected_texture = s_render_inst->texture_manager.GetTextureSlot(a_texture);
 	BB_ASSERT(selected_texture.texture_info.format == SCREENSHOT_IMAGE_FORMAT, "image format is not SRGB, image write may not be successful");
-	BB_ASSERT(selected_texture.texture_info.width >= a_extent.x + a_offset.x, "a_extent.x and a_offset.x go over bounds!");
-	BB_ASSERT(selected_texture.texture_info.height >= a_extent.y + a_offset.y, "a_extent.y and a_offset.y go over bounds!");
+	BB_ASSERT(IsImageWithinBounds(selected_texture, a_extent, a_offset), "reading texture out of bounds!");
 
 	const IMAGE_LAYOUT original_layout = selected_texture.texture_info.current_layout;
 	constexpr IMAGE_LAYOUT transfer_layout = IMAGE_LAYOUT::TRANSFER_SRC;
@@ -2856,13 +2865,12 @@ bool BB::ReadTexture(const RCommandList a_cmd_list, const RTexture a_texture, co
 		image_to_buffer.dst_offset = 0; // change this if i have a global readback buffer thing
 
 		image_to_buffer.src_image = selected_texture.texture_info.image;
-		image_to_buffer.src_image_info.size_x = a_extent.x;
-		image_to_buffer.src_image_info.size_y = a_extent.y;
-		image_to_buffer.src_image_info.size_z = 1;
+		image_to_buffer.src_extent.x = a_extent.x;
+		image_to_buffer.src_extent.y = a_extent.y;
+		image_to_buffer.src_extent.z = 1;
 		image_to_buffer.src_image_info.offset_x = a_offset.x;
 		image_to_buffer.src_image_info.offset_y = a_offset.y;
 		image_to_buffer.src_image_info.offset_z = 0;
-		image_to_buffer.src_image_info.layout = IMAGE_LAYOUT::TRANSFER_SRC;
 		image_to_buffer.src_image_info.mip_level = 0;
 		image_to_buffer.src_image_info.layer_count = 1;
 		image_to_buffer.src_image_info.base_array_layer = 0;

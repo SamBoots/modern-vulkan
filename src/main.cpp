@@ -553,6 +553,8 @@ int main(int argc, char** argv)
 		CommandPool graphics_command_pools[2]{ GetGraphicsCommandPool(), GetGraphicsCommandPool() };
 		const RCommandList main_list = graphics_command_pools[0].StartCommandList();
 
+		Asset::Update();
+
 		StartFrame(main_list);
 
 		for (size_t i = 0; i < input_event_count; i++)

@@ -271,6 +271,9 @@ namespace BB
 
 	union uint3
 	{
+		constexpr uint3() : x(0), y(0), z(0) {}
+		constexpr uint3(const unsigned int a_value) : x(a_value), y(a_value), z(a_value) {}
+		constexpr uint3(const unsigned int a_x, const unsigned int a_y, const unsigned int a_z) : x(a_x), y(a_y), z(a_z) {}
 		unsigned int e[3];
 		struct
 		{

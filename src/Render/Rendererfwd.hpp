@@ -154,18 +154,12 @@ namespace BB
 
 	struct ImageCopyInfo
 	{
-		uint32_t size_x;
-		uint32_t size_y;
-		uint32_t size_z;
-
 		int32_t offset_x;
 		int32_t offset_y;
 		int32_t offset_z;
 
-		uint16_t mip_level;
+		uint32_t mip_level;
 		uint16_t base_array_layer;
 		uint16_t layer_count;
-
-		IMAGE_LAYOUT layout;
 	};
 }

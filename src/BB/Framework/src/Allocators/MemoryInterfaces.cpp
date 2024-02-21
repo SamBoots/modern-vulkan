@@ -6,6 +6,8 @@ using namespace BB;
 void FreelistInterface::Initialize(MemoryArena& a_arena, size_t a_memory_size)
 {
 	m_free_blocks = reinterpret_cast<FreeBlock*>(ArenaAlloc(a_arena, a_memory_size, 16));
+	m_free_blocks->size = a_memory_size;
+	m_free_blocks->next = nullptr;
 	m_memory_size = a_memory_size;
 }
 

@@ -234,8 +234,8 @@ static void AddGPUTask(const PFN_GPUTaskCallback a_callback, const T& a_params, 
 	GPUTask task;
 	task.transfer_value = a_fence_value;
 	task.callback = a_callback;
-	task.params = param = s_asset_manager->gpu_task_arena.Alloc(sizeof(T));
-	memcpy(task.params, &a_params, sizeof(T));
+	task.params = s_asset_manager->gpu_task_arena.Alloc(sizeof(T), alignof(T));
+	*reinterpret_cast<T*>(task.params) = a_params;
 	s_asset_manager->gpu_tasks_queue.EnQueue(task);
 	OSReleaseSRWLockWrite(&s_asset_manager->gpu_task_lock);
 }
@@ -246,12 +246,13 @@ static void ExecuteGPUTasks()
 
 	OSAcquireSRWLockWrite(&s_asset_manager->gpu_task_lock);
 	const GPUTask* task = s_asset_manager->gpu_tasks_queue.Peek();
-	while (task || task->transfer_value <= fence_value)
+	while (task && task->transfer_value <= fence_value)
 	{
 		task->callback(task->params);
 		// free the param memory
 		s_asset_manager->gpu_task_arena.Free(task->params);
 		s_asset_manager->gpu_tasks_queue.DeQueue();
+		task = s_asset_manager->gpu_tasks_queue.Peek();
 	}
 	OSReleaseSRWLockWrite(&s_asset_manager->gpu_task_lock);
 }
@@ -274,10 +275,18 @@ static inline void GetAssetNameFromPath(const char* a_path, const char*& a_out_n
 	a_out_size = name_end - name_start - 1;
 }
 
-static inline StackString<MAX_PATH_SIZE> GetIconPath(const StringView asset_name)
+static inline StackString<MAX_PATH_SIZE> GetIconPathFromIconName(const StringView a_icon_name)
 {
 	StackString<MAX_PATH_SIZE> icon_path(ICON_DIRECTORY);
-	icon_path.append(GetAssetIconName(asset_name));
+	icon_path.append(a_icon_name.c_str(), a_icon_name.size());
+	icon_path.append(".png");
+	return icon_path;
+}
+
+static inline StackString<MAX_PATH_SIZE> GetIconPathFromAssetName(const StringView a_asset_name)
+{
+	StackString<MAX_PATH_SIZE> icon_path(ICON_DIRECTORY);
+	icon_path.append(GetAssetIconName(a_asset_name));
 	icon_path.append(".png");
 	return icon_path;
 }
@@ -297,7 +306,7 @@ static inline IconSlot GetIconSlotSpace()
 	return icon_slot;
 }
 
-static inline IconSlot LoadIconFromTexture(const RCommandList a_list, const RTexture a_texture)
+static inline IconSlot LoadIconFromTexture(const RCommandList a_list, const RTexture a_texture, const bool a_set_icons_shader_visible)
 {
 	const IconSlot slot = GetIconSlotSpace();
 
@@ -305,22 +314,26 @@ static inline IconSlot LoadIconFromTexture(const RCommandList a_list, const RTex
 	info.src = a_texture;
 	info.src_set_shader_visible = false;
 	info.dst = s_asset_manager->icons_storage.texture;
-	info.dst_set_shader_visible = true;
+	info.dst_set_shader_visible = a_set_icons_shader_visible;
 
-	info.copy_info.layout = IMAGE_LAYOUT::TRANSFER_SRC;
-	info.copy_info.size_x = ICON_EXTENT.x;
-	info.copy_info.size_y = ICON_EXTENT.y;
-	info.copy_info.size_z = 1;
-	info.copy_info.offset_y = ICON_EXTENT.x * slot.slot_index;
-	info.copy_info.base_array_layer = 0;
-	info.copy_info.mip_level = 0;
-	info.copy_info.layer_count = 1;
+	info.extent.x = ICON_EXTENT.x;
+	info.extent.y = ICON_EXTENT.y;
+	info.extent.z = 1;
+
+	info.src_copy_info.base_array_layer = 0;
+	info.src_copy_info.mip_level = 0;
+	info.src_copy_info.layer_count = 1;
+
+	info.dst_copy_info.offset_x = static_cast<int>(ICON_EXTENT.x * slot.slot_index);
+	info.dst_copy_info.base_array_layer = 0;
+	info.dst_copy_info.mip_level = 0;
+	info.dst_copy_info.layer_count = 1;
 	CopyTexture(a_list, info);
 
 	return slot;
 }
 
-static inline IconSlot LoadIconFromTextureBlit(const RCommandList a_list, const uint64_t a_transfer_value, void* a_pixels, const uint32_t a_x, const uint32_t a_y)
+static inline IconSlot LoadIconFromTextureBlit(const RCommandList a_list, const uint64_t a_transfer_value, void* a_pixels, const uint32_t a_x, const uint32_t a_y, const bool a_set_icons_shader_visible)
 {
 	CreateTextureInfo create_src_text;
 	create_src_text.name = "src icon blit image";
@@ -368,19 +381,60 @@ static inline IconSlot LoadIconFromTextureBlit(const RCommandList a_list, const 
 	ExecuteGraphicCommands(Slice(&graphics_pool, 1), task_fence_value);
 	GPUWaitIdle();	// TODO, use fence value
 
-	const IconSlot slot = LoadIconFromTexture(a_list, temp_dst);
+	FreeTexture(temp_src);
+
+	const IconSlot slot = LoadIconFromTexture(a_list, temp_dst, a_set_icons_shader_visible);
 
 	return slot;
 }
 
-static inline IconSlot LoadIconFromPath(const StringView a_icon_path, const RCommandList a_list, const uint64_t a_transfer_value)
+struct IconWriteToDisk_params
+{
+	GPUBuffer readback;
+	uint2 image_extent;
+	StackString<MAX_PATH_SIZE> write_path;
+};
+
+static inline void IconWriteToDisk_impl(const void* a_params)
+{
+	const IconWriteToDisk_params* params = reinterpret_cast<const IconWriteToDisk_params*>(a_params);
+
+	const void* mapped = MapGPUBuffer(params->readback);
+	BB_WARNING(Asset::WriteImage(params->write_path.c_str(), params->image_extent.x, params->image_extent.y, 4, mapped), "failed to write icon image to disk", WarningType::MEDIUM);
+	UnmapGPUBuffer(params->readback);
+	FreeGPUBuffer(params->readback);
+}
+
+static inline bool IconWriteToDisk(const RCommandList a_list, const uint64_t a_fence_value,const IconSlot a_slot, const StackString<MAX_PATH_SIZE>& a_icon_name)
+{
+	GPUBufferCreateInfo readback_buff;
+	readback_buff.name = "icon readback";
+	readback_buff.size = static_cast<size_t>(ICON_EXTENT.x * ICON_EXTENT.y) * 4; // 4 color channels
+	readback_buff.host_writable = true;
+	readback_buff.type = BUFFER_TYPE::READBACK;
+	const GPUBuffer readback = CreateGPUBuffer(readback_buff);
+
+	const int2 read_offset(static_cast<int>(a_slot.slot_index * ICON_EXTENT.x), 0);
+
+	BB_ASSERT(ReadTexture(a_list, s_asset_manager->icons_storage.texture, ICON_EXTENT, read_offset, readback, readback_buff.size), "failed to read texture");
+
+	IconWriteToDisk_params params;
+	params.readback = readback;
+	params.image_extent = ICON_EXTENT;
+	params.write_path = a_icon_name;
+
+	AddGPUTask(IconWriteToDisk_impl, params, a_fence_value);
+	return true;
+}
+
+static inline IconSlot LoadIconFromPath(const StringView a_icon_path, const RCommandList a_list, const uint64_t a_transfer_value, const bool a_set_icons_shader_visible)
 {
 	int x = 0, y = 0, channels = 0;
 	stbi_uc* pixels = stbi_load(a_icon_path.c_str(), &x, &y, &channels, 4);
 
 	if (!pixels || x != static_cast<int>(ICON_EXTENT.x) || y != static_cast<int>(ICON_EXTENT.y))
 	{
-		return LoadIconFromTextureBlit(a_list, a_transfer_value, pixels, static_cast<uint32_t>(x), static_cast<uint32_t>(y));
+		return LoadIconFromTextureBlit(a_list, a_transfer_value, pixels, static_cast<uint32_t>(x), static_cast<uint32_t>(y), a_set_icons_shader_visible);
 	}
 
 	const IconSlot slot = GetIconSlotSpace();
@@ -468,6 +522,7 @@ void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
 	s_asset_manager->linear_asset_table.Init(s_asset_manager->asset_arena, a_init_info.asset_count);
 	s_asset_manager->string_table.Init(s_asset_manager->asset_arena, a_init_info.string_entry_count);
 
+	s_asset_manager->gpu_task_lock = OSCreateRWLock();
 	s_asset_manager->gpu_task_arena.Initialize(s_asset_manager->asset_arena, mbSize * 64);
 	s_asset_manager->gpu_tasks_queue.Init(s_asset_manager->asset_arena, GPU_TASK_QUEUE_SIZE);
 
@@ -499,6 +554,11 @@ void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
 	// create some directories for files we are going to write
 	if (!OSDirectoryExist(ICON_DIRECTORY))
 		BB_ASSERT(OSCreateDirectory(ICON_DIRECTORY), "failed to create ICON directory");
+}
+
+void Asset::Update()
+{
+	ExecuteGPUTasks();
 }
 
 const char* Asset::FindOrCreateString(const char* a_string)
@@ -658,14 +718,15 @@ const Image* Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path,
 	asset.image = image;
 	asset.name = image_name;
 
-	StackString<MAX_PATH_SIZE> icon_path = GetIconPath(asset.name);
+	StackString<MAX_PATH_SIZE> icon_path = GetIconPathFromAssetName(asset.name);
 	if (OSFileExist(icon_path.c_str()))
-		asset.icon = LoadIconFromPath(icon_path.GetView(), a_list, a_transfer_fence_value);
+		asset.icon = LoadIconFromPath(icon_path.GetView(), a_list, a_transfer_fence_value, true);
 	else
 	{
-		asset.icon = IconSlot();
-		// ALSO WRITE IMAGE, for later.
+		asset.icon = LoadIconFromTexture(a_list, asset.image->gpu_image, true);
+		IconWriteToDisk(a_list, a_transfer_fence_value, asset.icon, icon_path);
 	}
+
 
 
 	AddElementToAssetTable(asset);
@@ -735,13 +796,13 @@ const Image* Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage
 	asset.name = a_name;
 
 
-	StackString<MAX_PATH_SIZE> icon_path = GetIconPath(asset.name);
+	StackString<MAX_PATH_SIZE> icon_path = GetIconPathFromAssetName(asset.name);
 	if (OSFileExist(icon_path.c_str()))
-		asset.icon = LoadIconFromPath(icon_path.GetView(), a_list, a_transfer_fence_value);
+		asset.icon = LoadIconFromPath(icon_path.GetView(), a_list, a_transfer_fence_value, true);
 	else
 	{
-		asset.icon = IconSlot();
-		// ALSO WRITE IMAGE, for later.
+		asset.icon = LoadIconFromTexture(a_list, asset.image->gpu_image, true);
+		IconWriteToDisk(a_list, a_transfer_fence_value, asset.icon, icon_path);
 	}
 
 	AddElementToAssetTable(asset);
@@ -990,9 +1051,9 @@ const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 	asset.model = model;
 	asset.name = FindOrCreateString(asset_name, asset_name_size);
 
-	StackString<MAX_PATH_SIZE> icon_path = GetIconPath(asset.name);
+	StackString<MAX_PATH_SIZE> icon_path = GetIconPathFromAssetName(asset.name);
 	if (OSFileExist(icon_path.c_str()))
-		asset.icon = LoadIconFromPath(icon_path.GetView(), a_list, a_transfer_fence_value);
+		asset.icon = LoadIconFromPath(icon_path.GetView(), a_list, a_transfer_fence_value, true);
 	else
 	{
 		asset.icon = GetEmptyIconSlot();
@@ -1043,9 +1104,9 @@ const Model* Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoad
 	asset.model = model;
 	asset.name = a_mesh_op.name;
 
-	StackString<MAX_PATH_SIZE> icon_path = GetIconPath(asset.name);
+	StackString<MAX_PATH_SIZE> icon_path = GetIconPathFromAssetName(asset.name);
 	if (OSFileExist(icon_path.c_str()))
-		asset.icon = LoadIconFromPath(icon_path.GetView(), a_list, a_transfer_fence_value);
+		asset.icon = LoadIconFromPath(icon_path.GetView(), a_list, a_transfer_fence_value, true);
 	else
 	{
 		asset.icon = GetEmptyIconSlot();
@@ -1207,29 +1268,12 @@ void Asset::ShowAssetMenu(MemoryArena& a_arena)
 								CommandPool& pool = GetTransferCommandPool();
 								const RCommandList list = pool.StartCommandList("set new icon task");
 								const uint64_t transfer_fence_value = GetNextAssetTransferFenceValueAndIncrement();
-								slot->icon = LoadIconFromPath(path_search.GetView(), list, transfer_fence_value);
+								slot->icon = LoadIconFromPath(path_search.GetView(), list, transfer_fence_value, false);
 
-								GPUBufferCreateInfo readback_buff;
-								readback_buff.name = "icon readback";
-								readback_buff.size = static_cast<size_t>(ICON_EXTENT.x * ICON_EXTENT.y) * 4; // 4 color channels
-								readback_buff.host_writable = true;
-								readback_buff.type = BUFFER_TYPE::READBACK;
-								const GPUBuffer readback = CreateGPUBuffer(readback_buff);
-
-								const int2 read_offset(static_cast<int>(slot->icon.slot_index * ICON_EXTENT_F.x), 0);
-
-								BB_ASSERT(ReadTexture(list, s_asset_manager->icons_storage.texture, ICON_EXTENT, read_offset, readback, readback_buff.size), "failed to read texture");
+								IconWriteToDisk(list, transfer_fence_value, slot->icon, GetIconPathFromAssetName(StringView(slot->name)));
 
 								pool.EndCommandList(list);
 								ExecuteAssetTransfer(Slice(&pool, 1), transfer_fence_value);
-								GPUWaitIdle();
-								
-								const void* mapped = MapGPUBuffer(readback);
-								StackString<MAX_PATH_SIZE> icon_name = GetIconPath(StringView(slot->name));
-								BB_WARNING(WriteImage(icon_name.c_str(), ICON_EXTENT.x, ICON_EXTENT.y, 4, mapped), "failed to write icon image to disk", WarningType::MEDIUM);
-								UnmapGPUBuffer(readback);
-
-								FreeGPUBuffer(readback);
 							}
 						}
 					}

@@ -297,29 +297,21 @@ namespace BB
 	public:
 		Stack_String()
 		{
-			Memory::Set(m_string, 0, STRING_SIZE);
+			memset(m_string, 0, STRING_SIZE);
 		}
 		Stack_String(const CharT* a_string) 
 			: Stack_String(a_string, Memory::StrLength(a_string)) {}
 		Stack_String(const CharT* a_string, size_t a_size)
 		{
 			BB_ASSERT(a_size < sizeof(m_string), "Stack string overflow");
-			Memory::Set(m_string, 0, sizeof(m_string));
-			Memory::Copy(m_string, a_string, a_size);
+			memset(m_string, 0, sizeof(m_string));
+			Memory::Copy(&m_string[0], a_string, a_size);
 			m_size = a_size;
 		}
 		Stack_String(const Stack_String<CharT, STRING_SIZE>& a_string)
 		{
-			Memory::Copy(m_string, a_string.m_string, sizeof(m_string));
-			m_size = a_string.size;
-		}
-		Stack_String(Stack_String<CharT, STRING_SIZE>&& a_string) noexcept
-		{
-			Memory::Copy(m_string, a_string.m_string, sizeof(m_string));
-			m_size = a_string.size();
-
-			Memory::Set(a_string.m_string, 0, STRING_SIZE);
-			a_string.m_size = 0;
+			Memory::Copy(&m_string[0], &a_string.m_string[0], a_string.m_size);
+			m_size = a_string.m_size;
 		}
 		~Stack_String()
 		{
@@ -330,22 +322,14 @@ namespace BB
 		{
 			this->~Stack_String();
 
-			Memory::Copy(m_string, a_string, sizeof(m_string));
-			m_size = a_string.size();
+			memcpy(m_string, a_rhs.m_string, a_rhs.m_size);
+			m_size = a_rhs.m_size;
+			return *this;
 		}
-		Stack_String& operator=(Stack_String<CharT, STRING_SIZE>&& a_rhs) noexcept
-		{
-			this->~Stack_String();
 
-			Memory::Copy(m_string, a_string, sizeof(m_string));
-			m_size = a_string.size();
-
-			Memory::Set(a_rhs.m_string, 0, STRING_SIZE);
-			a_rhs.m_size = 0
-		}
 		bool operator==(const Stack_String<CharT, STRING_SIZE>& a_rhs) const
 		{
-			if (Memory::Compare(m_string, a_rhs.data(), sizeof(m_string)) == 0)
+			if (Memory::Compare(m_string, a_rhs.data(), m_size) == 0)
 				return true;
 			return false;
 		}
@@ -471,7 +455,7 @@ namespace BB
 
 		void clear()
 		{
-			Memory::Set(m_string, 0, STRING_SIZE);
+			memset(m_string, 0, STRING_SIZE);
 			m_size = 0;
 		}
 

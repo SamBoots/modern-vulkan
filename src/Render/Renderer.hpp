@@ -186,11 +186,13 @@ namespace BB
 
 	struct CopyTextureInfo
 	{
+		uint3 extent;
 		RTexture src;
 		bool src_set_shader_visible;
+		ImageCopyInfo src_copy_info;
 		RTexture dst;
 		bool dst_set_shader_visible;
-		ImageCopyInfo copy_info;
+		ImageCopyInfo dst_copy_info;
 	};
 
 	void BlitTexture(const RCommandList a_list, const BlitTextureInfo& a_blit_info);
