@@ -27,7 +27,6 @@ BB_WARNINGS_OFF
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
-
 BB_WARNINGS_ON
 
 using namespace BB;
@@ -333,7 +332,7 @@ static inline IconSlot LoadIconFromTexture(const RCommandList a_list, const RTex
 	return slot;
 }
 
-static inline IconSlot LoadIconFromTextureBlit(const RCommandList a_list, const uint64_t a_transfer_value, void* a_pixels, const uint32_t a_x, const uint32_t a_y, const bool a_set_icons_shader_visible)
+static inline IconSlot LoadIconFromBlit(const RCommandList a_list, const uint64_t a_transfer_value, void* a_pixels, const uint32_t a_x, const uint32_t a_y, const bool a_set_icons_shader_visible)
 {
 	CreateTextureInfo create_src_text;
 	create_src_text.name = "src icon blit image";
@@ -405,7 +404,7 @@ static inline void IconWriteToDisk_impl(const void* a_params)
 	FreeGPUBuffer(params->readback);
 }
 
-static inline bool IconWriteToDisk(const RCommandList a_list, const uint64_t a_fence_value,const IconSlot a_slot, const StackString<MAX_PATH_SIZE>& a_icon_name)
+static inline bool IconWriteToDisk(const RCommandList a_list, const uint64_t a_fence_value, const IconSlot a_slot, const StackString<MAX_PATH_SIZE>& a_write_path)
 {
 	GPUBufferCreateInfo readback_buff;
 	readback_buff.name = "icon readback";
@@ -421,10 +420,91 @@ static inline bool IconWriteToDisk(const RCommandList a_list, const uint64_t a_f
 	IconWriteToDisk_params params;
 	params.readback = readback;
 	params.image_extent = ICON_EXTENT;
-	params.write_path = a_icon_name;
+	params.write_path = a_write_path;
 
 	AddGPUTask(IconWriteToDisk_impl, params, a_fence_value);
 	return true;
+}
+
+struct IconTextureBlit_params
+{
+	RTexture src_texture;
+	int2 src_point_0;
+	int2 src_point_1;
+	RTexture dst_texture;
+	int2 dst_point_0;
+	int2 dst_point_1;
+	StackString<MAX_PATH_SIZE> write_path;
+};
+
+static inline void IconTextureBlit_impl(const void* a_params)
+{
+	const IconTextureBlit_params* params = reinterpret_cast<const IconTextureBlit_params*>(a_params);
+
+	// we now do everything via a graphics command list
+	CommandPool& graphics_pool = GetGraphicsCommandPool();
+	const RCommandList graphics_list = graphics_pool.StartCommandList("icon blit task");
+
+	BlitTextureInfo blit_info;
+	blit_info.src = params->src_texture;
+	blit_info.src_point_0 = params->src_point_0;
+	blit_info.src_point_1 = params->src_point_1;
+	blit_info.src_set_shader_visible = false;
+	blit_info.dst = params->dst_texture;
+	blit_info.dst_point_0 = params->dst_point_0;
+	blit_info.dst_point_1 = params->dst_point_1;
+	blit_info.dst_set_shader_visible = false;
+	BlitTexture(graphics_list, blit_info);
+
+	// TODO, just commit this to the gpu task stack.
+	// code duplication yeah yeah
+	GPUBufferCreateInfo readback_buff;
+	readback_buff.name = "icon readback";
+	readback_buff.size = static_cast<size_t>(ICON_EXTENT.x * ICON_EXTENT.y) * 4; // 4 color channels
+	readback_buff.host_writable = true;
+	readback_buff.type = BUFFER_TYPE::READBACK;
+	const GPUBuffer readback = CreateGPUBuffer(readback_buff);
+
+	BB_ASSERT(ReadTexture(graphics_list, 
+		s_asset_manager->icons_storage.texture, 
+		ICON_EXTENT, 
+		params->dst_point_0,
+		readback, 
+		readback_buff.size), 
+		"failed to read texture");
+
+	graphics_pool.EndCommandList(graphics_list);
+	uint64_t task_fence_value;
+	ExecuteGraphicCommands(Slice(&graphics_pool, 1), task_fence_value);
+	GPUWaitIdle(); // TODO, use fence value
+
+	const uint32_t write_width = static_cast<uint32_t>(params->dst_point_1.x - params->dst_point_0.x);
+	const uint32_t write_height = static_cast<uint32_t>(params->dst_point_1.y - params->dst_point_0.y);
+
+	const void* mapped = MapGPUBuffer(readback);
+	BB_WARNING(Asset::WriteImage(params->write_path.c_str(), write_width, write_height, 4, mapped), "failed to write icon image to disk", WarningType::MEDIUM);
+	UnmapGPUBuffer(readback);
+	FreeGPUBuffer(readback);
+}
+
+static inline IconSlot LoadIconFromTextureBlitAndWriteToDisk(const RCommandList a_list, const uint64_t a_transfer_value, const StackString<MAX_PATH_SIZE>& a_write_path, const RTexture a_src_texture, const uint32_t a_width, const uint32_t a_height)
+{
+	const IconSlot slot = GetIconSlotSpace();
+
+	const int x_offset = static_cast<int>(slot.slot_index * ICON_EXTENT.x);
+
+	IconTextureBlit_params params;
+	params.src_texture = a_src_texture;
+	params.src_point_0 = int2(0, 0);
+	params.src_point_1 = int2(static_cast<int>(a_width), static_cast<int>(a_height));
+	params.dst_texture = s_asset_manager->icons_storage.texture;
+	params.dst_point_0 = int2(x_offset, 0);
+	params.dst_point_1 = int2(x_offset + static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
+	params.write_path = a_write_path;
+
+	AddGPUTask(IconTextureBlit_impl, params, a_transfer_value);
+
+	return slot;
 }
 
 static inline IconSlot LoadIconFromPath(const StringView a_icon_path, const RCommandList a_list, const uint64_t a_transfer_value, const bool a_set_icons_shader_visible)
@@ -434,7 +514,7 @@ static inline IconSlot LoadIconFromPath(const StringView a_icon_path, const RCom
 
 	if (!pixels || x != static_cast<int>(ICON_EXTENT.x) || y != static_cast<int>(ICON_EXTENT.y))
 	{
-		return LoadIconFromTextureBlit(a_list, a_transfer_value, pixels, static_cast<uint32_t>(x), static_cast<uint32_t>(y), a_set_icons_shader_visible);
+		return LoadIconFromBlit(a_list, a_transfer_value, pixels, static_cast<uint32_t>(x), static_cast<uint32_t>(y), a_set_icons_shader_visible);
 	}
 
 	const IconSlot slot = GetIconSlotSpace();
@@ -701,7 +781,11 @@ const Image* Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path,
 	GetAssetNameFromPath(a_path, asset_name, asset_name_size);
 	const char* image_name = FindOrCreateString(asset_name, asset_name_size);
 
-	const LoadedImage gpu_image = AssetStbiLoadImage(a_path, asset_name, a_list, a_transfer_fence_value);
+	StackString<MAX_PATH_SIZE> icon_path = GetIconPathFromAssetName(asset_name);
+
+	const bool does_icon_exist = OSFileExist(icon_path.c_str());
+
+	const LoadedImage gpu_image = AssetStbiLoadImage(a_path, asset_name, a_list, a_transfer_fence_value, does_icon_exist);
 
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
 	Image* image = ArenaAllocType(s_asset_manager->asset_arena, Image);
@@ -718,15 +802,13 @@ const Image* Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path,
 	asset.image = image;
 	asset.name = image_name;
 
-	StackString<MAX_PATH_SIZE> icon_path = GetIconPathFromAssetName(asset.name);
-	if (OSFileExist(icon_path.c_str()))
+	
+	if (does_icon_exist)
 		asset.icon = LoadIconFromPath(icon_path.GetView(), a_list, a_transfer_fence_value, true);
 	else
 	{
-		asset.icon = LoadIconFromTexture(a_list, asset.image->gpu_image, true);
-		IconWriteToDisk(a_list, a_transfer_fence_value, asset.icon, icon_path);
+		asset.icon = LoadIconFromTextureBlitAndWriteToDisk(a_list, a_transfer_fence_value, icon_path, asset.image->gpu_image, image->width, image->height);
 	}
-
 
 
 	AddElementToAssetTable(asset);
@@ -740,12 +822,16 @@ bool Asset::WriteImage(const char* a_file_name, const uint32_t a_width, const ui
 	if (stbi_write_png(a_file_name, static_cast<int>(a_width), static_cast<int>(a_height), static_cast<int>(a_channels), a_pixels, static_cast<int>(a_width * a_channels)))
 		return true;
 
-	BB_WARNING(false, stbi_failure_reason(), WarningType::HIGH);
+	if (const char* stbi_fail_msg = stbi_failure_reason())
+		BB_WARNING(false, stbi_fail_msg, WarningType::HIGH);
 	return false;
 }
 
 const Image* Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, const uint64_t a_transfer_fence_value)
 {
+	const StackString<MAX_PATH_SIZE> icon_path = GetIconPathFromAssetName(a_name);
+	const bool does_icon_exist = OSFileExist(icon_path.c_str());
+
 	CreateTextureInfo create_image_info;
 	create_image_info.name = a_name;
 	create_image_info.width = a_image.GetWidth();
@@ -776,7 +862,7 @@ const Image* Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage
 	WriteTextureInfo write_info{};
 	write_info.pixels = a_image.GetPixels();
 	write_info.extent = { create_image_info.width, create_image_info.height };
-	write_info.set_shader_visible = true;
+	write_info.set_shader_visible = does_icon_exist;
 	WriteTexture(a_list, gpu_image, write_info, a_transfer_fence_value);
 
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
@@ -795,14 +881,11 @@ const Image* Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage
 	asset.image = image;
 	asset.name = a_name;
 
-
-	StackString<MAX_PATH_SIZE> icon_path = GetIconPathFromAssetName(asset.name);
-	if (OSFileExist(icon_path.c_str()))
+	if (does_icon_exist)
 		asset.icon = LoadIconFromPath(icon_path.GetView(), a_list, a_transfer_fence_value, true);
 	else
 	{
-		asset.icon = LoadIconFromTexture(a_list, asset.image->gpu_image, true);
-		IconWriteToDisk(a_list, a_transfer_fence_value, asset.icon, icon_path);
+		asset.icon = LoadIconFromTextureBlitAndWriteToDisk(a_list, a_transfer_fence_value, icon_path, asset.image->gpu_image, image->width, image->height);
 	}
 
 	AddElementToAssetTable(asset);
