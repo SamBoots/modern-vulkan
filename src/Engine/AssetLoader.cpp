@@ -300,7 +300,7 @@ static inline IconSlot GetIconSlotSpace()
 	OSAcquireSRWLockWrite(&s_asset_manager->icons_storage.icon_lock);
 	BB_ASSERT(s_asset_manager->icons_storage.next_slot != UINT32_MAX, "icon storage full");
 	const IconSlot icon_slot = s_asset_manager->icons_storage.slots[s_asset_manager->icons_storage.next_slot];
-	s_asset_manager->icons_storage.next_slot = icon_slot.slot_index;
+	s_asset_manager->icons_storage.next_slot = icon_slot.next_slot;
 	OSReleaseSRWLockWrite(&s_asset_manager->icons_storage.icon_lock);
 	return icon_slot;
 }
