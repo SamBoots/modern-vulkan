@@ -1,6 +1,9 @@
 #include "Rendererfwd.hpp"
 #include "Utils/Slice.h"
 
+// forward declare this, I don't know why that didn't actually work
+#include "Storage/BBString.h"
+
 //All this shit is jank, we return pointers of models and the model structs suck. Find a better way.
 
 namespace BB
@@ -8,6 +11,7 @@ namespace BB
 	using AssetHandle = FrameworkHandle<struct AssetHandleTag>;
 	class BBImage;
 	class UploadBufferView;
+
 	struct Image
 	{
 		uint32_t width;		//4
@@ -113,11 +117,12 @@ namespace BB
 
 		void Update();
 
-		const char* FindOrCreateString(const char* a_string);
-		const char* FindOrCreateString(const char* a_string, const size_t a_string_size);
+		StringView FindOrCreateString(const char* a_string);
+		StringView FindOrCreateString(const char* a_string, const size_t a_string_size);
+		StringView FindOrCreateString(const StringView& a_view);
 
-		void LoadAssets(MemoryArena& memory_arena, const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_cmd_list_name = "upload asset task");
-		ThreadTask LoadAssetsASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_cmd_list_name = "upload asset task");
+		void LoadAssets(MemoryArena& memory_arena, const Slice<AsyncAsset> a_asyn_assets, const char* a_cmd_list_name = "upload asset task");
+		ThreadTask LoadAssetsASync(const Slice<AsyncAsset> a_asyn_assets, const char* a_cmd_list_name = "upload asset task");
 
 		const Image* LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path, const RCommandList a_list, const uint64_t a_transfer_fence_value);
 		const Image* LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, const uint64_t a_transfer_fence_value);

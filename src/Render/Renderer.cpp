@@ -580,7 +580,7 @@ struct RenderInterface_inst
 	// transfer queue should always use this
 	UploadRingAllocator asset_upload_allocator;
 	RFence asset_upload_fence;
-	volatile uint64_t asset_upload_next_fence_value;
+	uint64_t asset_upload_next_fence_value;
 	BBRWLock asset_upload_value_lock;		// yes, a lock for a single variable
 
 	UploadRingAllocator frame_upload_allocator;
@@ -2876,26 +2876,6 @@ bool BB::ReadTexture(const RCommandList a_cmd_list, const RTexture a_texture, co
 		image_to_buffer.src_image_info.base_array_layer = 0;
 
 		Vulkan::CopyImageToBuffer(a_cmd_list, image_to_buffer);
-	}
-
-	{
-		PipelineBarrierImageInfo image_shader_transition;
-		image_shader_transition.src_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
-		image_shader_transition.dst_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
-		image_shader_transition.image = selected_texture.texture_info.image;
-		image_shader_transition.old_layout = transfer_layout;
-		image_shader_transition.new_layout = original_layout;
-		image_shader_transition.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
-		image_shader_transition.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
-		image_shader_transition.layer_count = 1;
-		image_shader_transition.level_count = 1;
-		image_shader_transition.base_array_layer = 0;
-		image_shader_transition.base_mip_level = 0;
-		image_shader_transition.src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
-		image_shader_transition.dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
-
-		// this could be a graphics queue transition, so just paste it here.
-		s_render_inst->texture_manager.AddGraphicsTransition(image_shader_transition);
 	}
 
 	return true;
