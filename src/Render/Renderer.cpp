@@ -155,9 +155,9 @@ void CommandPool::ResetPool()
 
 struct UploadBuffer
 {
-	void SafeMemcpy(const size_t a_dest_offset, const void* a_src, const size_t a_src_size) const
+	void SafeMemcpy(const size_t a_dst_offset, const void* a_src, const size_t a_src_size) const
 	{
-		void* copy_pos = Pointer::Add(begin, a_dest_offset);
+		void* copy_pos = Pointer::Add(begin, a_dst_offset);
 		BB_ASSERT(Pointer::Add(copy_pos, a_src_size) <= end, "gpu upload buffer writing out of bounds");
 
 		memcpy(copy_pos, a_src, a_src_size);
@@ -2266,7 +2266,7 @@ bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderE
 
 	for (size_t i = 0; i < a_create_infos.size(); i++)
 	{
-		shader_effects[i].name = shader_effects[i].name;
+		shader_effects[i].name = a_create_infos[i].name;
 		shader_effects[i].shader_object = shader_objects[i];
 		shader_effects[i].shader_stage = a_create_infos[i].stage;
 		shader_effects[i].shader_stages_next = a_create_infos[i].next_stages;
@@ -2315,6 +2315,80 @@ bool BB::ReloadShaderEffect(const ShaderEffectHandle a_shader_effect)
 #endif // _ENABLE_REBUILD_SHADERS
 	BB_WARNING(false, "trying to reload a shader but _ENABLE_REBUILD_SHADERS is not defined", WarningType::MEDIUM);
 	return true;
+}
+
+static inline const char* ShaderStageToCChar(const SHADER_STAGE a_stage)
+{
+	switch (a_stage)
+	{
+	case SHADER_STAGE::VERTEX:
+		return "VERTEX";
+		break;
+	case SHADER_STAGE::FRAGMENT_PIXEL:
+		return "FRAGMENT_PIXEL";
+		break;
+	case SHADER_STAGE::NONE:
+	case SHADER_STAGE::ALL:
+	default:
+		BB_ASSERT(false, "invalid shader stage for shader");
+		return "error";
+		break;
+	}
+}
+
+static inline StackString<256> ShaderStagesToCChar(const SHADER_STAGE_FLAGS a_stage_flags)
+{
+	StackString<256> stages{};
+	if ((static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::VERTEX) & a_stage_flags) == a_stage_flags)
+	{
+		stages.append("VERTEX ");
+	}
+	if ((static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::FRAGMENT_PIXEL) & a_stage_flags) == a_stage_flags)
+	{
+		stages.append("FRAGMENT_PIXEL ");
+	}
+	return stages;
+}
+
+ShaderEffectHandle BB::FindShaderEffectViaImGui()
+{
+	if (ImGui::CollapsingHeader("Find Shader Effects"))
+	{
+		ImGui::Indent();
+		static ShaderEffect* current_selected = nullptr;
+
+		if (current_selected)
+		{
+			if (ImGui::CollapsingHeader("selected shader effect"))
+			{
+				ImGui::Indent();
+				ImGui::Text("NAME: %s", current_selected->name);
+				ImGui::Text("SHADER STAGE: %s", ShaderStageToCChar(current_selected->shader_stage));
+				StackString<256> next_stages = ShaderStagesToCChar(current_selected->shader_stages_next);
+				ImGui::Text("NEXT EXPECTED STAGES: %s", next_stages.c_str());
+
+				ImGui::Unindent();
+			}
+		}
+
+		ImGui::TextUnformatted("shader effect selection");
+		ImGui::Indent();
+
+		for (uint32_t i = 0; i < s_render_inst->shader_effect_map.size(); i++)
+		{
+			// horrible, horrible code to use .data to access the memory
+			ShaderEffect* shader_effect = &s_render_inst->shader_effect_map.data()[i];
+			if (ImGui::Button(shader_effect->name))
+			{
+				current_selected = shader_effect;
+			}
+		}
+
+		ImGui::Unindent();
+		ImGui::Unindent();
+		return ShaderEffectHandle(BB_INVALID_HANDLE_64);
+	}
+	return ShaderEffectHandle(BB_INVALID_HANDLE_64);
 }
 
 const MaterialHandle BB::CreateMaterial(const CreateMaterialInfo& a_create_info)
