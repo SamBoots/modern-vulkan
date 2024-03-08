@@ -162,7 +162,6 @@ namespace BB
 	PointLight& GetLight(const RenderScene3DHandle a_scene, const LightHandle a_light);
 
 	bool CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles);
-	void FreeShaderEffect(const ShaderEffectHandle a_shader_effect);
 	bool ReloadShaderEffect(const ShaderEffectHandle a_shader_effect);
 	ShaderEffectHandle FindShaderEffectViaImGui();
 

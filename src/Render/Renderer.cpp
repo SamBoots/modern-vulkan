@@ -627,7 +627,7 @@ struct RenderInterface_inst
 	} cpu_index_buffer;
 
 	StaticSlotmap<Mesh, MeshHandle> mesh_map{};
-	StaticSlotmap<ShaderEffect, ShaderEffectHandle> shader_effect_map{};
+	StaticArray<ShaderEffect> shader_effects{};
 	StaticSlotmap<Material, MaterialHandle> material_map{};
 
 	GPUDeviceInfo gpu_device;
@@ -876,8 +876,8 @@ namespace IMGUI_IMPL
 			BB_ASSERT(CreateShaderEffect(a_arena, Slice(shaders, _countof(shaders)), bd->shader_effects),
 				"Failed to create imgui shaders");
 
-			bd->vertex = &s_render_inst->shader_effect_map.find(bd->shader_effects[0]);
-			bd->fragment = &s_render_inst->shader_effect_map.find(bd->shader_effects[1]);
+			bd->vertex = &s_render_inst->shader_effects[bd->shader_effects[0].handle];
+			bd->fragment = &s_render_inst->shader_effects[bd->shader_effects[1].handle];
 		}
 
 		//create framebuffers.
@@ -929,8 +929,9 @@ namespace IMGUI_IMPL
 		FreeTexture(bd->font_image);
 		bd->font_image = RTexture(BB_INVALID_HANDLE_32);
 
-		FreeShaderEffect(bd->shader_effects[0]);
-		FreeShaderEffect(bd->shader_effects[1]);
+		// TODO, actually do shader removal
+		//FreeShaderEffect(bd->shader_effects[0]);
+		//FreeShaderEffect(bd->shader_effects[1]);
 
 		io.BackendRendererName = nullptr;
 		io.BackendRendererUserData = nullptr;
@@ -1304,7 +1305,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	s_render_inst->debug = a_render_create_info.debug;
 
 	s_render_inst->mesh_map.Init(a_arena, 256);
-	s_render_inst->shader_effect_map.Init(a_arena, 64);
+	s_render_inst->shader_effects.Init(a_arena, 64);
 	s_render_inst->material_map.Init(a_arena, 256);
 
 
@@ -2276,24 +2277,25 @@ bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderE
 		shader_effects[i].shader_entry = a_create_infos[i].shader_entry;
 #endif // _ENABLE_REBUILD_SHADERS
 
-		a_handles[i] = s_render_inst->shader_effect_map.insert(shader_effects[i]);
+		a_handles[i].handle = s_render_inst->shader_effects.size();
+		s_render_inst->shader_effects.push_back(shader_effects[i]);
 		ReleaseShaderCode(shader_codes[i]);
 	}
 	return true;
 }
-
-void BB::FreeShaderEffect(const ShaderEffectHandle a_shader_effect)
-{
-	ShaderEffect shader_effect = s_render_inst->shader_effect_map.find(a_shader_effect);
-	Vulkan::DestroyShaderObject(shader_effect.shader_object);
-	Vulkan::FreePipelineLayout(shader_effect.pipeline_layout);
-	s_render_inst->shader_effect_map.erase(a_shader_effect);
-}
+// TODO actually remove shaders
+//void BB::FreeShaderEffect(const ShaderEffectHandle a_shader_effect)
+//{
+//	ShaderEffect shader_effect = s_render_inst->shader_effect_map.find(a_shader_effect);
+//	Vulkan::DestroyShaderObject(shader_effect.shader_object);
+//	Vulkan::FreePipelineLayout(shader_effect.pipeline_layout);
+//	s_render_inst->shader_effect_map.erase(a_shader_effect);
+//}
 
 bool BB::ReloadShaderEffect(const ShaderEffectHandle a_shader_effect)
 {
 #ifdef _ENABLE_REBUILD_SHADERS
-	ShaderEffect& old_effect = s_render_inst->shader_effect_map.find(a_shader_effect);
+	ShaderEffect& old_effect = s_render_inst->shader_effects[a_shader_effect.handle];
 	Vulkan::DestroyShaderObject(old_effect.shader_object);
 
 	const ShaderCode shader_code = CompileShader(s_render_inst->shader_compiler,
@@ -2321,18 +2323,13 @@ static inline const char* ShaderStageToCChar(const SHADER_STAGE a_stage)
 {
 	switch (a_stage)
 	{
-	case SHADER_STAGE::VERTEX:
-		return "VERTEX";
-		break;
-	case SHADER_STAGE::FRAGMENT_PIXEL:
-		return "FRAGMENT_PIXEL";
-		break;
+	case SHADER_STAGE::VERTEX:			return "VERTEX";
+	case SHADER_STAGE::FRAGMENT_PIXEL:	return "FRAGMENT_PIXEL";
 	case SHADER_STAGE::NONE:
 	case SHADER_STAGE::ALL:
 	default:
 		BB_ASSERT(false, "invalid shader stage for shader");
 		return "error";
-		break;
 	}
 }
 
@@ -2356,6 +2353,7 @@ ShaderEffectHandle BB::FindShaderEffectViaImGui()
 	{
 		ImGui::Indent();
 		static ShaderEffect* current_selected = nullptr;
+		ShaderEffectHandle current_selected_handle = 
 
 		if (current_selected)
 		{
@@ -2374,10 +2372,10 @@ ShaderEffectHandle BB::FindShaderEffectViaImGui()
 		ImGui::TextUnformatted("shader effect selection");
 		ImGui::Indent();
 
-		for (uint32_t i = 0; i < s_render_inst->shader_effect_map.size(); i++)
+		for (uint32_t i = 0; i < s_render_inst->shader_effects.size(); i++)
 		{
 			// horrible, horrible code to use .data to access the memory
-			ShaderEffect* shader_effect = &s_render_inst->shader_effect_map.data()[i];
+			ShaderEffect* shader_effect = &s_render_inst->shader_effects.data()[i];
 			if (ImGui::Button(shader_effect->name))
 			{
 				current_selected = shader_effect;
@@ -2398,13 +2396,13 @@ const MaterialHandle BB::CreateMaterial(const CreateMaterialInfo& a_create_info)
 
 	Material mat;
 	// get the first pipeline layout, compare it with all of the ones in the other shaders.
-	RPipelineLayout chosen_layout = s_render_inst->shader_effect_map.find(a_create_info.shader_effects[0]).pipeline_layout;
+	RPipelineLayout chosen_layout = s_render_inst->shader_effects[a_create_info.shader_effects[0].handle].pipeline_layout;
 	
 	SHADER_STAGE_FLAGS valid_next_stages = static_cast<uint32_t>(SHADER_STAGE::ALL);
 	for (size_t i = 0; i < a_create_info.shader_effects.size(); i++)
 	{
 		//maybe check if we have duplicate shader stages;
-		const ShaderEffect& effect = s_render_inst->shader_effect_map.find(a_create_info.shader_effects[i]);
+		const ShaderEffect& effect = s_render_inst->shader_effects[a_create_info.shader_effects[i].handle];
 		BB_ASSERT(chosen_layout == effect.pipeline_layout, "pipeline layouts are not the same for the shader effects");
 		
 		if (i < a_create_info.shader_effects.size())

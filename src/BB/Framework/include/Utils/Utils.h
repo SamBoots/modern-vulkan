@@ -11,7 +11,6 @@ namespace BB
 {
 	namespace Memory
 	{
-
 		void MemCpy(void* __restrict  a_destination, const void* __restrict  a_source, size_t a_size);
 		void MemCpySIMD128(void* __restrict  a_destination, const void* __restrict  a_source, size_t a_size);
 		void MemCpySIMD256(void* __restrict  a_destination, const void* __restrict  a_source, size_t a_size);

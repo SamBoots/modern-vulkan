@@ -89,7 +89,7 @@ void BB::Threads::InitThreads(const uint32_t a_thread_count)
 		s_ThreadScheduler.threads[i].thread_info.function = nullptr;
 		s_ThreadScheduler.threads[i].thread_info.function_parameter = nullptr;
 		s_ThreadScheduler.threads[i].thread_info.thread_status = THREAD_STATUS::IDLE;
-		s_ThreadScheduler.threads[i].thread_info.generation = 0;
+		s_ThreadScheduler.threads[i].thread_info.generation = 1;
 		s_ThreadScheduler.threads[i].thread_info.condition = OSCreateConditionalVariable();
 		s_ThreadScheduler.threads[i].os_thread_handle = OSCreateThread(ThreadStartFunc,
 			0,

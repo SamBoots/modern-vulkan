@@ -4,14 +4,6 @@
 
 using namespace BB;
 
-const wchar* BB::g_program_name;
-const char* BB::g_exe_path;
-Logger_inst BB::g_logger;
-
-#ifdef _DEBUG
-OSFileHandle BB::g_AllocationLogFile;
-#endif //_DEBUG
-
 void BB::InitBB(const BBInitInfo& a_bb_info)
 {
 	g_program_name = a_bb_info.program_name;

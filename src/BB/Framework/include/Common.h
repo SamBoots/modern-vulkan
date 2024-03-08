@@ -37,12 +37,12 @@ namespace BB
 	using WarningTypeFlags = unsigned int;
 	enum class WarningType : WarningTypeFlags
 	{
-		INFO = 1 << 0, //No warning, just a message.
-		OPTIMALIZATION = 1 << 1, //Indicates a possible issue that might cause problems with performance.
-		LOW = 1 << 2, //Low chance of breaking the application or causing undefined behaviour.
-		MEDIUM = 1 << 3, //Medium chance of breaking the application or causing undefined behaviour.
-		HIGH = 1 << 4, //High chance of breaking the application or causing undefined behaviour.
-		ASSERT = 1 << 5  //Use BB_ASSERT for this
+		INFO = 1 << 0,				// No warning, just a message.
+		OPTIMALIZATION = 1 << 1,	// Indicates a possible issue that might cause problems with performance.
+		LOW = 1 << 2,				// Low chance of breaking the application or causing undefined behaviour.
+		MEDIUM = 1 << 3,			// Medium chance of breaking the application or causing undefined behaviour.
+		HIGH = 1 << 4,				// High chance of breaking the application or causing undefined behaviour.
+		ASSERT = 1 << 5				// Use BB_ASSERT for this
 	};
 	constexpr WarningTypeFlags WARNING_TYPES_ALL = UINT32_MAX;
 	
@@ -67,7 +67,7 @@ namespace BB
 	using FreelistAllocator_t = allocators::FreelistAllocator;
 	using POW_FreelistAllocator_t = allocators::POW_FreelistAllocator;
 
-	constexpr const uint64_t BB_INVALID_HANDLE_64 = UINT64_MAX;
+	constexpr const uint64_t BB_INVALID_HANDLE_64 = 0;
 
 	template<typename Tag>
 	union FrameworkHandle
@@ -79,9 +79,9 @@ namespace BB
 		bool IsValid() const { return handle != BB_INVALID_HANDLE_64; }
 		struct
 		{
-			//The handle's main index. Always used and is the main handle.
+			// The handle's main index. Always used and is the main handle.
 			uint32_t index;
-			//A extra handle index, can be used to track something else. Usually this value is 0 or is part of a pointer.
+			// A extra handle index, can be used to track something else. Usually this value is 0 or is part of a pointer.
 			uint32_t extra_index;
 		};
 		uint64_t handle;
@@ -100,7 +100,7 @@ namespace BB
 	using BBConditionalVariable = FrameworkHandle<struct BBConditionalVariableTag>;
 	using ThreadTask = FrameworkHandle<struct ThreadTasktag>;
 
-	constexpr const uint32_t BB_INVALID_HANDLE_32 = UINT32_MAX;
+	constexpr const uint32_t BB_INVALID_HANDLE_32 = 0;
 
 	template<typename Tag>
 	struct FrameworkHandle32Bit
