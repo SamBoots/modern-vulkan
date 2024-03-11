@@ -67,7 +67,7 @@ namespace BB
 	using FreelistAllocator_t = allocators::FreelistAllocator;
 	using POW_FreelistAllocator_t = allocators::POW_FreelistAllocator;
 
-	constexpr const uint64_t BB_INVALID_HANDLE_64 = 0;
+	constexpr const uint64_t BB_INVALID_HANDLE_64 = UINT64_MAX;
 
 	template<typename Tag>
 	union FrameworkHandle
@@ -100,7 +100,7 @@ namespace BB
 	using BBConditionalVariable = FrameworkHandle<struct BBConditionalVariableTag>;
 	using ThreadTask = FrameworkHandle<struct ThreadTasktag>;
 
-	constexpr const uint32_t BB_INVALID_HANDLE_32 = 0;
+	constexpr const uint32_t BB_INVALID_HANDLE_32 = UINT32_MAX;
 
 	template<typename Tag>
 	struct FrameworkHandle32Bit

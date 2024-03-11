@@ -744,6 +744,8 @@ static void LoadglTFNode(MemoryArena& a_temp_arena, Slice<ShaderEffectHandle> a_
 			model_prim.name = "primitive [NUM]";
 
 			CreateMaterialInfo material_info{};
+			const StringView material_name = Asset::FindOrCreateString(prim.material->name);
+			material_info.name = material_name.c_str();
 			material_info.shader_effects = a_shader_effects;
 			if (prim.material->pbr_metallic_roughness.base_color_texture.texture)
 			{

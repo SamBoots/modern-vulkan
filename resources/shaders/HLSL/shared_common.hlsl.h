@@ -47,7 +47,8 @@ namespace BB
         float ambient_strength;
 
         uint light_count;
-        uint3 padding;
+        float time;
+        uint2 padding;
     };
 
     //pointlight

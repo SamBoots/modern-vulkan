@@ -57,6 +57,7 @@ namespace BB
 
 	struct CreateMaterialInfo
 	{
+		const char* name;
 		Slice<ShaderEffectHandle> shader_effects;
 		RTexture base_color;
 		RTexture normal_texture;
@@ -131,7 +132,7 @@ namespace BB
 
 	RenderScene3DHandle Create3DRenderScene(MemoryArena& a_arena, const SceneCreateInfo& a_info, const char* a_name);
 	void StartRenderScene(const RenderScene3DHandle a_scene);
-	void EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, bool a_skip = false);
+	void EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, float a_time, bool a_skip = false);
 
 	void SetView(const RenderScene3DHandle a_scene, const float4x4& a_view);
 	void SetProjection(const RenderScene3DHandle a_scene, const float4x4& a_projection);
@@ -163,7 +164,6 @@ namespace BB
 
 	bool CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles);
 	bool ReloadShaderEffect(const ShaderEffectHandle a_shader_effect);
-	ShaderEffectHandle FindShaderEffectViaImGui();
 
 	const MaterialHandle CreateMaterial(const CreateMaterialInfo& a_create_info);
 	void FreeMaterial(const MaterialHandle a_material);

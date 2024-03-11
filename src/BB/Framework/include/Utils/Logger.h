@@ -53,6 +53,8 @@ namespace BB
 			@param a_Check, If false the program will print the message and assert.
 			@param a_msg, The message that will be printed.
 			@param a_WarningType, The warning level, enum found at WarningType. */
+
+#define BB_UNIMPLEMENTED(a_msg) BB_ASSERT(false, a_msg)
 #define BB_WARNING(a_Check, a_msg, a_WarningType) \
 	do \
 	{ \

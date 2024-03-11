@@ -42,6 +42,20 @@ struct TextureInfo
 	IMAGE_USAGE usage;			// 36
 };
 
+static inline const char* ShaderStageToCChar(const SHADER_STAGE a_stage)
+{
+	switch (a_stage)
+	{
+	case SHADER_STAGE::VERTEX:			return "VERTEX";
+	case SHADER_STAGE::FRAGMENT_PIXEL:	return "FRAGMENT_PIXEL";
+	case SHADER_STAGE::NONE:
+	case SHADER_STAGE::ALL:
+	default:
+		BB_ASSERT(false, "invalid shader stage for shader");
+		return "error";
+	}
+}
+
 class GPUTextureManager
 {
 public:
@@ -496,7 +510,7 @@ struct Material
 		uint32_t shader_effect_count;
 	} shader;
 
-
+	const char* name;
 	RTexture base_color;
 	RTexture normal_texture;
 };
@@ -628,7 +642,7 @@ struct RenderInterface_inst
 
 	StaticSlotmap<Mesh, MeshHandle> mesh_map{};
 	StaticArray<ShaderEffect> shader_effects{};
-	StaticSlotmap<Material, MaterialHandle> material_map{};
+	StaticArray<Material> material_map{};
 
 	GPUDeviceInfo gpu_device;
 };
@@ -985,6 +999,100 @@ static void DisplayGPUInfo()
 	}
 }
 
+static inline StackString<256> ShaderStagesToCChar(const SHADER_STAGE_FLAGS a_stage_flags)
+{
+	StackString<256> stages{};
+	if ((static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::VERTEX) & a_stage_flags) == a_stage_flags)
+	{
+		stages.append("VERTEX ");
+	}
+	if ((static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::FRAGMENT_PIXEL) & a_stage_flags) == a_stage_flags)
+	{
+		stages.append("FRAGMENT_PIXEL ");
+	}
+	return stages;
+}
+
+static void ImGuiDisplayMaterials()
+{
+	ImGui::Indent();
+	for (size_t i = 0; i < s_render_inst->material_map.size(); i++)
+	{
+		Material& material = s_render_inst->material_map[i];
+		if (ImGui::CollapsingHeader(material.name))
+		{
+			ImGui::PushID(i);
+			ImGui::Indent();
+
+			for (uint32_t eff_count = 0; eff_count < material.shader.shader_effect_count; eff_count++)
+			{
+				ImGui::PushID(eff_count);
+				ImGui::Text("shader stage: %s", ShaderStageToCChar(material.shader.shader_stages[eff_count]));
+				if (ImGui::CollapsingHeader("change shader"))
+				{
+					ImGui::Indent();
+					for (uint32_t shader_index = 0; shader_index < s_render_inst->shader_effects.size(); shader_index++)
+					{
+						const ShaderEffect& shader_effect = s_render_inst->shader_effects[shader_index];
+						if (shader_effect.shader_stage == material.shader.shader_stages[eff_count])
+						{
+							if (ImGui::Button(shader_effect.name))
+							{
+								material.shader.shader_objects[eff_count] = shader_effect.shader_object;
+							}
+						}
+					}
+					ImGui::Unindent();
+				}
+				ImGui::PopID();
+			}
+
+			if (ImGui::CollapsingHeader("textures"))
+			{
+				ImGui::Indent();
+				constexpr ImVec2 image_size = { 160, 160 };
+				if (material.base_color.IsValid())
+					ImGui::Image(material.base_color.handle, image_size);
+				if (material.normal_texture.IsValid())
+					ImGui::Image(material.normal_texture.handle, image_size);
+
+				ImGui::Unindent();
+			}
+			ImGui::PopID();
+			ImGui::Unindent();
+		}
+	}
+	ImGui::Unindent();
+}
+
+static void ImGuiDisplayShaderEffects()
+{
+	ImGui::Indent();
+	for (size_t i = 0; i < s_render_inst->shader_effects.size(); i++)
+	{
+		const ShaderEffect& shader_effect = s_render_inst->shader_effects[i];
+
+		if (ImGui::CollapsingHeader(shader_effect.name))
+		{
+			ImGui::PushID(i);
+			ImGui::Indent();
+
+			ImGui::Text("SHADER STAGE: %s", ShaderStageToCChar(shader_effect.shader_stage));
+			const StackString<256> next_stages = ShaderStagesToCChar(shader_effect.shader_stages_next);
+			ImGui::Text("NEXT EXPECTED STAGES: %s", next_stages.c_str());
+
+			if (ImGui::Button("Reload Shader"))
+			{
+				BB_ASSERT(ReloadShaderEffect(ShaderEffectHandle(i)), "something went wrong with reloading a shader");
+			}
+
+			ImGui::Unindent();
+			ImGui::PopID();
+		}
+	}
+	ImGui::Unindent();
+}
+
 static void ImguiDisplayRenderer()
 {
 	if (ImGui::Begin("Renderer"))
@@ -992,20 +1100,11 @@ static void ImguiDisplayRenderer()
 		DisplayGPUInfo();
 		s_render_inst->texture_manager.DisplayTextureListImgui();
 
-		if (ImGui::CollapsingHeader("Reload imgui shaders"))
-		{
-			ImGui::Indent();
-			IMGUI_IMPL::ImRenderData* render_data = IMGUI_IMPL::ImGetRenderData();
-			if (ImGui::Button("Vertex"))
-			{
-				ReloadShaderEffect(render_data->shader_effects[0]);
-			}
-			if (ImGui::Button("Fragment"))
-			{
-				ReloadShaderEffect(render_data->shader_effects[1]);
-			}
-			ImGui::Unindent();
-		}
+		if (ImGui::CollapsingHeader("materials"))
+			ImGuiDisplayMaterials();
+
+		if (ImGui::CollapsingHeader("shader effects"))
+			ImGuiDisplayShaderEffects();
 	}
 	ImGui::End();
 }
@@ -1851,8 +1950,11 @@ void BB::StartRenderScene(const RenderScene3DHandle a_scene)
 	render_scene3d.draw_list_count = 0;
 }
 
-void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, bool a_skip)
+void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, float delta_time, bool a_skip)
 {
+	static float shit_time = 0;
+	shit_time += delta_time;
+
 	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
 	const auto& scene_frame = render_scene3d.frames[s_render_inst->render_io.frame_index];
 
@@ -1862,7 +1964,7 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 	}
 
 	render_scene3d.scene_info.light_count = render_scene3d.light_container.size();
-
+	render_scene3d.scene_info.time = shit_time;
 	const size_t scene_upload_size = sizeof(Scene3DInfo);
 	const size_t matrices_upload_size = sizeof(ShaderTransform) * render_scene3d.draw_list_count;
 	const size_t light_upload_size = sizeof(Light) * render_scene3d.light_container.capacity();
@@ -1961,7 +2063,7 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 	{
 		//set the first data to get the first 3 descriptor sets.
 		const MeshDrawCall& mesh_draw_call = render_scene3d.draw_list_data.mesh_draw_call[0];
-		const Material& material = s_render_inst->material_map.find(mesh_draw_call.material);
+		const Material& material = s_render_inst->material_map[mesh_draw_call.material.handle];
 
 		//set 0
 		Vulkan::SetDescriptorImmutableSamplers(a_cmd_list, material.shader.pipeline_layout);
@@ -1981,7 +2083,7 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 	for (uint32_t i = 0; i < render_scene3d.draw_list_count; i++)
 	{
 		const MeshDrawCall& mesh_draw_call = render_scene3d.draw_list_data.mesh_draw_call[i];
-		const Material& material = s_render_inst->material_map.find(mesh_draw_call.material);
+		const Material& material = s_render_inst->material_map[mesh_draw_call.material.handle];
 		const Mesh& mesh = s_render_inst->mesh_map.find(mesh_draw_call.mesh);
 
 		Vulkan::BindShaders(a_cmd_list,
@@ -2319,76 +2421,6 @@ bool BB::ReloadShaderEffect(const ShaderEffectHandle a_shader_effect)
 	return true;
 }
 
-static inline const char* ShaderStageToCChar(const SHADER_STAGE a_stage)
-{
-	switch (a_stage)
-	{
-	case SHADER_STAGE::VERTEX:			return "VERTEX";
-	case SHADER_STAGE::FRAGMENT_PIXEL:	return "FRAGMENT_PIXEL";
-	case SHADER_STAGE::NONE:
-	case SHADER_STAGE::ALL:
-	default:
-		BB_ASSERT(false, "invalid shader stage for shader");
-		return "error";
-	}
-}
-
-static inline StackString<256> ShaderStagesToCChar(const SHADER_STAGE_FLAGS a_stage_flags)
-{
-	StackString<256> stages{};
-	if ((static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::VERTEX) & a_stage_flags) == a_stage_flags)
-	{
-		stages.append("VERTEX ");
-	}
-	if ((static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::FRAGMENT_PIXEL) & a_stage_flags) == a_stage_flags)
-	{
-		stages.append("FRAGMENT_PIXEL ");
-	}
-	return stages;
-}
-
-ShaderEffectHandle BB::FindShaderEffectViaImGui()
-{
-	if (ImGui::CollapsingHeader("Find Shader Effects"))
-	{
-		ImGui::Indent();
-		static ShaderEffect* current_selected = nullptr;
-		ShaderEffectHandle current_selected_handle = 
-
-		if (current_selected)
-		{
-			if (ImGui::CollapsingHeader("selected shader effect"))
-			{
-				ImGui::Indent();
-				ImGui::Text("NAME: %s", current_selected->name);
-				ImGui::Text("SHADER STAGE: %s", ShaderStageToCChar(current_selected->shader_stage));
-				StackString<256> next_stages = ShaderStagesToCChar(current_selected->shader_stages_next);
-				ImGui::Text("NEXT EXPECTED STAGES: %s", next_stages.c_str());
-
-				ImGui::Unindent();
-			}
-		}
-
-		ImGui::TextUnformatted("shader effect selection");
-		ImGui::Indent();
-
-		for (uint32_t i = 0; i < s_render_inst->shader_effects.size(); i++)
-		{
-			// horrible, horrible code to use .data to access the memory
-			ShaderEffect* shader_effect = &s_render_inst->shader_effects.data()[i];
-			if (ImGui::Button(shader_effect->name))
-			{
-				current_selected = shader_effect;
-			}
-		}
-
-		ImGui::Unindent();
-		ImGui::Unindent();
-		return ShaderEffectHandle(BB_INVALID_HANDLE_64);
-	}
-	return ShaderEffectHandle(BB_INVALID_HANDLE_64);
-}
-
 const MaterialHandle BB::CreateMaterial(const CreateMaterialInfo& a_create_info)
 {
 	BB_ASSERT(UNIQUE_SHADER_STAGE_COUNT >= a_create_info.shader_effects.size(), "too many shader stages!");
@@ -2396,7 +2428,7 @@ const MaterialHandle BB::CreateMaterial(const CreateMaterialInfo& a_create_info)
 
 	Material mat;
 	// get the first pipeline layout, compare it with all of the ones in the other shaders.
-	RPipelineLayout chosen_layout = s_render_inst->shader_effects[a_create_info.shader_effects[0].handle].pipeline_layout;
+	const RPipelineLayout chosen_layout = s_render_inst->shader_effects[a_create_info.shader_effects[0].handle].pipeline_layout;
 	
 	SHADER_STAGE_FLAGS valid_next_stages = static_cast<uint32_t>(SHADER_STAGE::ALL);
 	for (size_t i = 0; i < a_create_info.shader_effects.size(); i++)
@@ -2415,18 +2447,21 @@ const MaterialHandle BB::CreateMaterial(const CreateMaterialInfo& a_create_info)
 		mat.shader.shader_objects[i] = effect.shader_object;
 		mat.shader.shader_stages[i] = effect.shader_stage;
 	}
+	mat.name = a_create_info.name;
 	mat.shader.shader_effect_count = static_cast<uint32_t>(a_create_info.shader_effects.size());
 	mat.shader.pipeline_layout = chosen_layout;
 	mat.base_color = a_create_info.base_color;
 	mat.normal_texture = a_create_info.normal_texture;
 
-	return MaterialHandle(s_render_inst->material_map.insert(mat).handle);
+	s_render_inst->material_map.emplace_back(mat);
+	return MaterialHandle(s_render_inst->material_map.size() - 1);
 }
 
 void BB::FreeMaterial(const MaterialHandle a_material)
 {
 	// maybe go and check the refcount of the textures to possibly free them.
-	s_render_inst->material_map.erase(a_material);
+	//s_render_inst->material_map.erase(a_material);
+	BB_UNIMPLEMENTED("create this function again");
 }
 
 const RTexture BB::CreateTexture(const CreateTextureInfo& a_create_info)

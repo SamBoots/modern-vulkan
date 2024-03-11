@@ -19,6 +19,8 @@
 using namespace BB;
 #include "imgui.h"
 
+static float delta_time;
+
 struct ImInputData
 {
 	BB::WindowHandle            window;
@@ -249,7 +251,7 @@ static void ViewportResize(Viewport& a_viewport, const uint2 a_new_extent)
 	ResizeRenderTarget(a_viewport.render_target, a_new_extent);
 }
 
-static void DrawImGuiViewport(MemoryArena& a_arena, Viewport& a_viewport, bool& a_resized, const uint2 a_minimum_size = uint2(160, 80))
+static void DrawImGuiViewport(Viewport& a_viewport, bool& a_resized, const uint2 a_minimum_size = uint2(160, 80))
 {
 	a_resized = false;
 	if (ImGui::Begin(a_viewport.name, nullptr, ImGuiWindowFlags_MenuBar))
@@ -367,7 +369,7 @@ static void ThreadFuncForDrawing(void* a_param)
 
 	StartRenderTarget(list, viewport.render_target);
 
-	scene_hierarchy.DrawSceneHierarchy(list, viewport.render_target, viewport.extent, int2(0, 0));
+	scene_hierarchy.DrawSceneHierarchy(list, viewport.render_target, viewport.extent, int2(0, 0), delta_time);
 
 	EndRenderTarget(list, viewport.render_target);
 }
@@ -459,10 +461,10 @@ int main(int argc, char** argv)
 	scene_hierarchy.SetClearColor(float3{ 0.1f, 0.6f, 0.1f });
 	object_viewer_scene.SetClearColor(float3{ 0.5f, 0.1f, 0.1f });
 
-	ShaderEffectHandle shader_effects[2];
+	ShaderEffectHandle shader_effects[3]{};
 	MemoryArenaScope(main_arena)
 	{
-		CreateShaderEffectInfo shader_effect_create_infos[2];
+		CreateShaderEffectInfo shader_effect_create_infos[3];
 		shader_effect_create_infos[0].name = "debug vertex shader";
 		shader_effect_create_infos[0].stage = SHADER_STAGE::VERTEX;
 		shader_effect_create_infos[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
@@ -479,6 +481,14 @@ int main(int argc, char** argv)
 		shader_effect_create_infos[1].push_constant_space = sizeof(ShaderIndices);
 		shader_effect_create_infos[1].pass_type = RENDER_PASS_TYPE::STANDARD_3D;
 
+		shader_effect_create_infos[2].name = "jitter vertex shader";
+		shader_effect_create_infos[2].stage = SHADER_STAGE::VERTEX;
+		shader_effect_create_infos[2].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
+		shader_effect_create_infos[2].shader_path = "../resources/shaders/hlsl/Jitter.hlsl";
+		shader_effect_create_infos[2].shader_entry = "VertexMain";
+		shader_effect_create_infos[2].push_constant_space = sizeof(ShaderIndices);
+		shader_effect_create_infos[2].pass_type = RENDER_PASS_TYPE::STANDARD_3D;
+
 		BB_ASSERT(CreateShaderEffect(main_arena,
 			Slice(shader_effect_create_infos, _countof(shader_effect_create_infos)),
 			shader_effects), "Failed to create shader objects");
@@ -488,8 +498,9 @@ int main(int argc, char** argv)
 	MaterialHandle default_mat;
 	{
 		CreateMaterialInfo material_info{};
+		material_info.name = "base material";
 		material_info.base_color = GetWhiteTexture();
-		material_info.shader_effects = Slice(shader_effects, _countof(shader_effects));
+		material_info.shader_effects = Slice(shader_effects, 2);
 		default_mat = CreateMaterial(material_info);
 	}
 
@@ -509,7 +520,7 @@ int main(int argc, char** argv)
 		async_assets[0].asset_type = Asset::ASYNC_ASSET_TYPE::MODEL;
 		async_assets[0].load_type = Asset::ASYNC_LOAD_TYPE::DISK;
 		async_assets[0].mesh_disk.path = "../resources/models/Duck.gltf";
-		async_assets[0].mesh_disk.shader_effects = Slice(shader_effects, _countof(shader_effects));
+		async_assets[0].mesh_disk.shader_effects = Slice(shader_effects, 2);
 
 		//async_assets[1].asset_type = Asset::ASYNC_ASSET_TYPE::MODEL;
 		//async_assets[1].load_type = Asset::ASYNC_LOAD_TYPE::DISK;
@@ -555,9 +566,7 @@ int main(int argc, char** argv)
 
 	bool freeze_cam = false;
 	bool quit_app = false;
-	float delta_time = 0;
 
-	static auto start_time = std::chrono::high_resolution_clock::now();
 	auto current_time = std::chrono::high_resolution_clock::now();
 
 	InputEvent input_events[INPUT_EVENT_BUFFER_MAX]{};
@@ -577,8 +586,6 @@ int main(int argc, char** argv)
 		StartFrame(main_list);
 
 		Asset::Update();
-		FindShaderEffectViaImGui();
-
 
 		for (size_t i = 0; i < input_event_count; i++)
 		{
@@ -627,7 +634,7 @@ int main(int argc, char** argv)
 			else if (ip.input_type == INPUT_TYPE::MOUSE)
 			{
 				const MouseInfo& mi = ip.mouse_info;
-				const float2 mouse_move = (mi.move_offset * delta_time) * 0.001f;
+				const float2 mouse_move = (mi.move_offset * delta_time) * 10.f;
 
 				if (mi.right_released)
 					FreezeMouseOnWindow(window);
@@ -663,19 +670,18 @@ int main(int argc, char** argv)
 			object_viewer_scene.ImguiDisplaySceneHierarchy();
 
 			bool resized = false;
-			DrawImGuiViewport(main_arena, viewport_scene, resized);
+			DrawImGuiViewport(viewport_scene, resized);
 			if (resized)
 			{
 				scene_hierarchy.SetProjection(CalculateProjection(float2(static_cast<float>(viewport_scene.extent.x), static_cast<float>(viewport_scene.extent.y))));
 			}
 
 			resized = false;
-			DrawImGuiViewport(main_arena, viewport_object_viewer, resized);
+			DrawImGuiViewport(viewport_object_viewer, resized);
 			if (resized)
 			{
 				object_viewer_scene.SetProjection(CalculateProjection(float2(static_cast<float>(viewport_object_viewer.extent.x), static_cast<float>(viewport_object_viewer.extent.y))));
 			}
-
 
 			ThreadFuncForDrawing_Params main_scene_params{
 				viewport_scene,
@@ -705,8 +711,10 @@ int main(int argc, char** argv)
 			uint64_t fence_value;
 			PresentFrame(Slice(graphics_command_pools, _countof(graphics_command_pools)), fence_value);
 		}
-		delta_time = std::chrono::duration<float, std::chrono::seconds::period>(current_time - start_time).count();
-		current_time = std::chrono::high_resolution_clock::now();
+
+		auto currentnew = std::chrono::high_resolution_clock::now();
+		delta_time = std::chrono::duration<float, std::chrono::seconds::period>(currentnew - current_time).count();
+		current_time = currentnew;
 	}
 
 	DestroyImGuiInput();
