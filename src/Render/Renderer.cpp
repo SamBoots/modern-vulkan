@@ -505,8 +505,7 @@ struct Material
 	{
 		RPipelineLayout pipeline_layout;
 		
-		ShaderObject shader_objects[UNIQUE_SHADER_STAGE_COUNT];
-		SHADER_STAGE shader_stages[UNIQUE_SHADER_STAGE_COUNT];
+		ShaderEffectHandle shader_effects[UNIQUE_SHADER_STAGE_COUNT];
 		uint32_t shader_effect_count;
 	} shader;
 
@@ -1016,29 +1015,30 @@ static inline StackString<256> ShaderStagesToCChar(const SHADER_STAGE_FLAGS a_st
 static void ImGuiDisplayMaterials()
 {
 	ImGui::Indent();
-	for (size_t i = 0; i < s_render_inst->material_map.size(); i++)
+	for (uint32_t i = 0; i < s_render_inst->material_map.size(); i++)
 	{
 		Material& material = s_render_inst->material_map[i];
 		if (ImGui::CollapsingHeader(material.name))
 		{
-			ImGui::PushID(i);
+			ImGui::PushID(static_cast<int>(i));
 			ImGui::Indent();
 
-			for (uint32_t eff_count = 0; eff_count < material.shader.shader_effect_count; eff_count++)
+			for (uint32_t eff_index = 0; eff_index < material.shader.shader_effect_count; eff_index++)
 			{
-				ImGui::PushID(eff_count);
-				ImGui::Text("shader stage: %s", ShaderStageToCChar(material.shader.shader_stages[eff_count]));
+				const ShaderEffect& current_effect = s_render_inst->shader_effects[material.shader.shader_effects[eff_index].handle];
+				ImGui::PushID(static_cast<int>(eff_index));
+				ImGui::Text("shader stage: %s", ShaderStageToCChar(current_effect.shader_stage));
 				if (ImGui::CollapsingHeader("change shader"))
 				{
 					ImGui::Indent();
 					for (uint32_t shader_index = 0; shader_index < s_render_inst->shader_effects.size(); shader_index++)
 					{
 						const ShaderEffect& shader_effect = s_render_inst->shader_effects[shader_index];
-						if (shader_effect.shader_stage == material.shader.shader_stages[eff_count])
+						if (shader_effect.shader_stage == current_effect.shader_stage)
 						{
 							if (ImGui::Button(shader_effect.name))
 							{
-								material.shader.shader_objects[eff_count] = shader_effect.shader_object;
+								material.shader.shader_effects[eff_index] = ShaderEffectHandle(shader_index);
 							}
 						}
 					}
@@ -1074,7 +1074,7 @@ static void ImGuiDisplayShaderEffects()
 
 		if (ImGui::CollapsingHeader(shader_effect.name))
 		{
-			ImGui::PushID(i);
+			ImGui::PushID(static_cast<int>(i));
 			ImGui::Indent();
 
 			ImGui::Text("SHADER STAGE: %s", ShaderStageToCChar(shader_effect.shader_stage));
@@ -1684,7 +1684,6 @@ void BB::StartFrame(const RCommandList a_list)
 
 	IMGUI_IMPL::ImNewFrame();
 	ImGui::NewFrame();
-
 	ImguiDisplayRenderer();
 }
 
@@ -2086,10 +2085,20 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 		const Material& material = s_render_inst->material_map[mesh_draw_call.material.handle];
 		const Mesh& mesh = s_render_inst->mesh_map.find(mesh_draw_call.mesh);
 
+		ShaderObject shader_objects[2];
+		SHADER_STAGE shader_stages[2];
+
+		for (size_t eff_index = 0; eff_index < 2; eff_index++)
+		{
+			const ShaderEffect& effect = s_render_inst->shader_effects[material.shader.shader_effects[eff_index].handle];
+			shader_objects[eff_index] = effect.shader_object;
+			shader_stages[eff_index] = effect.shader_stage;
+		}
+
 		Vulkan::BindShaders(a_cmd_list,
 			material.shader.shader_effect_count,
-			material.shader.shader_stages,
-			material.shader.shader_objects);
+			shader_stages,
+			shader_objects);
 
 		ShaderIndices shader_indices;
 		shader_indices.transform_index = i;
@@ -2397,6 +2406,7 @@ bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderE
 bool BB::ReloadShaderEffect(const ShaderEffectHandle a_shader_effect)
 {
 #ifdef _ENABLE_REBUILD_SHADERS
+	GPUWaitIdle();
 	ShaderEffect& old_effect = s_render_inst->shader_effects[a_shader_effect.handle];
 	Vulkan::DestroyShaderObject(old_effect.shader_object);
 
@@ -2444,8 +2454,7 @@ const MaterialHandle BB::CreateMaterial(const CreateMaterialInfo& a_create_info)
 			valid_next_stages = effect.shader_stages_next;
 		}
 
-		mat.shader.shader_objects[i] = effect.shader_object;
-		mat.shader.shader_stages[i] = effect.shader_stage;
+		mat.shader.shader_effects[i] = a_create_info.shader_effects[i];
 	}
 	mat.name = a_create_info.name;
 	mat.shader.shader_effect_count = static_cast<uint32_t>(a_create_info.shader_effects.size());
