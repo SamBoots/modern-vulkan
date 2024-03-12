@@ -121,7 +121,13 @@ namespace BB
 
 	void GPUWaitIdle();
 
-	void StartFrame(const RCommandList a_list);
+	struct StartFrameInfo
+	{
+		float2 mouse_pos;
+		float delta_time;
+	};
+
+	void StartFrame(const RCommandList a_list, const StartFrameInfo& a_info);
 	void EndFrame(const RCommandList a_list, bool a_skip = false);
 
 	RenderTarget CreateRenderTarget(MemoryArena& a_arena, const uint2 a_render_target_extent, const char* a_name = "default");
@@ -132,7 +138,7 @@ namespace BB
 
 	RenderScene3DHandle Create3DRenderScene(MemoryArena& a_arena, const SceneCreateInfo& a_info, const char* a_name);
 	void StartRenderScene(const RenderScene3DHandle a_scene);
-	void EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, float a_time, bool a_skip = false);
+	void EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, bool a_skip = false);
 
 	void SetView(const RenderScene3DHandle a_scene, const float4x4& a_view);
 	void SetProjection(const RenderScene3DHandle a_scene, const float4x4& a_projection);

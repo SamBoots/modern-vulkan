@@ -19,8 +19,6 @@
 using namespace BB;
 #include "imgui.h"
 
-static float delta_time;
-
 struct ImInputData
 {
 	BB::WindowHandle            window;
@@ -369,7 +367,7 @@ static void ThreadFuncForDrawing(void* a_param)
 
 	StartRenderTarget(list, viewport.render_target);
 
-	scene_hierarchy.DrawSceneHierarchy(list, viewport.render_target, viewport.extent, int2(0, 0), delta_time);
+	scene_hierarchy.DrawSceneHierarchy(list, viewport.render_target, viewport.extent, int2(0, 0));
 
 	EndRenderTarget(list, viewport.render_target);
 }
@@ -539,7 +537,7 @@ int main(int argc, char** argv)
 		Threads::WaitForTask(asset_job);
 
 		//scene_hierarchy.CreateSceneObjectViaModel(*Asset::FindModelByPath(async_assets[1].mesh_disk.path), float3{ 0, -2, 3 }, "sponzay");
-		scene_hierarchy.CreateSceneObjectViaModel(*Asset::FindModelByPath(async_assets[1].mesh_memory.name), float3{ 0, -1, 1 }, "quaty");
+		scene_hierarchy.CreateSceneObjectViaModel(*Asset::FindModelByPath(async_assets[0].mesh_disk.path), float3{ 0, -1, 1 }, "ducky");
 		object_viewer_scene.CreateSceneObjectViaModel(*Asset::FindModelByPath(async_assets[0].mesh_disk.path), float3{ 0, -2, 3 }, "ducky");
 	}
 
@@ -568,12 +566,14 @@ int main(int argc, char** argv)
 	bool quit_app = false;
 
 	auto current_time = std::chrono::high_resolution_clock::now();
+	float delta_time = 0;
 
 	InputEvent input_events[INPUT_EVENT_BUFFER_MAX]{};
 	size_t input_event_count = 0;
 
 	//jank? Yeah. Make it a system
 	Viewport* active_viewport = nullptr;
+	float2 previous_mouse_pos{};
 
 	while (!quit_app)
 	{
@@ -583,7 +583,11 @@ int main(int argc, char** argv)
 		CommandPool graphics_command_pools[2]{ GetGraphicsCommandPool(), GetGraphicsCommandPool() };
 		const RCommandList main_list = graphics_command_pools[0].StartCommandList();
 
-		StartFrame(main_list);
+		StartFrameInfo start_info;
+		start_info.delta_time = delta_time;
+		start_info.mouse_pos = previous_mouse_pos;
+
+		StartFrame(main_list, start_info);
 
 		Asset::Update();
 
@@ -635,6 +639,7 @@ int main(int argc, char** argv)
 			{
 				const MouseInfo& mi = ip.mouse_info;
 				const float2 mouse_move = (mi.move_offset * delta_time) * 10.f;
+				previous_mouse_pos = mi.mouse_pos;
 
 				if (mi.right_released)
 					FreezeMouseOnWindow(window);

@@ -611,6 +611,13 @@ struct RenderInterface_inst
 
 	RDescriptorLayout scene3d_descriptor_layout;
 
+	struct GlobalBuffer
+	{
+		GlobalRenderData data;
+		GPUBuffer buffer;
+		void* mapped;
+	} global_buffer;
+
 	struct VertexBuffer
 	{
 		GPUBuffer buffer;
@@ -1407,7 +1414,6 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	s_render_inst->shader_effects.Init(a_arena, 64);
 	s_render_inst->material_map.Init(a_arena, 256);
 
-
 	s_render_inst->frame_upload_allocator.Init(a_arena, a_render_create_info.frame_upload_buffer_size, s_render_inst->graphics_queue.GetFence().fence, "frame upload allocator");
 
 	{	// do asset upload allocator here
@@ -1436,7 +1442,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		}
 		{
 			//global descriptor set 1
-			DescriptorBindingInfo descriptor_bindings[3];
+			DescriptorBindingInfo descriptor_bindings[4];
 			descriptor_bindings[0].binding = GLOBAL_VERTEX_BUFFER_BINDING;
 			descriptor_bindings[0].count = 1;
 			descriptor_bindings[0].shader_stage = SHADER_STAGE::VERTEX;
@@ -1451,9 +1457,26 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 			descriptor_bindings[2].count = MAX_TEXTURES;
 			descriptor_bindings[2].shader_stage = SHADER_STAGE::FRAGMENT_PIXEL;
 			descriptor_bindings[2].type = DESCRIPTOR_TYPE::IMAGE;
+
+			descriptor_bindings[3].binding = GLOBAL_BUFFER_BINDING;
+			descriptor_bindings[3].count = 1;
+			descriptor_bindings[3].shader_stage = SHADER_STAGE::ALL;
+			descriptor_bindings[3].type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
 			s_render_inst->global_descriptor_set = Vulkan::CreateDescriptorLayout(a_arena, Slice(descriptor_bindings, _countof(descriptor_bindings)));
 			s_render_inst->global_descriptor_allocation = Vulkan::AllocateDescriptor(s_render_inst->global_descriptor_set);
 		}
+	}
+
+	{
+		GPUBufferCreateInfo global_buffer;
+		global_buffer.name = "global buffer";
+		global_buffer.size = sizeof(GlobalRenderData);
+		global_buffer.type = BUFFER_TYPE::UNIFORM;
+		global_buffer.host_writable = true;
+
+		s_render_inst->global_buffer.buffer = Vulkan::CreateBuffer(global_buffer);
+		s_render_inst->global_buffer.mapped = Vulkan::MapBufferMemory(s_render_inst->global_buffer.buffer);
+		s_render_inst->global_buffer.data.swapchain_resolution = uint2(a_render_create_info.swapchain_width, a_render_create_info.swapchain_height);
 	}
 
 	{
@@ -1483,23 +1506,33 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		cpu_view.offset = 0;
 		cpu_view.size = s_render_inst->cpu_vertex_buffer.size;
 
-		WriteDescriptorData vertex_descriptor_write[2]{};
-		vertex_descriptor_write[0].binding = GLOBAL_VERTEX_BUFFER_BINDING;
-		vertex_descriptor_write[0].descriptor_index = 0;
-		vertex_descriptor_write[0].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-		vertex_descriptor_write[0].buffer_view = view;
+		WriteDescriptorData global_descriptor_write[3]{};
+		global_descriptor_write[0].binding = GLOBAL_VERTEX_BUFFER_BINDING;
+		global_descriptor_write[0].descriptor_index = 0;
+		global_descriptor_write[0].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
+		global_descriptor_write[0].buffer_view = view;
 
-		vertex_descriptor_write[1].binding = GLOBAL_CPU_VERTEX_BUFFER_BINDING;
-		vertex_descriptor_write[1].descriptor_index = 0;
-		vertex_descriptor_write[1].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-		vertex_descriptor_write[1].buffer_view = cpu_view;
+		global_descriptor_write[1].binding = GLOBAL_CPU_VERTEX_BUFFER_BINDING;
+		global_descriptor_write[1].descriptor_index = 0;
+		global_descriptor_write[1].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
+		global_descriptor_write[1].buffer_view = cpu_view;
 
-		WriteDescriptorInfos vertex_descriptor_info;
-		vertex_descriptor_info.allocation = s_render_inst->global_descriptor_allocation;
-		vertex_descriptor_info.descriptor_layout = s_render_inst->global_descriptor_set;
-		vertex_descriptor_info.data = Slice(vertex_descriptor_write, _countof(vertex_descriptor_write));
+		GPUBufferView global_view;
+		cpu_view.buffer = s_render_inst->global_buffer.buffer;
+		cpu_view.offset = 0;
+		cpu_view.size = sizeof(s_render_inst->global_buffer.data);
 
-		Vulkan::WriteDescriptors(vertex_descriptor_info);
+		global_descriptor_write[2].binding = GLOBAL_BUFFER_BINDING;
+		global_descriptor_write[2].descriptor_index = 0;
+		global_descriptor_write[2].type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
+		global_descriptor_write[2].buffer_view = cpu_view;
+
+		WriteDescriptorInfos global_descriptor_info;
+		global_descriptor_info.allocation = s_render_inst->global_descriptor_allocation;
+		global_descriptor_info.descriptor_layout = s_render_inst->global_descriptor_set;
+		global_descriptor_info.data = Slice(global_descriptor_write, _countof(global_descriptor_write));
+
+		Vulkan::WriteDescriptors(global_descriptor_info);
 	}
 	{
 		GPUBufferCreateInfo index_buffer;
@@ -1637,13 +1670,15 @@ static void ResizeRendererSwapchain(const uint32_t a_width, const uint32_t a_hei
 		s_render_inst->frames[i].graphics_queue_fence_value = 0;
 	}
 
+	s_render_inst->global_buffer.data.swapchain_resolution = uint2(a_width, a_height);
+
 	// also reset the render debug state
 	s_render_inst->render_io.frame_started = false;
 	s_render_inst->render_io.frame_ended = false;
 	s_render_inst->render_io.resizing_request = false;
 }
 
-void BB::StartFrame(const RCommandList a_list)
+void BB::StartFrame(const RCommandList a_list, const StartFrameInfo& a_info)
 {
 	// check if we need to resize
 	if (s_render_inst->render_io.resizing_request)
@@ -1680,6 +1715,17 @@ void BB::StartFrame(const RCommandList a_list)
 		pipeline_info.image_info_count = _countof(image_transitions);
 		pipeline_info.image_infos = image_transitions;
 		Vulkan::PipelineBarriers(a_list, pipeline_info);
+	}
+
+	{
+		s_render_inst->global_buffer.data.frame_count += 1;
+		s_render_inst->global_buffer.data.mouse_pos = a_info.mouse_pos;
+		s_render_inst->global_buffer.data.frame_index = s_render_inst->render_io.frame_index;
+		s_render_inst->global_buffer.data.delta_time = a_info.delta_time;
+		s_render_inst->global_buffer.data.total_time += a_info.delta_time;
+		memcpy(s_render_inst->global_buffer.mapped,
+			&s_render_inst->global_buffer.data,
+			sizeof(s_render_inst->global_buffer.data));
 	}
 
 	IMGUI_IMPL::ImNewFrame();
@@ -1949,11 +1995,8 @@ void BB::StartRenderScene(const RenderScene3DHandle a_scene)
 	render_scene3d.draw_list_count = 0;
 }
 
-void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, float delta_time, bool a_skip)
+void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, bool a_skip)
 {
-	static float shit_time = 0;
-	shit_time += delta_time;
-
 	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
 	const auto& scene_frame = render_scene3d.frames[s_render_inst->render_io.frame_index];
 
@@ -1963,7 +2006,7 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 	}
 
 	render_scene3d.scene_info.light_count = render_scene3d.light_container.size();
-	render_scene3d.scene_info.time = shit_time;
+	render_scene3d.scene_info.scene_resolution = a_draw_area_size;
 	const size_t scene_upload_size = sizeof(Scene3DInfo);
 	const size_t matrices_upload_size = sizeof(ShaderTransform) * render_scene3d.draw_list_count;
 	const size_t light_upload_size = sizeof(Light) * render_scene3d.light_container.capacity();

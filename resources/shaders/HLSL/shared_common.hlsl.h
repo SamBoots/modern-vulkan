@@ -18,6 +18,7 @@ namespace BB
 #define GLOBAL_VERTEX_BUFFER_BINDING 0
 #define GLOBAL_CPU_VERTEX_BUFFER_BINDING 1
 #define GLOBAL_BINDLESS_TEXTURES_BINDING 2
+#define GLOBAL_BUFFER_BINDING 3
 
 #define PER_SCENE_SCENE_DATA_BINDING 0
 #define PER_SCENE_TRANSFORM_DATA_BINDING 1
@@ -25,10 +26,10 @@ namespace BB
 
     struct Vertex
     {
-        float3 position; //12
-        float3 normal; //24
-        float2 uv; //32
-        float3 color; //44 
+        float3 position;            // 12
+        float3 normal;              // 24
+        float2 uv;                  // 32
+        float3 color;               // 44 
     };
 
     struct Vertex2D
@@ -38,50 +39,60 @@ namespace BB
         uint color;
     };
 
+    struct GlobalRenderData
+    {
+        float2 mouse_pos;           // 8
+        uint2 swapchain_resolution; // 16
+        uint frame_index;           // 20
+        uint frame_count;           // 24
+        float delta_time;           // 28
+        float total_time;           // 32
+    };
+
     struct Scene3DInfo
     {
-        float4x4 view;
-        float4x4 proj;
+        float4x4 view;              // 64
+        float4x4 proj;              // 128
 
-        float3 ambient_light;
-        float ambient_strength;
+        float3 ambient_light;       // 136
+        float ambient_strength;     // 144
 
-        uint light_count;
-        float time;
-        uint2 padding;
+        uint light_count;           // 148
+        uint padding;               // 152
+        uint2 scene_resolution;     // 156
     };
 
     //pointlight
     struct PointLight
     {
-        float3 color;           //12
-        float3 pos;             //24
+        float3 color;               // 12
+        float3 pos;                 // 24
 
-        float radius_linear;    //28
-        float radius_quadratic; //32
+        float radius_linear;        // 28
+        float radius_quadratic;     // 32
     };
 
     struct ShaderTransform
     {
-        float4x4 transform;
-        float4x4 inverse;
+        float4x4 transform;         // 64
+        float4x4 inverse;           // 128
     };
 
     //could make the size the same for shaderindices and shaderindices2d so that the pushconstant pipelinelayout is the same.....
     struct ShaderIndices
     {
-        uint vertex_buffer_offset;  //4
-        uint transform_index;       //8
-        uint albedo_texture;        //12
-        uint normal_texture;        //16
-        float2 padding;             //24
+        uint vertex_buffer_offset;  // 4
+        uint transform_index;       // 8
+        uint albedo_texture;        // 12
+        uint normal_texture;        // 16
+        float2 padding;             // 24
     };
 
     struct ShaderIndices2D
     {
-        uint vertex_buffer_offset;  //4
-        uint albedo_texture;        //8
-        float2 rect_scale;          //16
-        float2 translate;           //24
+        uint vertex_buffer_offset;  // 4
+        uint albedo_texture;        // 8
+        float2 rect_scale;          // 16
+        float2 translate;           // 24
     };
 }
