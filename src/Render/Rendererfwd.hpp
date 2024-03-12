@@ -44,7 +44,8 @@ namespace BB
 		NONE			= 0,
 		ALL				= UINT32_MAX,
 		VERTEX			= 1 << 1,
-		FRAGMENT_PIXEL	= 1 << 2
+		FRAGMENT_PIXEL	= 1 << 2,
+		ENUM_SIZE = 4
 	};
 
 	enum class IMAGE_FORMAT : uint32_t

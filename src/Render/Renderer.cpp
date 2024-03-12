@@ -1022,6 +1022,71 @@ static inline StackString<256> ShaderStagesToCChar(const SHADER_STAGE_FLAGS a_st
 static void ImGuiDisplayMaterials()
 {
 	ImGui::Indent();
+
+	if (ImGui::CollapsingHeader("create material"))
+	{
+		static char material_name_buffer[256]{};
+		static ShaderEffectHandle vertex_effect{};
+		static ShaderEffectHandle fragment_effect{};
+
+		ImGui::Indent();
+
+		ImGui::InputText("material name", material_name_buffer, _countof(material_name_buffer));
+
+		if (vertex_effect.IsValid())
+			ImGui::Text("vertex shader: %s", s_render_inst->shader_effects[vertex_effect.handle].name);
+		else
+			ImGui::Text("vertex shader: invalid");
+
+		ImGui::Indent();
+		for (uint32_t shader_index = 0; shader_index < s_render_inst->shader_effects.size(); shader_index++)
+		{
+			const ShaderEffect& shader_effect = s_render_inst->shader_effects[shader_index];
+			if (shader_effect.shader_stage == SHADER_STAGE::VERTEX)
+			{
+				if (ImGui::Button(shader_effect.name))
+				{
+					vertex_effect = ShaderEffectHandle(shader_index);
+				}
+			}
+		}
+
+		ImGui::Unindent();
+
+		if (fragment_effect.IsValid())
+			ImGui::Text("fragment shader: %s", s_render_inst->shader_effects[fragment_effect.handle].name);
+		else
+			ImGui::Text("fragment shader: invalid");
+
+		ImGui::Indent();
+		for (uint32_t shader_index = 0; shader_index < s_render_inst->shader_effects.size(); shader_index++)
+		{
+			const ShaderEffect& shader_effect = s_render_inst->shader_effects[shader_index];
+			if (shader_effect.shader_stage == SHADER_STAGE::FRAGMENT_PIXEL)
+			{
+				if (ImGui::Button(shader_effect.name))
+				{
+					fragment_effect = ShaderEffectHandle(shader_index);
+				}
+			}
+		}
+		ImGui::Unindent();
+
+		if (ImGui::Button("generate material"))
+		{
+			CreateMaterialInfo create_material_info;
+			create_material_info.name = material_name_buffer; // TEMP
+			create_material_info.base_color = RTexture(0);
+			ShaderEffectHandle effects[2]{ vertex_effect, fragment_effect };
+			create_material_info.shader_effects = Slice(effects, _countof(effects));
+			CreateMaterial(create_material_info);
+		}
+
+		ImGui::Unindent();
+	}
+
+	ImGui::NewLine();
+
 	for (uint32_t i = 0; i < s_render_inst->material_map.size(); i++)
 	{
 		Material& material = s_render_inst->material_map[i];
@@ -1034,7 +1099,7 @@ static void ImGuiDisplayMaterials()
 			{
 				const ShaderEffect& current_effect = s_render_inst->shader_effects[material.shader.shader_effects[eff_index].handle];
 				ImGui::PushID(static_cast<int>(eff_index));
-				ImGui::Text("shader stage: %s", ShaderStageToCChar(current_effect.shader_stage));
+				ImGui::Text("shader: %s, \nstage: %s", current_effect.name, ShaderStageToCChar(current_effect.shader_stage));
 				if (ImGui::CollapsingHeader("change shader"))
 				{
 					ImGui::Indent();
