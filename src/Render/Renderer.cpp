@@ -1518,15 +1518,16 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 			descriptor_bindings[1].shader_stage = SHADER_STAGE::VERTEX;
 			descriptor_bindings[1].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
 
-			descriptor_bindings[2].binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
-			descriptor_bindings[2].count = MAX_TEXTURES;
-			descriptor_bindings[2].shader_stage = SHADER_STAGE::FRAGMENT_PIXEL;
-			descriptor_bindings[2].type = DESCRIPTOR_TYPE::IMAGE;
+			descriptor_bindings[2].binding = GLOBAL_BUFFER_BINDING;
+			descriptor_bindings[2].count = 1;
+			descriptor_bindings[2].shader_stage = SHADER_STAGE::ALL;
+			descriptor_bindings[2].type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
 
-			descriptor_bindings[3].binding = GLOBAL_BUFFER_BINDING;
-			descriptor_bindings[3].count = 1;
-			descriptor_bindings[3].shader_stage = SHADER_STAGE::ALL;
-			descriptor_bindings[3].type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
+			descriptor_bindings[3].binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
+			descriptor_bindings[3].count = MAX_TEXTURES;
+			descriptor_bindings[3].shader_stage = SHADER_STAGE::FRAGMENT_PIXEL;
+			descriptor_bindings[3].type = DESCRIPTOR_TYPE::IMAGE;
+
 			s_render_inst->global_descriptor_set = Vulkan::CreateDescriptorLayout(a_arena, Slice(descriptor_bindings, _countof(descriptor_bindings)));
 			s_render_inst->global_descriptor_allocation = Vulkan::AllocateDescriptor(s_render_inst->global_descriptor_set);
 		}
@@ -3056,7 +3057,7 @@ bool BB::ReadTexture(const RCommandList a_cmd_list, const RTexture a_texture, co
 
 	{
 		PipelineBarrierImageInfo image_write_transition;
-		image_write_transition.src_mask = BARRIER_ACCESS_MASK::NONE;
+		image_write_transition.src_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
 		image_write_transition.dst_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
 		image_write_transition.image = selected_texture.texture_info.image;
 		image_write_transition.old_layout = original_layout;
@@ -3067,7 +3068,7 @@ bool BB::ReadTexture(const RCommandList a_cmd_list, const RTexture a_texture, co
 		image_write_transition.level_count = 1;
 		image_write_transition.base_array_layer = 0;
 		image_write_transition.base_mip_level = 0;
-		image_write_transition.src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
+		image_write_transition.src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
 		image_write_transition.dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
 
 		PipelineBarrierInfo pipeline_info{};

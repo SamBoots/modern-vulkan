@@ -3,7 +3,6 @@
 
 namespace BB
 {
-    //defined for HLSL and constexpr for the cpp
 #define SPACE_IMMUTABLE_SAMPLER 0
 #define SPACE_GLOBAL 1
 #define SPACE_PER_SCENE 2
@@ -17,8 +16,8 @@ namespace BB
 
 #define GLOBAL_VERTEX_BUFFER_BINDING 0
 #define GLOBAL_CPU_VERTEX_BUFFER_BINDING 1
-#define GLOBAL_BINDLESS_TEXTURES_BINDING 2
-#define GLOBAL_BUFFER_BINDING 3
+#define GLOBAL_BUFFER_BINDING 2
+#define GLOBAL_BINDLESS_TEXTURES_BINDING 3 // must be last due to bindless
 
 #define PER_SCENE_SCENE_DATA_BINDING 0
 #define PER_SCENE_TRANSFORM_DATA_BINDING 1
