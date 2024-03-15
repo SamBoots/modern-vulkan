@@ -1331,7 +1331,7 @@ void GPUTextureManager::Init(MemoryArena& a_arena, const RCommandList a_list, co
 
 		for (uint32_t i = 0; i < MAX_TEXTURES; i++)
 		{
-			write_desc[i].binding = 2;
+			write_desc[i].binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
 			write_desc[i].descriptor_index = i; //handle is also the descriptor index
 			write_desc[i].type = DESCRIPTOR_TYPE::IMAGE;
 			write_desc[i].image_view.view = m_debug_texture.view;
