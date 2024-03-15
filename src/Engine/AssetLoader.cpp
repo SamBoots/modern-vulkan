@@ -41,8 +41,8 @@ constexpr size_t GPU_TASK_QUEUE_SIZE = 64;
 
 constexpr size_t MAX_STRING_SIZE_STORAGE = 2024;
 
-constexpr const char TEXTURE_DIRECTORY[] = "../resources/textures/";
-constexpr const char ICON_DIRECTORY[] = "../resources/icons/";
+constexpr const char TEXTURE_DIRECTORY[] = "../../resources/textures/";
+constexpr const char ICON_DIRECTORY[] = "../../resources/icons/";
 
 using PathString = StackString<MAX_PATH_SIZE>;
 using AssetString = StackString<MAX_ASSET_NAME_SIZE>;

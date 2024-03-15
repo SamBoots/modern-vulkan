@@ -878,7 +878,7 @@ namespace IMGUI_IMPL
 		{
 			CreateShaderEffectInfo shaders[2];
 			shaders[0].name = "imgui vertex shader";
-			shaders[0].shader_path = "../resources/shaders/hlsl/Imgui.hlsl";
+			shaders[0].shader_path = "../../resources/shaders/hlsl/Imgui.hlsl";
 			shaders[0].shader_entry = "VertexMain";
 			shaders[0].stage = SHADER_STAGE::VERTEX;
 			shaders[0].next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::FRAGMENT_PIXEL);
@@ -886,7 +886,7 @@ namespace IMGUI_IMPL
 			shaders[0].pass_type = RENDER_PASS_TYPE::STANDARD_3D;
 
 			shaders[1].name = "imgui Fragment shader";
-			shaders[1].shader_path = "../resources/shaders/hlsl/Imgui.hlsl";
+			shaders[1].shader_path = "../../resources/shaders/hlsl/Imgui.hlsl";
 			shaders[1].shader_entry = "FragmentMain";
 			shaders[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
 			shaders[1].next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::NONE);
