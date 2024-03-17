@@ -188,29 +188,6 @@ static float4x4 CalculateProjection(float2 a_extent)
 	return Float4x4Perspective(ToRadians(60.0f), a_extent.x / a_extent.y, 0.001f, 10000.0f);
 }
 
-struct ThreadFuncForDrawing_Params
-{
-	//IN
-	Viewport& viewport;
-	SceneHierarchy& scene_hierarchy;
-	RCommandList command_list;
-};
-
-static void ThreadFuncForDrawing(void* a_param)
-{
-	ThreadFuncForDrawing_Params* param_in = reinterpret_cast<ThreadFuncForDrawing_Params*>(a_param);
-
-	Viewport& viewport = param_in->viewport;
-	SceneHierarchy& scene_hierarchy = param_in->scene_hierarchy;
-	RCommandList list = param_in->command_list;
-
-	StartRenderTarget(list, viewport.render_target);
-
-	scene_hierarchy.DrawSceneHierarchy(list, viewport.render_target, viewport.extent, int2(0, 0));
-
-	EndRenderTarget(list, viewport.render_target);
-}
-
 static void CustomCloseWindow(const BB::WindowHandle a_window_handle)
 {
 	(void)a_window_handle;
@@ -237,7 +214,6 @@ int main(int argc, char** argv)
 
 		exe_path.append(exe_path_manipulator.c_str(), path_end);
 	}
-
 	
 	BBInitInfo bb_init{};
 	bb_init.exe_path = exe_path.c_str();
@@ -381,161 +357,14 @@ int main(int argc, char** argv)
 	scene_hierarchy.SetView(viewport_scene.camera.CalculateView());
 	object_viewer_scene.SetView(viewport_object_viewer.camera.CalculateView());
 
-	bool freeze_cam = false;
-	bool quit_app = false;
-
 	auto current_time = std::chrono::high_resolution_clock::now();
-	float delta_time = 0;
 
-	InputEvent input_events[INPUT_EVENT_BUFFER_MAX]{};
-	size_t input_event_count = 0;
-
-	//jank? Yeah. Make it a system
-	Viewport* active_viewport = nullptr;
-	float2 previous_mouse_pos{};
+	bool quit_app = false;
 
 	while (!quit_app)
 	{
-		ProcessMessages(window);
-		PollInputEvents(input_events, input_event_count);
-
-		CommandPool graphics_command_pools[2]{ GetGraphicsCommandPool(), GetGraphicsCommandPool() };
-		const RCommandList main_list = graphics_command_pools[0].StartCommandList();
-
-		StartFrameInfo start_info;
-		start_info.delta_time = delta_time;
-		start_info.mouse_pos = previous_mouse_pos;
-
-		StartFrame(main_list, start_info);
-
 		Asset::Update();
-
-		for (size_t i = 0; i < input_event_count; i++)
-		{
-			const InputEvent& ip = input_events[i];
-			//imgui can deny our normal input
-			if (ImProcessInput(ip))
-				continue;
-
-			if (ip.input_type == INPUT_TYPE::KEYBOARD)
-			{
-				const KeyInfo& ki = ip.key_info;
-				float3 cam_move{};
-				if (ki.key_pressed)
-					switch (ki.scan_code)
-					{
-					case KEYBOARD_KEY::F:
-						freeze_cam = !freeze_cam;
-						break;
-					case KEYBOARD_KEY::W:
-						cam_move.y = 1;
-						break;
-					case KEYBOARD_KEY::S:
-						cam_move.y = -1;
-						break;
-					case KEYBOARD_KEY::A:
-						cam_move.x = 1;
-						break;
-					case KEYBOARD_KEY::D:
-						cam_move.x = -1;
-						break;
-					case KEYBOARD_KEY::X:
-						cam_move.z = 1;
-						break;
-					case KEYBOARD_KEY::Z:
-						cam_move.z = -1;
-						break;
-					default:
-						break;
-					}
-				if (!freeze_cam && active_viewport)
-				{
-					active_viewport->camera.Move(cam_move);
-				}
-
-			}
-			else if (ip.input_type == INPUT_TYPE::MOUSE)
-			{
-				const MouseInfo& mi = ip.mouse_info;
-				const float2 mouse_move = (mi.move_offset * delta_time) * 10.f;
-				previous_mouse_pos = mi.mouse_pos;
-
-				if (mi.right_released)
-					FreezeMouseOnWindow(window);
-				if (mi.left_released)
-					UnfreezeMouseOnWindow();
-
-				{
-					Viewport* new_active = nullptr;
-					if (PositionWithinViewport(viewport_scene, uint2(static_cast<unsigned int>(mi.mouse_pos.x), static_cast<unsigned int>(mi.mouse_pos.y))))
-					{
-						new_active = &viewport_scene;
-					}
-					if (PositionWithinViewport(viewport_object_viewer, uint2(static_cast<unsigned int>(mi.mouse_pos.x), static_cast<unsigned int>(mi.mouse_pos.y))))
-					{
-						new_active = &viewport_object_viewer;
-					}
-					active_viewport = new_active;
-				}
-
-				if (!freeze_cam && active_viewport)
-					active_viewport->camera.Rotate(mouse_move.x, mouse_move.y);
-			}
-		}
-		MemoryArenaScope(main_arena)
-		{
-
-			scene_hierarchy.SetView(viewport_scene.camera.CalculateView());
-			object_viewer_scene.SetView(viewport_object_viewer.camera.CalculateView());
-
-			Asset::ShowAssetMenu(main_arena);
-			MainDebugWindow(main_arena, active_viewport);
-			scene_hierarchy.ImguiDisplaySceneHierarchy();
-			object_viewer_scene.ImguiDisplaySceneHierarchy();
-
-			bool resized = false;
-			DrawImGuiViewport(viewport_scene, resized);
-			if (resized)
-			{
-				scene_hierarchy.SetProjection(CalculateProjection(float2(static_cast<float>(viewport_scene.extent.x), static_cast<float>(viewport_scene.extent.y))));
-			}
-
-			resized = false;
-			DrawImGuiViewport(viewport_object_viewer, resized);
-			if (resized)
-			{
-				object_viewer_scene.SetProjection(CalculateProjection(float2(static_cast<float>(viewport_object_viewer.extent.x), static_cast<float>(viewport_object_viewer.extent.y))));
-			}
-
-			ThreadFuncForDrawing_Params main_scene_params{
-				viewport_scene,
-				scene_hierarchy,
-				main_list
-			};
-
-			const RCommandList object_viewer_list = graphics_command_pools[1].StartCommandList();
-
-			ThreadFuncForDrawing_Params object_viewer_params{
-				viewport_object_viewer,
-				object_viewer_scene,
-				object_viewer_list
-			};
-
-			ThreadTask main_scene_task = Threads::StartTaskThread(ThreadFuncForDrawing, &main_scene_params, L"main scene task");
-			ThreadTask object_viewer_task = Threads::StartTaskThread(ThreadFuncForDrawing, &object_viewer_params, L"object viewer task");
-
-			Threads::WaitForTask(main_scene_task);
-			Threads::WaitForTask(object_viewer_task);
-
-			graphics_command_pools[1].EndCommandList(object_viewer_list);
-
-			EndFrame(main_list);
-
-			graphics_command_pools[0].EndCommandList(main_list);
-			uint64_t fence_value;
-			PresentFrame(Slice(graphics_command_pools, _countof(graphics_command_pools)), fence_value);
-		}
-
+		
 		auto currentnew = std::chrono::high_resolution_clock::now();
 		delta_time = std::chrono::duration<float, std::chrono::seconds::period>(currentnew - current_time).count();
 		current_time = currentnew;
