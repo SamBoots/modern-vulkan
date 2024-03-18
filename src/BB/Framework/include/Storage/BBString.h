@@ -16,8 +16,10 @@ namespace BB
 	class String_View
 	{
 	public:
+		String_View() = default;
 		String_View(const CharT* a_string) : String_View(a_string, Memory::StrLength(a_string)) {}
 		String_View(const CharT* a_string, const size_t a_size) : m_string_view(a_string), m_size(a_size) {}
+		String_View(const String_View<CharT>& a_view) : m_string_view(a_view.m_string_view), m_size(a_view.m_size) {}
 
 		bool operator==(const String_View<CharT>& a_rhs) const
 		{

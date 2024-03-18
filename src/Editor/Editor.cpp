@@ -13,7 +13,6 @@
 #include "SceneHierarchy.hpp"
 
 using namespace BB;
-using namespace Editor;
 
 static Viewport CreateViewport(MemoryArena& a_arena, const uint2 a_extent, const uint2 a_offset, const char* a_name)
 {
@@ -60,13 +59,11 @@ static void ThreadFuncForDrawing(void* a_param)
 
 void Editor::Init(struct BB::MemoryArena& a_arena, const uint2 window_extent)
 {
-	s_editor = ArenaAllocType(a_arena, Editor_inst);
-
 	m_game_screen = CreateViewport(a_arena, window_extent, uint2(), "game scene");
 	m_object_viewer_screen = CreateViewport(a_arena, window_extent / 2u, uint2(), "object viewer");
 
-	m_game_hierarchy.InitializeSceneHierarchy(a_arena, 128, "normal scene");
-	m_object_viewer_hierarchy.InitializeSceneHierarchy(a_arena, 16, "object viewer scene");
+	m_game_hierarchy.Init(a_arena, 128, "normal scene");
+	m_object_viewer_hierarchy.Init(a_arena, 16, "object viewer scene");
 	m_game_hierarchy.SetClearColor(float3{ 0.1f, 0.6f, 0.1f });
 	m_object_viewer_hierarchy.SetClearColor(float3{ 0.5f, 0.1f, 0.1f });
 }

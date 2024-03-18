@@ -8,7 +8,7 @@
 namespace BB
 {
 	using SceneObjectHandle = FrameworkHandle<struct SceneObjectHandleTag>;
-
+	
 	constexpr uint32_t DEFAULT_SCENE_OBJ_MAX = 512;
 	constexpr uint32_t SCENE_OBJ_CHILD_MAX = 128;
 
@@ -32,7 +32,8 @@ namespace BB
 	class SceneHierarchy
 	{
 	public:
-		void InitializeSceneHierarchy(MemoryArena& a_memory_arena, const uint32_t a_scene_obj_max = DEFAULT_SCENE_OBJ_MAX, const char* a_name = "default");
+		void Init(MemoryArena& a_memory_arena, const StringView a_name, const uint32_t a_scene_obj_max = DEFAULT_SCENE_OBJ_MAX);
+		void InitViaJson(MemoryArena& a_memory_arena, const char* a_json_path, const uint32_t a_scene_obj_max = DEFAULT_SCENE_OBJ_MAX);
 
 		void DrawSceneHierarchy(const RCommandList a_list, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset) const;
 		void CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name);
@@ -62,6 +63,6 @@ namespace BB
 		RenderScene3DHandle m_render_scene;
 		float3 m_clear_color;
 
-		const char* m_scene_name;
+		StringView m_scene_name;
 	};
 }

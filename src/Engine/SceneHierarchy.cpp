@@ -1,11 +1,12 @@
 #include "SceneHierarchy.hpp"
 #include "Math.inl"
+#include "BBjson.hpp"
 
 #include "imgui.h"
 
 using namespace BB;
 
-void SceneHierarchy::InitializeSceneHierarchy(MemoryArena& a_memory_arena, const uint32_t a_scene_obj_max, const char* a_name)
+void SceneHierarchy::Init(MemoryArena& a_memory_arena, const StringView a_name, const uint32_t a_scene_obj_max)
 {
 	m_transform_pool.Init(a_memory_arena, a_scene_obj_max);
 	m_scene_objects.Init(a_memory_arena, a_scene_obj_max);
@@ -19,8 +20,26 @@ void SceneHierarchy::InitializeSceneHierarchy(MemoryArena& a_memory_arena, const
 	create_info.draw_entry_max = a_scene_obj_max;
 	create_info.light_max = 128; // magic number jank yes shoot me
 
-	m_render_scene = Create3DRenderScene(a_memory_arena, create_info, a_name);
-	m_scene_name = a_name;
+	m_render_scene = Create3DRenderScene(a_memory_arena, create_info, a_name.c_str());
+	const StringView view = StringView(a_name.c_str(), a_name.size());
+	new (&m_scene_name) StringView(view);
+}
+
+void BB::SceneHierarchy::InitViaJson(MemoryArena& a_memory_arena, const char* a_json_path, const uint32_t a_scene_obj_max)
+{
+	JsonParser scene_json(a_json_path);
+	scene_json.Parse();
+
+	const JsonNode* root_node = scene_json.GetRootNode();
+	const JsonObject* scene_obj = root_node->GetObject();
+
+	JsonNode** cur_node = scene_obj->map.find("name");
+	BB_ASSERT(cur_node, "not able to find name element of the scene");
+	const JsonNode* name_node = *cur_node;
+
+	const StringView scene_name = Asset::FindOrCreateString(name_node->GetString());
+	Init(a_memory_arena, scene_name, a_scene_obj_max);
+
 }
 
 SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent)
@@ -174,7 +193,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectEmpty(const SceneObjectHandle
 
 void SceneHierarchy::ImguiDisplaySceneHierarchy()
 {
-	if (ImGui::Begin(m_scene_name))
+	if (ImGui::Begin(m_scene_name.c_str()))
 	{
 		ImGui::Indent();
 		if (ImGui::Button("create scene object"))
