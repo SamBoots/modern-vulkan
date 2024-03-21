@@ -19,7 +19,7 @@ namespace BB
 
 	struct JsonList //12 bytes
 	{
-		uint32_t nodeCount;
+		uint32_t node_count;
 		struct JsonNode** nodes;
 	};
 
@@ -35,10 +35,10 @@ namespace BB
 			bool boolean;
 		};
 
-		inline struct JsonObject* GetObject() const
+		inline struct JsonObject& GetObject() const
 		{
 			BB_ASSERT(type == JSON_TYPE::OBJECT, "json type not an object");
-			return object;
+			return *object;
 		}
 		inline JsonList GetList() const
 		{
@@ -71,12 +71,20 @@ namespace BB
 			Pair* next = nullptr;
 		};
 
+		JsonNode* Find(const char* a_str) const
+		{
+			JsonNode** node = map.find(a_str);
+			BB_ASSERT(node, "node is nullptr, can't find node");
+			return *node;
+		}
+
 		JsonObject(MemoryArena& a_arena, const uint32_t a_map_size, Pair* a_pair_head)
 			: pairLL(a_pair_head)
 		{
 			map.Init(a_arena, a_map_size);
 		}
-		StaticOL_HashMap<char*, JsonNode*, String_KeyComp> map;
+	//private: this should be private
+		StaticOL_HashMap<const char*, JsonNode*, String_KeyComp> map;
 		Pair* pairLL;
 	};
 

@@ -1,6 +1,7 @@
 #pragma once
 #include "Common.h"
 #include "SceneHierarchy.hpp"
+#include "Camera.hpp"
 
 namespace BB
 {
@@ -18,6 +19,7 @@ namespace BB
 	{
 	public:
 		void Init(MemoryArena& a_arena, const uint2 window_extent);
+		void Destroy();
 		void Update(MemoryArena& a_arena, const float a_delta_time);
 
 	private:
@@ -28,8 +30,10 @@ namespace BB
 		SceneHierarchy m_object_viewer_hierarchy;
 
 		Viewport* m_active_viewport = nullptr;
-		float2 previous_mouse_pos{};
+		float2 m_previous_mouse_pos{};
 
-		bool freeze_cam = false;
-	}
+		WindowHandle m_main_window;
+
+		bool m_freeze_cam = false;
+	};
 }

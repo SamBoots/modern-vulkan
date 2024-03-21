@@ -1,10 +1,14 @@
 #include "SceneHierarchy.hpp"
 #include "Math.inl"
 #include "BBjson.hpp"
+#include "BBThreadScheduler.hpp"
 
 #include "imgui.h"
 
 using namespace BB;
+
+// arbritrary, but just for a stack const char array
+constexpr size_t UNIQUE_MODELS_PER_SCENE = 128;
 
 void SceneHierarchy::Init(MemoryArena& a_memory_arena, const StringView a_name, const uint32_t a_scene_obj_max)
 {
@@ -25,21 +29,102 @@ void SceneHierarchy::Init(MemoryArena& a_memory_arena, const StringView a_name, 
 	new (&m_scene_name) StringView(view);
 }
 
+bool NameIsWithinCharArray(const char** a_arr, const size_t a_arr_size, const char* a_str)
+{
+	for (size_t i = 0; i < a_arr_size; i++)
+	{
+		if (strcmp(a_arr[i], a_str) == 0)
+			return true;
+	}
+	return false;
+}
+
 void BB::SceneHierarchy::InitViaJson(MemoryArena& a_memory_arena, const char* a_json_path, const uint32_t a_scene_obj_max)
 {
 	JsonParser scene_json(a_json_path);
 	scene_json.Parse();
 
-	const JsonNode* root_node = scene_json.GetRootNode();
-	const JsonObject* scene_obj = root_node->GetObject();
+	const JsonObject& scene_obj = scene_json.GetRootNode()->GetObject();
 
-	JsonNode** cur_node = scene_obj->map.find("name");
-	BB_ASSERT(cur_node, "not able to find name element of the scene");
-	const JsonNode* name_node = *cur_node;
+	{
+		const JsonNode& name_node = *scene_obj.Find("name");
+		const StringView scene_name = Asset::FindOrCreateString(name_node.GetString());
+		Init(a_memory_arena, scene_name, a_scene_obj_max);
+	}
+	
+	MemoryArenaScope(a_memory_arena)
+	{
+		const char* unique_models[UNIQUE_MODELS_PER_SCENE]{};
+		size_t unique_model_count = 0;
 
-	const StringView scene_name = Asset::FindOrCreateString(name_node->GetString());
-	Init(a_memory_arena, scene_name, a_scene_obj_max);
+		// first get all the unique models
+		const JsonList& scene_objects = scene_obj.Find("scene_objects")->GetList();
+		for (size_t i = 0; i < scene_objects.node_count; i++)
+		{
+			const char* model_name = scene_objects.nodes[i]->GetObject().Find("file_name")->GetString();
 
+			if (NameIsWithinCharArray(unique_models, unique_model_count, model_name))
+			{
+				unique_models[unique_model_count++] = model_name;
+			}
+		}
+
+		Asset::AsyncAsset* async_model_loads = ArenaAllocArr(a_memory_arena, Asset::AsyncAsset, unique_model_count);
+
+		for (size_t i = 0; i < unique_model_count; i++)
+		{
+			async_model_loads[i].asset_type = Asset::ASYNC_ASSET_TYPE::MODEL;
+			async_model_loads[i].load_type = Asset::ASYNC_LOAD_TYPE::MEMORY;
+			async_model_loads[i].mesh_disk.path = unique_models[i];
+		}
+
+		const ThreadTask asset_transfer_task = Asset::LoadAssetsASync(Slice(async_model_loads, unique_model_count), "upload scene models json");
+
+		const JsonList& lights = scene_obj.Find("lights")->GetList();
+		for (size_t i = 0; i < lights.node_count; i++)
+		{
+			const JsonObject& light_obj = lights.nodes[i]->GetObject();
+			CreateLightInfo light_info;
+
+			const JsonList& position = light_obj.Find("position")->GetList();
+			BB_ASSERT(position.node_count == 3, "light position in scene json is not 3 elements");
+			light_info.pos.x = position.nodes[0]->GetNumber();
+			light_info.pos.y = position.nodes[1]->GetNumber();
+			light_info.pos.z = position.nodes[2]->GetNumber();
+
+			const JsonList& color = light_obj.Find("color")->GetList();
+			BB_ASSERT(color.node_count == 3, "light color in scene json is not 3 elements");
+			light_info.color.x = color.nodes[0]->GetNumber();
+			light_info.color.y = color.nodes[1]->GetNumber();
+			light_info.color.z = color.nodes[2]->GetNumber();
+
+			light_info.linear_distance = light_obj.Find("linear")->GetNumber();
+			light_info.quadratic_distance = light_obj.Find("quadratic")->GetNumber();
+
+			const StringView light_name = Asset::FindOrCreateString(light_obj.Find("name")->GetString());
+			CreateSceneObjectAsLight(light_info, light_name.c_str());
+		}
+
+		// not nice :(
+		Threads::WaitForTask(asset_transfer_task);
+
+		for (size_t i = 0; i < scene_objects.node_count; i++)
+		{
+			const JsonObject& sce_obj = scene_objects.nodes[i]->GetObject();
+			const char* model_name = scene_objects.nodes[i]->GetObject().Find("file_name")->GetString();
+			const char* obj_name = scene_objects.nodes[i]->GetObject().Find("file_name")->GetString();
+			const Model* model = Asset::FindModelByPath(model_name);
+
+			const JsonList& position_list = sce_obj.Find("position")->GetList();
+			BB_ASSERT(position_list.node_count == 3, "scene_object position in scene json is not 3 elements");
+			float3 position;
+			position.x = position_list.nodes[0]->GetNumber();
+			position.y = position_list.nodes[1]->GetNumber();
+			position.z = position_list.nodes[2]->GetNumber();
+
+			CreateSceneObjectViaModel(*model, position, obj_name);
+		}
+	}
 }
 
 SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent)

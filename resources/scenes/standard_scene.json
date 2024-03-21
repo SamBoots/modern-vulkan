@@ -1,7 +1,7 @@
 {
   "scene": {
     "name": "standard scene",
-    "models": [
+    "scene_objects": [
       {
         "file_name": "Duck.gltf",
         "object_name": "ducky",
@@ -14,6 +14,7 @@
     ],
     "lights": [
       {
+        "name": "light 0",
         "position": [
           3.0,
           0.0,

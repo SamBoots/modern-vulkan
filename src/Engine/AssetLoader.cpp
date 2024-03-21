@@ -191,7 +191,7 @@ struct AssetManager
 
 	struct IconGigaTexture
 	{
-		IconSlot empty_slot{};
+		IconSlot empty_slot;
 		BBRWLock icon_lock;
 		RTexture texture;
 		IconSlot* slots;

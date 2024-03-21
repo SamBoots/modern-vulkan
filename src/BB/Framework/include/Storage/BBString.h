@@ -86,8 +86,8 @@ namespace BB
 		const CharT* c_str() const { return m_string_view; }
 
 	private:
-		const CharT* m_string_view;
-		const size_t m_size;
+		const CharT* m_string_view = nullptr;
+		const size_t m_size = 0;
 	};
 
 	using StringView = String_View<char>;

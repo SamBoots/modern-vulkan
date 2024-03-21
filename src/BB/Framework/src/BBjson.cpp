@@ -166,7 +166,7 @@ void BB::JsonNodeToString(const JsonNode* a_Node, String& a_string)
 	case BB::JSON_TYPE::LIST:
 		a_string.append("[\n");
 
-		for (size_t i = 0; i < a_Node->list.nodeCount; i++)
+		for (size_t i = 0; i < a_Node->list.node_count; i++)
 		{
 			JsonNodeToString(a_Node->list.nodes[i], a_string);
 			a_string.append(",\n");
@@ -413,8 +413,8 @@ JsonNode* JsonParser::ParseList()
 	//reset position back to the start of the list and iterate again
 	m_json_file.pos = list_start_pos;
 
-	node->list.nodeCount = list_size;
-	node->list.nodes = ArenaAllocArr(m_arena, JsonNode*, node->list.nodeCount);
+	node->list.node_count = list_size;
+	node->list.nodes = ArenaAllocArr(m_arena, JsonNode*, node->list.node_count);
 
 	next_token = GetToken(m_json_file);
 
