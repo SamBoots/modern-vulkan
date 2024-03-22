@@ -18,7 +18,7 @@ namespace BB
 	class Editor
 	{
 	public:
-		void Init(MemoryArena& a_arena, const uint2 window_extent);
+		void Init(MemoryArena& a_arena, const FixedArray<ShaderEffectHandle, 2>& a_TEMP_shader_effects, const WindowHandle a_window, const uint2 a_window_extent);
 		void Destroy();
 		void Update(MemoryArena& a_arena, const float a_delta_time);
 

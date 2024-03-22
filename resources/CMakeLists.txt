@@ -32,13 +32,12 @@ add_dependencies(Renderer copy_textures)
 
 #copy scenes when a change happened.
 add_custom_target(copy_scenes ALL
-    COMMAND ${CMAKE_COMMAND} -E copy_scenes
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
     ${CMAKE_SOURCE_DIR}/resources/scenes
     ${CMAKE_BINARY_DIR}/resources/scenes
     COMMENT "Copying scenes")
 
 add_dependencies(Renderer copy_scenes)
-
 
 #copy models when a change happened.
 add_custom_target(copy_filter_images ALL

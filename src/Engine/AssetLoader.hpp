@@ -23,13 +23,19 @@ namespace BB
 
 	struct Model
 	{
+		struct MaterialInfo
+		{
+			RTexture base_texture;		//4
+			RTexture normal_texture;	//8
+			const char* name;			//16
+		};
 		struct Primitive
 		{
 			//change this with material.
-			uint32_t start_index;	//4
-			uint32_t index_count;	//8
-			MaterialHandle material;//16
-			const char* name;		//24
+			uint32_t start_index;		//4
+			uint32_t index_count;		//8
+			MaterialInfo material_info; //24
+			const char* name;			//32
 		};
 
 		struct Node
@@ -89,7 +95,7 @@ namespace BB
 		struct MeshLoadFromMemory
 		{
 			const char* name;
-			MaterialHandle material;
+			// material def here....
 			Slice<Vertex> vertices;
 			Slice<uint32_t> indices;
 		};
@@ -97,7 +103,6 @@ namespace BB
 		struct MeshLoadFromDisk
 		{
 			const char* path;
-			Slice<ShaderEffectHandle> shader_effects;
 		};
 
 		struct AsyncAsset

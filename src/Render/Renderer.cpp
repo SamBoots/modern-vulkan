@@ -1077,7 +1077,7 @@ static void ImGuiDisplayMaterials()
 			CreateMaterialInfo create_material_info;
 			create_material_info.name = material_name_buffer; // TEMP
 			create_material_info.base_color = RTexture(0);
-			ShaderEffectHandle effects[2]{ vertex_effect, fragment_effect };
+			const ShaderEffectHandle effects[2]{ vertex_effect, fragment_effect };
 			create_material_info.shader_effects = Slice(effects, _countof(effects));
 			CreateMaterial(create_material_info);
 		}

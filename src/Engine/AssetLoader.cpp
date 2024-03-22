@@ -689,7 +689,7 @@ static inline void* GetAccessorDataPtr(const cgltf_accessor* a_Accessor)
 	return Pointer::Add(a_Accessor->buffer_view->buffer->data, accessor_offset);
 }
 
-static void LoadglTFNode(MemoryArena& a_temp_arena, Slice<ShaderEffectHandle> a_shader_effects, const RCommandList a_list, const uint64_t a_transfer_fence_value, const cgltf_node& a_node, Model& a_model, uint32_t& a_node_index, uint32_t& a_primitive_index)
+static void LoadglTFNode(MemoryArena& a_temp_arena, const RCommandList a_list, const uint64_t a_transfer_fence_value, const cgltf_node& a_node, Model& a_model, uint32_t& a_node_index, uint32_t& a_primitive_index)
 {
 	Model::Node& mod_node = a_model.linear_nodes[a_node_index++];
 	if (a_node.has_matrix)
@@ -743,10 +743,8 @@ static void LoadglTFNode(MemoryArena& a_temp_arena, Slice<ShaderEffectHandle> a_
 
 			model_prim.name = "primitive [NUM]";
 
-			CreateMaterialInfo material_info{};
 			const StringView material_name = Asset::FindOrCreateString(prim.material->name);
-			material_info.name = material_name.c_str();
-			material_info.shader_effects = a_shader_effects;
+			model_prim.material_info.name = material_name.c_str();
 			if (prim.material->pbr_metallic_roughness.base_color_texture.texture)
 			{
 				const cgltf_image& image = *prim.material->pbr_metallic_roughness.base_color_texture.texture->image;
@@ -754,7 +752,7 @@ static void LoadglTFNode(MemoryArena& a_temp_arena, Slice<ShaderEffectHandle> a_
 				const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
 				const Image* img = Asset::LoadImageDisk(a_temp_arena, full_image_path, a_list, a_transfer_fence_value);
 
-				material_info.base_color = img->gpu_image;
+				model_prim.material_info.base_texture = img->gpu_image;
 			}
 			if (0)
 			if (prim.material->normal_texture.texture)
@@ -764,10 +762,8 @@ static void LoadglTFNode(MemoryArena& a_temp_arena, Slice<ShaderEffectHandle> a_
 				const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
 				const Image* img = Asset::LoadImageDisk(a_temp_arena, full_image_path, a_list, a_transfer_fence_value);
 
-				material_info.normal_texture = img->gpu_image;
+				model_prim.material_info.normal_texture = img->gpu_image;
 			}
-
-			model_prim.material = CreateMaterial(material_info);
 
 			{	// get indices
 				void* index_data = GetAccessorDataPtr(prim.indices);
@@ -854,9 +850,20 @@ static void LoadglTFNode(MemoryArena& a_temp_arena, Slice<ShaderEffectHandle> a_
 		mod_node.childeren = &a_model.linear_nodes[a_node_index]; //childeren are loaded linearly, i'm quite sure.
 		for (size_t i = 0; i < mod_node.child_count; i++)
 		{
-			LoadglTFNode(a_temp_arena, a_shader_effects, a_list, a_transfer_fence_value, *a_node.children[i], a_model, a_node_index, a_primitive_index);
+			LoadglTFNode(a_temp_arena, a_list, a_transfer_fence_value, *a_node.children[i], a_model, a_node_index, a_primitive_index);
 		}
 	}
+}
+
+static void* cgltf_arena_alloc(void* a_user, cgltf_size a_size)
+{
+	MemoryArena& arena = *reinterpret_cast<MemoryArena*>(a_user);
+	return ArenaAlloc(arena, a_size, 16);
+}
+
+static void cgltf_arena_free(void*, void*)
+{
+	// nothing
 }
 
 const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op, const RCommandList a_list, const uint64_t a_transfer_fence_value)
@@ -869,6 +876,9 @@ const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 	}
 
 	cgltf_options gltf_option = {};
+	gltf_option.memory.alloc_func = cgltf_arena_alloc;
+	gltf_option.memory.free_func = cgltf_arena_free;
+	gltf_option.memory.user_data = &a_temp_arena;
 	cgltf_data* gltf_data = nullptr;
 
 	if (cgltf_parse_file(&gltf_option, a_mesh_op.path, &gltf_data) != cgltf_result_success)
@@ -910,7 +920,7 @@ const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 
 	for (size_t i = 0; i < gltf_data->scene->nodes_count; i++)
 	{
-		LoadglTFNode(a_temp_arena, a_mesh_op.shader_effects, a_list, a_transfer_fence_value, *gltf_data->scene->nodes[i], *model, current_node, current_primitive);
+		LoadglTFNode(a_temp_arena, a_list, a_transfer_fence_value, *gltf_data->scene->nodes[i], *model, current_node, current_primitive);
 	}
 
 	cgltf_free(gltf_data);
@@ -956,7 +966,7 @@ const Model* Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoad
 	model->primitives = ArenaAllocArr(s_asset_manager->asset_arena, Model::Primitive, 1);
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 	model->primitives->name = "PRIMITIVE [NUM]";
-	model->primitives->material = a_mesh_op.material;
+	model->primitives->material_info = {}; // TODO, material definition
 	model->primitives->start_index = 0;
 	model->primitives->index_count = static_cast<uint32_t>(a_mesh_op.indices.size());
 

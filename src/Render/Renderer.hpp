@@ -58,7 +58,7 @@ namespace BB
 	struct CreateMaterialInfo
 	{
 		const char* name;
-		Slice<ShaderEffectHandle> shader_effects;
+		Slice<const ShaderEffectHandle> shader_effects;
 		RTexture base_color;
 		RTexture normal_texture;
 	};

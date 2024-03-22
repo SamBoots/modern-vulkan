@@ -44,7 +44,7 @@ int main(int argc, char** argv)
 	
 	BBInitInfo bb_init{};
 	bb_init.exe_path = exe_path.c_str();
-	bb_init.program_name = L"Modern Vulkan";
+	bb_init.program_name = L"Modern Vulkan - Editor";
 	InitBB(bb_init);
 
 	SystemInfo sys_info;
@@ -53,16 +53,29 @@ int main(int argc, char** argv)
 
 	MemoryArena main_arena = MemoryArenaCreate();
 
-	Editor editor;
-	editor.Init(main_arena, uint2(1028, 560));
+	const uint2 window_extent = uint2(1280, 720);
+
+	const WindowHandle window_handle = CreateOSWindow(
+		BB::OS_WINDOW_STYLE::MAIN,
+		static_cast<int>(window_extent.x) / 4,
+		static_cast<int>(window_extent.y) / 4,
+		static_cast<int>(window_extent.x),
+		static_cast<int>(window_extent.y),
+		L"Modern Vulkan - editor");
+
+	RendererCreateInfo render_create_info;
+	render_create_info.app_name = "modern vulkan - editor";
+	render_create_info.engine_name = "building block engine - editor";
+	render_create_info.window_handle = window_handle;
+	render_create_info.swapchain_width = window_extent.x;
+	render_create_info.swapchain_height = window_extent.y;
+	render_create_info.debug = true;
+	InitializeRenderer(main_arena, render_create_info);
 
 	{
 		const Asset::AssetManagerInitInfo asset_manager_info = {};
 		Asset::InitializeAssetManager(asset_manager_info);
 	}
-
-	SetWindowCloseEvent(CustomCloseWindow);
-	SetWindowResizeEvent(CustomResizeWindow);
 
 	ShaderEffectHandle shader_effects[3]{};
 	MemoryArenaScope(main_arena)
@@ -97,15 +110,12 @@ int main(int argc, char** argv)
 			shader_effects), "Failed to create shader objects");
 	}
 
-	//create material
-	MaterialHandle default_mat;
-	{
-		CreateMaterialInfo material_info{};
-		material_info.name = "base material";
-		material_info.base_color = GetWhiteTexture();
-		material_info.shader_effects = Slice(shader_effects, 2);
-		default_mat = CreateMaterial(material_info);
-	}
+	FixedArray<ShaderEffectHandle, 2> default_shaders{ shader_effects[0], shader_effects[1] };
+	Editor editor;
+	editor.Init(main_arena, default_shaders, window_handle, window_extent);
+
+	SetWindowCloseEvent(CustomCloseWindow);
+	SetWindowResizeEvent(CustomResizeWindow);
 
 	auto current_time = std::chrono::high_resolution_clock::now();
 

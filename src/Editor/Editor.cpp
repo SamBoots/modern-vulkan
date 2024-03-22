@@ -4,7 +4,7 @@
 #include "BBThreadScheduler.hpp"
 #include "HID.h"
 #include "MemoryArena.hpp"
-#include "math.inl"
+#include "Math.inl"
 
 #include "Renderer.hpp"
 #include "imgui.h"
@@ -357,32 +357,17 @@ static void ThreadFuncForDrawing(void* a_param)
 	EndRenderTarget(list, viewport.render_target);
 }
 
-void Editor::Init(struct BB::MemoryArena& a_arena, const uint2 a_window_extent)
+void Editor::Init(MemoryArena& a_arena, const FixedArray<ShaderEffectHandle, 2>& a_TEMP_shader_effects, const WindowHandle a_window, const uint2 a_window_extent)
 {
-	m_main_window = CreateOSWindow(
-		BB::OS_WINDOW_STYLE::MAIN,
-		static_cast<int>(a_window_extent.x) / 4,
-		static_cast<int>(a_window_extent.y) / 4,
-		static_cast<int>(a_window_extent.x),
-		static_cast<int>(a_window_extent.y),
-		L"Modern Vulkan - editor");
-
-	RendererCreateInfo render_create_info;
-	render_create_info.app_name = "modern vulkan - editor";
-	render_create_info.engine_name = "building block engine - editor";
-	render_create_info.window_handle = m_main_window;
-	render_create_info.swapchain_width = a_window_extent.x;
-	render_create_info.swapchain_height = a_window_extent.y;
-	render_create_info.debug = true;
-	InitializeRenderer(a_arena, render_create_info);
+	m_main_window = a_window; 
 
 	SetupImGuiInput(a_arena, m_main_window);
 
 	m_game_screen = CreateViewport(a_arena, a_window_extent, uint2(), "game scene");
 	m_object_viewer_screen = CreateViewport(a_arena, a_window_extent / 2u, uint2(), "object viewer");
 
-	m_game_hierarchy.InitViaJson(a_arena, "../../resources/scenes/standard_scene.json");
-	m_object_viewer_hierarchy.InitViaJson(a_arena, "../../resources/scenes/standard_scene.json");
+	m_game_hierarchy.InitViaJson(a_arena, a_TEMP_shader_effects, "../../resources/scenes/standard_scene.json");
+	m_object_viewer_hierarchy.InitViaJson(a_arena, a_TEMP_shader_effects, "../../resources/scenes/object_scene.json");
 	m_game_hierarchy.SetClearColor(float3{ 0.1f, 0.6f, 0.1f });
 	m_object_viewer_hierarchy.SetClearColor(float3{ 0.5f, 0.1f, 0.1f });
 }

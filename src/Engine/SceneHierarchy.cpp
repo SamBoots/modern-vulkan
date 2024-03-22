@@ -29,7 +29,7 @@ void SceneHierarchy::Init(MemoryArena& a_memory_arena, const StringView a_name, 
 	new (&m_scene_name) StringView(view);
 }
 
-bool NameIsWithinCharArray(const char** a_arr, const size_t a_arr_size, const char* a_str)
+static bool NameIsWithinCharArray(const char** a_arr, const size_t a_arr_size, const char* a_str)
 {
 	for (size_t i = 0; i < a_arr_size; i++)
 	{
@@ -39,12 +39,13 @@ bool NameIsWithinCharArray(const char** a_arr, const size_t a_arr_size, const ch
 	return false;
 }
 
-void BB::SceneHierarchy::InitViaJson(MemoryArena& a_memory_arena, const char* a_json_path, const uint32_t a_scene_obj_max)
+void BB::SceneHierarchy::InitViaJson(MemoryArena& a_memory_arena, const FixedArray<ShaderEffectHandle, 2>& a_TEMP_shader_effects, const char* a_json_path, const uint32_t a_scene_obj_max)
 {
 	JsonParser scene_json(a_json_path);
 	scene_json.Parse();
 
-	const JsonObject& scene_obj = scene_json.GetRootNode()->GetObject();
+	// hell
+	const JsonObject& scene_obj = scene_json.GetRootNode()->GetObject().Find("scene")->GetObject();
 
 	{
 		const JsonNode& name_node = *scene_obj.Find("name");
@@ -63,7 +64,7 @@ void BB::SceneHierarchy::InitViaJson(MemoryArena& a_memory_arena, const char* a_
 		{
 			const char* model_name = scene_objects.nodes[i]->GetObject().Find("file_name")->GetString();
 
-			if (NameIsWithinCharArray(unique_models, unique_model_count, model_name))
+			if (!NameIsWithinCharArray(unique_models, unique_model_count, model_name))
 			{
 				unique_models[unique_model_count++] = model_name;
 			}
@@ -74,7 +75,7 @@ void BB::SceneHierarchy::InitViaJson(MemoryArena& a_memory_arena, const char* a_
 		for (size_t i = 0; i < unique_model_count; i++)
 		{
 			async_model_loads[i].asset_type = Asset::ASYNC_ASSET_TYPE::MODEL;
-			async_model_loads[i].load_type = Asset::ASYNC_LOAD_TYPE::MEMORY;
+			async_model_loads[i].load_type = Asset::ASYNC_LOAD_TYPE::DISK;
 			async_model_loads[i].mesh_disk.path = unique_models[i];
 		}
 
@@ -122,12 +123,12 @@ void BB::SceneHierarchy::InitViaJson(MemoryArena& a_memory_arena, const char* a_
 			position.y = position_list.nodes[1]->GetNumber();
 			position.z = position_list.nodes[2]->GetNumber();
 
-			CreateSceneObjectViaModel(*model, position, obj_name);
+			CreateSceneObjectViaModel(*model, a_TEMP_shader_effects, position, obj_name);
 		}
 	}
 }
 
-SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent)
+SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_model, const FixedArray<ShaderEffectHandle, 2>& a_TEMP_shader_effects, const Model::Node& a_node, const SceneObjectHandle a_parent)
 {
 	//decompose the matrix.
 	float3 transform;
@@ -156,7 +157,13 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 			prim_obj.mesh_handle = a_node.mesh_handle;
 			prim_obj.start_index = a_node.primitives[i].start_index;
 			prim_obj.index_count = a_node.primitives[i].index_count;
-			prim_obj.material = a_node.primitives[i].material;
+			CreateMaterialInfo mat_info;
+			mat_info.base_color = a_node.primitives[i].material_info.base_texture;
+			mat_info.normal_texture = a_node.primitives[i].material_info.normal_texture;
+			mat_info.name = a_node.primitives[i].material_info.name;
+			mat_info.shader_effects = Slice<const ShaderEffectHandle>(&a_TEMP_shader_effects.m_arr[0], 2);
+			prim_obj.material = CreateMaterial(mat_info);
+
 			scene_obj.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 			prim_obj.transform = m_transform_pool.CreateTransform(float3(0, 0, 0));
 
@@ -169,13 +176,13 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 	for (uint32_t i = 0; i < a_node.child_count; i++)
 	{
 		BB_ASSERT(scene_obj.child_count < SCENE_OBJ_CHILD_MAX, "Too many childeren for a single gameobject!");
-		scene_obj.childeren[scene_obj.child_count++] = CreateSceneObjectViaModelNode(a_model, a_node.childeren[i], a_parent);
+		scene_obj.childeren[scene_obj.child_count++] = CreateSceneObjectViaModelNode(a_model, a_TEMP_shader_effects, a_node.childeren[i], a_parent);
 	}
 
 	return scene_handle;
 }
 
-void SceneHierarchy::CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name)
+void SceneHierarchy::CreateSceneObjectViaModel(const Model& a_model, const FixedArray<ShaderEffectHandle, 2>& a_TEMP_shader_effects, const float3 a_position, const char* a_name)
 {
 	SceneObjectHandle top_level_handle = m_scene_objects.emplace(SceneObject());
 	SceneObject& top_level_object = m_scene_objects.find(top_level_handle);
@@ -193,7 +200,7 @@ void SceneHierarchy::CreateSceneObjectViaModel(const Model& a_model, const float
 
 	for (uint32_t i = 0; i < a_model.root_node_count; i++)
 	{
-		top_level_object.childeren[i] = CreateSceneObjectViaModelNode(a_model, a_model.root_nodes[i], top_level_handle);
+		top_level_object.childeren[i] = CreateSceneObjectViaModelNode(a_model, a_TEMP_shader_effects, a_model.root_nodes[i], top_level_handle);
 	}
 
 	BB_ASSERT(m_top_level_object_count < m_scene_objects.capacity(), "Too many scene objects, increase the max");

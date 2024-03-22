@@ -1,14 +1,14 @@
 {
   "scene": {
-    "name": "standard scene",
+    "name": "object scene",
     "scene_objects": [
       {
         "file_name": "../../resources/models/Duck.gltf",
         "object_name": "ducky",
         "position": [
           0.0,
-          -2.0,
-          -3.0
+          1.0,
+          0.0
         ]
       }
     ],
