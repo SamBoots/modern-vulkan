@@ -54,7 +54,7 @@ void Camera::SetSpeed(const float a_speed_mod)
 	m_speed = a_speed_mod;
 }
 
-const float4x4 Camera::CalculateView()
+const float4x4 Camera::CalculateView() const
 {
 	return Float4x4Lookat(m_pos, m_pos + m_forward, m_up);
 }

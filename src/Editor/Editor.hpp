@@ -5,15 +5,6 @@
 
 namespace BB
 {
-	struct Viewport
-	{
-		uint2 extent;
-		uint2 offset; // offset into main window NOT USED NOW 
-		RenderTarget render_target;
-		const char* name;
-		Camera camera{ float3{0.0f, 0.0f, 1.0f}, 0.35f };
-	};
-
 	struct MemoryArena;
 	class Editor
 	{
@@ -23,6 +14,39 @@ namespace BB
 		void Update(MemoryArena& a_arena, const float a_delta_time);
 
 	private:
+		class Viewport
+		{
+		public:
+			void Init(MemoryArena& a_arena, const uint2 a_extent, const uint2 a_offset, const char* a_name);
+			void Resize(const uint2 a_new_extent);
+
+			void DrawScene(const RCommandList a_list, const SceneHierarchy& a_scene_hierarchy);
+			void DrawImgui(bool& a_resized, const uint2 a_minimum_size = uint2(160, 80));
+
+			bool PositionWithinViewport(const uint2 a_pos) const;
+
+			float4x4 CreateProjection(const float a_fov, const float a_near_field, const float a_far_field) const;
+			float4x4 CreateView() const;
+
+			const char* GetName() const { return m_name; }
+			Camera& GetCamera() { return m_camera; }
+
+		private:
+			uint2 m_extent;
+			uint2 m_offset; // offset into main window NOT USED NOW 
+			RenderTarget m_render_target;
+			const char* m_name;
+			Camera m_camera{ float3{0.0f, 0.0f, 1.0f}, 0.35f };
+		};
+		void MainEditorImGuiInfo(const MemoryArena& a_arena);
+		struct ThreadFuncForDrawing_Params
+		{
+			Viewport& viewport;
+			SceneHierarchy& scene_hierarchy;
+			RCommandList command_list;
+		};
+		static void ThreadFuncForDrawing(void* a_param);
+
 		Viewport m_game_screen;
 		Viewport m_object_viewer_screen;
 

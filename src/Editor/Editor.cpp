@@ -178,36 +178,38 @@ static inline void DestroyImGuiInput()
 	IM_DELETE(pd);
 }
 
-static float4x4 CalculateProjection(float2 a_extent)
+void Editor::Viewport::Init(MemoryArena& a_arena, const uint2 a_extent, const uint2 a_offset, const char* a_name)
 {
-	return Float4x4Perspective(ToRadians(60.0f), a_extent.x / a_extent.y, 0.001f, 10000.0f);
+	m_extent = a_extent;
+	m_offset = a_offset;
+	m_render_target = CreateRenderTarget(a_arena, a_extent, a_name);
+	m_name = a_name;
 }
 
-static Viewport CreateViewport(MemoryArena& a_arena, const uint2 a_extent, const uint2 a_offset, const char* a_name)
+void Editor::Viewport::Resize(const uint2 a_new_extent)
 {
-	Viewport viewport{};
-	viewport.extent = a_extent;
-	viewport.offset = a_offset;
-	viewport.render_target = CreateRenderTarget(a_arena, a_extent, a_name);
-	viewport.name = a_name;
-	return viewport;
-}
-
-static void ViewportResize(Viewport& a_viewport, const uint2 a_new_extent)
-{
-	if (a_viewport.extent == a_new_extent)
+	if (m_extent == a_new_extent)
 		return;
 
-	a_viewport.extent = a_new_extent;
-	ResizeRenderTarget(a_viewport.render_target, a_new_extent);
+	m_extent = a_new_extent;
+	ResizeRenderTarget(m_render_target, a_new_extent);
 }
 
-static void DrawImGuiViewport(Viewport& a_viewport, bool& a_resized, const uint2 a_minimum_size = uint2(160, 80))
+void Editor::Viewport::DrawScene(const RCommandList a_list, const SceneHierarchy& a_scene_hierarchy)
+{
+	StartRenderTarget(a_list, m_render_target);
+
+	a_scene_hierarchy.DrawSceneHierarchy(a_list, m_render_target, m_extent, int2(0, 0));
+
+	EndRenderTarget(a_list, m_render_target);
+}
+
+void Editor::Viewport::DrawImgui(bool& a_resized, const uint2 a_minimum_size)
 {
 	a_resized = false;
-	if (ImGui::Begin(a_viewport.name, nullptr, ImGuiWindowFlags_MenuBar))
+	if (ImGui::Begin(m_name, nullptr, ImGuiWindowFlags_MenuBar))
 	{
-		const RTexture render_target = GetCurrentRenderTargetTexture(a_viewport.render_target);
+		const RTexture render_target = GetCurrentRenderTargetTexture(m_render_target);
 		if (ImGui::BeginMenuBar())
 		{
 			if (ImGui::BeginMenu("screenshot"))
@@ -224,12 +226,12 @@ static void DrawImGuiViewport(Viewport& a_viewport, bool& a_resized, const uint2
 
 					GPUBufferCreateInfo readback_info;
 					readback_info.name = "viewport screenshot readback";
-					readback_info.size = static_cast<uint64_t>(a_viewport.extent.x * a_viewport.extent.y * 4u);
+					readback_info.size = static_cast<uint64_t>(m_extent.x * m_extent.y * 4u);
 					readback_info.type = BUFFER_TYPE::READBACK;
 					readback_info.host_writable = true;
 					GPUBuffer readback = CreateGPUBuffer(readback_info);
 
-					ReadTexture(list, render_target, a_viewport.extent, int2(0, 0), readback, readback_info.size);
+					ReadTexture(list, render_target, m_extent, int2(0, 0), readback, readback_info.size);
 
 					pool.EndCommandList(list);
 					uint64_t fence;
@@ -248,7 +250,7 @@ static void DrawImGuiViewport(Viewport& a_viewport, bool& a_resized, const uint2
 
 					const void* readback_mem = MapGPUBuffer(readback);
 
-					BB_ASSERT(Asset::WriteImage(image_name_bmp.c_str(), a_viewport.extent.x, a_viewport.extent.y, 4, readback_mem), "failed to write screenshot image to disk");
+					BB_ASSERT(Asset::WriteImage(image_name_bmp.c_str(), m_extent.x, m_extent.y, 4, readback_mem), "failed to write screenshot image to disk");
 
 					UnmapGPUBuffer(readback);
 					FreeGPUBuffer(readback);
@@ -259,11 +261,10 @@ static void DrawImGuiViewport(Viewport& a_viewport, bool& a_resized, const uint2
 			ImGui::EndMenuBar();
 		}
 
-
 		ImGuiIO im_io = ImGui::GetIO();
 
 		const ImVec2 window_offset = ImGui::GetWindowPos();
-		a_viewport.offset = uint2(static_cast<unsigned int>(window_offset.x), static_cast<unsigned int>(window_offset.y));
+		m_offset = uint2(static_cast<unsigned int>(window_offset.x), static_cast<unsigned int>(window_offset.y));
 
 		if (static_cast<unsigned int>(ImGui::GetWindowSize().x) < a_minimum_size.x ||
 			static_cast<unsigned int>(ImGui::GetWindowSize().y) < a_minimum_size.y)
@@ -276,10 +277,10 @@ static void DrawImGuiViewport(Viewport& a_viewport, bool& a_resized, const uint2
 		const ImVec2 viewport_draw_area = ImGui::GetContentRegionAvail();
 
 		const uint2 window_size_u = uint2(static_cast<unsigned int>(viewport_draw_area.x), static_cast<unsigned int>(viewport_draw_area.y));
-		if (window_size_u != a_viewport.extent && !im_io.WantCaptureMouse)
+		if (window_size_u != m_extent && !im_io.WantCaptureMouse)
 		{
 			a_resized = true;
-			ViewportResize(a_viewport, window_size_u);
+			Resize(window_size_u);
 		}
 
 		ImGui::Image(render_target.handle, viewport_draw_area);
@@ -287,24 +288,34 @@ static void DrawImGuiViewport(Viewport& a_viewport, bool& a_resized, const uint2
 	ImGui::End();
 }
 
-static bool PositionWithinViewport(const Viewport& a_viewport, const uint2 a_pos)
+bool Editor::Viewport::PositionWithinViewport(const uint2 a_pos) const
 {
-	if (a_viewport.offset.x < a_pos.x &&
-		a_viewport.offset.y < a_pos.y &&
-		a_viewport.offset.x + a_viewport.extent.x > a_pos.x &&
-		a_viewport.offset.y + a_viewport.extent.y > a_pos.y)
+	if (m_offset.x < a_pos.x &&
+		m_offset.y < a_pos.y &&
+		m_offset.x + m_extent.x > a_pos.x &&
+		m_offset.y + m_extent.y > a_pos.y)
 		return true;
 	return false;
 }
 
-static void MainDebugWindow(const MemoryArena& a_arena, const Viewport* a_selected_viewport)
+float4x4 Editor::Viewport::CreateProjection(const float a_fov, const float a_near_field, const float a_far_field) const
+{
+	return Float4x4Perspective(ToRadians(a_fov), m_extent.x / m_extent.y, a_near_field, a_far_field);
+}
+
+float4x4 Editor::Viewport::CreateView() const
+{
+	return m_camera.CalculateView();
+}
+
+void Editor::MainEditorImGuiInfo(const MemoryArena& a_arena)
 {
 	if (ImGui::Begin("general engine info"))
 	{
-		if (a_selected_viewport == nullptr)
-			ImGui::Text("Current viewport: None");
+		if (m_active_viewport == nullptr)
+			ImGui::Text("current viewport: None");
 		else
-			ImGui::Text("Current viewport: %s", a_selected_viewport->name);
+			ImGui::Text("current viewport: %s", m_active_viewport->GetName());
 
 		if (ImGui::CollapsingHeader("main allocator"))
 		{
@@ -334,15 +345,7 @@ static void MainDebugWindow(const MemoryArena& a_arena, const Viewport* a_select
 	ImGui::End();
 }
 
-struct ThreadFuncForDrawing_Params
-{
-	//IN
-	Viewport& viewport;
-	SceneHierarchy& scene_hierarchy;
-	RCommandList command_list;
-};
-
-static void ThreadFuncForDrawing(void* a_param)
+void Editor::ThreadFuncForDrawing(void* a_param)
 {
 	ThreadFuncForDrawing_Params* param_in = reinterpret_cast<ThreadFuncForDrawing_Params*>(a_param);
 
@@ -350,11 +353,7 @@ static void ThreadFuncForDrawing(void* a_param)
 	SceneHierarchy& scene_hierarchy = param_in->scene_hierarchy;
 	RCommandList list = param_in->command_list;
 
-	StartRenderTarget(list, viewport.render_target);
-
-	scene_hierarchy.DrawSceneHierarchy(list, viewport.render_target, viewport.extent, int2(0, 0));
-
-	EndRenderTarget(list, viewport.render_target);
+	viewport.DrawScene(list, scene_hierarchy);
 }
 
 void Editor::Init(MemoryArena& a_arena, const FixedArray<ShaderEffectHandle, 2>& a_TEMP_shader_effects, const WindowHandle a_window, const uint2 a_window_extent)
@@ -363,8 +362,8 @@ void Editor::Init(MemoryArena& a_arena, const FixedArray<ShaderEffectHandle, 2>&
 
 	SetupImGuiInput(a_arena, m_main_window);
 
-	m_game_screen = CreateViewport(a_arena, a_window_extent, uint2(), "game scene");
-	m_object_viewer_screen = CreateViewport(a_arena, a_window_extent / 2u, uint2(), "object viewer");
+	m_game_screen.Init(a_arena, a_window_extent, uint2(), "game scene");
+	m_object_viewer_screen.Init(a_arena, a_window_extent / 2u, uint2(), "object viewer");
 
 	m_game_hierarchy.InitViaJson(a_arena, a_TEMP_shader_effects, "../../resources/scenes/standard_scene.json");
 	m_object_viewer_hierarchy.InitViaJson(a_arena, a_TEMP_shader_effects, "../../resources/scenes/object_scene.json");
@@ -426,7 +425,7 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time)
 				}
 			if (!m_freeze_cam && m_active_viewport)
 			{
-				m_active_viewport->camera.Move(cam_move);
+				m_active_viewport->GetCamera().Move(cam_move);
 			}
 
 		}
@@ -441,18 +440,18 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time)
 			if (mi.left_released)
 				UnfreezeMouseOnWindow();
 
-			if (PositionWithinViewport(m_game_screen, uint2(static_cast<unsigned int>(mi.mouse_pos.x), static_cast<unsigned int>(mi.mouse_pos.y))))
+			if (m_game_screen.PositionWithinViewport(uint2(static_cast<unsigned int>(mi.mouse_pos.x), static_cast<unsigned int>(mi.mouse_pos.y))))
 			{
 				m_active_viewport = &m_game_screen;
 			}
-			else if (PositionWithinViewport(m_object_viewer_screen, uint2(static_cast<unsigned int>(mi.mouse_pos.x), static_cast<unsigned int>(mi.mouse_pos.y))))
+			else if (m_object_viewer_screen.PositionWithinViewport(uint2(static_cast<unsigned int>(mi.mouse_pos.x), static_cast<unsigned int>(mi.mouse_pos.y))))
 			{
 				m_active_viewport = &m_object_viewer_screen;
 			}
 
 			if (!m_freeze_cam && m_active_viewport)
 			{
-				m_active_viewport->camera.Rotate(mouse_move.x, mouse_move.y);
+				m_active_viewport->GetCamera().Rotate(mouse_move.x, mouse_move.y);
 			}
 		}
 	}
@@ -468,26 +467,26 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time)
 
 	MemoryArenaScope(a_arena)
 	{
-		m_game_hierarchy.SetView(m_game_screen.camera.CalculateView());
-		m_object_viewer_hierarchy.SetView(m_object_viewer_screen.camera.CalculateView());
+		m_game_hierarchy.SetView(m_game_screen.CreateView());
+		m_object_viewer_hierarchy.SetView(m_object_viewer_screen.CreateView());
 
 		Asset::ShowAssetMenu(a_arena);
-		MainDebugWindow(a_arena, m_active_viewport);
+		MainEditorImGuiInfo(a_arena);
 		m_game_hierarchy.ImguiDisplaySceneHierarchy();
 		m_object_viewer_hierarchy.ImguiDisplaySceneHierarchy();
 
 		bool resized = false;
-		DrawImGuiViewport(m_game_screen, resized);
+		m_game_screen.DrawImgui(resized);
 		if (resized)
 		{
-			m_game_hierarchy.SetProjection(CalculateProjection(float2(static_cast<float>(m_game_screen.extent.x), static_cast<float>(m_game_screen.extent.y))));
+			m_game_hierarchy.SetProjection(m_game_screen.CreateProjection(60.f, 0.001f, 10000.0f));
 		}
 
 		resized = false;
-		DrawImGuiViewport(m_object_viewer_screen, resized);
+		m_object_viewer_screen.DrawImgui(resized);
 		if (resized)
 		{
-			m_object_viewer_hierarchy.SetProjection(CalculateProjection(float2(static_cast<float>(m_object_viewer_screen.extent.x), static_cast<float>(m_object_viewer_screen.extent.y))));
+			m_object_viewer_hierarchy.SetProjection(m_object_viewer_screen.CreateProjection(60.f, 0.001f, 10000.0f));
 		}
 
 		ThreadFuncForDrawing_Params main_scene_params{

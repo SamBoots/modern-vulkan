@@ -12,7 +12,7 @@ namespace BB
 		void Rotate(const float a_yaw, const float a_pitch);
 		void SetSpeed(const float a_speed_mod);
 
-		const float4x4 CalculateView();
+		const float4x4 CalculateView() const;
 	private:
 		float m_yaw;
 		float m_pitch;
