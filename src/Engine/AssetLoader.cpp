@@ -408,7 +408,6 @@ void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
 		s_asset_manager->asset_arena = asset_mem_arena;
 	}
 
-
 	s_asset_manager->asset_lock = OSCreateRWLock();
 	s_asset_manager->string_lock = OSCreateRWLock();
 	s_asset_manager->asset_table.Init(s_asset_manager->asset_arena, a_init_info.asset_count);
@@ -742,8 +741,7 @@ static void LoadglTFNode(MemoryArena& a_temp_arena, const RCommandList a_list, c
 			model_prim.index_count = static_cast<uint32_t>(prim.indices->count);
 
 			model_prim.name = "primitive [NUM]";
-
-			const StringView material_name = Asset::FindOrCreateString(prim.material->name);
+			const StringView material_name = prim.material->name ? Asset::FindOrCreateString(prim.material->name) : "no name";
 			model_prim.material_info.name = material_name.c_str();
 			if (prim.material->pbr_metallic_roughness.base_color_texture.texture)
 			{

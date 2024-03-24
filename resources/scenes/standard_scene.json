@@ -3,7 +3,7 @@
     "name": "standard scene",
     "scene_objects": [
       {
-        "file_name": "../../resources/models/Duck.gltf",
+        "file_name": "../../resources/models/Sponza.gltf",
         "object_name": "ducky",
         "position": [
           0.0,
