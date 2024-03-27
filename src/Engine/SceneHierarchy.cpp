@@ -131,10 +131,6 @@ void BB::SceneHierarchy::InitViaJson(MemoryArena& a_memory_arena, const FixedArr
 SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_model, const FixedArray<ShaderEffectHandle, 2>& a_TEMP_shader_effects, const Model::Node& a_node, const SceneObjectHandle a_parent)
 {
 	//decompose the matrix.
-	float3 transform;
-	float3 scale;
-	Quat rotation;
-	Float4x4DecomposeTransform(a_node.transform, transform, rotation, scale);
 
 	const SceneObjectHandle scene_handle = m_scene_objects.emplace(SceneObject());
 	SceneObject& scene_obj = m_scene_objects.find(scene_handle);
@@ -144,7 +140,15 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 	scene_obj.index_count = 0;
 	scene_obj.material = MaterialHandle(BB_INVALID_HANDLE_64);
 	scene_obj.light_handle = LightHandle(BB_INVALID_HANDLE_64);
+#ifdef SCENE_OBJECT_STATIC
+	scene_obj.transform = a_node.transform;
+#else 
+	float3 transform;
+	float3 scale;
+	Quat rotation;
+	Float4x4DecomposeTransform(a_node.transform, transform, rotation, scale);
 	scene_obj.transform = m_transform_pool.CreateTransform(transform, rotation, scale);
+#endif // SCENE_OBJECT_STATIC
 	scene_obj.parent = a_parent;
 
 	if (a_node.mesh_handle.IsValid())
@@ -165,8 +169,11 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 			prim_obj.material = CreateMaterial(mat_info);
 
 			scene_obj.light_handle = LightHandle(BB_INVALID_HANDLE_64);
+#ifdef SCENE_OBJECT_STATIC
+			prim_obj.transform = Float4x4Identity();
+#else 
 			prim_obj.transform = m_transform_pool.CreateTransform(float3(0, 0, 0));
-
+#endif // SCENE_OBJECT_STATIC
 			prim_obj.parent = scene_handle;
 			scene_obj.childeren[scene_obj.child_count++] = m_scene_objects.emplace(prim_obj);
 		}
@@ -193,8 +200,11 @@ void SceneHierarchy::CreateSceneObjectViaModel(const Model& a_model, const Fixed
 	top_level_object.material = MaterialHandle(BB_INVALID_HANDLE_64);
 	top_level_object.parent = SceneObjectHandle(BB_INVALID_HANDLE_64);
 	top_level_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
+#ifdef SCENE_OBJECT_STATIC
+	top_level_object.transform = Float4x4FromTranslation(a_position);
+#else 
 	top_level_object.transform = m_transform_pool.CreateTransform(a_position);
-
+#endif // SCENE_OBJECT_STATIC
 	top_level_object.child_count = a_model.root_node_count;
 	BB_ASSERT(top_level_object.child_count < SCENE_OBJ_CHILD_MAX, "Too many childeren for a single scene object!");
 
@@ -218,7 +228,11 @@ void SceneHierarchy::CreateSceneObjectAsLight(const CreateLightInfo& a_light_cre
 	scene_object_light.material = MaterialHandle(BB_INVALID_HANDLE_64);
 	scene_object_light.parent = SceneObjectHandle(BB_INVALID_HANDLE_64);
 	scene_object_light.light_handle = CreateLight(m_render_scene, a_light_create_info);
+#ifdef SCENE_OBJECT_STATIC
+	scene_object_light.transform = Float4x4FromTranslation(a_light_create_info.pos);
+#else 
 	scene_object_light.transform = m_transform_pool.CreateTransform(a_light_create_info.pos);
+#endif // SCENE_OBJECT_STATIC
 
 	scene_object_light.child_count = 0;
 
@@ -252,7 +266,11 @@ void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, con
 {
 	const SceneObject& scene_object = m_scene_objects.find(a_scene_object);
 
+#ifdef SCENE_OBJECT_STATIC
+	const float4x4 local_transform = a_transform * scene_object.transform;
+#else 
 	const float4x4 local_transform = a_transform * m_transform_pool.GetTransformMatrix(scene_object.transform);
+#endif // SCENE_OBJECT_STATIC
 
 	if (scene_object.mesh_handle.handle != BB_INVALID_HANDLE_64)
 		DrawMesh(m_render_scene, scene_object.mesh_handle, local_transform, scene_object.start_index, scene_object.index_count, scene_object.material);
@@ -275,7 +293,11 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectEmpty(const SceneObjectHandle
 	scene_obj.material = MaterialHandle(BB_INVALID_HANDLE_64);
 	scene_obj.parent = SceneObjectHandle(BB_INVALID_HANDLE_64);
 	scene_obj.light_handle = LightHandle(BB_INVALID_HANDLE_64);
+#ifdef SCENE_OBJECT_STATIC
+	scene_obj.transform = Float4x4Identity();
+#else 
 	scene_obj.transform = m_transform_pool.CreateTransform(float3(0.f, 0.f, 0.f));
+#endif // SCENE_OBJECT_STATIC
 	scene_obj.child_count = 0;
 
 	scene_obj.parent = a_parent;
@@ -310,12 +332,15 @@ void SceneHierarchy::ImguiDisplaySceneHierarchy()
 
 void SceneHierarchy::ImGuiDisplaySceneObject(const SceneObjectHandle a_object)
 {
+#ifndef SCENE_OBJECT_STATIC
+
 	SceneObject& scene_object = m_scene_objects.find(a_object);
 	ImGui::PushID(static_cast<int>(a_object.handle));
 
 	if (ImGui::CollapsingHeader(scene_object.name))
 	{
 		ImGui::Indent();
+
 		Transform& transform = m_transform_pool.GetTransform(scene_object.transform);
 
 		bool position_changed = false;
@@ -385,4 +410,5 @@ void SceneHierarchy::ImGuiDisplaySceneObject(const SceneObjectHandle a_object)
 	}
 
 	ImGui::PopID();
+#endif // SCENE_OBJECT_STATIC
 }

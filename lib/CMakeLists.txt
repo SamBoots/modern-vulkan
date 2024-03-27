@@ -17,6 +17,10 @@ add_library(cgltf INTERFACE
 "cgltf/cgltf.h")
 target_include_directories(cgltf INTERFACE cgltf)
 
+add_library(tinygltf INTERFACE
+"tinygltf/tiny_gltf.h")
+target_include_directories(tinygltf INTERFACE tinygltf)
+
 add_library(stb_image INTERFACE
 "stb/stb_image.h"
 "stb/stb_image_write.h"

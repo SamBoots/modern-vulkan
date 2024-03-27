@@ -2357,30 +2357,36 @@ const MeshHandle BB::CreateMesh(const RCommandList a_list, const CreateMeshInfo&
 	mesh.vertex_buffer = AllocateFromVertexBuffer(a_create_info.vertices.sizeInBytes());
 	mesh.index_buffer = AllocateFromIndexBuffer(a_create_info.indices.sizeInBytes());
 
-
 	const size_t vertex_offset = 0;
 	const size_t index_offset = a_create_info.vertices.sizeInBytes();
 	upload_buffer.SafeMemcpy(vertex_offset, a_create_info.vertices.data(), a_create_info.vertices.sizeInBytes());
 	upload_buffer.SafeMemcpy(index_offset, a_create_info.indices.data(), a_create_info.indices.sizeInBytes());
 
-	RenderCopyBufferRegion copy_regions[2];
-	RenderCopyBuffer copy_buffer_infos[2];
+	{
+		RenderCopyBufferRegion copy_region_vertex{};
+		copy_region_vertex.size = mesh.vertex_buffer.size;
+		copy_region_vertex.dst_offset = mesh.vertex_buffer.offset;
+		copy_region_vertex.src_offset = vertex_offset + upload_buffer.base_offset;
 
-	copy_buffer_infos[0].dst = mesh.vertex_buffer.buffer;
-	copy_buffer_infos[0].src = upload_buffer.buffer;
-	copy_buffer_infos[0].regions = Slice(&copy_regions[0], 1);
-	copy_regions[0].size = mesh.vertex_buffer.size;
-	copy_regions[0].dst_offset = mesh.vertex_buffer.offset;
-	copy_regions[0].src_offset = vertex_offset + upload_buffer.base_offset;
+		RenderCopyBuffer copy_vertex{};
+		copy_vertex.dst = mesh.vertex_buffer.buffer;
+		copy_vertex.src = upload_buffer.buffer;
+		copy_vertex.regions = Slice(&copy_region_vertex, 1);
+		Vulkan::CopyBuffer(a_list, copy_vertex);
+	}
 
-	copy_buffer_infos[1].dst = mesh.index_buffer.buffer;
-	copy_buffer_infos[1].src = upload_buffer.buffer;
-	copy_buffer_infos[1].regions = Slice(&copy_regions[1], 1);
-	copy_regions[1].size = mesh.index_buffer.size;
-	copy_regions[1].dst_offset = mesh.index_buffer.offset;
-	copy_regions[1].src_offset = index_offset + upload_buffer.base_offset;
+	{
+		RenderCopyBufferRegion copy_region_index{};
+		copy_region_index.size = mesh.index_buffer.size;
+		copy_region_index.dst_offset = mesh.index_buffer.offset;
+		copy_region_index.src_offset = index_offset + upload_buffer.base_offset;
 
-	Vulkan::CopyBuffers(a_list, copy_buffer_infos, 2);
+		RenderCopyBuffer copy_index{};
+		copy_index.dst = mesh.index_buffer.buffer;
+		copy_index.src = upload_buffer.buffer;
+		copy_index.regions = Slice(&copy_region_index, 1);
+		Vulkan::CopyBuffer(a_list, copy_index);
+	}
 
 	return MeshHandle(s_render_inst->mesh_map.insert(mesh).handle);
 }

@@ -8,6 +8,7 @@
 
 namespace BB
 {
+#define SCENE_OBJECT_STATIC
 	using SceneObjectHandle = FrameworkHandle<struct SceneObjectHandleTag>;
 	
 	constexpr uint32_t DEFAULT_SCENE_OBJ_MAX = 512;
@@ -22,8 +23,11 @@ namespace BB
 		MaterialHandle material;	//32
 
 		LightHandle light_handle;	//40
-
+#ifdef SCENE_OBJECT_STATIC
+		float4x4 transform;
+#else 
 		TransformHandle transform;	//48
+#endif // SCENE_OBJECT_STATIC
 
 		SceneObjectHandle parent;	//56
 		uint32_t child_count;		//60

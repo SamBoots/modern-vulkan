@@ -14,5 +14,6 @@ target_include_directories(Engine PUBLIC
 
 target_link_libraries(Engine 
 	cgltf
+	tinygltf
 	stb_image
 	Renderer)

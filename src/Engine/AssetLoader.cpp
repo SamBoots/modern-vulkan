@@ -19,8 +19,13 @@
 
 
 BB_WARNINGS_OFF
+#ifdef _USE_CGLTF
 #define CGLTF_IMPLEMENTATION
 #include "cgltf.h"
+#else
+#define TINYGLTF_IMPLEMENTATION
+#include "tiny_gltf.h"
+#endif // _USE_CGLTF
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -682,13 +687,14 @@ const Image* Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage
 	return image;
 }
 
+#ifdef _USE_CGLTF
 static inline void* GetAccessorDataPtr(const cgltf_accessor* a_Accessor)
 {
 	const size_t accessor_offset = a_Accessor->buffer_view->offset + a_Accessor->offset;
 	return Pointer::Add(a_Accessor->buffer_view->buffer->data, accessor_offset);
 }
 
-static void LoadglTFNode(MemoryArena& a_temp_arena, const RCommandList a_list, const uint64_t a_transfer_fence_value, const cgltf_node& a_node, Model& a_model, uint32_t& a_node_index, uint32_t& a_primitive_index)
+static void LoadCglTFNode(MemoryArena& a_temp_arena, const RCommandList a_list, const uint64_t a_transfer_fence_value, const cgltf_node& a_node, Model& a_model, uint32_t& a_node_index, uint32_t& a_primitive_index)
 {
 	Model::Node& mod_node = a_model.linear_nodes[a_node_index++];
 	if (a_node.has_matrix)
@@ -863,16 +869,200 @@ static void cgltf_arena_free(void*, void*)
 {
 	// nothing
 }
+#else
+// DO TINYGLTF
 
+static void LoadgltfNodeTinyGLTF(MemoryArena& a_temp_arena, const RCommandList a_list, const uint64_t a_transfer_fence_value, const tinygltf::Model& a_gltf_model, const tinygltf::Scene& a_gltf_scene, const tinygltf::Node& a_gltf_node, Model& a_model, uint32_t& a_node_index, uint32_t& a_primitive_index)
+{
+	Model::Node& mod_node = a_model.linear_nodes[a_node_index++];
+	if (!a_gltf_node.matrix.empty())
+		mod_node.transform = Float4x4FromFloats(
+			a_gltf_node.matrix[0], a_gltf_node.matrix[1], a_gltf_node.matrix[2], a_gltf_node.matrix[3],
+			a_gltf_node.matrix[4], a_gltf_node.matrix[5], a_gltf_node.matrix[6], a_gltf_node.matrix[7],
+			a_gltf_node.matrix[8], a_gltf_node.matrix[9], a_gltf_node.matrix[10], a_gltf_node.matrix[11],
+			a_gltf_node.matrix[12], a_gltf_node.matrix[13], a_gltf_node.matrix[14], a_gltf_node.matrix[15]);
+	else
+		mod_node.transform = Float4x4Identity();
+
+	if (a_gltf_node.name.c_str())
+		mod_node.name = Asset::FindOrCreateString(a_gltf_node.name.c_str()).c_str();
+	else
+		mod_node.name = "unnamed";
+
+	if (a_gltf_node.mesh > -1)
+	{
+		const tinygltf::Mesh mesh = a_gltf_model.meshes[a_gltf_node.mesh];
+
+		mod_node.primitives = &a_model.primitives[a_primitive_index];
+		mod_node.primitive_count = static_cast<uint32_t>(mesh.primitives.size());
+
+		uint32_t index_count = 0;
+		uint32_t vertex_count = 0;
+		for (size_t prim_index = 0; prim_index < mesh.primitives.size(); prim_index++)
+		{
+			const tinygltf::Primitive& prim = mesh.primitives[prim_index];
+
+			const tinygltf::Accessor& accessor = a_gltf_model.accessors[prim.indices > -1 ? prim.indices : 0];
+			const tinygltf::BufferView& bufferView = a_gltf_model.bufferViews[accessor.bufferView];
+			const tinygltf::Buffer& buffer = a_gltf_model.buffers[bufferView.buffer];
+
+
+			index_count += static_cast<uint32_t>(accessor.count);
+			const void* data_ptr = &(buffer.data[accessor.byteOffset + bufferView.byteOffset]);
+			if (prim.indices->component_type == cgltf_component_type_r_32u)
+			{
+				indices = reinterpret_cast<uint32_t*>(index_data);
+			}
+			else if (prim.indices->component_type == cgltf_component_type_r_16u)
+			{
+				for (size_t i = 0; i < prim.indices->count; i++)
+					indices[index_offset + i] = reinterpret_cast<uint16_t*>(index_data)[i];
+				index_offset += static_cast<uint32_t>(prim.indices->count);
+			}
+			else
+				BB_ASSERT(false, "GLTF mesh has an index type that is not supported!");
+		}
+
+		uint32_t* indices = ArenaAllocArr(a_temp_arena, uint32_t, index_count);
+		Vertex* vertices = ArenaAllocArr(a_temp_arena, Vertex, vertex_count);
+		uint32_t index_offset = 0;
+		uint32_t vertex_pos_offset = 0;
+		uint32_t vertex_normal_offset = 0;
+		uint32_t vertex_uv_offset = 0;
+
+		for (size_t prim_index = 0; prim_index < mesh.primitives_count; prim_index++)
+		{
+			const cgltf_primitive& prim = mesh.primitives[prim_index];
+			Model::Primitive& model_prim = a_model.primitives[a_primitive_index++];
+			model_prim.start_index = index_offset;
+			model_prim.index_count = static_cast<uint32_t>(prim.indices->count);
+
+			model_prim.name = "primitive [NUM]";
+			const StringView material_name = prim.material->name ? Asset::FindOrCreateString(prim.material->name) : "no name";
+			model_prim.material_info.name = material_name.c_str();
+			if (prim.material->pbr_metallic_roughness.base_color_texture.texture)
+			{
+				const cgltf_image& image = *prim.material->pbr_metallic_roughness.base_color_texture.texture->image;
+
+				const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
+				const Image* img = Asset::LoadImageDisk(a_temp_arena, full_image_path, a_list, a_transfer_fence_value);
+
+				model_prim.material_info.base_texture = img->gpu_image;
+			}
+			if (0)
+				if (prim.material->normal_texture.texture)
+				{
+					const cgltf_image& image = *prim.material->normal_texture.texture->image;
+
+					const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
+					const Image* img = Asset::LoadImageDisk(a_temp_arena, full_image_path, a_list, a_transfer_fence_value);
+
+					model_prim.material_info.normal_texture = img->gpu_image;
+				}
+
+			{	// get indices
+				void* index_data = GetAccessorDataPtr(prim.indices);
+				if (prim.indices->component_type == cgltf_component_type_r_32u)
+				{
+					indices = reinterpret_cast<uint32_t*>(index_data);
+				}
+				else if (prim.indices->component_type == cgltf_component_type_r_16u)
+				{
+					for (size_t i = 0; i < prim.indices->count; i++)
+						indices[index_offset + i] = reinterpret_cast<uint16_t*>(index_data)[i];
+					index_offset += static_cast<uint32_t>(prim.indices->count);
+				}
+				else
+					BB_ASSERT(false, "GLTF mesh has an index type that is not supported!");
+			}
+
+			for (size_t attrib_index = 0; attrib_index < prim.attributes_count; attrib_index++)
+			{
+				const cgltf_attribute& attrib = prim.attributes[attrib_index];
+				const float* data_pos = reinterpret_cast<float*>(GetAccessorDataPtr(attrib.data));
+
+				switch (attrib.type)
+				{
+				case cgltf_attribute_type_position:
+					for (size_t i = 0; i < attrib.data->count; i++)
+					{
+						vertices[vertex_pos_offset].position.x = data_pos[0];
+						vertices[vertex_pos_offset].position.y = data_pos[1];
+						vertices[vertex_pos_offset].position.z = data_pos[2];
+
+						data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride));
+						++vertex_pos_offset;
+					}
+					break;
+				case cgltf_attribute_type_normal:
+					for (size_t i = 0; i < attrib.data->count; i++)
+					{
+						vertices[vertex_normal_offset].normal.x = data_pos[0];
+						vertices[vertex_normal_offset].normal.y = data_pos[1];
+						vertices[vertex_normal_offset].normal.z = data_pos[2];
+
+						data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride));
+						++vertex_normal_offset;
+					}
+					break;
+				case cgltf_attribute_type_texcoord:
+					for (size_t i = 0; i < attrib.data->count; i++)
+					{
+						vertices[vertex_uv_offset].uv.x = data_pos[0];
+						vertices[vertex_uv_offset].uv.y = data_pos[1];
+
+						data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride));
+						++vertex_uv_offset;
+					}
+					break;
+				default:
+					break;
+				}
+				BB_ASSERT(index_count + 1 > index_offset, "overwriting gltf Index Memory!");
+				BB_ASSERT(vertex_count + 1 > vertex_pos_offset, "overwriting gltf Vertex Memory!");
+				BB_ASSERT(vertex_count + 1 > vertex_normal_offset, "overwriting gltf Vertex Memory!");
+				BB_ASSERT(vertex_count + 1 > vertex_uv_offset, "overwriting gltf Vertex Memory!");
+			}
+		}
+
+		for (size_t i = 0; i < vertex_count; i++)
+		{
+			vertices[i].color = { 1.f, 1.f, 1.f };
+		}
+
+		CreateMeshInfo create_mesh;
+		create_mesh.vertices = Slice(vertices, vertex_count);
+		create_mesh.indices = Slice(indices, index_count);
+
+		mod_node.mesh_handle = CreateMesh(a_list, create_mesh, a_transfer_fence_value);
+	}
+	else
+		mod_node.mesh_handle = MeshHandle(BB_INVALID_HANDLE_64);
+
+	mod_node.child_count = static_cast<uint32_t>(a_node.children_count);
+	if (mod_node.child_count != 0)
+	{
+		mod_node.childeren = &a_model.linear_nodes[a_node_index]; //childeren are loaded linearly, i'm quite sure.
+		for (size_t i = 0; i < mod_node.child_count; i++)
+		{
+			LoadglTFNode(a_temp_arena, a_list, a_transfer_fence_value, *a_node.children[i], a_model, a_node_index, a_primitive_index);
+		}
+	}
+}
+
+#endif // _USE_CGLTF
 const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op, const RCommandList a_list, const uint64_t a_transfer_fence_value)
 {
 	const AssetHash asset_hash = CreateAssetHash(StringHash(a_mesh_op.path, Memory::StrLength(a_mesh_op.path)), ASSET_TYPE::MODEL);
-	
+
 	if (AssetSlot* slot = s_asset_manager->asset_table.find(asset_hash.full_hash))
 	{
 		return slot->model;
 	}
+	//optimize the memory space with one allocation for the entire model
+	Model* model = ArenaAllocType(s_asset_manager->asset_arena, Model);
 
+#ifdef _USE_CGLTF
 	cgltf_options gltf_option = {};
 	gltf_option.memory.alloc_func = cgltf_arena_alloc;
 	gltf_option.memory.free_func = cgltf_arena_free;
@@ -903,7 +1093,6 @@ const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 	const uint32_t linear_node_count = static_cast<uint32_t>(gltf_data->nodes_count);
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
 	//optimize the memory space with one allocation for the entire model
-	Model* model = ArenaAllocType(s_asset_manager->asset_arena, Model);
 	model->linear_nodes = ArenaAllocArr(s_asset_manager->asset_arena, Model::Node, linear_node_count);
 	model->primitives = ArenaAllocArr(s_asset_manager->asset_arena, Model::Primitive, primitive_count);
 	//for now this is going to be the root node, which is 0.
@@ -918,10 +1107,36 @@ const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 
 	for (size_t i = 0; i < gltf_data->scene->nodes_count; i++)
 	{
-		LoadglTFNode(a_temp_arena, a_list, a_transfer_fence_value, *gltf_data->scene->nodes[i], *model, current_node, current_primitive);
+		LoadCglTFNode(a_temp_arena, a_list, a_transfer_fence_value, *gltf_data->scene->nodes[i], *model, current_node, current_primitive);
 	}
 
 	cgltf_free(gltf_data);
+#else // _USE_CGLTF
+
+	tinygltf::Model gltf_model{};
+	tinygltf::TinyGLTF gltf_context{};
+
+	std::string error;
+	std::string warning;
+
+	if (gltf_context.LoadBinaryFromFile(&gltf_model, &error, &warning, a_mesh_op.path))
+	{
+		BB_ASSERT(false, "Failed to load glTF model, tinygltf::TinyGLTF::LoadBinaryFromFile");
+		return nullptr;
+	}
+
+	size_t primitive_count = 0;
+	for (size_t i = 0; i < gltf_model.meshes.size(); i++)
+	{
+		primitive_count += gltf_model.meshes[i].primitives.size();
+	}
+	const tinygltf::Scene& first_scene = gltf_model.scenes[0];
+
+	model->linear_nodes = ArenaAllocArr(s_asset_manager->asset_arena, Model::Node, first_scene.nodes.size());
+	model->primitives = ArenaAllocArr(s_asset_manager->asset_arena, Model::Primitive, primitive_count);
+	model->primitive_count = primitive_count;
+
+#endif // _USE_CGLTF
 
 	AssetString asset_name;
 	GetAssetNameFromPath(a_mesh_op.path, asset_name);

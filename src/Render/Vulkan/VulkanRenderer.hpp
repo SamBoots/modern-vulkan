@@ -52,7 +52,6 @@ namespace BB
 		void EndCommandList(const RCommandList a_list);
 
 		void CopyBuffer(const RCommandList a_list, const RenderCopyBuffer& a_copy_buffer);
-		void CopyBuffers(const RCommandList a_list, const RenderCopyBuffer* a_copy_buffers, const uint32_t a_copy_buffer_count);
 		void CopyImage(const RCommandList a_list, const RenderCopyImage& a_copy_info);
 		void CopyBufferToImage(const RCommandList a_list, const RenderCopyBufferToImageInfo& a_copy_info);
 		void CopyImageToBuffer(const RCommandList a_list, const RenderCopyImageToBufferInfo& a_copy_info);
