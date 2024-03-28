@@ -60,7 +60,7 @@ namespace BB
 
 	namespace Asset
 	{
-		constexpr size_t ASSET_COUNT_STANDARD = 2024;
+		constexpr size_t ASSET_COUNT_STANDARD = 512;
 		constexpr size_t STRING_ENTRY_COUNT_STANDARD = 2024;
 
 		struct AssetManagerInitInfo

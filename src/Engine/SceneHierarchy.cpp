@@ -5,6 +5,8 @@
 
 #include "imgui.h"
 
+#include <vector>
+
 using namespace BB;
 
 // arbritrary, but just for a stack const char array
@@ -170,7 +172,6 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 			prim_obj.parent = scene_handle;
 			scene_obj.childeren[scene_obj.child_count++] = m_scene_objects.emplace(prim_obj);
 		}
-		
 	}
 
 	for (uint32_t i = 0; i < a_node.child_count; i++)

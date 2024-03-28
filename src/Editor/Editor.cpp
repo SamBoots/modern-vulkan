@@ -300,7 +300,7 @@ bool Editor::Viewport::PositionWithinViewport(const uint2 a_pos) const
 
 float4x4 Editor::Viewport::CreateProjection(const float a_fov, const float a_near_field, const float a_far_field) const
 {
-	return Float4x4Perspective(ToRadians(a_fov), m_extent.x / m_extent.y, a_near_field, a_far_field);
+	return Float4x4Perspective(ToRadians(a_fov), static_cast<float>(m_extent.x) / static_cast<float>(m_extent.y), a_near_field, a_far_field);
 }
 
 float4x4 Editor::Viewport::CreateView() const
