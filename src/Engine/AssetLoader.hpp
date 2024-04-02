@@ -53,7 +53,7 @@ namespace BB
 		uint32_t primitive_count;
 
 		Node* linear_nodes;
-		Node* root_nodes;
+		uint32_t* root_node_indices;
 		uint32_t root_node_count;
 		AssetHandle asset_handle;
 	};

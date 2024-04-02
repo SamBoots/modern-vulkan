@@ -201,7 +201,7 @@ void SceneHierarchy::CreateSceneObjectViaModel(const Model& a_model, const Fixed
 
 	for (uint32_t i = 0; i < a_model.root_node_count; i++)
 	{
-		top_level_object.childeren[i] = CreateSceneObjectViaModelNode(a_model, a_TEMP_shader_effects, a_model.root_nodes[i], top_level_handle);
+		top_level_object.childeren[i] = CreateSceneObjectViaModelNode(a_model, a_TEMP_shader_effects, a_model.linear_nodes[a_model.root_node_indices[i]], top_level_handle);
 	}
 
 	BB_ASSERT(m_top_level_object_count < m_scene_objects.capacity(), "Too many scene objects, increase the max");

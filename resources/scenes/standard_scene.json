@@ -3,8 +3,8 @@
     "name": "standard scene",
     "scene_objects": [
       {
-        "file_name": "../../resources/models/Sponza.gltf",
-        "object_name": "ducky",
+        "file_name": "../../resources/models/ABeautifulGame.gltf",
+        "object_name": "chess game",
         "position": [
           0.0,
           -2.0,

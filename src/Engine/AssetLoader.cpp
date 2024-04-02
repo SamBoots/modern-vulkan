@@ -910,14 +910,15 @@ const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 	//This is not accurate on all GLTF models
 	model->primitive_count = primitive_count;
 	model->root_node_count = static_cast<uint32_t>(gltf_data->scene->nodes_count);
-	BB_ASSERT(model->root_node_count == 1, "not supporting more then 1 root node for gltf yet.");
-	model->root_nodes = &model->linear_nodes[0];
+	model->root_node_indices = ArenaAllocArr(s_asset_manager->asset_arena, uint32_t, model->root_node_count);
+
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 	uint32_t current_node = 0;
 	uint32_t current_primitive = 0;
 
 	for (size_t i = 0; i < gltf_data->scene->nodes_count; i++)
 	{
+		model->root_node_indices[i] = current_node;
 		LoadglTFNode(a_temp_arena, a_list, a_transfer_fence_value, *gltf_data->scene->nodes[i], *model, current_node, current_primitive);
 	}
 
@@ -970,7 +971,9 @@ const Model* Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoad
 
 	model->primitive_count = 1;
 	model->root_node_count = 1;
-	model->root_nodes = &model->linear_nodes[0];
+	// TEMP
+	model->root_node_indices = ArenaAllocArr(s_asset_manager->asset_arena, uint32_t, 1);
+	*model->root_node_indices = 0;
 
 	model->linear_nodes[0].name = a_mesh_op.name;
 	model->linear_nodes[0].child_count = 0;
