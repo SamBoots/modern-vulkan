@@ -149,20 +149,21 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 	scene_obj.transform = m_transform_pool.CreateTransform(transform, rotation, scale);
 	scene_obj.parent = a_parent;
 
-	if (a_node.mesh_handle.IsValid())
+	if (a_node.mesh)
 	{
-		for (uint32_t i = 0; i < a_node.primitive_count; i++)
+		const Model::Mesh& mesh = *a_node.mesh;
+		for (uint32_t i = 0; i < mesh.primitives.size(); i++)
 		{
 			BB_ASSERT(scene_obj.child_count < SCENE_OBJ_CHILD_MAX, "Too many childeren for a single scene object!");
 			SceneObject prim_obj{};
-			prim_obj.name = a_node.primitives[i].name;
-			prim_obj.mesh_handle = a_node.mesh_handle;
-			prim_obj.start_index = a_node.primitives[i].start_index;
-			prim_obj.index_count = a_node.primitives[i].index_count;
+			prim_obj.name = mesh.primitives[i].name;
+			prim_obj.mesh_handle = mesh.mesh_handle;
+			prim_obj.start_index = mesh.primitives[i].start_index;
+			prim_obj.index_count = mesh.primitives[i].index_count;
 			CreateMaterialInfo mat_info;
-			mat_info.base_color = a_node.primitives[i].material_info.base_texture;
-			mat_info.normal_texture = a_node.primitives[i].material_info.normal_texture;
-			mat_info.name = a_node.primitives[i].material_info.name;
+			mat_info.base_color = mesh.primitives[i].material_info.base_texture;
+			mat_info.normal_texture = mesh.primitives[i].material_info.normal_texture;
+			mat_info.name = mesh.primitives[i].material_info.name;
 			mat_info.shader_effects = Slice<const ShaderEffectHandle>(&a_TEMP_shader_effects.m_arr[0], 2);
 			prim_obj.material = CreateMaterial(mat_info);
 

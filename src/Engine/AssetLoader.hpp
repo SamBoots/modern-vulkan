@@ -25,35 +25,36 @@ namespace BB
 	{
 		struct MaterialInfo
 		{
-			RTexture base_texture;		//4
-			RTexture normal_texture;	//8
-			const char* name;			//16
+			RTexture base_texture;		// 4
+			RTexture normal_texture;	// 8
+			const char* name;			// 16
 		};
 		struct Primitive
 		{
 			//change this with material.
-			uint32_t start_index;		//4
-			uint32_t index_count;		//8
-			MaterialInfo material_info; //24
-			const char* name;			//32
+			uint32_t start_index;		// 4
+			uint32_t index_count;		// 8
+			MaterialInfo material_info; // 24
+			const char* name;			// 32
+		};
+
+		struct Mesh
+		{
+			MeshHandle mesh_handle;				// 8
+			StaticArray<Primitive> primitives;	// 24
 		};
 
 		struct Node
 		{
-			float4x4 transform;			 //64
-			MeshHandle mesh_handle;		 //72
-			Model::Node* childeren;		 //80
-			uint32_t child_count;		 //84
-			Model::Primitive* primitives;//92
-			uint32_t primitive_count;    //96
-			const char* name;
+			float4x4 transform;			// 64
+			Node* childeren;			// 72
+			size_t child_count;			// 80
+			Mesh* mesh;					// 88
+			const char* name;			// 96
 		};
 
-		MeshHandle* meshes;
+		Mesh* meshes;
 		uint32_t mesh_count;
-
-		Primitive* primitives;
-		uint32_t primitive_count;
 
 		Node* linear_nodes;
 		uint32_t* root_node_indices;
