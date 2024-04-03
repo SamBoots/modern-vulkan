@@ -49,6 +49,9 @@ namespace BB
 			const char* name;
 		};
 
+		MeshHandle* meshes;
+		uint32_t mesh_count;
+
 		Primitive* primitives;
 		uint32_t primitive_count;
 
