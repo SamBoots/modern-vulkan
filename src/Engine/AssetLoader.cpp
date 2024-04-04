@@ -687,7 +687,7 @@ static inline size_t CgltfGetMeshIndex(const cgltf_data& a_cgltf_data, const cgl
 	return (reinterpret_cast<size_t>(a_mesh) - reinterpret_cast<size_t>(a_cgltf_data.meshes)) / sizeof(cgltf_mesh);
 }
 
-static void LoadglTFNode(MemoryArena& a_temp_arena, const RCommandList a_list, const uint64_t a_transfer_fence_value, const cgltf_data& a_cgltf_data, Model& a_model, uint32_t& a_node_index)
+static void LoadglTFNode(const cgltf_data& a_cgltf_data, Model& a_model, uint32_t& a_node_index)
 {
 	const cgltf_node& cgltf_node = a_cgltf_data.nodes[a_node_index];
 	Model::Node& node = a_model.linear_nodes[a_node_index++];
@@ -731,7 +731,7 @@ static void LoadglTFNode(MemoryArena& a_temp_arena, const RCommandList a_list, c
 		node.childeren = &a_model.linear_nodes[a_node_index]; //childeren are loaded linearly, i'm quite sure.
 		for (size_t i = 0; i < node.child_count; i++)
 		{
-			LoadglTFNode(a_temp_arena, a_list, a_transfer_fence_value, a_cgltf_data, a_model, a_node_index);
+			LoadglTFNode(a_cgltf_data, a_model, a_node_index);
 		}
 	}
 }
@@ -809,8 +809,9 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const RCommandList a_list, c
 			}
 			else if (prim.indices->component_type == cgltf_component_type_r_16u)
 			{
+				const uint16_t* index_data16 = reinterpret_cast<const uint16_t*>(index_data);
 				for (size_t i = 0; i < prim.indices->count; i++)
-					indices[index_offset + i] = reinterpret_cast<uint16_t*>(index_data)[i];
+					indices[index_offset + i] = index_data16[i];
 				index_offset += static_cast<uint32_t>(prim.indices->count);
 			}
 			else
@@ -939,7 +940,10 @@ const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 
 	for (size_t i = 0; i < model->meshes.size(); i++)
 	{
-		LoadglTFMesh(a_temp_arena, a_list, a_transfer_fence_value, gltf_data->meshes[i], model->meshes[i]);
+		MemoryArenaScope(a_temp_arena)
+		{
+			LoadglTFMesh(a_temp_arena, a_list, a_transfer_fence_value, gltf_data->meshes[i], model->meshes[i]);
+		}
 	}
 
 	uint32_t current_node = 0;
@@ -947,7 +951,7 @@ const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 	for (size_t i = 0; i < gltf_data->scene->nodes_count; i++)
 	{
 		model->root_node_indices[i] = current_node;
-		LoadglTFNode(a_temp_arena, a_list, a_transfer_fence_value, *gltf_data, *model, current_node);
+		LoadglTFNode(*gltf_data, *model, current_node);
 	}
 
 	cgltf_free(gltf_data);
