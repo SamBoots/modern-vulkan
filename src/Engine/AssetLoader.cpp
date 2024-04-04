@@ -684,7 +684,7 @@ const Image* Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage
 
 static inline size_t CgltfGetMeshIndex(const cgltf_data& a_cgltf_data, const cgltf_mesh* a_mesh)
 {
-	return reinterpret_cast<size_t>(a_mesh) - reinterpret_cast<size_t>(a_cgltf_data.meshes);
+	return (reinterpret_cast<size_t>(a_mesh) - reinterpret_cast<size_t>(a_cgltf_data.meshes)) / sizeof(cgltf_mesh);
 }
 
 static void LoadglTFNode(MemoryArena& a_temp_arena, const RCommandList a_list, const uint64_t a_transfer_fence_value, const cgltf_data& a_cgltf_data, Model& a_model, uint32_t& a_node_index)
@@ -692,9 +692,28 @@ static void LoadglTFNode(MemoryArena& a_temp_arena, const RCommandList a_list, c
 	const cgltf_node& cgltf_node = a_cgltf_data.nodes[a_node_index];
 	Model::Node& node = a_model.linear_nodes[a_node_index++];
 	if (cgltf_node.has_matrix)
-		memcpy(&node.transform, cgltf_node.matrix, sizeof(float4x4));
+	{
+		float4x4 matrix;
+		// maybe do conversion on row or not
+		memcpy(&matrix, cgltf_node.matrix, sizeof(float4x4));
+
+		Float4x4DecomposeTransform(matrix, node.translation, node.rotation, node.scale);
+	}
 	else
-		node.transform = Float4x4Identity();
+	{
+		if (cgltf_node.has_translation)
+			memcpy(&node.translation, cgltf_node.translation, sizeof(cgltf_node.translation));
+		else
+			node.translation = {};
+		if (cgltf_node.has_rotation)
+			memcpy(&node.rotation, cgltf_node.rotation, sizeof(cgltf_node.rotation));
+		else
+			node.rotation = {};
+		if (cgltf_node.has_scale)
+			memcpy(&node.scale, cgltf_node.scale, sizeof(cgltf_node.scale));
+		else
+			node.scale = float3(1.f, 1.f, 1.f);
+	}
 
 	if (cgltf_node.name)
 		node.name = Asset::FindOrCreateString(cgltf_node.name).c_str();
@@ -902,14 +921,15 @@ const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
 	// optimize the memory space with one allocation for the entire model, maybe when I convert it to not gltf.
 	Model* model = ArenaAllocType(s_asset_manager->asset_arena, Model);
-	model->meshes = ArenaAllocType(s_asset_manager->asset_arena, Model::Mesh);
-	model->mesh_count = gltf_data->meshes_count;
-	for (size_t mesh_index = 0; mesh_index < gltf_data->meshes_count; mesh_index++)
+	model->meshes.Init(s_asset_manager->asset_arena, gltf_data->meshes_count);
+	model->meshes.resize(gltf_data->meshes_count);
+	for (size_t mesh_index = 0; mesh_index < model->meshes.size(); mesh_index++)
 	{
 		const cgltf_mesh& cgltf_mesh = gltf_data->meshes[mesh_index];
 		Model::Mesh& mesh = model->meshes[mesh_index];
 
-		mesh.primitives.Init(s_asset_manager->asset_arena, cgltf_mesh.primitives_count);
+		mesh.primitives.Init(s_asset_manager->asset_arena, static_cast<uint32_t>(cgltf_mesh.primitives_count));
+		mesh.primitives.resize(cgltf_mesh.primitives_count);
 	}
 
 	model->linear_nodes = ArenaAllocArr(s_asset_manager->asset_arena, Model::Node, linear_node_count);
@@ -917,7 +937,7 @@ const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 	model->root_node_indices = ArenaAllocArr(s_asset_manager->asset_arena, uint32_t, model->root_node_count);
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 
-	for (size_t i = 0; i < model->mesh_count; i++)
+	for (size_t i = 0; i < model->meshes.size(); i++)
 	{
 		LoadglTFMesh(a_temp_arena, a_list, a_transfer_fence_value, gltf_data->meshes[i], model->meshes[i]);
 	}
@@ -945,9 +965,7 @@ const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 	if (OSFileExist(icon_path.c_str()))
 		asset.icon = LoadIconFromPath(a_temp_arena, icon_path.GetView(), a_list, a_transfer_fence_value, true);
 	else
-	{
 		asset.icon = GetEmptyIconSlot();
-	}
 
 	AddElementToAssetTable(asset);
 	model->asset_handle = AssetHandle(asset.hash.full_hash);
@@ -972,8 +990,8 @@ const Model* Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoad
 	//hack shit way, but a single mesh just has one primitive to draw.
 	Model* model = ArenaAllocType(s_asset_manager->asset_arena, Model);
 	model->linear_nodes = ArenaAllocArr(s_asset_manager->asset_arena, Model::Node, 1);
-	model->meshes = ArenaAllocArr(s_asset_manager->asset_arena, Model::Mesh, 1);
-	model->meshes->primitives.Init(s_asset_manager->asset_arena, 1);
+	model->meshes.Init(s_asset_manager->asset_arena, 1);
+	model->meshes[0].primitives.Init(s_asset_manager->asset_arena, 1);
 	model->root_node_indices = ArenaAllocArr(s_asset_manager->asset_arena, uint32_t, 1);
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 	Model::Primitive primitive;
@@ -988,10 +1006,11 @@ const Model* Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoad
 
 	*model->root_node_indices = 0;
 
+	model->linear_nodes[0] = {};
 	model->linear_nodes[0].name = a_mesh_op.name;
 	model->linear_nodes[0].child_count = 0;
 	model->linear_nodes[0].mesh = &mesh;
-	model->linear_nodes[0].transform = Float4x4Identity();
+	model->linear_nodes[0].scale = float3(1.f, 1.f, 1.f);
 
 	AssetSlot asset;
 	asset.hash = asset_hash;

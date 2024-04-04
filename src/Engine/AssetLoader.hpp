@@ -46,15 +46,16 @@ namespace BB
 
 		struct Node
 		{
-			float4x4 transform;			// 64
-			Node* childeren;			// 72
-			size_t child_count;			// 80
-			Mesh* mesh;					// 88
-			const char* name;			// 96
+			float3 translation;			// 12
+			float3 scale;				// 24
+			Quat rotation;				// 40
+			Node* childeren;			// 48
+			size_t child_count;			// 56
+			Mesh* mesh;					// 64
+			const char* name;			// 72
 		};
 
-		Mesh* meshes;
-		uint32_t mesh_count;
+		StaticArray<Mesh> meshes;
 
 		Node* linear_nodes;
 		uint32_t* root_node_indices;

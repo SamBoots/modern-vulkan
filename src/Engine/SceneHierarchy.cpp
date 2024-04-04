@@ -132,12 +132,6 @@ void BB::SceneHierarchy::InitViaJson(MemoryArena& a_memory_arena, const FixedArr
 
 SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_model, const FixedArray<ShaderEffectHandle, 2>& a_TEMP_shader_effects, const Model::Node& a_node, const SceneObjectHandle a_parent)
 {
-	//decompose the matrix.
-	float3 transform;
-	float3 scale;
-	Quat rotation;
-	Float4x4DecomposeTransform(a_node.transform, transform, rotation, scale);
-
 	const SceneObjectHandle scene_handle = m_scene_objects.emplace(SceneObject());
 	SceneObject& scene_obj = m_scene_objects.find(scene_handle);
 	scene_obj.name = a_node.name;
@@ -146,7 +140,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 	scene_obj.index_count = 0;
 	scene_obj.material = MaterialHandle(BB_INVALID_HANDLE_64);
 	scene_obj.light_handle = LightHandle(BB_INVALID_HANDLE_64);
-	scene_obj.transform = m_transform_pool.CreateTransform(transform, rotation, scale);
+	scene_obj.transform = m_transform_pool.CreateTransform(a_node.translation, a_node.rotation, a_node.scale);
 	scene_obj.parent = a_parent;
 
 	if (a_node.mesh)
@@ -154,7 +148,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 		const Model::Mesh& mesh = *a_node.mesh;
 		for (uint32_t i = 0; i < mesh.primitives.size(); i++)
 		{
-			BB_ASSERT(scene_obj.child_count < SCENE_OBJ_CHILD_MAX, "Too many childeren for a single scene object!");
+			BB_ASSERT(scene_obj.child_count <= SCENE_OBJ_CHILD_MAX, "Too many childeren for a single scene object!");
 			SceneObject prim_obj{};
 			prim_obj.name = mesh.primitives[i].name;
 			prim_obj.mesh_handle = mesh.mesh_handle;
