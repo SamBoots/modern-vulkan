@@ -736,10 +736,10 @@ static void LoadglTFNode(MemoryArena& a_temp_arena, const RCommandList a_list, c
 	}
 }
 
-static inline void* GetAccessorDataPtr(const cgltf_accessor* a_Accessor)
+static inline void* GetAccessorDataPtr(const cgltf_accessor* a_accessor)
 {
-	const size_t accessor_offset = a_Accessor->buffer_view->offset + a_Accessor->offset;
-	return Pointer::Add(a_Accessor->buffer_view->buffer->data, accessor_offset);
+	const size_t accessor_offset = a_accessor->buffer_view->offset + a_accessor->offset;
+	return Pointer::Add(a_accessor->buffer_view->buffer->data, accessor_offset);
 }
 
 static void LoadglTFMesh(MemoryArena& a_temp_arena, const RCommandList a_list, const uint64_t a_transfer_fence_value, const cgltf_mesh& a_cgltf_mesh, Model::Mesh& a_mesh)
@@ -831,7 +831,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const RCommandList a_list, c
 					vertices[vertex_pos_offset].position.y = data_pos[1];
 					vertices[vertex_pos_offset].position.z = data_pos[2];
 
-					data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride));
+					data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride + attrib.data->buffer_view->stride));
 					++vertex_pos_offset;
 				}
 				break;
@@ -842,7 +842,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const RCommandList a_list, c
 					vertices[vertex_normal_offset].normal.y = data_pos[1];
 					vertices[vertex_normal_offset].normal.z = data_pos[2];
 
-					data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride));
+					data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride + attrib.data->buffer_view->stride));
 					++vertex_normal_offset;
 				}
 				break;
@@ -852,7 +852,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const RCommandList a_list, c
 					vertices[vertex_uv_offset].uv.x = data_pos[0];
 					vertices[vertex_uv_offset].uv.y = data_pos[1];
 
-					data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride));
+					data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride + attrib.data->buffer_view->stride));
 					++vertex_uv_offset;
 				}
 				break;

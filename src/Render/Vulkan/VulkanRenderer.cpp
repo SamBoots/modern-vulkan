@@ -2540,7 +2540,6 @@ void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stag
 	vkCmdSetRasterizerDiscardEnable(cmd_buffer, VK_FALSE);
 
 	vkCmdSetCullMode(cmd_buffer, VK_CULL_MODE_BACK_BIT);
-	vkCmdSetFrontFace(cmd_buffer, VK_FRONT_FACE_CLOCKWISE);
 	vkCmdSetPrimitiveTopology(cmd_buffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	s_vulkan_inst->pfn.CmdSetPolygonModeEXT(cmd_buffer, VK_POLYGON_MODE_FILL);
 	s_vulkan_inst->pfn.CmdSetRasterizationSamplesEXT(cmd_buffer, VK_SAMPLE_COUNT_1_BIT);
@@ -2568,6 +2567,12 @@ void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stag
 	//FOR imgui maybe not, but that is because I'm dumb asf
 	s_vulkan_inst->pfn.CmdSetVertexInputEXT(cmd_buffer, 0, nullptr, 0, nullptr); 
 	vkCmdSetPrimitiveRestartEnable(cmd_buffer, VK_FALSE);
+}
+
+void Vulkan::SetFrontFace(const RCommandList a_list, const bool a_is_clockwise)
+{
+	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+	vkCmdSetFrontFace(cmd_buffer, static_cast<VkFrontFace>(a_is_clockwise));
 }
 
 void Vulkan::SetDescriptorImmutableSamplers(const RCommandList a_list, const RPipelineLayout a_pipe_layout)
