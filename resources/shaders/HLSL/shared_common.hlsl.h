@@ -28,14 +28,14 @@ namespace BB
         float3 position;            // 12
         float3 normal;              // 24
         float2 uv;                  // 32
-        float3 color;               // 44 
+        float3 color;               // 44
     };
 
     struct Vertex2D
     {
-        float2 position;
-        float2 uv;
-        uint color;
+        float2 position;    
+        float2 uv;          
+        uint color;         
     };
 
     struct GlobalRenderData

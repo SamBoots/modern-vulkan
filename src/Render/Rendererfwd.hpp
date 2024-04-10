@@ -2,6 +2,7 @@
 #include "Common.h"
 //shared shader include
 #include "shared_common.hlsl.h"
+#include "Storage/Array.h"
 
 namespace BB
 {
@@ -162,5 +163,28 @@ namespace BB
 		uint32_t mip_level;
 		uint16_t base_array_layer;
 		uint16_t layer_count;
+	};
+
+	struct GPUDeviceInfo
+	{
+		char* name;
+
+		struct MemoryHeapInfo
+		{
+			uint32_t heap_num;
+			size_t heap_size;
+			bool heap_device_local;
+		};
+		StaticArray<MemoryHeapInfo> memory_heaps;
+
+		struct QueueFamily
+		{
+			uint32_t queue_family_index;
+			uint32_t queue_count;
+			bool support_compute;
+			bool support_graphics;
+			bool support_transfer;
+		};
+		StaticArray<QueueFamily> queue_families;
 	};
 }

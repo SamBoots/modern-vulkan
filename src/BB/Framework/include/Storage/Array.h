@@ -433,7 +433,7 @@ namespace BB
 			m_size = 0;
 		}
 
-		void resize(const size_t a_new_size)
+		void resize(const uint32_t a_new_size)
 		{
 			BB_ASSERT(a_new_size <= m_capacity, "new size is bigger then the static array's capacity");
 			if (m_size > a_new_size)

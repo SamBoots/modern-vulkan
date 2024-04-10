@@ -537,21 +537,6 @@ static void LoadAsync_func(void* a_param)
 	MemoryArenaFree(params->memory_arena);
 }
 
-ThreadTask Asset::LoadAssetsASync(const BB::Slice<AsyncAsset> a_asyn_assets, const char* a_cmd_list_name)
-{
-	// maybe have each thread have it's own memory arena
-	MemoryArena load_arena = MemoryArenaCreate();
-
-	LoadAsyncFunc_Params* params = ArenaAllocType(load_arena, LoadAsyncFunc_Params);
-	params->assets = ArenaAllocArr(load_arena, Asset::AsyncAsset, a_asyn_assets.size());
-	memcpy(params->assets, a_asyn_assets.data(), a_asyn_assets.sizeInBytes());
-	params->asset_count = a_asyn_assets.size();
-	params->cmd_list_name = a_cmd_list_name;
-	params->memory_arena = load_arena;
-
-	return Threads::StartTaskThread(LoadAsync_func, params);
-}
-
 const Image* Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path, const RCommandList a_list, const uint64_t a_transfer_fence_value)
 {
 	AssetString asset_name;
@@ -922,15 +907,15 @@ const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
 	// optimize the memory space with one allocation for the entire model, maybe when I convert it to not gltf.
 	Model* model = ArenaAllocType(s_asset_manager->asset_arena, Model);
-	model->meshes.Init(s_asset_manager->asset_arena, gltf_data->meshes_count);
-	model->meshes.resize(gltf_data->meshes_count);
+	model->meshes.Init(s_asset_manager->asset_arena, static_cast<uint32_t>(gltf_data->meshes_count));
+	model->meshes.resize(model->meshes.capacity());
 	for (size_t mesh_index = 0; mesh_index < model->meshes.size(); mesh_index++)
 	{
 		const cgltf_mesh& cgltf_mesh = gltf_data->meshes[mesh_index];
 		Model::Mesh& mesh = model->meshes[mesh_index];
 
 		mesh.primitives.Init(s_asset_manager->asset_arena, static_cast<uint32_t>(cgltf_mesh.primitives_count));
-		mesh.primitives.resize(cgltf_mesh.primitives_count);
+		mesh.primitives.resize(mesh.primitives.capacity());
 	}
 
 	model->linear_nodes = ArenaAllocArr(s_asset_manager->asset_arena, Model::Node, linear_node_count);
@@ -1029,7 +1014,6 @@ const Model* Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoad
 		asset.icon = GetEmptyIconSlot();
 
 	AddElementToAssetTable(asset);
-
 
 	model->asset_handle = AssetHandle(asset.hash.full_hash);
 	return model;

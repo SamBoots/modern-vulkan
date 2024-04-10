@@ -121,6 +121,8 @@ namespace BB
 
 	void GPUWaitIdle();
 
+	GPUDeviceInfo GetGPUInfo(MemoryArena& a_arena);
+
 	struct StartFrameInfo
 	{
 		float2 mouse_pos;

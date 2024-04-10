@@ -14,6 +14,8 @@
 
 using namespace BB;
 
+constexpr size_t EDITOR_MATERIAL_ARRAY_SIZE = 4092;
+
 struct ImInputData
 {
 	BB::WindowHandle            window;
@@ -308,6 +310,41 @@ float4x4 Editor::Viewport::CreateView() const
 	return m_camera.CalculateView();
 }
 
+static void DisplayGPUInfo(const GPUDeviceInfo& a_gpu_info)
+{
+	if (ImGui::CollapsingHeader("gpu info"))
+	{
+		ImGui::Indent();
+		ImGui::TextUnformatted(a_gpu_info.name);
+		if (ImGui::CollapsingHeader("memory heaps"))
+		{
+			ImGui::Indent();
+			for (uint32_t i = 0; i < static_cast<uint32_t>(a_gpu_info.memory_heaps.size()); i++)
+			{
+				ImGui::Text("heap: %u", a_gpu_info.memory_heaps[i].heap_num);
+				ImGui::Text("heap size: %lld", a_gpu_info.memory_heaps[i].heap_size);
+				ImGui::Text("heap is device local %d", a_gpu_info.memory_heaps[i].heap_device_local);
+			}
+			ImGui::Unindent();
+		}
+
+		if (ImGui::CollapsingHeader("queue families"))
+		{
+			ImGui::Indent();
+			for (size_t i = 0; i < a_gpu_info.queue_families.size(); i++)
+			{
+				ImGui::Text("family index: %u", a_gpu_info.queue_families[i].queue_family_index);
+				ImGui::Text("queue count: %u", a_gpu_info.queue_families[i].queue_count);
+				ImGui::Text("support compute: %d", a_gpu_info.queue_families[i].support_compute);
+				ImGui::Text("support graphics: %d", a_gpu_info.queue_families[i].support_graphics);
+				ImGui::Text("support transfer: %d", a_gpu_info.queue_families[i].support_transfer);
+			}
+			ImGui::Unindent();
+		}
+		ImGui::Unindent();
+	}
+}
+
 void Editor::MainEditorImGuiInfo(const MemoryArena& a_arena)
 {
 	if (ImGui::Begin("general engine info"))
@@ -316,6 +353,8 @@ void Editor::MainEditorImGuiInfo(const MemoryArena& a_arena)
 			ImGui::Text("current viewport: None");
 		else
 			ImGui::Text("current viewport: %s", m_active_viewport->GetName());
+
+		DisplayGPUInfo(m_gpu_info);
 
 		if (ImGui::CollapsingHeader("main allocator"))
 		{
@@ -365,10 +404,14 @@ void Editor::Init(MemoryArena& a_arena, const FixedArray<ShaderEffectHandle, 2>&
 	m_game_screen.Init(a_arena, a_window_extent, uint2(), "game scene");
 	m_object_viewer_screen.Init(a_arena, a_window_extent / 2u, uint2(), "object viewer");
 
-	m_game_hierarchy.InitViaJson(a_arena, a_TEMP_shader_effects, "../../resources/scenes/standard_scene.json");
 	m_object_viewer_hierarchy.InitViaJson(a_arena, a_TEMP_shader_effects, "../../resources/scenes/object_scene.json");
+	m_game_hierarchy.InitViaJson(a_arena, a_TEMP_shader_effects, "../../resources/scenes/standard_scene.json");
 	m_game_hierarchy.SetClearColor(float3{ 0.1f, 0.6f, 0.1f });
 	m_object_viewer_hierarchy.SetClearColor(float3{ 0.5f, 0.1f, 0.1f });
+
+	m_gpu_info = GetGPUInfo(a_arena);
+
+	m_materials.Init(a_arena, EDITOR_MATERIAL_ARRAY_SIZE);
 }
 
 void Editor::Destroy()
@@ -517,4 +560,39 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time)
 		uint64_t fence_value;
 		PresentFrame(Slice(graphics_command_pools, _countof(graphics_command_pools)), fence_value);
 	}
+}
+
+
+
+ThreadTask Editor::LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets, const char* a_cmd_list_name = "upload asset task")
+{
+	// maybe have each thread have it's own memory arena
+	MemoryArena load_arena = MemoryArenaCreate();
+
+	LoadAssetsAsync_params* params = ArenaAllocType(load_arena, LoadAsyncFunc_Params);
+	params->assets = ArenaAllocArr(load_arena, Asset::AsyncAsset, a_asyn_assets.size());
+	memcpy(params->assets, a_asyn_assets.data(), a_asyn_assets.sizeInBytes());
+	params->asset_count = a_asyn_assets.size();
+	params->cmd_list_name = a_cmd_list_name;
+	params->memory_arena = load_arena;
+
+	return Threads::StartTaskThread(Editor::LoadAssetsAsync, params);
+}
+
+void Editor::LoadAssetsAsync(void* a_params)
+{
+	LoadAssetsAsync_params* params = reinterpret_cast<LoadAssetsAsync_params*>(a_params);
+	MemoryArena load_arena = MemoryArenaCreate();
+	Editor& editor = *params->editor;
+
+	Asset::LoadAssets(load_arena, params->asyn_assets, params->cmd_list_name);
+
+	// load materials in somehow
+
+	MemoryArenaFree(load_arena);
+}
+
+MaterialHandle Editor::CreateMaterial(const CreateMaterialInfo& a_mat_info)
+{
+
 }

@@ -2,6 +2,7 @@
 #include "Common.h"
 #include "SceneHierarchy.hpp"
 #include "Camera.hpp"
+#include "AssetLoader.hpp"
 
 namespace BB
 {
@@ -13,7 +14,17 @@ namespace BB
 		void Destroy();
 		void Update(MemoryArena& a_arena, const float a_delta_time);
 
+		static ThreadTask LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets, const char* a_cmd_list_name = "upload asset task");
+
 	private:
+		struct LoadAssetsAsync_params
+		{
+			Editor* editor;
+			Slice<Asset::AsyncAsset> asyn_assets;
+			const char* cmd_list_name = "upload asset task";
+		};
+		static void LoadAssetsAsync(void* a_params);
+
 		class Viewport
 		{
 		public:
@@ -47,6 +58,9 @@ namespace BB
 		};
 		static void ThreadFuncForDrawing(void* a_param);
 
+		StaticArray<MaterialHandle> m_materials;
+		StaticArray<ShaderEffectHandle> m_shader_effects;
+
 		Viewport m_game_screen;
 		Viewport m_object_viewer_screen;
 
@@ -55,6 +69,8 @@ namespace BB
 
 		Viewport* m_active_viewport = nullptr;
 		float2 m_previous_mouse_pos{};
+
+		GPUDeviceInfo m_gpu_info;
 
 		WindowHandle m_main_window;
 

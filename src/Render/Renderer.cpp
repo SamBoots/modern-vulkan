@@ -649,8 +649,6 @@ struct RenderInterface_inst
 	StaticSlotmap<Mesh, MeshHandle> mesh_map{};
 	StaticArray<ShaderEffect> shader_effects{};
 	StaticArray<Material> material_map{};
-
-	GPUDeviceInfo gpu_device;
 };
 
 static RenderInterface_inst* s_render_inst;
@@ -970,42 +968,6 @@ namespace IMGUI_IMPL
 	}
 } // IMGUI_IMPL
 
-static void DisplayGPUInfo()
-{
-	if (ImGui::CollapsingHeader("gpu info"))
-	{
-		ImGui::Indent();
-		const GPUDeviceInfo& gpu = s_render_inst->gpu_device;
-		ImGui::TextUnformatted(gpu.name);
-		if (ImGui::CollapsingHeader("memory heaps"))
-		{
-			ImGui::Indent();
-			for (uint32_t i = 0; i < static_cast<uint32_t>(gpu.memory_heaps.size()); i++)
-			{
-				ImGui::Text("heap: %u", gpu.memory_heaps[i].heap_num);
-				ImGui::Text("heap size: %lld", gpu.memory_heaps[i].heap_size);
-				ImGui::Text("heap is device local %d", gpu.memory_heaps[i].heap_device_local);
-			}
-			ImGui::Unindent();
-		}
-
-		if (ImGui::CollapsingHeader("queue families"))
-		{
-			ImGui::Indent();
-			for (size_t i = 0; i < gpu.queue_families.size(); i++)
-			{
-				ImGui::Text("family index: %u", gpu.queue_families[i].queue_family_index);
-				ImGui::Text("queue count: %u", gpu.queue_families[i].queue_count);
-				ImGui::Text("support compute: %d", gpu.queue_families[i].support_compute);
-				ImGui::Text("support graphics: %d", gpu.queue_families[i].support_graphics);
-				ImGui::Text("support transfer: %d", gpu.queue_families[i].support_transfer);
-			}
-			ImGui::Unindent();
-		}
-		ImGui::Unindent();
-	}
-}
-
 static inline StackString<256> ShaderStagesToCChar(const SHADER_STAGE_FLAGS a_stage_flags)
 {
 	StackString<256> stages{};
@@ -1170,7 +1132,6 @@ static void ImguiDisplayRenderer()
 {
 	if (ImGui::Begin("Renderer"))
 	{
-		DisplayGPUInfo();
 		s_render_inst->texture_manager.DisplayTextureListImgui();
 
 		if (ImGui::CollapsingHeader("materials"))
@@ -1690,8 +1651,6 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	
 	IMGUI_IMPL::ImInit(a_arena, list, s_render_inst->asset_upload_next_fence_value);
 
-	s_render_inst->gpu_device = Vulkan::GetGPUDeviceInfo(a_arena);
-
 	start_up_pool.EndCommandList(list);
 	//special upload here, due to uploading as well
 	s_render_inst->graphics_queue.ReturnPool(start_up_pool);
@@ -1743,6 +1702,11 @@ static void ResizeRendererSwapchain(const uint32_t a_width, const uint32_t a_hei
 	s_render_inst->render_io.frame_started = false;
 	s_render_inst->render_io.frame_ended = false;
 	s_render_inst->render_io.resizing_request = false;
+}
+
+GPUDeviceInfo BB::GetGPUInfo(MemoryArena& a_arena)
+{
+	return Vulkan::GetGPUDeviceInfo(a_arena);
 }
 
 void BB::StartFrame(const RCommandList a_list, const StartFrameInfo& a_info)
@@ -2216,11 +2180,11 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 		shader_indices.albedo_texture = material.base_color.handle;
 
 		Vulkan::SetPushConstants(a_cmd_list, material.shader.pipeline_layout, 0, sizeof(ShaderIndices), &shader_indices);
-
+		Vulkan::BindIndexBuffer(a_cmd_list, s_render_inst->index_buffer.buffer, mesh.index_buffer.offset / sizeof(uint32_t));
 		Vulkan::DrawIndexed(a_cmd_list,
 			static_cast<uint32_t>(mesh.index_buffer.size / sizeof(uint32_t)) + mesh_draw_call.index_count,
 			1,
-			static_cast<uint32_t>(mesh.index_buffer.offset / sizeof(uint32_t)) + mesh_draw_call.index_start,
+			mesh_draw_call.index_start,
 			0,
 			0);
 	}
@@ -2357,7 +2321,6 @@ const MeshHandle BB::CreateMesh(const RCommandList a_list, const CreateMeshInfo&
 	Mesh mesh;
 	mesh.vertex_buffer = AllocateFromVertexBuffer(a_create_info.vertices.sizeInBytes());
 	mesh.index_buffer = AllocateFromIndexBuffer(a_create_info.indices.sizeInBytes());
-
 
 	const size_t vertex_offset = 0;
 	const size_t index_offset = a_create_info.vertices.sizeInBytes();

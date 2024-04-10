@@ -25,17 +25,16 @@ namespace BB
 	{
 		struct MaterialInfo
 		{
-			RTexture base_texture;		// 4
-			RTexture normal_texture;	// 8
-			const char* name;			// 16
+			const char* name;			// 8
 		};
 		struct Primitive
 		{
 			//change this with material.
 			uint32_t start_index;		// 4
 			uint32_t index_count;		// 8
-			MaterialInfo material_info; // 24
-			const char* name;			// 32
+			RTexture base_texture;		// 12
+			RTexture normal_texture;	// 16
+			const char* name;			// 24
 		};
 
 		struct Mesh
@@ -131,8 +130,7 @@ namespace BB
 		StringView FindOrCreateString(const char* a_string, const size_t a_string_size);
 		StringView FindOrCreateString(const StringView& a_view);
 
-		void LoadAssets(MemoryArena& memory_arena, const Slice<AsyncAsset> a_asyn_assets, const char* a_cmd_list_name = "upload asset task");
-		ThreadTask LoadAssetsASync(const Slice<AsyncAsset> a_asyn_assets, const char* a_cmd_list_name = "upload asset task");
+		void LoadAssets(MemoryArena& a_memory_arena, const Slice<AsyncAsset> a_asyn_assets, const char* a_cmd_list_name = "upload asset task");
 
 		const Image* LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path, const RCommandList a_list, const uint64_t a_transfer_fence_value);
 		const Image* LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, const uint64_t a_transfer_fence_value);
@@ -140,7 +138,6 @@ namespace BB
 		const Model* LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoadFromMemory& a_mesh_op, const RCommandList a_list, const uint64_t a_transfer_fence_value);
 
 		bool WriteImage(const char* a_file_name, const uint32_t a_width, const uint32_t a_height, const uint32_t a_channels, const void* a_pixels);
-
 
 		const Model* FindModelByPath(const char* a_path);
 		const Model* FindModelByName(const char* a_name);
