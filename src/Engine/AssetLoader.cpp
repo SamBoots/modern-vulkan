@@ -16,8 +16,6 @@
 
 #include "Storage/Queue.hpp"
 
-
-
 BB_WARNINGS_OFF
 #define CGLTF_IMPLEMENTATION
 #include "cgltf.h"
@@ -765,7 +763,6 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const RCommandList a_list, c
 
 		model_prim.name = "primitive [NUM]";
 		const StringView material_name = prim.material->name ? Asset::FindOrCreateString(prim.material->name) : "no name";
-		model_prim.material_info.name = material_name.c_str();
 		if (prim.material->pbr_metallic_roughness.base_color_texture.texture)
 		{
 			const cgltf_image& image = *prim.material->pbr_metallic_roughness.base_color_texture.texture->image;
@@ -773,7 +770,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const RCommandList a_list, c
 			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
 			const Image* img = Asset::LoadImageDisk(a_temp_arena, full_image_path, a_list, a_transfer_fence_value);
 
-			model_prim.material_info.base_texture = img->gpu_image;
+			model_prim.base_texture = img->gpu_image;
 		}
 		if (0)
 			if (prim.material->normal_texture.texture)
@@ -783,7 +780,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const RCommandList a_list, c
 				const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
 				const Image* img = Asset::LoadImageDisk(a_temp_arena, full_image_path, a_list, a_transfer_fence_value);
 
-				model_prim.material_info.normal_texture = img->gpu_image;
+				model_prim.normal_texture = img->gpu_image;
 			}
 
 		{	// get indices
@@ -985,7 +982,8 @@ const Model* Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoad
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 	Model::Primitive primitive;
 	primitive.name = "PRIMITIVE [NUM]";
-	primitive.material_info = {}; // TODO, material definition
+	primitive.base_texture = a_mesh_op.base_color;
+	primitive.normal_texture = GetWhiteTexture();
 	primitive.start_index = 0;
 	primitive.index_count = static_cast<uint32_t>(a_mesh_op.indices.size());
 
@@ -1065,6 +1063,21 @@ void Asset::FreeAsset(const AssetHandle a_asset_handle)
 
 constexpr size_t ASSET_SEARCH_PATH_SIZE_MAX = 512;
 
+ThreadTask LoadAssetsASync(const BB::Slice<Asset::AsyncAsset> a_asyn_assets, const char* a_cmd_list_name)
+{
+	// maybe have each thread have it's own memory arena
+	MemoryArena load_arena = MemoryArenaCreate();
+
+	LoadAsyncFunc_Params* params = ArenaAllocType(load_arena, LoadAsyncFunc_Params);
+	params->assets = ArenaAllocArr(load_arena, Asset::AsyncAsset, a_asyn_assets.size());
+	memcpy(params->assets, a_asyn_assets.data(), a_asyn_assets.sizeInBytes());
+	params->asset_count = a_asyn_assets.size();
+	params->cmd_list_name = a_cmd_list_name;
+	params->memory_arena = load_arena;
+
+	return Threads::StartTaskThread(LoadAsync_func, params);
+}
+
 static void LoadAssetViaSearch()
 {
 	StackString<ASSET_SEARCH_PATH_SIZE_MAX> search_path;
@@ -1100,7 +1113,7 @@ static void LoadAssetViaSearch()
 			BB_ASSERT(false, "NOT SUPPORTED FILE NAME!");
 		}
 
-		Asset::LoadAssetsASync(Slice(&asset, 1), "load asset via search");
+		LoadAssetsASync(Slice(&asset, 1), "load asset via search");
 	}
 }
 

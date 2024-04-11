@@ -102,6 +102,7 @@ namespace BB
 			// material def here....
 			Slice<Vertex> vertices;
 			Slice<uint32_t> indices;
+			RTexture base_color;
 		};
 
 		struct MeshLoadFromDisk

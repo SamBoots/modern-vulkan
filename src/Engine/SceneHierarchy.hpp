@@ -15,18 +15,20 @@ namespace BB
 
 	struct SceneObject
 	{
-		const char* name;			//8
-		MeshHandle mesh_handle;		//16
-		uint32_t start_index;		//20
-		uint32_t index_count;		//24
-		MaterialHandle material;	//32
+		const char* name;			// 8
+		MeshHandle mesh_handle;		// 16
+		uint32_t start_index;		// 20
+		uint32_t index_count;		// 24
 
-		LightHandle light_handle;	//40
+		RTexture albedo_texture;	// 28
+		RTexture normal_texture;	// 32
 
-		TransformHandle transform;	//48
+		LightHandle light_handle;	// 40
 
-		SceneObjectHandle parent;	//56
-		uint32_t child_count;		//60
+		TransformHandle transform;	// 48
+
+		SceneObjectHandle parent;	// 56
+		uint32_t child_count;		// 60
 		SceneObjectHandle childeren[SCENE_OBJ_CHILD_MAX];
 	};
 	

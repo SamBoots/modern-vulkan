@@ -59,8 +59,6 @@ namespace BB
 	{
 		const char* name;
 		Slice<const ShaderEffectHandle> shader_effects;
-		RTexture base_color;
-		RTexture normal_texture;
 	};
 
 	struct CreateTextureInfo
