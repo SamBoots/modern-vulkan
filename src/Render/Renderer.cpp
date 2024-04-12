@@ -602,6 +602,9 @@ struct RenderInterface_inst
 
 	GPUTextureManager texture_manager;
 
+	ShaderEffectHandle standard_vs_shader;
+	ShaderEffectHandle standard_fs_shader;
+	MaterialHandle standard_3d_material;
 	RTexture white;
 	RTexture black;
 
@@ -986,11 +989,12 @@ static void ImGuiDisplayMaterials()
 {
 	ImGui::Indent();
 
+	BB_ASSERT(false, "this requires a rework");
 	if (ImGui::CollapsingHeader("create material"))
 	{
 		static char material_name_buffer[256]{};
-		static ShaderEffectHandle vertex_effect{};
-		static ShaderEffectHandle fragment_effect{};
+		static ShaderEffectHandle vertex_effect = ShaderEffectHandle(BB_INVALID_HANDLE_64);
+		static ShaderEffectHandle fragment_effect = ShaderEffectHandle(BB_INVALID_HANDLE_64);
 
 		ImGui::Indent();
 
@@ -1039,7 +1043,6 @@ static void ImGuiDisplayMaterials()
 		{
 			CreateMaterialInfo create_material_info;
 			create_material_info.name = material_name_buffer; // TEMP
-			create_material_info.base_color = RTexture(0);
 			const ShaderEffectHandle effects[2]{ vertex_effect, fragment_effect };
 			create_material_info.shader_effects = Slice(effects, _countof(effects));
 			CreateMaterial(create_material_info);
@@ -1651,6 +1654,27 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	
 	IMGUI_IMPL::ImInit(a_arena, list, s_render_inst->asset_upload_next_fence_value);
 
+	CreateShaderEffectInfo standard_shaders[2]
+	{
+		a_render_create_info.standard_vs_shader,
+		a_render_create_info.standard_fs_shader
+	};
+
+	MemoryArenaScope(a_arena)
+	{
+		ShaderEffectHandle shadereffects[2];
+		BB_ASSERT(CreateShaderEffect(a_arena, Slice(standard_shaders, 2), shadereffects), "failed to load standard shaders");
+		CreateMaterialInfo standard_mat_info;
+		standard_mat_info.name = "standard 3d material";
+		standard_mat_info.shader_effects = Slice<const ShaderEffectHandle>(shadereffects, 2);
+		MaterialHandle standard_mat = CreateMaterial(standard_mat_info);
+
+		s_render_inst->standard_3d_material = standard_mat;
+		s_render_inst->standard_vs_shader = shadereffects[0];
+		s_render_inst->standard_fs_shader = shadereffects[1];
+	}
+
+
 	start_up_pool.EndCommandList(list);
 	//special upload here, due to uploading as well
 	s_render_inst->graphics_queue.ReturnPool(start_up_pool);
@@ -2178,6 +2202,7 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 		shader_indices.transform_index = i;
 		shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh.vertex_buffer.offset);
 		shader_indices.albedo_texture = material.base_color.handle;
+		shader_indices.normal_texture = material.normal_texture.handle;
 
 		Vulkan::SetPushConstants(a_cmd_list, material.shader.pipeline_layout, 0, sizeof(ShaderIndices), &shader_indices);
 		Vulkan::BindIndexBuffer(a_cmd_list, s_render_inst->index_buffer.buffer, mesh.index_buffer.offset / sizeof(uint32_t));
@@ -2532,8 +2557,6 @@ const MaterialHandle BB::CreateMaterial(const CreateMaterialInfo& a_create_info)
 	mat.name = a_create_info.name;
 	mat.shader.shader_effect_count = static_cast<uint32_t>(a_create_info.shader_effects.size());
 	mat.shader.pipeline_layout = chosen_layout;
-	mat.base_color = a_create_info.base_color;
-	mat.normal_texture = a_create_info.normal_texture;
 
 	s_render_inst->material_map.emplace_back(mat);
 	return MaterialHandle(s_render_inst->material_map.size() - 1);
@@ -3099,6 +3122,11 @@ void BB::DrawMesh(const RenderScene3DHandle a_scene, const MeshHandle a_mesh, co
 	render_scene3d.draw_list_data.mesh_draw_call[render_scene3d.draw_list_count].index_count = a_index_count;
 	render_scene3d.draw_list_data.transform[render_scene3d.draw_list_count].transform = a_transform;
 	render_scene3d.draw_list_data.transform[render_scene3d.draw_list_count++].inverse = Float4x4Inverse(a_transform);
+}
+
+MaterialHandle BB::GetStandardMaterial()
+{
+	return s_render_inst->standard_3d_material;
 }
 
 RTexture BB::GetWhiteTexture()

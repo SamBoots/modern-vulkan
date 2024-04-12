@@ -763,6 +763,9 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const RCommandList a_list, c
 
 		model_prim.name = "primitive [NUM]";
 		const StringView material_name = prim.material->name ? Asset::FindOrCreateString(prim.material->name) : "no name";
+
+		model_prim.material = GetStandardMaterial();
+
 		if (prim.material->pbr_metallic_roughness.base_color_texture.texture)
 		{
 			const cgltf_image& image = *prim.material->pbr_metallic_roughness.base_color_texture.texture->image;
@@ -770,7 +773,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const RCommandList a_list, c
 			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
 			const Image* img = Asset::LoadImageDisk(a_temp_arena, full_image_path, a_list, a_transfer_fence_value);
 
-			model_prim.base_texture = img->gpu_image;
+			model_prim.material_data.base_texture = img->gpu_image;
 		}
 		if (0)
 			if (prim.material->normal_texture.texture)
@@ -780,7 +783,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const RCommandList a_list, c
 				const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
 				const Image* img = Asset::LoadImageDisk(a_temp_arena, full_image_path, a_list, a_transfer_fence_value);
 
-				model_prim.normal_texture = img->gpu_image;
+				model_prim.material_data.normal_texture = img->gpu_image;
 			}
 
 		{	// get indices
@@ -982,8 +985,8 @@ const Model* Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoad
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 	Model::Primitive primitive;
 	primitive.name = "PRIMITIVE [NUM]";
-	primitive.base_texture = a_mesh_op.base_color;
-	primitive.normal_texture = GetWhiteTexture();
+	primitive.material_data.base_texture = a_mesh_op.base_color;
+	primitive.material_data.normal_texture = GetWhiteTexture();
 	primitive.start_index = 0;
 	primitive.index_count = static_cast<uint32_t>(a_mesh_op.indices.size());
 

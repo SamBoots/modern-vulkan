@@ -3,7 +3,6 @@
 #include "Storage/Slotmap.h"
 #include "Transform.hpp"
 #include "Renderer.hpp"
-#include "AssetLoader.hpp"
 #include "Storage/FixedArray.h"
 
 namespace BB
@@ -22,13 +21,14 @@ namespace BB
 
 		RTexture albedo_texture;	// 28
 		RTexture normal_texture;	// 32
+		MaterialHandle material;	// 40
 
-		LightHandle light_handle;	// 40
+		LightHandle light_handle;	// 48
 
-		TransformHandle transform;	// 48
+		TransformHandle transform;	// 56
 
-		SceneObjectHandle parent;	// 56
-		uint32_t child_count;		// 60
+		SceneObjectHandle parent;	// 64
+		uint32_t child_count;		// 72
 		SceneObjectHandle childeren[SCENE_OBJ_CHILD_MAX];
 	};
 	

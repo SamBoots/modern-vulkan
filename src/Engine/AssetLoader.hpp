@@ -23,18 +23,21 @@ namespace BB
 
 	struct Model
 	{
-		struct MaterialInfo
+		struct MaterialData
 		{
-			const char* name;			// 8
+			RTexture base_texture;		// 4
+			RTexture normal_texture;	// 8
 		};
 		struct Primitive
 		{
 			//change this with material.
 			uint32_t start_index;		// 4
 			uint32_t index_count;		// 8
-			RTexture base_texture;		// 12
-			RTexture normal_texture;	// 16
-			const char* name;			// 24
+					
+			MaterialHandle material;	// 16
+			MaterialData material_data;	// 24
+
+			const char* name;			// 32
 		};
 
 		struct Mesh

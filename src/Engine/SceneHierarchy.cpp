@@ -154,8 +154,8 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 			prim_obj.mesh_handle = mesh.mesh_handle;
 			prim_obj.start_index = mesh.primitives[i].start_index;
 			prim_obj.index_count = mesh.primitives[i].index_count;
-			prim_obj.albedo_texture = mesh.primitives[i].base_texture;
-			prim_obj.normal_texture = mesh.primitives[i].normal_texture;
+			prim_obj.albedo_texture = mesh.primitives[i].material_data.base_texture;
+			prim_obj.normal_texture = mesh.primitives[i].material_data.normal_texture;
 			CreateMaterialInfo mat_info;
 			mat_info.name = mesh.primitives[i].name;
 			mat_info.shader_effects = Slice<const ShaderEffectHandle>(&a_TEMP_shader_effects.m_arr[0], 2);

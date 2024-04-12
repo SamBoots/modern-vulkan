@@ -20,6 +20,9 @@ namespace BB
 		uint32_t swapchain_height;
 		bool debug;
 
+		CreateShaderEffectInfo standard_vs_shader;
+		CreateShaderEffectInfo standard_fs_shader;
+
 		// EXTRA STUFF
 		size_t frame_upload_buffer_size = mbSize * 64;
 		size_t asset_upload_buffer_size = mbSize * 512;
@@ -214,6 +217,7 @@ namespace BB
 
 	void DrawMesh(const RenderScene3DHandle a_scene, const MeshHandle a_mesh, const float4x4& a_transform, const uint32_t a_index_start, const uint32_t a_index_count, const MaterialHandle a_material);
 
+	MaterialHandle GetStandardMaterial();
 	RTexture GetWhiteTexture();
 	RTexture GetBlackTexture();
 	RTexture GetDebugTexture();

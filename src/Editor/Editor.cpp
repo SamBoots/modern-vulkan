@@ -591,8 +591,3 @@ void Editor::LoadAssetsAsync(void* a_params)
 
 	MemoryArenaFree(load_arena);
 }
-
-MaterialHandle Editor::CreateMaterial(const CreateMaterialInfo& a_mat_info)
-{
-
-}
