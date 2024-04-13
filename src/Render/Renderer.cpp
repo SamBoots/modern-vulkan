@@ -510,8 +510,6 @@ struct Material
 	} shader;
 
 	const char* name;
-	RTexture base_color;
-	RTexture normal_texture;
 };
 
 struct MeshDrawCall
@@ -520,6 +518,8 @@ struct MeshDrawCall
 	MaterialHandle material;
 	uint32_t index_start;
 	uint32_t index_count;
+	RTexture base_texture;
+	RTexture normal_texture;
 };
 
 struct DrawList
@@ -1085,17 +1085,6 @@ static void ImGuiDisplayMaterials()
 				ImGui::PopID();
 			}
 
-			if (ImGui::CollapsingHeader("textures"))
-			{
-				ImGui::Indent();
-				constexpr ImVec2 image_size = { 160, 160 };
-				if (material.base_color.IsValid())
-					ImGui::Image(material.base_color.handle, image_size);
-				if (material.normal_texture.IsValid())
-					ImGui::Image(material.normal_texture.handle, image_size);
-
-				ImGui::Unindent();
-			}
 			ImGui::PopID();
 			ImGui::Unindent();
 		}
@@ -2201,15 +2190,14 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 		ShaderIndices shader_indices;
 		shader_indices.transform_index = i;
 		shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh.vertex_buffer.offset);
-		shader_indices.albedo_texture = material.base_color.handle;
-		shader_indices.normal_texture = material.normal_texture.handle;
+		shader_indices.albedo_texture = mesh_draw_call.base_texture.handle;
+		shader_indices.normal_texture = mesh_draw_call.normal_texture.handle;
 
 		Vulkan::SetPushConstants(a_cmd_list, material.shader.pipeline_layout, 0, sizeof(ShaderIndices), &shader_indices);
-		Vulkan::BindIndexBuffer(a_cmd_list, s_render_inst->index_buffer.buffer, mesh.index_buffer.offset / sizeof(uint32_t));
 		Vulkan::DrawIndexed(a_cmd_list,
 			static_cast<uint32_t>(mesh.index_buffer.size / sizeof(uint32_t)) + mesh_draw_call.index_count,
 			1,
-			mesh_draw_call.index_start,
+			static_cast<uint32_t>(mesh.index_buffer.offset / sizeof(uint32_t)) + mesh_draw_call.index_start,
 			0,
 			0);
 	}
@@ -3113,13 +3101,15 @@ void BB::UnmapGPUBuffer(const GPUBuffer a_buffer)
 	Vulkan::UnmapBufferMemory(a_buffer);
 }
 
-void BB::DrawMesh(const RenderScene3DHandle a_scene, const MeshHandle a_mesh, const float4x4& a_transform, const uint32_t a_index_start, const uint32_t a_index_count, const MaterialHandle a_material)
+void BB::DrawMesh(const RenderScene3DHandle a_scene, const MeshHandle a_mesh, const float4x4& a_transform, const uint32_t a_index_start, const uint32_t a_index_count, const RTexture a_base_texture, const RTexture a_normal_texture, const MaterialHandle a_material)
 {
 	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
 	render_scene3d.draw_list_data.mesh_draw_call[render_scene3d.draw_list_count].mesh = a_mesh;
 	render_scene3d.draw_list_data.mesh_draw_call[render_scene3d.draw_list_count].material = a_material;
 	render_scene3d.draw_list_data.mesh_draw_call[render_scene3d.draw_list_count].index_start = a_index_start;
 	render_scene3d.draw_list_data.mesh_draw_call[render_scene3d.draw_list_count].index_count = a_index_count;
+	render_scene3d.draw_list_data.mesh_draw_call[render_scene3d.draw_list_count].base_texture = a_base_texture;
+	render_scene3d.draw_list_data.mesh_draw_call[render_scene3d.draw_list_count].normal_texture = a_normal_texture;
 	render_scene3d.draw_list_data.transform[render_scene3d.draw_list_count].transform = a_transform;
 	render_scene3d.draw_list_data.transform[render_scene3d.draw_list_count++].inverse = Float4x4Inverse(a_transform);
 }

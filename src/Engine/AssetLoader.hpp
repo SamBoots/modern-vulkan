@@ -1,3 +1,4 @@
+#pragma once
 #include "Rendererfwd.hpp"
 #include "Utils/Slice.h"
 

@@ -11,6 +11,22 @@
 
 namespace BB
 {
+	enum class RENDER_PASS_TYPE
+	{
+		STANDARD_3D
+	};
+
+	struct CreateShaderEffectInfo
+	{
+		const char* name;
+		const char* shader_path;
+		const char* shader_entry;
+		SHADER_STAGE stage;
+		SHADER_STAGE_FLAGS next_stages;
+		uint32_t push_constant_space;
+		RENDER_PASS_TYPE pass_type;
+	};
+
 	struct RendererCreateInfo
 	{
 		WindowHandle window_handle;
@@ -32,22 +48,6 @@ namespace BB
 	{
 		Slice<Vertex> vertices;
 		Slice<uint32_t> indices;
-	};
-
-	enum class RENDER_PASS_TYPE
-	{
-		STANDARD_3D
-	};
-
-	struct CreateShaderEffectInfo
-	{
-		const char* name;
-		const char* shader_path;
-		const char* shader_entry;
-		SHADER_STAGE stage;
-		SHADER_STAGE_FLAGS next_stages;
-		uint32_t push_constant_space;
-		RENDER_PASS_TYPE pass_type;
 	};
 
 	struct WriteTextureInfo
@@ -215,7 +215,7 @@ namespace BB
 	void* MapGPUBuffer(const GPUBuffer a_buffer);
 	void UnmapGPUBuffer(const GPUBuffer a_buffer);
 
-	void DrawMesh(const RenderScene3DHandle a_scene, const MeshHandle a_mesh, const float4x4& a_transform, const uint32_t a_index_start, const uint32_t a_index_count, const MaterialHandle a_material);
+	void DrawMesh(const RenderScene3DHandle a_scene, const MeshHandle a_mesh, const float4x4& a_transform, const uint32_t a_index_start, const uint32_t a_index_count, const RTexture a_base_texture, const RTexture a_normal_texture, const MaterialHandle a_material);
 
 	MaterialHandle GetStandardMaterial();
 	RTexture GetWhiteTexture();

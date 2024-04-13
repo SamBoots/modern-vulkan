@@ -10,7 +10,7 @@ namespace BB
 	class Editor
 	{
 	public:
-		void Init(MemoryArena& a_arena, const FixedArray<ShaderEffectHandle, 2>& a_TEMP_shader_effects, const WindowHandle a_window, const uint2 a_window_extent);
+		void Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent);
 		void Destroy();
 		void Update(MemoryArena& a_arena, const float a_delta_time);
 
@@ -20,7 +20,9 @@ namespace BB
 		struct LoadAssetsAsync_params
 		{
 			Editor* editor;
-			Slice<Asset::AsyncAsset> asyn_assets;
+			MemoryArena arena;
+			Asset::AsyncAsset* assets;
+			size_t asset_count;
 			const char* cmd_list_name = "upload asset task";
 		};
 		static void LoadAssetsAsync(void* a_params);

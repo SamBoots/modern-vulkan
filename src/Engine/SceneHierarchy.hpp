@@ -3,12 +3,15 @@
 #include "Storage/Slotmap.h"
 #include "Transform.hpp"
 #include "Renderer.hpp"
-#include "Storage/FixedArray.h"
+#include "Storage/Array.h"
+#include "Storage/BBString.h"
+#include "AssetLoader.hpp"
 
 namespace BB
 {
 	using SceneObjectHandle = FrameworkHandle<struct SceneObjectHandleTag>;
-	
+	class JsonParser;
+
 	constexpr uint32_t DEFAULT_SCENE_OBJ_MAX = 512;
 	constexpr uint32_t SCENE_OBJ_CHILD_MAX = 256;
 
@@ -28,7 +31,7 @@ namespace BB
 		TransformHandle transform;	// 56
 
 		SceneObjectHandle parent;	// 64
-		uint32_t child_count;		// 72
+		size_t child_count;			// 72
 		SceneObjectHandle childeren[SCENE_OBJ_CHILD_MAX];
 	};
 	
@@ -36,10 +39,11 @@ namespace BB
 	{
 	public:
 		void Init(MemoryArena& a_memory_arena, const StringView a_name, const uint32_t a_scene_obj_max = DEFAULT_SCENE_OBJ_MAX);
-		void InitViaJson(MemoryArena& a_memory_arena, const FixedArray<ShaderEffectHandle, 2>& a_TEMP_shader_effects, const char* a_json_path, const uint32_t a_scene_obj_max = DEFAULT_SCENE_OBJ_MAX);
+		void InitViaJson(MemoryArena& a_memory_arena, const JsonParser& a_parsed_file, const uint32_t a_scene_obj_max = DEFAULT_SCENE_OBJ_MAX);
+		static StaticArray<Asset::AsyncAsset> PreloadAssetsFromJson(MemoryArena& a_arena, const JsonParser& a_parsed_file);
 
 		void DrawSceneHierarchy(const RCommandList a_list, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset) const;
-		void CreateSceneObjectViaModel(const Model& a_model, const FixedArray<ShaderEffectHandle, 2>& a_TEMP_shader_effects, const float3 a_position, const char* a_name);
+		void CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name);
 		void CreateSceneObjectAsLight(const CreateLightInfo& a_light_create_info, const char* a_name);
 
 		void SetView(const float4x4& a_view);
@@ -52,7 +56,7 @@ namespace BB
 
 	private:
 		SceneObjectHandle CreateSceneObjectEmpty(const SceneObjectHandle a_parent);
-		SceneObjectHandle CreateSceneObjectViaModelNode(const Model& a_model, const FixedArray<ShaderEffectHandle, 2>& a_TEMP_shader_effects, const Model::Node& a_node, const SceneObjectHandle a_parent);
+		SceneObjectHandle CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent);
 		void DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform) const;
 		void ImGuiDisplaySceneObject(const SceneObjectHandle a_object);
 

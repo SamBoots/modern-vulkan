@@ -70,6 +70,24 @@ int main(int argc, char** argv)
 	render_create_info.swapchain_width = window_extent.x;
 	render_create_info.swapchain_height = window_extent.y;
 	render_create_info.debug = true;
+	{
+		render_create_info.standard_vs_shader.name = "debug vertex shader";
+		render_create_info.standard_vs_shader.stage = SHADER_STAGE::VERTEX;
+		render_create_info.standard_vs_shader.next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
+		render_create_info.standard_vs_shader.shader_path = "../../resources/shaders/hlsl/Debug.hlsl";
+		render_create_info.standard_vs_shader.shader_entry = "VertexMain";
+		render_create_info.standard_vs_shader.push_constant_space = sizeof(ShaderIndices);
+		render_create_info.standard_vs_shader.pass_type = RENDER_PASS_TYPE::STANDARD_3D;
+	}
+	{
+		render_create_info.standard_fs_shader.name = "debug fragment shader";
+		render_create_info.standard_fs_shader.stage = SHADER_STAGE::FRAGMENT_PIXEL;
+		render_create_info.standard_fs_shader.next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
+		render_create_info.standard_fs_shader.shader_path = "../../resources/shaders/hlsl/Debug.hlsl";
+		render_create_info.standard_fs_shader.shader_entry = "FragmentMain";
+		render_create_info.standard_fs_shader.push_constant_space = sizeof(ShaderIndices);
+		render_create_info.standard_fs_shader.pass_type = RENDER_PASS_TYPE::STANDARD_3D;
+	}
 	InitializeRenderer(main_arena, render_create_info);
 
 	{
@@ -109,10 +127,8 @@ int main(int argc, char** argv)
 			Slice(shader_effect_create_infos, _countof(shader_effect_create_infos)),
 			shader_effects), "Failed to create shader objects");
 	}
-
-	FixedArray<ShaderEffectHandle, 2> default_shaders{ shader_effects[0], shader_effects[1] };
-	Editor editor;
-	editor.Init(main_arena, default_shaders, window_handle, window_extent);
+	Editor editor{};
+	editor.Init(main_arena, window_handle, window_extent);
 
 	SetWindowCloseEvent(CustomCloseWindow);
 	SetWindowResizeEvent(CustomResizeWindow);

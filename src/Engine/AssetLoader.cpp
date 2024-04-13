@@ -1066,7 +1066,7 @@ void Asset::FreeAsset(const AssetHandle a_asset_handle)
 
 constexpr size_t ASSET_SEARCH_PATH_SIZE_MAX = 512;
 
-ThreadTask LoadAssetsASync(const BB::Slice<Asset::AsyncAsset> a_asyn_assets, const char* a_cmd_list_name)
+static ThreadTask LoadAssetsASync(const BB::Slice<Asset::AsyncAsset> a_asyn_assets, const char* a_cmd_list_name)
 {
 	// maybe have each thread have it's own memory arena
 	MemoryArena load_arena = MemoryArenaCreate();

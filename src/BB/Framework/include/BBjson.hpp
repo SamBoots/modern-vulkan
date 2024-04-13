@@ -108,7 +108,7 @@ namespace BB
 
 		void Parse();
 
-		JsonNode* GetRootNode() { return m_RootNode; }
+		JsonNode* GetRootNode() const { return m_RootNode; }
 
 		JsonNode* ParseObject();
 		JsonNode* ParseList();

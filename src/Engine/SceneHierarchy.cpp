@@ -12,11 +12,11 @@ using namespace BB;
 // arbritrary, but just for a stack const char array
 constexpr size_t UNIQUE_MODELS_PER_SCENE = 128;
 
-void SceneHierarchy::Init(MemoryArena& a_memory_arena, const StringView a_name, const uint32_t a_scene_obj_max)
+void SceneHierarchy::Init(MemoryArena& a_arena, const StringView a_name, const uint32_t a_scene_obj_max)
 {
-	m_transform_pool.Init(a_memory_arena, a_scene_obj_max);
-	m_scene_objects.Init(a_memory_arena, a_scene_obj_max);
-	m_top_level_objects = ArenaAllocArr(a_memory_arena, SceneObjectHandle, a_scene_obj_max);
+	m_transform_pool.Init(a_arena, a_scene_obj_max);
+	m_scene_objects.Init(a_arena, a_scene_obj_max);
+	m_top_level_objects = ArenaAllocArr(a_arena, SceneObjectHandle, a_scene_obj_max);
 
 	m_top_level_object_count = 0;
 
@@ -26,7 +26,7 @@ void SceneHierarchy::Init(MemoryArena& a_memory_arena, const StringView a_name, 
 	create_info.draw_entry_max = a_scene_obj_max;
 	create_info.light_max = 128; // magic number jank yes shoot me
 
-	m_render_scene = Create3DRenderScene(a_memory_arena, create_info, a_name.c_str());
+	m_render_scene = Create3DRenderScene(a_arena, create_info, a_name.c_str());
 	const StringView view = StringView(a_name.c_str(), a_name.size());
 	new (&m_scene_name) StringView(view);
 }
@@ -41,96 +41,95 @@ static bool NameIsWithinCharArray(const char** a_arr, const size_t a_arr_size, c
 	return false;
 }
 
-void BB::SceneHierarchy::InitViaJson(MemoryArena& a_memory_arena, const FixedArray<ShaderEffectHandle, 2>& a_TEMP_shader_effects, const char* a_json_path, const uint32_t a_scene_obj_max)
+void BB::SceneHierarchy::InitViaJson(MemoryArena& a_arena, const JsonParser& a_parsed_file, const uint32_t a_scene_obj_max)
 {
-	JsonParser scene_json(a_json_path);
-	scene_json.Parse();
-
-	// hell
-	const JsonObject& scene_obj = scene_json.GetRootNode()->GetObject().Find("scene")->GetObject();
+	const JsonObject& scene_obj = a_parsed_file.GetRootNode()->GetObject().Find("scene")->GetObject();
 
 	{
 		const JsonNode& name_node = *scene_obj.Find("name");
 		const StringView scene_name = Asset::FindOrCreateString(name_node.GetString());
-		Init(a_memory_arena, scene_name, a_scene_obj_max);
+		Init(a_arena, scene_name, a_scene_obj_max);
 	}
-	
-	MemoryArenaScope(a_memory_arena)
+
+	const JsonList& scene_objects = scene_obj.Find("scene_objects")->GetList();
+
+	for (size_t i = 0; i < scene_objects.node_count; i++)
 	{
-		const char* unique_models[UNIQUE_MODELS_PER_SCENE]{};
-		size_t unique_model_count = 0;
+		const JsonObject& sce_obj = scene_objects.nodes[i]->GetObject();
+		const char* model_name = scene_objects.nodes[i]->GetObject().Find("file_name")->GetString();
+		const char* obj_name = scene_objects.nodes[i]->GetObject().Find("file_name")->GetString();
+		const Model* model = Asset::FindModelByPath(model_name);
 
-		// first get all the unique models
-		const JsonList& scene_objects = scene_obj.Find("scene_objects")->GetList();
-		for (size_t i = 0; i < scene_objects.node_count; i++)
-		{
-			const char* model_name = scene_objects.nodes[i]->GetObject().Find("file_name")->GetString();
+		const JsonList& position_list = sce_obj.Find("position")->GetList();
+		BB_ASSERT(position_list.node_count == 3, "scene_object position in scene json is not 3 elements");
+		float3 position;
+		position.x = position_list.nodes[0]->GetNumber();
+		position.y = position_list.nodes[1]->GetNumber();
+		position.z = position_list.nodes[2]->GetNumber();
 
-			if (!NameIsWithinCharArray(unique_models, unique_model_count, model_name))
-			{
-				unique_models[unique_model_count++] = model_name;
-			}
-		}
+		CreateSceneObjectViaModel(*model, position, obj_name);
+	}
 
-		Asset::AsyncAsset* async_model_loads = ArenaAllocArr(a_memory_arena, Asset::AsyncAsset, unique_model_count);
+	const JsonList& lights = scene_obj.Find("lights")->GetList();
+	for (size_t i = 0; i < lights.node_count; i++)
+	{
+		const JsonObject& light_obj = lights.nodes[i]->GetObject();
+		CreateLightInfo light_info;
 
-		for (size_t i = 0; i < unique_model_count; i++)
-		{
-			async_model_loads[i].asset_type = Asset::ASYNC_ASSET_TYPE::MODEL;
-			async_model_loads[i].load_type = Asset::ASYNC_LOAD_TYPE::DISK;
-			async_model_loads[i].mesh_disk.path = unique_models[i];
-		}
+		const JsonList& position = light_obj.Find("position")->GetList();
+		BB_ASSERT(position.node_count == 3, "light position in scene json is not 3 elements");
+		light_info.pos.x = position.nodes[0]->GetNumber();
+		light_info.pos.y = position.nodes[1]->GetNumber();
+		light_info.pos.z = position.nodes[2]->GetNumber();
 
-		const ThreadTask asset_transfer_task = Asset::LoadAssetsASync(Slice(async_model_loads, unique_model_count), "upload scene models json");
+		const JsonList& color = light_obj.Find("color")->GetList();
+		BB_ASSERT(color.node_count == 3, "light color in scene json is not 3 elements");
+		light_info.color.x = color.nodes[0]->GetNumber();
+		light_info.color.y = color.nodes[1]->GetNumber();
+		light_info.color.z = color.nodes[2]->GetNumber();
 
-		const JsonList& lights = scene_obj.Find("lights")->GetList();
-		for (size_t i = 0; i < lights.node_count; i++)
-		{
-			const JsonObject& light_obj = lights.nodes[i]->GetObject();
-			CreateLightInfo light_info;
+		light_info.linear_distance = light_obj.Find("linear")->GetNumber();
+		light_info.quadratic_distance = light_obj.Find("quadratic")->GetNumber();
 
-			const JsonList& position = light_obj.Find("position")->GetList();
-			BB_ASSERT(position.node_count == 3, "light position in scene json is not 3 elements");
-			light_info.pos.x = position.nodes[0]->GetNumber();
-			light_info.pos.y = position.nodes[1]->GetNumber();
-			light_info.pos.z = position.nodes[2]->GetNumber();
-
-			const JsonList& color = light_obj.Find("color")->GetList();
-			BB_ASSERT(color.node_count == 3, "light color in scene json is not 3 elements");
-			light_info.color.x = color.nodes[0]->GetNumber();
-			light_info.color.y = color.nodes[1]->GetNumber();
-			light_info.color.z = color.nodes[2]->GetNumber();
-
-			light_info.linear_distance = light_obj.Find("linear")->GetNumber();
-			light_info.quadratic_distance = light_obj.Find("quadratic")->GetNumber();
-
-			const StringView light_name = Asset::FindOrCreateString(light_obj.Find("name")->GetString());
-			CreateSceneObjectAsLight(light_info, light_name.c_str());
-		}
-
-		// not nice :(
-		Threads::WaitForTask(asset_transfer_task);
-
-		for (size_t i = 0; i < scene_objects.node_count; i++)
-		{
-			const JsonObject& sce_obj = scene_objects.nodes[i]->GetObject();
-			const char* model_name = scene_objects.nodes[i]->GetObject().Find("file_name")->GetString();
-			const char* obj_name = scene_objects.nodes[i]->GetObject().Find("file_name")->GetString();
-			const Model* model = Asset::FindModelByPath(model_name);
-
-			const JsonList& position_list = sce_obj.Find("position")->GetList();
-			BB_ASSERT(position_list.node_count == 3, "scene_object position in scene json is not 3 elements");
-			float3 position;
-			position.x = position_list.nodes[0]->GetNumber();
-			position.y = position_list.nodes[1]->GetNumber();
-			position.z = position_list.nodes[2]->GetNumber();
-
-			CreateSceneObjectViaModel(*model, a_TEMP_shader_effects, position, obj_name);
-		}
+		const StringView light_name = Asset::FindOrCreateString(light_obj.Find("name")->GetString());
+		CreateSceneObjectAsLight(light_info, light_name.c_str());
 	}
 }
 
-SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_model, const FixedArray<ShaderEffectHandle, 2>& a_TEMP_shader_effects, const Model::Node& a_node, const SceneObjectHandle a_parent)
+StaticArray<Asset::AsyncAsset> SceneHierarchy::PreloadAssetsFromJson(MemoryArena& a_arena, const JsonParser& a_parsed_file)
+{
+	const JsonObject& scene_obj = a_parsed_file.GetRootNode()->GetObject().Find("scene")->GetObject();
+
+	const char* unique_models[UNIQUE_MODELS_PER_SCENE]{};
+	size_t unique_model_count = 0;
+
+	// first get all the unique models
+	const JsonList& scene_objects = scene_obj.Find("scene_objects")->GetList();
+	for (size_t i = 0; i < scene_objects.node_count; i++)
+	{
+		const char* model_name = scene_objects.nodes[i]->GetObject().Find("file_name")->GetString();
+
+		if (!NameIsWithinCharArray(unique_models, unique_model_count, model_name))
+		{
+			unique_models[unique_model_count++] = model_name;
+		}
+	}
+
+	StaticArray<Asset::AsyncAsset> async_model_loads{};
+	async_model_loads.Init(a_arena, static_cast<uint32_t>(unique_model_count));
+	async_model_loads.resize(static_cast<uint32_t>(unique_model_count));
+
+	for (size_t i = 0; i < unique_model_count; i++)
+	{
+		async_model_loads[i].asset_type = Asset::ASYNC_ASSET_TYPE::MODEL;
+		async_model_loads[i].load_type = Asset::ASYNC_LOAD_TYPE::DISK;
+		async_model_loads[i].mesh_disk.path = unique_models[i];
+	}
+
+	return async_model_loads;
+}
+
+SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent)
 {
 	const SceneObjectHandle scene_handle = m_scene_objects.emplace(SceneObject());
 	SceneObject& scene_obj = m_scene_objects.find(scene_handle);
@@ -156,10 +155,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 			prim_obj.index_count = mesh.primitives[i].index_count;
 			prim_obj.albedo_texture = mesh.primitives[i].material_data.base_texture;
 			prim_obj.normal_texture = mesh.primitives[i].material_data.normal_texture;
-			CreateMaterialInfo mat_info;
-			mat_info.name = mesh.primitives[i].name;
-			mat_info.shader_effects = Slice<const ShaderEffectHandle>(&a_TEMP_shader_effects.m_arr[0], 2);
-			prim_obj.material = CreateMaterial(mat_info);
+			prim_obj.material = GetStandardMaterial();
 
 			scene_obj.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 			prim_obj.transform = m_transform_pool.CreateTransform(float3(0, 0, 0));
@@ -172,13 +168,13 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 	for (uint32_t i = 0; i < a_node.child_count; i++)
 	{
 		BB_ASSERT(scene_obj.child_count < SCENE_OBJ_CHILD_MAX, "Too many childeren for a single gameobject!");
-		scene_obj.childeren[scene_obj.child_count++] = CreateSceneObjectViaModelNode(a_model, a_TEMP_shader_effects, a_node.childeren[i], a_parent);
+		scene_obj.childeren[scene_obj.child_count++] = CreateSceneObjectViaModelNode(a_model, a_node.childeren[i], a_parent);
 	}
 
 	return scene_handle;
 }
 
-void SceneHierarchy::CreateSceneObjectViaModel(const Model& a_model, const FixedArray<ShaderEffectHandle, 2>& a_TEMP_shader_effects, const float3 a_position, const char* a_name)
+void SceneHierarchy::CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name)
 {
 	SceneObjectHandle top_level_handle = m_scene_objects.emplace(SceneObject());
 	SceneObject& top_level_object = m_scene_objects.find(top_level_handle);
@@ -196,7 +192,7 @@ void SceneHierarchy::CreateSceneObjectViaModel(const Model& a_model, const Fixed
 
 	for (uint32_t i = 0; i < a_model.root_node_count; i++)
 	{
-		top_level_object.childeren[i] = CreateSceneObjectViaModelNode(a_model, a_TEMP_shader_effects, a_model.linear_nodes[a_model.root_node_indices[i]], top_level_handle);
+		top_level_object.childeren[i] = CreateSceneObjectViaModelNode(a_model, a_model.linear_nodes[a_model.root_node_indices[i]], top_level_handle);
 	}
 
 	BB_ASSERT(m_top_level_object_count < m_scene_objects.capacity(), "Too many scene objects, increase the max");
@@ -250,8 +246,8 @@ void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, con
 
 	const float4x4 local_transform = a_transform * m_transform_pool.GetTransformMatrix(scene_object.transform);
 
-	if (scene_object.mesh_handle.handle != BB_INVALID_HANDLE_64)
-		DrawMesh(m_render_scene, scene_object.mesh_handle, local_transform, scene_object.start_index, scene_object.index_count, scene_object.material);
+	if (scene_object.mesh_handle.IsValid())
+		DrawMesh(m_render_scene, scene_object.mesh_handle, local_transform, scene_object.start_index, scene_object.index_count, scene_object.albedo_texture, scene_object.normal_texture, scene_object.material);
 
 	for (size_t i = 0; i < scene_object.child_count; i++)
 	{

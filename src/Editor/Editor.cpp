@@ -9,6 +9,8 @@
 #include "Renderer.hpp"
 #include "imgui.h"
 
+#include "BBjson.hpp"
+
 #include "Camera.hpp"
 #include "SceneHierarchy.hpp"
 
@@ -395,7 +397,7 @@ void Editor::ThreadFuncForDrawing(void* a_param)
 	viewport.DrawScene(list, scene_hierarchy);
 }
 
-void Editor::Init(MemoryArena& a_arena, const FixedArray<ShaderEffectHandle, 2>& a_TEMP_shader_effects, const WindowHandle a_window, const uint2 a_window_extent)
+void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent)
 {
 	m_main_window = a_window; 
 
@@ -404,8 +406,22 @@ void Editor::Init(MemoryArena& a_arena, const FixedArray<ShaderEffectHandle, 2>&
 	m_game_screen.Init(a_arena, a_window_extent, uint2(), "game scene");
 	m_object_viewer_screen.Init(a_arena, a_window_extent / 2u, uint2(), "object viewer");
 
-	m_object_viewer_hierarchy.InitViaJson(a_arena, a_TEMP_shader_effects, "../../resources/scenes/object_scene.json");
-	m_game_hierarchy.InitViaJson(a_arena, a_TEMP_shader_effects, "../../resources/scenes/standard_scene.json");
+	JsonParser object_viewer_scene("../../resources/scenes/object_scene.json");
+	JsonParser game_scene("../../resources/scenes/standard_scene.json");
+	object_viewer_scene.Parse();
+	game_scene.Parse();
+
+	auto viewer_list = SceneHierarchy::PreloadAssetsFromJson(a_arena, object_viewer_scene);
+	const ThreadTask view_upload = LoadAssets(Slice(viewer_list.data(), viewer_list.size()), "viewer list upload");
+
+	auto game_list = SceneHierarchy::PreloadAssetsFromJson(a_arena, game_scene);
+	const ThreadTask game_upload = LoadAssets(Slice(game_list.data(), game_list.size()), "viewer list upload");
+
+	Threads::WaitForTask(view_upload);
+	Threads::WaitForTask(game_upload);
+
+	m_object_viewer_hierarchy.InitViaJson(a_arena, object_viewer_scene);
+	m_game_hierarchy.InitViaJson(a_arena, game_scene);
 	m_game_hierarchy.SetClearColor(float3{ 0.1f, 0.6f, 0.1f });
 	m_object_viewer_hierarchy.SetClearColor(float3{ 0.5f, 0.1f, 0.1f });
 
@@ -562,19 +578,17 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time)
 	}
 }
 
-
-
-ThreadTask Editor::LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets, const char* a_cmd_list_name = "upload asset task")
+ThreadTask Editor::LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets, const char* a_cmd_list_name)
 {
 	// maybe have each thread have it's own memory arena
 	MemoryArena load_arena = MemoryArenaCreate();
 
-	LoadAssetsAsync_params* params = ArenaAllocType(load_arena, LoadAsyncFunc_Params);
+	LoadAssetsAsync_params* params = ArenaAllocType(load_arena, LoadAssetsAsync_params);
 	params->assets = ArenaAllocArr(load_arena, Asset::AsyncAsset, a_asyn_assets.size());
 	memcpy(params->assets, a_asyn_assets.data(), a_asyn_assets.sizeInBytes());
 	params->asset_count = a_asyn_assets.size();
 	params->cmd_list_name = a_cmd_list_name;
-	params->memory_arena = load_arena;
+	params->arena = load_arena;
 
 	return Threads::StartTaskThread(Editor::LoadAssetsAsync, params);
 }
@@ -585,7 +599,7 @@ void Editor::LoadAssetsAsync(void* a_params)
 	MemoryArena load_arena = MemoryArenaCreate();
 	Editor& editor = *params->editor;
 
-	Asset::LoadAssets(load_arena, params->asyn_assets, params->cmd_list_name);
+	Asset::LoadAssets(load_arena, Slice(params->assets, params->asset_count), params->cmd_list_name);
 
 	// load materials in somehow
 
