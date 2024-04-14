@@ -6,7 +6,6 @@
 #include "MemoryArena.hpp"
 #include "Math.inl"
 
-#include "Renderer.hpp"
 #include "imgui.h"
 
 #include "BBjson.hpp"
@@ -17,6 +16,8 @@
 using namespace BB;
 
 constexpr size_t EDITOR_MATERIAL_ARRAY_SIZE = 4092;
+constexpr size_t EDITOR_SHADER_EFFECTS_ARRAY_SIZE = 1024;
+constexpr size_t EDITOR_VIEWPORT_ARRAY_SIZE = 16;
 
 struct ImInputData
 {
@@ -180,6 +181,20 @@ static inline void DestroyImGuiInput()
 	io.BackendPlatformName = nullptr;
 	io.BackendPlatformUserData = nullptr;
 	IM_DELETE(pd);
+}
+
+static inline StackString<256> ShaderStagesToCChar(const SHADER_STAGE_FLAGS a_stage_flags)
+{
+	StackString<256> stages{};
+	if ((static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::VERTEX) & a_stage_flags) == a_stage_flags)
+	{
+		stages.append("VERTEX ");
+	}
+	if ((static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::FRAGMENT_PIXEL) & a_stage_flags) == a_stage_flags)
+	{
+		stages.append("FRAGMENT_PIXEL ");
+	}
+	return stages;
 }
 
 void Editor::Viewport::Init(MemoryArena& a_arena, const uint2 a_extent, const uint2 a_offset, const char* a_name)
@@ -400,34 +415,33 @@ void Editor::ThreadFuncForDrawing(void* a_param)
 void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent)
 {
 	m_main_window = a_window; 
+	m_window_extent = a_window_extent;
 
 	SetupImGuiInput(a_arena, m_main_window);
-
-	m_game_screen.Init(a_arena, a_window_extent, uint2(), "game scene");
-	m_object_viewer_screen.Init(a_arena, a_window_extent / 2u, uint2(), "object viewer");
-
-	JsonParser object_viewer_scene("../../resources/scenes/object_scene.json");
-	JsonParser game_scene("../../resources/scenes/standard_scene.json");
-	object_viewer_scene.Parse();
-	game_scene.Parse();
-
-	auto viewer_list = SceneHierarchy::PreloadAssetsFromJson(a_arena, object_viewer_scene);
-	const ThreadTask view_upload = LoadAssets(Slice(viewer_list.data(), viewer_list.size()), "viewer list upload");
-
-	auto game_list = SceneHierarchy::PreloadAssetsFromJson(a_arena, game_scene);
-	const ThreadTask game_upload = LoadAssets(Slice(game_list.data(), game_list.size()), "viewer list upload");
-
-	Threads::WaitForTask(view_upload);
-	Threads::WaitForTask(game_upload);
-
-	m_object_viewer_hierarchy.InitViaJson(a_arena, object_viewer_scene);
-	m_game_hierarchy.InitViaJson(a_arena, game_scene);
-	m_game_hierarchy.SetClearColor(float3{ 0.1f, 0.6f, 0.1f });
-	m_object_viewer_hierarchy.SetClearColor(float3{ 0.5f, 0.1f, 0.1f });
 
 	m_gpu_info = GetGPUInfo(a_arena);
 
 	m_materials.Init(a_arena, EDITOR_MATERIAL_ARRAY_SIZE);
+	m_shader_effects.Init(a_arena, EDITOR_SHADER_EFFECTS_ARRAY_SIZE);
+	m_viewport_and_scenes.Init(a_arena, EDITOR_VIEWPORT_ARRAY_SIZE);
+}
+
+void Editor::CreateViewportViaJson(MemoryArena& a_arena, const char* a_json_path, const char* a_viewport_name, const uint2 a_window_extent, const float3 a_clear_color)
+{
+	ViewportAndScene viewport_scene;
+
+	viewport_scene.viewport.Init(a_arena, a_window_extent, uint2(), a_viewport_name);
+
+	JsonParser viewport_json(a_json_path);
+	viewport_json.Parse();
+	auto viewer_list = SceneHierarchy::PreloadAssetsFromJson(a_arena, viewport_json);
+	const ThreadTask view_upload = LoadAssets(Slice(viewer_list.data(), viewer_list.size()), a_viewport_name);
+
+	Threads::WaitForTask(view_upload);
+
+	viewport_scene.scene.InitViaJson(a_arena, viewport_json);
+	viewport_scene.scene.SetClearColor(a_clear_color);
+	m_viewport_and_scenes.push_back(viewport_scene);
 }
 
 void Editor::Destroy()
@@ -499,13 +513,14 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time)
 			if (mi.left_released)
 				UnfreezeMouseOnWindow();
 
-			if (m_game_screen.PositionWithinViewport(uint2(static_cast<unsigned int>(mi.mouse_pos.x), static_cast<unsigned int>(mi.mouse_pos.y))))
+			for (size_t i = 0; i < m_viewport_and_scenes.size(); i++)
 			{
-				m_active_viewport = &m_game_screen;
-			}
-			else if (m_object_viewer_screen.PositionWithinViewport(uint2(static_cast<unsigned int>(mi.mouse_pos.x), static_cast<unsigned int>(mi.mouse_pos.y))))
-			{
-				m_active_viewport = &m_object_viewer_screen;
+				ViewportAndScene& vs = m_viewport_and_scenes[i];
+				if (vs.viewport.PositionWithinViewport(uint2(static_cast<unsigned int>(mi.mouse_pos.x), static_cast<unsigned int>(mi.mouse_pos.y))))
+				{
+					m_active_viewport = &vs.viewport;
+					break;
+				}
 			}
 
 			if (!m_freeze_cam && m_active_viewport)
@@ -526,49 +541,43 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time)
 
 	MemoryArenaScope(a_arena)
 	{
-		m_game_hierarchy.SetView(m_game_screen.CreateView());
-		m_object_viewer_hierarchy.SetView(m_object_viewer_screen.CreateView());
-
 		Asset::ShowAssetMenu(a_arena);
 		MainEditorImGuiInfo(a_arena);
-		m_game_hierarchy.ImguiDisplaySceneHierarchy();
-		m_object_viewer_hierarchy.ImguiDisplaySceneHierarchy();
 
-		bool resized = false;
-		m_game_screen.DrawImgui(resized);
-		if (resized)
+		ThreadTask* thread_tasks = ArenaAllocArr(a_arena, ThreadTask, m_viewport_and_scenes.size());
+
+		//HACKY, but for now ok.
+		const RCommandList lists[2]{ main_list, graphics_command_pools[1].StartCommandList() };
+
+		for (size_t i = 0; i < m_viewport_and_scenes.size(); i++)
 		{
-			m_game_hierarchy.SetProjection(m_game_screen.CreateProjection(60.f, 0.001f, 10000.0f));
+			ViewportAndScene& vs = m_viewport_and_scenes[i];
+			vs.scene.SetView(vs.viewport.CreateView());
+
+			vs.scene.ImguiDisplaySceneHierarchy();
+
+			bool resized = false;
+			vs.viewport.DrawImgui(resized);
+			if (resized)
+			{
+				vs.scene.SetProjection(vs.viewport.CreateProjection(60.f, 0.001f, 10000.0f));
+			}
+			ThreadFuncForDrawing_Params* draw_params = ArenaAllocType(a_arena, ThreadFuncForDrawing_Params) {
+				vs.viewport,
+					vs.scene,
+					lists[i]
+			};
+
+			thread_tasks[i] = Threads::StartTaskThread(ThreadFuncForDrawing, draw_params, L"scene draw task");
 		}
 
-		resized = false;
-		m_object_viewer_screen.DrawImgui(resized);
-		if (resized)
+		for (size_t i = 0; i < m_viewport_and_scenes.size(); i++)
 		{
-			m_object_viewer_hierarchy.SetProjection(m_object_viewer_screen.CreateProjection(60.f, 0.001f, 10000.0f));
+			Threads::WaitForTask(thread_tasks[i]);
 		}
-
-		ThreadFuncForDrawing_Params main_scene_params{
-			m_game_screen,
-			m_game_hierarchy,
-			main_list
-		};
-
-		const RCommandList object_viewer_list = graphics_command_pools[1].StartCommandList();
-
-		ThreadFuncForDrawing_Params object_viewer_params{
-			m_object_viewer_screen,
-			m_object_viewer_hierarchy,
-			object_viewer_list
-		};
-
-		ThreadTask main_scene_task = Threads::StartTaskThread(ThreadFuncForDrawing, &main_scene_params, L"main scene task");
-		ThreadTask object_viewer_task = Threads::StartTaskThread(ThreadFuncForDrawing, &object_viewer_params, L"object viewer task");
-
-		Threads::WaitForTask(main_scene_task);
-		Threads::WaitForTask(object_viewer_task);
-
-		graphics_command_pools[1].EndCommandList(object_viewer_list);
+	
+		// TODO, async this
+		graphics_command_pools[1].EndCommandList(lists[1]);
 
 		EndFrame(main_list);
 
@@ -576,6 +585,20 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time)
 		uint64_t fence_value;
 		PresentFrame(Slice(graphics_command_pools, _countof(graphics_command_pools)), fence_value);
 	}
+}
+
+bool Editor::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles)
+{
+	const bool ret_val = ::CreateShaderEffect(a_temp_arena, a_create_infos, a_handles);
+	m_shader_effects.push_back(a_handles, static_cast<uint32_t>(a_create_infos.size()));
+	return ret_val;
+}
+
+const MaterialHandle Editor::CreateMaterial(const CreateMaterialInfo& a_create_info)
+{
+	const MaterialHandle material = ::CreateMaterial(a_create_info);
+	m_materials.push_back(material);
+	return material;
 }
 
 ThreadTask Editor::LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets, const char* a_cmd_list_name)
@@ -591,6 +614,143 @@ ThreadTask Editor::LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets, cons
 	params->arena = load_arena;
 
 	return Threads::StartTaskThread(Editor::LoadAssetsAsync, params);
+}
+
+void Editor::ImGuiDisplayShaderEffects()
+{
+	ImGui::Indent();
+	for (size_t i = 0; i < m_shader_effects.size(); i++)
+	{
+		const ShaderEffectHandle effect = m_shader_effects[i];
+
+		const ShaderEffect& shader_effect = s_render_inst->shader_effects[i];
+
+		if (ImGui::CollapsingHeader(shader_effect.name))
+		{
+			ImGui::PushID(static_cast<int>(i));
+			ImGui::Indent();
+
+			ImGui::Text("SHADER STAGE: %s", ShaderStageToCChar(shader_effect.shader_stage));
+			const StackString<256> next_stages = ShaderStagesToCChar(shader_effect.shader_stages_next);
+			ImGui::Text("NEXT EXPECTED STAGES: %s", next_stages.c_str());
+
+			if (ImGui::Button("Reload Shader"))
+			{
+				BB_ASSERT(ReloadShaderEffect(ShaderEffectHandle(i)), "something went wrong with reloading a shader");
+			}
+
+			ImGui::Unindent();
+			ImGui::PopID();
+		}
+	}
+	ImGui::Unindent();
+}
+
+void Editor::ImGuiDisplayMaterials()
+{
+	ImGui::Indent();
+
+	BB_ASSERT(false, "this requires a rework");
+	if (ImGui::CollapsingHeader("create material"))
+	{
+		static char material_name_buffer[256]{};
+		static ShaderEffectHandle vertex_effect = ShaderEffectHandle(BB_INVALID_HANDLE_64);
+		static ShaderEffectHandle fragment_effect = ShaderEffectHandle(BB_INVALID_HANDLE_64);
+
+		ImGui::Indent();
+
+		ImGui::InputText("material name", material_name_buffer, _countof(material_name_buffer));
+
+		if (vertex_effect.IsValid())
+			ImGui::Text("vertex shader: %s", s_render_inst->shader_effects[vertex_effect.handle].name);
+		else
+			ImGui::Text("vertex shader: invalid");
+
+		ImGui::Indent();
+		for (uint32_t shader_index = 0; shader_index < s_render_inst->shader_effects.size(); shader_index++)
+		{
+			const ShaderEffect& shader_effect = s_render_inst->shader_effects[shader_index];
+			if (shader_effect.shader_stage == SHADER_STAGE::VERTEX)
+			{
+				if (ImGui::Button(shader_effect.name))
+				{
+					vertex_effect = ShaderEffectHandle(shader_index);
+				}
+			}
+		}
+
+		ImGui::Unindent();
+
+		if (fragment_effect.IsValid())
+			ImGui::Text("fragment shader: %s", s_render_inst->shader_effects[fragment_effect.handle].name);
+		else
+			ImGui::Text("fragment shader: invalid");
+
+		ImGui::Indent();
+		for (uint32_t shader_index = 0; shader_index < s_render_inst->shader_effects.size(); shader_index++)
+		{
+			const ShaderEffect& shader_effect = s_render_inst->shader_effects[shader_index];
+			if (shader_effect.shader_stage == SHADER_STAGE::FRAGMENT_PIXEL)
+			{
+				if (ImGui::Button(shader_effect.name))
+				{
+					fragment_effect = ShaderEffectHandle(shader_index);
+				}
+			}
+		}
+		ImGui::Unindent();
+
+		if (ImGui::Button("generate material"))
+		{
+			CreateMaterialInfo create_material_info;
+			create_material_info.name = material_name_buffer; // TEMP
+			const ShaderEffectHandle effects[2]{ vertex_effect, fragment_effect };
+			create_material_info.shader_effects = Slice(effects, _countof(effects));
+			CreateMaterial(create_material_info);
+		}
+
+		ImGui::Unindent();
+	}
+
+	ImGui::NewLine();
+
+	for (uint32_t i = 0; i < s_render_inst->material_map.size(); i++)
+	{
+		Material& material = s_render_inst->material_map[i];
+		if (ImGui::CollapsingHeader(material.name))
+		{
+			ImGui::PushID(static_cast<int>(i));
+			ImGui::Indent();
+
+			for (uint32_t eff_index = 0; eff_index < material.shader.shader_effect_count; eff_index++)
+			{
+				const ShaderEffect& current_effect = s_render_inst->shader_effects[material.shader.shader_effects[eff_index].handle];
+				ImGui::PushID(static_cast<int>(eff_index));
+				ImGui::Text("shader: %s, \nstage: %s", current_effect.name, ShaderStageToCChar(current_effect.shader_stage));
+				if (ImGui::CollapsingHeader("change shader"))
+				{
+					ImGui::Indent();
+					for (uint32_t shader_index = 0; shader_index < s_render_inst->shader_effects.size(); shader_index++)
+					{
+						const ShaderEffect& shader_effect = s_render_inst->shader_effects[shader_index];
+						if (shader_effect.shader_stage == current_effect.shader_stage)
+						{
+							if (ImGui::Button(shader_effect.name))
+							{
+								material.shader.shader_effects[eff_index] = ShaderEffectHandle(shader_index);
+							}
+						}
+					}
+					ImGui::Unindent();
+				}
+				ImGui::PopID();
+			}
+
+			ImGui::PopID();
+			ImGui::Unindent();
+		}
+	}
+	ImGui::Unindent();
 }
 
 void Editor::LoadAssetsAsync(void* a_params)

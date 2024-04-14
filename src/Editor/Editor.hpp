@@ -4,6 +4,8 @@
 #include "Camera.hpp"
 #include "AssetLoader.hpp"
 
+#include <tuple>
+
 namespace BB
 {
 	struct MemoryArena;
@@ -11,12 +13,18 @@ namespace BB
 	{
 	public:
 		void Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent);
+		void CreateViewportViaJson(MemoryArena& a_arena, const char* a_json_path, const char* a_viewport_name, const uint2 a_window_extent, const float3 a_clear_color);
 		void Destroy();
 		void Update(MemoryArena& a_arena, const float a_delta_time);
+
+		bool CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles);
+		const MaterialHandle CreateMaterial(const CreateMaterialInfo& a_create_info);
 
 		static ThreadTask LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets, const char* a_cmd_list_name = "upload asset task");
 
 	private:
+		void ImGuiDisplayShaderEffects();
+		void ImGuiDisplayMaterials();
 		struct LoadAssetsAsync_params
 		{
 			Editor* editor;
@@ -60,11 +68,16 @@ namespace BB
 		};
 		static void ThreadFuncForDrawing(void* a_param);
 
-		StaticArray<MaterialHandle> m_materials;
-		StaticArray<ShaderEffectHandle> m_shader_effects;
+		StaticArray<const MaterialHandle> m_materials;
+		StaticArray<const ShaderEffectHandle> m_shader_effects;
 
-		Viewport m_game_screen;
-		Viewport m_object_viewer_screen;
+		struct ViewportAndScene
+		{
+			Viewport viewport;
+			SceneHierarchy scene;
+		};
+		uint2 m_window_extent;
+		StaticArray<ViewportAndScene> m_viewport_and_scenes;
 
 		SceneHierarchy m_game_hierarchy;
 		SceneHierarchy m_object_viewer_hierarchy;

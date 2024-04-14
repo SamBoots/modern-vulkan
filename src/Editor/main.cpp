@@ -70,24 +70,7 @@ int main(int argc, char** argv)
 	render_create_info.swapchain_width = window_extent.x;
 	render_create_info.swapchain_height = window_extent.y;
 	render_create_info.debug = true;
-	{
-		render_create_info.standard_vs_shader.name = "debug vertex shader";
-		render_create_info.standard_vs_shader.stage = SHADER_STAGE::VERTEX;
-		render_create_info.standard_vs_shader.next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
-		render_create_info.standard_vs_shader.shader_path = "../../resources/shaders/hlsl/Debug.hlsl";
-		render_create_info.standard_vs_shader.shader_entry = "VertexMain";
-		render_create_info.standard_vs_shader.push_constant_space = sizeof(ShaderIndices);
-		render_create_info.standard_vs_shader.pass_type = RENDER_PASS_TYPE::STANDARD_3D;
-	}
-	{
-		render_create_info.standard_fs_shader.name = "debug fragment shader";
-		render_create_info.standard_fs_shader.stage = SHADER_STAGE::FRAGMENT_PIXEL;
-		render_create_info.standard_fs_shader.next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
-		render_create_info.standard_fs_shader.shader_path = "../../resources/shaders/hlsl/Debug.hlsl";
-		render_create_info.standard_fs_shader.shader_entry = "FragmentMain";
-		render_create_info.standard_fs_shader.push_constant_space = sizeof(ShaderIndices);
-		render_create_info.standard_fs_shader.pass_type = RENDER_PASS_TYPE::STANDARD_3D;
-	}
+
 	InitializeRenderer(main_arena, render_create_info);
 
 	{
@@ -95,9 +78,13 @@ int main(int argc, char** argv)
 		Asset::InitializeAssetManager(asset_manager_info);
 	}
 
-	ShaderEffectHandle shader_effects[3]{};
+	Editor editor{};
+	editor.Init(main_arena, window_handle, window_extent);
+
 	MemoryArenaScope(main_arena)
 	{
+		ShaderEffectHandle shader_effects[3]{};
+
 		CreateShaderEffectInfo shader_effect_create_infos[3];
 		shader_effect_create_infos[0].name = "debug vertex shader";
 		shader_effect_create_infos[0].stage = SHADER_STAGE::VERTEX;
@@ -123,12 +110,20 @@ int main(int argc, char** argv)
 		shader_effect_create_infos[2].push_constant_space = sizeof(ShaderIndices);
 		shader_effect_create_infos[2].pass_type = RENDER_PASS_TYPE::STANDARD_3D;
 
-		BB_ASSERT(CreateShaderEffect(main_arena,
+		BB_ASSERT(editor.CreateShaderEffect(main_arena,
 			Slice(shader_effect_create_infos, _countof(shader_effect_create_infos)),
 			shader_effects), "Failed to create shader objects");
+
+		CreateMaterialInfo material_info;
+		material_info.name = "default material";
+		material_info.shader_effects = Slice<const ShaderEffectHandle>(shader_effects, 2);
+
+		const MaterialHandle base_material = editor.CreateMaterial(material_info);
+		SetDefaultMaterial(base_material);
 	}
-	Editor editor{};
-	editor.Init(main_arena, window_handle, window_extent);
+
+	editor.CreateViewportViaJson(main_arena, "../../resources/scenes/standard_scene.json", "game scene", window_extent, float3(0.1f, 0.1f, 0.5f));
+	editor.CreateViewportViaJson(main_arena, "../../resources/scenes/object_scene.json", "object viewer", window_extent / uint2(2), float3(0.1f, 0.1f, 0.5f));
 
 	SetWindowCloseEvent(CustomCloseWindow);
 	SetWindowResizeEvent(CustomResizeWindow);
