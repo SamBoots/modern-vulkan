@@ -139,7 +139,16 @@ namespace BB
 			a_string.m_string = nullptr;
 		}
 
-		Basic_String& operator=(const Basic_String<CharT>& a_rhs) = delete;
+		Basic_String& operator=(const Basic_String<CharT>& a_rhs)
+		{
+			this->~Basic_String();
+
+			m_capacity = a_rhs.m_capacity;
+			m_size = a_rhs.m_size;
+			m_string = a_rhs.m_string;
+
+			return *this;
+		};
 		Basic_String& operator=(Basic_String<CharT>&& a_rhs) noexcept
 		{
 			this->~Basic_String();

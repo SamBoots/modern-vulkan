@@ -292,6 +292,7 @@ namespace BB
 		static constexpr bool trivialDestructible_T = std::is_trivially_destructible_v<T>;
 
 	public:
+		using TYPE = T;
 		struct Iterator
 		{
 			//Iterator idea from:
@@ -338,7 +339,16 @@ namespace BB
 			BB_ASSERT(a_size != 0, "StaticArray size is specified to be 0");
 			m_capacity = a_size;
 
-			m_Arr = reinterpret_cast<T*>(ArenaAlloc(a_arena, m_capacity * sizeof(T), alignof(T)));
+			m_Arr = reinterpret_cast<T*>(ArenaAllocArr(a_arena, m_capacity, alignof(T)));
+		}
+
+		void Init(void* a_mem, const uint32_t a_size)
+		{
+			BB_ASSERT(a_size != 0, "StaticArray size is specified to be 0");
+			m_capacity = a_size;
+
+			m_Arr = reinterpret_cast<T*>(a_mem);
+			memset(m_Arr, 0, a_size * sizeof(T));
 		}
 
 		void DestroyAllElements()

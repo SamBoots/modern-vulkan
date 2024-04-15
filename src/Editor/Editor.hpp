@@ -8,11 +8,13 @@
 
 namespace BB
 {
+	constexpr size_t EDITOR_DEFAULT_MEMORY = gbSize * 4;
+
 	struct MemoryArena;
 	class Editor
 	{
 	public:
-		void Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent);
+		void Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent, const size_t a_editor_memory = EDITOR_DEFAULT_MEMORY);
 		void CreateViewportViaJson(MemoryArena& a_arena, const char* a_json_path, const char* a_viewport_name, const uint2 a_window_extent, const float3 a_clear_color);
 		void Destroy();
 		void Update(MemoryArena& a_arena, const float a_delta_time);
@@ -22,9 +24,34 @@ namespace BB
 
 		static ThreadTask LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets, const char* a_cmd_list_name = "upload asset task");
 
+		struct ShaderEffectInfo
+		{
+			ShaderEffectHandle handle;
+			StringView name;
+			StringView entry_point;
+			SHADER_STAGE shader_stage;
+			SHADER_STAGE_FLAGS next_stages;
+			Buffer shader_data;
+		};
+
+		struct MaterialInfo
+		{
+			MaterialHandle handle;
+			StringView name;
+			size_t shader_handle_count;
+			ShaderEffectHandle* shader_handles;
+		};
+
+
+
 	private:
+		FreelistInterface m_editor_allocator;
+
+		void ImGuiDisplayShaderEffect(const ShaderEffectHandle a_handle) const;
 		void ImGuiDisplayShaderEffects();
 		void ImGuiDisplayMaterials();
+		void ImGuiCreateMaterial();
+
 		struct LoadAssetsAsync_params
 		{
 			Editor* editor;
@@ -68,8 +95,8 @@ namespace BB
 		};
 		static void ThreadFuncForDrawing(void* a_param);
 
-		StaticArray<const MaterialHandle> m_materials;
-		StaticArray<const ShaderEffectHandle> m_shader_effects;
+		StaticArray<MaterialInfo> m_materials;
+		StaticArray<ShaderEffectInfo> m_shader_effects;
 
 		struct ViewportAndScene
 		{

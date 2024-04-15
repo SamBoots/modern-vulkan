@@ -42,20 +42,6 @@ struct TextureInfo
 	IMAGE_USAGE usage;			// 36
 };
 
-static inline const char* ShaderStageToCChar(const SHADER_STAGE a_stage)
-{
-	switch (a_stage)
-	{
-	case SHADER_STAGE::VERTEX:			return "VERTEX";
-	case SHADER_STAGE::FRAGMENT_PIXEL:	return "FRAGMENT_PIXEL";
-	case SHADER_STAGE::NONE:
-	case SHADER_STAGE::ALL:
-	default:
-		BB_ASSERT(false, "invalid shader stage for shader");
-		return "error";
-	}
-}
-
 class GPUTextureManager
 {
 public:
@@ -2268,7 +2254,7 @@ bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderE
 		shader_effects[i].pipeline_layout = Vulkan::CreatePipelineLayout(desc_layouts.data(), 3, &push_constant, 1);
 
 		shader_codes[i] = CompileShader(s_render_inst->shader_compiler,
-			a_create_infos[i].shader_path,
+			a_create_infos[i].shader_data,
 			a_create_infos[i].shader_entry,
 			a_create_infos[i].stage);
 		Buffer shader_buffer = GetShaderCodeBuffer(shader_codes[i]);

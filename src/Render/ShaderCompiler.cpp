@@ -44,7 +44,7 @@ void BB::DestroyShaderCompiler(const ShaderCompiler a_shader_compiler)
 	inst->utils->Release();
 }
 
-const ShaderCode BB::CompileShader(const ShaderCompiler a_shader_compiler, const char* a_full_path, const char* a_entry, const SHADER_STAGE a_shader_stage)
+const ShaderCode BB::CompileShader(const ShaderCompiler a_shader_compiler, const Buffer& a_buffer, const char* a_entry, const SHADER_STAGE a_shader_stage)
 {
 	const ShaderCompiler_inst* inst = reinterpret_cast<ShaderCompiler_inst*>(a_shader_compiler.handle);
 	LPCWSTR shader_type;
@@ -63,14 +63,10 @@ const ShaderCode BB::CompileShader(const ShaderCompiler a_shader_compiler, const
 	}
 	constexpr size_t MAX_FILE_PATH = MAX_PATH;
 
-	size_t full_path_str_size = strlen(a_full_path) + 1;
 	size_t entry_str_size = strlen(a_entry) + 1;
-	wchar_t full_path_w[MAX_FILE_PATH];
 	wchar_t entry_w[MAX_FILE_PATH];
 
 	size_t conv_chars = 0;
-	BB_ASSERT(mbstowcs_s(&conv_chars, full_path_w, full_path_str_size, a_full_path, MAX_FILE_PATH) == 0, "8 bit char to 16 bit wide char for a_full_path failed");
-	conv_chars = 0;
 	BB_ASSERT(mbstowcs_s(&conv_chars, entry_w, entry_str_size, a_entry, MAX_FILE_PATH) == 0 , "8 bit char to 16 bit wide char for a_entry failed");
 
 	//mbstowcs_s already handles the null terminator.
@@ -81,7 +77,6 @@ const ShaderCode BB::CompileShader(const ShaderCompiler a_shader_compiler, const
 	LPCWSTR shader_compile_args[] =
 	{
 		L"-I", L"../resources/shaders/HLSL",
-		full_path_w,
 		L"-E", entry_w,		// Entry point
 		L"-T", shader_type,	// Shader Type
 		L"-Zs",				// Enable debug
@@ -97,11 +92,9 @@ const ShaderCode BB::CompileShader(const ShaderCompiler a_shader_compiler, const
 	const uint32_t shader_compile_arg_count = _countof(shader_compile_args); //Current elements inside the standard shader compiler args
 
 
-	IDxcBlobEncoding* source_blob;
-	inst->utils->LoadFile(full_path_w, nullptr, &source_blob);
 	DxcBuffer source;
-	source.Ptr = source_blob->GetBufferPointer();
-	source.Size = source_blob->GetBufferSize();
+	source.Ptr = a_buffer.data;
+	source.Size = a_buffer.size;
 	source.Encoding = DXC_CP_ACP;
 
 	IDxcResult* result;
@@ -141,7 +134,6 @@ const ShaderCode BB::CompileShader(const ShaderCompiler a_shader_compiler, const
 		BB_ASSERT(false, "Something went wrong with DXC shader compiling");
 	}
 
-	source_blob->Release();
 	result->Release();
 
 	return ShaderCode(reinterpret_cast<uintptr_t>(shader_code));

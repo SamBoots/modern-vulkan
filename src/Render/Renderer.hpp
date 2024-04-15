@@ -5,7 +5,7 @@
 #include "Slice.h"
 
 #include "Storage/LinkedList.h"
-#include "MemoryArena.hpp"
+#include "MemoryInterfaces.hpp"
 
 #include "BBImage.hpp"
 
@@ -19,8 +19,8 @@ namespace BB
 	struct CreateShaderEffectInfo
 	{
 		const char* name;
-		const char* shader_path;
 		const char* shader_entry;
+		Buffer shader_data;
 		SHADER_STAGE stage;
 		SHADER_STAGE_FLAGS next_stages;
 		uint32_t push_constant_space;

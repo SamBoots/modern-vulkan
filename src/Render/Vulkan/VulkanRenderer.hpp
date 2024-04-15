@@ -5,8 +5,6 @@
 #include "Storage/FixedArray.h"
 #include "MemoryArena.hpp"
 
-#define _ENABLE_REBUILD_SHADERS
-
 namespace BB
 {
 	namespace Vulkan //annoying, but many function names actually overlap.
