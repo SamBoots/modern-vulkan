@@ -574,14 +574,22 @@ const Image* Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path,
 	asset.image = image;
 	asset.name = image_name.c_str();
 
-	void* icon_write = pixels;
-	if (static_cast<uint32_t>(width) != ICON_EXTENT.x || static_cast<uint32_t>(height) != ICON_EXTENT.y)
+	const PathString icon_path = GetIconPathFromAssetName(asset.name);
+	if (OSFileExist(icon_path.c_str()))
 	{
-		icon_write = ResizeImage(a_temp_arena, pixels, width, height, static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
+		asset.icon = LoadIconFromPath(a_temp_arena, icon_path.GetView(), a_list, a_transfer_fence_value, true);
+	}
+	else
+	{
+		const void* icon_write = pixels;
+		if (create_image_info.width != ICON_EXTENT.x || create_image_info.height != ICON_EXTENT.y)
+		{
+			icon_write = ResizeImage(a_temp_arena, pixels, static_cast<int>(create_image_info.width), static_cast<int>(create_image_info.height), static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
+		}
+		asset.icon = LoadIconFromPixels(a_list, a_transfer_fence_value, icon_write, true);
+		IconWriteToDisk(a_list, a_transfer_fence_value, asset.icon, icon_path);
 	}
 
-	asset.icon = LoadIconFromPixels(a_list, a_transfer_fence_value, icon_write, true);
-	IconWriteToDisk(a_list, a_transfer_fence_value, asset.icon, GetIconPathFromAssetName(image_name));
 	AddElementToAssetTable(asset);
 	asset.image->asset_handle = AssetHandle(asset.hash.full_hash);
 
@@ -653,14 +661,23 @@ const Image* Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage
 	asset.image = image;
 	asset.name = image_name.c_str();
 
-	const void* icon_write = a_image.GetPixels();
-	if (create_image_info.width == ICON_EXTENT.x || create_image_info.height == ICON_EXTENT.y)
+	const PathString icon_path = GetIconPathFromAssetName(asset.name);
+	if (OSFileExist(icon_path.c_str()))
 	{
-		icon_write = ResizeImage(a_temp_arena, a_image.GetPixels(), static_cast<int>(create_image_info.width), static_cast<int>(create_image_info.height), static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
+		asset.icon = LoadIconFromPath(a_temp_arena, icon_path.GetView(), a_list, a_transfer_fence_value, true);
+	}
+	else
+	{
+		const void* icon_write = a_image.GetPixels();
+		if (create_image_info.width != ICON_EXTENT.x || create_image_info.height != ICON_EXTENT.y)
+		{
+			icon_write = ResizeImage(a_temp_arena, a_image.GetPixels(), static_cast<int>(create_image_info.width), static_cast<int>(create_image_info.height), static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
+		}
+		asset.icon = LoadIconFromPixels(a_list, a_transfer_fence_value, icon_write, true);
+		IconWriteToDisk(a_list, a_transfer_fence_value, asset.icon, icon_path);
 	}
 
-	asset.icon = LoadIconFromPixels(a_list, a_transfer_fence_value, icon_write, true);
-	IconWriteToDisk(a_list, a_transfer_fence_value, asset.icon, GetIconPathFromAssetName(image_name));
+
 	AddElementToAssetTable(asset);
 	image->asset_handle = AssetHandle(asset.hash.full_hash);
 
