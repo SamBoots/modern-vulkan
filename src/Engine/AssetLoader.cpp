@@ -243,7 +243,7 @@ static void ExecuteGPUTasks()
 	OSReleaseSRWLockWrite(&s_asset_manager->gpu_task_lock);
 }
 
-static inline AssetString GetAssetIconName(StringView a_asset_name)
+static inline AssetString GetAssetIconName(const StringView& a_asset_name)
 {
 	StackString<MAX_ASSET_NAME_SIZE> icon_name(a_asset_name.c_str(), a_asset_name.size());
 	icon_name.append(" icon");
@@ -260,7 +260,7 @@ static inline void GetAssetNameFromPath(const char* a_path, AssetString& a_asset
 	a_asset_name.append(&a_path[name_start + 1], name_end - name_start - 1);
 }
 
-static inline PathString GetIconPathFromAssetName(const StringView a_asset_name)
+static inline PathString GetIconPathFromAssetName(const StringView& a_asset_name)
 {
 	PathString icon_path(ICON_DIRECTORY);
 	icon_path.append(GetAssetIconName(a_asset_name));
@@ -380,7 +380,7 @@ static inline StringView AllocateStringSpace(const char* a_str, const size_t a_s
 
 	s_asset_manager->string_table.emplace(a_hash, string);
 	OSReleaseSRWLockWrite(&s_asset_manager->string_lock);
-	return StringView(string, a_string_size);
+	return StringView(string, a_string_size - 1);
 }
 
 static inline void AddElementToAssetTable(AssetSlot& a_asset_slot)
@@ -581,7 +581,7 @@ const Image* Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path,
 	}
 
 	asset.icon = LoadIconFromPixels(a_list, a_transfer_fence_value, icon_write, true);
-
+	IconWriteToDisk(a_list, a_transfer_fence_value, asset.icon, GetIconPathFromAssetName(image_name));
 	AddElementToAssetTable(asset);
 	asset.image->asset_handle = AssetHandle(asset.hash.full_hash);
 
@@ -602,8 +602,10 @@ bool Asset::WriteImage(const char* a_file_name, const uint32_t a_width, const ui
 
 const Image* Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, const uint64_t a_transfer_fence_value)
 {
+	const StringView image_name = FindOrCreateString(a_name);
+
 	CreateTextureInfo create_image_info;
-	create_image_info.name = a_name;
+	create_image_info.name = image_name.c_str();
 	create_image_info.width = a_image.GetWidth();
 	create_image_info.height = a_image.GetHeight();
 	create_image_info.usage = IMAGE_USAGE::TEXTURE;
@@ -649,7 +651,7 @@ const Image* Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage
 	asset.hash = CreateAssetHash(hash, ASSET_TYPE::TEXTURE);
 	asset.path = nullptr; // memory loads have nullptr has path.
 	asset.image = image;
-	asset.name = a_name;
+	asset.name = image_name.c_str();
 
 	const void* icon_write = a_image.GetPixels();
 	if (create_image_info.width == ICON_EXTENT.x || create_image_info.height == ICON_EXTENT.y)
@@ -658,7 +660,7 @@ const Image* Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage
 	}
 
 	asset.icon = LoadIconFromPixels(a_list, a_transfer_fence_value, icon_write, true);
-
+	IconWriteToDisk(a_list, a_transfer_fence_value, asset.icon, GetIconPathFromAssetName(image_name));
 	AddElementToAssetTable(asset);
 	image->asset_handle = AssetHandle(asset.hash.full_hash);
 
@@ -775,17 +777,14 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const RCommandList a_list, c
 
 			model_prim.material_data.base_texture = img->gpu_image;
 		}
-		if (0)
-			if (prim.material->normal_texture.texture)
-			{
-				const cgltf_image& image = *prim.material->normal_texture.texture->image;
+		if (prim.material->normal_texture.texture)
+		{
+			const cgltf_image& image = *prim.material->normal_texture.texture->image;
+			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
+			const Image* img = Asset::LoadImageDisk(a_temp_arena, full_image_path, a_list, a_transfer_fence_value);
 
-				const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
-				const Image* img = Asset::LoadImageDisk(a_temp_arena, full_image_path, a_list, a_transfer_fence_value);
-
-				model_prim.material_data.normal_texture = img->gpu_image;
-			}
-
+			model_prim.material_data.normal_texture = img->gpu_image;
+		}
 		{	// get indices
 			void* index_data = GetAccessorDataPtr(prim.indices);
 			if (prim.indices->component_type == cgltf_component_type_r_32u)

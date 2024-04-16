@@ -12,4 +12,4 @@ add_executable(image_filter_test
 	"image_test_main.cpp")
 
 target_link_libraries(image_filter_test PUBLIC
-	BBFramework)
+	BBFramework) 
