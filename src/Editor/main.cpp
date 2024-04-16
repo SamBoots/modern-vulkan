@@ -85,13 +85,13 @@ int main(int argc, char** argv)
 	{
 		ShaderEffectHandle shader_effects[3]{};
 
-		Buffer shader_file = ReadOSFile(main_arena, "../../resources/shaders/hlsl/Debug.hlsl");
+		Buffer debug_shader = ReadOSFile(main_arena, "../../resources/shaders/hlsl/Debug.hlsl");
 
 		CreateShaderEffectInfo shader_effect_create_infos[3];
 		shader_effect_create_infos[0].name = "debug vertex shader";
 		shader_effect_create_infos[0].stage = SHADER_STAGE::VERTEX;
 		shader_effect_create_infos[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
-		shader_effect_create_infos[0].shader_data =  ;
+		shader_effect_create_infos[0].shader_data = debug_shader;
 		shader_effect_create_infos[0].shader_entry = "VertexMain";
 		shader_effect_create_infos[0].push_constant_space = sizeof(ShaderIndices);
 		shader_effect_create_infos[0].pass_type = RENDER_PASS_TYPE::STANDARD_3D;
@@ -99,15 +99,17 @@ int main(int argc, char** argv)
 		shader_effect_create_infos[1].name = "debug fragment shader";
 		shader_effect_create_infos[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
 		shader_effect_create_infos[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
-		shader_effect_create_infos[1].shader_path = "../../resources/shaders/hlsl/Debug.hlsl";
+		shader_effect_create_infos[1].shader_data = debug_shader;
 		shader_effect_create_infos[1].shader_entry = "FragmentMain";
 		shader_effect_create_infos[1].push_constant_space = sizeof(ShaderIndices);
 		shader_effect_create_infos[1].pass_type = RENDER_PASS_TYPE::STANDARD_3D;
 
+		Buffer jitter_shader = ReadOSFile(main_arena, "../../resources/shaders/hlsl/Jitter.hlsl");
+
 		shader_effect_create_infos[2].name = "jitter vertex shader";
 		shader_effect_create_infos[2].stage = SHADER_STAGE::VERTEX;
 		shader_effect_create_infos[2].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
-		shader_effect_create_infos[2].shader_path = "../../resources/shaders/hlsl/Jitter.hlsl";
+		shader_effect_create_infos[2].shader_data = jitter_shader;
 		shader_effect_create_infos[2].shader_entry = "VertexMain";
 		shader_effect_create_infos[2].push_constant_space = sizeof(ShaderIndices);
 		shader_effect_create_infos[2].pass_type = RENDER_PASS_TYPE::STANDARD_3D;

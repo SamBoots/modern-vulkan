@@ -339,7 +339,7 @@ namespace BB
 			BB_ASSERT(a_size != 0, "StaticArray size is specified to be 0");
 			m_capacity = a_size;
 
-			m_Arr = reinterpret_cast<T*>(ArenaAllocArr(a_arena, m_capacity, alignof(T)));
+			m_Arr = reinterpret_cast<T*>(ArenaAllocArr(a_arena, T, m_capacity));
 		}
 
 		void Init(void* a_mem, const uint32_t a_size)

@@ -531,9 +531,9 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time)
 			if (mi.left_released)
 				UnfreezeMouseOnWindow();
 
-			for (size_t i = 0; i < m_viewport_and_scenes.size(); i++)
+			for (size_t view_i = 0; view_i < m_viewport_and_scenes.size(); view_i++)
 			{
-				ViewportAndScene& vs = m_viewport_and_scenes[i];
+				ViewportAndScene& vs = m_viewport_and_scenes[view_i];
 				if (vs.viewport.PositionWithinViewport(uint2(static_cast<unsigned int>(mi.mouse_pos.x), static_cast<unsigned int>(mi.mouse_pos.y))))
 				{
 					m_active_viewport = &vs.viewport;
@@ -674,7 +674,7 @@ void Editor::ImGuiDisplayShaderEffect(const ShaderEffectHandle a_handle) const
 
 		if (ImGui::Button("Reload Shader"))
 		{
-			BB_ASSERT(ReloadShaderEffect(effect.handle), "something went wrong with reloading a shader");
+			BB_ASSERT(ReloadShaderEffect(effect.handle, effect.shader_data), "something went wrong with reloading a shader");
 		}
 		if (ImGui::CollapsingHeader("shader code"))
 		{

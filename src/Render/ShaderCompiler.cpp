@@ -76,8 +76,8 @@ const ShaderCode BB::CompileShader(const ShaderCompiler a_shader_compiler, const
 	//Lots of arguments, since we will add some extra.
 	LPCWSTR shader_compile_args[] =
 	{
-		L"-I", L"../resources/shaders/HLSL",
 		L"-E", entry_w,		// Entry point
+		L"-I", L"../../resources/shaders/HLSL",
 		L"-T", shader_type,	// Shader Type
 		L"-Zs",				// Enable debug
 		L"-Qstrip_debug",	// Strip out the debug and reflect info to keep the actual shader object small.

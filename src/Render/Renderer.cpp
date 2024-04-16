@@ -480,7 +480,6 @@ struct ShaderEffect
 
 #ifdef _ENABLE_REBUILD_SHADERS
 	const char* shader_entry;
-	const char* shader_path;
 	ShaderObjectCreateInfo create_info;
 #endif // _ENABLE_REBUILD_SHADERS
 };
@@ -862,9 +861,11 @@ namespace IMGUI_IMPL
 
 		MemoryArenaScope(a_arena)
 		{
+			Buffer imgui_shader = ReadOSFile(a_arena, "../../resources/shaders/hlsl/Imgui.hlsl");
+
 			CreateShaderEffectInfo shaders[2];
 			shaders[0].name = "imgui vertex shader";
-			shaders[0].shader_path = "../../resources/shaders/hlsl/Imgui.hlsl";
+			shaders[0].shader_data = imgui_shader;
 			shaders[0].shader_entry = "VertexMain";
 			shaders[0].stage = SHADER_STAGE::VERTEX;
 			shaders[0].next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::FRAGMENT_PIXEL);
@@ -872,7 +873,7 @@ namespace IMGUI_IMPL
 			shaders[0].pass_type = RENDER_PASS_TYPE::STANDARD_3D;
 
 			shaders[1].name = "imgui Fragment shader";
-			shaders[1].shader_path = "../../resources/shaders/hlsl/Imgui.hlsl";
+			shaders[1].shader_data = imgui_shader;
 			shaders[1].shader_entry = "FragmentMain";
 			shaders[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
 			shaders[1].next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::NONE);
@@ -2281,7 +2282,6 @@ bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderE
 		shader_effects[i].shader_stages_next = a_create_infos[i].next_stages;
 #ifdef _ENABLE_REBUILD_SHADERS
 		shader_effects[i].create_info = shader_object_infos[i];
-		shader_effects[i].shader_path = a_create_infos[i].shader_path;
 		shader_effects[i].shader_entry = a_create_infos[i].shader_entry;
 #endif // _ENABLE_REBUILD_SHADERS
 
@@ -2300,7 +2300,7 @@ bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderE
 //	s_render_inst->shader_effect_map.erase(a_shader_effect);
 //}
 
-bool BB::ReloadShaderEffect(const ShaderEffectHandle a_shader_effect)
+bool BB::ReloadShaderEffect(const ShaderEffectHandle a_shader_effect, const Buffer& a_shader)
 {
 #ifdef _ENABLE_REBUILD_SHADERS
 	GPUWaitIdle();
@@ -2308,7 +2308,7 @@ bool BB::ReloadShaderEffect(const ShaderEffectHandle a_shader_effect)
 	Vulkan::DestroyShaderObject(old_effect.shader_object);
 
 	const ShaderCode shader_code = CompileShader(s_render_inst->shader_compiler,
-		old_effect.shader_path,
+		a_shader,
 		old_effect.shader_entry,
 		old_effect.shader_stage);
 
@@ -2365,7 +2365,7 @@ void BB::FreeMaterial(const MaterialHandle a_material)
 {
 	// maybe go and check the refcount of the textures to possibly free them.
 	//s_render_inst->material_map.erase(a_material);
-	BB_UNIMPLEMENTED("create this function again");
+	BB_UNIMPLEMENTED();
 }
 
 const RTexture BB::CreateTexture(const CreateTextureInfo& a_create_info)
@@ -2931,6 +2931,7 @@ bool BB::SetDefaultMaterial(const MaterialHandle a_material)
 		return false;
 
 	s_render_inst->standard_3d_material = a_material;
+	return true;
 }
 
 MaterialHandle BB::GetStandardMaterial()

@@ -148,7 +148,7 @@ namespace BB
 			m_string = a_rhs.m_string;
 
 			return *this;
-		};
+		}
 		Basic_String& operator=(Basic_String<CharT>&& a_rhs) noexcept
 		{
 			this->~Basic_String();

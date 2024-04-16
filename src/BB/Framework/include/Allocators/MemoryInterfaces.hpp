@@ -1,3 +1,4 @@
+#pragma once
 #include "MemoryArena.hpp"
 
 namespace BB
