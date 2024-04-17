@@ -743,18 +743,90 @@ void Editor::ImGuiCreateMaterial()
 	if (ImGui::CollapsingHeader("create material"))
 	{
 		static char material_name_buffer[256]{};
-		static ShaderEffectHandle vertex_effect = ShaderEffectHandle(BB_INVALID_HANDLE_64);
-		static ShaderEffectHandle fragment_effect = ShaderEffectHandle(BB_INVALID_HANDLE_64);
+		static const ShaderEffectInfo* pvertex_effect = nullptr;
+		static const ShaderEffectInfo* pfragment_effect = nullptr;
 
 		ImGui::Indent();
 
 		if (ImGui::Button("generate material"))
 		{
-			CreateMaterialInfo create_material_info;
-			create_material_info.name = material_name_buffer; // TEMP
-			const ShaderEffectHandle effects[2]{ vertex_effect, fragment_effect };
-			create_material_info.shader_effects = Slice(effects, _countof(effects));
-			this->CreateMaterial(create_material_info);
+			if (pvertex_effect && pfragment_effect && material_name_buffer[0] != '\0')
+			{
+				CreateMaterialInfo create_material_info;
+				create_material_info.name = material_name_buffer; // TEMP
+				const ShaderEffectHandle effects[2]{ pvertex_effect->handle, pfragment_effect->handle };
+				create_material_info.shader_effects = Slice(effects, _countof(effects));
+				this->CreateMaterial(create_material_info);
+			}
+			else
+			{
+				BB_WARNING(false, "failed to generate material because the vertex, fragment shader is not selected or the name is empty", WarningType::MEDIUM);
+			}
+		}
+
+		ImGui::InputText("material name", material_name_buffer, _countof(material_name_buffer));
+
+		if (ImGui::CollapsingHeader("vertex shader"))
+		{
+			ImGui::Indent();
+			if (pvertex_effect != nullptr)
+			{
+				ImGuiDisplayShaderEffect(pvertex_effect->handle);
+			}
+			else
+			{
+				ImGui::Text("no vertex shader selected");
+			}
+
+			if (ImGui::CollapsingHeader("select vertex shader"))
+			{
+				ImGui::Indent();
+				for (size_t i = 0; i < m_shader_effects.size(); i++)
+				{
+					const ShaderEffectInfo& sd_inf = m_shader_effects[i];
+					if (sd_inf.shader_stage != SHADER_STAGE::VERTEX)
+						continue;
+					ImGui::PushID(static_cast<int>(i));
+					if (ImGui::Button(sd_inf.name.c_str()))
+					{
+						pvertex_effect = &sd_inf;
+					}
+					ImGui::PopID();
+				}
+				ImGui::Unindent();
+			}
+			ImGui::Unindent();
+		}
+
+		if (ImGui::CollapsingHeader("fragment shader"))
+		{
+			ImGui::Indent();
+			if (pfragment_effect != nullptr)
+			{
+				ImGuiDisplayShaderEffect(pfragment_effect->handle);
+			}
+			else
+			{
+				ImGui::Text("no fragment shader selected");
+			}
+			if (ImGui::CollapsingHeader("select fragment shader"))
+			{
+				ImGui::Indent();
+				for (size_t i = 0; i < m_shader_effects.size(); i++)
+				{
+					const ShaderEffectInfo& sd_inf = m_shader_effects[i];
+					if (sd_inf.shader_stage != SHADER_STAGE::FRAGMENT_PIXEL)
+						continue;
+					ImGui::PushID(static_cast<int>(i));
+					if (ImGui::Button(sd_inf.name.c_str()))
+					{
+						pfragment_effect = &sd_inf;
+					}
+					ImGui::PopID();
+				}
+				ImGui::Unindent();
+			}
+			ImGui::Unindent();
 		}
 
 		ImGui::Unindent();
