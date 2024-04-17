@@ -106,8 +106,9 @@ namespace BB
 		uint2 m_window_extent;
 		StaticArray<ViewportAndScene> m_viewport_and_scenes;
 
-		SceneHierarchy m_game_hierarchy;
-		SceneHierarchy m_object_viewer_hierarchy;
+		// temp
+		ShaderEffectHandle m_imgui_vertex;
+		ShaderEffectHandle m_imgui_fragment;
 
 		Viewport* m_active_viewport = nullptr;
 		float2 m_previous_mouse_pos{};

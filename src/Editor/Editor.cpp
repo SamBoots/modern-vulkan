@@ -442,6 +442,35 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 	m_materials.Init(materials_mem, EDITOR_MATERIAL_ARRAY_SIZE);
 	m_shader_effects.Init(shader_effects_mem, EDITOR_SHADER_EFFECTS_ARRAY_SIZE);
 	m_viewport_and_scenes.Init(viewports_mem, EDITOR_VIEWPORT_ARRAY_SIZE);
+
+	MemoryArenaScope(a_arena)
+	{
+		ShaderEffectHandle shader_effs[2];
+		Buffer imgui_shader = ReadOSFile(a_arena, "../../resources/shaders/hlsl/Imgui.hlsl");
+
+		CreateShaderEffectInfo shaders[2];
+		shaders[0].name = "imgui vertex shader";
+		shaders[0].shader_data = imgui_shader;
+		shaders[0].shader_entry = "VertexMain";
+		shaders[0].stage = SHADER_STAGE::VERTEX;
+		shaders[0].next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::FRAGMENT_PIXEL);
+		shaders[0].push_constant_space = sizeof(ShaderIndices2D);
+		shaders[0].pass_type = RENDER_PASS_TYPE::STANDARD_3D;
+
+		shaders[1].name = "imgui Fragment shader";
+		shaders[1].shader_data = imgui_shader;
+		shaders[1].shader_entry = "FragmentMain";
+		shaders[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
+		shaders[1].next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::NONE);
+		shaders[1].push_constant_space = sizeof(ShaderIndices2D);
+		shaders[1].pass_type = RENDER_PASS_TYPE::STANDARD_3D;
+
+		BB_ASSERT(this->CreateShaderEffect(a_arena, Slice(shaders, _countof(shaders)), shader_effs),
+			"Failed to create imgui shaders");
+
+		m_imgui_vertex = shader_effs[0];
+		m_imgui_fragment = shader_effs[1];
+	}
 }
 
 void Editor::CreateViewportViaJson(MemoryArena& a_arena, const char* a_json_path, const char* a_viewport_name, const uint2 a_window_extent, const float3 a_clear_color)
@@ -557,6 +586,15 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time)
 
 	StartFrame(main_list, start_info);
 
+	if (ImGui::Begin("Editor - Renderer"))
+	{
+		ImGuiDisplayShaderEffects();
+		ImGuiDisplayMaterials();
+		ImGuiCreateMaterial();
+	}
+	ImGui::End();
+
+
 	MemoryArenaScope(a_arena)
 	{
 		Asset::ShowAssetMenu(a_arena);
@@ -597,7 +635,7 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time)
 		// TODO, async this
 		graphics_command_pools[1].EndCommandList(lists[1]);
 
-		EndFrame(main_list);
+		EndFrame(main_list, m_imgui_vertex, m_imgui_fragment);
 
 		graphics_command_pools[0].EndCommandList(main_list);
 		uint64_t fence_value;
@@ -686,21 +724,22 @@ void Editor::ImGuiDisplayShaderEffect(const ShaderEffectHandle a_handle) const
 
 void Editor::ImGuiDisplayShaderEffects()
 {
-	ImGui::Indent();
-	for (size_t i = 0; i < m_shader_effects.size(); i++)
+	if (ImGui::CollapsingHeader("shader effects"))
 	{
-		ImGui::PushID(static_cast<int>(i));
-		// rework this?
-		ImGuiDisplayShaderEffect(ShaderEffectHandle(i));
-		ImGui::PopID();
+		ImGui::Indent();
+		for (size_t i = 0; i < m_shader_effects.size(); i++)
+		{
+			ImGui::PushID(static_cast<int>(i));
+			// rework this?
+			ImGuiDisplayShaderEffect(ShaderEffectHandle(i));
+			ImGui::PopID();
+		}
+		ImGui::Unindent();
 	}
-	ImGui::Unindent();
 }
 
 void Editor::ImGuiCreateMaterial()
 {
-	BB_UNIMPLEMENTED();
-
 	if (ImGui::CollapsingHeader("create material"))
 	{
 		static char material_name_buffer[256]{};
@@ -724,24 +763,29 @@ void Editor::ImGuiCreateMaterial()
 
 void Editor::ImGuiDisplayMaterials()
 {
-	for (uint32_t i = 0; i < m_materials.size(); i++)
+	if (ImGui::CollapsingHeader("materials"))
 	{
-		MaterialInfo& mat = m_materials[i];
-		if (ImGui::CollapsingHeader(mat.name.c_str()))
+		ImGui::Indent();
+		for (uint32_t i = 0; i < m_materials.size(); i++)
 		{
-			ImGui::PushID(static_cast<int>(i));
-			ImGui::Indent();
-
-			for (size_t eff_index = 0; eff_index < mat.shader_handle_count; eff_index++)
+			MaterialInfo& mat = m_materials[i];
+			if (ImGui::CollapsingHeader(mat.name.c_str()))
 			{
-				ImGui::PushID(static_cast<int>(eff_index));
-				ImGuiDisplayShaderEffect(mat.shader_handles[eff_index]);
-				ImGui::PopID();
-			}
+				ImGui::PushID(static_cast<int>(i));
+				ImGui::Indent();
 
-			ImGui::PopID();
-			ImGui::Unindent();
+				for (size_t eff_index = 0; eff_index < mat.shader_handle_count; eff_index++)
+				{
+					ImGui::PushID(static_cast<int>(eff_index));
+					ImGuiDisplayShaderEffect(mat.shader_handles[eff_index]);
+					ImGui::PopID();
+				}
+
+				ImGui::PopID();
+				ImGui::Unindent();
+			}
 		}
+		ImGui::Unindent();
 	}
 }
 

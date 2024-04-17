@@ -128,7 +128,7 @@ namespace BB
 	};
 
 	void StartFrame(const RCommandList a_list, const StartFrameInfo& a_info);
-	void EndFrame(const RCommandList a_list, bool a_skip = false);
+	void EndFrame(const RCommandList a_list, const ShaderEffectHandle a_imgui_vertex, const ShaderEffectHandle a_imgui_fragment, bool a_skip = false);
 
 	RenderTarget CreateRenderTarget(MemoryArena& a_arena, const uint2 a_render_target_extent, const char* a_name = "default");
 	void ResizeRenderTarget(const RenderTarget render_target, const uint2 a_render_target_extent);

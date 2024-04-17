@@ -650,21 +650,13 @@ namespace IMGUI_IMPL
 		WriteableGPUBufferView index_buffer;
 	};
 
-	constexpr SHADER_STAGE IMGUI_SHADER_STAGES[2]{ SHADER_STAGE::VERTEX, SHADER_STAGE::FRAGMENT_PIXEL };
-
 	struct ImRenderData
 	{
-		// 0 = VERTEX, 1 = FRAGMENT
-		ShaderEffectHandle		shader_effects[2];	//16
-		RTexture				font_image;         //20
+		RTexture font_image;			// 4
 
 		// Render buffers for main window
-		uint32_t frame_index;                       //24
-		ImRenderBuffer* frame_buffers;				//32
-
-		//we just fetch em directly
-		const ShaderEffect* vertex;
-		const ShaderEffect* fragment;
+		uint32_t frame_index;           // 8
+		ImRenderBuffer* frame_buffers;	// 16
 	};
 
 	inline static ImRenderData* ImGetRenderData()
@@ -672,13 +664,13 @@ namespace IMGUI_IMPL
 		return ImGui::GetCurrentContext() ? reinterpret_cast<ImRenderData*>(ImGui::GetIO().BackendRendererUserData) : nullptr;
 	}
 
-	inline static void ImSetRenderState(const ImDrawData& a_draw_data, const RCommandList a_cmd_list, const uint32_t a_vert_pos)
+	inline static void ImSetRenderState(const ImDrawData& a_draw_data, const RCommandList a_cmd_list, const uint32_t a_vert_pos, const ShaderObject* a_vertex_and_fragment, const RPipelineLayout a_pipeline_layout)
 	{
 		ImRenderData* bd = ImGetRenderData();
 
 		{
-			const ShaderObject shader_objects[2]{ bd->vertex->shader_object, bd->fragment->shader_object };
-			Vulkan::BindShaders(a_cmd_list, _countof(IMGUI_SHADER_STAGES), IMGUI_SHADER_STAGES, shader_objects);
+			constexpr SHADER_STAGE IMGUI_SHADER_STAGES[2]{ SHADER_STAGE::VERTEX, SHADER_STAGE::FRAGMENT_PIXEL };
+			Vulkan::BindShaders(a_cmd_list, _countof(IMGUI_SHADER_STAGES), IMGUI_SHADER_STAGES, a_vertex_and_fragment);
 			Vulkan::SetFrontFace(a_cmd_list, true);
 		}
 
@@ -693,7 +685,7 @@ namespace IMGUI_IMPL
 			shader_indices.translate.x = -1.0f - a_draw_data.DisplayPos.x * shader_indices.rect_scale.x;
 			shader_indices.translate.y = -1.0f - a_draw_data.DisplayPos.y * shader_indices.rect_scale.y;
 
-			Vulkan::SetPushConstants(a_cmd_list, bd->vertex->pipeline_layout, 0, sizeof(shader_indices), &shader_indices);
+			Vulkan::SetPushConstants(a_cmd_list, a_pipeline_layout, 0, sizeof(shader_indices), &shader_indices);
 		}
 	}
 
@@ -706,7 +698,7 @@ namespace IMGUI_IMPL
 	}
 
 
-	static void ImRenderFrame(const RCommandList a_cmd_list, const RImageView render_target_view, const bool a_clear_image)
+	static void ImRenderFrame(const RCommandList a_cmd_list, const RImageView render_target_view, const bool a_clear_image, const ShaderEffectHandle a_vertex, const ShaderEffectHandle a_fragment)
 	{
 		const ImDrawData& draw_data = *ImGui::GetDrawData();
 		// Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
@@ -714,6 +706,12 @@ namespace IMGUI_IMPL
 		int fb_height = static_cast<int>(draw_data.DisplaySize.y * draw_data.FramebufferScale.y);
 		if (fb_width <= 0 || fb_height <= 0)
 			return;
+
+		const ShaderEffect& vertex = s_render_inst->shader_effects[a_vertex.handle];
+		const ShaderEffect& fragment = s_render_inst->shader_effects[a_fragment.handle];
+		const ShaderObject shader_objects[2] = { vertex.shader_object, fragment.shader_object };
+		const RPipelineLayout pipeline_layout = vertex.pipeline_layout;
+		BB_ASSERT(vertex.pipeline_layout == fragment.pipeline_layout, "pipeline layout not the same for the imgui vertex and fragment shader");
 
 		ImRenderData* bd = ImGetRenderData();
 		const RenderIO& render_io = GetRenderIO();
@@ -762,7 +760,7 @@ namespace IMGUI_IMPL
 		Vulkan::StartRenderPass(a_cmd_list, imgui_pass_start, render_target_view);
 
 		// Setup desired CrossRenderer state
-		ImSetRenderState(draw_data, a_cmd_list, 0);
+		ImSetRenderState(draw_data, a_cmd_list, 0, shader_objects, pipeline_layout);
 
 		// Will project scissor/clipping rectangles into framebuffer space
 		const ImVec2 clip_off = draw_data.DisplayPos;    // (0,0) unless using multi-viewports
@@ -778,7 +776,7 @@ namespace IMGUI_IMPL
 		for (int n = 0; n < draw_data.CmdListsCount; n++)
 		{
 			const ImDrawList* cmd_list = draw_data.CmdLists[n];
-			Vulkan::SetPushConstants(a_cmd_list, bd->vertex->pipeline_layout, IM_OFFSETOF(ShaderIndices2D, vertex_buffer_offset), sizeof(vertex_offset), &vertex_offset);
+			Vulkan::SetPushConstants(a_cmd_list, pipeline_layout, IM_OFFSETOF(ShaderIndices2D, vertex_buffer_offset), sizeof(vertex_offset), &vertex_offset);
 
 			for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++)
 			{
@@ -788,7 +786,7 @@ namespace IMGUI_IMPL
 					// User callback, registered via ImDrawList::AddCallback()
 					// (ImDrawCallback_ResetRenderState is a special callback value used by the user to request the renderer to reset render state.)
 					if (pcmd->UserCallback == ImDrawCallback_ResetRenderState)
-						ImSetRenderState(draw_data, a_cmd_list, vertex_offset);
+						ImSetRenderState(draw_data, a_cmd_list, vertex_offset, shader_objects, pipeline_layout);
 					else
 						pcmd->UserCallback(cmd_list, pcmd);
 				}
@@ -809,7 +807,7 @@ namespace IMGUI_IMPL
 					const ImTextureID new_text = pcmd->TextureId;
 					if (new_text != last_texture)
 					{
-						Vulkan::SetPushConstants(a_cmd_list, bd->vertex->pipeline_layout, IM_OFFSETOF(ShaderIndices2D, albedo_texture), sizeof(new_text), &new_text);
+						Vulkan::SetPushConstants(a_cmd_list, pipeline_layout, IM_OFFSETOF(ShaderIndices2D, albedo_texture), sizeof(new_text), &new_text);
 						last_texture = new_text;
 					}
 					// Apply scissor/clipping rectangle
@@ -858,34 +856,6 @@ namespace IMGUI_IMPL
 		ImRenderData* bd = ArenaAllocType(a_arena, ImRenderData);
 		io.BackendRendererName = "imgui-modern-vulkan";
 		io.BackendRendererUserData = reinterpret_cast<void*>(bd);
-
-		MemoryArenaScope(a_arena)
-		{
-			Buffer imgui_shader = ReadOSFile(a_arena, "../../resources/shaders/hlsl/Imgui.hlsl");
-
-			CreateShaderEffectInfo shaders[2];
-			shaders[0].name = "imgui vertex shader";
-			shaders[0].shader_data = imgui_shader;
-			shaders[0].shader_entry = "VertexMain";
-			shaders[0].stage = SHADER_STAGE::VERTEX;
-			shaders[0].next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::FRAGMENT_PIXEL);
-			shaders[0].push_constant_space = sizeof(ShaderIndices2D);
-			shaders[0].pass_type = RENDER_PASS_TYPE::STANDARD_3D;
-
-			shaders[1].name = "imgui Fragment shader";
-			shaders[1].shader_data = imgui_shader;
-			shaders[1].shader_entry = "FragmentMain";
-			shaders[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
-			shaders[1].next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::NONE);
-			shaders[1].push_constant_space = sizeof(ShaderIndices2D);
-			shaders[1].pass_type = RENDER_PASS_TYPE::STANDARD_3D;
-
-			BB_ASSERT(CreateShaderEffect(a_arena, Slice(shaders, _countof(shaders)), bd->shader_effects),
-				"Failed to create imgui shaders");
-
-			bd->vertex = &s_render_inst->shader_effects[bd->shader_effects[0].handle];
-			bd->fragment = &s_render_inst->shader_effects[bd->shader_effects[1].handle];
-		}
 
 		//create framebuffers.
 		{
@@ -1589,7 +1559,7 @@ void BB::StartFrame(const RCommandList a_list, const StartFrameInfo& a_info)
 	ImguiDisplayRenderer();
 }
 
-void BB::EndFrame(const RCommandList a_list, bool a_skip)
+void BB::EndFrame(const RCommandList a_list, const ShaderEffectHandle a_imgui_vertex, const ShaderEffectHandle a_imgui_fragment, bool a_skip)
 {
 	BB_ASSERT(s_render_inst->render_io.frame_started == true, "did not call StartFrame before a EndFrame");
 
@@ -1603,7 +1573,7 @@ void BB::EndFrame(const RCommandList a_list, bool a_skip)
 	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(cur_frame.render_target);
 
 	ImGui::Render();
-	IMGUI_IMPL::ImRenderFrame(a_list, render_target.texture_info.view, true);
+	IMGUI_IMPL::ImRenderFrame(a_list, render_target.texture_info.view, true, a_imgui_vertex, a_imgui_fragment);
 	ImGui::EndFrame();
 
 	{
