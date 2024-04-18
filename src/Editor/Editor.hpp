@@ -47,8 +47,11 @@ namespace BB
 	private:
 		FreelistInterface m_editor_allocator;
 
+		void ImguiDisplaySceneHierarchy(SceneHierarchy& a_hierarchy);
+		void ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObjectHandle a_object);
 		void ImGuiDisplayShaderEffect(const ShaderEffectHandle a_handle) const;
 		void ImGuiDisplayShaderEffects();
+		void ImGuiDisplayMaterial(const MaterialHandle a_handle) const;
 		void ImGuiDisplayMaterials();
 		void ImGuiCreateMaterial();
 

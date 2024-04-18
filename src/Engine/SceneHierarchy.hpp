@@ -38,6 +38,7 @@ namespace BB
 	class SceneHierarchy
 	{
 	public:
+		friend class Editor;
 		void Init(MemoryArena& a_memory_arena, const StringView a_name, const uint32_t a_scene_obj_max = DEFAULT_SCENE_OBJ_MAX);
 		void InitViaJson(MemoryArena& a_memory_arena, const JsonParser& a_parsed_file, const uint32_t a_scene_obj_max = DEFAULT_SCENE_OBJ_MAX);
 		static StaticArray<Asset::AsyncAsset> PreloadAssetsFromJson(MemoryArena& a_arena, const JsonParser& a_parsed_file);
@@ -49,8 +50,6 @@ namespace BB
 		void SetView(const float4x4& a_view);
 		void SetProjection(const float4x4& a_projection);
 
-		void ImguiDisplaySceneHierarchy();
-
 		RenderScene3DHandle GetRenderSceneHandle() const { return m_render_scene; }
 		void SetClearColor(const float3 a_clear_color) { m_clear_color = a_clear_color; }
 
@@ -58,7 +57,6 @@ namespace BB
 		SceneObjectHandle CreateSceneObjectEmpty(const SceneObjectHandle a_parent);
 		SceneObjectHandle CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent);
 		void DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform) const;
-		void ImGuiDisplaySceneObject(const SceneObjectHandle a_object);
 
 		//TODO, maybe remember all the transforms from the previous frames?
 		TransformPool m_transform_pool;

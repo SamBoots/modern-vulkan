@@ -610,7 +610,7 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time)
 			ViewportAndScene& vs = m_viewport_and_scenes[i];
 			vs.scene.SetView(vs.viewport.CreateView());
 
-			vs.scene.ImguiDisplaySceneHierarchy();
+			ImguiDisplaySceneHierarchy(vs.scene);
 
 			bool resized = false;
 			vs.viewport.DrawImgui(resized);
@@ -698,6 +698,147 @@ ThreadTask Editor::LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets, cons
 	return Threads::StartTaskThread(Editor::LoadAssetsAsync, params);
 }
 
+void Editor::ImguiDisplaySceneHierarchy(SceneHierarchy& a_hierarchy)
+{
+	if (ImGui::Begin(a_hierarchy.m_scene_name.c_str()))
+	{
+		ImGui::Indent();
+		if (ImGui::Button("create scene object"))
+		{
+			BB_ASSERT(a_hierarchy.m_top_level_object_count <= a_hierarchy.m_scene_objects.capacity(), "Too many render object childeren for this object!");
+			a_hierarchy.m_top_level_objects[a_hierarchy.m_top_level_object_count++] = a_hierarchy.CreateSceneObjectEmpty(SceneObjectHandle(BB_INVALID_HANDLE_64));
+		}
+
+		for (size_t i = 0; i < a_hierarchy.m_top_level_object_count; i++)
+		{
+			ImGui::PushID(static_cast<int>(i));
+
+			ImGuiDisplaySceneObject(a_hierarchy, a_hierarchy.m_top_level_objects[i]);
+
+			ImGui::PopID();
+		}
+
+		ImGui::Unindent();
+	}
+	ImGui::End();
+}
+
+void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObjectHandle a_object)
+{
+	SceneObject& scene_object = a_hierarchy.m_scene_objects.find(a_object);
+	ImGui::PushID(static_cast<int>(a_object.handle));
+
+	if (ImGui::CollapsingHeader(scene_object.name))
+	{
+		ImGui::Indent();
+		Transform& transform = a_hierarchy.m_transform_pool.GetTransform(scene_object.transform);
+
+		bool position_changed = false;
+
+		if (ImGui::TreeNodeEx("transform"))
+		{
+			if (ImGui::InputFloat3("position", transform.m_pos.e))
+			{
+				position_changed = true;
+			}
+
+			ImGui::InputFloat4("rotation quat (xyzw)", transform.m_rot.xyzw.e);
+			ImGui::InputFloat3("scale", transform.m_scale.e);
+			ImGui::TreePop();
+		}
+
+		if (scene_object.mesh_handle.IsValid())
+		{
+			if (ImGui::TreeNodeEx("rendering"))
+			{
+				ImGui::Indent();
+
+				if (ImGui::TreeNodeEx("material"))
+				{
+					ImGui::Indent();
+					ImGuiDisplayMaterial(scene_object.material);
+
+					if (ImGui::TreeNodeEx("switch material"))
+					{
+						ImGui::Indent();
+
+						for (size_t i = 0; i < m_materials.size(); i++)
+						{
+							const MaterialInfo new_mat = m_materials[i];
+							if (ImGui::Button(new_mat.name.c_str()))
+							{
+								scene_object.material = new_mat.handle;
+							}
+						}
+
+						ImGui::TreePop();
+						ImGui::Unindent();
+					}
+
+					ImGui::TreePop();
+					ImGui::Unindent();
+				}
+
+				ImGui::Unindent();
+				ImGui::TreePop();
+			}
+		}
+
+		if (scene_object.light_handle.IsValid())
+		{
+			if (ImGui::TreeNodeEx("light object"))
+			{
+				ImGui::Indent();
+				PointLight& light = GetLight(a_hierarchy.m_render_scene, scene_object.light_handle);
+
+				if (position_changed)
+				{
+					light.pos = transform.m_pos;
+				}
+
+				ImGui::InputFloat3("color", light.color.e);
+				ImGui::InputFloat("linear radius", &light.radius_linear);
+				ImGui::InputFloat("quadratic radius", &light.radius_quadratic);
+
+				if (ImGui::Button("remove light"))
+				{
+					FreeLight(a_hierarchy.m_render_scene, scene_object.light_handle);
+					scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
+				}
+				ImGui::Unindent();
+				ImGui::TreePop();
+			}
+		}
+		else
+		{
+			if (ImGui::Button("create light"))
+			{
+				CreateLightInfo light_create_info;
+				light_create_info.pos = transform.m_pos;
+				light_create_info.color = float3(1.f, 1.f, 1.f);
+				light_create_info.linear_distance = 0.35f;
+				light_create_info.quadratic_distance = 0.44f;
+				scene_object.light_handle = CreateLight(a_hierarchy.m_render_scene, light_create_info);
+			}
+		}
+
+		for (size_t i = 0; i < scene_object.child_count; i++)
+		{
+			ImGuiDisplaySceneObject(a_hierarchy, scene_object.childeren[i]);
+		}
+
+		if (ImGui::Button("create scene object"))
+		{
+			BB_ASSERT(scene_object.child_count <= SCENE_OBJ_CHILD_MAX, "Too many render object childeren for this object!");
+			scene_object.childeren[scene_object.child_count++] = a_hierarchy.CreateSceneObjectEmpty(a_object);
+		}
+
+		ImGui::Unindent();
+	}
+
+	ImGui::PopID();
+}
+
 void Editor::ImGuiDisplayShaderEffect(const ShaderEffectHandle a_handle) const
 {
 	const Editor::ShaderEffectInfo& effect = m_shader_effects[a_handle.handle];
@@ -733,6 +874,41 @@ void Editor::ImGuiDisplayShaderEffects()
 			// rework this?
 			ImGuiDisplayShaderEffect(ShaderEffectHandle(i));
 			ImGui::PopID();
+		}
+		ImGui::Unindent();
+	}
+}
+
+void Editor::ImGuiDisplayMaterial(const MaterialHandle a_handle) const
+{
+	const MaterialInfo& mat = m_materials[a_handle.index];
+	if (ImGui::CollapsingHeader(mat.name.c_str()))
+	{
+		ImGui::PushID(static_cast<int>(a_handle.index));
+		ImGui::Indent();
+
+		for (size_t eff_index = 0; eff_index < mat.shader_handle_count; eff_index++)
+		{
+			ImGui::PushID(static_cast<int>(eff_index));
+			ImGuiDisplayShaderEffect(mat.shader_handles[eff_index]);
+			ImGui::PopID();
+		}
+
+		ImGui::PopID();
+		ImGui::Unindent();
+	}
+}
+
+void Editor::ImGuiDisplayMaterials()
+{
+	if (ImGui::CollapsingHeader("materials"))
+	{
+		ImGui::Indent();
+		for (uint32_t i = 0; i < m_materials.size(); i++)
+		{
+			const MaterialInfo& mat = m_materials[i];
+			ImGuiDisplayMaterial(mat.handle);
+
 		}
 		ImGui::Unindent();
 	}
@@ -829,34 +1005,6 @@ void Editor::ImGuiCreateMaterial()
 			ImGui::Unindent();
 		}
 
-		ImGui::Unindent();
-	}
-}
-
-void Editor::ImGuiDisplayMaterials()
-{
-	if (ImGui::CollapsingHeader("materials"))
-	{
-		ImGui::Indent();
-		for (uint32_t i = 0; i < m_materials.size(); i++)
-		{
-			MaterialInfo& mat = m_materials[i];
-			if (ImGui::CollapsingHeader(mat.name.c_str()))
-			{
-				ImGui::PushID(static_cast<int>(i));
-				ImGui::Indent();
-
-				for (size_t eff_index = 0; eff_index < mat.shader_handle_count; eff_index++)
-				{
-					ImGui::PushID(static_cast<int>(eff_index));
-					ImGuiDisplayShaderEffect(mat.shader_handles[eff_index]);
-					ImGui::PopID();
-				}
-
-				ImGui::PopID();
-				ImGui::Unindent();
-			}
-		}
 		ImGui::Unindent();
 	}
 }
