@@ -121,5 +121,8 @@ namespace BB
 		WindowHandle m_main_window;
 
 		bool m_freeze_cam = false;
+		float m_cam_speed = 1.f;
+		const float m_cam_speed_min = 0.1f;
+		const float m_cam_speed_max = 3.f;
 	};
 }

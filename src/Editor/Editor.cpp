@@ -385,6 +385,8 @@ void Editor::MainEditorImGuiInfo(const MemoryArena& a_arena)
 		else
 			ImGui::Text("current viewport: %s", m_active_viewport->GetName());
 
+		ImGui::SliderFloat("camera speed", &m_cam_speed, m_cam_speed_min, m_cam_speed_max);
+
 		DisplayGPUInfo(m_gpu_info);
 
 		if (ImGui::CollapsingHeader("main allocator"))
@@ -545,7 +547,7 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time)
 				}
 			if (!m_freeze_cam && m_active_viewport)
 			{
-				m_active_viewport->GetCamera().Move(cam_move);
+				m_active_viewport->GetCamera().Move(cam_move * m_cam_speed);
 			}
 
 		}
@@ -559,6 +561,13 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time)
 				FreezeMouseOnWindow(m_main_window);
 			if (mi.left_released)
 				UnfreezeMouseOnWindow();
+
+			if (mi.wheel_move)
+			{
+				m_cam_speed = Clampf(m_cam_speed + static_cast<float>(mi.wheel_move) * 0.1f,
+					m_cam_speed_min,
+					m_cam_speed_max);
+			}
 
 			for (size_t view_i = 0; view_i < m_viewport_and_scenes.size(); view_i++)
 			{
