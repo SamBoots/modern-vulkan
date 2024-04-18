@@ -1977,7 +1977,7 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 
 		Vulkan::SetPushConstants(a_cmd_list, material.shader.pipeline_layout, 0, sizeof(ShaderIndices), &shader_indices);
 		Vulkan::DrawIndexed(a_cmd_list,
-			static_cast<uint32_t>(mesh.index_buffer.size / sizeof(uint32_t)) + mesh_draw_call.index_count,
+			mesh_draw_call.index_count,
 			1,
 			static_cast<uint32_t>(mesh.index_buffer.offset / sizeof(uint32_t)) + mesh_draw_call.index_start,
 			0,
