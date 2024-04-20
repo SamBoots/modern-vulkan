@@ -136,14 +136,16 @@ int main(int argc, char** argv)
 
 	bool quit_app = false;
 	float delta_time = 0;
+
+	DefaultGame def_game{};
+
 	while (!quit_app)
 	{
 		Asset::Update();
 		
-		editor.Update(main_arena, delta_time);
+		editor.Update(main_arena, delta_time, def_game);
 		auto currentnew = std::chrono::high_resolution_clock::now();
 		delta_time = std::chrono::duration<float, std::chrono::seconds::period>(currentnew - current_time).count();
-
 
 		current_time = currentnew;
 	}

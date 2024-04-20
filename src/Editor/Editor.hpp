@@ -3,6 +3,7 @@
 #include "SceneHierarchy.hpp"
 #include "Camera.hpp"
 #include "AssetLoader.hpp"
+#include "GameInterface.hpp"
 
 #include <tuple>
 
@@ -17,7 +18,15 @@ namespace BB
 		void Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent, const size_t a_editor_memory = EDITOR_DEFAULT_MEMORY);
 		void CreateViewportViaJson(MemoryArena& a_arena, const char* a_json_path, const char* a_viewport_name, const uint2 a_window_extent, const float3 a_clear_color);
 		void Destroy();
-		void Update(MemoryArena& a_arena, const float a_delta_time);
+
+		template<typename game_interface>
+		requires is_game_interface<game_interface>
+		void Update(MemoryArena& a_arena, const float a_delta_time, game_interface& a_game_interface)
+		{
+			a_game_interface.Update(a_arena);
+
+			Update(a_arena, a_delta_time);
+		}
 
 		bool CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles);
 		const MaterialHandle CreateMaterial(const CreateMaterialInfo& a_create_info);
@@ -42,9 +51,8 @@ namespace BB
 			ShaderEffectHandle* shader_handles;
 		};
 
-
-
 	private:
+		void Update(MemoryArena& a_arena, const float a_delta_time);
 		FreelistInterface m_editor_allocator;
 
 		void ImguiDisplaySceneHierarchy(SceneHierarchy& a_hierarchy);

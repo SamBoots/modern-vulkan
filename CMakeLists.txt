@@ -3,7 +3,7 @@
 ###########################################
 cmake_minimum_required (VERSION 3.8)
 project ("Modern Vulkan")
-set (CMAKE_CXX_STANDARD 17)
+set (CMAKE_CXX_STANDARD 20)
 
 add_definitions(-DUNICODE -D_UNICODE -UNICODE)
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
