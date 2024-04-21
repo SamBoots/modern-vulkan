@@ -24,7 +24,7 @@ namespace BB
 		void Update(MemoryArena& a_arena, const float a_delta_time, game_interface& a_game_interface)
 		{
 			a_game_interface.Update(a_arena);
-
+			StaticArray<SceneHierarchy>& scene_hierarchies = a_game_interface.GetSceneHierarchies();
 			Update(a_arena, a_delta_time);
 		}
 

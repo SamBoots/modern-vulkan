@@ -12,6 +12,7 @@
 #include "Math.inl"
 
 #include "Editor.hpp"
+#include "GameMain.hpp"
 
 using namespace BB;
 
@@ -137,7 +138,7 @@ int main(int argc, char** argv)
 	bool quit_app = false;
 	float delta_time = 0;
 
-	DefaultGame def_game{};
+	DungeonGame def_game{};
 
 	while (!quit_app)
 	{
