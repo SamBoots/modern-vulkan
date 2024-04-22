@@ -351,11 +351,19 @@ namespace BB
 			memset(m_Arr, 0, a_size * sizeof(T));
 		}
 
+		void Destroy()
+		{
+			DestroyAllElements();
+			m_capacity = 0;
+			m_size = 0;
+			m_Arr = nullptr;
+		}
+
 		void DestroyAllElements()
 		{
-			if (m_Arr != nullptr)
+			if constexpr (!trivialDestructible_T)
 			{
-				if constexpr (!trivialDestructible_T)
+				if (m_Arr != nullptr)
 				{
 					for (size_t i = 0; i < m_size; i++)
 					{

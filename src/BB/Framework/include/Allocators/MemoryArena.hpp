@@ -54,7 +54,7 @@ namespace BB
 
 	struct MemoryArenaMarker
 	{
-		const MemoryArena& owner;
+		const MemoryArena* owner;
 		void* at;
 	};
 

@@ -102,9 +102,9 @@ namespace TARGA
 #pragma pack(pop)
 }
 
-void BBImage::Init(MemoryArena& a_arena, const char* a_file_path)
+void BBImage::Init(MemoryArena& a_arena, const char* a_file_path, const uint32_t a_bytes_per_pixel)
 {
-	LoadBMP(a_arena, a_file_path);
+	LoadBMP(a_arena, a_file_path, a_bytes_per_pixel);
 }
 
 void BBImage::Init(MemoryArena& a_arena, const BBImage& a_image)
@@ -347,8 +347,10 @@ void BBImage::WriteAsTARGA(const char* a_file_path)
 	CloseOSFile(write_targa);
 }
 
-void BBImage::LoadBMP(MemoryArena& a_arena, const char* a_file_path)
+void BBImage::LoadBMP(MemoryArena& a_arena, const char* a_file_path, const uint32_t a_bytes_per_pixel)
 {
+	BB_ASSERT(a_bytes_per_pixel == 4, "a_byts_per_pixel must be 3 or 4");
+	m_bytes_per_pixel = a_bytes_per_pixel;
 	const OSFileHandle image_file = OSLoadFile(a_file_path);
 
 	BMP::File file;
@@ -361,9 +363,6 @@ void BBImage::LoadBMP(MemoryArena& a_arena, const char* a_file_path)
 
 	BB_ASSERT(file_header.height > 0, "currently not supporting negative height BMP's.");
 	BB_ASSERT(file_header.bit_count == 24 || file_header.bit_count == 32 || file_header.bit_count == 64, "unsupported bit_count");
-	m_bytes_per_pixel = file_header.bit_count / 8;
-	if (file_header.bit_count == 24) // force 24 to be 32 bit
-		m_bytes_per_pixel = 4;
 
 	m_width = static_cast<uint32_t>(file_header.width);
 	m_height = static_cast<uint32_t>(file_header.height);

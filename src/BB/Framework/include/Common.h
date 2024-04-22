@@ -155,6 +155,17 @@ namespace BB
 		void* allocator;
 	};
 
+	struct Color
+	{
+		uint8_t r;
+		uint8_t g;
+		uint8_t b;
+		uint8_t a;
+		bool operator==(const Color& a_rhs) const
+		{
+			return (r == a_rhs.r && g == a_rhs.g && b == a_rhs.b && a == a_rhs.a);
+		}
+	};
 
 	union float2
 	{

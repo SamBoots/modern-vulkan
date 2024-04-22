@@ -9,7 +9,7 @@ namespace BB
 	class BBImage
 	{
 	public:
-		void Init(MemoryArena& a_arena, const char* a_file_path);
+		void Init(MemoryArena& a_arena, const char* a_file_path, const uint32_t a_bytes_per_pixel = 4);
 		void Init(MemoryArena& a_arena, const BBImage& a_image);
 		void Init(MemoryArena& a_arena, void* a_pixels_to_copy, const uint32_t a_width, const uint32_t a_height, const uint32_t a_bytes_per_pixel);
 
@@ -37,6 +37,6 @@ namespace BB
 
 		void* m_pixels;
 
-		void LoadBMP(MemoryArena& a_arena, const char* a_file_path);
+		void LoadBMP(MemoryArena& a_arena, const char* a_file_path, const uint32_t a_bytes_per_pixel);
 	};
 }

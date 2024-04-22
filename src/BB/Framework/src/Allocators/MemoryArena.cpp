@@ -136,12 +136,12 @@ static void MemoryArenaResetTo(MemoryArena& a_arena, void* a_memory_marker)
 
 MemoryArenaMarker BB::MemoryArenaGetMemoryMarker(const MemoryArena& a_arena)
 {
-	return MemoryArenaMarker{ a_arena, a_arena.at };
+	return MemoryArenaMarker{ &a_arena, a_arena.at };
 }
 
 void BB::MemoryArenaSetMemoryMarker(MemoryArena& a_arena, const MemoryArenaMarker& a_memory_marker)
 {
-	BB_ASSERT(a_arena.buffer == a_memory_marker.owner.buffer, "not the same allocator");
+	BB_ASSERT(a_arena.buffer == a_memory_marker.owner->buffer, "not the same allocator");
 	BB_ASSERT(MemoryArenaIsPointerWithinArena(a_arena, a_memory_marker.at), "MemoryArenaMarker.at not within memory arena");
 
 	MemoryArenaResetTo(a_arena, a_memory_marker.at);
