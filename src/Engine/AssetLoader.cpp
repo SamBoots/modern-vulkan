@@ -781,8 +781,8 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const RCommandList a_list, c
 		model_prim.index_count = static_cast<uint32_t>(prim.indices->count);
 
 		model_prim.name = "primitive [NUM]";
-		const StringView material_name = prim.material->name ? Asset::FindOrCreateString(prim.material->name) : "no name";
-
+		
+		// const StringView material_name = prim.material->name ? Asset::FindOrCreateString(prim.material->name) : "no name";
 		model_prim.material = GetStandardMaterial();
 
 		if (prim.material->pbr_metallic_roughness.base_color_texture.texture)

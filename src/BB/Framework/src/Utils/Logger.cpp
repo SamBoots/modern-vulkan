@@ -10,7 +10,7 @@ using namespace BB;
 
 void Logger::LoggerWriteToFile()
 {
-	WriteToOSFile(g_logger.log_file, g_logger.upload_string.data(), g_logger.upload_string.size());
+	WriteToOSFile(g_logger->log_file, g_logger->upload_string.data(), g_logger->upload_string.size());
 }
 
 static void LoggerWriteToFile_async(void*)
@@ -20,30 +20,30 @@ static void LoggerWriteToFile_async(void*)
 
 static void WriteLogInfoToFile(const char* a_msg, const size_t a_size)
 {
-	OSWaitAndLockMutex(g_logger.write_to_file_mutex);
+	OSWaitAndLockMutex(g_logger->write_to_file_mutex);
 	WriteToConsole(a_msg, static_cast<uint32_t>(a_size));
 
-	if (g_logger.cache_string.size() + a_size > g_logger.max_logger_buffer_size)
+	if (g_logger->cache_string.size() + a_size > g_logger->max_logger_buffer_size)
 	{
-		g_logger.upload_string.clear();
-		g_logger.upload_string.append(g_logger.cache_string);
-		if (g_logger.last_thread_task.IsValid())
+		g_logger->upload_string.clear();
+		g_logger->upload_string.append(g_logger->cache_string);
+		if (g_logger->last_thread_task.IsValid())
 		{
-			Threads::WaitForTask(g_logger.last_thread_task);
+			Threads::WaitForTask(g_logger->last_thread_task);
 		}
 		// don't use the last thread handle, this bool should be sync enough for this instance.
 		Threads::StartTaskThread(LoggerWriteToFile_async, nullptr);
-		g_logger.cache_string.clear();
+		g_logger->cache_string.clear();
 	}
 
-	g_logger.cache_string.append(a_msg, a_size);
+	g_logger->cache_string.append(a_msg, a_size);
 
-	OSUnlockMutex(g_logger.write_to_file_mutex);
+	OSUnlockMutex(g_logger->write_to_file_mutex);
 }
 
 static bool IsLogEnabled(const WarningType a_type)
 {
-	return (g_logger.enabled_warning_flags & static_cast<WarningTypeFlags>(a_type)) == static_cast<WarningTypeFlags>(a_type);
+	return (g_logger->enabled_warning_flags & static_cast<WarningTypeFlags>(a_type)) == static_cast<WarningTypeFlags>(a_type);
 }
 
 static void Log_to_Console(const char* a_file_name, int a_line, const char* a_warning_level, const char* a_formats, va_list a_args)
@@ -172,10 +172,10 @@ void Logger::Log_Assert(const char* a_file_name, int a_line, const char* a_forma
 
 void Logger::EnableLogType(const WarningType a_warning_type)
 {
-	g_logger.enabled_warning_flags |= static_cast<WarningTypeFlags>(a_warning_type);
+	g_logger->enabled_warning_flags |= static_cast<WarningTypeFlags>(a_warning_type);
 }
 
 void Logger::EnableLogTypes(const WarningTypeFlags a_warning_types)
 {
-	g_logger.enabled_warning_flags = a_warning_types;
+	g_logger->enabled_warning_flags = a_warning_types;
 }

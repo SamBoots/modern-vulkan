@@ -1022,7 +1022,7 @@ void Editor::LoadAssetsAsync(void* a_params)
 {
 	LoadAssetsAsync_params* params = reinterpret_cast<LoadAssetsAsync_params*>(a_params);
 	MemoryArena load_arena = MemoryArenaCreate();
-	Editor& editor = *params->editor;
+	//Editor& editor = *params->editor;
 
 	Asset::LoadAssets(load_arena, Slice(params->assets, params->asset_count), params->cmd_list_name);
 

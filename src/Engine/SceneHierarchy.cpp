@@ -178,47 +178,61 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModel(const Model& a_model
 {
 	SceneObjectHandle scene_object_handle = m_scene_objects.emplace(SceneObject());
 	SceneObject& scene_object = m_scene_objects.find(scene_object_handle);
+	if (a_parent.IsValid())
+	{
+		SceneObject& parent = m_scene_objects.find(a_parent);
+		parent.AddChild(scene_object_handle);
+		scene_object.parent = a_parent;
+	}
+	else
+	{
+		scene_object.parent = SceneObjectHandle(BB_INVALID_HANDLE_64);
+		BB_ASSERT(m_top_level_object_count < m_scene_objects.capacity(), "Too many scene objects, increase the max");
+		m_top_level_objects[m_top_level_object_count++] = scene_object_handle;
+	}
+
 	scene_object.name = a_name;
 	scene_object.mesh_handle = MeshHandle(BB_INVALID_HANDLE_64);
 	scene_object.start_index = 0;
 	scene_object.index_count = 0;
 	scene_object.material = MaterialHandle(BB_INVALID_HANDLE_64);
-	scene_object.parent = SceneObjectHandle(BB_INVALID_HANDLE_64);
 	scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 	scene_object.transform = m_transform_pool.CreateTransform(a_position);
-
-	scene_object.child_count = a_model.root_node_count;
-	BB_ASSERT(scene_object.child_count < SCENE_OBJ_CHILD_MAX, "Too many childeren for a single scene object!");
+	scene_object.child_count = 0;
 
 	for (uint32_t i = 0; i < a_model.root_node_count; i++)
 	{
-		scene_object.childeren[i] = CreateSceneObjectViaModelNode(a_model, a_model.linear_nodes[a_model.root_node_indices[i]], scene_object_handle);
+		scene_object.AddChild(CreateSceneObjectViaModelNode(a_model, a_model.linear_nodes[a_model.root_node_indices[i]], scene_object_handle));
 	}
-
-	BB_ASSERT(m_top_level_object_count < m_scene_objects.capacity(), "Too many scene objects, increase the max");
-	m_top_level_objects[m_top_level_object_count++] = scene_object_handle;
 
 	return scene_object_handle;
 }
 
 SceneObjectHandle SceneHierarchy::CreateSceneObjectAsLight(const CreateLightInfo& a_light_create_info, const char* a_name, const SceneObjectHandle a_parent)
 {
-	const SceneObjectHandle scene_object_handle = m_scene_objects.emplace(SceneObject());
-	SceneObject& scene_object_light = m_scene_objects.find(scene_object_handle);
-	scene_object_light.name = a_name;
-	scene_object_light.mesh_handle = MeshHandle(BB_INVALID_HANDLE_64);
-	scene_object_light.start_index = 0;
-	scene_object_light.index_count = 0;
-	scene_object_light.material = MaterialHandle(BB_INVALID_HANDLE_64);
-	scene_object_light.parent = SceneObjectHandle(BB_INVALID_HANDLE_64);
-	scene_object_light.light_handle = CreateLight(m_render_scene, a_light_create_info);
-	scene_object_light.transform = m_transform_pool.CreateTransform(a_light_create_info.pos);
+	SceneObjectHandle scene_object_handle = m_scene_objects.emplace(SceneObject());
+	SceneObject& scene_object = m_scene_objects.find(scene_object_handle);
+	if (a_parent.IsValid())
+	{
+		SceneObject& parent = m_scene_objects.find(a_parent);
+		parent.AddChild(scene_object_handle);
+		scene_object.parent = a_parent;
+	}
+	else
+	{
+		scene_object.parent = SceneObjectHandle(BB_INVALID_HANDLE_64);
+		BB_ASSERT(m_top_level_object_count < m_scene_objects.capacity(), "Too many scene objects, increase the max");
+		m_top_level_objects[m_top_level_object_count++] = scene_object_handle;
+	}
 
-	scene_object_light.child_count = 0;
-
-	BB_ASSERT(m_top_level_object_count < m_scene_objects.capacity(), "Too many scene objects, increase the max");
-
-	m_top_level_objects[m_top_level_object_count++] = scene_object_handle;
+	scene_object.name = a_name;
+	scene_object.mesh_handle = MeshHandle(BB_INVALID_HANDLE_64);
+	scene_object.start_index = 0;
+	scene_object.index_count = 0;
+	scene_object.material = MaterialHandle(BB_INVALID_HANDLE_64);
+	scene_object.light_handle = CreateLight(m_render_scene, a_light_create_info);
+	scene_object.transform = m_transform_pool.CreateTransform(a_light_create_info.pos);
+	scene_object.child_count = 0;
 
 	return scene_object_handle;
 }

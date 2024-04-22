@@ -25,6 +25,7 @@ namespace BB
 		{
 			a_game_interface.Update(a_arena);
 			StaticArray<SceneHierarchy>& scene_hierarchies = a_game_interface.GetSceneHierarchies();
+			(void)scene_hierarchies;
 			Update(a_arena, a_delta_time);
 		}
 

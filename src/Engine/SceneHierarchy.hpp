@@ -31,6 +31,11 @@ namespace BB
 		TransformHandle transform;	// 56
 
 		SceneObjectHandle parent;	// 64
+		void AddChild(const SceneObjectHandle a_child)
+		{
+			BB_ASSERT(child_count < SCENE_OBJ_CHILD_MAX, "Too many childeren for a single scene object!");
+			childeren[child_count++] = a_child;
+		}
 		size_t child_count;			// 72
 		SceneObjectHandle childeren[SCENE_OBJ_CHILD_MAX];
 	};

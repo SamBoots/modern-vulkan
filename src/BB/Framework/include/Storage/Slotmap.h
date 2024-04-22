@@ -333,12 +333,6 @@ namespace BB
 		}
 		StaticSlotmap(const Slotmap<T>& a_map) = delete;
 		StaticSlotmap(Slotmap<T>&& a_map) = delete;
-		~StaticSlotmap()
-		{
-			BB_WARNING(m_id_arr == nullptr, 
-				"static slotmap destructor called while Destroy was not called, possible memory leak.", 
-				WarningType::INFO);
-		}
 
 		Slotmap<T>& operator=(const Slotmap<T>& a_rhs) = delete;
 		Slotmap<T>& operator=(Slotmap<T>&& a_rhs) = delete;

@@ -19,7 +19,7 @@ namespace BB
 		BBMutex write_to_file_mutex;
 		OSFileHandle log_file;
 	};
-	inline Logger_inst g_logger;
+	inline Logger_inst* g_logger;
 
 #ifdef _DEBUG
 	inline OSFileHandle g_AllocationLogFile;

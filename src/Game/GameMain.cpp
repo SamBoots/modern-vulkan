@@ -89,6 +89,7 @@ bool DungeonGame::InitGame(MemoryArena& a_arena, const uint32_t a_scene_hierarch
 
 bool DungeonGame::Update(MemoryArena& a_temp_arena)
 {
+	(void)a_temp_arena;
 	return true;
 }
 

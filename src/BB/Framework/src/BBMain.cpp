@@ -13,14 +13,18 @@ void BB::InitBB(const BBInitInfo& a_bb_info)
 	g_AllocationLogFile = OSCreateFile(L"allocationLogger.txt");
 #endif //_DEBUG
 
-	g_logger.memory_arena = MemoryArenaCreate();
-	g_logger.max_logger_buffer_size = a_bb_info.logger_buffer_storage;
-	g_logger.cache_string = String(g_logger.memory_arena, a_bb_info.logger_buffer_storage);
-	g_logger.upload_string = String(g_logger.memory_arena, a_bb_info.logger_buffer_storage);
-	g_logger.write_to_file_mutex = OSCreateMutex();
-	g_logger.log_file = OSCreateFile(L"logger.txt");
+	{
+		MemoryArena arena = MemoryArenaCreate();
+		g_logger = ArenaAllocType(arena, Logger_inst);
+		g_logger->memory_arena = MemoryArenaCreate();
+	}
+	g_logger->max_logger_buffer_size = a_bb_info.logger_buffer_storage;
+	g_logger->cache_string = String(g_logger->memory_arena, a_bb_info.logger_buffer_storage);
+	g_logger->upload_string = String(g_logger->memory_arena, a_bb_info.logger_buffer_storage);
+	g_logger->write_to_file_mutex = OSCreateMutex();
+	g_logger->log_file = OSCreateFile(L"logger.txt");
 
-	g_logger.enabled_warning_flags = a_bb_info.logger_enabled_warning_flags;
+	g_logger->enabled_warning_flags = a_bb_info.logger_enabled_warning_flags;
 
 	if (!OSSetCurrentDirectory(g_exe_path))
 		LatestOSError();
@@ -32,8 +36,10 @@ void BB::DestroyBB()
 {
 	Logger::LoggerWriteToFile();
 
-	MemoryArenaFree(g_logger.memory_arena);
-	OSDestroyMutex(g_logger.write_to_file_mutex);
+	OSDestroyMutex(g_logger->write_to_file_mutex);
+	CloseOSFile(g_logger->log_file);
+	MemoryArenaFree(g_logger->memory_arena);
+
 }
 
 const wchar* BB::GetProgramName()

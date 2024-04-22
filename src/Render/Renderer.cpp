@@ -633,8 +633,8 @@ struct RenderInterface_inst
 	} cpu_index_buffer;
 
 	StaticSlotmap<Mesh, MeshHandle> mesh_map{};
-	StaticArray<ShaderEffect> shader_effects{};
-	StaticArray<Material> material_map{};
+	StaticSlotmap<ShaderEffect, ShaderEffectHandle> shader_effects{};
+	StaticSlotmap<Material, MaterialHandle> material_map{};
 };
 
 static RenderInterface_inst* s_render_inst;
@@ -707,8 +707,8 @@ namespace IMGUI_IMPL
 		if (fb_width <= 0 || fb_height <= 0)
 			return;
 
-		const ShaderEffect& vertex = s_render_inst->shader_effects[a_vertex.handle];
-		const ShaderEffect& fragment = s_render_inst->shader_effects[a_fragment.handle];
+		const ShaderEffect& vertex = s_render_inst->shader_effects[a_vertex];
+		const ShaderEffect& fragment = s_render_inst->shader_effects[a_fragment];
 		const ShaderObject shader_objects[2] = { vertex.shader_object, fragment.shader_object };
 		const RPipelineLayout pipeline_layout = vertex.pipeline_layout;
 		BB_ASSERT(vertex.pipeline_layout == fragment.pipeline_layout, "pipeline layout not the same for the imgui vertex and fragment shader");
@@ -1931,7 +1931,7 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 	{
 		//set the first data to get the first 3 descriptor sets.
 		const MeshDrawCall& mesh_draw_call = render_scene3d.draw_list_data.mesh_draw_call[0];
-		const Material& material = s_render_inst->material_map[mesh_draw_call.material.handle];
+		const Material& material = s_render_inst->material_map[mesh_draw_call.material];
 
 		//set 0
 		Vulkan::SetDescriptorImmutableSamplers(a_cmd_list, material.shader.pipeline_layout);
@@ -1951,7 +1951,7 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 	for (uint32_t i = 0; i < render_scene3d.draw_list_count; i++)
 	{
 		const MeshDrawCall& mesh_draw_call = render_scene3d.draw_list_data.mesh_draw_call[i];
-		const Material& material = s_render_inst->material_map[mesh_draw_call.material.handle];
+		const Material& material = s_render_inst->material_map[mesh_draw_call.material];
 		const Mesh& mesh = s_render_inst->mesh_map.find(mesh_draw_call.mesh);
 
 		ShaderObject shader_objects[2];
@@ -1959,7 +1959,7 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 
 		for (size_t eff_index = 0; eff_index < 2; eff_index++)
 		{
-			const ShaderEffect& effect = s_render_inst->shader_effects[material.shader.shader_effects[eff_index].handle];
+			const ShaderEffect& effect = s_render_inst->shader_effects[material.shader.shader_effects[eff_index]];
 			shader_objects[eff_index] = effect.shader_object;
 			shader_stages[eff_index] = effect.shader_stage;
 		}
@@ -2255,8 +2255,7 @@ bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderE
 		shader_effects[i].shader_entry = a_create_infos[i].shader_entry;
 #endif // _ENABLE_REBUILD_SHADERS
 
-		a_handles[i].handle = s_render_inst->shader_effects.size();
-		s_render_inst->shader_effects.push_back(shader_effects[i]);
+		a_handles[i] = s_render_inst->shader_effects.emplace(shader_effects[i]);
 		ReleaseShaderCode(shader_codes[i]);
 	}
 	return true;
@@ -2274,7 +2273,7 @@ bool BB::ReloadShaderEffect(const ShaderEffectHandle a_shader_effect, const Buff
 {
 #ifdef _ENABLE_REBUILD_SHADERS
 	GPUWaitIdle();
-	ShaderEffect& old_effect = s_render_inst->shader_effects[a_shader_effect.handle];
+	ShaderEffect& old_effect = s_render_inst->shader_effects[a_shader_effect];
 	Vulkan::DestroyShaderObject(old_effect.shader_object);
 
 	const ShaderCode shader_code = CompileShader(s_render_inst->shader_compiler,
@@ -2305,13 +2304,13 @@ const MaterialHandle BB::CreateMaterial(const CreateMaterialInfo& a_create_info)
 
 	Material mat;
 	// get the first pipeline layout, compare it with all of the ones in the other shaders.
-	const RPipelineLayout chosen_layout = s_render_inst->shader_effects[a_create_info.shader_effects[0].handle].pipeline_layout;
+	const RPipelineLayout chosen_layout = s_render_inst->shader_effects[a_create_info.shader_effects[0]].pipeline_layout;
 	
 	SHADER_STAGE_FLAGS valid_next_stages = static_cast<uint32_t>(SHADER_STAGE::ALL);
 	for (size_t i = 0; i < a_create_info.shader_effects.size(); i++)
 	{
 		//maybe check if we have duplicate shader stages;
-		const ShaderEffect& effect = s_render_inst->shader_effects[a_create_info.shader_effects[i].handle];
+		const ShaderEffect& effect = s_render_inst->shader_effects[a_create_info.shader_effects[i]];
 		BB_ASSERT(chosen_layout == effect.pipeline_layout, "pipeline layouts are not the same for the shader effects");
 		
 		if (i < a_create_info.shader_effects.size())
@@ -2327,15 +2326,14 @@ const MaterialHandle BB::CreateMaterial(const CreateMaterialInfo& a_create_info)
 	mat.shader.shader_effect_count = static_cast<uint32_t>(a_create_info.shader_effects.size());
 	mat.shader.pipeline_layout = chosen_layout;
 
-	s_render_inst->material_map.emplace_back(mat);
-	return MaterialHandle(s_render_inst->material_map.size() - 1);
+	
+	return s_render_inst->material_map.emplace(mat);
 }
 
 void BB::FreeMaterial(const MaterialHandle a_material)
 {
 	// maybe go and check the refcount of the textures to possibly free them.
-	//s_render_inst->material_map.erase(a_material);
-	BB_UNIMPLEMENTED();
+	s_render_inst->material_map.erase(a_material);
 }
 
 const RTexture BB::CreateTexture(const CreateTextureInfo& a_create_info)
