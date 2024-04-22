@@ -174,32 +174,34 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 	return scene_handle;
 }
 
-void SceneHierarchy::CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name)
+SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name, const SceneObjectHandle a_parent)
 {
-	SceneObjectHandle top_level_handle = m_scene_objects.emplace(SceneObject());
-	SceneObject& top_level_object = m_scene_objects.find(top_level_handle);
-	top_level_object.name = a_name;
-	top_level_object.mesh_handle = MeshHandle(BB_INVALID_HANDLE_64);
-	top_level_object.start_index = 0;
-	top_level_object.index_count = 0;
-	top_level_object.material = MaterialHandle(BB_INVALID_HANDLE_64);
-	top_level_object.parent = SceneObjectHandle(BB_INVALID_HANDLE_64);
-	top_level_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
-	top_level_object.transform = m_transform_pool.CreateTransform(a_position);
+	SceneObjectHandle scene_object_handle = m_scene_objects.emplace(SceneObject());
+	SceneObject& scene_object = m_scene_objects.find(scene_object_handle);
+	scene_object.name = a_name;
+	scene_object.mesh_handle = MeshHandle(BB_INVALID_HANDLE_64);
+	scene_object.start_index = 0;
+	scene_object.index_count = 0;
+	scene_object.material = MaterialHandle(BB_INVALID_HANDLE_64);
+	scene_object.parent = SceneObjectHandle(BB_INVALID_HANDLE_64);
+	scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
+	scene_object.transform = m_transform_pool.CreateTransform(a_position);
 
-	top_level_object.child_count = a_model.root_node_count;
-	BB_ASSERT(top_level_object.child_count < SCENE_OBJ_CHILD_MAX, "Too many childeren for a single scene object!");
+	scene_object.child_count = a_model.root_node_count;
+	BB_ASSERT(scene_object.child_count < SCENE_OBJ_CHILD_MAX, "Too many childeren for a single scene object!");
 
 	for (uint32_t i = 0; i < a_model.root_node_count; i++)
 	{
-		top_level_object.childeren[i] = CreateSceneObjectViaModelNode(a_model, a_model.linear_nodes[a_model.root_node_indices[i]], top_level_handle);
+		scene_object.childeren[i] = CreateSceneObjectViaModelNode(a_model, a_model.linear_nodes[a_model.root_node_indices[i]], scene_object_handle);
 	}
 
 	BB_ASSERT(m_top_level_object_count < m_scene_objects.capacity(), "Too many scene objects, increase the max");
-	m_top_level_objects[m_top_level_object_count++] = top_level_handle;
+	m_top_level_objects[m_top_level_object_count++] = scene_object_handle;
+
+	return scene_object_handle;
 }
 
-void SceneHierarchy::CreateSceneObjectAsLight(const CreateLightInfo& a_light_create_info, const char* a_name)
+SceneObjectHandle SceneHierarchy::CreateSceneObjectAsLight(const CreateLightInfo& a_light_create_info, const char* a_name, const SceneObjectHandle a_parent)
 {
 	const SceneObjectHandle scene_object_handle = m_scene_objects.emplace(SceneObject());
 	SceneObject& scene_object_light = m_scene_objects.find(scene_object_handle);
@@ -217,6 +219,8 @@ void SceneHierarchy::CreateSceneObjectAsLight(const CreateLightInfo& a_light_cre
 	BB_ASSERT(m_top_level_object_count < m_scene_objects.capacity(), "Too many scene objects, increase the max");
 
 	m_top_level_objects[m_top_level_object_count++] = scene_object_handle;
+
+	return scene_object_handle;
 }
 
 void SceneHierarchy::SetView(const float4x4& a_view)
