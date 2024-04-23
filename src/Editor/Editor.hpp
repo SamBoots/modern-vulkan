@@ -21,12 +21,12 @@ namespace BB
 
 		template<typename game_interface>
 		requires is_game_interface<game_interface>
-		void Update(MemoryArena& a_arena, const float a_delta_time, game_interface& a_game_interface)
+		void Update(MemoryArena& a_arena, const float a_delta_time, game_interface& a_game_interface, const Slice<InputEvent> a_input_events)
 		{
-			a_game_interface.Update(a_arena);
+			a_game_interface.Update(a_arena, a_input_events);
 			StaticArray<SceneHierarchy>& scene_hierarchies = a_game_interface.GetSceneHierarchies();
 			(void)scene_hierarchies;
-			Update(a_arena, a_delta_time);
+			Update(a_arena, a_delta_time, a_input_events);
 		}
 
 		bool CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles);
@@ -53,7 +53,7 @@ namespace BB
 		};
 
 	private:
-		void Update(MemoryArena& a_arena, const float a_delta_time);
+		void Update(MemoryArena& a_arena, const float a_delta_time, const Slice<InputEvent> a_input_events);
 		FreelistInterface m_editor_allocator;
 
 		void ImguiDisplaySceneHierarchy(SceneHierarchy& a_hierarchy);

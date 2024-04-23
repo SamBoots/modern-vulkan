@@ -143,8 +143,14 @@ int main(int argc, char** argv)
 	while (!quit_app)
 	{
 		Asset::Update();
+
+		InputEvent input_events[INPUT_EVENT_BUFFER_MAX]{};
+		size_t input_event_count = 0;
+
+		ProcessMessages(window_handle);
+		PollInputEvents(input_events, input_event_count);
 		
-		editor.Update(main_arena, delta_time, def_game);
+		editor.Update(main_arena, delta_time, def_game, Slice(input_events, input_event_count));
 		auto currentnew = std::chrono::high_resolution_clock::now();
 		delta_time = std::chrono::duration<float, std::chrono::seconds::period>(currentnew - current_time).count();
 

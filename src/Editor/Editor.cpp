@@ -499,17 +499,11 @@ void Editor::Destroy()
 	DirectDestroyOSWindow(m_main_window);
 }
 
-void Editor::Update(MemoryArena& a_arena, const float a_delta_time)
+void Editor::Update(MemoryArena& a_arena, const float a_delta_time, const Slice<InputEvent> a_input_events)
 {
-	InputEvent input_events[INPUT_EVENT_BUFFER_MAX]{};
-	size_t input_event_count = 0;
-
-	ProcessMessages(m_main_window);
-	PollInputEvents(input_events, input_event_count);
-
-	for (size_t i = 0; i < input_event_count; i++)
+	for (size_t i = 0; i < a_input_events.size(); i++)
 	{
-		const InputEvent& ip = input_events[i];
+		const InputEvent& ip = a_input_events[i];
 		//imgui can deny our normal input
 		if (ImProcessInput(ip))
 			continue;

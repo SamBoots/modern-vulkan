@@ -10,14 +10,21 @@ namespace BB
 	public:
 		void CreateRoom(MemoryArena& a_arena, const char* a_image_path);
 
-		inline size_t GetRoomIndexFromXY(const size_t a_x, const size_t a_y) const
+		uint32_t GetSizeX() const { return m_room_size_x; }
+		uint32_t GetSizeY() const { return m_room_size_y; }
+		inline DUNGEON_TILE GetTile(const uint32_t a_x, const uint32_t a_y) const
+		{
+			return m_room_tiles[GetRoomIndexFromXY(a_x, a_y)];
+		}
+
+	private:
+		inline uint32_t GetRoomIndexFromXY(const uint32_t a_x, const uint32_t a_y) const
 		{
 			BB_ASSERT(a_x < m_room_size_x, "a_x is higher then m_room_size_x");
 			BB_ASSERT(a_y < m_room_size_y, "a_y is higher then m_room_size_y");
 			return a_x + a_y * m_room_size_x;
 		}
 
-	private:
 		uint32_t m_room_size_x;
 		uint32_t m_room_size_y;
 		StaticArray<DUNGEON_TILE> m_room_tiles;
@@ -26,43 +33,46 @@ namespace BB
 	class DungeonMap
 	{
 	public:
-		void Init();
-		void Destroy();
-		void CreateMap(const uint32_t a_map_size_x, const uint32_t a_map_size_y);
+		MemoryArenaMarker CreateMap(MemoryArena& a_game_memory, const uint32_t a_map_size_x, const uint32_t a_map_size_y, const Slice<DungeonRoom*> a_rooms);
 		void DestroyMap();
+
+		SceneObjectHandle CreateRenderObject(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy);
 
 		struct DungeonTile
 		{
 			bool walkable;
 		};
-
-		inline size_t GetMapIndexFromXY(const size_t a_x, const size_t a_y) const
+		inline DungeonTile GetTile(const uint32_t a_x, const uint32_t a_y) const
 		{
-			return a_x + a_y * m_map_size_x;
+			return m_map[GetMapIndexFromXY(a_x, a_y)];
 		}
 
-
 	private:
+		inline uint32_t GetMapIndexFromXY(const uint32_t a_x, const uint32_t a_y) const
+		{
+			BB_ASSERT(a_x < m_map_size_x, "a_x is higher then m_map_size_x");
+			BB_ASSERT(a_y < m_map_size_y, "a_y is higher then m_map_size_y");
+			return a_x + a_y * m_map_size_x;
+		}
 		uint32_t m_map_size_x;
 		uint32_t m_map_size_y;
  		StaticArray<DungeonTile> m_map;
-
-		MemoryArena m_dungeon_map_memory;
-		MemoryArenaMarker m_before_mem_mark;
 	};
-
-
 
 	class DungeonGame
 	{
 	public:
 		bool InitGame(MemoryArena& a_arena, const uint32_t a_scene_count);
-		bool Update(MemoryArena& a_temp_arena);
+		bool Update(MemoryArena& a_temp_arena, const Slice<InputEvent> a_input_events);
 		void Destroy();
 
 		StaticArray<SceneHierarchy>& GetSceneHierarchies() { return m_scene_hierarchies; }
 
 	private:
+		MemoryArena m_game_memory;
+
 		StaticArray<SceneHierarchy> m_scene_hierarchies;
+		StaticArray<DungeonRoom> m_dungeon_rooms;
+		DungeonMap m_dungeon_map;
 	};
 }

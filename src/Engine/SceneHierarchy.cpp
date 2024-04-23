@@ -174,6 +174,35 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 	return scene_handle;
 }
 
+SceneObjectHandle SceneHierarchy::CreateSceneObject(const float3 a_position, const char* a_name, const SceneObjectHandle a_parent)
+{
+	SceneObjectHandle scene_object_handle = m_scene_objects.emplace(SceneObject());
+	SceneObject& scene_object = m_scene_objects.find(scene_object_handle);
+	if (a_parent.IsValid())
+	{
+		SceneObject& parent = m_scene_objects.find(a_parent);
+		parent.AddChild(scene_object_handle);
+		scene_object.parent = a_parent;
+	}
+	else
+	{
+		scene_object.parent = SceneObjectHandle(BB_INVALID_HANDLE_64);
+		BB_ASSERT(m_top_level_object_count < m_scene_objects.capacity(), "Too many scene objects, increase the max");
+		m_top_level_objects[m_top_level_object_count++] = scene_object_handle;
+	}
+
+	scene_object.name = a_name;
+	scene_object.mesh_handle = MeshHandle(BB_INVALID_HANDLE_64);
+	scene_object.start_index = 0;
+	scene_object.index_count = 0;
+	scene_object.material = MaterialHandle(BB_INVALID_HANDLE_64);
+	scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
+	scene_object.transform = m_transform_pool.CreateTransform(a_position);
+	scene_object.child_count = 0;
+
+	return scene_object_handle;
+}
+
 SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name, const SceneObjectHandle a_parent)
 {
 	SceneObjectHandle scene_object_handle = m_scene_objects.emplace(SceneObject());
@@ -235,6 +264,12 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectAsLight(const CreateLightInfo
 	scene_object.child_count = 0;
 
 	return scene_object_handle;
+}
+
+void SceneHierarchy::SetMesh(const SceneObjectHandle& SceneObjectHandle, const MeshHandle a_mesh_handle)
+{
+	SceneObject& scene_object = m_scene_objects.find(SceneObjectHandle);
+	scene_object.mesh_handle = a_mesh_handle;
 }
 
 void SceneHierarchy::SetView(const float4x4& a_view)
