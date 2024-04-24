@@ -54,6 +54,13 @@ namespace BB
 			BB_ASSERT(a_y < m_map_size_y, "a_y is higher then m_map_size_y");
 			return a_x + a_y * m_map_size_x;
 		}
+		inline void GetMapXYFromIndex(const uint32_t a_index, uint32_t& a_x, uint32_t& a_y)
+		{
+			BB_ASSERT(m_map.size() < a_index, "a_index is higher then the size of the map");
+			a_x = a_index % m_map_size_x;
+			a_y = a_index / m_map_size_y;
+		}
+
 		uint32_t m_map_size_x;
 		uint32_t m_map_size_y;
  		StaticArray<DungeonTile> m_map;

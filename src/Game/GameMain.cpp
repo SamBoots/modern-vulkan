@@ -117,8 +117,66 @@ SceneObjectHandle DungeonMap::CreateRenderObject(MemoryArena& a_temp_arena, Scen
 
 	MemoryArenaScope(a_temp_arena)
 	{
+		Vertex bot_left;
+		bot_left.normal = float3(0.f, 1.f, 0.1f);
+		bot_left.uv = float2(0.f, 0.f);
+		bot_left.color = float3(1.f, 1.f, 1.f);
+
+		Vertex bot_right;
+		bot_right.normal = float3(0.f, 1.f, 0.1f);
+		bot_right.uv = float2(1.f, 0.f);
+		bot_right.color = float3(1.f, 1.f, 1.f);
+
+		Vertex top_left;
+		top_left.normal = float3(0.f, 1.f, 0.1f);
+		top_left.uv = float2(0.f, 1.f);
+		top_left.color = float3(1.f, 1.f, 1.f);
+
+		Vertex top_right;
+		top_right.normal = float3(0.f, 1.f, 0.1f);
+		top_right.uv = float2(1.f, 1.f);
+		top_right.color = float3(1.f, 1.f, 1.f);
+
 		StaticArray<Vertex> vertices;
+		vertices.Init(a_temp_arena, m_map.size() * 4);
 		StaticArray<uint32_t> indices;
+		indices.Init(a_temp_arena, m_map.size() * 6);
+		// optimize this
+		for (uint32_t y = 0; y < m_map_size_y; y++)
+		{
+			for (uint32_t x = 0; x < m_map_size_x; x++)
+			{
+				const DungeonTile& tile = GetTile(x, y);
+				if (tile.walkable)
+				{
+					const float3 pos_bot_left = float3(static_cast<float>(x), static_cast<float>(y), 0.f);
+					const float3 pos_bot_right = float3(static_cast<float>(x + 1), static_cast<float>(y), 0.f);
+					const float3 pos_top_left = float3(static_cast<float>(x), static_cast<float>(y + 1), 0.f);
+					const float3 pos_top_right = float3(static_cast<float>(x + 1), static_cast<float>(y + 1), 0.f);
+
+					bot_left.position = pos_bot_left;
+					bot_right.position = pos_bot_right;
+					top_left.position = pos_top_left;
+					top_right.position = pos_top_right;
+
+					const uint32_t current_index = indices.size();
+					const uint32_t quad_indices[] = {
+						current_index,
+						current_index + 1,
+						current_index + 2,
+						current_index + 2,
+						current_index + 3,
+						current_index + 1
+					};
+
+					vertices.push_back(bot_left);
+					vertices.push_back(bot_right);
+					vertices.push_back(top_left);
+					vertices.push_back(top_right);
+					indices.push_back(quad_indices, _countof(quad_indices));
+				}
+			}
+		}
 
 		MeshHandle mesh;
 		a_scene_hierarchy.SetMesh(map_obj, mesh);
