@@ -204,12 +204,6 @@ struct AssetManager
 	MemoryArena string_arena;
 	// change char* to a string class 
 	StaticOL_HashMap<uint64_t, char*> string_table;
-
-	struct TemporaryTexture
-	{
-		RTexture texture;
-		uint64_t transfer_value;
-	};
 };
 static AssetManager* s_asset_manager;
 

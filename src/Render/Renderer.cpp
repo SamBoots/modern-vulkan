@@ -583,6 +583,12 @@ struct RenderInterface_inst
 
 	UploadRingAllocator frame_upload_allocator;
 	RenderQueue graphics_queue;
+
+	struct UploadTask
+	{
+
+	};
+	Queue<UploadTask> transfer_tasks;
 	RenderQueue transfer_queue;
 
 	GPUTextureManager texture_manager;

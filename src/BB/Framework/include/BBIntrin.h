@@ -9,9 +9,19 @@
 
 namespace BB
 {
-	static inline void BBInterlockedIncrement64(volatile long long* a_value)
+	static inline uint32_t BBInterlockedIncrement32(volatile uint32_t* a_value)
 	{
-		_InterlockedIncrement64(a_value);
+		return _InterlockedIncrement(reinterpret_cast<volatile long*>(a_value));
+	}
+
+	static inline long BBInterlockedExchange32(volatile uint32_t* a_value, const uint32_t a_exc_value)
+	{
+		return _InterlockedExchange(reinterpret_cast<volatile long*>(a_value), a_exc_value);
+	}
+
+	static inline uint64_t BBInterlockedIncrement64(volatile uint64_t* a_value)
+	{
+		return _InterlockedIncrement64(reinterpret_cast<volatile long long*>(a_value));
 	}
 
 #define BB_USE_SIMD
