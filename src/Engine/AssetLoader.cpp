@@ -185,7 +185,7 @@ struct AssetManager
 
 	BBRWLock gpu_task_lock;
 	FreelistInterface gpu_task_arena;
-	Queue<GPUTask> gpu_tasks_queue;
+	SPSCQueue<GPUTask> gpu_tasks_queue;
 
 	struct IconGigaTexture
 	{

@@ -19,6 +19,7 @@ struct RenderFence
 	uint64_t last_complete_value;
 	RFence fence;
 };
+constexpr uint32_t MAX_UPLOAD_QUEUE = 256;
 
 constexpr uint32_t MAX_TEXTURES = 1024;
 constexpr const char* DEBUG_TEXTURE_NAME = "debug texture";
@@ -265,7 +266,7 @@ private:
 	void* m_free_until;
 	void* m_write_at;
 	void* m_end;
-	Queue<LockedRegions> m_locked_queue;
+	SPSCQueue<LockedRegions> m_locked_queue;
 };
 
 //THREAD SAFE: TRUE
@@ -583,13 +584,44 @@ struct RenderInterface_inst
 
 	UploadRingAllocator frame_upload_allocator;
 	RenderQueue graphics_queue;
+	RenderQueue transfer_queue;
+
+
 
 	struct UploadTask
 	{
+		enum class UploadTask_e
+		{
+			MESH,
+			TEXTURE,
+			BUFFER
+		};
 
+		UploadTask_e type;
+		union
+		{
+			struct Mesh
+			{
+
+			};
+			struct Texture
+			{
+
+			};
+			struct Buffer
+			{
+
+			};
+		};
+		void* memory;
 	};
-	Queue<UploadTask> transfer_tasks;
-	RenderQueue transfer_queue;
+
+	struct AssetUploader
+	{
+		MPSCQueue<UploadTask> transfer_tasks;
+		MemoryArena arena;
+	};
+	AssetUploader asset_queue;
 
 	GPUTextureManager texture_manager;
 
@@ -1240,6 +1272,9 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	s_render_inst->material_map.Init(a_arena, 256);
 
 	s_render_inst->frame_upload_allocator.Init(a_arena, a_render_create_info.frame_upload_buffer_size, s_render_inst->graphics_queue.GetFence().fence, "frame upload allocator");
+
+	s_render_inst->asset_queue.transfer_tasks.Init(a_arena, MAX_UPLOAD_QUEUE);
+	s_render_inst->asset_queue.arena = MemoryArenaCreate();
 
 	{	// do asset upload allocator here
 		s_render_inst->asset_upload_value_lock = OSCreateRWLock();
