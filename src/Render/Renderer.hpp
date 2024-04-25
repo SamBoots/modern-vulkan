@@ -149,8 +149,6 @@ namespace BB
 	bool PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, uint64_t& a_out_fence_value);
 	bool ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, uint64_t& a_out_fence_value);
 
-	uint64_t GetCurrentAssetTransferFenceValue();
-	uint64_t GetNextAssetTransferFenceValueAndIncrement();
 	bool ExecuteAssetTransfer(const BB::Slice<CommandPool> a_cmd_pools, const uint64_t a_asset_transfer_fence_value);
 	
 	GPUBufferView AllocateFromVertexBuffer(const size_t a_size_in_bytes);
@@ -160,7 +158,7 @@ namespace BB
 	WriteableGPUBufferView AllocateFromWritableIndexBuffer(const size_t a_size_in_bytes);
 
 	// returns invalid mesh when not enough upload buffer space
-	const MeshHandle CreateMesh(const RCommandList a_list, const CreateMeshInfo& a_create_info, const uint64_t a_transfer_fence_value);
+	const MeshHandle CreateMesh(const CreateMeshInfo& a_create_info);
 	void FreeMesh(const MeshHandle a_mesh);
 
 	LightHandle CreateLight(const RenderScene3DHandle a_scene, const CreateLightInfo& a_create_info);

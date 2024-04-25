@@ -557,6 +557,36 @@ struct Scene3D
 	StaticSlotmap<PointLight, LightHandle> light_container;
 };
 
+enum class UPLOAD_TASK_TYPE
+{
+	MESH,
+	TEXTURE,
+	BUFFER
+};
+
+struct UploadDataMesh
+{
+	MeshHandle mesh_index;
+	RenderCopyBufferRegion vertex_region;
+	RenderCopyBufferRegion index_region;
+};
+struct UploadDataTexture
+{
+	RTexture texture;
+	void* mem;
+	size_t mem_size;
+};
+
+struct UploadTask
+{
+	UPLOAD_TASK_TYPE type;
+	union
+	{
+		UploadDataMesh mesh;
+		UploadDataTexture texture;
+	};
+};
+
 struct RenderInterface_inst
 {
 	RenderInterface_inst(MemoryArena& a_arena)
@@ -576,52 +606,18 @@ struct RenderInterface_inst
 
 	ShaderCompiler shader_compiler;
 
-	// transfer queue should always use this
-	UploadRingAllocator asset_upload_allocator;
-	RFence asset_upload_fence;
-	uint64_t asset_upload_next_fence_value;
-	BBRWLock asset_upload_value_lock;		// yes, a lock for a single variable
-
 	UploadRingAllocator frame_upload_allocator;
 	RenderQueue graphics_queue;
 	RenderQueue transfer_queue;
 
-
-
-	struct UploadTask
-	{
-		enum class UploadTask_e
-		{
-			MESH,
-			TEXTURE,
-			BUFFER
-		};
-
-		UploadTask_e type;
-		union
-		{
-			struct Mesh
-			{
-
-			};
-			struct Texture
-			{
-
-			};
-			struct Buffer
-			{
-
-			};
-		};
-		void* memory;
-	};
-
 	struct AssetUploader
 	{
-		MPSCQueue<UploadTask> transfer_tasks;
-		MemoryArena arena;
+		UploadRingAllocator gpu_allocator;
+		RFence fence;
+		std::atomic<uint64_t> next_fence_value;
+		MPSCQueue<UploadTask> upload_tasks;
 	};
-	AssetUploader asset_queue;
+	AssetUploader asset_uploader;
 
 	GPUTextureManager texture_manager;
 
@@ -1273,15 +1269,13 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 
 	s_render_inst->frame_upload_allocator.Init(a_arena, a_render_create_info.frame_upload_buffer_size, s_render_inst->graphics_queue.GetFence().fence, "frame upload allocator");
 
-	s_render_inst->asset_queue.transfer_tasks.Init(a_arena, MAX_UPLOAD_QUEUE);
-	s_render_inst->asset_queue.arena = MemoryArenaCreate();
+	
 
 	{	// do asset upload allocator here
-		s_render_inst->asset_upload_value_lock = OSCreateRWLock();
-		s_render_inst->asset_upload_fence = Vulkan::CreateFence(0, "asset upload fence");
-		s_render_inst->asset_upload_next_fence_value = 1;
-		s_render_inst->asset_upload_allocator.Init(a_arena, a_render_create_info.asset_upload_buffer_size, s_render_inst->asset_upload_fence, "asset upload buffer");
-
+		s_render_inst->asset_uploader.upload_tasks.Init(a_arena, MAX_UPLOAD_QUEUE);
+		s_render_inst->asset_uploader.gpu_allocator.Init(a_arena, a_render_create_info.asset_upload_buffer_size, s_render_inst->asset_upload_fence, "asset upload buffer");
+		s_render_inst->asset_uploader.fence = Vulkan::CreateFence(0, "asset upload fence");
+		s_render_inst->asset_uploader.next_fence_value = 1;
 	}
 
 	s_render_inst->shader_compiler = CreateShaderCompiler(a_arena);
@@ -2114,20 +2108,6 @@ bool BB::ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, uint64
 	return true;
 }
 
-uint64_t BB::GetCurrentAssetTransferFenceValue()
-{
-	const uint64_t fence_value = Vulkan::GetCurrentFenceValue(s_render_inst->asset_upload_fence);
-	return fence_value;
-}
-
-uint64_t BB::GetNextAssetTransferFenceValueAndIncrement()
-{
-	OSAcquireSRWLockWrite(&s_render_inst->asset_upload_value_lock);
-	const uint64_t fence_value = s_render_inst->asset_upload_next_fence_value++;
-	OSReleaseSRWLockWrite(&s_render_inst->asset_upload_value_lock);
-	return fence_value;
-}
-
 bool BB::ExecuteAssetTransfer(const BB::Slice<CommandPool> a_cmd_pools, const uint64_t a_asset_transfer_fence_value)
 {
 	uint32_t list_count = 0;
@@ -2150,9 +2130,12 @@ bool BB::ExecuteAssetTransfer(const BB::Slice<CommandPool> a_cmd_pools, const ui
 	return true;
 }
 
-const MeshHandle BB::CreateMesh(const RCommandList a_list, const CreateMeshInfo& a_create_info, const uint64_t a_transfer_fence_value)
+const MeshHandle BB::CreateMesh(const CreateMeshInfo& a_create_info)
 {
-	UploadBuffer upload_buffer = s_render_inst->asset_upload_allocator.AllocateUploadMemory(a_create_info.vertices.sizeInBytes() + a_create_info.indices.sizeInBytes(), a_transfer_fence_value);
+	// make this it's own class or something
+	RenderInterface_inst::AssetUploader& uploader = s_render_inst->asset_uploader;
+
+	UploadBuffer upload_buffer = uploader.gpu_allocator(a_create_info.vertices.sizeInBytes() + a_create_info.indices.sizeInBytes(), uploader.next_fence_value);
 
 	Mesh mesh;
 	mesh.vertex_buffer = AllocateFromVertexBuffer(a_create_info.vertices.sizeInBytes());
@@ -2163,26 +2146,17 @@ const MeshHandle BB::CreateMesh(const RCommandList a_list, const CreateMeshInfo&
 	upload_buffer.SafeMemcpy(vertex_offset, a_create_info.vertices.data(), a_create_info.vertices.sizeInBytes());
 	upload_buffer.SafeMemcpy(index_offset, a_create_info.indices.data(), a_create_info.indices.sizeInBytes());
 
-	RenderCopyBufferRegion copy_regions[2];
-	RenderCopyBuffer copy_buffer_infos[2];
-
-	copy_buffer_infos[0].dst = mesh.vertex_buffer.buffer;
-	copy_buffer_infos[0].src = upload_buffer.buffer;
-	copy_buffer_infos[0].regions = Slice(&copy_regions[0], 1);
-	copy_regions[0].size = mesh.vertex_buffer.size;
-	copy_regions[0].dst_offset = mesh.vertex_buffer.offset;
-	copy_regions[0].src_offset = vertex_offset + upload_buffer.base_offset;
-
-	copy_buffer_infos[1].dst = mesh.index_buffer.buffer;
-	copy_buffer_infos[1].src = upload_buffer.buffer;
-	copy_buffer_infos[1].regions = Slice(&copy_regions[1], 1);
-	copy_regions[1].size = mesh.index_buffer.size;
-	copy_regions[1].dst_offset = mesh.index_buffer.offset;
-	copy_regions[1].src_offset = index_offset + upload_buffer.base_offset;
-
-	Vulkan::CopyBuffers(a_list, copy_buffer_infos, 2);
-
-	return MeshHandle(s_render_inst->mesh_map.insert(mesh).handle);
+	UploadTask task{};
+	task.type = UPLOAD_TASK_TYPE::MESH;
+	task.mesh.vertex_region.size = mesh.vertex_buffer.size;
+	task.mesh.vertex_region.dst_offset = mesh.vertex_buffer.offset;
+	task.mesh.vertex_region.src_offset = vertex_offset + upload_buffer.base_offset;
+	task.mesh.index_region.size = mesh.index_buffer.size;
+	task.mesh.index_region.dst_offset = mesh.index_buffer.offset;
+	task.mesh.index_region.src_offset = index_offset + upload_buffer.base_offset;
+	task.mesh.mesh_index = s_render_inst->mesh_map.insert(mesh); // TODO, debug mesh!
+	uploader.upload_tasks.EnQueue(task);
+	return task.mesh.mesh_index;
 }
 
 void BB::FreeMesh(const MeshHandle a_mesh)
