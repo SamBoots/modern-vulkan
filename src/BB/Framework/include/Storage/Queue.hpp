@@ -111,21 +111,19 @@ namespace BB
 				return false;
 			}
 
-			const size_t head = m_head.fetch_add(1, std::memory_order_acquire);
-			m_arr[head % m_capacity].exchange(a_element, std::memory_order_release);
+			const size_t head = m_head.fetch_add(1, std::memory_order_acquire) % m_capacity;
+			m_arr[head].exchange(a_element, std::memory_order_release);
 			return true;
 		}
 
 		// thread unsafe
-		bool DeQueue(T* a_out)
+		bool DeQueue(T& a_out)
 		{
-			BB_WARNING(a_out == nullptr, "Dequeue but the a_out value is not a nullptr", WarningType::LOW);
 			if (m_size == 0)
 			{
-				a_out = nullptr;
 				return false;
 			}
-			a_out = m_arr[m_tail].exchange(NULL, std::memory_order_acquire);
+			a_out = m_arr[m_tail].load();
 			m_size.fetch_sub(1, std::memory_order_release);
 			if (++m_tail >= m_capacity)
 				m_tail = 0;
@@ -135,7 +133,7 @@ namespace BB
 
 		inline bool IsEmpty() const
 		{
-			return m_tail == -1u;
+			return !m_size;
 		}
 
 		inline bool IsFull() const

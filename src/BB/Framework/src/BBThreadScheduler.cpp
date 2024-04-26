@@ -35,7 +35,7 @@ void BB::Threads::Barrier::Signal()
 
 struct ThreadInfo
 {
-	void(*function)(void*);
+	void(*function)(MemoryArena& a_thread_arena, void*);
 	void* function_parameter;
 	THREAD_STATUS thread_status;
 	//debug value for the ThreadHandle extra_index;
@@ -63,18 +63,22 @@ static void ThreadStartFunc(void* a_args)
 {
 	ThreadInfo* thread_info = reinterpret_cast<ThreadInfo*>(a_args);
 	BBRWLock lock = OSCreateRWLock();
+	MemoryArena arena = MemoryArenaCreate();
 	OSAcquireSRWLockWrite(&lock);
 
 	while (thread_info->thread_status != THREAD_STATUS::DESTROY)
 	{
-		OSWaitConditionalVariableExclusive(&thread_info->condition, &lock);
-		OSSetThreadName(thread_info->task_name);
-		thread_info->function(thread_info->function_parameter);
-		thread_info->function = nullptr;
-		thread_info->function_parameter = nullptr;
-		++thread_info->generation;
-		OSSetThreadName(L"none");
-		thread_info->thread_status = THREAD_STATUS::IDLE;
+		MemoryArenaScope(arena)
+		{
+			OSWaitConditionalVariableExclusive(&thread_info->condition, &lock);
+			OSSetThreadName(thread_info->task_name);
+			thread_info->function(arena, thread_info->function_parameter);
+			thread_info->function = nullptr;
+			thread_info->function_parameter = nullptr;
+			++thread_info->generation;
+			OSSetThreadName(L"none");
+			thread_info->thread_status = THREAD_STATUS::IDLE;
+		}
 	}
 }
 #pragma optimize( "", on )
@@ -105,7 +109,7 @@ void BB::Threads::DestroyThreads()
 	}
 }
 
-ThreadTask BB::Threads::StartTaskThread(void(*a_Function)(void*), void* a_FuncParameter, const wchar_t* a_task_name)
+ThreadTask BB::Threads::StartTaskThread(void(*a_Function)(MemoryArena&, void*), void* a_FuncParameter, const wchar_t* a_task_name)
 {
 	for (uint32_t i = 0; i < s_ThreadScheduler.thread_count; i++)
 	{

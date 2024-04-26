@@ -148,7 +148,7 @@ struct process_image_part_params
 	float bias;
 };
 
-static void FilterImagePart(void* a_param)
+static void FilterImagePart(MemoryArena&, void* a_param)
 {
 	const process_image_part_params& params = *reinterpret_cast<process_image_part_params*>(a_param);
 
@@ -234,7 +234,7 @@ void BBImage::FilterImage(MemoryArena& a_temp_arena, const float* a_filter, cons
 		params[worker_threads].img_height_start = pixel_height_per_thread * worker_threads;
 		params[worker_threads].img_height_end = params[worker_threads].img_height_start + pixel_height_per_thread;
 		//now send the main thread for some work.
-		FilterImagePart(&params[worker_threads]);
+		FilterImagePart(a_temp_arena, &params[worker_threads]);
 
 		thread_barrier->Wait();
 	}

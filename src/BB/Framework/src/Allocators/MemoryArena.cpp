@@ -78,25 +78,8 @@ void BB::MemoryArenaFree(MemoryArena& a_arena)
 
 void BB::MemoryArenaReset(MemoryArena& a_arena)
 {
-	MemoryArenaDecommitExess(a_arena);
 	memset(a_arena.buffer, 0, GetAddressRange(a_arena.buffer, a_arena.commited));
 	a_arena.at = a_arena.buffer;
-}
-
-void BB::MemoryArenaDecommitExess(MemoryArena& a_arena)
-{
-	if (a_arena.owns_memory)
-	{
-		const void* const aligned_at = Pointer::AlignAddress(a_arena.at, ARENA_DEFAULT_COMMIT);
-		void* const decommit_start = Max(aligned_at, Pointer::Add(a_arena.buffer, ARENA_DEFAULT_COMMITTED_SIZE));
-		const size_t decommit_size = Max(0u, GetAddressRange(decommit_start, a_arena.commited));
-
-		if (decommit_size > 0)
-		{
-			BB_ASSERT(DecommitVirtualMemory(decommit_start, decommit_size), "decommiting memory arena failed");
-			a_arena.commited = decommit_start;
-		}
-	}
 }
 
 void BB::TagMemory(const MemoryArena& a_arena, void* a_ptr, const char* a_tag_name)
@@ -131,7 +114,6 @@ static void MemoryArenaResetTo(MemoryArena& a_arena, void* a_memory_marker)
 #endif // SANITIZER_ENABLED
 
 	a_arena.at = a_memory_marker;
-	MemoryArenaDecommitExess(a_arena);
 }
 
 MemoryArenaMarker BB::MemoryArenaGetMemoryMarker(const MemoryArena& a_arena)
@@ -169,7 +151,7 @@ size_t BB::MemoryArenaSizeUsed(const MemoryArena& a_arena)
 
 bool BB::MemoryArenaIsPointerWithinArena(const MemoryArena& a_arena, const void* a_pointer)
 {
-	if (a_pointer > a_arena.buffer && a_pointer < a_arena.end)
+	if (a_pointer >= a_arena.buffer && a_pointer <= a_arena.end)
 		return true;
 
 	return false;

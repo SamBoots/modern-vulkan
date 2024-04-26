@@ -72,7 +72,7 @@ namespace BB
 			size_t asset_count;
 			const char* cmd_list_name = "upload asset task";
 		};
-		static void LoadAssetsAsync(void* a_params);
+		static void LoadAssetsAsync(MemoryArena& a_thread_arena, void* a_params);
 
 		class Viewport
 		{
@@ -105,7 +105,7 @@ namespace BB
 			SceneHierarchy& scene_hierarchy;
 			RCommandList command_list;
 		};
-		static void ThreadFuncForDrawing(void* a_param);
+		static void ThreadFuncForDrawing(MemoryArena& a_thread_arena, void* a_param);
 
 		StaticArray<MaterialInfo> m_materials;
 		StaticArray<ShaderEffectInfo> m_shader_effects;

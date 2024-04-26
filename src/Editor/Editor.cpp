@@ -417,7 +417,7 @@ void Editor::MainEditorImGuiInfo(const MemoryArena& a_arena)
 	ImGui::End();
 }
 
-void Editor::ThreadFuncForDrawing(void* a_param)
+void Editor::ThreadFuncForDrawing(MemoryArena&, void* a_param)
 {
 	ThreadFuncForDrawing_Params* param_in = reinterpret_cast<ThreadFuncForDrawing_Params*>(a_param);
 
@@ -1012,7 +1012,7 @@ void Editor::ImGuiCreateMaterial()
 	}
 }
 
-void Editor::LoadAssetsAsync(void* a_params)
+void Editor::LoadAssetsAsync(MemoryArena&, void* a_params)
 {
 	LoadAssetsAsync_params* params = reinterpret_cast<LoadAssetsAsync_params*>(a_params);
 	MemoryArena load_arena = MemoryArenaCreate();

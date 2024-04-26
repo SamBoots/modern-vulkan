@@ -63,8 +63,6 @@ namespace BB
 	void MemoryArenaFree(MemoryArena& a_arena);
 	void MemoryArenaReset(MemoryArena& a_arena);
 
-	void MemoryArenaDecommitExess(MemoryArena& a_arena);
-
 	void TagMemory(const MemoryArena& a_arena, void* a_memory_tag, const char* a_tag_name);
 
 	const MemoryArenaAllocationInfo* MemoryArenaGetFrontAllocationLog(const MemoryArena& a_arena);

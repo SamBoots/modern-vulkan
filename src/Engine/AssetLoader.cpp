@@ -222,7 +222,7 @@ static void AddGPUTask(const PFN_GPUTaskCallback a_callback, const T& a_params, 
 
 static void ExecuteGPUTasks()
 {
-	const uint64_t fence_value = GetCurrentAssetTransferFenceValue();
+	const uint64_t fence_value = 0;
 
 	OSAcquireSRWLockWrite(&s_asset_manager->gpu_task_lock);
 	const GPUTask* task = s_asset_manager->gpu_tasks_queue.Peek();
@@ -472,7 +472,7 @@ void Asset::LoadAssets(MemoryArena& memory_arena, const Slice<AsyncAsset> a_asyn
 	CommandPool& cmd_pool = GetTransferCommandPool();
 	const RCommandList cmd_list = cmd_pool.StartCommandList(a_cmd_list_name);
 
-	const uint64_t asset_fence_value = GetNextAssetTransferFenceValueAndIncrement();
+	const uint64_t asset_fence_value = 0;
 
 	for (size_t i = 0; i < a_asyn_assets.size(); i++)
 	{
@@ -519,7 +519,7 @@ struct LoadAsyncFunc_Params
 	const char* cmd_list_name;
 };
 
-static void LoadAsync_func(void* a_param)
+static void LoadAsync_func(MemoryArena&, void* a_param)
 {
 	using namespace Asset;
 	LoadAsyncFunc_Params* params = reinterpret_cast<LoadAsyncFunc_Params*>(a_param);
@@ -871,7 +871,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const RCommandList a_list, c
 	create_mesh.vertices = Slice(vertices, vertex_count);
 	create_mesh.indices = Slice(indices, index_count);
 
-	a_mesh.mesh_handle = CreateMesh(a_list, create_mesh, a_transfer_fence_value);
+	a_mesh.mesh_handle = CreateMesh(create_mesh);
 }
 
 static void* cgltf_arena_alloc(void* a_user, cgltf_size a_size)
@@ -1002,7 +1002,7 @@ const Model* Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoad
 
 	Model::Mesh& mesh = model->meshes[0];
 	mesh.primitives[0] = primitive;
-	mesh.mesh_handle = CreateMesh(a_list, mesh_info, a_transfer_fence_value);
+	mesh.mesh_handle = CreateMesh(mesh_info);
 
 	*model->root_node_indices = 0;
 
@@ -1193,7 +1193,7 @@ void Asset::ShowAssetMenu(MemoryArena& a_arena)
 							{
 								CommandPool& pool = GetTransferCommandPool();
 								const RCommandList list = pool.StartCommandList("set new icon task");
-								const uint64_t transfer_fence_value = GetNextAssetTransferFenceValueAndIncrement();
+								const uint64_t transfer_fence_value = 0;
 								slot->icon = LoadIconFromPath(a_arena, path_search.GetView(), list, transfer_fence_value, false);
 
 								IconWriteToDisk(list, transfer_fence_value, slot->icon, GetIconPathFromAssetName(StringView(slot->name)));

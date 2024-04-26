@@ -2145,33 +2145,6 @@ void Vulkan::CopyBuffer(const RCommandList a_list, const RenderCopyBuffer& a_cop
 		copy_regions);
 }
 
-void Vulkan::CopyBuffers(const RCommandList a_list, const RenderCopyBuffer* a_copy_buffers, const uint32_t a_copy_buffer_count)
-{
-	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
-
-	for (size_t i = 0; i < a_copy_buffer_count; i++)
-	{
-		const RenderCopyBuffer& cpy_buf = a_copy_buffers[i];
-
-		VkBufferCopy* copy_regions = BBstackAlloc(cpy_buf.regions.size(), VkBufferCopy);
-		for (size_t cpy_reg_index = 0; cpy_reg_index < cpy_buf.regions.size(); cpy_reg_index++)
-		{
-			const RenderCopyBufferRegion& r_cpy_reg = cpy_buf.regions[cpy_reg_index];
-			VkBufferCopy& cpy_reg = copy_regions[cpy_reg_index];
-
-			cpy_reg.size = r_cpy_reg.size;
-			cpy_reg.dstOffset = r_cpy_reg.dst_offset;
-			cpy_reg.srcOffset = r_cpy_reg.src_offset;
-		}
-
-		vkCmdCopyBuffer(cmd_list,
-			reinterpret_cast<VkBuffer>(cpy_buf.src.handle),
-			reinterpret_cast<VkBuffer>(cpy_buf.dst.handle),
-			static_cast<uint32_t>(cpy_buf.regions.size()),
-			copy_regions);
-	}
-}
-
 void Vulkan::CopyImage(const RCommandList a_list, const RenderCopyImage& a_copy_info)
 {
 	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);

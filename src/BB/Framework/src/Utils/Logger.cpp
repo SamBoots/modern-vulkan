@@ -13,7 +13,7 @@ void Logger::LoggerWriteToFile()
 	WriteToOSFile(g_logger->log_file, g_logger->upload_string.data(), g_logger->upload_string.size());
 }
 
-static void LoggerWriteToFile_async(void*)
+static void LoggerWriteToFile_async(MemoryArena&, void*)
 {
 	Logger::LoggerWriteToFile();
 }
