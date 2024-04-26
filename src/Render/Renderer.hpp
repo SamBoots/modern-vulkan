@@ -201,7 +201,7 @@ namespace BB
 
 	void BlitTexture(const RCommandList a_list, const BlitTextureInfo& a_blit_info);
 	void CopyTexture(const RCommandList a_list, const CopyTextureInfo& a_copy_info);
-	void WriteTexture(const RCommandList a_list, const RTexture a_texture, const WriteTextureInfo& a_write_info, const uint64_t a_transfer_fence_value);
+	void WriteTexture(const RTexture a_texture, const WriteTextureInfo& a_write_info);
 	void FreeTexture(const RTexture a_texture);
 	bool ReadTexture(const RCommandList a_cmd_list, const RTexture a_texture, const uint2 a_extent, const int2 a_offset, const GPUBuffer a_readback_buffer, const size_t a_readback_buffer_size);
 
