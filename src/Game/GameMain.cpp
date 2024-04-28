@@ -177,8 +177,10 @@ SceneObjectHandle DungeonMap::CreateRenderObject(MemoryArena& a_temp_arena, Scen
 				}
 			}
 		}
-
-		MeshHandle mesh;
+		CreateMeshInfo create_mesh_info;
+		create_mesh_info.vertices = Slice(vertices.data(), vertices.size());
+		create_mesh_info.indices = Slice(indices.data(), indices.size());
+		MeshHandle mesh = CreateMesh(create_mesh_info);
 		a_scene_hierarchy.SetMesh(map_obj, mesh);
 	}
 
@@ -187,8 +189,15 @@ SceneObjectHandle DungeonMap::CreateRenderObject(MemoryArena& a_temp_arena, Scen
 
 bool DungeonGame::InitGame(MemoryArena& a_arena, const uint32_t a_scene_hierarchies)
 {
-	m_scene_hierarchies.Init(a_arena, a_scene_hierarchies);
-	
+	m_scene_hierarchies.Init(m_game_memory, a_scene_hierarchies);
+	DungeonRoom room;
+	room.CreateRoom(m_game_memory, "../../resources/game/dungeon_rooms/map1.bmp");
+	DungeonRoom* roomptr = &room;
+	m_dungeon_map.CreateMap(m_game_memory, 30, 30, Slice(&roomptr, 1));
+	MemoryArenaScope(a_arena)
+	{
+		m_dungeon_map.CreateRenderObject(m_game_memory, m_scene_hierarchies[0]);
+	}
 	return true;
 }
 
@@ -203,6 +212,12 @@ bool DungeonGame::Update(MemoryArena& a_temp_arena, const Slice<InputEvent> a_in
 	}
 
 	return true;
+}
+
+// maybe ifdef this for editor
+void DungeonGame::DisplayImGuiInfo()
+{
+
 }
 
 void DungeonGame::Destroy()

@@ -71,6 +71,8 @@ namespace BB
 	public:
 		bool InitGame(MemoryArena& a_arena, const uint32_t a_scene_count);
 		bool Update(MemoryArena& a_temp_arena, const Slice<InputEvent> a_input_events);
+		// maybe ifdef this for editor
+		void DisplayImGuiInfo();
 		void Destroy();
 
 		StaticArray<SceneHierarchy>& GetSceneHierarchies() { return m_scene_hierarchies; }

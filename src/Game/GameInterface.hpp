@@ -12,6 +12,8 @@ namespace BB
 	{
 		{v.InitGame(arena, scene_count)} -> std::same_as<bool>;
 		{v.Update(arena, input_events)} -> std::same_as<bool>;
+		// maybe ifdef this for editor
+		v.DisplayImGuiInfo();
 		v.Destroy();
 
 		{v.GetSceneHierarchies()} -> std::same_as<BB::StaticArray<BB::SceneHierarchy>&>;
