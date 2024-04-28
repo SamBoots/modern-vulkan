@@ -174,6 +174,7 @@ namespace BB
 
 	// returns invalid texture when not enough upload buffer space
 	const RTexture CreateTexture(const CreateTextureInfo& a_create_info);
+	const RTexture CreateTexture(const CreateTextureInfo& a_create_info, const WriteTextureInfo& a_write_info);
 
 	struct BlitTextureInfo
 	{

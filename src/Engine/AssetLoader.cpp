@@ -545,13 +545,11 @@ const Image* Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path,
 	create_image_info.format = ImageFormatFromChannels(4);
 	create_image_info.usage = IMAGE_USAGE::TEXTURE;
 
-	const RTexture gpu_image = CreateTexture(create_image_info);
-
 	WriteTextureInfo write_info{};
 	write_info.pixels = pixels;
 	write_info.extent = { create_image_info.width, create_image_info.height };
 	write_info.set_shader_visible = true;
-	WriteTexture(a_list, gpu_image, write_info, a_transfer_fence_value);
+	const RTexture gpu_image = CreateTexture(create_image_info, write_info);
 	
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
 	Image* image = ArenaAllocType(s_asset_manager->asset_arena, Image);
@@ -631,13 +629,11 @@ const Image* Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage
 		break;
 	}
 
-	const RTexture gpu_image = CreateTexture(create_image_info);
-
 	WriteTextureInfo write_info{};
 	write_info.pixels = a_image.GetPixels();
 	write_info.extent = { create_image_info.width, create_image_info.height };
 	write_info.set_shader_visible = true;
-	WriteTexture(a_list, gpu_image, write_info, a_transfer_fence_value);
+	const RTexture gpu_image = CreateTexture(create_image_info, write_info);
 
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
 	Image* image = ArenaAllocType(s_asset_manager->asset_arena, Image);

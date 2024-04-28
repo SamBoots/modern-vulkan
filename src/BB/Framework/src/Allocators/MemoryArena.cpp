@@ -105,6 +105,11 @@ static void MemoryArenaResetTo(MemoryArena& a_arena, void* a_memory_marker)
 
 		a_arena.last = a_arena.last->prev;
 	}
+	if (a_memory_marker == a_arena.buffer)
+	{
+		a_arena.first = nullptr;
+	}
+
 #endif // _DEBUG_MEMORY
 
 #ifdef SANITIZER_ENABLED

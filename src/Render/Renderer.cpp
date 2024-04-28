@@ -1599,40 +1599,118 @@ static void UploadAssets(MemoryArena& a_thread_arena, void*)
 
 	if (!s_render_inst->asset_uploader.upload_meshes.IsEmpty())
 	{
-		size_t index = 0;
-		MeshHandle* mesh_handles = ArenaAllocArr(a_thread_arena, MeshHandle, MAX_MESH_UPLOAD_QUEUE);
-		RenderCopyBufferRegion* vertex_regions = ArenaAllocArr(a_thread_arena, RenderCopyBufferRegion, MAX_MESH_UPLOAD_QUEUE);
-		RenderCopyBufferRegion* index_regions = ArenaAllocArr(a_thread_arena, RenderCopyBufferRegion, MAX_MESH_UPLOAD_QUEUE);
-
-		UploadDataMesh upload_data;
-		while (s_render_inst->asset_uploader.upload_meshes.DeQueue(upload_data) && 
-			index < MAX_MESH_UPLOAD_QUEUE)
+		MemoryArenaScope(a_thread_arena)
 		{
-			mesh_handles[index] = upload_data.mesh_index;
-			vertex_regions[index] = upload_data.vertex_region;
-			index_regions[index] = upload_data.index_region;
-			++index;
-		}
+			MeshHandle* mesh_handles = ArenaAllocArr(a_thread_arena, MeshHandle, MAX_MESH_UPLOAD_QUEUE);
+			RenderCopyBufferRegion* vertex_regions = ArenaAllocArr(a_thread_arena, RenderCopyBufferRegion, MAX_MESH_UPLOAD_QUEUE);
+			RenderCopyBufferRegion* index_regions = ArenaAllocArr(a_thread_arena, RenderCopyBufferRegion, MAX_MESH_UPLOAD_QUEUE);
 
-		{
-			RenderCopyBuffer vertex_copy{};
-			vertex_copy.src = s_render_inst->asset_uploader.gpu_allocator.GetBuffer();
-			vertex_copy.dst = s_render_inst->vertex_buffer.buffer;
-			vertex_copy.regions = Slice(vertex_regions, index);
+			size_t index = 0;
+			UploadDataMesh upload_data;
+			while (s_render_inst->asset_uploader.upload_meshes.DeQueue(upload_data) &&
+				index < MAX_MESH_UPLOAD_QUEUE)
+			{
+				mesh_handles[index] = upload_data.mesh_index;
+				vertex_regions[index] = upload_data.vertex_region;
+				index_regions[index] = upload_data.index_region;
+				++index;
+			}
 
-			Vulkan::CopyBuffer(list, vertex_copy);
-		}
-		{
-			RenderCopyBuffer index_copy{};
-			index_copy.src = s_render_inst->asset_uploader.gpu_allocator.GetBuffer();
-			index_copy.dst = s_render_inst->index_buffer.buffer;
-			index_copy.regions = Slice(index_regions, index);
+			{
+				RenderCopyBuffer vertex_copy{};
+				vertex_copy.src = s_render_inst->asset_uploader.gpu_allocator.GetBuffer();
+				vertex_copy.dst = s_render_inst->vertex_buffer.buffer;
+				vertex_copy.regions = Slice(vertex_regions, index);
 
-			Vulkan::CopyBuffer(list, index_copy);
+				Vulkan::CopyBuffer(list, vertex_copy);
+			}
+			{
+				RenderCopyBuffer index_copy{};
+				index_copy.src = s_render_inst->asset_uploader.gpu_allocator.GetBuffer();
+				index_copy.dst = s_render_inst->index_buffer.buffer;
+				index_copy.regions = Slice(index_regions, index);
+
+				Vulkan::CopyBuffer(list, index_copy);
+			}
 		}
 	}
 
+	if (!s_render_inst->asset_uploader.upload_textures.IsEmpty())
+	{
+		MemoryArenaScope(a_thread_arena)
+		{
+			RTexture* textures = ArenaAllocArr(a_thread_arena, RTexture, MAX_TEXTURE_UPLOAD_QUEUE);
+			RenderCopyBufferToImageInfo* upload_info = ArenaAllocArr(a_thread_arena, RenderCopyBufferToImageInfo, MAX_TEXTURE_UPLOAD_QUEUE);
+			size_t before_trans_count = 0;
+			PipelineBarrierImageInfo* before_transition = ArenaAllocArr(a_thread_arena, PipelineBarrierImageInfo, MAX_TEXTURE_UPLOAD_QUEUE);
 
+			size_t index = 0;
+			UploadDataTexture upload_data;
+			while (s_render_inst->asset_uploader.upload_textures.DeQueue(upload_data) &&
+				index < MAX_TEXTURE_UPLOAD_QUEUE)
+			{
+				textures[index] = upload_data.texture_index;
+				GPUTextureManager::TextureSlot& texture_slot = s_render_inst->texture_manager.GetTextureSlot(upload_data.texture_index);
+				upload_info[index] = upload_data.write_info;
+				++index;
+
+				if (upload_data.start_layout != IMAGE_LAYOUT::TRANSFER_DST)
+				{
+					PipelineBarrierImageInfo& pi = before_transition[before_trans_count++];
+					pi.src_mask = BARRIER_ACCESS_MASK::NONE;
+					pi.dst_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
+					pi.image = texture_slot.texture_info.image;
+					pi.old_layout = upload_data.start_layout;
+					pi.new_layout = IMAGE_LAYOUT::TRANSFER_DST;
+					pi.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
+					pi.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
+					pi.layer_count = 1;
+					pi.level_count = 1;
+					pi.base_array_layer = 0;
+					pi.base_mip_level = 0;
+					pi.src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
+					pi.dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
+				}
+
+				if (upload_data.end_layout == IMAGE_LAYOUT::TRANSFER_DST)
+				{
+					PipelineBarrierImageInfo pi{};
+					pi.src_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
+					pi.dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
+					pi.image = texture_slot.texture_info.image;
+					pi.old_layout = IMAGE_LAYOUT::TRANSFER_DST;
+					pi.new_layout = upload_data.end_layout;
+					pi.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
+					pi.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
+					pi.layer_count = 1;
+					pi.level_count = 1;
+					pi.base_array_layer = 0;
+					pi.base_mip_level = 0;
+					pi.src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
+					pi.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
+
+					WriteDescriptorData write_data{};
+					write_data.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
+					write_data.descriptor_index = upload_data.texture_index.handle;
+					write_data.type = DESCRIPTOR_TYPE::IMAGE;
+					write_data.image_view.view = texture_slot.texture_info.view;
+					write_data.image_view.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+
+					s_render_inst->texture_manager.AddGraphicsTransition(pi, write_data);
+				}
+			}
+
+			PipelineBarrierInfo pipeline_info{};
+			pipeline_info.image_info_count = before_trans_count;
+			pipeline_info.image_infos = before_transition;
+			Vulkan::PipelineBarriers(list, pipeline_info);
+
+			for (size_t i = 0; i < index; i++)
+			{
+				Vulkan::CopyBufferToImage(list, upload_info[i]);
+			}
+		}
+	}
 
 	cmd_pool.EndCommandList(list);
 	ExecuteAssetTransfer(Slice(&cmd_pool, 1), s_render_inst->asset_uploader.next_fence_value.fetch_add(1));
@@ -2438,6 +2516,44 @@ const RTexture BB::CreateTexture(const CreateTextureInfo& a_create_info)
 	}
 
 	return s_render_inst->texture_manager.SetTextureSlot(tex_info, a_create_info.name);
+}
+
+const RTexture BB::CreateTexture(const CreateTextureInfo& a_create_info, const WriteTextureInfo& a_write_info)
+{
+	BB_ASSERT(a_create_info.width >= a_write_info.extent.x + static_cast<uint32_t>(a_write_info.offset.x), "image width is too small to accommodate the write info's extent.x + offset.x");
+	BB_ASSERT(a_create_info.height >= a_write_info.extent.y + static_cast<uint32_t>(a_write_info.offset.y), "image height is too small to accommodate the write info's extent.y + offset.y");
+	const RTexture texture = CreateTexture(a_create_info);
+	// make this it's own class or something
+	RenderInterface_inst::AssetUploader& uploader = s_render_inst->asset_uploader;
+
+	const size_t byte_per_pixel = GetByteSizeOfImageFormat(a_create_info.format);
+	//now upload the image.
+	UploadBuffer upload_buffer = uploader.gpu_allocator.AllocateUploadMemory(byte_per_pixel * a_write_info.extent.x * a_write_info.extent.y, uploader.next_fence_value);
+	upload_buffer.SafeMemcpy(0, a_write_info.pixels, byte_per_pixel * a_write_info.extent.x * a_write_info.extent.y);
+
+	RenderCopyBufferToImageInfo buffer_to_image;
+	buffer_to_image.src_buffer = upload_buffer.buffer;
+	buffer_to_image.src_offset = static_cast<uint32_t>(upload_buffer.base_offset);
+
+	buffer_to_image.dst_image = s_render_inst->texture_manager.GetTextureSlot(texture).texture_info.image;
+	buffer_to_image.dst_extent.x = a_write_info.extent.x;
+	buffer_to_image.dst_extent.y = a_write_info.extent.y;
+	buffer_to_image.dst_extent.z = 1;
+	buffer_to_image.dst_image_info.offset_x = a_write_info.offset.x;
+	buffer_to_image.dst_image_info.offset_y = a_write_info.offset.y;
+	buffer_to_image.dst_image_info.offset_z = 0;
+	buffer_to_image.dst_image_info.mip_level = 0;
+	buffer_to_image.dst_image_info.layer_count = 1;
+	buffer_to_image.dst_image_info.base_array_layer = 0;
+
+	UploadDataTexture upload_texture;
+	upload_texture.texture_index = texture;
+	upload_texture.write_info = buffer_to_image;
+	upload_texture.start_layout = IMAGE_LAYOUT::UNDEFINED;
+	upload_texture.end_layout = a_write_info.set_shader_visible ? IMAGE_LAYOUT::SHADER_READ_ONLY : IMAGE_LAYOUT::TRANSFER_DST;
+	uploader.upload_textures.EnQueue(upload_texture);
+
+	return texture;
 }
 
 static inline bool IsImageWithinBounds(const GPUTextureManager::TextureSlot& a_slot, const uint2 a_extent, const int2 a_offset)
