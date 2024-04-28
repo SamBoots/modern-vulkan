@@ -1641,7 +1641,7 @@ static void UploadAssets(MemoryArena& a_thread_arena, void*)
 		{
 			RTexture* textures = ArenaAllocArr(a_thread_arena, RTexture, MAX_TEXTURE_UPLOAD_QUEUE);
 			RenderCopyBufferToImageInfo* upload_info = ArenaAllocArr(a_thread_arena, RenderCopyBufferToImageInfo, MAX_TEXTURE_UPLOAD_QUEUE);
-			size_t before_trans_count = 0;
+			uint32_t before_trans_count = 0;
 			PipelineBarrierImageInfo* before_transition = ArenaAllocArr(a_thread_arena, PipelineBarrierImageInfo, MAX_TEXTURE_UPLOAD_QUEUE);
 
 			size_t index = 0;
