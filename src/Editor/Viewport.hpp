@@ -12,13 +12,15 @@ namespace BB
 		void Init(MemoryArena& a_arena, const uint2 a_extent, const uint2 a_offset, const char* a_name);
 		void Resize(const uint2 a_new_extent);
 
+		// I personally banned myself for using virtual, but here it seems to work.
+		virtual void Update(const RCommandList a_list, const class SceneHierarchy& a_scene_hierarchy, const uint2 a_minimum_size = uint2(160, 80));
+
 		void DrawScene(const RCommandList a_list, const class SceneHierarchy& a_scene_hierarchy);
 		void DrawImgui(bool& a_resized, const uint2 a_minimum_size = uint2(160, 80));
 
 		bool PositionWithinViewport(const uint2 a_pos) const;
 
 		float4x4 CreateProjection(const float a_fov, const float a_near_field, const float a_far_field) const;
-		float4x4 CreateView() const;
 
 		const char* GetName() const { return m_name; }
 

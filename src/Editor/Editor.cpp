@@ -249,7 +249,7 @@ void Editor::MainEditorImGuiInfo(const MemoryArena& a_arena)
 		if (m_active_viewport == nullptr)
 			ImGui::Text("current viewport: None");
 		else
-			ImGui::Text("current viewport: %s", m_active_viewport->GetName());
+			ImGui::Text("current viewport: %s", m_active_viewport->viewport.GetName());
 
 		ImGui::SliderFloat("camera speed", &m_cam_speed, m_cam_speed_min, m_cam_speed_max);
 
@@ -407,7 +407,7 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time, const Slice<
 				}
 			if (!m_freeze_cam && m_active_viewport)
 			{
-				m_active_viewport->GetCamera().Move(cam_move * m_cam_speed);
+				m_active_viewport->camera.Move(cam_move * m_cam_speed);
 			}
 
 		}
@@ -434,14 +434,14 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time, const Slice<
 				ViewportAndScene& vs = m_viewport_and_scenes[view_i];
 				if (vs.viewport.PositionWithinViewport(uint2(static_cast<unsigned int>(mi.mouse_pos.x), static_cast<unsigned int>(mi.mouse_pos.y))))
 				{
-					m_active_viewport = &vs.viewport;
+					m_active_viewport = &vs;
 					break;
 				}
 			}
 
 			if (!m_freeze_cam && m_active_viewport)
 			{
-				m_active_viewport->GetCamera().Rotate(mouse_move.x, mouse_move.y);
+				m_active_viewport->camera.Rotate(mouse_move.x, mouse_move.y);
 			}
 		}
 	}
@@ -477,7 +477,7 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time, const Slice<
 		for (size_t i = 0; i < m_viewport_and_scenes.size(); i++)
 		{
 			ViewportAndScene& vs = m_viewport_and_scenes[i];
-			vs.scene.SetView(vs.viewport.CreateView());
+			vs.scene.SetView(vs.camera.CalculateView());
 
 			ImguiDisplaySceneHierarchy(vs.scene);
 

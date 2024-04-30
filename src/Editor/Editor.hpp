@@ -89,7 +89,7 @@ namespace BB
 		struct ViewportAndScene
 		{
 			Viewport viewport;
-			Camera camera{ float3(0.f, 0.f, 0.f) };
+			Camera camera{ float3{0.0f, 0.0f, 1.0f}, 0.35f };
 			SceneHierarchy scene;
 		};
 		uint2 m_app_window_extent;
@@ -99,7 +99,7 @@ namespace BB
 		ShaderEffectHandle m_imgui_vertex;
 		ShaderEffectHandle m_imgui_fragment;
 
-		Viewport* m_active_viewport = nullptr;
+		ViewportAndScene* m_active_viewport = nullptr;
 		float2 m_previous_mouse_pos{};
 
 		GPUDeviceInfo m_gpu_info;
