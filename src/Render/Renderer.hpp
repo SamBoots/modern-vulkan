@@ -92,7 +92,6 @@ namespace BB
 		void EndCommandList(RCommandList a_list);
 	};
 
-	using LightHandle = FrameworkHandle<struct LightHandleTag>;
 	struct CreateLightInfo
 	{
 		//light type here
@@ -102,7 +101,6 @@ namespace BB
 		float quadratic_distance;
 	};
 
-	using RenderScene3DHandle = FrameworkHandle<struct RenderScene3DHandleTag>;
 	struct SceneCreateInfo
 	{
 		float3 ambient_light_color;
@@ -110,7 +108,6 @@ namespace BB
 		uint32_t light_max;
 		uint32_t draw_entry_max;
 	};
-	using RenderTarget = FrameworkHandle<struct RenderTargetTag>;
 
 	const RenderIO& GetRenderIO();
 

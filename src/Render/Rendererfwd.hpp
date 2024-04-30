@@ -33,6 +33,10 @@ namespace BB
 	//TEMP END
 	using RTexture = FrameworkHandle32Bit<struct RTextureTag>;
 
+	using RenderScene3DHandle = FrameworkHandle<struct RenderScene3DHandleTag>;
+	using LightHandle = FrameworkHandle<struct LightHandleTag>;
+	using RenderTarget = FrameworkHandle<struct RenderTargetTag>;
+	
 	using ShaderCode = FrameworkHandle<struct ShdaerCodeTag>;
 	using MeshHandle = FrameworkHandle<struct MeshHandleTag>;
 	using ShaderEffectHandle = FrameworkHandle<struct ShaderEffectHandleTag>;

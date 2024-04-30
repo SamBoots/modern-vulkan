@@ -4,6 +4,7 @@
 #include "Camera.hpp"
 #include "AssetLoader.hpp"
 #include "GameInterface.hpp"
+#include "Viewport.hpp"
 
 #include <tuple>
 
@@ -73,31 +74,6 @@ namespace BB
 			const char* cmd_list_name = "upload asset task";
 		};
 		static void LoadAssetsAsync(MemoryArena& a_thread_arena, void* a_params);
-
-		class Viewport
-		{
-		public:
-			void Init(MemoryArena& a_arena, const uint2 a_extent, const uint2 a_offset, const char* a_name);
-			void Resize(const uint2 a_new_extent);
-
-			void DrawScene(const RCommandList a_list, const SceneHierarchy& a_scene_hierarchy);
-			void DrawImgui(bool& a_resized, const uint2 a_minimum_size = uint2(160, 80));
-
-			bool PositionWithinViewport(const uint2 a_pos) const;
-
-			float4x4 CreateProjection(const float a_fov, const float a_near_field, const float a_far_field) const;
-			float4x4 CreateView() const;
-
-			const char* GetName() const { return m_name; }
-			Camera& GetCamera() { return m_camera; }
-
-		private:
-			uint2 m_extent;
-			uint2 m_offset; // offset into main window NOT USED NOW 
-			RenderTarget m_render_target;
-			const char* m_name;
-			Camera m_camera{ float3{0.0f, 0.0f, 1.0f}, 0.35f };
-		};
 		void MainEditorImGuiInfo(const MemoryArena& a_arena);
 		struct ThreadFuncForDrawing_Params
 		{
@@ -113,9 +89,10 @@ namespace BB
 		struct ViewportAndScene
 		{
 			Viewport viewport;
+			Camera camera{ float3(0.f, 0.f, 0.f) };
 			SceneHierarchy scene;
 		};
-		uint2 m_window_extent;
+		uint2 m_app_window_extent;
 		StaticArray<ViewportAndScene> m_viewport_and_scenes;
 
 		// temp
