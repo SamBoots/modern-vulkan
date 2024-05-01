@@ -472,8 +472,6 @@ void Asset::LoadAssets(MemoryArena& memory_arena, const Slice<AsyncAsset> a_asyn
 	CommandPool& cmd_pool = GetTransferCommandPool();
 	const RCommandList cmd_list = cmd_pool.StartCommandList(a_cmd_list_name);
 
-	const uint64_t asset_fence_value = 0;
-
 	for (size_t i = 0; i < a_asyn_assets.size(); i++)
 	{
 		const AsyncAsset& task = a_asyn_assets[i];
@@ -484,10 +482,10 @@ void Asset::LoadAssets(MemoryArena& memory_arena, const Slice<AsyncAsset> a_asyn
 			switch (task.load_type)
 			{
 			case ASYNC_LOAD_TYPE::DISK:
-				LoadglTFModel(memory_arena, task.mesh_disk, cmd_list, asset_fence_value);
+				LoadglTFModel(memory_arena, task.mesh_disk, cmd_list);
 				break;
 			case ASYNC_LOAD_TYPE::MEMORY:
-				LoadMeshFromMemory(memory_arena, task.mesh_memory, cmd_list, asset_fence_value);
+				LoadMeshFromMemory(memory_arena, task.mesh_memory, cmd_list);
 				break;
 			}
 			break;
@@ -497,10 +495,10 @@ void Asset::LoadAssets(MemoryArena& memory_arena, const Slice<AsyncAsset> a_asyn
 			switch (task.load_type)
 			{
 			case ASYNC_LOAD_TYPE::DISK:
-				LoadImageDisk(memory_arena, task.texture_disk.path, cmd_list, asset_fence_value);
+				LoadImageDisk(memory_arena, task.texture_disk.path, cmd_list);
 				break;
 			case ASYNC_LOAD_TYPE::MEMORY:
-				LoadImageMemory(memory_arena, *task.texture_memory.image, task.texture_memory.name, cmd_list, asset_fence_value);
+				LoadImageMemory(memory_arena, *task.texture_memory.image, task.texture_memory.name, cmd_list);
 				break;
 			}
 		}
@@ -508,7 +506,7 @@ void Asset::LoadAssets(MemoryArena& memory_arena, const Slice<AsyncAsset> a_asyn
 		}
 	}
 	cmd_pool.EndCommandList(cmd_list);
-	BB_ASSERT(ExecuteAssetTransfer(Slice(&cmd_pool, 1), asset_fence_value), "Failed to execute async gpu transfer commands");
+	BB_ASSERT(ExecuteAssetTransfer(Slice(&cmd_pool, 1), 0), "Failed to execute async gpu transfer commands");
 }
 
 struct LoadAsyncFunc_Params
@@ -529,7 +527,7 @@ static void LoadAsync_func(MemoryArena&, void* a_param)
 	MemoryArenaFree(params->memory_arena);
 }
 
-const Image* Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path, const RCommandList a_list, const uint64_t a_transfer_fence_value)
+const Image* Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path, const RCommandList a_list)
 {
 	AssetString asset_name;
 	GetAssetNameFromPath(a_path, asset_name);
@@ -569,7 +567,7 @@ const Image* Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path,
 	const PathString icon_path = GetIconPathFromAssetName(asset.name);
 	if (OSFileExist(icon_path.c_str()))
 	{
-		asset.icon = LoadIconFromPath(a_temp_arena, icon_path.GetView(), a_list, a_transfer_fence_value, true);
+		asset.icon = LoadIconFromPath(a_temp_arena, icon_path.GetView(), a_list, 0, true);
 	}
 	else
 	{
@@ -578,8 +576,8 @@ const Image* Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path,
 		{
 			icon_write = ResizeImage(a_temp_arena, pixels, static_cast<int>(create_image_info.width), static_cast<int>(create_image_info.height), static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
 		}
-		asset.icon = LoadIconFromPixels(a_list, a_transfer_fence_value, icon_write, true);
-		IconWriteToDisk(a_list, a_transfer_fence_value, asset.icon, icon_path);
+		asset.icon = LoadIconFromPixels(a_list, 0, icon_write, true);
+		IconWriteToDisk(a_list, 0, asset.icon, icon_path);
 	}
 
 	AddElementToAssetTable(asset);
@@ -600,7 +598,7 @@ bool Asset::WriteImage(const char* a_file_name, const uint32_t a_width, const ui
 	return false;
 }
 
-const Image* Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const char* a_name, const RCommandList a_list, const uint64_t a_transfer_fence_value)
+const Image* Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const char* a_name, const RCommandList a_list)
 {
 	const StringView image_name = FindOrCreateString(a_name);
 
@@ -654,7 +652,7 @@ const Image* Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage
 	const PathString icon_path = GetIconPathFromAssetName(asset.name);
 	if (OSFileExist(icon_path.c_str()))
 	{
-		asset.icon = LoadIconFromPath(a_temp_arena, icon_path.GetView(), a_list, a_transfer_fence_value, true);
+		asset.icon = LoadIconFromPath(a_temp_arena, icon_path.GetView(), a_list, 0, true);
 	}
 	else
 	{
@@ -663,8 +661,8 @@ const Image* Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage
 		{
 			icon_write = ResizeImage(a_temp_arena, a_image.GetPixels(), static_cast<int>(create_image_info.width), static_cast<int>(create_image_info.height), static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
 		}
-		asset.icon = LoadIconFromPixels(a_list, a_transfer_fence_value, icon_write, true);
-		IconWriteToDisk(a_list, a_transfer_fence_value, asset.icon, icon_path);
+		asset.icon = LoadIconFromPixels(a_list, 0, icon_write, true);
+		IconWriteToDisk(a_list, 0, asset.icon, icon_path);
 	}
 
 
@@ -734,7 +732,7 @@ static inline void* GetAccessorDataPtr(const cgltf_accessor* a_accessor)
 	return Pointer::Add(a_accessor->buffer_view->buffer->data, accessor_offset);
 }
 
-static void LoadglTFMesh(MemoryArena& a_temp_arena, const RCommandList a_list, const uint64_t a_transfer_fence_value, const cgltf_mesh& a_cgltf_mesh, Model::Mesh& a_mesh)
+static void LoadglTFMesh(MemoryArena& a_temp_arena, const RCommandList a_list, const cgltf_mesh& a_cgltf_mesh, Model::Mesh& a_mesh)
 {
 	const cgltf_mesh& mesh = a_cgltf_mesh;
 
@@ -780,7 +778,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const RCommandList a_list, c
 			const cgltf_image& image = *prim.material->pbr_metallic_roughness.base_color_texture.texture->image;
 
 			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
-			const Image* img = Asset::LoadImageDisk(a_temp_arena, full_image_path, a_list, a_transfer_fence_value);
+			const Image* img = Asset::LoadImageDisk(a_temp_arena, full_image_path, a_list);
 
 			model_prim.material_data.base_texture = img->gpu_image;
 		}
@@ -788,7 +786,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const RCommandList a_list, c
 		{
 			const cgltf_image& image = *prim.material->normal_texture.texture->image;
 			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
-			const Image* img = Asset::LoadImageDisk(a_temp_arena, full_image_path, a_list, a_transfer_fence_value);
+			const Image* img = Asset::LoadImageDisk(a_temp_arena, full_image_path, a_list);
 
 			model_prim.material_data.normal_texture = img->gpu_image;
 		}
@@ -881,7 +879,7 @@ static void cgltf_arena_free(void*, void*)
 	// nothing
 }
 
-const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op, const RCommandList a_list, const uint64_t a_transfer_fence_value)
+const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op, const RCommandList a_list)
 {
 	const AssetHash asset_hash = CreateAssetHash(StringHash(a_mesh_op.path, Memory::StrLength(a_mesh_op.path)), ASSET_TYPE::MODEL);
 	
@@ -933,7 +931,7 @@ const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 	{
 		MemoryArenaScope(a_temp_arena)
 		{
-			LoadglTFMesh(a_temp_arena, a_list, a_transfer_fence_value, gltf_data->meshes[i], model->meshes[i]);
+			LoadglTFMesh(a_temp_arena, a_list, gltf_data->meshes[i], model->meshes[i]);
 		}
 	}
 
@@ -958,7 +956,7 @@ const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 
 	const PathString icon_path = GetIconPathFromAssetName(asset.name);
 	if (OSFileExist(icon_path.c_str()))
-		asset.icon = LoadIconFromPath(a_temp_arena, icon_path.GetView(), a_list, a_transfer_fence_value, true);
+		asset.icon = LoadIconFromPath(a_temp_arena, icon_path.GetView(), a_list, 0, true);
 	else
 		asset.icon = GetEmptyIconSlot();
 
@@ -967,7 +965,7 @@ const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 	return model;
 }
 
-const Model* Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoadFromMemory& a_mesh_op, const RCommandList a_list, const uint64_t a_transfer_fence_value)
+const Model* Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoadFromMemory& a_mesh_op, const RCommandList a_list)
 {
 	// this is all garbage
 
@@ -1016,7 +1014,7 @@ const Model* Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoad
 
 	const PathString icon_path = GetIconPathFromAssetName(asset.name);
 	if (OSFileExist(icon_path.c_str()))
-		asset.icon = LoadIconFromPath(a_temp_arena, icon_path.GetView(), a_list, a_transfer_fence_value, true);
+		asset.icon = LoadIconFromPath(a_temp_arena, icon_path.GetView(), a_list, 0, true);
 	else
 		asset.icon = GetEmptyIconSlot();
 

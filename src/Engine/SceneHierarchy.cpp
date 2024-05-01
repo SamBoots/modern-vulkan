@@ -41,6 +41,12 @@ static bool NameIsWithinCharArray(const char** a_arr, const size_t a_arr_size, c
 	return false;
 }
 
+void BB::SceneHierarchy::InitViaJson(MemoryArena& a_arena, const char* a_json_path, const uint32_t a_scene_obj_max)
+{
+	JsonParser json_file(a_json_path);
+	InitViaJson(a_arena, json_file, a_scene_obj_max);
+}
+
 void BB::SceneHierarchy::InitViaJson(MemoryArena& a_arena, const JsonParser& a_parsed_file, const uint32_t a_scene_obj_max)
 {
 	const JsonObject& scene_obj = a_parsed_file.GetRootNode()->GetObject().Find("scene")->GetObject();
@@ -59,7 +65,7 @@ void BB::SceneHierarchy::InitViaJson(MemoryArena& a_arena, const JsonParser& a_p
 		const char* model_name = scene_objects.nodes[i]->GetObject().Find("file_name")->GetString();
 		const char* obj_name = scene_objects.nodes[i]->GetObject().Find("file_name")->GetString();
 		const Model* model = Asset::FindModelByPath(model_name);
-
+		BB_ASSERT(model != nullptr, "model failed to be found");
 		const JsonList& position_list = sce_obj.Find("position")->GetList();
 		BB_ASSERT(position_list.node_count == 3, "scene_object position in scene json is not 3 elements");
 		float3 position;

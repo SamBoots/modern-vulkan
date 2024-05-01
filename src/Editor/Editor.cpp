@@ -249,7 +249,7 @@ void Editor::MainEditorImGuiInfo(const MemoryArena& a_arena)
 		if (m_active_viewport == nullptr)
 			ImGui::Text("current viewport: None");
 		else
-			ImGui::Text("current viewport: %s", m_active_viewport->viewport.GetName());
+			ImGui::Text("current viewport: %s", m_active_viewport->viewport.GetName().c_str());
 
 		ImGui::SliderFloat("camera speed", &m_cam_speed, m_cam_speed_min, m_cam_speed_max);
 
@@ -341,28 +341,20 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 	}
 }
 
-void Editor::CreateViewportViaJson(MemoryArena& a_arena, const char* a_json_path, const char* a_viewport_name, const uint2 a_window_extent, const float3 a_clear_color)
-{
-	ViewportAndScene viewport_scene{};
-
-	viewport_scene.viewport.Init(a_arena, a_window_extent, uint2(), a_viewport_name);
-
-	JsonParser viewport_json(a_json_path);
-	viewport_json.Parse();
-	auto viewer_list = SceneHierarchy::PreloadAssetsFromJson(a_arena, viewport_json);
-	const ThreadTask view_upload = LoadAssets(Slice(viewer_list.data(), viewer_list.size()), a_viewport_name);
-
-	Threads::WaitForTask(view_upload);
-
-	viewport_scene.scene.InitViaJson(a_arena, viewport_json);
-	viewport_scene.scene.SetClearColor(a_clear_color);
-	m_viewport_and_scenes.push_back(viewport_scene);
-}
-
 void Editor::Destroy()
 {
 	DestroyImGuiInput();
 	DirectDestroyOSWindow(m_main_window);
+}
+
+void Editor::RegisterSceneHierarchy(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint2 a_window_extent)
+{
+	ViewportAndScene viewport_scene{ a_hierarchy };
+	StackString<256> viewport_name{ a_hierarchy.m_scene_name.c_str(),  a_hierarchy.m_scene_name.size() };
+	viewport_name.append(" viewport");
+	viewport_scene.viewport.Init(a_arena, a_window_extent, uint2(), Asset::FindOrCreateString(viewport_name.GetView()));
+
+	m_viewport_and_scenes.push_back(viewport_scene);
 }
 
 void Editor::Update(MemoryArena& a_arena, const float a_delta_time, const Slice<InputEvent> a_input_events)
@@ -445,34 +437,40 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time, const Slice<
 			}
 		}
 	}
-
-	CommandPool graphics_command_pools[2]{ GetGraphicsCommandPool(), GetGraphicsCommandPool() };
-	const RCommandList main_list = graphics_command_pools[0].StartCommandList();
-
-	StartFrameInfo start_info;
-	start_info.delta_time = a_delta_time;
-	start_info.mouse_pos = m_previous_mouse_pos;
-
-	StartFrame(main_list, start_info);
-
-	if (ImGui::Begin("Editor - Renderer"))
-	{
-		ImGuiDisplayShaderEffects();
-		ImGuiDisplayMaterials();
-		ImGuiCreateMaterial();
-	}
-	ImGui::End();
-
-
 	MemoryArenaScope(a_arena)
 	{
+		//HACKY, but for now ok.
+		const uint32_t command_list_count = Max(m_viewport_and_scenes.size(), 1);
+		CommandPool* pools = ArenaAllocArr(a_arena, CommandPool, command_list_count);
+		RCommandList* lists = ArenaAllocArr(a_arena, RCommandList, command_list_count);
+		pools[0] = GetGraphicsCommandPool();
+		lists[0] = pools[0].StartCommandList();
+		for (size_t i = 1; i < command_list_count; i++)
+		{
+			pools[i] = GetGraphicsCommandPool();
+			lists[i] = pools[i].StartCommandList();
+		}
+
+		StartFrameInfo start_info;
+		start_info.delta_time = a_delta_time;
+		start_info.mouse_pos = m_previous_mouse_pos;
+
+		StartFrame(lists[0], start_info);
+
+		if (ImGui::Begin("Editor - Renderer"))
+		{
+			ImGuiDisplayShaderEffects();
+			ImGuiDisplayMaterials();
+			ImGuiCreateMaterial();
+		}
+		ImGui::End();
+
+
+
 		Asset::ShowAssetMenu(a_arena);
 		MainEditorImGuiInfo(a_arena);
 
 		ThreadTask* thread_tasks = ArenaAllocArr(a_arena, ThreadTask, m_viewport_and_scenes.size());
-
-		//HACKY, but for now ok.
-		const RCommandList lists[2]{ main_list, graphics_command_pools[1].StartCommandList() };
 
 		for (size_t i = 0; i < m_viewport_and_scenes.size(); i++)
 		{
@@ -489,8 +487,8 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time, const Slice<
 			}
 			ThreadFuncForDrawing_Params* draw_params = ArenaAllocType(a_arena, ThreadFuncForDrawing_Params) {
 				vs.viewport,
-				vs.scene,
-				lists[i]
+					vs.scene,
+					lists[i]
 			};
 
 			thread_tasks[i] = Threads::StartTaskThread(ThreadFuncForDrawing, draw_params, L"scene draw task");
@@ -500,15 +498,18 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time, const Slice<
 		{
 			Threads::WaitForTask(thread_tasks[i]);
 		}
-	
+
 		// TODO, async this
-		graphics_command_pools[1].EndCommandList(lists[1]);
+		for (size_t i = 1; i < command_list_count; i++)
+		{
+			pools[i].EndCommandList(lists[i]);
+		}
 
-		EndFrame(main_list, m_imgui_vertex, m_imgui_fragment);
+		EndFrame(lists[0], m_imgui_vertex, m_imgui_fragment);
 
-		graphics_command_pools[0].EndCommandList(main_list);
+		pools[0].EndCommandList(lists[0]);
 		uint64_t fence_value;
-		PresentFrame(Slice(graphics_command_pools, _countof(graphics_command_pools)), fence_value);
+		PresentFrame(Slice(pools, command_list_count), fence_value);
 	}
 }
 

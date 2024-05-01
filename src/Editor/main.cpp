@@ -10,7 +10,7 @@
 #include "shared_common.hlsl.h"
 
 #include "Math.inl"
-
+#include "BBjson.hpp"
 #include "Editor.hpp"
 #include "GameMain.hpp"
 
@@ -127,9 +127,6 @@ int main(int argc, char** argv)
 		SetDefaultMaterial(base_material);
 	}
 
-	editor.CreateViewportViaJson(main_arena, "../../resources/scenes/standard_scene.json", "game scene", window_extent, float3(0.1f, 0.1f, 0.5f));
-	editor.CreateViewportViaJson(main_arena, "../../resources/scenes/object_scene.json", "object viewer", window_extent / uint2(2), float3(0.1f, 0.1f, 0.5f));
-
 	SetWindowCloseEvent(CustomCloseWindow);
 	SetWindowResizeEvent(CustomResizeWindow);
 
@@ -138,8 +135,28 @@ int main(int argc, char** argv)
 	bool quit_app = false;
 	float delta_time = 0;
 
+	SceneHierarchy object_viewer;
+	object_viewer.SetClearColor(float3(0.1f, 0.7f, 0.0f));
+	{
+		JsonParser json_file("../../resources/scenes/standard_scene.json");
+		json_file.Parse();
+		MemoryArenaScope(main_arena)
+		{
+			auto viewer_list = SceneHierarchy::PreloadAssetsFromJson(main_arena, json_file);
+			const ThreadTask view_upload = Editor::LoadAssets(Slice(viewer_list.data(), viewer_list.size()));
+
+			Threads::WaitForTask(view_upload);
+		}
+		object_viewer.InitViaJson(main_arena, json_file);
+	}
+
+
+
 	DungeonGame def_game{};
 	def_game.InitGame();
+
+	//editor.RegisterSceneHierarchy(main_arena, def_game.GetSceneHierarchy(), window_extent);
+	editor.RegisterSceneHierarchy(main_arena, object_viewer, window_extent / uint2(2));
 
 	while (!quit_app)
 	{

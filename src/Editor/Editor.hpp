@@ -17,8 +17,9 @@ namespace BB
 	{
 	public:
 		void Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent, const size_t a_editor_memory = EDITOR_DEFAULT_MEMORY);
-		void CreateViewportViaJson(MemoryArena& a_arena, const char* a_json_path, const char* a_viewport_name, const uint2 a_window_extent, const float3 a_clear_color);
 		void Destroy();
+
+		void RegisterSceneHierarchy(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint2 a_window_extent);
 
 		template<typename game_interface>
 		requires is_game_interface<game_interface>
@@ -90,9 +91,11 @@ namespace BB
 
 		struct ViewportAndScene
 		{
+			SceneHierarchy& scene;
 			Viewport viewport;
 			FreeCamera camera{ float3{0.0f, 0.0f, 1.0f}, 0.35f };
-			SceneHierarchy scene;
+			RCommandList list;
+			ThreadTask task;
 		};
 		uint2 m_app_window_extent;
 		StaticArray<ViewportAndScene> m_viewport_and_scenes;

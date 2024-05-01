@@ -8,12 +8,13 @@
 
 using namespace BB;
 
-void Viewport::Init(MemoryArena& a_arena, const uint2 a_extent, const uint2 a_offset, const char* a_name)
+void Viewport::Init(MemoryArena& a_arena, const uint2 a_extent, const uint2 a_offset, const StringView a_name)
 {
 	m_extent = a_extent;
 	m_offset = a_offset;
-	m_render_target = CreateRenderTarget(a_arena, a_extent, a_name);
-	m_name = a_name;
+	m_render_target = CreateRenderTarget(a_arena, a_extent, a_name.c_str());
+	// use constructors and destructors :)))))))))))))))))))))))))))
+	new (&m_name)StringView(a_name);
 }
 
 void Viewport::Resize(const uint2 a_new_extent)
@@ -37,7 +38,7 @@ void Viewport::DrawScene(const RCommandList a_list, const SceneHierarchy& a_scen
 void Viewport::DrawImgui(bool& a_resized, const uint2 a_minimum_size)
 {
 	a_resized = false;
-	if (ImGui::Begin(m_name, nullptr, ImGuiWindowFlags_MenuBar))
+	if (ImGui::Begin(m_name.c_str(), nullptr, ImGuiWindowFlags_MenuBar))
 	{
 		const RTexture render_target = GetCurrentRenderTargetTexture(m_render_target);
 		if (ImGui::BeginMenuBar())
@@ -114,6 +115,7 @@ void Viewport::DrawImgui(bool& a_resized, const uint2 a_minimum_size)
 		}
 
 		ImGui::Image(render_target.handle, viewport_draw_area);
+
 	}
 	ImGui::End();
 }
