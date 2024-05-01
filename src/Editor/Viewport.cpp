@@ -25,18 +25,6 @@ void Viewport::Resize(const uint2 a_new_extent)
 	ResizeRenderTarget(m_render_target, a_new_extent);
 }
 
-void Viewport::Update(const RCommandList a_list, const SceneHierarchy& a_scene_hierarchy, const uint2 a_minimum_size)
-{
-	bool resized = false;
-	DrawImgui(resized, a_minimum_size);
-
-
-	if (resized)
-	{
-
-	}
-}
-
 void Viewport::DrawScene(const RCommandList a_list, const SceneHierarchy& a_scene_hierarchy)
 {
 	StartRenderTarget(a_list, m_render_target);

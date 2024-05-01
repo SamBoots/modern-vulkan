@@ -10,7 +10,7 @@ add_custom_target(copy_shaders ALL
     ${CMAKE_BINARY_DIR}/resources/shaders
     COMMENT "Copying Shaders")
 
-add_dependencies(Renderer copy_shaders)
+add_dependencies(Engine copy_shaders)
 
 #copy models when a change happened.
 add_custom_target(copy_models ALL
@@ -19,7 +19,7 @@ add_custom_target(copy_models ALL
     ${CMAKE_BINARY_DIR}/resources/models
     COMMENT "Copying models")
 
-add_dependencies(Renderer copy_models)
+add_dependencies(Engine copy_models)
 
 #copy textures when a change happened.
 add_custom_target(copy_textures ALL
@@ -28,7 +28,7 @@ add_custom_target(copy_textures ALL
     ${CMAKE_BINARY_DIR}/resources/textures
     COMMENT "Copying Textures")
 
-add_dependencies(Renderer copy_textures)
+add_dependencies(Engine copy_textures)
 
 #copy scenes when a change happened.
 add_custom_target(copy_scenes ALL
@@ -37,7 +37,16 @@ add_custom_target(copy_scenes ALL
     ${CMAKE_BINARY_DIR}/resources/scenes
     COMMENT "Copying scenes")
 
-add_dependencies(Renderer copy_scenes)
+add_dependencies(Engine copy_scenes)
+
+#copy models when a change happened.
+add_custom_target(copy_game_res ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/resources/game
+    ${CMAKE_BINARY_DIR}/resources/game
+    COMMENT "Copying game directory")
+
+add_dependencies(Game copy_game_res)
 
 #copy models when a change happened.
 add_custom_target(copy_filter_images ALL

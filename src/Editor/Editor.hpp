@@ -24,9 +24,11 @@ namespace BB
 		requires is_game_interface<game_interface>
 		void Update(MemoryArena& a_arena, const float a_delta_time, game_interface& a_game_interface, const Slice<InputEvent> a_input_events)
 		{
-			a_game_interface.Update(a_arena, a_input_events);
-			StaticArray<SceneHierarchy>& scene_hierarchies = a_game_interface.GetSceneHierarchies();
-			(void)scene_hierarchies;
+			a_game_interface.Update(a_input_events);
+			SceneHierarchy& hierarchy = a_game_interface.GetSceneHierarchy();
+			(void)hierarchy;
+
+
 			Update(a_arena, a_delta_time, a_input_events);
 		}
 
@@ -89,7 +91,7 @@ namespace BB
 		struct ViewportAndScene
 		{
 			Viewport viewport;
-			Camera camera{ float3{0.0f, 0.0f, 1.0f}, 0.35f };
+			FreeCamera camera{ float3{0.0f, 0.0f, 1.0f}, 0.35f };
 			SceneHierarchy scene;
 		};
 		uint2 m_app_window_extent;

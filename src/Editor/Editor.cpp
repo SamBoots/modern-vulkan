@@ -343,7 +343,7 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 
 void Editor::CreateViewportViaJson(MemoryArena& a_arena, const char* a_json_path, const char* a_viewport_name, const uint2 a_window_extent, const float3 a_clear_color)
 {
-	ViewportAndScene viewport_scene;
+	ViewportAndScene viewport_scene{};
 
 	viewport_scene.viewport.Init(a_arena, a_window_extent, uint2(), a_viewport_name);
 

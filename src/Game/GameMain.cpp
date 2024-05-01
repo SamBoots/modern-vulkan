@@ -61,6 +61,7 @@ MemoryArenaMarker DungeonMap::CreateMap(MemoryArena& a_game_memory, const uint32
 	m_map_size_x = a_map_size_x;
 	m_map_size_y = a_map_size_y;
 	m_map.Init(a_game_memory, m_map_size_x * m_map_size_y);
+	m_map.fill(DungeonTile{});
 
 	for (size_t i = 0; i < a_rooms.size(); i++)
 	{
@@ -187,28 +188,34 @@ SceneObjectHandle DungeonMap::CreateRenderObject(MemoryArena& a_temp_arena, Scen
 	return map_obj;
 }
 
-bool DungeonGame::InitGame(MemoryArena& a_arena, const uint32_t a_scene_hierarchies)
+bool DungeonGame::InitGame()
 {
-	m_scene_hierarchies.Init(m_game_memory, a_scene_hierarchies);
+	m_game_memory = MemoryArenaCreate();
+	m_scene_hierarchy.Init(m_game_memory, Asset::FindOrCreateString("game hierarchy"));
 	DungeonRoom room;
 	room.CreateRoom(m_game_memory, "../../resources/game/dungeon_rooms/map1.bmp");
 	DungeonRoom* roomptr = &room;
 	m_dungeon_map.CreateMap(m_game_memory, 30, 30, Slice(&roomptr, 1));
-	MemoryArenaScope(a_arena)
+	MemoryArenaScope(m_game_memory)
 	{
-		m_dungeon_map.CreateRenderObject(m_game_memory, m_scene_hierarchies[0]);
+		m_dungeon_map.CreateRenderObject(m_game_memory, m_scene_hierarchy);
 	}
 	return true;
 }
 
-bool DungeonGame::Update(MemoryArena& a_temp_arena, const Slice<InputEvent> a_input_events)
+bool DungeonGame::Update(const Slice<InputEvent> a_input_events, const float4x4* a_overwrite_view_matrix)
 {
-	(void)a_temp_arena;
-
 	for (size_t i = 0; i < a_input_events.size(); i++)
 	{
 		const InputEvent& ip = a_input_events[i];
 		(void)ip;
+	}
+
+	if (a_overwrite_view_matrix)
+		m_scene_hierarchy.SetView(*a_overwrite_view_matrix);
+	else
+	{
+		// normal cam stuff
 	}
 
 	return true;

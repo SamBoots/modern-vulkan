@@ -69,18 +69,18 @@ namespace BB
 	class DungeonGame
 	{
 	public:
-		bool InitGame(MemoryArena& a_arena, const uint32_t a_scene_count);
-		bool Update(MemoryArena& a_temp_arena, const Slice<InputEvent> a_input_events);
+		bool InitGame();
+		bool Update(const Slice<InputEvent> a_input_events, const float4x4* a_overwrite_view_matrix = nullptr);
 		// maybe ifdef this for editor
 		void DisplayImGuiInfo();
 		void Destroy();
 
-		StaticArray<SceneHierarchy>& GetSceneHierarchies() { return m_scene_hierarchies; }
+		SceneHierarchy& GetSceneHierarchy() { return m_scene_hierarchy; }
 
 	private:
 		MemoryArena m_game_memory;
 
-		StaticArray<SceneHierarchy> m_scene_hierarchies;
+		SceneHierarchy m_scene_hierarchy;
 		StaticArray<DungeonRoom> m_dungeon_rooms;
 		DungeonMap m_dungeon_map;
 	};

@@ -460,6 +460,15 @@ namespace BB
 			m_size = a_new_size;
 		}
 
+		void fill(const T& a_value)
+		{
+			for (size_t i = 0; i < m_capacity; i++)
+			{
+				new (&m_Arr[i]) T(a_value);
+			}
+			m_size = m_capacity;
+		}
+
 		uint32_t size() const { return m_size; }
 		uint32_t capacity() const { return m_capacity; }
 		T* data() const { return m_Arr; }

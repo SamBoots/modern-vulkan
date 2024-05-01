@@ -3,10 +3,10 @@
 
 namespace BB
 {
-	class Camera
+	class FreeCamera
 	{
 	public:
-		Camera(const float3 a_pos, const float a_cam_speed = 0.15f);
+		FreeCamera(const float3 a_pos, const float a_cam_speed = 0.15f);
 
 		void Move(const float3 a_movement);
 		void Rotate(const float a_yaw, const float a_pitch);

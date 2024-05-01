@@ -139,6 +139,7 @@ int main(int argc, char** argv)
 	float delta_time = 0;
 
 	DungeonGame def_game{};
+	def_game.InitGame();
 
 	while (!quit_app)
 	{

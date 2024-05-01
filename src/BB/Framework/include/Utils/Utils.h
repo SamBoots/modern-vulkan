@@ -234,7 +234,7 @@ namespace BB
 		/// </summary>
 		inline static unsigned int Random(const unsigned int a_min, const unsigned int a_max)
 		{
-			return Random() % (a_max + 1 - a_min) + a_min;
+			return Random() % (a_max - a_min) + a_min;
 		}
 
 		/// <summary>

@@ -352,6 +352,7 @@ void BBImage::LoadBMP(MemoryArena& a_arena, const char* a_file_path, const uint3
 	BB_ASSERT(a_bytes_per_pixel == 4, "a_byts_per_pixel must be 3 or 4");
 	m_bytes_per_pixel = a_bytes_per_pixel;
 	const OSFileHandle image_file = OSLoadFile(a_file_path);
+	BB_ASSERT(image_file.IsValid(), "failed to load image");
 
 	BMP::File file;
 	ReadOSFile(image_file, &file, sizeof(file));

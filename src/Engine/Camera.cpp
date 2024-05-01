@@ -8,7 +8,7 @@ using namespace BB;
 constexpr float3 UP_VECTOR { 0, 1.f, 0 };
 constexpr float3 STANDARD_CAM_FRONT { 0, 0, -1 };
 
-Camera::Camera(const float3 a_Pos, const float a_cam_speed)
+FreeCamera::FreeCamera(const float3 a_Pos, const float a_cam_speed)
 {
 	m_pos = a_Pos;
 	m_speed = a_cam_speed;
@@ -23,7 +23,7 @@ Camera::Camera(const float3 a_Pos, const float a_cam_speed)
 	m_pitch = 0;
 }
 
-void Camera::Move(const float3 a_movement)
+void FreeCamera::Move(const float3 a_movement)
 {
 	float3 velocity{0, 0, 0};
 	velocity = velocity + m_forward * static_cast<float>(a_movement.z);
@@ -35,7 +35,7 @@ void Camera::Move(const float3 a_movement)
 	m_pos = m_pos + velocity;
 }
 
-void Camera::Rotate(const float a_yaw, const float a_pitch)
+void FreeCamera::Rotate(const float a_yaw, const float a_pitch)
 {
 	m_yaw += a_yaw * m_speed;
 	m_pitch += a_pitch * m_speed;
@@ -49,12 +49,12 @@ void Camera::Rotate(const float a_yaw, const float a_pitch)
 	m_forward = Float3Normalize(direction); //glm::normalize(t_Direction);
 }
 
-void Camera::SetSpeed(const float a_speed_mod)
+void FreeCamera::SetSpeed(const float a_speed_mod)
 {
 	m_speed = a_speed_mod;
 }
 
-const float4x4 Camera::CalculateView() const
+const float4x4 FreeCamera::CalculateView() const
 {
 	return Float4x4Lookat(m_pos, m_pos + m_forward, m_up);
 }
