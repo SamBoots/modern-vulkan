@@ -29,7 +29,6 @@ namespace BB
 			SceneHierarchy& hierarchy = a_game_interface.GetSceneHierarchy();
 			(void)hierarchy;
 
-
 			Update(a_arena, a_delta_time, a_input_events);
 		}
 
@@ -92,10 +91,8 @@ namespace BB
 		struct ViewportAndScene
 		{
 			SceneHierarchy& scene;
-			Viewport viewport;
+			Viewport viewport{};
 			FreeCamera camera{ float3{0.0f, 0.0f, 1.0f}, 0.35f };
-			RCommandList list;
-			ThreadTask task;
 		};
 		uint2 m_app_window_extent;
 		StaticArray<ViewportAndScene> m_viewport_and_scenes;

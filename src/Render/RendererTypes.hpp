@@ -63,6 +63,16 @@ namespace BB
 		ENUM_SIZE
 	};
 
+
+	enum class CULL_MODE : uint32_t
+	{
+		NONE,
+		FRONT,
+		BACK,
+		FRONT_AND_BACK,
+		ENUM_SIZE
+	};
+
 	enum class PRESENT_IMAGE_RESULT
 	{
 		SWAPCHAIN_OUT_OF_DATE,

@@ -524,6 +524,11 @@ struct Vulkan_inst
 		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::SWAPCHAIN_COPY_IMG)] = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
 		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::RENDER_TARGET)] = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
 		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::COPY_SRC_DST)] =  VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+
+		enum_conv.cull_modes[static_cast<uint32_t>(CULL_MODE::NONE)] = VK_CULL_MODE_NONE;
+		enum_conv.cull_modes[static_cast<uint32_t>(CULL_MODE::FRONT)] = VK_CULL_MODE_FRONT_BIT;
+		enum_conv.cull_modes[static_cast<uint32_t>(CULL_MODE::BACK)] = VK_CULL_MODE_BACK_BIT;
+		enum_conv.cull_modes[static_cast<uint32_t>(CULL_MODE::FRONT_AND_BACK)] = VK_CULL_MODE_FRONT_AND_BACK;
 #endif //ENUM_CONVERSATION_BY_ARRAY
 	}
 
@@ -569,6 +574,7 @@ struct Vulkan_inst
 		VkPipelineStageFlags2 pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::ENUM_SIZE)];
 		VkAccessFlags2 access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::ENUM_SIZE)];
 		VkImageUsageFlags image_usages[static_cast<uint32_t>(IMAGE_USAGE::ENUM_SIZE)];
+		VkCullModeFlags cull_modes[static_cast<uint32_t>(CULL_MODE::ENUM_SIZE)];
 	} enum_conv;
 #endif //ENUM_CONVERSATION_BY_ARRAY
 
@@ -2512,7 +2518,6 @@ void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stag
 
 	vkCmdSetRasterizerDiscardEnable(cmd_buffer, VK_FALSE);
 
-	vkCmdSetCullMode(cmd_buffer, VK_CULL_MODE_BACK_BIT);
 	vkCmdSetPrimitiveTopology(cmd_buffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	s_vulkan_inst->pfn.CmdSetPolygonModeEXT(cmd_buffer, VK_POLYGON_MODE_FILL);
 	s_vulkan_inst->pfn.CmdSetRasterizationSamplesEXT(cmd_buffer, VK_SAMPLE_COUNT_1_BIT);
@@ -2546,6 +2551,12 @@ void Vulkan::SetFrontFace(const RCommandList a_list, const bool a_is_clockwise)
 {
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 	vkCmdSetFrontFace(cmd_buffer, static_cast<VkFrontFace>(a_is_clockwise));
+}
+
+void Vulkan::SetCullMode(const RCommandList a_list, const CULL_MODE a_cull_mode)
+{
+	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+	vkCmdSetCullMode(cmd_buffer, s_vulkan_inst->enum_conv.cull_modes[static_cast<uint32_t>(a_cull_mode)]);
 }
 
 void Vulkan::SetDescriptorImmutableSamplers(const RCommandList a_list, const RPipelineLayout a_pipe_layout)

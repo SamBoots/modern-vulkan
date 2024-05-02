@@ -114,8 +114,7 @@ void DungeonMap::DestroyMap()
 
 SceneObjectHandle DungeonMap::CreateRenderObject(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy)
 {
-	const SceneObjectHandle map_obj = a_scene_hierarchy.CreateSceneObject(float3(0, 0, 0), "dungeon map");
-
+	SceneObjectHandle map_obj{};
 	MemoryArenaScope(a_temp_arena)
 	{
 		Vertex bot_left;
@@ -167,7 +166,7 @@ SceneObjectHandle DungeonMap::CreateRenderObject(MemoryArena& a_temp_arena, Scen
 						current_index + 2,
 						current_index + 2,
 						current_index + 3,
-						current_index + 1
+						current_index + 0
 					};
 
 					vertices.push_back(bot_left);
@@ -182,9 +181,8 @@ SceneObjectHandle DungeonMap::CreateRenderObject(MemoryArena& a_temp_arena, Scen
 		create_mesh_info.vertices = Slice(vertices.data(), vertices.size());
 		create_mesh_info.indices = Slice(indices.data(), indices.size());
 		MeshHandle mesh = CreateMesh(create_mesh_info);
-		a_scene_hierarchy.SetMesh(map_obj, mesh);
+		map_obj = a_scene_hierarchy.CreateSceneObjectMesh(float3(3.f, 0.f, 0.f), mesh, 0, indices.size(), GetStandardMaterial(), "dungeon map");
 	}
-
 	return map_obj;
 }
 
@@ -192,6 +190,7 @@ bool DungeonGame::InitGame()
 {
 	m_game_memory = MemoryArenaCreate();
 	m_scene_hierarchy.Init(m_game_memory, Asset::FindOrCreateString("game hierarchy"));
+	m_scene_hierarchy.SetClearColor(float3(0.3f, 0.3f, 0.3f));
 	DungeonRoom room;
 	room.CreateRoom(m_game_memory, "../../resources/game/dungeon_rooms/map1.bmp");
 	DungeonRoom* roomptr = &room;

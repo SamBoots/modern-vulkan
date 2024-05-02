@@ -128,9 +128,18 @@ namespace BB
 		return ((a_round_num + a_multiple - 1) / a_multiple) * a_multiple;
 	}
 
-	inline static size_t Max(const size_t a_a, const size_t a_b)
+	template<typename T>
+	inline static T Max(const T a_a, const T a_b)
 	{
 		if (a_a > a_b)
+			return a_a;
+		return a_b;
+	}
+
+	template<typename T>
+	inline static T Min(const T a_a, const T a_b)
+	{
+		if (a_a < a_b)
 			return a_a;
 		return a_b;
 	}
@@ -138,41 +147,6 @@ namespace BB
 	inline static void* Max(const void* a_a, const void* a_b)
 	{
 		return reinterpret_cast<void*>(Max(reinterpret_cast<size_t>(a_a), reinterpret_cast<size_t>(a_b)));
-	}
-
-	inline static size_t Min(const size_t a_a, const size_t a_b)
-	{
-		if (a_a < a_b)
-			return a_a;
-		return a_b;
-	}
-
-	inline static int Max(const int a_a, const int a_b)
-	{
-		if (a_a > a_b)
-			return a_a;
-		return a_b;
-	}
-
-	inline static int Min(const int a_a, const int a_b)
-	{
-		if (a_a < a_b)
-			return a_a;
-		return a_b;
-	}
-
-	inline static float Maxf(const float a_a, const float a_b)
-	{
-		if (a_a > a_b)
-			return a_a;
-		return a_b;
-	}
-
-	inline static float Minf(const float a_a, const float a_b)
-	{
-		if (a_a < a_b)
-			return a_a;
-		return a_b;
 	}
 
 	inline static float Lerp(const float a_a, const float a_b, const float a_t)

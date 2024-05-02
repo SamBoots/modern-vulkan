@@ -150,12 +150,10 @@ int main(int argc, char** argv)
 		object_viewer.InitViaJson(main_arena, json_file);
 	}
 
-
-
 	DungeonGame def_game{};
 	def_game.InitGame();
 
-	//editor.RegisterSceneHierarchy(main_arena, def_game.GetSceneHierarchy(), window_extent);
+	editor.RegisterSceneHierarchy(main_arena, def_game.GetSceneHierarchy(), window_extent);
 	editor.RegisterSceneHierarchy(main_arena, object_viewer, window_extent / uint2(2));
 
 	while (!quit_app)

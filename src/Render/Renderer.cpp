@@ -696,6 +696,7 @@ namespace IMGUI_IMPL
 			constexpr SHADER_STAGE IMGUI_SHADER_STAGES[2]{ SHADER_STAGE::VERTEX, SHADER_STAGE::FRAGMENT_PIXEL };
 			Vulkan::BindShaders(a_cmd_list, _countof(IMGUI_SHADER_STAGES), IMGUI_SHADER_STAGES, a_vertex_and_fragment);
 			Vulkan::SetFrontFace(a_cmd_list, true);
+			Vulkan::SetCullMode(a_cmd_list, CULL_MODE::NONE);
 		}
 
 		// Setup scale and translation:
@@ -2113,6 +2114,7 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 
 	Vulkan::BindIndexBuffer(a_cmd_list, s_render_inst->index_buffer.buffer, 0);
 	Vulkan::SetFrontFace(a_cmd_list, false);
+	Vulkan::SetCullMode(a_cmd_list, CULL_MODE::NONE);
 	for (uint32_t i = 0; i < render_scene3d.draw_list_count; i++)
 	{
 		const MeshDrawCall& mesh_draw_call = render_scene3d.draw_list_data.mesh_draw_call[i];

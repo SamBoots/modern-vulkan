@@ -440,12 +440,12 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time, const Slice<
 	MemoryArenaScope(a_arena)
 	{
 		//HACKY, but for now ok.
-		const uint32_t command_list_count = Max(m_viewport_and_scenes.size(), 1);
+		const uint32_t command_list_count = Max(m_viewport_and_scenes.size(), 1u);
 		CommandPool* pools = ArenaAllocArr(a_arena, CommandPool, command_list_count);
 		RCommandList* lists = ArenaAllocArr(a_arena, RCommandList, command_list_count);
 		pools[0] = GetGraphicsCommandPool();
 		lists[0] = pools[0].StartCommandList();
-		for (size_t i = 1; i < command_list_count; i++)
+		for (uint32_t i = 1; i < command_list_count; i++)
 		{
 			pools[i] = GetGraphicsCommandPool();
 			lists[i] = pools[i].StartCommandList();
