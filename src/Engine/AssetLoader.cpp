@@ -1100,10 +1100,8 @@ static void LoadAssetViaSearch()
 
 		if (search_path.compare(get_extension_pos, ".gltf"))
 		{
-			BB_ASSERT(false, "NEED TO REWORK HOW TO SEND SHADER EFFECTS!");
 			asset.asset_type = Asset::ASYNC_ASSET_TYPE::MODEL;
 			asset.mesh_disk.path = path_str;
-			//asset.mesh_disk.shader_effects = oops;
 		}
 		else if (search_path.compare(get_extension_pos, ".png") || search_path.compare(get_extension_pos, ".jpg") || search_path.compare(get_extension_pos, ".bmp"))
 		{
