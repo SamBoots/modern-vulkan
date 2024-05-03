@@ -135,11 +135,11 @@ namespace BB
 		StringView FindOrCreateString(const char* a_string, const size_t a_string_size);
 		StringView FindOrCreateString(const StringView& a_view);
 
-		void LoadAssets(MemoryArena& a_memory_arena, const Slice<AsyncAsset> a_asyn_assets, const char* a_cmd_list_name = "upload asset task");
+		void LoadAssets(MemoryArena& a_memory_arena, const Slice<AsyncAsset> a_asyn_assets);
 
-		const Image* LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path, const RCommandList a_list);
-		const Image* LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const char* a_name, const RCommandList a_list);
-		const Model* LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op, const RCommandList a_list);
+		const Image* LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path);
+		const Image* LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const char* a_name);
+		const Model* LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op);
 		const Model* LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoadFromMemory& a_mesh_op);
 
 		bool WriteImage(const char* a_file_name, const uint32_t a_width, const uint32_t a_height, const uint32_t a_channels, const void* a_pixels);

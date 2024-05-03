@@ -170,7 +170,7 @@ typedef void (*PFN_GPUTaskCallback)(const void* a_params);
 
 struct GPUTask
 {
-	uint64_t transfer_value;
+	GPUFenceValue transfer_value;
 	PFN_GPUTaskCallback callback;
 	void* params;
 };
@@ -208,7 +208,7 @@ struct AssetManager
 static AssetManager* s_asset_manager;
 
 template<typename T>
-static void AddGPUTask(const PFN_GPUTaskCallback a_callback, const T& a_params, const uint64_t a_fence_value)
+static void AddGPUTask(const PFN_GPUTaskCallback a_callback, const T& a_params, const GPUFenceValue a_fence_value)
 {
 	OSAcquireSRWLockWrite(&s_asset_manager->gpu_task_lock);
 	GPUTask task;
@@ -222,11 +222,11 @@ static void AddGPUTask(const PFN_GPUTaskCallback a_callback, const T& a_params, 
 
 static void ExecuteGPUTasks()
 {
-	const uint64_t fence_value = 0;
+	const GPUFenceValue fence_value = GetTransferFenceValue();
 
 	OSAcquireSRWLockWrite(&s_asset_manager->gpu_task_lock);
 	const GPUTask* task = s_asset_manager->gpu_tasks_queue.Peek();
-	while (task && task->transfer_value <= fence_value)
+	while (task && task->transfer_value.handle <= fence_value.handle)
 	{
 		task->callback(task->params);
 		// free the param memory
@@ -305,7 +305,7 @@ static inline void IconWriteToDisk_impl(const void* a_params)
 	FreeGPUBuffer(params->readback);
 }
 
-static inline bool IconWriteToDisk(const RCommandList a_list, const uint64_t a_fence_value, const IconSlot a_slot, const PathString& a_write_path)
+static inline bool IconWriteToDisk(const IconSlot a_slot, const PathString& a_write_path)
 {
 	GPUBufferCreateInfo readback_buff;
 	readback_buff.name = "icon readback";
@@ -316,14 +316,14 @@ static inline bool IconWriteToDisk(const RCommandList a_list, const uint64_t a_f
 
 	const int2 read_offset(static_cast<int>(a_slot.slot_index * ICON_EXTENT.x), 0);
 
-	BB_ASSERT(ReadTexture(a_list, s_asset_manager->icons_storage.texture, ICON_EXTENT, read_offset, readback, readback_buff.size), "failed to read texture");
+	const GPUFenceValue fence_value = ReadTexture(s_asset_manager->icons_storage.texture, ICON_EXTENT, read_offset, readback, readback_buff.size);
 
 	IconWriteToDisk_params params;
 	params.readback = readback;
 	params.image_extent = ICON_EXTENT;
 	params.write_path = a_write_path;
 
-	AddGPUTask(IconWriteToDisk_impl, params, a_fence_value);
+	AddGPUTask(IconWriteToDisk_impl, params, fence_value);
 	return true;
 }
 
@@ -467,11 +467,8 @@ StringView Asset::FindOrCreateString(const StringView& a_view)
 	return AllocateStringSpace(a_view.c_str(), string_size, string_hash);
 }
 
-void Asset::LoadAssets(MemoryArena& memory_arena, const Slice<AsyncAsset> a_asyn_assets, const char* a_cmd_list_name)
+void Asset::LoadAssets(MemoryArena& memory_arena, const Slice<AsyncAsset> a_asyn_assets)
 {
-	CommandPool& cmd_pool = GetTransferCommandPool();
-	const RCommandList cmd_list = cmd_pool.StartCommandList(a_cmd_list_name);
-
 	for (size_t i = 0; i < a_asyn_assets.size(); i++)
 	{
 		const AsyncAsset& task = a_asyn_assets[i];
@@ -482,7 +479,7 @@ void Asset::LoadAssets(MemoryArena& memory_arena, const Slice<AsyncAsset> a_asyn
 			switch (task.load_type)
 			{
 			case ASYNC_LOAD_TYPE::DISK:
-				LoadglTFModel(memory_arena, task.mesh_disk, cmd_list);
+				LoadglTFModel(memory_arena, task.mesh_disk);
 				break;
 			case ASYNC_LOAD_TYPE::MEMORY:
 				LoadMeshFromMemory(memory_arena, task.mesh_memory);
@@ -495,18 +492,16 @@ void Asset::LoadAssets(MemoryArena& memory_arena, const Slice<AsyncAsset> a_asyn
 			switch (task.load_type)
 			{
 			case ASYNC_LOAD_TYPE::DISK:
-				LoadImageDisk(memory_arena, task.texture_disk.path, cmd_list);
+				LoadImageDisk(memory_arena, task.texture_disk.path);
 				break;
 			case ASYNC_LOAD_TYPE::MEMORY:
-				LoadImageMemory(memory_arena, *task.texture_memory.image, task.texture_memory.name, cmd_list);
+				LoadImageMemory(memory_arena, *task.texture_memory.image, task.texture_memory.name);
 				break;
 			}
 		}
 		break;
 		}
 	}
-	cmd_pool.EndCommandList(cmd_list);
-	BB_ASSERT(ExecuteAssetTransfer(Slice(&cmd_pool, 1), 0), "Failed to execute async gpu transfer commands");
 }
 
 struct LoadAsyncFunc_Params
@@ -514,7 +509,6 @@ struct LoadAsyncFunc_Params
 	MemoryArena memory_arena;
 	Asset::AsyncAsset* assets;
 	size_t asset_count;
-	const char* cmd_list_name;
 };
 
 static void LoadAsync_func(MemoryArena&, void* a_param)
@@ -522,12 +516,12 @@ static void LoadAsync_func(MemoryArena&, void* a_param)
 	using namespace Asset;
 	LoadAsyncFunc_Params* params = reinterpret_cast<LoadAsyncFunc_Params*>(a_param);
 
-	LoadAssets(params->memory_arena, Slice(params->assets, params->asset_count), params->cmd_list_name);
+	LoadAssets(params->memory_arena, Slice(params->assets, params->asset_count));
 
 	MemoryArenaFree(params->memory_arena);
 }
 
-const Image* Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path, const RCommandList a_list)
+const Image* Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path)
 {
 	AssetString asset_name;
 	GetAssetNameFromPath(a_path, asset_name);
@@ -578,7 +572,7 @@ const Image* Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path,
 			icon_write = ResizeImage(a_temp_arena, pixels, static_cast<int>(create_image_info.width), static_cast<int>(create_image_info.height), static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
 		}
 		asset.icon = LoadIconFromPixels(icon_write, true);
-		IconWriteToDisk(a_list, 0, asset.icon, icon_path);
+		IconWriteToDisk(asset.icon, icon_path);
 	}
 
 	AddElementToAssetTable(asset);
@@ -599,7 +593,7 @@ bool Asset::WriteImage(const char* a_file_name, const uint32_t a_width, const ui
 	return false;
 }
 
-const Image* Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const char* a_name, const RCommandList a_list)
+const Image* Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const char* a_name)
 {
 	const StringView image_name = FindOrCreateString(a_name);
 
@@ -664,7 +658,7 @@ const Image* Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage
 			icon_write = ResizeImage(a_temp_arena, a_image.GetPixels(), static_cast<int>(create_image_info.width), static_cast<int>(create_image_info.height), static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
 		}
 		asset.icon = LoadIconFromPixels(icon_write, true);
-		IconWriteToDisk(a_list, 0, asset.icon, icon_path);
+		IconWriteToDisk(asset.icon, icon_path);
 	}
 
 
@@ -734,7 +728,7 @@ static inline void* GetAccessorDataPtr(const cgltf_accessor* a_accessor)
 	return Pointer::Add(a_accessor->buffer_view->buffer->data, accessor_offset);
 }
 
-static void LoadglTFMesh(MemoryArena& a_temp_arena, const RCommandList a_list, const cgltf_mesh& a_cgltf_mesh, Model::Mesh& a_mesh)
+static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_mesh, Model::Mesh& a_mesh)
 {
 	const cgltf_mesh& mesh = a_cgltf_mesh;
 
@@ -780,7 +774,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const RCommandList a_list, c
 			const cgltf_image& image = *prim.material->pbr_metallic_roughness.base_color_texture.texture->image;
 
 			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
-			const Image* img = Asset::LoadImageDisk(a_temp_arena, full_image_path, a_list);
+			const Image* img = Asset::LoadImageDisk(a_temp_arena, full_image_path);
 
 			model_prim.material_data.base_texture = img->gpu_image;
 		}
@@ -788,7 +782,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const RCommandList a_list, c
 		{
 			const cgltf_image& image = *prim.material->normal_texture.texture->image;
 			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
-			const Image* img = Asset::LoadImageDisk(a_temp_arena, full_image_path, a_list);
+			const Image* img = Asset::LoadImageDisk(a_temp_arena, full_image_path);
 
 			model_prim.material_data.normal_texture = img->gpu_image;
 		}
@@ -881,7 +875,7 @@ static void cgltf_arena_free(void*, void*)
 	// nothing
 }
 
-const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op, const RCommandList a_list)
+const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op)
 {
 	const AssetHash asset_hash = CreateAssetHash(StringHash(a_mesh_op.path, Memory::StrLength(a_mesh_op.path)), ASSET_TYPE::MODEL);
 	
@@ -933,7 +927,7 @@ const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 	{
 		MemoryArenaScope(a_temp_arena)
 		{
-			LoadglTFMesh(a_temp_arena, a_list, gltf_data->meshes[i], model->meshes[i]);
+			LoadglTFMesh(a_temp_arena, gltf_data->meshes[i], model->meshes[i]);
 		}
 	}
 
@@ -1072,7 +1066,7 @@ void Asset::FreeAsset(const AssetHandle a_asset_handle)
 
 constexpr size_t ASSET_SEARCH_PATH_SIZE_MAX = 512;
 
-static ThreadTask LoadAssetsASync(const BB::Slice<Asset::AsyncAsset> a_asyn_assets, const char* a_cmd_list_name)
+static ThreadTask LoadAssetsASync(const BB::Slice<Asset::AsyncAsset> a_asyn_assets)
 {
 	// maybe have each thread have it's own memory arena
 	MemoryArena load_arena = MemoryArenaCreate();
@@ -1081,7 +1075,6 @@ static ThreadTask LoadAssetsASync(const BB::Slice<Asset::AsyncAsset> a_asyn_asse
 	params->assets = ArenaAllocArr(load_arena, Asset::AsyncAsset, a_asyn_assets.size());
 	memcpy(params->assets, a_asyn_assets.data(), a_asyn_assets.sizeInBytes());
 	params->asset_count = a_asyn_assets.size();
-	params->cmd_list_name = a_cmd_list_name;
 	params->memory_arena = load_arena;
 
 	return Threads::StartTaskThread(LoadAsync_func, params);
@@ -1122,7 +1115,7 @@ static void LoadAssetViaSearch()
 			BB_ASSERT(false, "NOT SUPPORTED FILE NAME!");
 		}
 
-		LoadAssetsASync(Slice(&asset, 1), "load asset via search");
+		LoadAssetsASync(Slice(&asset, 1));
 	}
 }
 
@@ -1187,15 +1180,8 @@ void Asset::ShowAssetMenu(MemoryArena& a_arena)
 							path_search.RecalculateStringSize();
 							if (IsPathImage(path_search.GetView()))
 							{
-								CommandPool& pool = GetTransferCommandPool();
-								const RCommandList list = pool.StartCommandList("set new icon task");
-								const uint64_t transfer_fence_value = 0;
 								slot->icon = LoadIconFromPath(a_arena, path_search.GetView(), false);
-
-								IconWriteToDisk(list, transfer_fence_value, slot->icon, GetIconPathFromAssetName(StringView(slot->name)));
-
-								pool.EndCommandList(list);
-								ExecuteAssetTransfer(Slice(&pool, 1), transfer_fence_value);
+								IconWriteToDisk(slot->icon, GetIconPathFromAssetName(StringView(slot->name)));
 							}
 						}
 					}

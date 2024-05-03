@@ -35,7 +35,7 @@ namespace BB
 		bool CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles);
 		const MaterialHandle CreateMaterial(const CreateMaterialInfo& a_create_info);
 
-		static ThreadTask LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets, const char* a_cmd_list_name = "upload asset task");
+		static ThreadTask LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets);
 
 		struct ShaderEffectInfo
 		{
@@ -73,7 +73,6 @@ namespace BB
 			MemoryArena arena;
 			Asset::AsyncAsset* assets;
 			size_t asset_count;
-			const char* cmd_list_name = "upload asset task";
 		};
 		static void LoadAssetsAsync(MemoryArena& a_thread_arena, void* a_params);
 		void MainEditorImGuiInfo(const MemoryArena& a_arena);

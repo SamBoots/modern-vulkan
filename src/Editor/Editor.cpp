@@ -553,7 +553,7 @@ const MaterialHandle Editor::CreateMaterial(const CreateMaterialInfo& a_create_i
 	return material;
 }
 
-ThreadTask Editor::LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets, const char* a_cmd_list_name)
+ThreadTask Editor::LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets)
 {
 	// maybe have each thread have it's own memory arena
 	MemoryArena load_arena = MemoryArenaCreate();
@@ -562,7 +562,6 @@ ThreadTask Editor::LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets, cons
 	params->assets = ArenaAllocArr(load_arena, Asset::AsyncAsset, a_asyn_assets.size());
 	memcpy(params->assets, a_asyn_assets.data(), a_asyn_assets.sizeInBytes());
 	params->asset_count = a_asyn_assets.size();
-	params->cmd_list_name = a_cmd_list_name;
 	params->arena = load_arena;
 
 	return Threads::StartTaskThread(Editor::LoadAssetsAsync, params);
@@ -885,7 +884,7 @@ void Editor::LoadAssetsAsync(MemoryArena&, void* a_params)
 	MemoryArena load_arena = MemoryArenaCreate();
 	//Editor& editor = *params->editor;
 
-	Asset::LoadAssets(load_arena, Slice(params->assets, params->asset_count), params->cmd_list_name);
+	Asset::LoadAssets(load_arena, Slice(params->assets, params->asset_count));
 
 	// load materials in somehow
 

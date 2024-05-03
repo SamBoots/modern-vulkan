@@ -568,10 +568,22 @@ struct UploadDataMesh
 	RenderCopyBufferRegion vertex_region;
 	RenderCopyBufferRegion index_region;
 };
+
+enum class UPLOAD_TEXTURE_TYPE
+{
+	WRITE,
+	READ
+};
+
 struct UploadDataTexture
 {
 	RTexture texture_index;
-	RenderCopyBufferToImageInfo write_info;
+	UPLOAD_TEXTURE_TYPE upload_type;
+	union 
+	{
+		RenderCopyBufferToImageInfo write_info;
+		RenderCopyImageToBufferInfo read_info;
+	};
 	IMAGE_LAYOUT start_layout;
 	IMAGE_LAYOUT end_layout;
 };
@@ -1640,19 +1652,32 @@ static void UploadAssets(MemoryArena& a_thread_arena, void*)
 	{
 		MemoryArenaScope(a_thread_arena)
 		{
-			RTexture* textures = ArenaAllocArr(a_thread_arena, RTexture, MAX_TEXTURE_UPLOAD_QUEUE);
-			RenderCopyBufferToImageInfo* upload_info = ArenaAllocArr(a_thread_arena, RenderCopyBufferToImageInfo, MAX_TEXTURE_UPLOAD_QUEUE);
+			uint32_t write_info_count = 0;
+			RenderCopyBufferToImageInfo* write_infos = ArenaAllocArr(a_thread_arena, RenderCopyBufferToImageInfo, MAX_TEXTURE_UPLOAD_QUEUE);
+			uint32_t read_info_count = 0;
+			RenderCopyImageToBufferInfo* read_infos = ArenaAllocArr(a_thread_arena, RenderCopyImageToBufferInfo, MAX_TEXTURE_UPLOAD_QUEUE);
 			uint32_t before_trans_count = 0;
 			PipelineBarrierImageInfo* before_transition = ArenaAllocArr(a_thread_arena, PipelineBarrierImageInfo, MAX_TEXTURE_UPLOAD_QUEUE);
 
 			size_t index = 0;
-			UploadDataTexture upload_data;
+			UploadDataTexture upload_data{};
 			while (s_render_inst->asset_uploader.upload_textures.DeQueue(upload_data) &&
 				index < MAX_TEXTURE_UPLOAD_QUEUE)
 			{
-				textures[index] = upload_data.texture_index;
 				GPUTextureManager::TextureSlot& texture_slot = s_render_inst->texture_manager.GetTextureSlot(upload_data.texture_index);
-				upload_info[index] = upload_data.write_info;
+				switch (upload_data.upload_type)
+				{
+				case UPLOAD_TEXTURE_TYPE::WRITE:
+					write_infos[write_info_count++] = upload_data.write_info;
+					break;
+				case UPLOAD_TEXTURE_TYPE::READ:
+					read_infos[read_info_count++] = upload_data.read_info;
+					break;
+				default:
+					BB_ASSERT(false, "invalid upload UPLOAD_TEXTURE_TYPE value or unimplemented switch statement");
+					break;
+				}
+
 				++index;
 
 				if (upload_data.start_layout != IMAGE_LAYOUT::TRANSFER_DST)
@@ -1706,15 +1731,24 @@ static void UploadAssets(MemoryArena& a_thread_arena, void*)
 			pipeline_info.image_infos = before_transition;
 			Vulkan::PipelineBarriers(list, pipeline_info);
 
-			for (size_t i = 0; i < index; i++)
+			for (size_t i = 0; i < write_info_count; i++)
 			{
-				Vulkan::CopyBufferToImage(list, upload_info[i]);
+				Vulkan::CopyBufferToImage(list, write_infos[i]);
+			}
+
+			for (size_t i = 0; i < read_info_count; i++)
+			{
+				Vulkan::CopyImageToBuffer(list, read_infos[i]);
 			}
 		}
 	}
 
 	cmd_pool.EndCommandList(list);
-	ExecuteAssetTransfer(Slice(&cmd_pool, 1), s_render_inst->asset_uploader.next_fence_value.fetch_add(1));
+
+	s_render_inst->transfer_queue.ReturnPools(Slice(&cmd_pool, 1));
+	uint64_t mock_fence;	// TODO, remove this
+	const uint64_t asset_fence_value = s_render_inst->asset_uploader.next_fence_value.fetch_add(1);
+	s_render_inst->transfer_queue.ExecuteCommands(&list, 1, &s_render_inst->asset_uploader.fence, &asset_fence_value, 1, nullptr, nullptr, 0, mock_fence);
 
 	uploading_assets = false;
 }
@@ -2237,28 +2271,6 @@ bool BB::ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, uint64
 
 	s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
 	s_render_inst->graphics_queue.ExecuteCommands(lists, list_count, nullptr, nullptr, 0, nullptr, nullptr, 0, a_out_fence_value);
-	return true;
-}
-
-bool BB::ExecuteAssetTransfer(const BB::Slice<CommandPool> a_cmd_pools, const uint64_t a_asset_transfer_fence_value)
-{
-	uint32_t list_count = 0;
-	for (size_t i = 0; i < a_cmd_pools.size(); i++)
-		list_count += a_cmd_pools[i].GetListsRecorded();
-
-	RCommandList* lists = BBstackAlloc(list_count, RCommandList);
-	list_count = 0;
-	for (size_t i = 0; i < a_cmd_pools.size(); i++)
-	{
-		Memory::Copy(&lists[list_count],
-			a_cmd_pools[i].GetLists(),
-			a_cmd_pools[i].GetListsRecorded());
-		list_count += a_cmd_pools[i].GetListsRecorded();
-	}
-
-	s_render_inst->transfer_queue.ReturnPools(a_cmd_pools);
-	uint64_t mock_fence;
-	s_render_inst->transfer_queue.ExecuteCommands(lists, list_count, &s_render_inst->asset_uploader.fence, &a_asset_transfer_fence_value, 1, nullptr, nullptr, 0, mock_fence);
 	return true;
 }
 
@@ -2844,7 +2856,7 @@ void BB::CopyTexture(const RCommandList a_list, const CopyTextureInfo& a_copy_in
 	}
 }
 
-void BB::WriteTexture(const RTexture a_texture, const WriteTextureInfo& a_write_info)
+GPUFenceValue BB::WriteTexture(const RTexture a_texture, const WriteTextureInfo& a_write_info)
 {
 	GPUTextureManager::TextureSlot& texture_slot = s_render_inst->texture_manager.GetTextureSlot(a_texture);
 	BB_ASSERT(IsImageWithinBounds(texture_slot, a_write_info.extent, a_write_info.offset), "write image out of bounds");
@@ -2871,12 +2883,15 @@ void BB::WriteTexture(const RTexture a_texture, const WriteTextureInfo& a_write_
 	buffer_to_image.dst_image_info.layer_count = 1;
 	buffer_to_image.dst_image_info.base_array_layer = 0;
 
-	UploadDataTexture upload_texture;
+	UploadDataTexture upload_texture{};
 	upload_texture.texture_index = a_texture;
+	upload_texture.upload_type = UPLOAD_TEXTURE_TYPE::WRITE;
 	upload_texture.write_info = buffer_to_image;
 	upload_texture.start_layout = IMAGE_LAYOUT::UNDEFINED;
 	upload_texture.end_layout = a_write_info.set_shader_visible ? IMAGE_LAYOUT::SHADER_READ_ONLY : IMAGE_LAYOUT::TRANSFER_DST;
 	uploader.upload_textures.EnQueue(upload_texture);
+
+	return GPUFenceValue(uploader.next_fence_value.load());
 }
 
 void BB::FreeTexture(const RTexture a_texture)
@@ -2884,36 +2899,15 @@ void BB::FreeTexture(const RTexture a_texture)
 	return s_render_inst->texture_manager.FreeTexture(a_texture);
 }
 
-bool BB::ReadTexture(const RCommandList a_cmd_list, const RTexture a_texture, const uint2 a_extent, const int2 a_offset, const GPUBuffer a_readback_buffer, const size_t a_readback_buffer_size)
+GPUFenceValue BB::ReadTexture(const RTexture a_texture, const uint2 a_extent, const int2 a_offset, const GPUBuffer a_readback_buffer, const size_t a_readback_buffer_size)
 {
 	const GPUTextureManager::TextureSlot& selected_texture = s_render_inst->texture_manager.GetTextureSlot(a_texture);
 	BB_ASSERT(selected_texture.texture_info.format == SCREENSHOT_IMAGE_FORMAT, "image format is not SRGB, image write may not be successful");
 	BB_ASSERT(IsImageWithinBounds(selected_texture, a_extent, a_offset), "reading texture out of bounds!");
 
 	const IMAGE_LAYOUT original_layout = selected_texture.texture_info.current_layout;
-	constexpr IMAGE_LAYOUT transfer_layout = IMAGE_LAYOUT::TRANSFER_SRC;
 
-	{
-		PipelineBarrierImageInfo image_write_transition;
-		image_write_transition.src_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
-		image_write_transition.dst_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
-		image_write_transition.image = selected_texture.texture_info.image;
-		image_write_transition.old_layout = original_layout;
-		image_write_transition.new_layout = transfer_layout;
-		image_write_transition.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
-		image_write_transition.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
-		image_write_transition.layer_count = 1;
-		image_write_transition.level_count = 1;
-		image_write_transition.base_array_layer = 0;
-		image_write_transition.base_mip_level = 0;
-		image_write_transition.src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
-		image_write_transition.dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
-
-		PipelineBarrierInfo pipeline_info{};
-		pipeline_info.image_info_count = 1;
-		pipeline_info.image_infos = &image_write_transition;
-		Vulkan::PipelineBarriers(a_cmd_list, pipeline_info);
-	}
+	RenderInterface_inst::AssetUploader& uploader = s_render_inst->asset_uploader;
 
 	const size_t image_size =
 		static_cast<size_t>(a_extent.x) *
@@ -2922,26 +2916,35 @@ bool BB::ReadTexture(const RCommandList a_cmd_list, const RTexture a_texture, co
 
 	BB_ASSERT(image_size <= a_readback_buffer_size, "readback buffer too small");
 
-	{
-		RenderCopyImageToBufferInfo image_to_buffer;
-		image_to_buffer.dst_buffer = a_readback_buffer;
-		image_to_buffer.dst_offset = 0; // change this if i have a global readback buffer thing
+	RenderCopyImageToBufferInfo image_to_buffer;
+	image_to_buffer.dst_buffer = a_readback_buffer;
+	image_to_buffer.dst_offset = 0; // change this if i have a global readback buffer thing
 
-		image_to_buffer.src_image = selected_texture.texture_info.image;
-		image_to_buffer.src_extent.x = a_extent.x;
-		image_to_buffer.src_extent.y = a_extent.y;
-		image_to_buffer.src_extent.z = 1;
-		image_to_buffer.src_image_info.offset_x = a_offset.x;
-		image_to_buffer.src_image_info.offset_y = a_offset.y;
-		image_to_buffer.src_image_info.offset_z = 0;
-		image_to_buffer.src_image_info.mip_level = 0;
-		image_to_buffer.src_image_info.layer_count = 1;
-		image_to_buffer.src_image_info.base_array_layer = 0;
+	image_to_buffer.src_image = selected_texture.texture_info.image;
+	image_to_buffer.src_extent.x = a_extent.x;
+	image_to_buffer.src_extent.y = a_extent.y;
+	image_to_buffer.src_extent.z = 1;
+	image_to_buffer.src_image_info.offset_x = a_offset.x;
+	image_to_buffer.src_image_info.offset_y = a_offset.y;
+	image_to_buffer.src_image_info.offset_z = 0;
+	image_to_buffer.src_image_info.mip_level = 0;
+	image_to_buffer.src_image_info.layer_count = 1;
+	image_to_buffer.src_image_info.base_array_layer = 0;
 
-		Vulkan::CopyImageToBuffer(a_cmd_list, image_to_buffer);
-	}
+	UploadDataTexture upload_texture{};
+	upload_texture.texture_index = a_texture;
+	upload_texture.upload_type = UPLOAD_TEXTURE_TYPE::READ;
+	upload_texture.read_info = image_to_buffer;
+	upload_texture.start_layout = original_layout;
+	upload_texture.end_layout = original_layout;
+	uploader.upload_textures.EnQueue(upload_texture);
 
-	return true;
+	return GPUFenceValue(uploader.next_fence_value.load());
+}
+
+GPUFenceValue BB::GetTransferFenceValue()
+{
+	return GPUFenceValue(s_render_inst->asset_uploader.next_fence_value.load() - 1);
 }
 
 const GPUBuffer BB::CreateGPUBuffer(const GPUBufferCreateInfo& a_create_info)

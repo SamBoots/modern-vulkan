@@ -26,6 +26,8 @@ namespace BB
 	using RCommandPool = FrameworkHandle<struct RCommandPoolTag>;
 	using RCommandList = FrameworkHandle<struct RCommandListTag>;
 
+	using GPUFenceValue = FrameworkHandle<struct GPUFenceValueTag>;
+
 	using GPUBuffer = FrameworkHandle<struct RBufferTag>;
 	//TEMP START
 	using RImage = FrameworkHandle<struct RImageTag>;
