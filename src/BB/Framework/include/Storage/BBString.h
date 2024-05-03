@@ -19,7 +19,6 @@ namespace BB
 		String_View() = default;
 		String_View(const CharT* a_string) : String_View(a_string, Memory::StrLength(a_string)) {}
 		String_View(const CharT* a_string, const size_t a_size) : m_string_view(a_string), m_size(a_size) {}
-		String_View(const String_View<CharT>& a_view) : m_string_view(a_view.m_string_view), m_size(a_view.m_size) {}
 
 		bool operator==(const String_View<CharT>& a_rhs) const
 		{
@@ -87,7 +86,7 @@ namespace BB
 
 	private:
 		const CharT* m_string_view = nullptr;
-		const size_t m_size = 0;
+		size_t m_size = 0;
 	};
 
 	using StringView = String_View<char>;

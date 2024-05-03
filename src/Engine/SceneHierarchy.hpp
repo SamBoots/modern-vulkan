@@ -10,6 +10,7 @@
 namespace BB
 {
 	using SceneObjectHandle = FrameworkHandle<struct SceneObjectHandleTag>;
+	constexpr SceneObjectHandle INVALID_SCENE_OBJ = SceneObjectHandle(BB_INVALID_HANDLE_64);
 	class JsonParser;
 
 	constexpr uint32_t DEFAULT_SCENE_OBJ_MAX = 512;
@@ -50,10 +51,10 @@ namespace BB
 		static StaticArray<Asset::AsyncAsset> PreloadAssetsFromJson(MemoryArena& a_arena, const JsonParser& a_parsed_file);
 
 		void DrawSceneHierarchy(const RCommandList a_list, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset) const;
-		SceneObjectHandle CreateSceneObject(const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = SceneObjectHandle(BB_INVALID_HANDLE_64));
+		SceneObjectHandle CreateSceneObject(const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
 		SceneObjectHandle CreateSceneObjectMesh(const float3 a_position, const MeshHandle a_mesh, const uint32_t a_start_index, const uint32_t a_index_count, const MaterialHandle a_material, const char* a_name, const SceneObjectHandle a_parent = SceneObjectHandle(BB_INVALID_HANDLE_64));
-		SceneObjectHandle CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = SceneObjectHandle(BB_INVALID_HANDLE_64));
-		SceneObjectHandle CreateSceneObjectAsLight(const CreateLightInfo& a_light_create_info, const char* a_name, const SceneObjectHandle a_parent = SceneObjectHandle(BB_INVALID_HANDLE_64));
+		SceneObjectHandle CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
+		SceneObjectHandle CreateSceneObjectAsLight(const CreateLightInfo& a_light_create_info, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
 
 		void SetView(const float4x4& a_view);
 		void SetProjection(const float4x4& a_projection);
@@ -62,7 +63,6 @@ namespace BB
 		void SetClearColor(const float3 a_clear_color) { m_clear_color = a_clear_color; }
 
 	private:
-		SceneObjectHandle CreateSceneObjectEmpty(const SceneObjectHandle a_parent);
 		SceneObjectHandle CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent);
 		void DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform) const;
 

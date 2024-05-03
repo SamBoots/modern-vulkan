@@ -122,7 +122,7 @@ static uint64_t TurboCrappyImageHash(const void* a_pixels, const size_t a_byte_s
 enum class ASSET_TYPE : uint8_t
 {
 	MODEL,
-	TEXTURE
+	IMAGE
 };
 
 //this hash works by setting a 64 bit hash, then overwriting the last byte to show which asset type it is.
@@ -467,11 +467,13 @@ StringView Asset::FindOrCreateString(const StringView& a_view)
 	return AllocateStringSpace(a_view.c_str(), string_size, string_hash);
 }
 
-void Asset::LoadAssets(MemoryArena& memory_arena, const Slice<AsyncAsset> a_asyn_assets)
+Slice<Asset::LoadedAssetInfo> Asset::LoadAssets(MemoryArena& a_temp_arena, const Slice<AsyncAsset> a_asyn_assets)
 {
+	LoadedAssetInfo* loaded_assets = ArenaAllocArr(a_temp_arena, LoadedAssetInfo, a_asyn_assets.size());
 	for (size_t i = 0; i < a_asyn_assets.size(); i++)
 	{
 		const AsyncAsset& task = a_asyn_assets[i];
+		loaded_assets[i].type = task.asset_type;
 		switch (task.asset_type)
 		{
 		case ASYNC_ASSET_TYPE::MODEL:
@@ -479,10 +481,10 @@ void Asset::LoadAssets(MemoryArena& memory_arena, const Slice<AsyncAsset> a_asyn
 			switch (task.load_type)
 			{
 			case ASYNC_LOAD_TYPE::DISK:
-				LoadglTFModel(memory_arena, task.mesh_disk);
+				loaded_assets[i].name = LoadglTFModel(a_temp_arena, task.mesh_disk);
 				break;
 			case ASYNC_LOAD_TYPE::MEMORY:
-				LoadMeshFromMemory(memory_arena, task.mesh_memory);
+				loaded_assets[i].name = LoadMeshFromMemory(a_temp_arena, task.mesh_memory);
 				break;
 			}
 			break;
@@ -492,16 +494,18 @@ void Asset::LoadAssets(MemoryArena& memory_arena, const Slice<AsyncAsset> a_asyn
 			switch (task.load_type)
 			{
 			case ASYNC_LOAD_TYPE::DISK:
-				LoadImageDisk(memory_arena, task.texture_disk.path);
+				loaded_assets[i].name = LoadImageDisk(a_temp_arena, task.texture_disk.path);
 				break;
 			case ASYNC_LOAD_TYPE::MEMORY:
-				LoadImageMemory(memory_arena, *task.texture_memory.image, task.texture_memory.name);
+				loaded_assets[i].name = LoadImageMemory(a_temp_arena, *task.texture_memory.image, task.texture_memory.name);
 				break;
 			}
 		}
 		break;
 		}
 	}
+
+	return Slice(loaded_assets, a_asyn_assets.size());
 }
 
 struct LoadAsyncFunc_Params
@@ -521,7 +525,7 @@ static void LoadAsync_func(MemoryArena&, void* a_param)
 	MemoryArenaFree(params->memory_arena);
 }
 
-const Image* Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path)
+const StringView Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path)
 {
 	AssetString asset_name;
 	GetAssetNameFromPath(a_path, asset_name);
@@ -554,7 +558,7 @@ const Image* Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path)
 	const uint64_t path_hash = StringHash(a_path, strnlen_s(a_path, MAX_PATH_SIZE));
 
 	AssetSlot asset;
-	asset.hash = CreateAssetHash(path_hash, ASSET_TYPE::TEXTURE);
+	asset.hash = CreateAssetHash(path_hash, ASSET_TYPE::IMAGE);
 	asset.path = FindOrCreateString(a_path).c_str(); //memory loads have nullptr as path.
 	asset.image = image;
 	asset.name = image_name.c_str();
@@ -580,7 +584,7 @@ const Image* Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path)
 
 	STBI_FREE(pixels);
 
-	return image;
+	return asset.path;
 }
 
 bool Asset::WriteImage(const char* a_file_name, const uint32_t a_width, const uint32_t a_height, const uint32_t a_channels, const void* a_pixels)
@@ -593,7 +597,7 @@ bool Asset::WriteImage(const char* a_file_name, const uint32_t a_width, const ui
 	return false;
 }
 
-const Image* Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const char* a_name)
+const StringView Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const char* a_name)
 {
 	const StringView image_name = FindOrCreateString(a_name);
 
@@ -640,7 +644,7 @@ const Image* Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage
 	// BB_ASSERT(hash != 0, "Image hashing failed");
 
 	AssetSlot asset;
-	asset.hash = CreateAssetHash(hash, ASSET_TYPE::TEXTURE);
+	asset.hash = CreateAssetHash(hash, ASSET_TYPE::IMAGE);
 	asset.path = nullptr; // memory loads have nullptr has path.
 	asset.image = image;
 	asset.name = image_name.c_str();
@@ -665,7 +669,7 @@ const Image* Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage
 	AddElementToAssetTable(asset);
 	image->asset_handle = AssetHandle(asset.hash.full_hash);
 
-	return image;
+	return image_name;
 }
 
 static inline size_t CgltfGetMeshIndex(const cgltf_data& a_cgltf_data, const cgltf_mesh* a_mesh)
@@ -772,19 +776,18 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 		if (prim.material->pbr_metallic_roughness.base_color_texture.texture)
 		{
 			const cgltf_image& image = *prim.material->pbr_metallic_roughness.base_color_texture.texture->image;
-
 			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
-			const Image* img = Asset::LoadImageDisk(a_temp_arena, full_image_path);
+			const StringView img = Asset::LoadImageDisk(a_temp_arena, full_image_path);
 
-			model_prim.material_data.base_texture = img->gpu_image;
+			model_prim.material_data.base_texture = Asset::FindImageByName(img.c_str())->gpu_image;
 		}
 		if (prim.material->normal_texture.texture)
 		{
 			const cgltf_image& image = *prim.material->normal_texture.texture->image;
 			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
-			const Image* img = Asset::LoadImageDisk(a_temp_arena, full_image_path);
-
-			model_prim.material_data.normal_texture = img->gpu_image;
+			const StringView img = Asset::LoadImageDisk(a_temp_arena, full_image_path);
+			
+			model_prim.material_data.normal_texture = Asset::FindImageByName(img.c_str())->gpu_image;
 		}
 		{	// get indices
 			void* index_data = GetAccessorDataPtr(prim.indices);
@@ -875,13 +878,13 @@ static void cgltf_arena_free(void*, void*)
 	// nothing
 }
 
-const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op)
+const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op)
 {
 	const AssetHash asset_hash = CreateAssetHash(StringHash(a_mesh_op.path, Memory::StrLength(a_mesh_op.path)), ASSET_TYPE::MODEL);
 	
 	if (AssetSlot* slot = s_asset_manager->asset_table.find(asset_hash.full_hash))
 	{
-		return slot->model;
+		return slot->name;
 	}
 
 	cgltf_options gltf_option = {};
@@ -958,10 +961,10 @@ const Model* Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 
 	AddElementToAssetTable(asset);
 	model->asset_handle = AssetHandle(asset.hash.full_hash);
-	return model;
+	return asset.path;
 }
 
-const Model* Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoadFromMemory& a_mesh_op)
+const StringView Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoadFromMemory& a_mesh_op)
 {
 	// this is all garbage
 
@@ -969,7 +972,7 @@ const Model* Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoad
 
 	if (AssetSlot* slot = s_asset_manager->asset_table.find(asset_hash.full_hash))
 	{
-		return slot->model;
+		return slot->name;
 	}
 
 	CreateMeshInfo mesh_info;
@@ -1004,9 +1007,9 @@ const Model* Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoad
 
 	AssetSlot asset;
 	asset.hash = asset_hash;
-	asset.path = FindOrCreateString(a_mesh_op.name).c_str();
+	asset.path = nullptr;
 	asset.model = model;
-	asset.name = a_mesh_op.name;
+	asset.name = FindOrCreateString(a_mesh_op.name).c_str();
 
 	const PathString icon_path = GetIconPathFromAssetName(asset.name);
 	if (OSFileExist(icon_path.c_str()))
@@ -1017,17 +1020,7 @@ const Model* Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoad
 	AddElementToAssetTable(asset);
 
 	model->asset_handle = AssetHandle(asset.hash.full_hash);
-	return model;
-}
-
-const Model* Asset::FindModelByPath(const char* a_path)
-{
-	AssetHash asset_hash = CreateAssetHash(StringHash(a_path, Memory::StrLength(a_path)), ASSET_TYPE::MODEL);
-	if (AssetSlot* slot = s_asset_manager->asset_table.find(asset_hash.full_hash))
-	{
-		return slot->model;
-	}
-	return nullptr;
+	return asset.name;
 }
 
 const Model* Asset::FindModelByName(const char* a_name)
@@ -1036,6 +1029,16 @@ const Model* Asset::FindModelByName(const char* a_name)
 	if (AssetSlot* slot = s_asset_manager->asset_table.find(asset_hash.full_hash))
 	{
 		return slot->model;
+	}
+	return nullptr;
+}
+
+const Image* Asset::FindImageByName(const char* a_name)
+{
+	AssetHash asset_hash = CreateAssetHash(StringHash(a_name, Memory::StrLength(a_name)), ASSET_TYPE::IMAGE);
+	if (AssetSlot* slot = s_asset_manager->asset_table.find(asset_hash.full_hash))
+	{
+		return slot->image;
 	}
 	return nullptr;
 }
@@ -1051,7 +1054,7 @@ void Asset::FreeAsset(const AssetHandle a_asset_handle)
 		//BBfreeArr(s_asset_manager->allocator, slot->model->linear_nodes);
 		//BBfree(s_asset_manager->allocator, slot->model);
 		break;
-	case ASSET_TYPE::TEXTURE:
+	case ASSET_TYPE::IMAGE:
 		//BBfree(s_asset_manager->allocator, slot->image);
 		break;
 	}

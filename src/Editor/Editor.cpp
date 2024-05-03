@@ -14,6 +14,7 @@ using namespace BB;
 constexpr size_t EDITOR_MATERIAL_ARRAY_SIZE = 4092;
 constexpr size_t EDITOR_SHADER_EFFECTS_ARRAY_SIZE = 1024;
 constexpr size_t EDITOR_VIEWPORT_ARRAY_SIZE = 16;
+constexpr size_t EDITOR_MODEL_NAME_ARRAY_SIZE = 256;
 
 struct ImInputData
 {
@@ -307,9 +308,12 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 	void* materials_mem = m_editor_allocator.Alloc(EDITOR_MATERIAL_ARRAY_SIZE * sizeof(decltype(m_materials)::TYPE), 16);
 	void* shader_effects_mem = m_editor_allocator.Alloc(EDITOR_SHADER_EFFECTS_ARRAY_SIZE * sizeof(decltype(m_shader_effects)::TYPE), 16);
 	void* viewports_mem = m_editor_allocator.Alloc(EDITOR_VIEWPORT_ARRAY_SIZE * sizeof(decltype(m_viewport_and_scenes)::TYPE), 16);
+	void* loaded_model_names = m_editor_allocator.Alloc(EDITOR_MODEL_NAME_ARRAY_SIZE * sizeof(decltype(m_loaded_models_names)::TYPE), 16);
+	
 	m_materials.Init(materials_mem, EDITOR_MATERIAL_ARRAY_SIZE);
 	m_shader_effects.Init(shader_effects_mem, EDITOR_SHADER_EFFECTS_ARRAY_SIZE);
 	m_viewport_and_scenes.Init(viewports_mem, EDITOR_VIEWPORT_ARRAY_SIZE);
+	m_loaded_models_names.Init(loaded_model_names, EDITOR_MODEL_NAME_ARRAY_SIZE);
 
 	MemoryArenaScope(a_arena)
 	{
@@ -524,15 +528,14 @@ bool Editor::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateSha
 		ShaderEffectInfo shader_eff_info;
 		shader_eff_info.handle = a_handles[i];
 		// god I hate this
-		new (&shader_eff_info.name) StringView(Asset::FindOrCreateString(ci.name));
-		new (&shader_eff_info.entry_point) StringView(Asset::FindOrCreateString(ci.shader_entry));
+		shader_eff_info.name = Asset::FindOrCreateString(ci.name);
+		shader_eff_info.entry_point = Asset::FindOrCreateString(ci.shader_entry);
 		shader_eff_info.shader_stage = ci.stage;
 		shader_eff_info.next_stages = ci.next_stages;
 		shader_eff_info.shader_data.size = ci.shader_data.size;
 		shader_eff_info.shader_data.data = m_editor_allocator.Alloc(shader_eff_info.shader_data.size, 4);
 		memcpy(shader_eff_info.shader_data.data, ci.shader_data.data, shader_eff_info.shader_data.size);
 		m_shader_effects.push_back(shader_eff_info);
-		
 	}
 
 	return ret_val;
@@ -544,7 +547,7 @@ const MaterialHandle Editor::CreateMaterial(const CreateMaterialInfo& a_create_i
 
 	MaterialInfo mat_info;
 	mat_info.handle = material;
-	new (&mat_info.name) StringView(Asset::FindOrCreateString(a_create_info.name));
+	mat_info.name = Asset::FindOrCreateString(a_create_info.name);
 	mat_info.shader_handle_count = a_create_info.shader_effects.size();
 	mat_info.shader_handles = reinterpret_cast<ShaderEffectHandle*>(m_editor_allocator.Alloc(mat_info.shader_handle_count * sizeof(ShaderEffectHandle), alignof(ShaderEffectHandle)));
 	memcpy(mat_info.shader_handles, a_create_info.shader_effects.data(), a_create_info.shader_effects.sizeInBytes());
@@ -553,7 +556,7 @@ const MaterialHandle Editor::CreateMaterial(const CreateMaterialInfo& a_create_i
 	return material;
 }
 
-ThreadTask Editor::LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets)
+ThreadTask Editor::LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets, Editor* a_editor)
 {
 	// maybe have each thread have it's own memory arena
 	MemoryArena load_arena = MemoryArenaCreate();
@@ -563,6 +566,7 @@ ThreadTask Editor::LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets)
 	memcpy(params->assets, a_asyn_assets.data(), a_asyn_assets.sizeInBytes());
 	params->asset_count = a_asyn_assets.size();
 	params->arena = load_arena;
+	params->editor = a_editor;
 
 	return Threads::StartTaskThread(Editor::LoadAssetsAsync, params);
 }
@@ -572,11 +576,9 @@ void Editor::ImguiDisplaySceneHierarchy(SceneHierarchy& a_hierarchy)
 	if (ImGui::Begin(a_hierarchy.m_scene_name.c_str()))
 	{
 		ImGui::Indent();
-		if (ImGui::Button("create scene object"))
-		{
-			BB_ASSERT(a_hierarchy.m_top_level_object_count <= a_hierarchy.m_scene_objects.capacity(), "Too many render object childeren for this object!");
-			a_hierarchy.m_top_level_objects[a_hierarchy.m_top_level_object_count++] = a_hierarchy.CreateSceneObjectEmpty(SceneObjectHandle(BB_INVALID_HANDLE_64));
-		}
+
+		ImguiCreateSceneObject(a_hierarchy);
+
 
 		for (size_t i = 0; i < a_hierarchy.m_top_level_object_count; i++)
 		{
@@ -696,11 +698,7 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 			ImGuiDisplaySceneObject(a_hierarchy, scene_object.childeren[i]);
 		}
 
-		if (ImGui::Button("create scene object"))
-		{
-			BB_ASSERT(scene_object.child_count <= SCENE_OBJ_CHILD_MAX, "Too many render object childeren for this object!");
-			scene_object.childeren[scene_object.child_count++] = a_hierarchy.CreateSceneObjectEmpty(a_object);
-		}
+		ImguiCreateSceneObject(a_hierarchy, a_object);
 
 		ImGui::Unindent();
 	}
@@ -708,9 +706,54 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 	ImGui::PopID();
 }
 
+void Editor::ImguiCreateSceneObject(SceneHierarchy& a_hierarchy, const SceneObjectHandle a_parent)
+{
+	if (ImGui::TreeNodeEx("create scene object menu"))
+	{
+		ImGui::Indent();
+		static StringView mesh_name{};
+
+		if (ImGui::TreeNodeEx("mesh_list"))
+		{
+			ImGui::Indent();
+
+			if (ImGui::Button("set empty"))
+			{
+				mesh_name = StringView();
+			}
+			for (size_t i = 0; i < m_loaded_models_names.size(); i++)
+			{
+				if (ImGui::Button(m_loaded_models_names[i].c_str()))
+				{
+					mesh_name = m_loaded_models_names[i];
+				}
+			}
+
+			ImGui::Unindent();
+			ImGui::TreePop();
+		}
+
+		if (ImGui::Button("create scene object"))
+		{
+			BB_ASSERT(a_hierarchy.m_top_level_object_count <= a_hierarchy.m_scene_objects.capacity(), "Too many render object childeren for this object!");
+			if (mesh_name.size() != 0)
+			{
+				const Model* model = Asset::FindModelByName(mesh_name.c_str());
+				BB_ASSERT(model, "invalid model, this is not possible as we remember loaded models in the editor. has it been deleted?");
+				a_hierarchy.CreateSceneObjectViaModel(*model, float3(0.f, 0.f, 0.f), mesh_name.c_str(), a_parent);
+			}
+			else
+				a_hierarchy.CreateSceneObject(float3(0.f, 0.f, 0.f), "default", a_parent);
+		}
+
+		ImGui::Unindent();
+		ImGui::TreePop();
+	}
+}
+
 void Editor::ImGuiDisplayShaderEffect(const ShaderEffectHandle a_handle) const
 {
-	const Editor::ShaderEffectInfo& effect = m_shader_effects[a_handle.handle];
+	const Editor::ShaderEffectInfo& effect = m_shader_effects[a_handle.index];
 	if (ImGui::CollapsingHeader(effect.name.c_str()))
 	{
 		ImGui::Indent();
@@ -884,9 +927,13 @@ void Editor::LoadAssetsAsync(MemoryArena&, void* a_params)
 	MemoryArena load_arena = MemoryArenaCreate();
 	//Editor& editor = *params->editor;
 
-	Asset::LoadAssets(load_arena, Slice(params->assets, params->asset_count));
+	Slice loaded_assets = Asset::LoadAssets(load_arena, Slice(params->assets, params->asset_count));
 
-	// load materials in somehow
+	for (size_t i = 0; i < loaded_assets.size(); i++)
+	{
+		if (loaded_assets[i].type == Asset::ASYNC_ASSET_TYPE::MODEL)
+			params->editor->m_loaded_models_names.push_back(loaded_assets[i].name);
+	}
 
 	MemoryArenaFree(load_arena);
 }

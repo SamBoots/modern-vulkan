@@ -143,7 +143,7 @@ int main(int argc, char** argv)
 		MemoryArenaScope(main_arena)
 		{
 			auto viewer_list = SceneHierarchy::PreloadAssetsFromJson(main_arena, json_file);
-			const ThreadTask view_upload = Editor::LoadAssets(Slice(viewer_list.data(), viewer_list.size()));
+			const ThreadTask view_upload = Editor::LoadAssets(Slice(viewer_list.data(), viewer_list.size()), &editor);
 
 			Threads::WaitForTask(view_upload);
 		}

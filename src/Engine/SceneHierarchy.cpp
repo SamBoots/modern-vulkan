@@ -64,7 +64,7 @@ void BB::SceneHierarchy::InitViaJson(MemoryArena& a_arena, const JsonParser& a_p
 		const JsonObject& sce_obj = scene_objects.nodes[i]->GetObject();
 		const char* model_name = scene_objects.nodes[i]->GetObject().Find("file_name")->GetString();
 		const char* obj_name = scene_objects.nodes[i]->GetObject().Find("file_name")->GetString();
-		const Model* model = Asset::FindModelByPath(model_name);
+		const Model* model = Asset::FindModelByName(model_name);
 		BB_ASSERT(model != nullptr, "model failed to be found");
 		const JsonList& position_list = sce_obj.Find("position")->GetList();
 		BB_ASSERT(position_list.node_count == 3, "scene_object position in scene json is not 3 elements");
@@ -336,23 +336,4 @@ void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, con
 		DrawSceneObject(scene_object.childeren[i], local_transform);
 	}
 
-}
-
-SceneObjectHandle SceneHierarchy::CreateSceneObjectEmpty(const SceneObjectHandle a_parent)
-{
-	SceneObjectHandle scene_obj_handle = m_scene_objects.emplace(SceneObject());
-	SceneObject& scene_obj = m_scene_objects.find(scene_obj_handle);
-	scene_obj.name = "default";
-	scene_obj.mesh_handle = MeshHandle(BB_INVALID_HANDLE_64);
-	scene_obj.start_index = 0;
-	scene_obj.index_count = 0;
-	scene_obj.material = MaterialHandle(BB_INVALID_HANDLE_64);
-	scene_obj.parent = SceneObjectHandle(BB_INVALID_HANDLE_64);
-	scene_obj.light_handle = LightHandle(BB_INVALID_HANDLE_64);
-	scene_obj.transform = m_transform_pool.CreateTransform(float3(0.f, 0.f, 0.f));
-	scene_obj.child_count = 0;
-
-	scene_obj.parent = a_parent;
-
-	return scene_obj_handle;
 }

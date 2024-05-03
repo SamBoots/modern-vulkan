@@ -943,10 +943,6 @@ namespace IMGUI_IMPL
 		FreeTexture(bd->font_image);
 		bd->font_image = RTexture(BB_INVALID_HANDLE_32);
 
-		// TODO, actually do shader removal
-		//FreeShaderEffect(bd->shader_effects[0]);
-		//FreeShaderEffect(bd->shader_effects[1]);
-
 		io.BackendRendererName = nullptr;
 		io.BackendRendererUserData = nullptr;
 
@@ -2297,7 +2293,7 @@ const MeshHandle BB::CreateMesh(const CreateMeshInfo& a_create_info)
 	task.index_region.size = mesh.index_buffer.size;
 	task.index_region.dst_offset = mesh.index_buffer.offset;
 	task.index_region.src_offset = index_offset + upload_buffer.base_offset;
-	task.mesh_index = s_render_inst->mesh_map.insert(mesh); // TODO, debug mesh!
+	task.mesh_index = s_render_inst->mesh_map.insert(mesh); // TODO, place a debug mesh in mesh_index!
 	uploader.upload_meshes.EnQueue(task);
 	return task.mesh_index;
 }

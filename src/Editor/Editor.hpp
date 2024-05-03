@@ -35,7 +35,7 @@ namespace BB
 		bool CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles);
 		const MaterialHandle CreateMaterial(const CreateMaterialInfo& a_create_info);
 
-		static ThreadTask LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets);
+		static ThreadTask LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets, Editor* a_editor);
 
 		struct ShaderEffectInfo
 		{
@@ -61,6 +61,7 @@ namespace BB
 
 		void ImguiDisplaySceneHierarchy(SceneHierarchy& a_hierarchy);
 		void ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObjectHandle a_object);
+		void ImguiCreateSceneObject(SceneHierarchy& a_hierarchy, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
 		void ImGuiDisplayShaderEffect(const ShaderEffectHandle a_handle) const;
 		void ImGuiDisplayShaderEffects();
 		void ImGuiDisplayMaterial(const MaterialHandle a_handle) const;
@@ -86,6 +87,7 @@ namespace BB
 
 		StaticArray<MaterialInfo> m_materials;
 		StaticArray<ShaderEffectInfo> m_shader_effects;
+		StaticArray<StringView> m_loaded_models_names;
 
 		struct ViewportAndScene
 		{
