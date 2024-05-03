@@ -23,6 +23,14 @@ namespace BB
 #define PER_SCENE_TRANSFORM_DATA_BINDING 1
 #define PER_SCENE_LIGHT_DATA_BINDING 2
 
+#define CUBEMAP_BACK    0
+#define CUBEMAP_BOTTOM  1
+#define CUBEMAP_FRONT   2
+#define CUBEMAP_LEFT    3
+#define CUBEMAP_RIGHT   4
+#define CUBEMAP_TOP     5
+
+
     struct Vertex
     {
         float3 position;            // 12

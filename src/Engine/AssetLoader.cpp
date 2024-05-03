@@ -346,6 +346,8 @@ static inline IconSlot LoadIconFromPath(MemoryArena& a_temp_arena, const StringV
 	write_icon_info.offset = int2(static_cast<int>(slot.slot_index * ICON_EXTENT.x), 0);
 	write_icon_info.pixels = write_pixels;
 	write_icon_info.set_shader_visible = a_set_icons_shader_visible;
+	write_icon_info.layer_count = 1;
+	write_icon_info.base_array_layer = 0;
 	WriteTexture(s_asset_manager->icons_storage.texture, write_icon_info);
 
 	return slot;
@@ -360,6 +362,8 @@ static inline IconSlot LoadIconFromPixels(const void* a_pixels, const bool a_set
 	write_icon_info.offset = int2(static_cast<int>(slot.slot_index * ICON_EXTENT.x), 0);
 	write_icon_info.pixels = a_pixels;
 	write_icon_info.set_shader_visible = a_set_icons_shader_visible;
+	write_icon_info.layer_count = 1;
+	write_icon_info.base_array_layer = 0;
 	WriteTexture(s_asset_manager->icons_storage.texture, write_icon_info);
 
 	return slot;
@@ -420,6 +424,7 @@ void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
 	icons_texture_info.height = ICON_EXTENT.y;
 	icons_texture_info.usage = IMAGE_USAGE::TEXTURE;
 	icons_texture_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+	icons_texture_info.array_layers = 1;
 	s_asset_manager->icons_storage.texture = CreateTexture(icons_texture_info);
 
 	//slot 0 is for debug
@@ -540,11 +545,14 @@ const StringView Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_p
 	create_image_info.height = static_cast<uint32_t>(height);
 	create_image_info.format = ImageFormatFromChannels(4);
 	create_image_info.usage = IMAGE_USAGE::TEXTURE;
+	create_image_info.array_layers = 1;
 
 	WriteTextureInfo write_info{};
 	write_info.pixels = pixels;
 	write_info.extent = { create_image_info.width, create_image_info.height };
 	write_info.set_shader_visible = true;
+	write_info.layer_count = 1;
+	write_info.base_array_layer = 0;
 	const RTexture gpu_image = CreateTexture(create_image_info);
 	WriteTexture(gpu_image, write_info);
 	
@@ -597,6 +605,18 @@ bool Asset::WriteImage(const char* a_file_name, const uint32_t a_width, const ui
 	return false;
 }
 
+unsigned char* Asset::LoadImageCPU(const char* a_file_name, int& a_width, int& a_height, int& a_bytes_per_pixel)
+{
+	stbi_uc* pixels = stbi_load(a_file_name, &a_width, &a_height, &a_bytes_per_pixel, 4);
+	a_bytes_per_pixel = 4;
+	return pixels;
+}
+
+void Asset::FreeImageCPU(void* a_pixels)
+{
+	STBI_FREE(a_pixels);
+}
+
 const StringView Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const char* a_name)
 {
 	const StringView image_name = FindOrCreateString(a_name);
@@ -606,6 +626,7 @@ const StringView Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBI
 	create_image_info.width = a_image.GetWidth();
 	create_image_info.height = a_image.GetHeight();
 	create_image_info.usage = IMAGE_USAGE::TEXTURE;
+	create_image_info.array_layers = 1;
 	switch (a_image.GetBytesPerPixel())
 	{
 	case 8:
@@ -630,6 +651,8 @@ const StringView Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBI
 	write_info.pixels = a_image.GetPixels();
 	write_info.extent = { create_image_info.width, create_image_info.height };
 	write_info.set_shader_visible = true;
+	write_info.layer_count = 1;
+	write_info.base_array_layer = 0;
 	const RTexture gpu_image = CreateTexture(create_image_info);
 	WriteTexture(gpu_image, write_info);
 

@@ -77,5 +77,7 @@ namespace BB
 		float3 m_clear_color;
 
 		StringView m_scene_name;
+
+		RTexture m_skybox;
 	};
 }

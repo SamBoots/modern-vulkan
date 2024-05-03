@@ -148,6 +148,8 @@ namespace BB
 		const StringView LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoadFromMemory& a_mesh_op);
 
 		bool WriteImage(const char* a_file_name, const uint32_t a_width, const uint32_t a_height, const uint32_t a_channels, const void* a_pixels);
+		unsigned char* LoadImageCPU(const char* a_file_name, int& a_width, int& a_height, int& a_bytes_per_pixel);
+		void FreeImageCPU(void* a_pixels);
 
 		const Model* FindModelByName(const char* a_name);
 		const Image* FindImageByName(const char* a_name);

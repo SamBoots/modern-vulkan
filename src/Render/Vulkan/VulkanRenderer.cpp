@@ -489,9 +489,11 @@ struct Vulkan_inst
 		enum_conv.image_types[static_cast<uint32_t>(IMAGE_TYPE::TYPE_2D)] = VK_IMAGE_TYPE_2D;
 		enum_conv.image_types[static_cast<uint32_t>(IMAGE_TYPE::TYPE_3D)] = VK_IMAGE_TYPE_3D;
 
-		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_TYPE::TYPE_1D)] = VK_IMAGE_VIEW_TYPE_1D;
-		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_TYPE::TYPE_2D)] = VK_IMAGE_VIEW_TYPE_2D;
-		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_TYPE::TYPE_3D)] = VK_IMAGE_VIEW_TYPE_3D;
+
+		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_1D)] = VK_IMAGE_VIEW_TYPE_1D;
+		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_2D)] = VK_IMAGE_VIEW_TYPE_2D;
+		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_3D)] = VK_IMAGE_VIEW_TYPE_3D;
+		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::CUBE)] = VK_IMAGE_VIEW_TYPE_CUBE;
 
 		enum_conv.image_tilings[static_cast<uint32_t>(IMAGE_TILING::LINEAR)] = VK_IMAGE_TILING_LINEAR;
 		enum_conv.image_tilings[static_cast<uint32_t>(IMAGE_TILING::OPTIMAL)] = VK_IMAGE_TILING_OPTIMAL;
@@ -568,7 +570,7 @@ struct Vulkan_inst
 		VkFormat depth_formats[static_cast<uint32_t>(DEPTH_FORMAT::ENUM_SIZE)];
 		VkFormat image_formats[static_cast<uint32_t>(IMAGE_FORMAT::ENUM_SIZE)];
 		VkImageType image_types[static_cast<uint32_t>(IMAGE_TYPE::ENUM_SIZE)];
-		VkImageViewType image_view_types[static_cast<uint32_t>(IMAGE_TYPE::ENUM_SIZE)];
+		VkImageViewType image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::ENUM_SIZE)];
 		VkImageTiling image_tilings[static_cast<uint32_t>(IMAGE_TILING::ENUM_SIZE)];
 		VkSamplerAddressMode sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::ENUM_SIZE)];
 		VkPipelineStageFlags2 pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::ENUM_SIZE)];
@@ -774,7 +776,7 @@ static inline VkImageType ImageTypes(const IMAGE_TYPE a_image_types)
 #endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
-static inline VkImageViewType ImageViewTypes(const IMAGE_TYPE a_image_types)
+static inline VkImageViewType ImageViewTypes(const IMAGE_VIEW_TYPE a_image_types)
 {
 #ifdef ENUM_CONVERSATION_BY_ARRAY
 	return s_vulkan_inst->enum_conv.image_view_types[static_cast<uint32_t>(a_image_types)];
@@ -784,6 +786,7 @@ static inline VkImageViewType ImageViewTypes(const IMAGE_TYPE a_image_types)
 	case IMAGE_TYPE::TYPE_1D:		return VK_IMAGE_VIEW_TYPE_1D;
 	case IMAGE_TYPE::TYPE_2D:		return VK_IMAGE_VIEW_TYPE_2D;
 	case IMAGE_TYPE::TYPE_3D:		return VK_IMAGE_VIEW_TYPE_3D;
+	case IMAGE_TYPE::CUBE:			return VK_IMAGE_VIEW_TYPE_CUBE;
 	default:
 		BB_ASSERT(false, "Vulkan: IMAGE_TYPE failed to convert to a VkImageViewType.");
 		return VK_IMAGE_TYPE_1D;
@@ -1502,7 +1505,7 @@ const RImage Vulkan::CreateImage(const ImageCreateInfo& a_create_info)
 	image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
-	image_create_info.flags = 0;
+	image_create_info.flags = a_create_info.is_cube_map ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0;
 
 	VmaAllocationCreateInfo alloc_info{};
 	alloc_info.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;

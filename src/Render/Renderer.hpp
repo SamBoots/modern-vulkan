@@ -51,6 +51,8 @@ namespace BB
 	{
 		uint2 extent;
 		int2 offset;
+		uint16_t layer_count;
+		uint16_t base_array_layer;
 		const void* pixels;
 		bool set_shader_visible;
 	};
@@ -68,6 +70,7 @@ namespace BB
 		IMAGE_USAGE usage;
 		uint32_t width;
 		uint32_t height;
+		uint16_t array_layers;
 	};
 
 	// get one pool per thread
@@ -193,6 +196,7 @@ namespace BB
 
 	// returns invalid texture when not enough upload buffer space
 	const RTexture CreateTexture(const CreateTextureInfo& a_create_info);
+	const RTexture CreateTextureCubeMap(const CreateTextureInfo& a_create_info);
 	void BlitTexture(const RCommandList a_list, const BlitTextureInfo& a_blit_info);
 	void CopyTexture(const RCommandList a_list, const CopyTextureInfo& a_copy_info);
 	GPUFenceValue WriteTexture(const RTexture a_texture, const WriteTextureInfo& a_write_info);

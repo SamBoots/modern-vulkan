@@ -79,6 +79,16 @@ namespace BB
 		ENUM_SIZE
 	};
 
+	enum class IMAGE_VIEW_TYPE : uint32_t
+	{
+		TYPE_1D,
+		TYPE_2D,
+		TYPE_3D,
+		CUBE,
+
+		ENUM_SIZE
+	};
+
 	enum class IMAGE_LAYOUT : uint32_t
 	{
 		UNDEFINED,

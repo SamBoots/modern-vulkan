@@ -92,6 +92,7 @@ namespace BB
 		IMAGE_FORMAT format{};		//32
 		IMAGE_TILING tiling{};		//36
 		IMAGE_USAGE usage{};		//40
+		bool is_cube_map = false;	
 	};
 
 	struct ImageViewCreateInfo
@@ -101,9 +102,9 @@ namespace BB
 		RImage image;				//16
 		uint16_t array_layers = 0;	//18
 		uint16_t mip_levels = 0;	//20
-		IMAGE_TYPE type{};			//24
+		IMAGE_VIEW_TYPE type{};		//24
 		IMAGE_FORMAT format{};		//28
-		bool is_depth_image = false;//32
+		bool is_depth_image = false;
 	};
 
 	enum class SAMPLER_ADDRESS_MODE : uint32_t

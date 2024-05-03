@@ -56,7 +56,7 @@ public:
 		uint32_t next_free;			// 48
 	};
 
-	void Init(MemoryArena& a_arena, const RCommandList a_list, const uint64_t a_upload_fence_value);
+	void Init(MemoryArena& a_arena, const RCommandList a_list);
 
 	const RTexture SetTextureSlot(const TextureInfo& a_texture_info, const char* a_name);
 
@@ -921,11 +921,14 @@ namespace IMGUI_IMPL
 		font_info.height = static_cast<uint32_t>(height);
 		font_info.format = IMAGE_FORMAT::RGBA8_UNORM;
 		font_info.usage = IMAGE_USAGE::TEXTURE;
+		font_info.array_layers = 1;
 		bd->font_image = CreateTexture(font_info);
 		WriteTextureInfo write_info{};
 		write_info.extent = { font_info.width, font_info.height };
 		write_info.pixels = pixels;
 		write_info.set_shader_visible = true;
+		write_info.layer_count = 1;
+		write_info.base_array_layer = 0;
 		WriteTexture(bd->font_image, write_info);
 
 		io.Fonts->SetTexID(bd->font_image.handle);
@@ -1020,7 +1023,7 @@ WriteableGPUBufferView BB::AllocateFromWritableIndexBuffer(const size_t a_size_i
 	return view;
 }
 
-void GPUTextureManager::Init(MemoryArena& a_arena, const RCommandList a_list, const uint64_t a_upload_fence_value)
+void GPUTextureManager::Init(MemoryArena& a_arena, const RCommandList a_list)
 {
 	m_descriptor_writes.Init(a_arena, MAX_TEXTURES / 4);
 	m_graphics_texture_transitions.Init(a_arena, MAX_TEXTURES / 4);
@@ -1044,7 +1047,7 @@ void GPUTextureManager::Init(MemoryArena& a_arena, const RCommandList a_list, co
 		image_view_info.name = image_info.name;
 		image_view_info.array_layers = 1;
 		image_view_info.mip_levels = 1;
-		image_view_info.type = image_info.type;
+		image_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
 		image_view_info.format = image_info.format;
 		m_debug_texture.view = Vulkan::CreateViewImage(image_view_info);
 
@@ -1075,7 +1078,7 @@ void GPUTextureManager::Init(MemoryArena& a_arena, const RCommandList a_list, co
 		const uint32_t debug_purple = (209u << 24u) | (106u << 16u) | (255u << 8u) | (255u << 0u);
 
 		//now upload the image.
-		UploadBuffer upload_buffer = s_render_inst->frame_upload_allocator.AllocateUploadMemory(sizeof(debug_purple), a_upload_fence_value);
+		UploadBuffer upload_buffer = s_render_inst->frame_upload_allocator.AllocateUploadMemory(sizeof(debug_purple), s_render_inst->asset_uploader.next_fence_value.load());
 		upload_buffer.SafeMemcpy(0, &debug_purple, sizeof(debug_purple));
 
 		RenderCopyBufferToImageInfo buffer_to_image;
@@ -1414,10 +1417,8 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	CommandPool& start_up_pool = s_render_inst->graphics_queue.GetCommandPool("startup pool");
 	const RCommandList list = start_up_pool.StartCommandList();
 
-	const uint64_t asset_fence_value = 0;
-
 	{	//initialize texture system
-		s_render_inst->texture_manager.Init(a_arena, list, asset_fence_value);
+		s_render_inst->texture_manager.Init(a_arena, list);
 
 		//some basic colors
 		const uint32_t white = UINT32_MAX;
@@ -1427,20 +1428,23 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		image_info.name = "white";
 		image_info.width = 1;
 		image_info.height = 1;
+		image_info.array_layers = 1;
 		image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
 		image_info.usage = IMAGE_USAGE::TEXTURE;
-		WriteTextureInfo image_write_info{};
-		image_write_info.extent = { image_info.width, image_info.height };
-		image_write_info.set_shader_visible = true;
-		image_write_info.pixels = &white;
+		WriteTextureInfo write_info{};
+		write_info.extent = { image_info.width, image_info.height };
+		write_info.set_shader_visible = true;
+		write_info.pixels = &white;
+		write_info.layer_count = 1;
+		write_info.base_array_layer = 0;
 
 		s_render_inst->white = CreateTexture(image_info);
-		WriteTexture(s_render_inst->white, image_write_info);
+		WriteTexture(s_render_inst->white, write_info);
 
 		image_info.name = "black";
 		s_render_inst->black = CreateTexture(image_info);
-		image_write_info.pixels = &black;
-		WriteTexture(s_render_inst->black, image_write_info);
+		write_info.pixels = &black;
+		WriteTexture(s_render_inst->black, write_info);
 	}
 
 	{
@@ -1448,6 +1452,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		upload_info.name = "image before transfer to swapchain";
 		upload_info.width = s_render_inst->render_io.screen_width;
 		upload_info.height = s_render_inst->render_io.screen_height;
+		upload_info.array_layers = 1;
 		upload_info.format = RENDER_TARGET_IMAGE_FORMAT;
 		upload_info.usage = IMAGE_USAGE::SWAPCHAIN_COPY_IMG;
 
@@ -1487,8 +1492,9 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	start_up_pool.EndCommandList(list);
 	//special upload here, due to uploading as well
 	s_render_inst->graphics_queue.ReturnPool(start_up_pool);
+	const uint64_t fence_value_transfer = s_render_inst->asset_uploader.next_fence_value.fetch_add(1);
 	uint64_t fence_value_startup;
-	s_render_inst->graphics_queue.ExecuteCommands(&list, 1, &s_render_inst->asset_uploader.fence, &asset_fence_value, 1, nullptr, nullptr, 0, fence_value_startup);
+	s_render_inst->graphics_queue.ExecuteCommands(&list, 1, &s_render_inst->asset_uploader.fence, &fence_value_transfer, 1, nullptr, nullptr, 0, fence_value_startup);
 	s_render_inst->graphics_queue.WaitFenceValue(fence_value_startup);
 	return true;
 }
@@ -1522,6 +1528,7 @@ static void ResizeRendererSwapchain(const uint32_t a_width, const uint32_t a_hei
 		upload_info.name = "image before transfer to swapchain";
 		upload_info.width = s_render_inst->render_io.screen_width;
 		upload_info.height = s_render_inst->render_io.screen_height;
+		upload_info.array_layers = 1;
 		upload_info.format = RENDER_TARGET_IMAGE_FORMAT;
 		upload_info.usage = IMAGE_USAGE::SWAPCHAIN_COPY_IMG;
 
@@ -1656,6 +1663,8 @@ static void UploadAssets(MemoryArena& a_thread_arena, void*)
 			PipelineBarrierImageInfo* before_transition = ArenaAllocArr(a_thread_arena, PipelineBarrierImageInfo, MAX_TEXTURE_UPLOAD_QUEUE);
 
 			size_t index = 0;
+			uint16_t base_layer = 0;
+			uint16_t layer_count = 0;
 			UploadDataTexture upload_data{};
 			while (s_render_inst->asset_uploader.upload_textures.DeQueue(upload_data) &&
 				index < MAX_TEXTURE_UPLOAD_QUEUE)
@@ -1665,9 +1674,13 @@ static void UploadAssets(MemoryArena& a_thread_arena, void*)
 				{
 				case UPLOAD_TEXTURE_TYPE::WRITE:
 					write_infos[write_info_count++] = upload_data.write_info;
+					base_layer = upload_data.write_info.dst_image_info.base_array_layer;
+					layer_count = upload_data.write_info.dst_image_info.layer_count;
 					break;
 				case UPLOAD_TEXTURE_TYPE::READ:
 					read_infos[read_info_count++] = upload_data.read_info;
+					base_layer = upload_data.write_info.dst_image_info.base_array_layer;
+					layer_count = upload_data.write_info.dst_image_info.layer_count;
 					break;
 				default:
 					BB_ASSERT(false, "invalid upload UPLOAD_TEXTURE_TYPE value or unimplemented switch statement");
@@ -1686,9 +1699,9 @@ static void UploadAssets(MemoryArena& a_thread_arena, void*)
 					pi.new_layout = IMAGE_LAYOUT::TRANSFER_DST;
 					pi.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
 					pi.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
-					pi.layer_count = 1;
+					pi.layer_count = layer_count;
 					pi.level_count = 1;
-					pi.base_array_layer = 0;
+					pi.base_array_layer = base_layer;
 					pi.base_mip_level = 0;
 					pi.src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
 					pi.dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
@@ -1704,9 +1717,9 @@ static void UploadAssets(MemoryArena& a_thread_arena, void*)
 					pi.new_layout = upload_data.end_layout;
 					pi.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
 					pi.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
-					pi.layer_count = 1;
+					pi.layer_count = layer_count;
 					pi.level_count = 1;
-					pi.base_array_layer = 0;
+					pi.base_array_layer = base_layer;
 					pi.base_mip_level = 0;
 					pi.src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
 					pi.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
@@ -1821,6 +1834,7 @@ RenderTarget BB::CreateRenderTarget(MemoryArena& a_arena, const uint2 a_render_t
 	texture_info.name = a_name;
 	texture_info.format = RENDER_TARGET_IMAGE_FORMAT;
 	texture_info.usage = IMAGE_USAGE::RENDER_TARGET;
+	texture_info.array_layers = 1;
 
 	for (uint32_t i = 0; i < s_render_inst->render_io.frame_count; i++)
 	{
@@ -1844,6 +1858,7 @@ void BB::ResizeRenderTarget(const RenderTarget render_target, const uint2 a_rend
 	texture_info.name = viewport->name;
 	texture_info.format = RENDER_TARGET_IMAGE_FORMAT;
 	texture_info.usage = IMAGE_USAGE::RENDER_TARGET;
+	texture_info.array_layers = 1;
 
 	for (uint32_t i = 0; i < s_render_inst->render_io.frame_count; i++)
 	{
@@ -2507,7 +2522,7 @@ const RTexture BB::CreateTexture(const CreateTextureInfo& a_create_info)
 		image_info.width = a_create_info.width;
 		image_info.height = a_create_info.height;
 		image_info.depth = 1;
-		image_info.array_layers = 1;
+		image_info.array_layers = a_create_info.array_layers;
 		image_info.mip_levels = 1;
 		image_info.type = IMAGE_TYPE::TYPE_2D;
 		image_info.tiling = IMAGE_TILING::OPTIMAL;
@@ -2518,9 +2533,49 @@ const RTexture BB::CreateTexture(const CreateTextureInfo& a_create_info)
 		ImageViewCreateInfo image_view_info;
 		image_view_info.image = tex_info.image;
 		image_view_info.name = a_create_info.name;
-		image_view_info.array_layers = 1;
+		image_view_info.array_layers = a_create_info.array_layers;
 		image_view_info.mip_levels = 1;
-		image_view_info.type = image_info.type;
+		image_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
+		image_view_info.format = image_info.format;
+		tex_info.view = Vulkan::CreateViewImage(image_view_info);
+	}
+
+	return s_render_inst->texture_manager.SetTextureSlot(tex_info, a_create_info.name);
+}
+
+const RTexture BB::CreateTextureCubeMap(const CreateTextureInfo& a_create_info)
+{
+	BB_ASSERT(a_create_info.array_layers % 6 == 0, "creating a cubemap but the array_layers are not a multiple of 6");
+	TextureInfo tex_info;
+	tex_info.width = a_create_info.width;
+	tex_info.height = a_create_info.height;
+	tex_info.format = a_create_info.format;
+	tex_info.current_layout = IMAGE_LAYOUT::UNDEFINED;
+
+	// not required to be remembered
+	tex_info.usage = a_create_info.usage;
+
+	{
+		ImageCreateInfo image_info;
+		image_info.name = a_create_info.name;
+		image_info.width = a_create_info.width;
+		image_info.height = a_create_info.height;
+		image_info.depth = 1;
+		image_info.array_layers = a_create_info.array_layers;
+		image_info.mip_levels = 1;
+		image_info.type = IMAGE_TYPE::TYPE_2D;
+		image_info.tiling = IMAGE_TILING::OPTIMAL;
+		image_info.format = a_create_info.format;
+		image_info.usage = a_create_info.usage;
+		image_info.is_cube_map = true;
+		tex_info.image = Vulkan::CreateImage(image_info);
+
+		ImageViewCreateInfo image_view_info;
+		image_view_info.image = tex_info.image;
+		image_view_info.name = a_create_info.name;
+		image_view_info.array_layers = a_create_info.array_layers;
+		image_view_info.mip_levels = 1;
+		image_view_info.type = IMAGE_VIEW_TYPE::CUBE;
 		image_view_info.format = image_info.format;
 		tex_info.view = Vulkan::CreateViewImage(image_view_info);
 	}
@@ -2876,8 +2931,8 @@ GPUFenceValue BB::WriteTexture(const RTexture a_texture, const WriteTextureInfo&
 	buffer_to_image.dst_image_info.offset_y = a_write_info.offset.y;
 	buffer_to_image.dst_image_info.offset_z = 0;
 	buffer_to_image.dst_image_info.mip_level = 0;
-	buffer_to_image.dst_image_info.layer_count = 1;
-	buffer_to_image.dst_image_info.base_array_layer = 0;
+	buffer_to_image.dst_image_info.layer_count = a_write_info.layer_count;
+	buffer_to_image.dst_image_info.base_array_layer = a_write_info.base_array_layer;
 
 	UploadDataTexture upload_texture{};
 	upload_texture.texture_index = a_texture;

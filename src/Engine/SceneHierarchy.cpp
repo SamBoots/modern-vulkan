@@ -100,6 +100,43 @@ void BB::SceneHierarchy::InitViaJson(MemoryArena& a_arena, const JsonParser& a_p
 		const StringView light_name = Asset::FindOrCreateString(light_obj.Find("name")->GetString());
 		CreateSceneObjectAsLight(light_info, light_name.c_str());
 	}
+
+	CreateTextureInfo texture_info;
+	texture_info.name = "skybox";
+	texture_info.usage = IMAGE_USAGE::TEXTURE;
+	texture_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+	texture_info.width = 2048;
+	texture_info.height = 2048;
+	texture_info.array_layers = 6;
+
+	m_skybox = CreateTextureCubeMap(texture_info);
+
+	constexpr const char* SKY_BOX_NAME[6]
+	{
+		"../../resources/textures/skybox/0.jpg",
+		"../../resources/textures/skybox/1.jpg",
+		"../../resources/textures/skybox/2.jpg",
+		"../../resources/textures/skybox/3.jpg",
+		"../../resources/textures/skybox/4.jpg",
+		"../../resources/textures/skybox/5.jpg",
+	};
+
+	for (size_t i = 0; i < 6; i++)
+	{
+		int dummy_x, dummy_y, dummy_bytes_per;
+		unsigned char* pixels = Asset::LoadImageCPU(SKY_BOX_NAME[i], dummy_x, dummy_y, dummy_bytes_per);
+
+		WriteTextureInfo write_info{};
+		write_info.extent = { texture_info.width, texture_info.height };
+		write_info.offset = {};
+		write_info.layer_count = 1;
+		write_info.base_array_layer = static_cast<uint16_t>(i);
+		write_info.set_shader_visible = true;
+		write_info.pixels = pixels;
+		//WriteTexture(m_skybox, write_info);
+
+		Asset::FreeImageCPU(pixels);
+	}
 }
 
 StaticArray<Asset::AsyncAsset> SceneHierarchy::PreloadAssetsFromJson(MemoryArena& a_arena, const JsonParser& a_parsed_file)
