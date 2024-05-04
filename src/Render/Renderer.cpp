@@ -644,13 +644,13 @@ struct RenderInterface_inst
 	{
 		GPUBuffer buffer;
 		uint32_t size;
-		uint32_t used;
+		std::atomic<uint32_t> used;
 	} vertex_buffer;
 	struct CPUVertexBuffer
 	{
 		GPUBuffer buffer;
 		uint32_t size;
-		uint32_t used;
+		std::atomic<uint32_t> used;
 		void* start_mapped;
 	} cpu_vertex_buffer;
 
@@ -658,13 +658,13 @@ struct RenderInterface_inst
 	{
 		GPUBuffer buffer;
 		uint32_t size;
-		uint32_t used;
+		std::atomic<uint32_t> used;
 	} index_buffer;
 	struct CPUIndexBuffer
 	{
 		GPUBuffer buffer;
 		uint32_t size;
-		uint32_t used;
+		std::atomic<uint32_t> used;
 		void* start_mapped;
 	} cpu_index_buffer;
 
@@ -976,10 +976,9 @@ GPUBufferView BB::AllocateFromVertexBuffer(const size_t a_size_in_bytes)
 	GPUBufferView view;
 	view.buffer = s_render_inst->vertex_buffer.buffer;
 	view.size = a_size_in_bytes;
-	view.offset = s_render_inst->vertex_buffer.used;
+	view.offset = s_render_inst->vertex_buffer.used.fetch_add(static_cast<uint32_t>(a_size_in_bytes));
 
-	s_render_inst->vertex_buffer.used += static_cast<uint32_t>(a_size_in_bytes);
-	BB_ASSERT(s_render_inst->vertex_buffer.size > s_render_inst->vertex_buffer.used, "out of vertex buffer space!");
+	BB_ASSERT(s_render_inst->vertex_buffer.size > view.offset + a_size_in_bytes, "out of vertex buffer space!");
 
 	return view;
 }
@@ -989,10 +988,9 @@ GPUBufferView BB::AllocateFromIndexBuffer(const size_t a_size_in_bytes)
 	GPUBufferView view;
 	view.buffer = s_render_inst->index_buffer.buffer;
 	view.size = a_size_in_bytes;
-	view.offset = s_render_inst->index_buffer.used;
+	view.offset = s_render_inst->index_buffer.used.fetch_add(static_cast<uint32_t>(a_size_in_bytes));
 
-	s_render_inst->index_buffer.used += static_cast<uint32_t>(a_size_in_bytes);
-	BB_ASSERT(s_render_inst->index_buffer.size > s_render_inst->index_buffer.used, "out of index buffer space!");
+	BB_ASSERT(s_render_inst->index_buffer.size > view.offset + a_size_in_bytes, "out of index buffer space!");
 
 	return view;
 }
@@ -1002,10 +1000,10 @@ WriteableGPUBufferView BB::AllocateFromWritableVertexBuffer(const size_t a_size_
 	WriteableGPUBufferView view;
 	view.buffer = s_render_inst->cpu_vertex_buffer.buffer;
 	view.size = a_size_in_bytes;
-	view.offset = s_render_inst->cpu_vertex_buffer.used;
-	view.mapped = Pointer::Add(s_render_inst->cpu_vertex_buffer.start_mapped, s_render_inst->cpu_vertex_buffer.used);
+	view.offset = s_render_inst->cpu_vertex_buffer.used.fetch_add(static_cast<uint32_t>(a_size_in_bytes));
+	view.mapped = Pointer::Add(s_render_inst->cpu_vertex_buffer.start_mapped, view.offset);
 
-	s_render_inst->cpu_vertex_buffer.used += static_cast<uint32_t>(a_size_in_bytes);
+	BB_ASSERT(s_render_inst->cpu_vertex_buffer.size > view.offset + a_size_in_bytes, "out of vertex buffer space!");
 
 	return view;
 }
@@ -1015,10 +1013,10 @@ WriteableGPUBufferView BB::AllocateFromWritableIndexBuffer(const size_t a_size_i
 	WriteableGPUBufferView view;
 	view.buffer = s_render_inst->cpu_index_buffer.buffer;
 	view.size = a_size_in_bytes;
-	view.offset = s_render_inst->cpu_index_buffer.used;
-	view.mapped = Pointer::Add(s_render_inst->cpu_index_buffer.start_mapped, s_render_inst->cpu_index_buffer.used);
+	view.offset = s_render_inst->cpu_index_buffer.used.fetch_add(static_cast<uint32_t>(a_size_in_bytes));
+	view.mapped = Pointer::Add(s_render_inst->cpu_index_buffer.start_mapped, view.offset);
 
-	s_render_inst->cpu_index_buffer.used += static_cast<uint32_t>(a_size_in_bytes);
+	BB_ASSERT(s_render_inst->cpu_index_buffer.size > view.offset + a_size_in_bytes, "out of index buffer space!");
 
 	return view;
 }
