@@ -15,6 +15,51 @@
 
 using namespace BB;
 
+constexpr float skyboxVertices[] = {
+	// positions          
+	-1.0f,  1.0f, -1.0f,
+	-1.0f, -1.0f, -1.0f,
+	 1.0f, -1.0f, -1.0f,
+	 1.0f, -1.0f, -1.0f,
+	 1.0f,  1.0f, -1.0f,
+	-1.0f,  1.0f, -1.0f,
+
+	-1.0f, -1.0f,  1.0f,
+	-1.0f, -1.0f, -1.0f,
+	-1.0f,  1.0f, -1.0f,
+	-1.0f,  1.0f, -1.0f,
+	-1.0f,  1.0f,  1.0f,
+	-1.0f, -1.0f,  1.0f,
+
+	 1.0f, -1.0f, -1.0f,
+	 1.0f, -1.0f,  1.0f,
+	 1.0f,  1.0f,  1.0f,
+	 1.0f,  1.0f,  1.0f,
+	 1.0f,  1.0f, -1.0f,
+	 1.0f, -1.0f, -1.0f,
+
+	-1.0f, -1.0f,  1.0f,
+	-1.0f,  1.0f,  1.0f,
+	 1.0f,  1.0f,  1.0f,
+	 1.0f,  1.0f,  1.0f,
+	 1.0f, -1.0f,  1.0f,
+	-1.0f, -1.0f,  1.0f,
+
+	-1.0f,  1.0f, -1.0f,
+	 1.0f,  1.0f, -1.0f,
+	 1.0f,  1.0f,  1.0f,
+	 1.0f,  1.0f,  1.0f,
+	-1.0f,  1.0f,  1.0f,
+	-1.0f,  1.0f, -1.0f,
+
+	-1.0f, -1.0f, -1.0f,
+	-1.0f, -1.0f,  1.0f,
+	 1.0f, -1.0f, -1.0f,
+	 1.0f, -1.0f, -1.0f,
+	-1.0f, -1.0f,  1.0f,
+	 1.0f, -1.0f,  1.0f
+};
+
 struct RenderFence
 {
 	uint64_t next_fence_value;
@@ -636,6 +681,7 @@ struct RenderInterface_inst
 
 	GPUTextureManager texture_manager;
 
+	GPUBufferView cubemap_position;
 	MaterialHandle standard_3d_material;
 	RTexture white;
 	RTexture black;
@@ -1498,12 +1544,30 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	IMGUI_IMPL::ImInit(a_arena);
 
 	s_render_inst->standard_3d_material = MaterialHandle(BB_INVALID_HANDLE_64);
+	const uint64_t fence_value_transfer = s_render_inst->asset_uploader.next_fence_value.fetch_add(1);
 
+	// setup cube positions
+	{
+		s_render_inst->cubemap_position = AllocateFromVertexBuffer(sizeof(skyboxVertices));
+		UploadBuffer cube_buffer = s_render_inst->asset_uploader.gpu_allocator.AllocateUploadMemory(sizeof(skyboxVertices), fence_value_transfer);
+		cube_buffer.SafeMemcpy(0, skyboxVertices, sizeof(skyboxVertices));
+		RenderCopyBuffer copy_op;
+		copy_op.src = cube_buffer.buffer;
+		copy_op.dst = s_render_inst->cubemap_position.buffer;
+		RenderCopyBufferRegion region_copy_op;
+		region_copy_op.size = s_render_inst->cubemap_position.size;
+		region_copy_op.src_offset = cube_buffer.base_offset;
+		region_copy_op.dst_offset = s_render_inst->cubemap_position.offset;
+		copy_op.regions = Slice(&region_copy_op, 1);
+		Vulkan::CopyBuffer(list, copy_op);
+
+		s_render_inst->global_buffer.data.cube_vertexpos_vertex_buffer_pos = s_render_inst->cubemap_position.offset;
+	}
 
 	start_up_pool.EndCommandList(list);
 	//special upload here, due to uploading as well
 	s_render_inst->graphics_queue.ReturnPool(start_up_pool);
-	const uint64_t fence_value_transfer = s_render_inst->asset_uploader.next_fence_value.fetch_add(1);
+
 	uint64_t fence_value_startup;
 	s_render_inst->graphics_queue.ExecuteCommands(&list, 1, &s_render_inst->asset_uploader.fence, &fence_value_transfer, 1, nullptr, nullptr, 0, fence_value_startup);
 	s_render_inst->graphics_queue.WaitFenceValue(fence_value_startup);
@@ -2041,7 +2105,62 @@ void BB::StartRenderScene(const RenderScene3DHandle a_scene)
 	render_scene3d.draw_list_count = 0;
 }
 
-void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const float3 a_clear_color, bool a_skip)
+void BB::RenderScenePerDraw(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const Slice<const ShaderEffectHandle> a_shader_effects)
+{
+	const RTexture render_target_texture = reinterpret_cast<RenderTargetStruct*>(a_render_target.handle)->GetTargetTexture();
+	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(render_target_texture);
+
+	const Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
+	const auto& scene_frame = render_scene3d.frames[s_render_inst->render_io.frame_index];
+
+	ShaderObject shader_objects[2];
+	SHADER_STAGE shader_stages[2];
+
+	RPipelineLayout layout{};
+	for (size_t eff_index = 0; eff_index < a_shader_effects.size(); eff_index++)
+	{
+		const ShaderEffect& effect = s_render_inst->shader_effects[a_shader_effects[eff_index]];
+		shader_objects[eff_index] = effect.shader_object;
+		shader_stages[eff_index] = effect.shader_stage;
+		if (layout.IsValid())
+			BB_ASSERT(layout == effect.pipeline_layout, "pipeline layout is wrong");
+	}
+
+	// set 0
+	Vulkan::SetDescriptorImmutableSamplers(a_cmd_list, layout);
+	{
+		const uint32_t buffer_indices[] = { 0, 0 };
+		const size_t buffer_offsets[]{ s_render_inst->global_descriptor_allocation.offset, scene_frame.desc_alloc.offset };
+		//set 1-2
+		Vulkan::SetDescriptorBufferOffset(a_cmd_list,
+			layout,
+			SPACE_GLOBAL,
+			_countof(buffer_offsets),
+			buffer_indices,
+			buffer_offsets);
+	}
+
+	Vulkan::BindShaders(a_cmd_list,
+		a_shader_effects.size(),
+		shader_stages,
+		shader_objects);
+
+	StartRenderingInfo start_rendering_info;
+	start_rendering_info.viewport_size = a_draw_area_size;
+	start_rendering_info.scissor_extent = a_draw_area_size;
+	start_rendering_info.scissor_offset = a_draw_area_offset;
+	start_rendering_info.depth_view = RImageView();
+	start_rendering_info.layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+	start_rendering_info.load_color = false;
+	start_rendering_info.store_color = true;
+	Vulkan::StartRenderPass(a_cmd_list, start_rendering_info, render_target.texture_info.view);
+
+	Vulkan::DrawVertices(a_cmd_list, _countof(skyboxVertices), 1, 0, 0);
+
+	Vulkan::EndRenderPass(a_cmd_list);
+}
+
+void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, bool a_skip)
 {
 	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
 	const auto& scene_frame = render_scene3d.frames[s_render_inst->render_io.frame_index];
@@ -2143,9 +2262,8 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 	start_rendering_info.scissor_offset = a_draw_area_offset;
 	start_rendering_info.depth_view = render_scene3d.depth_image_view;
 	start_rendering_info.layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-	start_rendering_info.load_color = false;
+	start_rendering_info.load_color = true;
 	start_rendering_info.store_color = true;
-	start_rendering_info.clear_color_rgba = float4{ a_clear_color.x, a_clear_color.y, a_clear_color.z, 1.f };
 	Vulkan::StartRenderPass(a_cmd_list, start_rendering_info, render_target.texture_info.view);
 
 	{
@@ -2153,17 +2271,8 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 		const MeshDrawCall& mesh_draw_call = render_scene3d.draw_list_data.mesh_draw_call[0];
 		const Material& material = s_render_inst->material_map[mesh_draw_call.material];
 
-		//set 0
+		//set 0, do this at start
 		Vulkan::SetDescriptorImmutableSamplers(a_cmd_list, material.shader.pipeline_layout);
-		const uint32_t buffer_indices[] = { 0, 0 };
-		const size_t buffer_offsets[]{ s_render_inst->global_descriptor_allocation.offset, scene_frame.desc_alloc.offset };
-		//set 1-2
-		Vulkan::SetDescriptorBufferOffset(a_cmd_list,
-			material.shader.pipeline_layout,
-			SPACE_GLOBAL, 
-			_countof(buffer_offsets),
-			buffer_indices,
-			buffer_offsets);
 	}
 
 	Vulkan::BindIndexBuffer(a_cmd_list, s_render_inst->index_buffer.buffer, 0);

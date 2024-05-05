@@ -39,6 +39,11 @@ namespace BB
         float3 color;               // 44
     };
 
+    struct VertexPos
+    {
+        float3 position;            // 12
+    };
+
     struct Vertex2D
     {
         float2 position;    
@@ -54,6 +59,8 @@ namespace BB
         uint frame_count;           // 24
         float delta_time;           // 28
         float total_time;           // 32
+        uint cube_vertexpos_vertex_buffer_pos; // 36 used for cubemaps, the type is VertexPos
+        uint padding;               // 40
     };
 
     struct Scene3DInfo
@@ -65,7 +72,9 @@ namespace BB
         float ambient_strength;     // 144
 
         uint light_count;           // 148
-        uint padding;               // 152
+
+        uint skybox_texture;        // 152
+
         uint2 scene_resolution;     // 156
     };
 

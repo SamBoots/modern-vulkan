@@ -351,12 +351,15 @@ void SceneHierarchy::SetProjection(const float4x4& a_projection)
 void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset) const
 {
 	StartRenderScene(m_render_scene);
+
+	RenderScenePerDraw(a_list, m_render_scene, a_render_target, a_draw_area_size, a_draw_area_offset, Slice(m_skybox_shaders, _countof(m_skybox_shaders)));
+
 	for (size_t i = 0; i < m_top_level_object_count; i++)
 	{
 		// identity hack to awkwardly get the first matrix. 
 		DrawSceneObject(m_top_level_objects[i], Float4x4Identity());
 	}
-	EndRenderScene(a_list, m_render_scene, a_render_target, a_draw_area_size, a_draw_area_offset, m_clear_color);
+	EndRenderScene(a_list, m_render_scene, a_render_target, a_draw_area_size, a_draw_area_offset);
 }
 
 void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform) const
@@ -372,5 +375,4 @@ void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, con
 	{
 		DrawSceneObject(scene_object.childeren[i], local_transform);
 	}
-
 }

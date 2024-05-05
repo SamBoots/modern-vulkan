@@ -2435,7 +2435,13 @@ void Vulkan::StartRenderPass(const RCommandList a_list, const StartRenderingInfo
 	if (a_render_info.load_color)
 		rendering_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
 	else
+	{
 		rendering_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		rendering_attachment.clearValue.color.float32[0] = a_render_info.clear_color_rgba.x;
+		rendering_attachment.clearValue.color.float32[1] = a_render_info.clear_color_rgba.y;
+		rendering_attachment.clearValue.color.float32[2] = a_render_info.clear_color_rgba.z;
+		rendering_attachment.clearValue.color.float32[3] = a_render_info.clear_color_rgba.w;
+	}
 
 	if (a_render_info.store_color)
 		rendering_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -2444,10 +2450,7 @@ void Vulkan::StartRenderPass(const RCommandList a_list, const StartRenderingInfo
 
 	rendering_attachment.imageLayout = ImageLayout(a_render_info.layout); 
 	rendering_attachment.imageView = reinterpret_cast<VkImageView>(a_rendering_image_view.handle);
-	rendering_attachment.clearValue.color.float32[0] = a_render_info.clear_color_rgba.x;
-	rendering_attachment.clearValue.color.float32[1] = a_render_info.clear_color_rgba.y;
-	rendering_attachment.clearValue.color.float32[2] = a_render_info.clear_color_rgba.z;
-	rendering_attachment.clearValue.color.float32[3] = a_render_info.clear_color_rgba.w;
+
 
 	VkRect2D scissor{};
 	scissor.offset.x = a_render_info.scissor_offset.x;
@@ -2594,6 +2597,13 @@ void Vulkan::SetPushConstants(const RCommandList a_list, const RPipelineLayout a
 		a_offset, 
 		a_size, 
 		a_data);
+}
+
+void Vulkan::DrawVertices(const RCommandList a_list, const uint32_t a_vertex_count, const uint32_t a_instance_count, const uint32_t a_first_vertex, const uint32_t a_first_instance)
+{
+	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+
+	vkCmdDraw(cmd_buffer, a_vertex_count, a_instance_count, a_first_vertex, a_first_instance);
 }
 
 void Vulkan::DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance)

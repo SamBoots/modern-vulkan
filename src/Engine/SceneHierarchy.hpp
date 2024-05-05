@@ -79,5 +79,6 @@ namespace BB
 		StringView m_scene_name;
 
 		RTexture m_skybox;
+		ShaderEffectHandle m_skybox_shaders[2];
 	};
 }
