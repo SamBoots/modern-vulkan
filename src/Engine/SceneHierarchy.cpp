@@ -133,7 +133,7 @@ void BB::SceneHierarchy::InitViaJson(MemoryArena& a_arena, const JsonParser& a_p
 		write_info.base_array_layer = static_cast<uint16_t>(i);
 		write_info.set_shader_visible = true;
 		write_info.pixels = pixels;
-		//WriteTexture(m_skybox, write_info);
+		WriteTexture(m_skybox, write_info);
 
 		Asset::FreeImageCPU(pixels);
 	}

@@ -38,7 +38,7 @@ namespace BB
 
 		// EXTRA STUFF
 		size_t frame_upload_buffer_size = mbSize * 64;
-		size_t asset_upload_buffer_size = mbSize * 512;
+		size_t asset_upload_buffer_size = gbSize * 1;
 	};
 
 	struct CreateMeshInfo
