@@ -78,14 +78,31 @@ namespace BB
         uint2 scene_resolution;     // 156
     };
 
-    //pointlight
-    struct PointLight
+#ifndef __HLSL_VERSION // C++ version
+    enum class LIGHT_TYPE : uint
+    {
+        POINT_LIGHT = 0,
+        SPOT_LIGHT = 1
+    };
+#else   // HLSL version
+#define POINT_LIGHT (0)
+#define SPOT_LIGHT (1)
+#endif //__HLSL_VERSION
+
+    struct Light
     {
         float3 color;               // 12
         float3 pos;                 // 24
 
-        float radius_linear;        // 28
-        float radius_quadratic;     // 32
+        float specular_strength;    // 28
+        float radius_constant;      // 32
+        float radius_linear;        // 36
+        float radius_quadratic;     // 40
+
+        float3 spotlight_direction; // 52
+        float cutoff_radius;        // 56
+        float pad;                  // 60
+        uint light_type;            // 64
     };
 
     struct ShaderTransform

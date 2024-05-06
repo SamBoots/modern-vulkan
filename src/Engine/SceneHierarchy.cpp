@@ -120,6 +120,14 @@ void BB::SceneHierarchy::InitViaJson(MemoryArena& a_arena, const JsonParser& a_p
 		const JsonObject& light_obj = lights.nodes[i]->GetObject();
 		CreateLightInfo light_info;
 
+		const char* light_type = light_obj.Find("light_type")->GetString();
+		if (strcmp(light_type, "spotlight") == 0)
+			light_info.light_type = LIGHT_TYPE::SPOT_LIGHT;
+		else if (strcmp(light_type, "pointlight") == 0)
+			light_info.light_type = LIGHT_TYPE::POINT_LIGHT;
+		else
+			BB_ASSERT(false, "invalid light type in json");
+
 		const JsonList& position = light_obj.Find("position")->GetList();
 		BB_ASSERT(position.node_count == 3, "light position in scene json is not 3 elements");
 		light_info.pos.x = position.nodes[0]->GetNumber();
@@ -132,8 +140,21 @@ void BB::SceneHierarchy::InitViaJson(MemoryArena& a_arena, const JsonParser& a_p
 		light_info.color.y = color.nodes[1]->GetNumber();
 		light_info.color.z = color.nodes[2]->GetNumber();
 
-		light_info.linear_distance = light_obj.Find("linear")->GetNumber();
-		light_info.quadratic_distance = light_obj.Find("quadratic")->GetNumber();
+		light_info.specular_strength = light_obj.Find("specular_strength")->GetNumber();
+		light_info.radius_constant = light_obj.Find("constant")->GetNumber();
+		light_info.radius_linear = light_obj.Find("linear")->GetNumber();
+		light_info.radius_quadratic = light_obj.Find("quadratic")->GetNumber();
+
+		if (light_info.light_type == LIGHT_TYPE::SPOT_LIGHT)
+		{
+			const JsonList& spot_dir = light_obj.Find("spotlight_dir")->GetList();
+			BB_ASSERT(color.node_count == 3, "light spotlight_dir in scene json is not 3 elements");
+			light_info.spotlight_direction.x = spot_dir.nodes[0]->GetNumber();
+			light_info.spotlight_direction.y = spot_dir.nodes[1]->GetNumber();
+			light_info.spotlight_direction.z = spot_dir.nodes[2]->GetNumber();
+
+			light_info.cutoff_radius = light_obj.Find("cutoff_radius")->GetNumber();
+		}
 
 		const StringView light_name = Asset::FindOrCreateString(light_obj.Find("name")->GetString());
 		CreateSceneObjectAsLight(light_info, light_name.c_str());

@@ -589,11 +589,6 @@ struct DrawList
 	ShaderTransform* transform;
 };
 
-union Light
-{
-	PointLight point_light;
-};
-
 constexpr uint32_t BACK_BUFFER_MAX = 3;
 
 struct Scene3D
@@ -629,7 +624,7 @@ struct Scene3D
 	const char* scene_name;
 
 	//we have different scenes but the light handles are the same. Meaning we can accidently mess this up. Maybe make this a freelist instead of a slotmap.
-	StaticSlotmap<PointLight, LightHandle> light_container;
+	StaticSlotmap<Light, LightHandle> light_container;
 };
 
 struct UploadDataMesh
@@ -2035,7 +2030,7 @@ RenderScene3DHandle BB::Create3DRenderScene(MemoryArena& a_arena, const SceneCre
 
 	constexpr uint32_t scene_size = sizeof(Scene3DInfo);
 	const uint32_t shader_transform_size = scene_3d->draw_list_max * sizeof(ShaderTransform);
-	const uint32_t light_buffer_size = scene_3d->light_container.capacity() * sizeof(PointLight);
+	const uint32_t light_buffer_size = scene_3d->light_container.capacity() * sizeof(Light);
 
 	const uint32_t per_frame_buffer_size = scene_size + shader_transform_size + light_buffer_size;
 
@@ -2457,27 +2452,20 @@ LightHandle BB::CreateLight(const RenderScene3DHandle a_scene, const CreateLight
 {
 	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
 
-	PointLight light;
-	light.pos = a_create_info.pos;
+	Light light;
+	light.light_type = static_cast<uint32_t>(a_create_info.light_type);
 	light.color = a_create_info.color;
-	light.radius_linear = a_create_info.linear_distance;
-	light.radius_quadratic = a_create_info.quadratic_distance;
+	light.pos = a_create_info.pos;
+
+	light.specular_strength = a_create_info.specular_strength;
+	light.radius_constant = a_create_info.radius_constant;
+	light.radius_linear = a_create_info.radius_linear;
+	light.radius_quadratic = a_create_info.radius_quadratic;
+
+	light.spotlight_direction = a_create_info.spotlight_direction;
+	light.cutoff_radius = a_create_info.cutoff_radius;
+
 	return render_scene3d.light_container.insert(light);
-}
-
-void BB::CreateLights(const RenderScene3DHandle a_scene, const Slice<CreateLightInfo> a_create_infos, LightHandle* const a_light_handles)
-{
-	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
-
-	for (size_t i = 0; i < a_create_infos.size(); i++)
-	{
-		PointLight light;
-		light.pos = a_create_infos[i].pos;
-		light.color = a_create_infos[i].color;
-		light.radius_linear = a_create_infos[i].linear_distance;
-		light.radius_quadratic = a_create_infos[i].quadratic_distance;
-		a_light_handles[i] = render_scene3d.light_container.insert(light);
-	}
 }
 
 void BB::FreeLight(const RenderScene3DHandle a_scene, const LightHandle a_light)
@@ -2487,7 +2475,7 @@ void BB::FreeLight(const RenderScene3DHandle a_scene, const LightHandle a_light)
 	render_scene3d.light_container.erase(a_light);
 }
 
-PointLight& BB::GetLight(const RenderScene3DHandle a_scene, const LightHandle a_light)
+Light& BB::GetLight(const RenderScene3DHandle a_scene, const LightHandle a_light)
 {
 	const Scene3D& render_scene3d = *reinterpret_cast<const Scene3D*>(a_scene.handle);
 	return render_scene3d.light_container.find(a_light);

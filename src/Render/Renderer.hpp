@@ -97,11 +97,17 @@ namespace BB
 
 	struct CreateLightInfo
 	{
-		//light type here
-		float3 pos;
-		float3 color;
-		float linear_distance;
-		float quadratic_distance;
+		LIGHT_TYPE light_type;      // 4
+		float3 color;               // 16
+		float3 pos;                 // 28
+		float specular_strength;    // 32
+
+		float radius_constant;      // 36
+		float radius_linear;        // 40
+		float radius_quadratic;     // 44
+
+		float3 spotlight_direction; // 56
+		float cutoff_radius;        // 60
 	};
 
 	struct SceneCreateInfo
@@ -162,9 +168,8 @@ namespace BB
 	void FreeMesh(const MeshHandle a_mesh);
 
 	LightHandle CreateLight(const RenderScene3DHandle a_scene, const CreateLightInfo& a_create_info);
-	void CreateLights(const RenderScene3DHandle a_scene, const Slice<CreateLightInfo> a_create_infos, LightHandle* const a_light_handles);
 	void FreeLight(const RenderScene3DHandle a_scene, const LightHandle a_light);
-	PointLight& GetLight(const RenderScene3DHandle a_scene, const LightHandle a_light);
+	Light& GetLight(const RenderScene3DHandle a_scene, const LightHandle a_light);
 
 	bool CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles);
 	bool ReloadShaderEffect(const ShaderEffectHandle a_shader_effect, const Buffer& a_shader);

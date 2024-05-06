@@ -660,7 +660,7 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 			if (ImGui::TreeNodeEx("light object"))
 			{
 				ImGui::Indent();
-				PointLight& light = GetLight(a_hierarchy.m_render_scene, scene_object.light_handle);
+				Light& light = GetLight(a_hierarchy.m_render_scene, scene_object.light_handle);
 
 				if (position_changed)
 				{
@@ -684,12 +684,13 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 		{
 			if (ImGui::Button("create light"))
 			{
-				CreateLightInfo light_create_info;
-				light_create_info.pos = transform.m_pos;
-				light_create_info.color = float3(1.f, 1.f, 1.f);
-				light_create_info.linear_distance = 0.35f;
-				light_create_info.quadratic_distance = 0.44f;
-				scene_object.light_handle = CreateLight(a_hierarchy.m_render_scene, light_create_info);
+				BB_UNIMPLEMENTED();
+				//CreateLightInfo light_create_info;
+				//light_create_info.pos = transform.m_pos;
+				//light_create_info.color = float3(1.f, 1.f, 1.f);
+				//light_create_info.linear_distance = 0.35f;
+				//light_create_info.quadratic_distance = 0.44f;
+				//scene_object.light_handle = CreateLight(a_hierarchy.m_render_scene, light_create_info);
 			}
 		}
 
