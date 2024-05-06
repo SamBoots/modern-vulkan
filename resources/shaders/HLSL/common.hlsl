@@ -27,19 +27,25 @@ float4 UnpackR8B8G8A8_UNORMToFloat4(uint a_packed)
 
 float3 CalculatePointLight(const BB::PointLight a_light, float3 a_normal, float3 a_frag_pos)
 {
-    const float3 dir = normalize(a_light.pos - a_frag_pos);
+    const float3 light_dir = normalize(a_light.pos - a_frag_pos);
     
     const float constant = 1.f;
     const float distance = length(a_light.pos - a_frag_pos);
     const float attenuation = 1.0f / (constant, a_light.radius_linear * distance + a_light.radius_quadratic * (distance * distance));
     
-    float diff = max(dot(a_normal, dir), 0.0f);
-    float3 diffuse = mul(diff, a_light.color);
-
-    diffuse *= attenuation;
+    const float diff = max(dot(a_normal, light_dir), 0.0f);
+    const float3 diffuse = mul(diff, a_light.color) * attenuation;
     
-    float3 light_color = diffuse;
-    return light_color;
+    const float3 view_pos = float3(0.f, 0.f, 0.f);
+    const float3 view_dir = normalize(view_pos - a_frag_pos);
+    const float3 reflect_dir = reflect(-light_dir, a_normal);
+    
+    const float specular_strength = 0.5;
+    
+    const float spec = pow(max(dot(view_dir, reflect_dir), 0.0), 32);
+    const float3 specular = specular_strength * spec * a_light.color;
+    
+    return (diffuse + specular);
 }
 
 //IMMUTABLE SAMPLERS
