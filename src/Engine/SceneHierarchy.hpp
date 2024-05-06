@@ -56,6 +56,15 @@ namespace BB
 		SceneObjectHandle CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
 		SceneObjectHandle CreateSceneObjectAsLight(const CreateLightInfo& a_light_create_info, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
 
+		void SetSkyboxVertexShader(const ShaderEffectHandle a_vertex_shader)
+		{
+			m_skybox_shaders[0] = a_vertex_shader;
+		}
+		void SetSkyboxFragmentShader(const ShaderEffectHandle a_fragment_shader)
+		{
+			m_skybox_shaders[1] = a_fragment_shader;
+		}
+
 		void SetView(const float4x4& a_view);
 		void SetProjection(const float4x4& a_projection);
 
@@ -79,6 +88,6 @@ namespace BB
 		StringView m_scene_name;
 
 		RTexture m_skybox;
-		ShaderEffectHandle m_skybox_shaders[2];
+		ShaderEffectHandle m_skybox_shaders[2]{};
 	};
 }

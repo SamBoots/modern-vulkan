@@ -16,48 +16,47 @@
 using namespace BB;
 
 constexpr float skyboxVertices[] = {
-	// positions          
-	-1.0f,  1.0f, -1.0f,
-	-1.0f, -1.0f, -1.0f,
-	 1.0f, -1.0f, -1.0f,
-	 1.0f, -1.0f, -1.0f,
-	 1.0f,  1.0f, -1.0f,
-	-1.0f,  1.0f, -1.0f,
+	-1.0f,-1.0f,-1.0f,  // -X side
+	-1.0f,-1.0f, 1.0f,
+	-1.0f, 1.0f, 1.0f,
+	-1.0f, 1.0f, 1.0f,
+	-1.0f, 1.0f,-1.0f,
+	-1.0f,-1.0f,-1.0f,
 
-	-1.0f, -1.0f,  1.0f,
-	-1.0f, -1.0f, -1.0f,
-	-1.0f,  1.0f, -1.0f,
-	-1.0f,  1.0f, -1.0f,
-	-1.0f,  1.0f,  1.0f,
-	-1.0f, -1.0f,  1.0f,
+	-1.0f,-1.0f,-1.0f,  // -Z side
+	 1.0f, 1.0f,-1.0f,
+	 1.0f,-1.0f,-1.0f,
+	-1.0f,-1.0f,-1.0f,
+	-1.0f, 1.0f,-1.0f,
+	 1.0f, 1.0f,-1.0f,
 
-	 1.0f, -1.0f, -1.0f,
-	 1.0f, -1.0f,  1.0f,
-	 1.0f,  1.0f,  1.0f,
-	 1.0f,  1.0f,  1.0f,
-	 1.0f,  1.0f, -1.0f,
-	 1.0f, -1.0f, -1.0f,
+	-1.0f,-1.0f,-1.0f,  // -Y side
+	 1.0f,-1.0f,-1.0f,
+	 1.0f,-1.0f, 1.0f,
+	-1.0f,-1.0f,-1.0f,
+	 1.0f,-1.0f, 1.0f,
+	-1.0f,-1.0f, 1.0f,
 
-	-1.0f, -1.0f,  1.0f,
-	-1.0f,  1.0f,  1.0f,
-	 1.0f,  1.0f,  1.0f,
-	 1.0f,  1.0f,  1.0f,
-	 1.0f, -1.0f,  1.0f,
-	-1.0f, -1.0f,  1.0f,
+	-1.0f, 1.0f,-1.0f,  // +Y side
+	-1.0f, 1.0f, 1.0f,
+	 1.0f, 1.0f, 1.0f,
+	-1.0f, 1.0f,-1.0f,
+	 1.0f, 1.0f, 1.0f,
+	 1.0f, 1.0f,-1.0f,
 
-	-1.0f,  1.0f, -1.0f,
-	 1.0f,  1.0f, -1.0f,
-	 1.0f,  1.0f,  1.0f,
-	 1.0f,  1.0f,  1.0f,
-	-1.0f,  1.0f,  1.0f,
-	-1.0f,  1.0f, -1.0f,
+	 1.0f, 1.0f,-1.0f,  // +X side
+	 1.0f, 1.0f, 1.0f,
+	 1.0f,-1.0f, 1.0f,
+	 1.0f,-1.0f, 1.0f,
+	 1.0f,-1.0f,-1.0f,
+	 1.0f, 1.0f,-1.0f,
 
-	-1.0f, -1.0f, -1.0f,
-	-1.0f, -1.0f,  1.0f,
-	 1.0f, -1.0f, -1.0f,
-	 1.0f, -1.0f, -1.0f,
-	-1.0f, -1.0f,  1.0f,
-	 1.0f, -1.0f,  1.0f
+	-1.0f, 1.0f, 1.0f,  // +Z side
+	-1.0f,-1.0f, 1.0f,
+	 1.0f, 1.0f, 1.0f,
+	-1.0f,-1.0f, 1.0f,
+	 1.0f,-1.0f, 1.0f,
+	 1.0f, 1.0f, 1.0f,
 };
 
 struct RenderFence
@@ -84,11 +83,13 @@ struct TextureInfo
 
 	uint32_t width;				// 20
 	uint32_t height;			// 24
-	IMAGE_FORMAT format;		// 28
-	IMAGE_LAYOUT current_layout;// 32
+	uint32_t array_layers;		// 28
+	uint32_t mip_levels;		// 32
+	IMAGE_FORMAT format;		// 36
+	IMAGE_LAYOUT current_layout;// 40
 
 	// debug extra, not required for anything
-	IMAGE_USAGE usage;			// 36
+	IMAGE_USAGE usage;			// 44
 };
 
 class GPUTextureManager
@@ -139,6 +140,7 @@ public:
 				ImGui::Indent();
 				ImGui::Text("Texture slot index: %u", m_next_free);
 				const ImVec2 image_size = { 160, 160 };
+
 				ImGui::Image(m_next_free, image_size);
 				ImGui::Unindent();
 			}
@@ -153,9 +155,19 @@ public:
 					if (slot.name != nullptr)
 						ImGui::TextUnformatted(slot.name);
 					else
-						ImGui::Text("UNNAMED! This might be an error");
+						ImGui::TextUnformatted("UNNAMED! This might be an error");
+
 					const ImVec2 image_size = { 160, 160 };
-					ImGui::Image(i, image_size);
+					for (uint32_t array_layer = 0; array_layer < slot.texture_info.array_layers; array_layer++)
+					{
+						ImGui::Text("array layer: %u", array_layer);
+						for (uint32_t mip_level = 1; mip_level < slot.texture_info.mip_levels + 1; mip_level++)
+						{
+							ImGui::Text("mip level: %u", mip_level);
+							ImGui::Image(i, image_size);
+						}
+					}
+
 					ImGui::Unindent();
 					ImGui::TreePop();
 				}
@@ -1561,7 +1573,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		copy_op.regions = Slice(&region_copy_op, 1);
 		Vulkan::CopyBuffer(list, copy_op);
 
-		s_render_inst->global_buffer.data.cube_vertexpos_vertex_buffer_pos = s_render_inst->cubemap_position.offset;
+		s_render_inst->global_buffer.data.cube_vertexpos_vertex_buffer_pos = static_cast<uint32_t>(s_render_inst->cubemap_position.offset);
 	}
 
 	start_up_pool.EndCommandList(list);
@@ -2009,6 +2021,7 @@ RenderScene3DHandle BB::Create3DRenderScene(MemoryArena& a_arena, const SceneCre
 	scene_3d->scene_name = a_name;
 	scene_3d->scene_info.ambient_light = a_info.ambient_light_color;
 	scene_3d->scene_info.ambient_strength = a_info.ambient_light_strength;
+	scene_3d->scene_info.skybox_texture = a_info.skybox.handle;
 
 	scene_3d->frames = ArenaAllocArr(a_arena, Scene3D::Frame, s_render_inst->render_io.frame_count);
 	scene_3d->draw_list_max = a_info.draw_entry_max;
@@ -2124,6 +2137,8 @@ void BB::RenderScenePerDraw(const RCommandList a_cmd_list, const RenderScene3DHa
 		shader_stages[eff_index] = effect.shader_stage;
 		if (layout.IsValid())
 			BB_ASSERT(layout == effect.pipeline_layout, "pipeline layout is wrong");
+		else
+			layout = effect.pipeline_layout;
 	}
 
 	// set 0
@@ -2141,7 +2156,7 @@ void BB::RenderScenePerDraw(const RCommandList a_cmd_list, const RenderScene3DHa
 	}
 
 	Vulkan::BindShaders(a_cmd_list,
-		a_shader_effects.size(),
+		static_cast<uint32_t>(a_shader_effects.size()),
 		shader_stages,
 		shader_objects);
 
@@ -2154,6 +2169,8 @@ void BB::RenderScenePerDraw(const RCommandList a_cmd_list, const RenderScene3DHa
 	start_rendering_info.load_color = false;
 	start_rendering_info.store_color = true;
 	Vulkan::StartRenderPass(a_cmd_list, start_rendering_info, render_target.texture_info.view);
+	Vulkan::SetFrontFace(a_cmd_list, false);
+	Vulkan::SetCullMode(a_cmd_list, CULL_MODE::NONE);
 
 	Vulkan::DrawVertices(a_cmd_list, _countof(skyboxVertices), 1, 0, 0);
 
@@ -2628,6 +2645,8 @@ const RTexture BB::CreateTexture(const CreateTextureInfo& a_create_info)
 	TextureInfo tex_info;
 	tex_info.width = a_create_info.width;
 	tex_info.height = a_create_info.height;
+	tex_info.array_layers = a_create_info.array_layers;
+	tex_info.mip_levels = 1;
 	tex_info.format = a_create_info.format;
 	tex_info.current_layout = IMAGE_LAYOUT::UNDEFINED;
 
@@ -2667,6 +2686,8 @@ const RTexture BB::CreateTextureCubeMap(const CreateTextureInfo& a_create_info)
 	TextureInfo tex_info;
 	tex_info.width = a_create_info.width;
 	tex_info.height = a_create_info.height;
+	tex_info.array_layers = a_create_info.array_layers;
+	tex_info.mip_levels = 1;
 	tex_info.format = a_create_info.format;
 	tex_info.current_layout = IMAGE_LAYOUT::UNDEFINED;
 

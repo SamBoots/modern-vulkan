@@ -17,7 +17,7 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
     VSOutput output = (VSOutput)0;
     output.uvw = cur_vertex.position;
     // Convert cubemap coordinates into Vulkan coordinate space
-    output.uvw.xy *= -1.0;
+    //output.uvw.xy *= -1.0;
     // remove translation
     float4x4 mod_view = scene_info.view;
     mod_view[0][3] = 0.0;

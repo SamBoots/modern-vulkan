@@ -110,6 +110,7 @@ namespace BB
 		float ambient_light_strength;
 		uint32_t light_max;
 		uint32_t draw_entry_max;
+		RTexture skybox;
 	};
 
 	const RenderIO& GetRenderIO();
