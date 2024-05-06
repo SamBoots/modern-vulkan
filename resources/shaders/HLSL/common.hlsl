@@ -62,10 +62,11 @@ float3 CalculateLight(const BB::Light a_light, float3 a_normal, float3 a_frag_po
             {
                 return CalculateLight_impl(a_light, a_normal, a_frag_pos, light_dir);
             }
+            return float3(0.f, 0.f, 0.f);
         }
         break;
     }
-    return CalculateLight_impl(a_light, a_normal, a_frag_pos, light_dir);
+    return float3(1.f, 1.f, 0.f);
 }
 
 //IMMUTABLE SAMPLERS
