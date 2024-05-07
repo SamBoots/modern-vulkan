@@ -968,14 +968,14 @@ const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadF
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 
 	// for every 5 meshes create a thread;
-	constexpr size_t TASKS_PER_THREAD = 3;
+	constexpr size_t TASKS_PER_THREAD = 5;
 
-	const size_t thread_count = model->meshes.size() / TASKS_PER_THREAD;
+	const uint32_t thread_count = model->meshes.size() / TASKS_PER_THREAD;
 
 	LoadgltfMeshBatch_params* batches = ArenaAllocArr(a_temp_arena, LoadgltfMeshBatch_params, thread_count);
 	Threads::Barrier barrier(thread_count);
 	size_t task_index = 0;
-	for (size_t i = 0; i < thread_count; i++)
+	for (uint32_t i = 0; i < thread_count; i++)
 	{
 		batches[i].barrier = &barrier;
 		batches[i].cgltf_meshes = Slice(&gltf_data->meshes[task_index], TASKS_PER_THREAD);

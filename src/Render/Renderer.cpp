@@ -851,16 +851,18 @@ namespace IMGUI_IMPL
 			}
 		}
 
+		RenderingAttachmentColor color_attach{};
+		color_attach.load_color = !a_clear_image;
+		color_attach.store_color = true;
+		color_attach.image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+		color_attach.image_view = render_target_view;
+
 		StartRenderingInfo imgui_pass_start{};
-		imgui_pass_start.viewport_size.x = render_io.screen_width;
-		imgui_pass_start.viewport_size.y = render_io.screen_height;
-		imgui_pass_start.scissor_extent = imgui_pass_start.viewport_size;
-		imgui_pass_start.scissor_offset = {};
-		imgui_pass_start.depth_view = RImageView(BB_INVALID_HANDLE_64);
-		imgui_pass_start.load_color = !a_clear_image;
-		imgui_pass_start.store_color = true;
-		imgui_pass_start.layout = IMAGE_LAYOUT::GENERAL;
-		Vulkan::StartRenderPass(a_cmd_list, imgui_pass_start, render_target_view);
+		imgui_pass_start.render_area_extent = { render_io.screen_width, render_io.screen_height };
+		imgui_pass_start.render_area_offset = {};
+		imgui_pass_start.color_attachments = Slice(&color_attach, 1);
+		imgui_pass_start.depth_attachment = nullptr;
+		Vulkan::StartRenderPass(a_cmd_list, imgui_pass_start);
 
 		// Setup desired CrossRenderer state
 		ImSetRenderState(draw_data, a_cmd_list, 0, shader_objects, pipeline_layout);
@@ -932,12 +934,11 @@ namespace IMGUI_IMPL
 
 		// Since we dynamically set our scissor lets set it back to the full viewport. 
 		// This might be bad to do since this can leak into different system's code. 
-		ScissorInfo scissor{};
-		scissor.offset.x = 0;
-		scissor.offset.y = 0;
-		scissor.extent.x = static_cast<uint32_t>(fb_width);
-		scissor.extent.y = static_cast<uint32_t>(fb_height);
-		Vulkan::SetScissor(a_cmd_list, scissor);
+		ScissorInfo base_scissor{};
+		base_scissor.offset.x = 0;
+		base_scissor.offset.y = 0;
+		base_scissor.extent = imgui_pass_start.render_area_extent;
+		Vulkan::SetScissor(a_cmd_list, base_scissor);
 
 		Vulkan::EndRenderPass(a_cmd_list);
 	}
@@ -2155,15 +2156,18 @@ void BB::RenderScenePerDraw(const RCommandList a_cmd_list, const RenderScene3DHa
 		shader_stages,
 		shader_objects);
 
+	RenderingAttachmentColor color_attach{};
+	color_attach.load_color = false;
+	color_attach.store_color = true;
+	color_attach.image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+	color_attach.image_view = render_target.texture_info.view;
+
 	StartRenderingInfo start_rendering_info;
-	start_rendering_info.viewport_size = a_draw_area_size;
-	start_rendering_info.scissor_extent = a_draw_area_size;
-	start_rendering_info.scissor_offset = a_draw_area_offset;
-	start_rendering_info.depth_view = RImageView();
-	start_rendering_info.layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-	start_rendering_info.load_color = false;
-	start_rendering_info.store_color = true;
-	Vulkan::StartRenderPass(a_cmd_list, start_rendering_info, render_target.texture_info.view);
+	start_rendering_info.render_area_extent = a_draw_area_size;
+	start_rendering_info.render_area_offset = a_draw_area_offset;
+	start_rendering_info.color_attachments = Slice(&color_attach, 1);
+	start_rendering_info.depth_attachment = nullptr;
+	Vulkan::StartRenderPass(a_cmd_list, start_rendering_info);
 	Vulkan::SetFrontFace(a_cmd_list, false);
 	Vulkan::SetCullMode(a_cmd_list, CULL_MODE::NONE);
 
@@ -2268,15 +2272,25 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 	const RTexture render_target_texture = reinterpret_cast<RenderTargetStruct*>(a_render_target.handle)->GetTargetTexture();
 	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(render_target_texture);
 	// render
-	StartRenderingInfo start_rendering_info;
-	start_rendering_info.viewport_size = a_draw_area_size;
-	start_rendering_info.scissor_extent = a_draw_area_size;
-	start_rendering_info.scissor_offset = a_draw_area_offset;
-	start_rendering_info.depth_view = render_scene3d.depth_image_view;
-	start_rendering_info.layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-	start_rendering_info.load_color = true;
-	start_rendering_info.store_color = true;
-	Vulkan::StartRenderPass(a_cmd_list, start_rendering_info, render_target.texture_info.view);
+
+	RenderingAttachmentColor color_attach{};
+	color_attach.load_color = true;
+	color_attach.store_color = true;
+	color_attach.image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+	color_attach.image_view = render_target.texture_info.view;
+
+	RenderingAttachmentDepth depth_attach{};
+	depth_attach.load_depth = false;
+	depth_attach.store_depth = true;
+	depth_attach.image_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
+	depth_attach.image_view = render_scene3d.depth_image_view;
+
+	StartRenderingInfo start_rendering_info{};
+	start_rendering_info.render_area_extent = a_draw_area_size;
+	start_rendering_info.render_area_offset = a_draw_area_offset;
+	start_rendering_info.color_attachments = Slice(&color_attach, 1);
+	start_rendering_info.depth_attachment = &depth_attach;
+	Vulkan::StartRenderPass(a_cmd_list, start_rendering_info);
 
 	{
 		//set the first data to get the first 3 descriptor sets.

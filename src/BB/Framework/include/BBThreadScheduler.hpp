@@ -18,7 +18,7 @@ namespace BB
 			
 		private:
 			uint32_t thread_count;
-			std::atomic_uint32_t count;
+			std::atomic<uint32_t> count;
 			BBSemaphore barrier;
 		};
 

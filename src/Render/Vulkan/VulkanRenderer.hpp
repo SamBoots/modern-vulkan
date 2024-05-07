@@ -39,7 +39,6 @@ namespace BB
 		RPipelineLayout CreatePipelineLayout(const RDescriptorLayout* a_descriptor_layouts, const uint32_t a_layout_count, const PushConstantRange* a_constant_ranges, const uint32_t a_constant_range_count);
 		void FreePipelineLayout(const RPipelineLayout a_layout);
 
-		RPipeline CreatePipeline(const CreatePipelineInfo& a_info);
 		ShaderObject CreateShaderObject(const ShaderObjectCreateInfo& a_shader_object);
 		void CreateShaderObjects(MemoryArena& a_temp_arena, Slice<ShaderObjectCreateInfo> a_shader_objects, ShaderObject* a_pshader_objects);
 		void DestroyShaderObject(const ShaderObject a_shader_object);
@@ -58,8 +57,8 @@ namespace BB
 		void PipelineBarriers(const RCommandList a_list, const PipelineBarrierInfo& a_BarrierInfo);
 		void ClearImage(const RCommandList a_list, const RImage a_image, const IMAGE_LAYOUT a_layout, const float4 a_clear_color);
 		void BlitImage(const RCommandList a_list, const BlitImageInfo& a_info);
-
-		void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info, const RImageView a_rendering_image_view);
+		
+		void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info);
 		void EndRenderPass(const RCommandList a_list);
 		void SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor);
 

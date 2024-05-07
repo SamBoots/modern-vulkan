@@ -2,7 +2,7 @@
 #include "Common.h"
 //shared shader include
 #include "shared_common.hlsl.h"
-#include "Storage/Array.h"
+#include "Utils/Slice.h"
 
 namespace BB
 {
@@ -154,23 +154,23 @@ namespace BB
 
 	struct RenderingAttachmentDepth
 	{
-		bool load_op_load;
-		bool store_op_store;
+		bool load_depth;
+		bool store_depth;
 		IMAGE_LAYOUT image_layout;
-		RImageView depth_view;
+		RImageView image_view;
 		struct clearvalue
 		{
-			float depth;
-			uint32_t stencil;
+			float depth = 1.0f;
+			uint32_t stencil = 0;
 		} clear_value;
 	};
 
 	struct RenderingAttachmentColor
 	{
-		bool load_op_load;
-		bool store_op_store;
+		bool load_color;
+		bool store_color;
 		IMAGE_LAYOUT image_layout;
-		RImageView depth_view;
+		RImageView image_view;
 		float4 clear_value_rgba;
 	};
 
@@ -179,7 +179,7 @@ namespace BB
 		uint2 render_area_extent;
 		int2 render_area_offset;
 
-		Slice<RenderingAttachmentDepth> depth_attachments;
+		RenderingAttachmentDepth* depth_attachment;
 		Slice<RenderingAttachmentColor> color_attachments;
 	};
 
