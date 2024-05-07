@@ -68,25 +68,69 @@ namespace BB
 		void SetView(const float4x4& a_view);
 		void SetProjection(const float4x4& a_projection);
 
-		RenderScene3DHandle GetRenderSceneHandle() const { return m_render_scene; }
 		void SetClearColor(const float3 a_clear_color) { m_clear_color = a_clear_color; }
 
 	private:
 		SceneObjectHandle CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent);
 		void DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform) const;
 
+		struct MeshDrawCall
+		{
+			MeshHandle mesh;
+			MaterialHandle material;
+			uint32_t index_start;
+			uint32_t index_count;
+			RTexture base_texture;
+			RTexture normal_texture;
+		};
+
+
+		struct DrawList
+		{
+			MeshDrawCall* mesh_draw_call;
+			ShaderTransform* transform;
+		};
+		DrawList draw_list;
+		size_t draw_list_size;
+		size_t draw_list_max_size;
+
+		struct RenderFrameData
+		{
+			GPUBuffer per_frame_buffer;
+			size_t per_frame_buffer_size;
+
+			struct PerFrameBufferPart
+			{
+				uint32_t offset;
+				uint32_t size;
+			};
+			PerFrameBufferPart scene_buffer;
+			PerFrameBufferPart transform_buffer;
+			PerFrameBufferPart light_buffer;
+			DescriptorAllocation desc_alloc;
+			uint64_t fence_value;
+		};
+
+		StringView m_scene_name;
+
+		Scene3DInfo gpu_scene_info;
+
 		//TODO, maybe remember all the transforms from the previous frames?
 		TransformPool m_transform_pool;
 		StaticSlotmap<SceneObject, SceneObjectHandle> m_scene_objects;
 
+		StaticArray<RenderFrameData> m_render_frames;
+		StaticSlotmap<Light, LightHandle> light_container;
+		DrawList m_draw_list;
+
+		uint2 m_previous_draw_area;
+		RImage depth_image;
+		RImageView depth_image_view;
+
 		uint32_t m_top_level_object_count;
 		SceneObjectHandle* m_top_level_objects;
 
-		RenderScene3DHandle m_render_scene;
 		float3 m_clear_color;
-
-		StringView m_scene_name;
-
 		RTexture m_skybox;
 		ShaderEffectHandle m_skybox_shaders[2]{};
 	};

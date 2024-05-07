@@ -968,7 +968,7 @@ const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadF
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 
 	// for every 5 meshes create a thread;
-	constexpr size_t TASKS_PER_THREAD = 5;
+	constexpr size_t TASKS_PER_THREAD = 4;
 
 	const uint32_t thread_count = model->meshes.size() / TASKS_PER_THREAD;
 

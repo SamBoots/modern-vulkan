@@ -573,59 +573,7 @@ struct Material
 	const char* name;
 };
 
-struct MeshDrawCall
-{
-	MeshHandle mesh;
-	MaterialHandle material;
-	uint32_t index_start;
-	uint32_t index_count;
-	RTexture base_texture;
-	RTexture normal_texture;
-};
-
-struct DrawList
-{
-	MeshDrawCall* mesh_draw_call;
-	ShaderTransform* transform;
-};
-
 constexpr uint32_t BACK_BUFFER_MAX = 3;
-
-struct Scene3D
-{
-	struct Frame
-	{
-		GPUBuffer per_frame_buffer;
-		size_t per_frame_buffer_size;
-
-		struct PerFrameBufferPart
-		{
-			uint32_t offset;
-			uint32_t size;
-		};
-		PerFrameBufferPart scene_buffer;
-		PerFrameBufferPart transform_buffer;
-		PerFrameBufferPart light_buffer;
-		DescriptorAllocation desc_alloc;
-		uint64_t fence_value;
-	};
-
-	Frame* frames;
-	Scene3DInfo scene_info;
-
-	RImage depth_image;
-	RImageView depth_image_view;
-	uint2 previous_draw_area;
-
-	uint32_t draw_list_count;
-	uint32_t draw_list_max;
-	DrawList draw_list_data;
-
-	const char* scene_name;
-
-	//we have different scenes but the light handles are the same. Meaning we can accidently mess this up. Maybe make this a freelist instead of a slotmap.
-	StaticSlotmap<Light, LightHandle> light_container;
-};
 
 struct UploadDataMesh
 {
