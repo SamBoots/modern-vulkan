@@ -890,6 +890,24 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 	a_mesh.mesh_handle = CreateMesh(create_mesh);
 }
 
+struct LoadgltfMeshBatch_params
+{
+	Slice<cgltf_mesh> cgltf_meshes;
+	Slice<Model::Mesh> meshes;
+	Threads::Barrier* barrier;
+};
+
+static void LoadgltfMeshBatch(MemoryArena& a_temp_arena, void* a_params)
+{
+	const LoadgltfMeshBatch_params* params = reinterpret_cast<LoadgltfMeshBatch_params*>(a_params);
+	BB_ASSERT(params->meshes.size() == params->cgltf_meshes.size(), "cgltf meshes slice size is not equal to meshes slice size");
+	for (size_t i = 0; i < params->meshes.size(); i++)
+	{
+		LoadglTFMesh(a_temp_arena, params->cgltf_meshes[i], params->meshes[i]);
+	}
+	params->barrier->Signal();
+}
+
 static void* cgltf_arena_alloc(void* a_user, cgltf_size a_size)
 {
 	MemoryArena& arena = *reinterpret_cast<MemoryArena*>(a_user);
@@ -949,13 +967,35 @@ const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadF
 	model->root_node_indices = ArenaAllocArr(s_asset_manager->asset_arena, uint32_t, model->root_node_count);
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 
-	for (size_t i = 0; i < model->meshes.size(); i++)
+	// for every 5 meshes create a thread;
+	constexpr size_t TASKS_PER_THREAD = 3;
+
+	const size_t thread_count = model->meshes.size() / TASKS_PER_THREAD;
+
+	LoadgltfMeshBatch_params* batches = ArenaAllocArr(a_temp_arena, LoadgltfMeshBatch_params, thread_count);
+	Threads::Barrier barrier(thread_count);
+	size_t task_index = 0;
+	for (size_t i = 0; i < thread_count; i++)
 	{
-		MemoryArenaScope(a_temp_arena)
+		batches[i].barrier = &barrier;
+		batches[i].cgltf_meshes = Slice(&gltf_data->meshes[task_index], TASKS_PER_THREAD);
+		batches[i].meshes = Slice(&model->meshes[task_index], TASKS_PER_THREAD);
+		Threads::StartTaskThread(LoadgltfMeshBatch, &batches[i], L"gltf mesh upload batch");
+
+		task_index += TASKS_PER_THREAD;
+	}
+
+	MemoryArenaScope(a_temp_arena)
+	{
+		for (; task_index < model->meshes.size(); task_index++)
 		{
-			LoadglTFMesh(a_temp_arena, gltf_data->meshes[i], model->meshes[i]);
+			LoadglTFMesh(a_temp_arena, gltf_data->meshes[task_index], model->meshes[task_index]);
 		}
 	}
+
+
+	// check if we have done all the work required.
+	barrier.Wait();
 
 	uint32_t current_node = 0;
 
@@ -964,7 +1004,6 @@ const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadF
 		model->root_node_indices[i] = current_node;
 		LoadglTFNode(*gltf_data, *model, current_node);
 	}
-
 	cgltf_free(gltf_data);
 
 	AssetString asset_name;
@@ -984,6 +1023,7 @@ const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadF
 
 	AddElementToAssetTable(asset);
 	model->asset_handle = AssetHandle(asset.hash.full_hash);
+
 	return asset.path;
 }
 

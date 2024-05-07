@@ -17,7 +17,7 @@ namespace BB
 			void Signal();
 			
 		private:
-			const uint32_t thread_count;
+			uint32_t thread_count;
 			std::atomic_uint32_t count;
 			BBSemaphore barrier;
 		};
