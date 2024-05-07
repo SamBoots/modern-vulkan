@@ -114,19 +114,73 @@ namespace BB
 		ENUM_SIZE
 	};
 
+	enum class QUEUE_TRANSITION : uint32_t
+	{
+		NO_TRANSITION,
+		GRAPHICS,
+		TRANSFER,
+		COMPUTE,
+
+		ENUM_SIZE
+	};
+
+	enum class BARRIER_PIPELINE_STAGE : uint32_t
+	{
+		TOP_OF_PIPELINE,
+		TRANSFER,
+		VERTEX_INPUT,
+		VERTEX_SHADER,
+		FRAGMENT_TEST,
+		FRAGMENT_SHADER,
+		COLOR_ATTACH_OUTPUT,
+		HOST_READABLE,
+		END_OF_PIPELINE,
+
+		ENUM_SIZE
+	};
+
+	enum class BARRIER_ACCESS_MASK : uint32_t
+	{
+		NONE = 0,
+		TRANSFER_READ,
+		TRANSFER_WRITE,
+		DEPTH_STENCIL_READ_WRITE,
+		SHADER_READ,
+		COLOR_ATTACHMENT_WRITE,
+		HOST_READABLE,
+
+		ENUM_SIZE
+	};
+
+	struct RenderingAttachmentDepth
+	{
+		bool load_op_load;
+		bool store_op_store;
+		IMAGE_LAYOUT image_layout;
+		RImageView depth_view;
+		struct clearvalue
+		{
+			float depth;
+			uint32_t stencil;
+		} clear_value;
+	};
+
+	struct RenderingAttachmentColor
+	{
+		bool load_op_load;
+		bool store_op_store;
+		IMAGE_LAYOUT image_layout;
+		RImageView depth_view;
+		float4 clear_value_rgba;
+	};
+
 	struct StartRenderingInfo
 	{
-		uint2 viewport_size;
-		uint2 scissor_extent;
-		int2 scissor_offset;
+		uint2 render_area_extent;
+		int2 render_area_offset;
 
-		bool load_color;
-		bool store_color;
-		IMAGE_LAYOUT layout;
-
-		RImageView depth_view;
-
-		float4 clear_color_rgba;
+		Slice<RenderingAttachmentDepth> depth_attachments;
+		Slice<RenderingAttachmentColor> color_attachments;
 	};
 
 	struct ScissorInfo

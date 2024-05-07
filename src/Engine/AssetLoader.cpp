@@ -993,7 +993,6 @@ const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadF
 		}
 	}
 
-
 	// check if we have done all the work required.
 	barrier.Wait();
 

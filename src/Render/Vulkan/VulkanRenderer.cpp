@@ -2389,12 +2389,45 @@ void Vulkan::PipelineBarriers(const RCommandList a_list, const PipelineBarrierIn
 	vkCmdPipelineBarrier2(cmd_buffer, &dependency_info);
 }
 
-void Vulkan::StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info, const RImageView a_rendering_image_view)
+void Vulkan::StartRenderPass(MemoryArena& a_temp_arena, const RCommandList a_list, const StartRenderingInfo& a_render_info, const RImageView a_rendering_image_view)
 {
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 
 	VkRenderingInfo rendering_info{ VK_STRUCTURE_TYPE_RENDERING_INFO };
-	VkRenderingAttachmentInfo depth_attachment;
+	if (a_render_info.depth_attachments.size())
+	{
+		VkRenderingAttachmentInfo* depth_attachments = ArenaAllocArr(a_temp_arena, VkRenderingAttachmentInfo, a_render_info.depth_attachments.size());
+		for (size_t i = 0; i < a_render_info.depth_attachments.size(); i++)
+		{
+			const RenderingAttachmentDepth& depth_info = a_render_info.depth_attachments[i];
+			VkRenderingAttachmentInfo& depth_attach = depth_attachments[i];
+			depth_attach.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+			depth_attach.loadOp = depth_info.load_op_load ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_CLEAR;
+			depth_attach.storeOp = depth_info.store_op_store ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_NONE;
+			depth_attach.imageLayout = ImageLayout(depth_info.image_layout);
+			depth_attach.imageView = reinterpret_cast<VkImageView>(depth_info.depth_view.handle);
+			depth_attach.clearValue.depthStencil = { depth_info.clear_value.depth, depth_info.clear_value.stencil };
+		}
+	}
+
+	if (a_render_info.color_attachments.size())
+	{
+		VkRenderingAttachmentInfo* color_attachments = ArenaAllocArr(a_temp_arena, VkRenderingAttachmentInfo, a_render_info.depth_attachments.size());
+		for (size_t i = 0; i < a_render_info.color_attachments.size(); i++)
+		{
+			const RenderingAttachmentColor& color_info = a_render_info.color_attachments[i];
+			VkRenderingAttachmentInfo& color_attach = color_attachments[i];
+			color_attach.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+			color_attach.loadOp = color_info.load_op_load ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_CLEAR;
+			color_attach.storeOp = color_info.store_op_store ? VK_ATTACHMENT_STORE_OP_STORE : VK_ATTACHMENT_STORE_OP_NONE;
+			color_attach.imageLayout = ImageLayout(color_info.image_layout);
+			color_attach.imageView = reinterpret_cast<VkImageView>(color_info.depth_view.handle);
+			color_attach.clearValue.depthStencil = { color_info.clear_value.depth, color_info.clear_value.stencil };
+		}
+	}
+
+
+
 
 	//If we handle the depth stencil we do that here. 
 	if (a_render_info.depth_view.handle != BB_INVALID_HANDLE_64)
@@ -2407,7 +2440,6 @@ void Vulkan::StartRenderPass(const RCommandList a_list, const StartRenderingInfo
 		depth_attachment.clearValue.depthStencil = { 1.0f, 0 };
 		rendering_info.pDepthAttachment = &depth_attachment;
 		rendering_info.pStencilAttachment = &depth_attachment;
-
 
 #ifndef USE_G_PIPELINE
 		vkCmdSetStencilTestEnable(cmd_buffer, VK_FALSE);
@@ -2453,10 +2485,10 @@ void Vulkan::StartRenderPass(const RCommandList a_list, const StartRenderingInfo
 
 
 	VkRect2D scissor{};
-	scissor.offset.x = a_render_info.scissor_offset.x;
-	scissor.offset.y = a_render_info.scissor_offset.y;
-	scissor.extent.width = a_render_info.scissor_extent.x;
-	scissor.extent.height = a_render_info.scissor_extent.y;
+	scissor.offset.x = a_render_info.render_area_offset.x;
+	scissor.offset.y = a_render_info.render_area_offset.y;
+	scissor.extent.width = a_render_info.render_area_extent.x;
+	scissor.extent.height = a_render_info.render_area_extent.y;
 
 	rendering_info.renderArea = scissor;
 	rendering_info.layerCount = 1;
@@ -2464,15 +2496,6 @@ void Vulkan::StartRenderPass(const RCommandList a_list, const StartRenderingInfo
 	rendering_info.colorAttachmentCount = 1;
 
 	vkCmdBeginRendering(cmd_buffer, &rendering_info);
-
-	VkViewport viewport{};
-	viewport.x = 0.0f;
-	viewport.y = 0.0f;
-	viewport.width = static_cast<float>(a_render_info.viewport_size.x);
-	viewport.height = static_cast<float>(a_render_info.viewport_size.y);
-	viewport.minDepth = 0.0f;
-	viewport.maxDepth = 1.0f;
-	vkCmdSetViewportWithCount(cmd_buffer, 1, &viewport);
 
 	vkCmdSetScissorWithCount(cmd_buffer, 1, &scissor);
 }
