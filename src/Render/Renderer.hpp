@@ -110,15 +110,6 @@ namespace BB
 		float cutoff_radius;        // 60
 	};
 
-	struct SceneCreateInfo
-	{
-		float3 ambient_light_color;
-		float ambient_light_strength;
-		uint32_t light_max;
-		uint32_t draw_entry_max;
-		RTexture skybox;
-	};
-
 	struct DescriptorAllocation
 	{
 		uint32_t size;
@@ -155,9 +146,6 @@ namespace BB
 	void RenderScenePerDraw(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const Slice<const ShaderEffectHandle> a_shader_effects);
 	void EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, bool a_skip = false);
 
-	void SetView(const RenderScene3DHandle a_scene, const float4x4& a_view);
-	void SetProjection(const RenderScene3DHandle a_scene, const float4x4& a_projection);
-
 	CommandPool& GetGraphicsCommandPool();
 	CommandPool& GetTransferCommandPool();
 
@@ -173,10 +161,6 @@ namespace BB
 	// returns invalid mesh when not enough upload buffer space
 	const MeshHandle CreateMesh(const CreateMeshInfo& a_create_info);
 	void FreeMesh(const MeshHandle a_mesh);
-
-	LightHandle CreateLight(const RenderScene3DHandle a_scene, const CreateLightInfo& a_create_info);
-	void FreeLight(const RenderScene3DHandle a_scene, const LightHandle a_light);
-	Light& GetLight(const RenderScene3DHandle a_scene, const LightHandle a_light);
 
 	bool CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles);
 	bool ReloadShaderEffect(const ShaderEffectHandle a_shader_effect, const Buffer& a_shader);
@@ -223,8 +207,6 @@ namespace BB
 	void FreeGPUBuffer(const GPUBuffer a_buffer);
 	void* MapGPUBuffer(const GPUBuffer a_buffer);
 	void UnmapGPUBuffer(const GPUBuffer a_buffer);
-
-	void DrawMesh(const RenderScene3DHandle a_scene, const MeshHandle a_mesh, const float4x4& a_transform, const uint32_t a_index_start, const uint32_t a_index_count, const RTexture a_base_texture, const RTexture a_normal_texture, const MaterialHandle a_material);
 
 	bool SetDefaultMaterial(const MaterialHandle a_material);
 	MaterialHandle GetStandardMaterial();

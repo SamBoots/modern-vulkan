@@ -2393,39 +2393,6 @@ void BB::FreeMesh(const MeshHandle a_mesh)
 	s_render_inst->mesh_map.erase(a_mesh);
 }
 
-LightHandle BB::CreateLight(const RenderScene3DHandle a_scene, const CreateLightInfo& a_create_info)
-{
-	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
-
-	Light light;
-	light.light_type = static_cast<uint32_t>(a_create_info.light_type);
-	light.color = a_create_info.color;
-	light.pos = a_create_info.pos;
-
-	light.specular_strength = a_create_info.specular_strength;
-	light.radius_constant = a_create_info.radius_constant;
-	light.radius_linear = a_create_info.radius_linear;
-	light.radius_quadratic = a_create_info.radius_quadratic;
-
-	light.spotlight_direction = a_create_info.spotlight_direction;
-	light.cutoff_radius = a_create_info.cutoff_radius;
-
-	return render_scene3d.light_container.insert(light);
-}
-
-void BB::FreeLight(const RenderScene3DHandle a_scene, const LightHandle a_light)
-{
-	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
-	render_scene3d.light_container.find(a_light) = {};
-	render_scene3d.light_container.erase(a_light);
-}
-
-Light& BB::GetLight(const RenderScene3DHandle a_scene, const LightHandle a_light)
-{
-	const Scene3D& render_scene3d = *reinterpret_cast<const Scene3D*>(a_scene.handle);
-	return render_scene3d.light_container.find(a_light);
-}
-
 bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles)
 {
 	// our default layouts
@@ -2817,19 +2784,6 @@ void* BB::MapGPUBuffer(const GPUBuffer a_buffer)
 void BB::UnmapGPUBuffer(const GPUBuffer a_buffer)
 {
 	Vulkan::UnmapBufferMemory(a_buffer);
-}
-
-void BB::DrawMesh(const RenderScene3DHandle a_scene, const MeshHandle a_mesh, const float4x4& a_transform, const uint32_t a_index_start, const uint32_t a_index_count, const RTexture a_base_texture, const RTexture a_normal_texture, const MaterialHandle a_material)
-{
-	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
-	render_scene3d.draw_list_data.mesh_draw_call[render_scene3d.draw_list_count].mesh = a_mesh;
-	render_scene3d.draw_list_data.mesh_draw_call[render_scene3d.draw_list_count].material = a_material;
-	render_scene3d.draw_list_data.mesh_draw_call[render_scene3d.draw_list_count].index_start = a_index_start;
-	render_scene3d.draw_list_data.mesh_draw_call[render_scene3d.draw_list_count].index_count = a_index_count;
-	render_scene3d.draw_list_data.mesh_draw_call[render_scene3d.draw_list_count].base_texture = a_base_texture;
-	render_scene3d.draw_list_data.mesh_draw_call[render_scene3d.draw_list_count].normal_texture = a_normal_texture;
-	render_scene3d.draw_list_data.transform[render_scene3d.draw_list_count].transform = a_transform;
-	render_scene3d.draw_list_data.transform[render_scene3d.draw_list_count++].inverse = Float4x4Inverse(a_transform);
 }
 
 bool BB::SetDefaultMaterial(const MaterialHandle a_material)

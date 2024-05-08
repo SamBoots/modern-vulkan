@@ -59,18 +59,12 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const StringView a_name, const u
 
 	const size_t backbuffer_count = GetRenderIO().frame_count;
 
-	SceneCreateInfo create_info;
-	create_info.ambient_light_color = float3(1.f, 1.f, 1.f);
-	create_info.ambient_light_strength = 1;
-	create_info.draw_entry_max = a_scene_obj_max;
-	create_info.light_max = 128; // magic number jank yes shoot me
-	create_info.skybox = m_skybox;
-
 	m_gpu_scene_info.ambient_light = float3(1.f, 1.f, 1.f);
 	m_gpu_scene_info.ambient_strength = 1;
 	m_gpu_scene_info.skybox_texture = m_skybox.handle;
 
-	// maybe make this part of the 
+	// maybe make this part of some data structure
+	// also rework this to be more static and internal to the drawmesh
 	m_draw_list.max_size = a_scene_obj_max;
 	m_draw_list.size = 0;
 	m_draw_list.mesh_draw_call = ArenaAllocArr(a_arena, MeshDrawCall, m_draw_list.max_size);
@@ -372,24 +366,41 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectAsLight(const CreateLightInfo
 	scene_object.start_index = 0;
 	scene_object.index_count = 0;
 	scene_object.material = MaterialHandle(BB_INVALID_HANDLE_64);
-	scene_object.light_handle = CreateLight(m_render_scene, a_light_create_info);
+	
 	scene_object.transform = m_transform_pool.CreateTransform(a_light_create_info.pos);
 	scene_object.child_count = 0;
+
+	{
+		Light light;
+		light.light_type = static_cast<uint32_t>(a_light_create_info.light_type);
+		light.color = a_light_create_info.color;
+		light.pos = a_light_create_info.pos;
+
+		light.specular_strength = a_light_create_info.specular_strength;
+		light.radius_constant = a_light_create_info.radius_constant;
+		light.radius_linear = a_light_create_info.radius_linear;
+		light.radius_quadratic = a_light_create_info.radius_quadratic;
+
+		light.spotlight_direction = a_light_create_info.spotlight_direction;
+		light.cutoff_radius = a_light_create_info.cutoff_radius;
+
+		scene_object.light_handle = m_light_container.insert(light);
+	}
 
 	return scene_object_handle;
 }
 
 void SceneHierarchy::SetView(const float4x4& a_view)
 {
-	::SetView(m_render_scene, a_view);
+	m_gpu_scene_info.view = a_view;
 }
 
 void SceneHierarchy::SetProjection(const float4x4& a_projection)
 {
-	::SetProjection(m_render_scene, a_projection);
+	m_gpu_scene_info.proj = a_projection;
 }
 
-void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset) const
+void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset)
 {
 	StartRenderScene(m_render_scene);
 
@@ -403,17 +414,30 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RenderT
 	EndRenderScene(a_list, m_render_scene, a_render_target, a_draw_area_size, a_draw_area_offset);
 }
 
-void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform) const
+void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform)
 {
 	const SceneObject& scene_object = m_scene_objects.find(a_scene_object);
 
 	const float4x4 local_transform = a_transform * m_transform_pool.GetTransformMatrix(scene_object.transform);
 
 	if (scene_object.mesh_handle.IsValid())
-		DrawMesh(m_render_scene, scene_object.mesh_handle, local_transform, scene_object.start_index, scene_object.index_count, scene_object.albedo_texture, scene_object.normal_texture, scene_object.material);
+		AddToDrawList(scene_object, local_transform);
 
 	for (size_t i = 0; i < scene_object.child_count; i++)
 	{
 		DrawSceneObject(scene_object.childeren[i], local_transform);
 	}
+}
+
+void SceneHierarchy::AddToDrawList(const SceneObject& scene_object, const float4x4& a_transform)
+{
+	BB_ASSERT(m_draw_list.size + 1 >= m_draw_list.max_size, "too many drawn elements!");
+	m_draw_list.mesh_draw_call[m_draw_list.size].mesh = scene_object.mesh_handle;
+	m_draw_list.mesh_draw_call[m_draw_list.size].material = scene_object.material;
+	m_draw_list.mesh_draw_call[m_draw_list.size].index_start = scene_object.start_index;
+	m_draw_list.mesh_draw_call[m_draw_list.size].index_count = scene_object.index_count;
+	m_draw_list.mesh_draw_call[m_draw_list.size].base_texture = scene_object.albedo_texture;
+	m_draw_list.mesh_draw_call[m_draw_list.size].normal_texture = scene_object.normal_texture;
+	m_draw_list.transform[m_draw_list.size].transform = a_transform;
+	m_draw_list.transform[m_draw_list.size++].inverse = Float4x4Inverse(a_transform);
 }
