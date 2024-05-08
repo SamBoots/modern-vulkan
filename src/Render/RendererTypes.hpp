@@ -265,13 +265,6 @@ namespace BB
 		const PipelineBarrierImageInfo* image_infos = nullptr;
 	};
 
-	struct DescriptorAllocation
-	{
-		uint32_t size;
-		uint32_t offset;
-		void* buffer_start; //Maybe just get this from the descriptor heap? We only have one heap anyway.
-	};
-
 	using RQueue = FrameworkHandle<struct RQueueTag>;
 	using RFence = FrameworkHandle<struct RFenceTag>;
 

@@ -119,6 +119,13 @@ namespace BB
 		RTexture skybox;
 	};
 
+	struct DescriptorAllocation
+	{
+		uint32_t size;
+		uint32_t offset;
+		void* buffer_start; //Maybe just get this from the descriptor heap? We only have one heap anyway.
+	};
+
 	const RenderIO& GetRenderIO();
 
 	bool InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_render_create_info);

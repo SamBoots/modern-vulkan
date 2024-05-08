@@ -84,15 +84,14 @@ namespace BB
 			RTexture normal_texture;
 		};
 
-
 		struct DrawList
 		{
 			MeshDrawCall* mesh_draw_call;
 			ShaderTransform* transform;
+			size_t size;
+			size_t max_size;
 		};
-		DrawList draw_list;
-		size_t draw_list_size;
-		size_t draw_list_max_size;
+		DrawList m_draw_list;
 
 		struct RenderFrameData
 		{
@@ -113,14 +112,14 @@ namespace BB
 
 		StringView m_scene_name;
 
-		Scene3DInfo gpu_scene_info;
+		Scene3DInfo m_gpu_scene_info;
 
 		//TODO, maybe remember all the transforms from the previous frames?
 		TransformPool m_transform_pool;
 		StaticSlotmap<SceneObject, SceneObjectHandle> m_scene_objects;
 
 		StaticArray<RenderFrameData> m_render_frames;
-		StaticSlotmap<Light, LightHandle> light_container;
+		StaticSlotmap<Light, LightHandle> m_light_container;
 		DrawList m_draw_list;
 
 		uint2 m_previous_draw_area;

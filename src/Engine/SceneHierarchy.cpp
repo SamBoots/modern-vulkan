@@ -57,6 +57,8 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const StringView a_name, const u
 		Asset::FreeImageCPU(pixels);
 	}
 
+	const size_t backbuffer_count = GetRenderIO().frame_count;
+
 	SceneCreateInfo create_info;
 	create_info.ambient_light_color = float3(1.f, 1.f, 1.f);
 	create_info.ambient_light_strength = 1;
@@ -64,9 +66,26 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const StringView a_name, const u
 	create_info.light_max = 128; // magic number jank yes shoot me
 	create_info.skybox = m_skybox;
 
-	m_render_scene = Create3DRenderScene(a_arena, create_info, a_name.c_str());
-	const StringView view = StringView(a_name.c_str(), a_name.size());
-	new (&m_scene_name) StringView(view);
+	m_gpu_scene_info.ambient_light = float3(1.f, 1.f, 1.f);
+	m_gpu_scene_info.ambient_strength = 1;
+	m_gpu_scene_info.skybox_texture = m_skybox.handle;
+
+	// maybe make this part of the 
+	m_draw_list.max_size = a_scene_obj_max;
+	m_draw_list.size = 0;
+	m_draw_list.mesh_draw_call = ArenaAllocArr(a_arena, MeshDrawCall, m_draw_list.max_size);
+	m_draw_list.transform = ArenaAllocArr(a_arena, ShaderTransform, m_draw_list.max_size);
+
+	m_previous_draw_area = { 0, 0 };
+
+	m_light_container.Init(a_arena, 128); // magic number jank yes shoot me
+
+	m_render_frames.Init(a_arena, backbuffer_count);
+	for (size_t i = 0; i < backbuffer_count; i++)
+	{
+
+	}
+	m_scene_name = StringView(a_name.c_str(), a_name.size());
 }
 
 static bool NameIsWithinCharArray(const char** a_arr, const size_t a_arr_size, const char* a_str)

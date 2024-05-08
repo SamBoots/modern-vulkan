@@ -1960,23 +1960,6 @@ RTexture BB::GetCurrentRenderTargetTexture(const RenderTarget a_render_target)
 
 RenderScene3DHandle BB::Create3DRenderScene(MemoryArena& a_arena, const SceneCreateInfo& a_info, const char* a_name)
 {
-	Scene3D* scene_3d = ArenaAllocType(a_arena, Scene3D);
-
-	scene_3d->scene_name = a_name;
-	scene_3d->scene_info.ambient_light = a_info.ambient_light_color;
-	scene_3d->scene_info.ambient_strength = a_info.ambient_light_strength;
-	scene_3d->scene_info.skybox_texture = a_info.skybox.handle;
-
-	scene_3d->frames = ArenaAllocArr(a_arena, Scene3D::Frame, s_render_inst->render_io.frame_count);
-	scene_3d->draw_list_max = a_info.draw_entry_max;
-	scene_3d->draw_list_count = 0;
-	scene_3d->draw_list_data.mesh_draw_call = ArenaAllocArr(a_arena, MeshDrawCall, scene_3d->draw_list_max);
-	scene_3d->draw_list_data.transform = ArenaAllocArr(a_arena, ShaderTransform, scene_3d->draw_list_max);
-
-	scene_3d->previous_draw_area = uint2(0, 0);
-
-	scene_3d->light_container.Init(a_arena, a_info.light_max);
-
 	constexpr uint32_t scene_size = sizeof(Scene3DInfo);
 	const uint32_t shader_transform_size = scene_3d->draw_list_max * sizeof(ShaderTransform);
 	const uint32_t light_buffer_size = scene_3d->light_container.capacity() * sizeof(Light);
