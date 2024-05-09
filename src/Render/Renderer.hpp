@@ -141,6 +141,10 @@ namespace BB
 	void EndRenderTarget(const RCommandList a_list, const RenderTarget a_render_target);
 	RTexture GetCurrentRenderTargetTexture(const RenderTarget a_render_target);
 
+	void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info);
+	void EndRenderPass(const RCommandList a_list);
+	void SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor);
+
 	RenderScene3DHandle Create3DRenderScene(MemoryArena& a_arena, const SceneCreateInfo& a_info, const char* a_name);
 	void StartRenderScene(const RenderScene3DHandle a_scene);
 	void RenderScenePerDraw(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const Slice<const ShaderEffectHandle> a_shader_effects);
@@ -161,6 +165,8 @@ namespace BB
 	// returns invalid mesh when not enough upload buffer space
 	const MeshHandle CreateMesh(const CreateMeshInfo& a_create_info);
 	void FreeMesh(const MeshHandle a_mesh);
+
+	RDescriptorLayout CreateDescriptorLayout(MemoryArena& a_temp_arena, Slice<DescriptorBindingInfo> a_bindings);
 
 	bool CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles);
 	bool ReloadShaderEffect(const ShaderEffectHandle a_shader_effect, const Buffer& a_shader);

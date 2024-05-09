@@ -74,6 +74,24 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const StringView a_name, const u
 
 	m_light_container.Init(a_arena, 128); // magic number jank yes shoot me
 
+	//per-frame descriptor set 1 for renderpass
+	DescriptorBindingInfo descriptor_bindings[3];
+	descriptor_bindings[0].binding = PER_SCENE_SCENE_DATA_BINDING;
+	descriptor_bindings[0].count = 1;
+	descriptor_bindings[0].shader_stage = SHADER_STAGE::ALL;
+	descriptor_bindings[0].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
+
+	descriptor_bindings[1].binding = PER_SCENE_TRANSFORM_DATA_BINDING;
+	descriptor_bindings[1].count = 1;
+	descriptor_bindings[1].shader_stage = SHADER_STAGE::VERTEX;
+	descriptor_bindings[1].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
+
+	descriptor_bindings[2].binding = PER_SCENE_LIGHT_DATA_BINDING;
+	descriptor_bindings[2].count = 1;
+	descriptor_bindings[2].shader_stage = SHADER_STAGE::FRAGMENT_PIXEL;
+	descriptor_bindings[2].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
+	m_scene_descriptor_layout = CreateDescriptorLayout(a_arena, Slice(descriptor_bindings, _countof(descriptor_bindings)));
+
 	m_render_frames.Init(a_arena, backbuffer_count);
 	for (size_t i = 0; i < backbuffer_count; i++)
 	{

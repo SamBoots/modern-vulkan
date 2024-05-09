@@ -645,8 +645,6 @@ struct RenderInterface_inst
 	RDescriptorLayout global_descriptor_set;
 	DescriptorAllocation global_descriptor_allocation;
 
-	RDescriptorLayout scene3d_descriptor_layout;
-
 	struct GlobalBuffer
 	{
 		GlobalRenderData data;
@@ -1476,26 +1474,6 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 			s_render_inst->frames[i].graphics_queue_fence_value = 0;
 		}
 	}
-
-	{
-		//per-frame descriptor set 1 for renderpass
-		DescriptorBindingInfo descriptor_bindings[3];
-		descriptor_bindings[0].binding = PER_SCENE_SCENE_DATA_BINDING;
-		descriptor_bindings[0].count = 1;
-		descriptor_bindings[0].shader_stage = SHADER_STAGE::ALL;
-		descriptor_bindings[0].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-
-		descriptor_bindings[1].binding = PER_SCENE_TRANSFORM_DATA_BINDING;
-		descriptor_bindings[1].count = 1;
-		descriptor_bindings[1].shader_stage = SHADER_STAGE::VERTEX;
-		descriptor_bindings[1].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-
-		descriptor_bindings[2].binding = PER_SCENE_LIGHT_DATA_BINDING;
-		descriptor_bindings[2].count = 1;
-		descriptor_bindings[2].shader_stage = SHADER_STAGE::FRAGMENT_PIXEL;
-		descriptor_bindings[2].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-		s_render_inst->scene3d_descriptor_layout = Vulkan::CreateDescriptorLayout(a_arena, Slice(descriptor_bindings, _countof(descriptor_bindings)));
-	}
 	
 	IMGUI_IMPL::ImInit(a_arena);
 
@@ -1958,6 +1936,21 @@ RTexture BB::GetCurrentRenderTargetTexture(const RenderTarget a_render_target)
 	return reinterpret_cast<RenderTargetStruct*>(a_render_target.handle)->GetTargetTexture();
 }
 
+void BB::StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info)
+{
+	Vulkan::StartRenderPass(a_list, a_render_info);
+}
+
+void BB::EndRenderPass(const RCommandList a_list)
+{
+	Vulkan::EndRenderPass(a_list);
+}
+
+void BB::SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor)
+{
+	Vulkan::SetScissor(a_list, a_scissor);
+}
+
 RenderScene3DHandle BB::Create3DRenderScene(MemoryArena& a_arena, const SceneCreateInfo& a_info, const char* a_name)
 {
 	constexpr uint32_t scene_size = sizeof(Scene3DInfo);
@@ -2391,6 +2384,11 @@ const MeshHandle BB::CreateMesh(const CreateMeshInfo& a_create_info)
 void BB::FreeMesh(const MeshHandle a_mesh)
 {
 	s_render_inst->mesh_map.erase(a_mesh);
+}
+
+RDescriptorLayout BB::CreateDescriptorLayout(MemoryArena& a_temp_arena, Slice<DescriptorBindingInfo> a_bindings)
+{
+	return Vulkan::CreateDescriptorLayout(a_temp_arena, a_bindings);
 }
 
 bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles)

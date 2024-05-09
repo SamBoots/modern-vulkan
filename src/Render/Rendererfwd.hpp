@@ -26,6 +26,7 @@ namespace BB
 	using RCommandPool = FrameworkHandle<struct RCommandPoolTag>;
 	using RCommandList = FrameworkHandle<struct RCommandListTag>;
 
+	using RDescriptorLayout = FrameworkHandle<struct RDescriptorLayoutTag>;
 	using GPUFenceValue = FrameworkHandle<struct GPUFenceValueTag>;
 
 	using GPUBuffer = FrameworkHandle<struct RBufferTag>;
@@ -232,6 +233,25 @@ namespace BB
 		uint32_t mip_level;
 		uint16_t base_array_layer;
 		uint16_t layer_count;
+	};
+
+	enum class DESCRIPTOR_TYPE : uint32_t
+	{
+		READONLY_CONSTANT, //CBV or uniform buffer
+		READONLY_BUFFER, //SRV or Storage buffer
+		READWRITE, //UAV or readwrite storage buffer(?)
+		IMAGE,
+		SAMPLER,
+
+		ENUM_SIZE
+	};
+
+	struct DescriptorBindingInfo
+	{
+		uint32_t binding;
+		uint32_t count;
+		DESCRIPTOR_TYPE type;
+		SHADER_STAGE shader_stage;
 	};
 
 	struct GPUDeviceInfo

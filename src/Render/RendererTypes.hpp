@@ -7,7 +7,6 @@ namespace BB
 {
 	using ShaderObject = FrameworkHandle<struct ShaderObjectTag>;
 	using RPipeline = FrameworkHandle<struct RPipelineTag>;
-	using RDescriptorLayout = FrameworkHandle<struct RDescriptorLayoutTag>;
 	using RPipelineLayout = FrameworkHandle<struct RPipelineLayoutTag>;
 	using RDepthBuffer = FrameworkHandle<struct RDepthBufferTag>;
 
@@ -31,17 +30,6 @@ namespace BB
 		IMAGE,
 		SAMPLER,
 		FENCE,
-
-		ENUM_SIZE
-	};
-
-	enum class DESCRIPTOR_TYPE : uint32_t
-	{
-		READONLY_CONSTANT, //CBV or uniform buffer
-		READONLY_BUFFER, //SRV or Storage buffer
-		READWRITE, //UAV or readwrite storage buffer(?)
-		IMAGE,
-		SAMPLER,
 
 		ENUM_SIZE
 	};
@@ -144,14 +132,6 @@ namespace BB
 		uint32_t height = 0;
 		uint32_t depth = 0;
 		DEPTH_FORMAT depth_format;
-	};
-
-	struct DescriptorBindingInfo
-	{
-		uint32_t binding;
-		uint32_t count;
-		DESCRIPTOR_TYPE type;
-		SHADER_STAGE shader_stage;
 	};
 
 	struct RenderCopyBufferRegion

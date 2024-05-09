@@ -110,6 +110,7 @@ namespace BB
 			DescriptorAllocation desc_alloc;
 			uint64_t fence_value;
 		};
+		RDescriptorLayout m_scene_descriptor_layout;
 
 		StringView m_scene_name;
 
