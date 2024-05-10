@@ -6,6 +6,7 @@
 #include "Storage/Array.h"
 #include "Storage/BBString.h"
 #include "AssetLoader.hpp"
+#include "GPUBuffers.hpp"
 
 namespace BB
 {
@@ -84,7 +85,6 @@ namespace BB
 			RTexture base_texture;
 			RTexture normal_texture;
 		};
-
 		struct DrawList
 		{
 			MeshDrawCall* mesh_draw_call;
@@ -92,35 +92,24 @@ namespace BB
 			size_t size;
 			size_t max_size;
 		};
-		DrawList m_draw_list;
-
-		struct RenderFrameData
+		struct PerFrameData
 		{
-			GPUBuffer per_frame_buffer;
-			size_t per_frame_buffer_size;
-
-			struct PerFrameBufferPart
-			{
-				uint32_t offset;
-				uint32_t size;
-			};
-			PerFrameBufferPart scene_buffer;
-			PerFrameBufferPart transform_buffer;
-			PerFrameBufferPart light_buffer;
-			DescriptorAllocation desc_alloc;
-			uint64_t fence_value;
+			StaticArray<GPULinearBuffer> uniform_buffer;
+			Scene3DInfo scene_info;
 		};
+
+		DrawList m_draw_list;
 		RDescriptorLayout m_scene_descriptor_layout;
+		DescriptorAllocation m_scene_descriptor;
+
+		PerFrameData m_per_frame_data;
 
 		StringView m_scene_name;
-
-		Scene3DInfo m_gpu_scene_info;
 
 		//TODO, maybe remember all the transforms from the previous frames?
 		TransformPool m_transform_pool;
 		StaticSlotmap<SceneObject, SceneObjectHandle> m_scene_objects;
 
-		StaticArray<RenderFrameData> m_render_frames;
 		StaticSlotmap<Light, LightHandle> m_light_container;
 		DrawList m_draw_list;
 

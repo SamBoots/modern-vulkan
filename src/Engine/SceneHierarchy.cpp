@@ -57,12 +57,6 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const StringView a_name, const u
 		Asset::FreeImageCPU(pixels);
 	}
 
-	const size_t backbuffer_count = GetRenderIO().frame_count;
-
-	m_gpu_scene_info.ambient_light = float3(1.f, 1.f, 1.f);
-	m_gpu_scene_info.ambient_strength = 1;
-	m_gpu_scene_info.skybox_texture = m_skybox.handle;
-
 	// maybe make this part of some data structure
 	// also rework this to be more static and internal to the drawmesh
 	m_draw_list.max_size = a_scene_obj_max;
@@ -79,12 +73,12 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const StringView a_name, const u
 	descriptor_bindings[0].binding = PER_SCENE_SCENE_DATA_BINDING;
 	descriptor_bindings[0].count = 1;
 	descriptor_bindings[0].shader_stage = SHADER_STAGE::ALL;
-	descriptor_bindings[0].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
+	descriptor_bindings[0].type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
 
 	descriptor_bindings[1].binding = PER_SCENE_TRANSFORM_DATA_BINDING;
 	descriptor_bindings[1].count = 1;
 	descriptor_bindings[1].shader_stage = SHADER_STAGE::VERTEX;
-	descriptor_bindings[1].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
+	descriptor_bindings[1].type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
 
 	descriptor_bindings[2].binding = PER_SCENE_LIGHT_DATA_BINDING;
 	descriptor_bindings[2].count = 1;
@@ -92,11 +86,22 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const StringView a_name, const u
 	descriptor_bindings[2].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
 	m_scene_descriptor_layout = CreateDescriptorLayout(a_arena, Slice(descriptor_bindings, _countof(descriptor_bindings)));
 
-	m_render_frames.Init(a_arena, backbuffer_count);
-	for (size_t i = 0; i < backbuffer_count; i++)
-	{
+	const size_t backbuffer_count = GetRenderIO().frame_count;
+	m_per_frame_data.scene_info.ambient_light = float3(1.f, 1.f, 1.f);
+	m_per_frame_data.scene_info.ambient_strength = 1;
+	m_per_frame_data.scene_info.skybox_texture = m_skybox.handle;
 
+	m_per_frame_data.uniform_buffer.Init(a_arena, backbuffer_count);
+	for (size_t i = 0; i < m_per_frame_data.uniform_buffer.size(); i++)
+	{
+		GPUBufferCreateInfo buffer_info;
+		buffer_info.name = "scene uniform buffer";
+		buffer_info.size = mbSize * 4;
+		buffer_info.type = BUFFER_TYPE::UNIFORM;
+		buffer_info.host_writable = false;
+		m_per_frame_data.uniform_buffer[i].Init(buffer_info);
 	}
+
 	m_scene_name = StringView(a_name.c_str(), a_name.size());
 }
 
@@ -410,12 +415,12 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectAsLight(const CreateLightInfo
 
 void SceneHierarchy::SetView(const float4x4& a_view)
 {
-	m_gpu_scene_info.view = a_view;
+	m_per_frame_data.scene_info.view = a_view;
 }
 
 void SceneHierarchy::SetProjection(const float4x4& a_projection)
 {
-	m_gpu_scene_info.proj = a_projection;
+	m_per_frame_data.scene_info.proj = a_projection;
 }
 
 void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset)

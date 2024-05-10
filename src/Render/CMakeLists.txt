@@ -8,7 +8,8 @@ find_package(Vulkan REQUIRED)
 add_library(Renderer
 	"Vulkan/VulkanRenderer.cpp"
 	"ShaderCompiler.cpp"
-	"Renderer.cpp")
+	"Renderer.cpp" 
+	"GPUBuffers.cpp")
 
 target_link_libraries(Renderer BBFramework 
 	Vulkan::Vulkan

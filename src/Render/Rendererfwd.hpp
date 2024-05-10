@@ -36,6 +36,8 @@ namespace BB
 	//TEMP END
 	using RTexture = FrameworkHandle32Bit<struct RTextureTag>;
 
+	using RFence = FrameworkHandle<struct RFenceTag>;
+
 	using LightHandle = FrameworkHandle<struct LightHandleTag>;
 	using RenderTarget = FrameworkHandle<struct RenderTargetTag>;
 	

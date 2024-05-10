@@ -246,7 +246,6 @@ namespace BB
 	};
 
 	using RQueue = FrameworkHandle<struct RQueueTag>;
-	using RFence = FrameworkHandle<struct RFenceTag>;
 
 	struct ExecuteCommandsInfo
 	{
