@@ -2360,14 +2360,6 @@ void Vulkan::BindIndexBuffer(const RCommandList a_list, const GPUBuffer a_buffer
 		VK_INDEX_TYPE_UINT32);
 }
 
-void Vulkan::BindPipeline(const RCommandList a_list, const RPipeline a_pipeline)
-{
-	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
-	const VkPipeline pipeline = reinterpret_cast<VkPipeline>(a_pipeline.handle);
-
-	vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
-}
-
 void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stage_count, const SHADER_STAGE* a_shader_stages, const ShaderObject* a_shader_objects)
 {
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);

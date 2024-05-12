@@ -13,6 +13,8 @@
 
 #include "BBThreadScheduler.hpp"
 
+#include "GPUBuffers.hpp"
+
 using namespace BB;
 
 constexpr float skyboxVertices[] = {
@@ -213,136 +215,6 @@ void CommandPool::ResetPool()
 	Vulkan::ResetCommandPool(m_api_cmd_pool);
 	m_list_current_free = 0;
 }
-
-struct UploadBuffer
-{
-	void SafeMemcpy(const size_t a_dst_offset, const void* a_src, const size_t a_src_size) const
-	{
-		void* copy_pos = Pointer::Add(begin, a_dst_offset);
-		BB_ASSERT(Pointer::Add(copy_pos, a_src_size) <= end, "gpu upload buffer writing out of bounds");
-
-		memcpy(copy_pos, a_src, a_src_size);
-	}
-
-	GPUBuffer buffer;
-	void* begin;
-	void* end;
-	size_t base_offset;
-};
-
-constexpr size_t RING_BUFFER_QUEUE_ELEMENT_COUNT = 1024;
-class UploadRingAllocator
-{
-public:
-	void Init(MemoryArena& a_arena, const size_t a_ring_buffer_size, const RFence a_fence, const char* a_name)
-	{
-		GPUBufferCreateInfo create_info;
-		create_info.type = BUFFER_TYPE::UPLOAD;
-		create_info.size = a_ring_buffer_size;
-		create_info.name = a_name;
-		create_info.host_writable = true;
-
-		m_lock = OSCreateRWLock();
-		m_fence = a_fence;
-		m_buffer = Vulkan::CreateBuffer(create_info);
-		m_begin = Vulkan::MapBufferMemory(m_buffer);
-		m_write_at = m_begin;
-		m_end = Pointer::Add(m_begin, a_ring_buffer_size);
-		m_free_until = m_end;
-		m_locked_queue.Init(a_arena, RING_BUFFER_QUEUE_ELEMENT_COUNT);
-	}
-
-	UploadBuffer AllocateUploadMemory(const size_t a_byte_amount, const uint64_t a_fence_value)
-	{
-
-		BB_ASSERT(a_byte_amount < GetUploadAllocatorCapacity(), "trying to upload more memory then the ringbuffer size");
-		OSAcquireSRWLockWrite(&m_lock);
-
-		void* begin = m_write_at;
-		void* end = Pointer::Add(m_write_at, a_byte_amount);
-
-		bool must_free_memory = end > m_free_until ? true : false;
-
-		// if we go over the end, but not over the readpointer then recalculate
-		if (end > m_end)
-		{
-			begin = m_begin;
-			end = Pointer::Add(m_begin, a_byte_amount);
-			// is free_until larger then end? if yes then we can allocate without waiting
-			must_free_memory = end > m_free_until ? true : false;
-		}
-		const size_t remaining_size = GetUploadSpaceRemaining();
-		if (m_locked_queue.IsFull() || a_byte_amount > remaining_size)
-			must_free_memory = true;
-
-		if (must_free_memory)
-		{
-			const uint64_t fence_value = Vulkan::GetCurrentFenceValue(m_fence);
-
-			while (const UploadRingAllocator::LockedRegions* locked_region = m_locked_queue.Peek())
-			{
-				if (locked_region->fence_value <= fence_value)
-				{
-					m_free_until = locked_region->memory_end;
-					m_locked_queue.DeQueue();
-				}
-				else
-					break;
-			}
-		}
-
-		UploadRingAllocator::LockedRegions locked_region;
-		locked_region.memory_end = end;
-		locked_region.fence_value = a_fence_value;
-		m_locked_queue.EnQueue(locked_region);
-		m_write_at = end;
-
-		OSReleaseSRWLockWrite(&m_lock);
-
-		UploadBuffer upload_buffer;
-		upload_buffer.buffer = m_buffer;
-		upload_buffer.begin = begin;
-		upload_buffer.end = end;
-		upload_buffer.base_offset = reinterpret_cast<size_t>(Pointer::Subtract(begin, reinterpret_cast<size_t>(m_begin)));
-		return upload_buffer;
-	}
-
-	size_t GetUploadAllocatorCapacity() const
-	{
-		return reinterpret_cast<size_t>(m_end) - reinterpret_cast<size_t>(m_begin);
-	}
-	
-	size_t GetUploadSpaceRemaining() const
-	{
-		if (m_write_at > m_free_until)
-		{
-			size_t size_remaining = reinterpret_cast<size_t>(m_end) - reinterpret_cast<size_t>(m_write_at);
-			size_remaining += reinterpret_cast<size_t>(m_begin) - reinterpret_cast<size_t>(m_free_until);
-			return size_remaining;
-		}
-
-		return reinterpret_cast<size_t>(m_free_until) - reinterpret_cast<size_t>(m_write_at);
-	}
-
-	const GPUBuffer GetBuffer() const { return m_buffer; }
-
-private:
-	struct LockedRegions
-	{
-		void* memory_end;
-		uint64_t fence_value;
-	};
-
-	BBRWLock m_lock;
-	RFence m_fence;
-	GPUBuffer m_buffer;
-	
-	void* m_begin;
-	void* m_free_until;
-	void* m_write_at;
-	void* m_end;
-	SPSCQueue<LockedRegions> m_locked_queue;
-};
 
 //THREAD SAFE: TRUE
 class BB::RenderQueue
@@ -620,13 +492,13 @@ struct RenderInterface_inst
 
 	ShaderCompiler shader_compiler;
 
-	UploadRingAllocator frame_upload_allocator;
+	GPUUploadRingAllocator frame_upload_allocator;
 	RenderQueue graphics_queue;
 	RenderQueue transfer_queue;
 
 	struct AssetUploader
 	{
-		UploadRingAllocator gpu_allocator;
+		GPUUploadRingAllocator gpu_allocator;
 		RFence fence;
 		std::atomic<uint64_t> next_fence_value;
 		MPSCQueue<UploadDataMesh> upload_meshes;
@@ -1946,9 +1818,66 @@ void BB::EndRenderPass(const RCommandList a_list)
 	Vulkan::EndRenderPass(a_list);
 }
 
+RPipelineLayout BB::BindShaders(MemoryArena& a_temp_arena, const RCommandList a_list, const Slice<ShaderEffectHandle> a_shader_effects)
+{
+	ShaderObject* const shader_objects = ArenaAllocArr(a_temp_arena, ShaderObject, a_shader_effects.size());
+	SHADER_STAGE* const shader_stages = ArenaAllocArr(a_temp_arena, SHADER_STAGE, a_shader_effects.size());
+
+	SHADER_STAGE_FLAGS next_supported_stages = static_cast<uint32_t>(SHADER_STAGE::ALL);
+	RPipelineLayout layout{};
+	for (size_t eff_index = 0; eff_index < a_shader_effects.size(); eff_index++)
+	{
+		const ShaderEffect& effect = s_render_inst->shader_effects[a_shader_effects[eff_index]];
+		shader_objects[eff_index] = effect.shader_object;
+		shader_stages[eff_index] = effect.shader_stage;
+		
+		BB_ASSERT((next_supported_stages & static_cast<SHADER_STAGE_FLAGS>(effect.shader_stage)) == static_cast<SHADER_STAGE_FLAGS>(effect.shader_stage),
+			"shader does not support the next stage");
+
+		if (layout.IsValid())
+			BB_ASSERT(layout == effect.pipeline_layout, "pipeline layout is wrong");
+		else
+			layout = effect.pipeline_layout;
+
+		next_supported_stages = effect.shader_stages_next;
+	}
+
+	Vulkan::BindShaders(a_list, static_cast<uint32_t>(a_shader_effects.size()), shader_stages, shader_objects);
+
+	// set the samplers
+	Vulkan::SetDescriptorImmutableSamplers(a_list, layout);
+
+	return layout;
+}
+
+void BB::SetFrontFace(const RCommandList a_list, const bool a_is_clockwise)
+{
+	Vulkan::SetFrontFace(a_list, a_is_clockwise);
+}
+
+void BB::SetCullMode(const RCommandList a_list, const CULL_MODE a_cull_mode)
+{
+	Vulkan::SetCullMode(a_list, a_cull_mode);
+}
+
+void BB::SetClearColor(const RCommandList a_list, const float3 a_clear_color)
+{
+	Vulkan::SetClearColor(a_list, a_clear_color);
+}
+
 void BB::SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor)
 {
 	Vulkan::SetScissor(a_list, a_scissor);
+}
+
+void BB::DrawVertices(const RCommandList a_list, const uint32_t a_vertex_count, const uint32_t a_instance_count, const uint32_t a_first_vertex, const uint32_t a_first_instance)
+{
+	Vulkan::DrawVertices(a_list, a_vertex_count, a_instance_count, a_first_vertex, a_first_instance);
+}
+
+void BB::DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance)
+{
+	Vulkan::DrawIndexed(a_list, a_index_count, a_instance_count, a_first_index, a_vertex_offset, a_first_instance);
 }
 
 RenderScene3DHandle BB::Create3DRenderScene(MemoryArena& a_arena, const SceneCreateInfo& a_info, const char* a_name)
@@ -2029,15 +1958,6 @@ RenderScene3DHandle BB::Create3DRenderScene(MemoryArena& a_arena, const SceneCre
 	return RenderScene3DHandle(reinterpret_cast<uintptr_t>(scene_3d));
 }
 
-void BB::StartRenderScene(const RenderScene3DHandle a_scene)
-{
-	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
-	s_render_inst->graphics_queue.WaitFenceValue(render_scene3d.frames[s_render_inst->render_io.frame_index].fence_value);
-
-	//clear the drawlist, maybe do this on a per-frame basis of we do GPU upload?
-	render_scene3d.draw_list_count = 0;
-}
-
 void BB::RenderScenePerDraw(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const Slice<const ShaderEffectHandle> a_shader_effects)
 {
 	const RTexture render_target_texture = reinterpret_cast<RenderTargetStruct*>(a_render_target.handle)->GetTargetTexture();
@@ -2046,58 +1966,6 @@ void BB::RenderScenePerDraw(const RCommandList a_cmd_list, const RenderScene3DHa
 	const Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
 	const auto& scene_frame = render_scene3d.frames[s_render_inst->render_io.frame_index];
 
-	ShaderObject shader_objects[2];
-	SHADER_STAGE shader_stages[2];
-
-	RPipelineLayout layout{};
-	for (size_t eff_index = 0; eff_index < a_shader_effects.size(); eff_index++)
-	{
-		const ShaderEffect& effect = s_render_inst->shader_effects[a_shader_effects[eff_index]];
-		shader_objects[eff_index] = effect.shader_object;
-		shader_stages[eff_index] = effect.shader_stage;
-		if (layout.IsValid())
-			BB_ASSERT(layout == effect.pipeline_layout, "pipeline layout is wrong");
-		else
-			layout = effect.pipeline_layout;
-	}
-
-	// set 0
-	Vulkan::SetDescriptorImmutableSamplers(a_cmd_list, layout);
-	{
-		const uint32_t buffer_indices[] = { 0, 0 };
-		const size_t buffer_offsets[]{ s_render_inst->global_descriptor_allocation.offset, scene_frame.desc_alloc.offset };
-		//set 1-2
-		Vulkan::SetDescriptorBufferOffset(a_cmd_list,
-			layout,
-			SPACE_GLOBAL,
-			_countof(buffer_offsets),
-			buffer_indices,
-			buffer_offsets);
-	}
-
-	Vulkan::BindShaders(a_cmd_list,
-		static_cast<uint32_t>(a_shader_effects.size()),
-		shader_stages,
-		shader_objects);
-
-	RenderingAttachmentColor color_attach{};
-	color_attach.load_color = false;
-	color_attach.store_color = true;
-	color_attach.image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-	color_attach.image_view = render_target.texture_info.view;
-
-	StartRenderingInfo start_rendering_info;
-	start_rendering_info.render_area_extent = a_draw_area_size;
-	start_rendering_info.render_area_offset = a_draw_area_offset;
-	start_rendering_info.color_attachments = Slice(&color_attach, 1);
-	start_rendering_info.depth_attachment = nullptr;
-	Vulkan::StartRenderPass(a_cmd_list, start_rendering_info);
-	Vulkan::SetFrontFace(a_cmd_list, false);
-	Vulkan::SetCullMode(a_cmd_list, CULL_MODE::NONE);
-
-	Vulkan::DrawVertices(a_cmd_list, _countof(skyboxVertices), 1, 0, 0);
-
-	Vulkan::EndRenderPass(a_cmd_list);
 }
 
 void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, bool a_skip)
@@ -2110,47 +1978,7 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 		return;
 	}
 
-	render_scene3d.scene_info.light_count = render_scene3d.light_container.size();
-	render_scene3d.scene_info.scene_resolution = a_draw_area_size;
-	const size_t scene_upload_size = sizeof(Scene3DInfo);
-	const size_t matrices_upload_size = sizeof(ShaderTransform) * render_scene3d.draw_list_count;
-	const size_t light_upload_size = sizeof(Light) * render_scene3d.light_container.capacity();
-	// optimize this
-	const size_t total_size = scene_upload_size + matrices_upload_size + light_upload_size;
 
-	const UploadBuffer upload_buffer = s_render_inst->frame_upload_allocator.AllocateUploadMemory(total_size, scene_frame.fence_value + 1);
-
-	size_t bytes_uploaded = 0;
-	upload_buffer.SafeMemcpy(bytes_uploaded, &render_scene3d.scene_info, scene_upload_size);
-	const size_t scene_offset = bytes_uploaded + upload_buffer.base_offset;
-	bytes_uploaded += scene_upload_size;
-
-	upload_buffer.SafeMemcpy(bytes_uploaded, render_scene3d.draw_list_data.transform, matrices_upload_size);
-	const size_t matrix_offset = bytes_uploaded + upload_buffer.base_offset;
-	bytes_uploaded += matrices_upload_size;
-
-	upload_buffer.SafeMemcpy(bytes_uploaded, render_scene3d.light_container.data(), light_upload_size);
-	const size_t light_offset = bytes_uploaded + upload_buffer.base_offset;
-	bytes_uploaded += light_upload_size;
-
-	//upload to some GPU buffer here.
-	RenderCopyBuffer matrix_buffer_copy;
-	matrix_buffer_copy.src = upload_buffer.buffer;
-	matrix_buffer_copy.dst = scene_frame.per_frame_buffer;
-	RenderCopyBufferRegion buffer_regions[3]; // 0 = scene, 1 = matrix
-	buffer_regions[0].src_offset = scene_offset;
-	buffer_regions[0].dst_offset = scene_frame.scene_buffer.offset;
-	buffer_regions[0].size = scene_frame.scene_buffer.size;
-
-	buffer_regions[1].src_offset = matrix_offset;
-	buffer_regions[1].dst_offset = scene_frame.transform_buffer.offset;
-	buffer_regions[1].size = matrices_upload_size;
-
-	buffer_regions[2].src_offset = light_offset;
-	buffer_regions[2].dst_offset = scene_frame.light_buffer.offset;
-	buffer_regions[2].size = light_upload_size;
-	matrix_buffer_copy.regions = Slice(buffer_regions, _countof(buffer_regions));
-	Vulkan::CopyBuffer(a_cmd_list, matrix_buffer_copy);
 
 	if (render_scene3d.previous_draw_area != a_draw_area_size)
 	{
@@ -2265,18 +2093,6 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 	}
 
 	Vulkan::EndRenderPass(a_cmd_list);
-}
-
-void BB::SetView(const RenderScene3DHandle a_scene, const float4x4& a_view)
-{
-	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
-	render_scene3d.scene_info.view = a_view;
-}
-
-void BB::SetProjection(const RenderScene3DHandle a_scene, const float4x4& a_proj)
-{
-	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
-	render_scene3d.scene_info.proj = a_proj;
 }
 
 CommandPool& BB::GetGraphicsCommandPool()
@@ -2782,6 +2598,46 @@ void* BB::MapGPUBuffer(const GPUBuffer a_buffer)
 void BB::UnmapGPUBuffer(const GPUBuffer a_buffer)
 {
 	Vulkan::UnmapBufferMemory(a_buffer);
+}
+
+void BB::CopyBuffer(const RCommandList a_list, const RenderCopyBuffer& a_copy_buffer)
+{
+	Vulkan::CopyBuffer(a_list, a_copy_buffer);
+}
+
+RFence CreateFence(const uint64_t a_initial_value, const char* a_name)
+{
+	return Vulkan::CreateFence(a_initial_value, a_name);
+}
+
+void FreeFence(const RFence a_fence)
+{
+	Vulkan::FreeFence(a_fence);
+}
+
+void WaitFence(const RFence a_fence, const uint64_t a_fence_value)
+{
+	Vulkan::WaitFence(a_fence, a_fence_value);
+}
+
+void WaitFences(const RFence* a_fences, const uint64_t* a_fence_values, const uint32_t a_fence_count)
+{
+	Vulkan::WaitFences(a_fences, a_fence_values, a_fence_count);
+}
+
+uint64_t GetCurrentFenceValue(const RFence a_fence)
+{
+	return Vulkan::GetCurrentFenceValue(a_fence);
+}
+
+void BB::SetDescriptorBufferOffset(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_first_set, const uint32_t a_set_count, const uint32_t* a_buffer_indices, const size_t* a_offsets)
+{
+	Vulkan::SetDescriptorBufferOffset(a_list, a_pipe_layout, a_first_set, a_set_count, a_buffer_indices, a_offsets);
+}
+
+const BB::DescriptorAllocation& GetGlobalDescriptorAllocation()
+{
+	return s_render_inst->global_descriptor_allocation;
 }
 
 bool BB::SetDefaultMaterial(const MaterialHandle a_material)

@@ -26,6 +26,7 @@ namespace BB
 	using RCommandPool = FrameworkHandle<struct RCommandPoolTag>;
 	using RCommandList = FrameworkHandle<struct RCommandListTag>;
 
+	using RPipelineLayout = FrameworkHandle<struct RPipelineLayoutTag>;
 	using RDescriptorLayout = FrameworkHandle<struct RDescriptorLayoutTag>;
 	using GPUFenceValue = FrameworkHandle<struct GPUFenceValueTag>;
 
@@ -154,6 +155,16 @@ namespace BB
 		ENUM_SIZE
 	};
 
+	enum class CULL_MODE : uint32_t
+	{
+		NONE,
+		FRONT,
+		BACK,
+		FRONT_AND_BACK,
+
+		ENUM_SIZE
+	};
+
 	struct RenderingAttachmentDepth
 	{
 		bool load_depth;
@@ -277,5 +288,19 @@ namespace BB
 			bool support_transfer;
 		};
 		StaticArray<QueueFamily> queue_families;
+	};
+
+	struct RenderCopyBufferRegion
+	{
+		uint64_t size;
+		uint64_t src_offset;
+		uint64_t dst_offset;
+	};
+
+	struct RenderCopyBuffer
+	{
+		GPUBuffer dst;
+		GPUBuffer src;
+		Slice<RenderCopyBufferRegion> regions;
 	};
 }

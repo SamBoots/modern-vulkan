@@ -6,9 +6,6 @@
 namespace BB
 {
 	using ShaderObject = FrameworkHandle<struct ShaderObjectTag>;
-	using RPipeline = FrameworkHandle<struct RPipelineTag>;
-	using RPipelineLayout = FrameworkHandle<struct RPipelineLayoutTag>;
-	using RDepthBuffer = FrameworkHandle<struct RDepthBufferTag>;
 
 	enum class QUEUE_TYPE : uint32_t
 	{
@@ -48,16 +45,6 @@ namespace BB
 		LINEAR,
 		OPTIMAL,
 
-		ENUM_SIZE
-	};
-
-
-	enum class CULL_MODE : uint32_t
-	{
-		NONE,
-		FRONT,
-		BACK,
-		FRONT_AND_BACK,
 		ENUM_SIZE
 	};
 
@@ -123,29 +110,6 @@ namespace BB
 
 		float min_lod;
 		float max_lod;
-	};
-
-	struct RenderDepthCreateInfo
-	{
-		const char* name = nullptr;
-		uint32_t width = 0;
-		uint32_t height = 0;
-		uint32_t depth = 0;
-		DEPTH_FORMAT depth_format;
-	};
-
-	struct RenderCopyBufferRegion
-	{
-		uint64_t size;
-		uint64_t src_offset;
-		uint64_t dst_offset;
-	};
-
-	struct RenderCopyBuffer
-	{
-		GPUBuffer dst;
-		GPUBuffer src;
-		Slice<RenderCopyBufferRegion> regions;
 	};
 
 	struct RenderCopyBufferToImageInfo

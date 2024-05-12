@@ -143,10 +143,16 @@ namespace BB
 
 	void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info);
 	void EndRenderPass(const RCommandList a_list);
+	RPipelineLayout BindShaders(MemoryArena& a_temp_arena, const RCommandList a_list, const Slice<ShaderEffectHandle> a_shader_effects);
+	void SetFrontFace(const RCommandList a_list, const bool a_is_clockwise);
+	void SetCullMode(const RCommandList a_list, const CULL_MODE a_cull_mode);
+	void SetClearColor(const RCommandList a_list, const float3 a_clear_color);
 	void SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor);
 
+	void DrawVertices(const RCommandList a_list, const uint32_t a_vertex_count, const uint32_t a_instance_count, const uint32_t a_first_vertex, const uint32_t a_first_instance);
+	void DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance);
+
 	RenderScene3DHandle Create3DRenderScene(MemoryArena& a_arena, const SceneCreateInfo& a_info, const char* a_name);
-	void StartRenderScene(const RenderScene3DHandle a_scene);
 	void RenderScenePerDraw(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const Slice<const ShaderEffectHandle> a_shader_effects);
 	void EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, bool a_skip = false);
 
@@ -213,6 +219,16 @@ namespace BB
 	void FreeGPUBuffer(const GPUBuffer a_buffer);
 	void* MapGPUBuffer(const GPUBuffer a_buffer);
 	void UnmapGPUBuffer(const GPUBuffer a_buffer);
+	void CopyBuffer(const RCommandList a_list, const RenderCopyBuffer& a_copy_buffer);
+
+	RFence CreateFence(const uint64_t a_initial_value, const char* a_name);
+	void FreeFence(const RFence a_fence);
+	void WaitFence(const RFence a_fence, const uint64_t a_fence_value);
+	void WaitFences(const RFence* a_fences, const uint64_t* a_fence_values, const uint32_t a_fence_count);
+	uint64_t GetCurrentFenceValue(const RFence a_fence);
+
+	void SetDescriptorBufferOffset(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_first_set, const uint32_t a_set_count, const uint32_t* a_buffer_indices, const size_t* a_offsets);
+	const DescriptorAllocation& GetGlobalDescriptorAllocation();
 
 	bool SetDefaultMaterial(const MaterialHandle a_material);
 	MaterialHandle GetStandardMaterial();

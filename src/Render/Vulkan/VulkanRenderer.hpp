@@ -63,7 +63,6 @@ namespace BB
 		void SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor);
 
 		void BindIndexBuffer(const RCommandList a_list, const GPUBuffer a_buffer, const uint64_t a_offset);
-		void BindPipeline(const RCommandList a_list, const RPipeline a_pipeline);
 		void BindShaders(const RCommandList a_list, const uint32_t a_shader_stage_count, const SHADER_STAGE* a_shader_stages, const ShaderObject* a_shader_objects);
 		void SetFrontFace(const RCommandList a_list, const bool a_is_clockwise);
 		void SetCullMode(const RCommandList a_list, const CULL_MODE a_cull_mode);

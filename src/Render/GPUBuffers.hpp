@@ -22,4 +22,66 @@ namespace BB
 		size_t m_capacity;
 		std::atomic<size_t> m_size;
 	};
+
+	struct UploadBuffer
+	{
+		void SafeMemcpy(const size_t a_dst_offset, const void* a_src, const size_t a_src_size) const
+		{
+			void* copy_pos = Pointer::Add(begin, a_dst_offset);
+			BB_ASSERT(Pointer::Add(copy_pos, a_src_size) <= end, "gpu upload buffer writing out of bounds");
+
+			memcpy(copy_pos, a_src, a_src_size);
+		}
+
+		GPUBuffer buffer;
+		void* begin;
+		void* end;
+		size_t base_offset;
+	};
+
+	constexpr size_t RING_BUFFER_QUEUE_ELEMENT_COUNT = 1024;
+
+	class GPUUploadRingAllocator
+	{
+	public:
+		void Init(MemoryArena& a_arena, const size_t a_ring_buffer_size, const RFence a_fence, const char* a_name);
+
+		UploadBuffer AllocateUploadMemory(const size_t a_byte_amount, const uint64_t a_fence_value);
+
+		size_t GetUploadAllocatorCapacity() const
+		{
+			return reinterpret_cast<size_t>(m_end) - reinterpret_cast<size_t>(m_begin);
+		}
+
+		size_t GetUploadSpaceRemaining() const
+		{
+			if (m_write_at > m_free_until)
+			{
+				size_t size_remaining = reinterpret_cast<size_t>(m_end) - reinterpret_cast<size_t>(m_write_at);
+				size_remaining += reinterpret_cast<size_t>(m_begin) - reinterpret_cast<size_t>(m_free_until);
+				return size_remaining;
+			}
+
+			return reinterpret_cast<size_t>(m_free_until) - reinterpret_cast<size_t>(m_write_at);
+		}
+
+		const GPUBuffer GetBuffer() const { return m_buffer; }
+
+	private:
+		struct LockedRegions
+		{
+			void* memory_end;
+			uint64_t fence_value;
+		};
+
+		BBRWLock m_lock;
+		RFence m_fence;
+		GPUBuffer m_buffer;
+
+		void* m_begin;
+		void* m_free_until;
+		void* m_write_at;
+		void* m_end;
+		SPSCQueue<LockedRegions> m_locked_queue;
+	};
 }

@@ -94,6 +94,9 @@ namespace BB
 		};
 		struct PerFrameData
 		{
+			RFence fence;
+			uint64_t fence_value;
+			GPUUploadRingAllocator frame_allocator;
 			StaticArray<GPULinearBuffer> uniform_buffer;
 			Scene3DInfo scene_info;
 		};
@@ -102,7 +105,7 @@ namespace BB
 		RDescriptorLayout m_scene_descriptor_layout;
 		DescriptorAllocation m_scene_descriptor;
 
-		PerFrameData m_per_frame_data;
+		PerFrameData m_per_frame;
 
 		StringView m_scene_name;
 
