@@ -1711,6 +1711,77 @@ DescriptorAllocation Vulkan::AllocateDescriptor(const RDescriptorLayout a_descri
 	return s_vulkan_inst->pdescriptor_buffer->AllocateDescriptor(a_descriptor);
 }
 
+void Vulkan::DescriptorWriteUniformBuffer(const DescriptorWriteUniformBufferInfo& a_write_info)
+{
+	VkDescriptorAddressInfoEXT buffer = GetDescriptorAddressInfo(s_vulkan_inst->device, a_write_info.buffer_view);
+
+	VkDescriptorGetInfoEXT desc_info{ VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT };
+	desc_info.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	desc_info.data.pUniformBuffer = &buffer;
+
+	VkDeviceSize descriptor_offset;
+	s_vulkan_inst->pfn.GetDescriptorSetLayoutBindingOffsetEXT(s_vulkan_inst->device,
+		reinterpret_cast<VkDescriptorSetLayout>(a_write_info.descriptor_layout.handle),
+		a_write_info.binding,
+		&descriptor_offset);
+
+	const size_t descriptor_size = s_vulkan_inst->descriptor_sizes.uniform_buffer;
+
+	descriptor_offset += descriptor_size * a_write_info.descriptor_index;
+	void* descriptor_mem = Pointer::Add(a_write_info.allocation.buffer_start, a_write_info.allocation.offset + descriptor_offset);
+
+	s_vulkan_inst->pfn.GetDescriptorEXT(s_vulkan_inst->device, &desc_info, descriptor_size, descriptor_mem);
+}
+
+inline static void DescriptorWrite(const VkDescriptorGetInfoEXT& a_desc_info, const RDescriptorLayout a_layout, const uint32_t a_binding, const uint32_t a_descriptor_size, const uint32_t a_descriptor_index, const uint32_t a_buffer_offset, void* a_buffer_start)
+{
+	VkDeviceSize descriptor_offset;
+	s_vulkan_inst->pfn.GetDescriptorSetLayoutBindingOffsetEXT(s_vulkan_inst->device,
+		reinterpret_cast<VkDescriptorSetLayout>(a_layout.handle),
+		a_binding,
+		&descriptor_offset);
+
+	descriptor_offset += static_cast<VkDeviceSize>(a_descriptor_size) * a_descriptor_index;
+	void* descriptor_mem = Pointer::Add(a_buffer_start, a_buffer_offset + descriptor_offset);
+
+	s_vulkan_inst->pfn.GetDescriptorEXT(s_vulkan_inst->device, &a_desc_info, a_descriptor_size, descriptor_mem);
+}
+
+void Vulkan::DescriptorWriteUniformBuffer(const DescriptorWriteBufferInfo& a_write_info)
+{
+	VkDescriptorAddressInfoEXT buffer = GetDescriptorAddressInfo(s_vulkan_inst->device, a_write_info.buffer_view);
+	VkDescriptorGetInfoEXT desc_info{ VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT };
+	desc_info.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	desc_info.data.pUniformBuffer = &buffer;
+
+	DescriptorWrite(desc_info, a_write_info.descriptor_layout, a_write_info.binding, s_vulkan_inst->descriptor_sizes.uniform_buffer, a_write_info.descriptor_index, a_write_info.allocation.offset, a_write_info.allocation.buffer_start);
+}
+
+void Vulkan::DescriptorWriteStorageBuffer(const DescriptorWriteBufferInfo& a_write_info)
+{
+	VkDescriptorAddressInfoEXT buffer = GetDescriptorAddressInfo(s_vulkan_inst->device, a_write_info.buffer_view);
+	VkDescriptorGetInfoEXT desc_info{ VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT };
+	desc_info.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	desc_info.data.pStorageBuffer = &buffer;
+
+	DescriptorWrite(desc_info, a_write_info.descriptor_layout, a_write_info.binding, s_vulkan_inst->descriptor_sizes.storage_buffer, a_write_info.descriptor_index, a_write_info.allocation.offset, a_write_info.allocation.buffer_start);
+}
+
+void Vulkan::DescriptorWriteImageBuffer(const DescriptorWriteImageInfo& a_write_info)
+{
+	VkDescriptorImageInfo image
+	{
+		VK_NULL_HANDLE,	// static samplers only
+		reinterpret_cast<VkImageView>(a_write_info.view.handle),
+		ImageLayout(a_write_info.layout)
+	};
+	VkDescriptorGetInfoEXT desc_info{ VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT };
+	desc_info.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+	desc_info.data.pSampledImage = &image;
+
+	DescriptorWrite(desc_info, a_write_info.descriptor_layout, a_write_info.binding, s_vulkan_inst->descriptor_sizes.sampled_image, a_write_info.descriptor_index, a_write_info.allocation.offset, a_write_info.allocation.buffer_start);
+}
+
 void Vulkan::WriteDescriptors(const WriteDescriptorInfos& a_write_info)
 {
 	for (size_t i = 0; i < a_write_info.data.size(); i++)

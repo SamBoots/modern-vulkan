@@ -267,6 +267,35 @@ namespace BB
 		SHADER_STAGE shader_stage;
 	};
 
+	struct DescriptorAllocation
+	{
+		uint32_t size;
+		uint32_t offset;
+		void* buffer_start; //Maybe just get this from the descriptor heap? We only have one heap anyway.
+	};
+
+	struct DescriptorWriteBufferInfo
+	{
+		RDescriptorLayout descriptor_layout{};
+		DescriptorAllocation allocation;
+		uint32_t binding;
+		uint32_t descriptor_index;
+
+		GPUBufferView buffer_view;
+	};
+
+	struct DescriptorWriteImageInfo
+	{
+		RDescriptorLayout descriptor_layout{};
+		DescriptorAllocation allocation;
+		uint32_t binding;
+		uint32_t descriptor_index;
+
+		RImageView view;
+		IMAGE_LAYOUT layout;
+
+	};
+
 	struct GPUDeviceInfo
 	{
 		char* name;

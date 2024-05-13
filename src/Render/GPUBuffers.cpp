@@ -1,5 +1,6 @@
 #include "GPUBuffers.hpp"
 #include "VulkanRenderer.hpp"
+#include "Program.h"
 
 using namespace BB;
 
@@ -75,7 +76,7 @@ UploadBuffer GPUUploadRingAllocator::AllocateUploadMemory(const size_t a_byte_am
 	{
 		const uint64_t fence_value = Vulkan::GetCurrentFenceValue(m_fence);
 
-		while (const GPUUploadRingAllocator::LockedRegions* locked_region = m_locked_queue.Peek())
+		while (const LockedRegions* locked_region = m_locked_queue.Peek())
 		{
 			if (locked_region->fence_value <= fence_value)
 			{

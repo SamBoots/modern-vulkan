@@ -110,13 +110,6 @@ namespace BB
 		float cutoff_radius;        // 60
 	};
 
-	struct DescriptorAllocation
-	{
-		uint32_t size;
-		uint32_t offset;
-		void* buffer_start; //Maybe just get this from the descriptor heap? We only have one heap anyway.
-	};
-
 	const RenderIO& GetRenderIO();
 
 	bool InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_render_create_info);
@@ -150,6 +143,7 @@ namespace BB
 	void SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor);
 
 	void DrawVertices(const RCommandList a_list, const uint32_t a_vertex_count, const uint32_t a_instance_count, const uint32_t a_first_vertex, const uint32_t a_first_instance);
+	void DrawCubemap(const RCommandList a_list, const uint32_t a_instance_count, const uint32_t a_first_instance);
 	void DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance);
 
 	RenderScene3DHandle Create3DRenderScene(MemoryArena& a_arena, const SceneCreateInfo& a_info, const char* a_name);
@@ -220,6 +214,10 @@ namespace BB
 	void* MapGPUBuffer(const GPUBuffer a_buffer);
 	void UnmapGPUBuffer(const GPUBuffer a_buffer);
 	void CopyBuffer(const RCommandList a_list, const RenderCopyBuffer& a_copy_buffer);
+
+	void DescriptorWriteUniformBuffer(const DescriptorWriteBufferInfo& a_write_info);
+	void DescriptorWriteStorageBuffer(const DescriptorWriteBufferInfo& a_write_info);
+	void DescriptorWriteImageBuffer(const DescriptorWriteImageInfo& a_write_info);
 
 	RFence CreateFence(const uint64_t a_initial_value, const char* a_name);
 	void FreeFence(const RFence a_fence);

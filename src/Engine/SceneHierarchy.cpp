@@ -461,7 +461,7 @@ void SceneHierarchy::DrawSceneHierarchy(MemoryArena& a_temp_arena, const RComman
 		SetFrontFace(a_list, false);
 		SetCullMode(a_list, CULL_MODE::NONE);
 
-		DrawVertices(a_list, _countof(skyboxVertices), 1, 0, 0);
+		DrawCubemap(a_list, 1, 0);
 
 		EndRenderPass(a_list);
 	}

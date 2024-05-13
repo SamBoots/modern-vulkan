@@ -17,7 +17,7 @@
 
 using namespace BB;
 
-constexpr float skyboxVertices[] = {
+constexpr float SKYBOX_VERTICES[] = {
 	-1.0f,-1.0f,-1.0f,  // -X side
 	-1.0f,-1.0f, 1.0f,
 	-1.0f, 1.0f, 1.0f,
@@ -217,8 +217,20 @@ void CommandPool::ResetPool()
 }
 
 //THREAD SAFE: TRUE
-class BB::RenderQueue
+class RenderQueue
 {
+private:
+	QUEUE_TYPE m_queue_type; //4
+	BBRWLock m_lock; //12
+	const uint32_t m_pool_count; //16
+	CommandPool* m_pools; //24
+	LinkedList<CommandPool> m_free_pools; //32 
+	LinkedList<CommandPool> m_in_flight_pools; //40
+	BBRWLock m_in_flight_lock; //48
+
+	RQueue m_queue;//56 
+	RenderFence m_fence; //80
+
 public:
 	RenderQueue(MemoryArena& a_arena, const QUEUE_TYPE a_queue_type, const char* a_name, const uint32_t a_command_pool_count, const uint32_t a_command_lists_per_pool)
 		:	m_pool_count(a_command_pool_count)
@@ -398,18 +410,6 @@ public:
 	RenderFence GetFence() const { return m_fence; }
 	uint64_t GetNextFenceValue() const { return m_fence.next_fence_value; }
 	uint64_t GetLastCompletedValue() const { return m_fence.last_complete_value; }
-
-private:
-	QUEUE_TYPE m_queue_type; //4
-	BBRWLock m_lock; //12
-	const uint32_t m_pool_count; //16
-	CommandPool* m_pools; //24
-	LinkedList<CommandPool> m_free_pools; //32 
-	LinkedList<CommandPool> m_in_flight_pools; //40
-	BBRWLock m_in_flight_lock; //48
-
-	RQueue m_queue;//56 
-	RenderFence m_fence; //80
 };
 
 struct Mesh
@@ -1354,9 +1354,9 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 
 	// setup cube positions
 	{
-		s_render_inst->cubemap_position = AllocateFromVertexBuffer(sizeof(skyboxVertices));
-		UploadBuffer cube_buffer = s_render_inst->asset_uploader.gpu_allocator.AllocateUploadMemory(sizeof(skyboxVertices), fence_value_transfer);
-		cube_buffer.SafeMemcpy(0, skyboxVertices, sizeof(skyboxVertices));
+		s_render_inst->cubemap_position = AllocateFromVertexBuffer(sizeof(SKYBOX_VERTICES));
+		UploadBuffer cube_buffer = s_render_inst->asset_uploader.gpu_allocator.AllocateUploadMemory(sizeof(SKYBOX_VERTICES), fence_value_transfer);
+		cube_buffer.SafeMemcpy(0, SKYBOX_VERTICES, sizeof(SKYBOX_VERTICES));
 		RenderCopyBuffer copy_op;
 		copy_op.src = cube_buffer.buffer;
 		copy_op.dst = s_render_inst->cubemap_position.buffer;
@@ -1873,6 +1873,11 @@ void BB::SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor)
 void BB::DrawVertices(const RCommandList a_list, const uint32_t a_vertex_count, const uint32_t a_instance_count, const uint32_t a_first_vertex, const uint32_t a_first_instance)
 {
 	Vulkan::DrawVertices(a_list, a_vertex_count, a_instance_count, a_first_vertex, a_first_instance);
+}
+
+void BB::DrawCubemap(const RCommandList a_list, const uint32_t a_instance_count, const uint32_t a_first_instance)
+{
+	Vulkan::DrawVertices(a_list, _countof(SKYBOX_VERTICES), a_instance_count, 0, a_first_instance);
 }
 
 void BB::DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance)
@@ -2603,6 +2608,21 @@ void BB::UnmapGPUBuffer(const GPUBuffer a_buffer)
 void BB::CopyBuffer(const RCommandList a_list, const RenderCopyBuffer& a_copy_buffer)
 {
 	Vulkan::CopyBuffer(a_list, a_copy_buffer);
+}
+
+void BB::DescriptorWriteUniformBuffer(const DescriptorWriteBufferInfo& a_write_info)
+{
+	Vulkan::DescriptorWriteUniformBuffer(a_write_info);
+}
+
+void BB::DescriptorWriteStorageBuffer(const DescriptorWriteBufferInfo& a_write_info)
+{
+	Vulkan::DescriptorWriteStorageBuffer(a_write_info);
+}
+
+void BB::DescriptorWriteImageBuffer(const DescriptorWriteImageInfo& a_write_info)
+{
+	Vulkan::DescriptorWriteImageBuffer(a_write_info);
 }
 
 RFence CreateFence(const uint64_t a_initial_value, const char* a_name)
