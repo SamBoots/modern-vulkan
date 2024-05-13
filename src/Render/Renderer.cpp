@@ -1818,10 +1818,13 @@ void BB::EndRenderPass(const RCommandList a_list)
 	Vulkan::EndRenderPass(a_list);
 }
 
-RPipelineLayout BB::BindShaders(MemoryArena& a_temp_arena, const RCommandList a_list, const Slice<ShaderEffectHandle> a_shader_effects)
+RPipelineLayout BB::BindShaders(const RCommandList a_list, const Slice<ShaderEffectHandle> a_shader_effects)
 {
-	ShaderObject* const shader_objects = ArenaAllocArr(a_temp_arena, ShaderObject, a_shader_effects.size());
-	SHADER_STAGE* const shader_stages = ArenaAllocArr(a_temp_arena, SHADER_STAGE, a_shader_effects.size());
+	constexpr size_t SHADERS_MAX = 5;
+	BB_ASSERT(SHADERS_MAX >= a_shader_effects.size(), "binding more then 5 shaders at a time, this is wrong or increase SHADERS_MAX");
+
+	ShaderObject shader_objects[SHADERS_MAX]{};
+	SHADER_STAGE shader_stages[SHADERS_MAX]{};
 
 	SHADER_STAGE_FLAGS next_supported_stages = static_cast<uint32_t>(SHADER_STAGE::ALL);
 	RPipelineLayout layout{};
@@ -1883,84 +1886,6 @@ void BB::DrawCubemap(const RCommandList a_list, const uint32_t a_instance_count,
 void BB::DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance)
 {
 	Vulkan::DrawIndexed(a_list, a_index_count, a_instance_count, a_first_index, a_vertex_offset, a_first_instance);
-}
-
-RenderScene3DHandle BB::Create3DRenderScene(MemoryArena& a_arena, const SceneCreateInfo& a_info, const char* a_name)
-{
-	constexpr uint32_t scene_size = sizeof(Scene3DInfo);
-	const uint32_t shader_transform_size = scene_3d->draw_list_max * sizeof(ShaderTransform);
-	const uint32_t light_buffer_size = scene_3d->light_container.capacity() * sizeof(Light);
-
-	const uint32_t per_frame_buffer_size = scene_size + shader_transform_size + light_buffer_size;
-
-	//per frame stuff
-	GPUBufferCreateInfo per_frame_buffer_info;
-	per_frame_buffer_info.name = "per_frame_buffer";
-	per_frame_buffer_info.size = per_frame_buffer_size;
-	per_frame_buffer_info.type = BUFFER_TYPE::STORAGE;
-
-	for (uint32_t i = 0; i < s_render_inst->render_io.frame_count; i++)
-	{
-		Scene3D::Frame& pf = scene_3d->frames[i];
-		{
-			pf.per_frame_buffer = Vulkan::CreateBuffer(per_frame_buffer_info);
-			pf.per_frame_buffer_size = static_cast<uint32_t>(per_frame_buffer_info.size);
-		}
-
-		uint32_t buffer_used = 0;
-		{
-			pf.scene_buffer.size = scene_size;
-			pf.scene_buffer.offset = buffer_used;
-
-			buffer_used += static_cast<uint32_t>(pf.scene_buffer.size);
-		}
-		{
-			pf.transform_buffer.size = shader_transform_size;
-			pf.transform_buffer.offset = buffer_used;
-
-			buffer_used += static_cast<uint32_t>(pf.transform_buffer.size);
-		}
-		{
-			pf.light_buffer.size = light_buffer_size;
-			pf.light_buffer.offset = buffer_used;
-
-			buffer_used += static_cast<uint32_t>(pf.light_buffer.size);
-		}
-
-		//descriptors
-		pf.desc_alloc = Vulkan::AllocateDescriptor(s_render_inst->scene3d_descriptor_layout);
-
-		WriteDescriptorData per_scene_buffer_desc[3]{};
-		per_scene_buffer_desc[0].binding = PER_SCENE_SCENE_DATA_BINDING;
-		per_scene_buffer_desc[0].descriptor_index = 0;
-		per_scene_buffer_desc[0].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-		per_scene_buffer_desc[0].buffer_view.buffer = pf.per_frame_buffer;
-		per_scene_buffer_desc[0].buffer_view.size = pf.scene_buffer.size;
-		per_scene_buffer_desc[0].buffer_view.offset = pf.scene_buffer.offset;
-
-		per_scene_buffer_desc[1].binding = PER_SCENE_TRANSFORM_DATA_BINDING;
-		per_scene_buffer_desc[1].descriptor_index = 0;
-		per_scene_buffer_desc[1].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-		per_scene_buffer_desc[1].buffer_view.buffer = pf.per_frame_buffer;
-		per_scene_buffer_desc[1].buffer_view.size = pf.transform_buffer.size;
-		per_scene_buffer_desc[1].buffer_view.offset = pf.transform_buffer.offset;
-
-		per_scene_buffer_desc[2].binding = PER_SCENE_LIGHT_DATA_BINDING;
-		per_scene_buffer_desc[2].descriptor_index = 0;
-		per_scene_buffer_desc[2].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-		per_scene_buffer_desc[2].buffer_view.buffer = pf.per_frame_buffer;
-		per_scene_buffer_desc[2].buffer_view.size = pf.light_buffer.size;
-		per_scene_buffer_desc[2].buffer_view.offset = pf.light_buffer.offset;
-
-		WriteDescriptorInfos frame_desc_write;
-		frame_desc_write.allocation = pf.desc_alloc;
-		frame_desc_write.descriptor_layout = s_render_inst->scene3d_descriptor_layout;
-		frame_desc_write.data = Slice(per_scene_buffer_desc, _countof(per_scene_buffer_desc));
-
-		Vulkan::WriteDescriptors(frame_desc_write);
-	}
-
-	return RenderScene3DHandle(reinterpret_cast<uintptr_t>(scene_3d));
 }
 
 void BB::RenderScenePerDraw(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const Slice<const ShaderEffectHandle> a_shader_effects)
@@ -2210,6 +2135,11 @@ void BB::FreeMesh(const MeshHandle a_mesh)
 RDescriptorLayout BB::CreateDescriptorLayout(MemoryArena& a_temp_arena, Slice<DescriptorBindingInfo> a_bindings)
 {
 	return Vulkan::CreateDescriptorLayout(a_temp_arena, a_bindings);
+}
+
+DescriptorAllocation BB::AllocateDescriptor(const RDescriptorLayout a_descriptor)
+{
+	return Vulkan::AllocateDescriptor(a_descriptor);
 }
 
 bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles)

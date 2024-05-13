@@ -136,7 +136,7 @@ namespace BB
 
 	void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info);
 	void EndRenderPass(const RCommandList a_list);
-	RPipelineLayout BindShaders(MemoryArena& a_temp_arena, const RCommandList a_list, const Slice<ShaderEffectHandle> a_shader_effects);
+	RPipelineLayout BindShaders(const RCommandList a_list, const Slice<ShaderEffectHandle> a_shader_effects);
 	void SetFrontFace(const RCommandList a_list, const bool a_is_clockwise);
 	void SetCullMode(const RCommandList a_list, const CULL_MODE a_cull_mode);
 	void SetClearColor(const RCommandList a_list, const float3 a_clear_color);
@@ -146,7 +146,6 @@ namespace BB
 	void DrawCubemap(const RCommandList a_list, const uint32_t a_instance_count, const uint32_t a_first_instance);
 	void DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance);
 
-	RenderScene3DHandle Create3DRenderScene(MemoryArena& a_arena, const SceneCreateInfo& a_info, const char* a_name);
 	void RenderScenePerDraw(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const Slice<const ShaderEffectHandle> a_shader_effects);
 	void EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, bool a_skip = false);
 
@@ -167,6 +166,7 @@ namespace BB
 	void FreeMesh(const MeshHandle a_mesh);
 
 	RDescriptorLayout CreateDescriptorLayout(MemoryArena& a_temp_arena, Slice<DescriptorBindingInfo> a_bindings);
+	DescriptorAllocation AllocateDescriptor(const RDescriptorLayout a_descriptor);
 
 	bool CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles);
 	bool ReloadShaderEffect(const ShaderEffectHandle a_shader_effect, const Buffer& a_shader);

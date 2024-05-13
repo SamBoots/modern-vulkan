@@ -85,6 +85,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const StringView a_name, const u
 	descriptor_bindings[2].shader_stage = SHADER_STAGE::FRAGMENT_PIXEL;
 	descriptor_bindings[2].type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
 	m_scene_descriptor_layout = CreateDescriptorLayout(a_arena, Slice(descriptor_bindings, _countof(descriptor_bindings)));
+	m_scene_descriptor = AllocateDescriptor(m_scene_descriptor_layout);
 
 	const size_t backbuffer_count = GetRenderIO().frame_count;
 	m_per_frame.fence = CreateFence(0, "scene fence");
@@ -426,11 +427,11 @@ void SceneHierarchy::SetProjection(const float4x4& a_projection)
 	m_per_frame.scene_info.proj = a_projection;
 }
 
-void SceneHierarchy::DrawSceneHierarchy(MemoryArena& a_temp_arena, const RCommandList a_list, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset)
+void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset)
 {
 	{	// RenderScenePerDraw(a_list, m_render_scene, a_render_target, a_draw_area_size, a_draw_area_offset, Slice(m_skybox_shaders, _countof(m_skybox_shaders)));
 
-		RPipelineLayout pipe_layout = BindShaders(a_temp_arena, a_list, Slice(m_skybox_shaders, _countof(m_skybox_shaders)));
+		RPipelineLayout pipe_layout = BindShaders(a_list, Slice(m_skybox_shaders, _countof(m_skybox_shaders)));
 
 		// set 0
 		{
@@ -476,6 +477,10 @@ void SceneHierarchy::DrawSceneHierarchy(MemoryArena& a_temp_arena, const RComman
 	// WAIT TO SEE IF WE CAN ACTUALLY DO COMMANDS
 
 	{	// EndRenderScene(a_list, m_render_scene, a_render_target, a_draw_area_size, a_draw_area_offset);
+		const RenderIO render_io = GetRenderIO();
+		GPULinearBuffer& cur_scene_buffer = m_per_frame.uniform_buffer[render_io.frame_index];
+		cur_scene_buffer.Clear();
+
 		m_per_frame.scene_info.light_count = m_light_container.size();
 		m_per_frame.scene_info.scene_resolution = a_draw_area_size;
 
@@ -500,8 +505,6 @@ void SceneHierarchy::DrawSceneHierarchy(MemoryArena& a_temp_arena, const RComman
 		const size_t light_offset = bytes_uploaded + upload_buffer.base_offset;
 		bytes_uploaded += light_upload_size;
 
-		const RenderIO render_io = GetRenderIO();
-		GPULinearBuffer& cur_scene_buffer = m_per_frame.uniform_buffer[render_io.frame_index];
 		GPUBufferView scene_view;
 		BB_ASSERT(cur_scene_buffer.Allocate(scene_upload_size, scene_view), "failed to allocate frame memory");
 		GPUBufferView transform_view;
@@ -513,7 +516,7 @@ void SceneHierarchy::DrawSceneHierarchy(MemoryArena& a_temp_arena, const RComman
 		RenderCopyBuffer matrix_buffer_copy;
 		matrix_buffer_copy.src = upload_buffer.buffer;
 		matrix_buffer_copy.dst = cur_scene_buffer.GetBuffer();
-		RenderCopyBufferRegion buffer_regions[3]; // 0 = scene, 1 = matrix
+		RenderCopyBufferRegion buffer_regions[3]; // 0 = scene, 1 = matrix, 2 = lights
 		buffer_regions[0].src_offset = scene_offset;
 		buffer_regions[0].dst_offset = scene_view.offset;
 		buffer_regions[0].size = scene_upload_size;
@@ -527,10 +530,26 @@ void SceneHierarchy::DrawSceneHierarchy(MemoryArena& a_temp_arena, const RComman
 		buffer_regions[2].size = light_upload_size;
 		matrix_buffer_copy.regions = Slice(buffer_regions, _countof(buffer_regions));
 		CopyBuffer(a_list, matrix_buffer_copy);
+
+		{	// WRITE DESCRIPTORS HERE
+			DescriptorWriteBufferInfo desc_write;
+			desc_write.descriptor_layout = m_scene_descriptor_layout;
+			desc_write.allocation = m_scene_descriptor;
+			desc_write.descriptor_index = 0;
+
+			desc_write.binding = PER_SCENE_SCENE_DATA_BINDING;
+			desc_write.buffer_view = scene_view;
+			DescriptorWriteUniformBuffer(desc_write);
+
+			desc_write.binding = PER_SCENE_TRANSFORM_DATA_BINDING;
+			desc_write.buffer_view = transform_view;
+			DescriptorWriteUniformBuffer(desc_write);
+
+			desc_write.binding = PER_SCENE_LIGHT_DATA_BINDING;
+			desc_write.buffer_view = light_view;
+			DescriptorWriteUniformBuffer(desc_write);
+		}
 	}
-
-	// WRITE DESCRIPTOR HERE
-
 
 }
 
