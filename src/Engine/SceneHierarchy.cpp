@@ -427,7 +427,7 @@ void SceneHierarchy::SetProjection(const float4x4& a_projection)
 	m_per_frame.scene_info.proj = a_projection;
 }
 
-void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset)
+void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset)
 {
 	{	// RenderScenePerDraw(a_list, m_render_scene, a_render_target, a_draw_area_size, a_draw_area_offset, Slice(m_skybox_shaders, _countof(m_skybox_shaders)));
 
@@ -451,7 +451,7 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RenderT
 		color_attach.load_color = false;
 		color_attach.store_color = true;
 		color_attach.image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-		color_attach.image_view = render_target.texture_info.view;
+		color_attach.image_view = GetImageView(a_render_target, 0);
 
 		StartRenderingInfo start_rendering_info;
 		start_rendering_info.render_area_extent = a_draw_area_size;

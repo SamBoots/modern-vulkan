@@ -40,7 +40,6 @@ namespace BB
 	using RFence = FrameworkHandle<struct RFenceTag>;
 
 	using LightHandle = FrameworkHandle<struct LightHandleTag>;
-	using RenderTarget = FrameworkHandle<struct RenderTargetTag>;
 	
 	using ShaderCode = FrameworkHandle<struct ShdaerCodeTag>;
 	using MeshHandle = FrameworkHandle<struct MeshHandleTag>;

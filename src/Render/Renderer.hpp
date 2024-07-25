@@ -63,6 +63,7 @@ namespace BB
 		Slice<const ShaderEffectHandle> shader_effects;
 	};
 
+	constexpr IMAGE_FORMAT RENDER_TARGET_IMAGE_FORMAT = IMAGE_FORMAT::RGBA8_SRGB; // due to screenshots this is now RGBA8_SGRB, should be RGBA16_SFLOAT
 	struct CreateTextureInfo
 	{
 		const char* name;
@@ -128,11 +129,9 @@ namespace BB
 	void StartFrame(const RCommandList a_list, const StartFrameInfo& a_info);
 	void EndFrame(const RCommandList a_list, const ShaderEffectHandle a_imgui_vertex, const ShaderEffectHandle a_imgui_fragment, bool a_skip = false);
 
-	RenderTarget CreateRenderTarget(MemoryArena& a_arena, const uint2 a_render_target_extent, const char* a_name = "default");
 	void ResizeRenderTarget(const RenderTarget render_target, const uint2 a_render_target_extent);
 	void StartRenderTarget(const RCommandList a_list, const RenderTarget a_render_target);
 	void EndRenderTarget(const RCommandList a_list, const RenderTarget a_render_target);
-	RTexture GetCurrentRenderTargetTexture(const RenderTarget a_render_target);
 
 	void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info);
 	void EndRenderPass(const RCommandList a_list);
@@ -204,6 +203,7 @@ namespace BB
 	void BlitTexture(const RCommandList a_list, const BlitTextureInfo& a_blit_info);
 	void CopyTexture(const RCommandList a_list, const CopyTextureInfo& a_copy_info);
 	GPUFenceValue WriteTexture(const RTexture a_texture, const WriteTextureInfo& a_write_info);
+	const RImageView GetImageView(const RTexture a_texture, const uint32_t a_view_index);
 	void FreeTexture(const RTexture a_texture);
 	GPUFenceValue ReadTexture(const RTexture a_texture, const uint2 a_extent, const int2 a_offset, const GPUBuffer a_readback_buffer, const size_t a_readback_buffer_size);
 

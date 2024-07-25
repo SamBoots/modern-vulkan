@@ -73,8 +73,6 @@ constexpr uint32_t MAX_TEXTURE_UPLOAD_QUEUE = 256;
 constexpr uint32_t MAX_TEXTURES = 1024;
 constexpr const char* DEBUG_TEXTURE_NAME = "debug texture";
 
-constexpr IMAGE_FORMAT RENDER_TARGET_IMAGE_FORMAT = IMAGE_FORMAT::RGBA8_SRGB; // due to screenshots this is now RGBA8_SGRB, should be RGBA16_SFLOAT
-
 constexpr IMAGE_FORMAT SCREENSHOT_IMAGE_FORMAT = IMAGE_FORMAT::RGBA8_SRGB; // check the variable below here before you change shit k thnx
 constexpr size_t SCREENSHOT_IMAGE_PIXEL_BYTE_SIZE = 4;	// check the variable above here before you change shit k thnx
 
@@ -1703,27 +1701,6 @@ struct RenderTargetStruct
 	RTexture GetTargetTexture() const { return render_targets[s_render_inst->render_io.frame_index]; }
 };
 
-RenderTarget BB::CreateRenderTarget(MemoryArena& a_arena, const uint2 a_render_target_extent, const char* a_name)
-{
-	RenderTargetStruct* viewport = ArenaAllocType(a_arena, RenderTargetStruct);
-
-	CreateTextureInfo texture_info;
-	texture_info.width = a_render_target_extent.x;
-	texture_info.height = a_render_target_extent.y;
-	texture_info.name = a_name;
-	texture_info.format = RENDER_TARGET_IMAGE_FORMAT;
-	texture_info.usage = IMAGE_USAGE::RENDER_TARGET;
-	texture_info.array_layers = 1;
-
-	for (uint32_t i = 0; i < s_render_inst->render_io.frame_count; i++)
-	{
-		viewport->render_targets[i] = CreateTexture(texture_info);
-	}
-	viewport->extent = a_render_target_extent;
-	viewport->name = a_name;
-	return RenderTarget(reinterpret_cast<uintptr_t>(viewport));
-}
-
 void BB::ResizeRenderTarget(const RenderTarget render_target, const uint2 a_render_target_extent)
 {
 	RenderTargetStruct* viewport = reinterpret_cast<RenderTargetStruct*>(render_target.handle);
@@ -1801,11 +1778,6 @@ void BB::EndRenderTarget(const RCommandList a_list, const RenderTarget a_render_
 
 		slot.texture_info.current_layout = render_target_transition.new_layout;
 	}
-}
-
-RTexture BB::GetCurrentRenderTargetTexture(const RenderTarget a_render_target)
-{
-	return reinterpret_cast<RenderTargetStruct*>(a_render_target.handle)->GetTargetTexture();
 }
 
 void BB::StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info)
@@ -2460,6 +2432,11 @@ GPUFenceValue BB::WriteTexture(const RTexture a_texture, const WriteTextureInfo&
 	uploader.upload_textures.EnQueue(upload_texture);
 
 	return GPUFenceValue(uploader.next_fence_value.load());
+}
+
+const RImageView BB::GetImageView(const RTexture a_texture, const uint32_t a_view_index)
+{
+	return s_render_inst->texture_manager.GetTextureSlot(a_texture).texture_info.view;
 }
 
 void BB::FreeTexture(const RTexture a_texture)
