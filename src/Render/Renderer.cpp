@@ -1724,11 +1724,9 @@ void BB::ResizeRenderTarget(const RenderTarget render_target, const uint2 a_rend
 	viewport->extent = a_render_target_extent;
 }
 
-void BB::StartRenderTarget(const RCommandList a_list, const RenderTarget a_render_target)
+void BB::StartRenderTarget(const RCommandList a_list, const RTexture a_texture, const uint32_t a_base_array_layer)
 {
-	const RTexture render_target = reinterpret_cast<RenderTargetStruct*>(a_render_target.handle)->GetTargetTexture();
-
-	GPUTextureManager::TextureSlot& slot = s_render_inst->texture_manager.GetTextureSlot(render_target);
+	GPUTextureManager::TextureSlot& slot = s_render_inst->texture_manager.GetTextureSlot(a_texture);
 	{
 		PipelineBarrierImageInfo render_target_transition;
 		render_target_transition.src_mask = BARRIER_ACCESS_MASK::NONE;
@@ -1752,11 +1750,9 @@ void BB::StartRenderTarget(const RCommandList a_list, const RenderTarget a_rende
 	}
 }
 
-void BB::EndRenderTarget(const RCommandList a_list, const RenderTarget a_render_target)
+void BB::EndRenderTarget(const RCommandList a_list, const RTexture a_texture, const uint32_t a_base_array_layer)
 {
-	const RTexture render_target = reinterpret_cast<RenderTargetStruct*>(a_render_target.handle)->GetTargetTexture();
-
-	GPUTextureManager::TextureSlot& slot = s_render_inst->texture_manager.GetTextureSlot(render_target);
+	GPUTextureManager::TextureSlot& slot = s_render_inst->texture_manager.GetTextureSlot(a_texture);
 	{
 		PipelineBarrierImageInfo render_target_transition;
 		render_target_transition.src_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
@@ -1766,7 +1762,7 @@ void BB::EndRenderTarget(const RCommandList a_list, const RenderTarget a_render_
 		render_target_transition.new_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
 		render_target_transition.layer_count = 1;
 		render_target_transition.level_count = 1;
-		render_target_transition.base_array_layer = 0;
+		render_target_transition.base_array_layer = a_base_array_layer;
 		render_target_transition.base_mip_level = 0;
 		render_target_transition.src_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
 		render_target_transition.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
@@ -1874,12 +1870,6 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 {
 	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
 	const auto& scene_frame = render_scene3d.frames[s_render_inst->render_io.frame_index];
-
-	if (render_scene3d.draw_list_count == 0 || a_skip)
-	{
-		return;
-	}
-
 
 
 	if (render_scene3d.previous_draw_area != a_draw_area_size)

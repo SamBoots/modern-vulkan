@@ -551,6 +551,23 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RTextur
 		}
 	}
 
+	{	// actual rendering
+		if (m_previous_draw_area != a_draw_area_size)
+		{
+			if (m_depth_image.IsValid())
+			{
+				FreeTexture(m_depth_image);
+			}
+
+			CreateTextureInfo depth_info;
+			depth_info.name = "standard depth buffer";
+			depth_info.width = a_draw_area_size.x;
+			depth_info.height = a_draw_area_size.y;
+			depth_info.format = DEPTH_FORMAT::D24_UNORM_S8_UINT;
+			m_depth_image = CreateTexture(depth_info);
+			m_previous_draw_area = a_draw_area_size;
+		}
+	}
 }
 
 void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform)

@@ -117,8 +117,7 @@ namespace BB
 		DrawList m_draw_list;
 
 		uint2 m_previous_draw_area;
-		RImage depth_image;
-		RImageView depth_image_view;
+		RTexture m_depth_image;
 
 		uint32_t m_top_level_object_count;
 		SceneObjectHandle* m_top_level_objects;

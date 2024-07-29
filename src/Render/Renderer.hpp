@@ -130,8 +130,8 @@ namespace BB
 	void EndFrame(const RCommandList a_list, const ShaderEffectHandle a_imgui_vertex, const ShaderEffectHandle a_imgui_fragment, bool a_skip = false);
 
 	void ResizeRenderTarget(const RenderTarget render_target, const uint2 a_render_target_extent);
-	void StartRenderTarget(const RCommandList a_list, const RenderTarget a_render_target);
-	void EndRenderTarget(const RCommandList a_list, const RenderTarget a_render_target);
+	void StartRenderTarget(const RCommandList a_list, const RTexture a_texture, const uint32_t a_base_array_layer);
+	void EndRenderTarget(const RCommandList a_list, const RTexture a_texture, const uint32_t a_base_array_layer);
 
 	void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info);
 	void EndRenderPass(const RCommandList a_list);
@@ -206,6 +206,7 @@ namespace BB
 	const RImageView GetImageView(const RTexture a_texture, const uint32_t a_view_index);
 	void FreeTexture(const RTexture a_texture);
 	GPUFenceValue ReadTexture(const RTexture a_texture, const uint2 a_extent, const int2 a_offset, const GPUBuffer a_readback_buffer, const size_t a_readback_buffer_size);
+
 
 	GPUFenceValue GetTransferFenceValue();
 
