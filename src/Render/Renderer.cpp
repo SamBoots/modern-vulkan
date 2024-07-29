@@ -1871,25 +1871,6 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
 	const auto& scene_frame = render_scene3d.frames[s_render_inst->render_io.frame_index];
 
-
-	if (render_scene3d.previous_draw_area != a_draw_area_size)
-	{
-		if (render_scene3d.depth_image.IsValid())
-		{
-			Vulkan::FreeViewImage(render_scene3d.depth_image_view);
-			Vulkan::FreeImage(render_scene3d.depth_image);
-		}
-
-		RenderDepthCreateInfo depth_create_info;
-		depth_create_info.name = "standard depth buffer";
-		depth_create_info.width = a_draw_area_size.x;
-		depth_create_info.height = a_draw_area_size.y;
-		depth_create_info.depth = 1;
-		depth_create_info.depth_format = DEPTH_FORMAT::D24_UNORM_S8_UINT;
-		Vulkan::CreateDepthBuffer(depth_create_info, render_scene3d.depth_image, render_scene3d.depth_image_view);
-		render_scene3d.previous_draw_area = a_draw_area_size;
-	}
-
 	//transition depth buffer
 	{
 		//pipeline barrier
