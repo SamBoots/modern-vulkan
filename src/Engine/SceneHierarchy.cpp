@@ -567,6 +567,56 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RTextur
 			m_depth_image = CreateTexture(depth_info);
 			m_previous_draw_area = a_draw_area_size;
 		}
+
+
+		// transitions here..
+
+
+		// end transitions...
+
+		RenderingAttachmentColor color_attach{};
+		color_attach.load_color = true;
+		color_attach.store_color = true;
+		color_attach.image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+		color_attach.image_view = GetImageView(a_render_target, 0);
+
+		RenderingAttachmentDepth depth_attach{};
+		depth_attach.load_depth = false;
+		depth_attach.store_depth = true;
+		depth_attach.image_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
+		depth_attach.image_view = GetImageView(m_depth_image, 0);
+
+		StartRenderingInfo rendering_info;
+		rendering_info.color_attachments = Slice(&color_attach, 1);
+		rendering_info.depth_attachment = &depth_attach;
+		rendering_info.render_area_extent = a_draw_area_size;
+		rendering_info.render_area_offset = a_draw_area_offset;
+
+		StartRenderPass(a_list, rendering_info);
+
+		for (size_t i = 0; i < m_draw_list.size; i++)
+		{
+			const MeshDrawCall& mesh_draw_call = m_draw_list.mesh_draw_call[i];
+			const Material& material = s_render_inst->material_map[mesh_draw_call.material];
+			const Mesh& mesh = s_render_inst->mesh_map.find(mesh_draw_call.mesh);
+
+			ShaderIndices shader_indices;
+			shader_indices.transform_index = i;
+			shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh.vertex_buffer.offset);
+			shader_indices.albedo_texture = mesh_draw_call.base_texture.handle;
+			shader_indices.normal_texture = mesh_draw_call.normal_texture.handle;
+
+			DrawIndexed(a_list,
+				mesh_draw_call.index_count,
+				1,
+				static_cast<uint32_t>(mesh.index_buffer.offset / sizeof(uint32_t)) + mesh_draw_call.index_start,
+				0,
+				0);
+		}
+
+		
+		SetFrontFace(a_list, false);
+		SetCullMode(a_list, CULL_MODE::NONE);
 	}
 }
 

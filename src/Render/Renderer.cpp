@@ -1898,37 +1898,9 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(render_target_texture);
 	// render
 
-	RenderingAttachmentColor color_attach{};
-	color_attach.load_color = true;
-	color_attach.store_color = true;
-	color_attach.image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-	color_attach.image_view = render_target.texture_info.view;
-
-	RenderingAttachmentDepth depth_attach{};
-	depth_attach.load_depth = false;
-	depth_attach.store_depth = true;
-	depth_attach.image_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
-	depth_attach.image_view = render_scene3d.depth_image_view;
-
-	StartRenderingInfo start_rendering_info{};
-	start_rendering_info.render_area_extent = a_draw_area_size;
-	start_rendering_info.render_area_offset = a_draw_area_offset;
-	start_rendering_info.color_attachments = Slice(&color_attach, 1);
-	start_rendering_info.depth_attachment = &depth_attach;
-	Vulkan::StartRenderPass(a_cmd_list, start_rendering_info);
-
-	{
-		//set the first data to get the first 3 descriptor sets.
-		const MeshDrawCall& mesh_draw_call = render_scene3d.draw_list_data.mesh_draw_call[0];
-		const Material& material = s_render_inst->material_map[mesh_draw_call.material];
-
-		//set 0, do this at start
-		Vulkan::SetDescriptorImmutableSamplers(a_cmd_list, material.shader.pipeline_layout);
-	}
-
 	Vulkan::BindIndexBuffer(a_cmd_list, s_render_inst->index_buffer.buffer, 0);
-	Vulkan::SetFrontFace(a_cmd_list, false);
-	Vulkan::SetCullMode(a_cmd_list, CULL_MODE::NONE);
+	//Vulkan::SetFrontFace(a_cmd_list, false);
+	//Vulkan::SetCullMode(a_cmd_list, CULL_MODE::NONE);
 	for (uint32_t i = 0; i < render_scene3d.draw_list_count; i++)
 	{
 		const MeshDrawCall& mesh_draw_call = render_scene3d.draw_list_data.mesh_draw_call[i];
