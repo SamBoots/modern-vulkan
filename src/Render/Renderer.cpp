@@ -430,19 +430,6 @@ struct ShaderEffect
 #endif // _ENABLE_REBUILD_SHADERS
 };
 
-struct Material
-{
-	struct Shader
-	{
-		RPipelineLayout pipeline_layout;
-		
-		ShaderEffectHandle shader_effects[UNIQUE_SHADER_STAGE_COUNT];
-		uint32_t shader_effect_count;
-	} shader;
-
-	const char* name;
-};
-
 constexpr uint32_t BACK_BUFFER_MAX = 3;
 
 struct UploadDataMesh
@@ -552,7 +539,6 @@ struct RenderInterface_inst
 
 	StaticSlotmap<Mesh, MeshHandle> mesh_map{};
 	StaticSlotmap<ShaderEffect, ShaderEffectHandle> shader_effects{};
-	StaticSlotmap<Material, MaterialHandle> material_map{};
 };
 
 static RenderInterface_inst* s_render_inst;
@@ -1148,7 +1134,6 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 
 	s_render_inst->mesh_map.Init(a_arena, 256);
 	s_render_inst->shader_effects.Init(a_arena, 64);
-	s_render_inst->material_map.Init(a_arena, 256);
 
 	s_render_inst->frame_upload_allocator.Init(a_arena, a_render_create_info.frame_upload_buffer_size, s_render_inst->graphics_queue.GetFence().fence, "frame upload allocator");
 
@@ -2165,45 +2150,6 @@ bool BB::ReloadShaderEffect(const ShaderEffectHandle a_shader_effect, const Buff
 	return true;
 }
 
-const MaterialHandle BB::CreateMaterial(const CreateMaterialInfo& a_create_info)
-{
-	BB_ASSERT(UNIQUE_SHADER_STAGE_COUNT >= a_create_info.shader_effects.size(), "too many shader stages!");
-	BB_ASSERT(UNIQUE_SHADER_STAGE_COUNT != 0, "no shader effects in material!");
-
-	Material mat;
-	// get the first pipeline layout, compare it with all of the ones in the other shaders.
-	const RPipelineLayout chosen_layout = s_render_inst->shader_effects[a_create_info.shader_effects[0]].pipeline_layout;
-	
-	SHADER_STAGE_FLAGS valid_next_stages = static_cast<uint32_t>(SHADER_STAGE::ALL);
-	for (size_t i = 0; i < a_create_info.shader_effects.size(); i++)
-	{
-		//maybe check if we have duplicate shader stages;
-		const ShaderEffect& effect = s_render_inst->shader_effects[a_create_info.shader_effects[i]];
-		BB_ASSERT(chosen_layout == effect.pipeline_layout, "pipeline layouts are not the same for the shader effects");
-		
-		if (i < a_create_info.shader_effects.size())
-		{
-			BB_ASSERT((valid_next_stages & static_cast<SHADER_STAGE_FLAGS>(effect.shader_stage)) == static_cast<SHADER_STAGE_FLAGS>(effect.shader_stage), 
-				"shader stage is not valid for the next shader stage of the previous shader object");
-			valid_next_stages = effect.shader_stages_next;
-		}
-
-		mat.shader.shader_effects[i] = a_create_info.shader_effects[i];
-	}
-	mat.name = a_create_info.name;
-	mat.shader.shader_effect_count = static_cast<uint32_t>(a_create_info.shader_effects.size());
-	mat.shader.pipeline_layout = chosen_layout;
-
-	
-	return s_render_inst->material_map.emplace(mat);
-}
-
-void BB::FreeMaterial(const MaterialHandle a_material)
-{
-	// maybe go and check the refcount of the textures to possibly free them.
-	s_render_inst->material_map.erase(a_material);
-}
-
 const RTexture BB::CreateTexture(const CreateTextureInfo& a_create_info)
 {
 	TextureInfo tex_info;
@@ -2508,20 +2454,6 @@ void BB::SetDescriptorBufferOffset(const RCommandList a_list, const RPipelineLay
 const BB::DescriptorAllocation& GetGlobalDescriptorAllocation()
 {
 	return s_render_inst->global_descriptor_allocation;
-}
-
-bool BB::SetDefaultMaterial(const MaterialHandle a_material)
-{
-	if (!a_material.IsValid())
-		return false;
-
-	s_render_inst->standard_3d_material = a_material;
-	return true;
-}
-
-MaterialHandle BB::GetStandardMaterial()
-{
-	return s_render_inst->standard_3d_material;
 }
 
 RTexture BB::GetWhiteTexture()

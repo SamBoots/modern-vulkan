@@ -44,7 +44,6 @@ namespace BB
 	using ShaderCode = FrameworkHandle<struct ShdaerCodeTag>;
 	using MeshHandle = FrameworkHandle<struct MeshHandleTag>;
 	using ShaderEffectHandle = FrameworkHandle<struct ShaderEffectHandleTag>;
-	using MaterialHandle = FrameworkHandle<struct MaterialHandleTag>;
 
 	constexpr uint32_t UNIQUE_SHADER_STAGE_COUNT = 2;
 	using SHADER_STAGE_FLAGS = uint32_t;

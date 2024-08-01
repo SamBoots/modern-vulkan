@@ -594,11 +594,16 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RTextur
 
 		StartRenderPass(a_list, rendering_info);
 
+		SetFrontFace(a_list, false);
+		SetCullMode(a_list, CULL_MODE::NONE);
+
 		for (size_t i = 0; i < m_draw_list.size; i++)
 		{
 			const MeshDrawCall& mesh_draw_call = m_draw_list.mesh_draw_call[i];
-			const Material& material = s_render_inst->material_map[mesh_draw_call.material];
 			const Mesh& mesh = s_render_inst->mesh_map.find(mesh_draw_call.mesh);
+
+
+			// BIND SHADERS HERE
 
 			ShaderIndices shader_indices;
 			shader_indices.transform_index = i;
@@ -613,10 +618,6 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RTextur
 				0,
 				0);
 		}
-
-		
-		SetFrontFace(a_list, false);
-		SetCullMode(a_list, CULL_MODE::NONE);
 	}
 }
 

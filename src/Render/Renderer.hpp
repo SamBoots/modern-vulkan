@@ -57,12 +57,6 @@ namespace BB
 		bool set_shader_visible;
 	};
 
-	struct CreateMaterialInfo
-	{
-		const char* name;
-		Slice<const ShaderEffectHandle> shader_effects;
-	};
-
 	constexpr IMAGE_FORMAT RENDER_TARGET_IMAGE_FORMAT = IMAGE_FORMAT::RGBA8_SRGB; // due to screenshots this is now RGBA8_SGRB, should be RGBA16_SFLOAT
 	struct CreateTextureInfo
 	{
@@ -145,9 +139,6 @@ namespace BB
 	void DrawCubemap(const RCommandList a_list, const uint32_t a_instance_count, const uint32_t a_first_instance);
 	void DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance);
 
-	void RenderScenePerDraw(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const Slice<const ShaderEffectHandle> a_shader_effects);
-	void EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, bool a_skip = false);
-
 	CommandPool& GetGraphicsCommandPool();
 	CommandPool& GetTransferCommandPool();
 
@@ -169,9 +160,6 @@ namespace BB
 
 	bool CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles);
 	bool ReloadShaderEffect(const ShaderEffectHandle a_shader_effect, const Buffer& a_shader);
-
-	const MaterialHandle CreateMaterial(const CreateMaterialInfo& a_create_info);
-	void FreeMaterial(const MaterialHandle a_material);
 
 	struct BlitTextureInfo
 	{
@@ -229,8 +217,6 @@ namespace BB
 	void SetDescriptorBufferOffset(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_first_set, const uint32_t a_set_count, const uint32_t* a_buffer_indices, const size_t* a_offsets);
 	const DescriptorAllocation& GetGlobalDescriptorAllocation();
 
-	bool SetDefaultMaterial(const MaterialHandle a_material);
-	MaterialHandle GetStandardMaterial();
 	RTexture GetWhiteTexture();
 	RTexture GetBlackTexture();
 	RTexture GetDebugTexture();
