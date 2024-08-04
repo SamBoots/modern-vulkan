@@ -1799,9 +1799,11 @@ RPipelineLayout BB::BindShaders(const RCommandList a_list, const Slice<ShaderEff
 	}
 
 	Vulkan::BindShaders(a_list, static_cast<uint32_t>(a_shader_effects.size()), shader_stages, shader_objects);
-
 	// set the samplers
 	Vulkan::SetDescriptorImmutableSamplers(a_list, layout);
+
+	// set the global index buffer
+	Vulkan::BindIndexBuffer(a_list, s_render_inst->index_buffer.buffer, 0);
 
 	return layout;
 }
@@ -1883,7 +1885,6 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(render_target_texture);
 	// render
 
-	Vulkan::BindIndexBuffer(a_cmd_list, s_render_inst->index_buffer.buffer, 0);
 	//Vulkan::SetFrontFace(a_cmd_list, false);
 	//Vulkan::SetCullMode(a_cmd_list, CULL_MODE::NONE);
 	for (uint32_t i = 0; i < render_scene3d.draw_list_count; i++)
@@ -2444,6 +2445,11 @@ void WaitFences(const RFence* a_fences, const uint64_t* a_fence_values, const ui
 uint64_t GetCurrentFenceValue(const RFence a_fence)
 {
 	return Vulkan::GetCurrentFenceValue(a_fence);
+}
+
+void BB::SetPushConstants(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_offset, const uint32_t a_size, const void* a_data)
+{
+
 }
 
 void BB::SetDescriptorBufferOffset(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_first_set, const uint32_t a_set_count, const uint32_t* a_buffer_indices, const size_t* a_offsets)

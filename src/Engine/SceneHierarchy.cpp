@@ -600,17 +600,19 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RTextur
 		for (size_t i = 0; i < m_draw_list.size; i++)
 		{
 			const MeshDrawCall& mesh_draw_call = m_draw_list.mesh_draw_call[i];
-			const Mesh& mesh = s_render_inst->mesh_map.find(mesh_draw_call.mesh);
 
 
 			// BIND SHADERS HERE
+			RPipelineLayout pipe_layout;
+			// BIND MATERIAL
+
 
 			ShaderIndices shader_indices;
 			shader_indices.transform_index = i;
 			shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh.vertex_buffer.offset);
 			shader_indices.albedo_texture = mesh_draw_call.base_texture.handle;
 			shader_indices.normal_texture = mesh_draw_call.normal_texture.handle;
-
+			SetPushConstants(a_list, pipe_layout, 0, sizeof(shader_indices), &shader_indices);
 			DrawIndexed(a_list,
 				mesh_draw_call.index_count,
 				1,

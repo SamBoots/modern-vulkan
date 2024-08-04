@@ -7,6 +7,7 @@
 #include "Storage/BBString.h"
 #include "AssetLoader.hpp"
 #include "GPUBuffers.hpp"
+#include "MaterialSystem.hpp"
 
 namespace BB
 {
