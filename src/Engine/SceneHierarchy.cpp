@@ -2,7 +2,9 @@
 #include "Math.inl"
 #include "BBjson.hpp"
 #include "BBThreadScheduler.hpp"
+#include "MaterialSystem.hpp"
 
+#include "RendererTypes.hpp"
 #include "imgui.h"
 
 #include <vector>
@@ -266,14 +268,14 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 			prim_obj.transform = m_transform_pool.CreateTransform(float3(0, 0, 0));
 
 			prim_obj.parent = scene_handle;
-			scene_obj.childeren[scene_obj.child_count++] = m_scene_objects.emplace(prim_obj);
+			scene_obj.children[scene_obj.child_count++] = m_scene_objects.emplace(prim_obj);
 		}
 	}
 
 	for (uint32_t i = 0; i < a_node.child_count; i++)
 	{
 		BB_ASSERT(scene_obj.child_count < SCENE_OBJ_CHILD_MAX, "Too many childeren for a single gameobject!");
-		scene_obj.childeren[scene_obj.child_count++] = CreateSceneObjectViaModelNode(a_model, a_node.childeren[i], a_parent);
+		scene_obj.children[scene_obj.child_count++] = CreateSceneObjectViaModelNode(a_model, a_node.childeren[i], a_parent);
 	}
 
 	return scene_handle;
@@ -427,7 +429,7 @@ void SceneHierarchy::SetProjection(const float4x4& a_projection)
 	m_per_frame.scene_info.proj = a_projection;
 }
 
-void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset)
+void SceneHierarchy::DrawSceneHierarchy(const MaterialSystem& a_material_system, const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset)
 {
 	{	// RenderScenePerDraw(a_list, m_render_scene, a_render_target, a_draw_area_size, a_draw_area_offset, Slice(m_skybox_shaders, _countof(m_skybox_shaders)));
 
@@ -569,10 +571,23 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RTextur
 		}
 
 
-		// transitions here..
+		PipelineBarrierImageInfo image_transitions[1]{};
+		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::NONE;
+		image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE;
+		image_transitions[0].image = GetImage(m_depth_image);
+		image_transitions[0].old_layout = IMAGE_LAYOUT::UNDEFINED;
+		image_transitions[0].new_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
+		image_transitions[0].layer_count = 1;
+		image_transitions[0].level_count = 1;
+		image_transitions[0].base_array_layer = 0;
+		image_transitions[0].base_mip_level = 0;
+		image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
+		image_transitions[0].dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
 
-
-		// end transitions...
+		PipelineBarrierInfo pipeline_info{};
+		pipeline_info.image_info_count = _countof(image_transitions);
+		pipeline_info.image_infos = image_transitions;
+		PipelineBarriers(a_list, pipeline_info);
 
 		RenderingAttachmentColor color_attach{};
 		color_attach.load_color = true;
@@ -602,10 +617,9 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RTextur
 			const MeshDrawCall& mesh_draw_call = m_draw_list.mesh_draw_call[i];
 
 
-			// BIND SHADERS HERE
-			RPipelineLayout pipe_layout;
-			// BIND MATERIAL
-
+			const Material& cur_material = a_material_system.GetMaterial(mesh_draw_call.material);
+			ShaderEffectHandle shader_effects[2]{ cur_material.vertex_effect, cur_material.fragment_effect };
+			RPipelineLayout pipe_layout = BindShaders(a_list, Slice(shader_effects, _countof(shader_effects)));
 
 			ShaderIndices shader_indices;
 			shader_indices.transform_index = i;
@@ -620,6 +634,8 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RTextur
 				0,
 				0);
 		}
+
+		EndRenderPass(a_list);
 	}
 }
 
@@ -634,7 +650,7 @@ void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, con
 
 	for (size_t i = 0; i < scene_object.child_count; i++)
 	{
-		DrawSceneObject(scene_object.childeren[i], local_transform);
+		DrawSceneObject(scene_object.children[i], local_transform);
 	}
 }
 

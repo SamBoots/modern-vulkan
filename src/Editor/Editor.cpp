@@ -696,7 +696,7 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 
 		for (size_t i = 0; i < scene_object.child_count; i++)
 		{
-			ImGuiDisplaySceneObject(a_hierarchy, scene_object.childeren[i]);
+			ImGuiDisplaySceneObject(a_hierarchy, scene_object.children[i]);
 		}
 
 		ImguiCreateSceneObject(a_hierarchy, a_object);

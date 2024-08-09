@@ -1862,68 +1862,13 @@ void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle
 	{
 		//pipeline barrier
 		//0 = color image, 1 = depth image
-		PipelineBarrierImageInfo image_transitions[1]{};
 
-		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::NONE;
-		image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE;
-		image_transitions[0].image = render_scene3d.depth_image;
-		image_transitions[0].old_layout = IMAGE_LAYOUT::UNDEFINED;
-		image_transitions[0].new_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
-		image_transitions[0].layer_count = 1;
-		image_transitions[0].level_count = 1;
-		image_transitions[0].base_array_layer = 0;
-		image_transitions[0].base_mip_level = 0;
-		image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
-		image_transitions[0].dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
-
-		PipelineBarrierInfo pipeline_info{};
-		pipeline_info.image_info_count = _countof(image_transitions);
-		pipeline_info.image_infos = image_transitions;
-		Vulkan::PipelineBarriers(a_cmd_list, pipeline_info);
 	}
-	const RTexture render_target_texture = reinterpret_cast<RenderTargetStruct*>(a_render_target.handle)->GetTargetTexture();
-	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(render_target_texture);
-	// render
+}
 
-	//Vulkan::SetFrontFace(a_cmd_list, false);
-	//Vulkan::SetCullMode(a_cmd_list, CULL_MODE::NONE);
-	for (uint32_t i = 0; i < render_scene3d.draw_list_count; i++)
-	{
-		const MeshDrawCall& mesh_draw_call = render_scene3d.draw_list_data.mesh_draw_call[i];
-		const Material& material = s_render_inst->material_map[mesh_draw_call.material];
-		const Mesh& mesh = s_render_inst->mesh_map.find(mesh_draw_call.mesh);
+void BB::DrawMesh(const RCommandList a_list, const MeshHandle a_mesh, const uint32_t a_index_start, const uint32_t a_index_count)
+{
 
-		ShaderObject shader_objects[2];
-		SHADER_STAGE shader_stages[2];
-
-		for (size_t eff_index = 0; eff_index < 2; eff_index++)
-		{
-			const ShaderEffect& effect = s_render_inst->shader_effects[material.shader.shader_effects[eff_index]];
-			shader_objects[eff_index] = effect.shader_object;
-			shader_stages[eff_index] = effect.shader_stage;
-		}
-
-		Vulkan::BindShaders(a_cmd_list,
-			material.shader.shader_effect_count,
-			shader_stages,
-			shader_objects);
-
-		ShaderIndices shader_indices;
-		shader_indices.transform_index = i;
-		shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh.vertex_buffer.offset);
-		shader_indices.albedo_texture = mesh_draw_call.base_texture.handle;
-		shader_indices.normal_texture = mesh_draw_call.normal_texture.handle;
-
-		Vulkan::SetPushConstants(a_cmd_list, material.shader.pipeline_layout, 0, sizeof(ShaderIndices), &shader_indices);
-		Vulkan::DrawIndexed(a_cmd_list,
-			mesh_draw_call.index_count,
-			1,
-			static_cast<uint32_t>(mesh.index_buffer.offset / sizeof(uint32_t)) + mesh_draw_call.index_start,
-			0,
-			0);
-	}
-
-	Vulkan::EndRenderPass(a_cmd_list);
 }
 
 CommandPool& BB::GetGraphicsCommandPool()
@@ -2324,6 +2269,11 @@ GPUFenceValue BB::WriteTexture(const RTexture a_texture, const WriteTextureInfo&
 	return GPUFenceValue(uploader.next_fence_value.load());
 }
 
+const RImage BB::GetImage(const RTexture a_texture)
+{
+	return s_render_inst->texture_manager.GetTextureSlot(a_texture).texture_info.image;
+}
+
 const RImageView BB::GetImageView(const RTexture a_texture, const uint32_t a_view_index)
 {
 	return s_render_inst->texture_manager.GetTextureSlot(a_texture).texture_info.view;
@@ -2449,7 +2399,12 @@ uint64_t GetCurrentFenceValue(const RFence a_fence)
 
 void BB::SetPushConstants(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_offset, const uint32_t a_size, const void* a_data)
 {
+	Vulkan::SetPushConstants(a_list, a_pipe_layout, a_offset, a_size, a_data);
+}
 
+void BB::PipelineBarriers(const RCommandList a_list, const PipelineBarrierInfo& a_barrier_info)
+{
+	Vulkan::PipelineBarriers(a_list, a_barrier_info);
 }
 
 void BB::SetDescriptorBufferOffset(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_first_set, const uint32_t a_set_count, const uint32_t* a_buffer_indices, const size_t* a_offsets)

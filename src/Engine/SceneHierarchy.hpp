@@ -7,13 +7,13 @@
 #include "Storage/BBString.h"
 #include "AssetLoader.hpp"
 #include "GPUBuffers.hpp"
-#include "MaterialSystem.hpp"
 
 namespace BB
 {
 	using SceneObjectHandle = FrameworkHandle<struct SceneObjectHandleTag>;
 	constexpr SceneObjectHandle INVALID_SCENE_OBJ = SceneObjectHandle(BB_INVALID_HANDLE_64);
 	class JsonParser;
+	class MaterialSystem;
 
 	constexpr uint32_t DEFAULT_SCENE_OBJ_MAX = 512;
 	constexpr uint32_t SCENE_OBJ_CHILD_MAX = 256;
@@ -37,10 +37,10 @@ namespace BB
 		void AddChild(const SceneObjectHandle a_child)
 		{
 			BB_ASSERT(child_count < SCENE_OBJ_CHILD_MAX, "Too many childeren for a single scene object!");
-			childeren[child_count++] = a_child;
+			children[child_count++] = a_child;
 		}
 		size_t child_count;			// 72
-		SceneObjectHandle childeren[SCENE_OBJ_CHILD_MAX];
+		SceneObjectHandle children[SCENE_OBJ_CHILD_MAX];
 	};
 	
 	class SceneHierarchy
@@ -52,7 +52,7 @@ namespace BB
 		void InitViaJson(MemoryArena& a_memory_arena, const JsonParser& a_parsed_file, const uint32_t a_scene_obj_max = DEFAULT_SCENE_OBJ_MAX);
 		static StaticArray<Asset::AsyncAsset> PreloadAssetsFromJson(MemoryArena& a_arena, const JsonParser& a_parsed_file);
 
-		void DrawSceneHierarchy(const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
+		void DrawSceneHierarchy(const MaterialSystem& a_material_system, const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
 		SceneObjectHandle CreateSceneObject(const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
 		SceneObjectHandle CreateSceneObjectMesh(const float3 a_position, const MeshHandle a_mesh, const uint32_t a_start_index, const uint32_t a_index_count, const MaterialHandle a_material, const char* a_name, const SceneObjectHandle a_parent = SceneObjectHandle(BB_INVALID_HANDLE_64));
 		SceneObjectHandle CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);

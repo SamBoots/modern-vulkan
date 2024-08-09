@@ -123,10 +123,6 @@ namespace BB
 	void StartFrame(const RCommandList a_list, const StartFrameInfo& a_info);
 	void EndFrame(const RCommandList a_list, const ShaderEffectHandle a_imgui_vertex, const ShaderEffectHandle a_imgui_fragment, bool a_skip = false);
 
-	void ResizeRenderTarget(const RenderTarget render_target, const uint2 a_render_target_extent);
-	void StartRenderTarget(const RCommandList a_list, const RTexture a_texture, const uint32_t a_base_array_layer);
-	void EndRenderTarget(const RCommandList a_list, const RTexture a_texture, const uint32_t a_base_array_layer);
-
 	void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info);
 	void EndRenderPass(const RCommandList a_list);
 	RPipelineLayout BindShaders(const RCommandList a_list, const Slice<ShaderEffectHandle> a_shader_effects);
@@ -135,6 +131,7 @@ namespace BB
 	void SetClearColor(const RCommandList a_list, const float3 a_clear_color);
 	void SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor);
 
+	void DrawMesh(const RCommandList a_list, const MeshHandle a_mesh, const uint32_t a_index_start, const uint32_t a_index_count);
 	void DrawVertices(const RCommandList a_list, const uint32_t a_vertex_count, const uint32_t a_instance_count, const uint32_t a_first_vertex, const uint32_t a_first_instance);
 	void DrawCubemap(const RCommandList a_list, const uint32_t a_instance_count, const uint32_t a_first_instance);
 	void DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance);
@@ -190,11 +187,12 @@ namespace BB
 	const RTexture CreateTextureCubeMap(const CreateTextureInfo& a_create_info);
 	void BlitTexture(const RCommandList a_list, const BlitTextureInfo& a_blit_info);
 	void CopyTexture(const RCommandList a_list, const CopyTextureInfo& a_copy_info);
-	GPUFenceValue WriteTexture(const RTexture a_texture, const WriteTextureInfo& a_write_info);
+	const GPUFenceValue WriteTexture(const RTexture a_texture, const WriteTextureInfo& a_write_info);
+	// Hacky shit to get image/view. Change plz
+	const RImage GetImage(const RTexture a_texture);
 	const RImageView GetImageView(const RTexture a_texture, const uint32_t a_view_index);
 	void FreeTexture(const RTexture a_texture);
 	GPUFenceValue ReadTexture(const RTexture a_texture, const uint2 a_extent, const int2 a_offset, const GPUBuffer a_readback_buffer, const size_t a_readback_buffer_size);
-
 
 	GPUFenceValue GetTransferFenceValue();
 
@@ -215,6 +213,7 @@ namespace BB
 	uint64_t GetCurrentFenceValue(const RFence a_fence);
 
 	void SetPushConstants(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_offset, const uint32_t a_size, const void* a_data);
+	void PipelineBarriers(const RCommandList a_list, const struct PipelineBarrierInfo& a_barrier_info);
 	void SetDescriptorBufferOffset(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_first_set, const uint32_t a_set_count, const uint32_t* a_buffer_indices, const size_t* a_offsets);
 	const DescriptorAllocation& GetGlobalDescriptorAllocation();
 
