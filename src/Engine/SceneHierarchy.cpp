@@ -241,10 +241,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 	const SceneObjectHandle scene_handle = m_scene_objects.emplace(SceneObject());
 	SceneObject& scene_obj = m_scene_objects.find(scene_handle);
 	scene_obj.name = a_node.name;
-	scene_obj.mesh_handle = MeshHandle(BB_INVALID_HANDLE_64);
-	scene_obj.start_index = 0;
-	scene_obj.index_count = 0;
-	scene_obj.material = MaterialHandle(BB_INVALID_HANDLE_64);
+	scene_obj.mesh_info = {};
 	scene_obj.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 	scene_obj.transform = m_transform_pool.CreateTransform(a_node.translation, a_node.rotation, a_node.scale);
 	scene_obj.parent = a_parent;
@@ -254,15 +251,17 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 		const Model::Mesh& mesh = *a_node.mesh;
 		for (uint32_t i = 0; i < mesh.primitives.size(); i++)
 		{
-			BB_ASSERT(scene_obj.child_count <= SCENE_OBJ_CHILD_MAX, "Too many childeren for a single scene object!");
+			BB_ASSERT(scene_obj.child_count <= SCENE_OBJ_CHILD_MAX, "Too many children for a single scene object!");
 			SceneObject prim_obj{};
 			prim_obj.name = mesh.primitives[i].name;
-			prim_obj.mesh_handle = mesh.mesh_handle;
-			prim_obj.start_index = mesh.primitives[i].start_index;
-			prim_obj.index_count = mesh.primitives[i].index_count;
-			prim_obj.albedo_texture = mesh.primitives[i].material_data.base_texture;
-			prim_obj.normal_texture = mesh.primitives[i].material_data.normal_texture;
-			prim_obj.material = GetStandardMaterial();
+
+			scene_obj.mesh_info.mesh = mesh.mesh;
+			scene_obj.mesh_info.index_start = mesh.primitives[i].start_index;
+			scene_obj.mesh_info.index_count = mesh.primitives[i].index_count;
+			scene_obj.mesh_info.base_texture = mesh.primitives[i].material_data.base_texture;
+			scene_obj.mesh_info.normal_texture = mesh.primitives[i].material_data.normal_texture;
+			scene_obj.mesh_info.vertex_shader = mesh.primitives[i].vertex_shader;
+			scene_obj.mesh_info.fragment_shader = mesh.primitives[i].fragment_shader;
 
 			scene_obj.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 			prim_obj.transform = m_transform_pool.CreateTransform(float3(0, 0, 0));
@@ -299,10 +298,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObject(const float3 a_position, con
 	}
 
 	scene_object.name = a_name;
-	scene_object.mesh_handle = MeshHandle(BB_INVALID_HANDLE_64);
-	scene_object.start_index = 0;
-	scene_object.index_count = 0;
-	scene_object.material = MaterialHandle(BB_INVALID_HANDLE_64);
+	scene_object.mesh_info = {};
 	scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 	scene_object.transform = m_transform_pool.CreateTransform(a_position);
 	scene_object.child_count = 0;
@@ -310,7 +306,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObject(const float3 a_position, con
 	return scene_object_handle;
 }
 
-SceneObjectHandle SceneHierarchy::CreateSceneObjectMesh(const float3 a_position, const MeshHandle a_mesh, const uint32_t a_start_index, const uint32_t a_index_count, const MaterialHandle a_material, const char* a_name, const SceneObjectHandle a_parent)
+SceneObjectHandle SceneHierarchy::CreateSceneObjectMesh(const float3 a_position, const MeshDrawInfo& a_mesh_info, const char* a_name, const SceneObjectHandle a_parent)
 {
 	SceneObjectHandle scene_object_handle = m_scene_objects.emplace(SceneObject());
 	SceneObject& scene_object = m_scene_objects.find(scene_object_handle);
@@ -328,10 +324,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectMesh(const float3 a_position,
 	}
 
 	scene_object.name = a_name;
-	scene_object.mesh_handle = a_mesh;
-	scene_object.start_index = a_start_index;
-	scene_object.index_count = a_index_count;
-	scene_object.material = a_material;
+	scene_object.mesh_info = a_mesh_info;
 	scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 	scene_object.transform = m_transform_pool.CreateTransform(a_position);
 	scene_object.child_count = 0;
@@ -357,10 +350,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModel(const Model& a_model
 	}
 
 	scene_object.name = a_name;
-	scene_object.mesh_handle = MeshHandle(BB_INVALID_HANDLE_64);
-	scene_object.start_index = 0;
-	scene_object.index_count = 0;
-	scene_object.material = MaterialHandle(BB_INVALID_HANDLE_64);
+	scene_object.mesh_info = {};
 	scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 	scene_object.transform = m_transform_pool.CreateTransform(a_position);
 	scene_object.child_count = 0;
@@ -391,10 +381,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectAsLight(const CreateLightInfo
 	}
 
 	scene_object.name = a_name;
-	scene_object.mesh_handle = MeshHandle(BB_INVALID_HANDLE_64);
-	scene_object.start_index = 0;
-	scene_object.index_count = 0;
-	scene_object.material = MaterialHandle(BB_INVALID_HANDLE_64);
+	scene_object.mesh_info = {};
 	
 	scene_object.transform = m_transform_pool.CreateTransform(a_light_create_info.pos);
 	scene_object.child_count = 0;
@@ -565,7 +552,7 @@ void SceneHierarchy::DrawSceneHierarchy(const MaterialSystem& a_material_system,
 			depth_info.name = "standard depth buffer";
 			depth_info.width = a_draw_area_size.x;
 			depth_info.height = a_draw_area_size.y;
-			depth_info.format = DEPTH_FORMAT::D24_UNORM_S8_UINT;
+			depth_info.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
 			m_depth_image = CreateTexture(depth_info);
 			m_previous_draw_area = a_draw_area_size;
 		}
@@ -614,23 +601,21 @@ void SceneHierarchy::DrawSceneHierarchy(const MaterialSystem& a_material_system,
 
 		for (size_t i = 0; i < m_draw_list.size; i++)
 		{
-			const MeshDrawCall& mesh_draw_call = m_draw_list.mesh_draw_call[i];
+			const MeshDrawInfo& mesh_draw_call = m_draw_list.mesh_draw_call[i];
 
-
-			const Material& cur_material = a_material_system.GetMaterial(mesh_draw_call.material);
-			ShaderEffectHandle shader_effects[2]{ cur_material.vertex_effect, cur_material.fragment_effect };
+			ShaderEffectHandle shader_effects[2]{ mesh_draw_call.vertex_shader, mesh_draw_call.fragment_shader };
 			RPipelineLayout pipe_layout = BindShaders(a_list, Slice(shader_effects, _countof(shader_effects)));
 
 			ShaderIndices shader_indices;
 			shader_indices.transform_index = i;
-			shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh.vertex_buffer.offset);
+			shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_buffer_offset);
 			shader_indices.albedo_texture = mesh_draw_call.base_texture.handle;
 			shader_indices.normal_texture = mesh_draw_call.normal_texture.handle;
 			SetPushConstants(a_list, pipe_layout, 0, sizeof(shader_indices), &shader_indices);
 			DrawIndexed(a_list,
 				mesh_draw_call.index_count,
 				1,
-				static_cast<uint32_t>(mesh.index_buffer.offset / sizeof(uint32_t)) + mesh_draw_call.index_start,
+				static_cast<uint32_t>(mesh_draw_call.mesh.index_buffer_offset / sizeof(uint32_t)) + mesh_draw_call.index_start,
 				0,
 				0);
 		}
@@ -645,7 +630,8 @@ void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, con
 
 	const float4x4 local_transform = a_transform * m_transform_pool.GetTransformMatrix(scene_object.transform);
 
-	if (scene_object.mesh_handle.IsValid())
+	// mesh_info should be a pointer in the drawlist. Preferably. 
+	if (scene_object.mesh_info.vertex_shader.IsValid())
 		AddToDrawList(scene_object, local_transform);
 
 	for (size_t i = 0; i < scene_object.child_count; i++)
@@ -654,15 +640,10 @@ void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, con
 	}
 }
 
-void SceneHierarchy::AddToDrawList(const SceneObject& scene_object, const float4x4& a_transform)
+void SceneHierarchy::AddToDrawList(const SceneObject& a_scene_object, const float4x4& a_transform)
 {
 	BB_ASSERT(m_draw_list.size + 1 >= m_draw_list.max_size, "too many drawn elements!");
-	m_draw_list.mesh_draw_call[m_draw_list.size].mesh = scene_object.mesh_handle;
-	m_draw_list.mesh_draw_call[m_draw_list.size].material = scene_object.material;
-	m_draw_list.mesh_draw_call[m_draw_list.size].index_start = scene_object.start_index;
-	m_draw_list.mesh_draw_call[m_draw_list.size].index_count = scene_object.index_count;
-	m_draw_list.mesh_draw_call[m_draw_list.size].base_texture = scene_object.albedo_texture;
-	m_draw_list.mesh_draw_call[m_draw_list.size].normal_texture = scene_object.normal_texture;
+	m_draw_list.mesh_draw_call[m_draw_list.size] = a_scene_object.mesh_info;
 	m_draw_list.transform[m_draw_list.size].transform = a_transform;
 	m_draw_list.transform[m_draw_list.size++].inverse = Float4x4Inverse(a_transform);
 }

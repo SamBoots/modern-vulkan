@@ -32,19 +32,20 @@ namespace BB
 		struct Primitive
 		{
 			//change this with material.
-			uint32_t start_index;		// 4
-			uint32_t index_count;		// 8
+			uint32_t start_index;				// 4
+			uint32_t index_count;				// 8
 					
-			MaterialHandle material;	// 16
-			MaterialData material_data;	// 24
+			ShaderEffectHandle vertex_shader;	// 16
+			ShaderEffectHandle fragment_shader;	// 24
+			MaterialData material_data;			// 32
 
-			const char* name;			// 32
+			const char* name;					// 40
 		};
 
 		struct Mesh
 		{
-			MeshHandle mesh_handle;				// 8
-			StaticArray<Primitive> primitives;	// 24
+			::Mesh mesh;				// 16
+			StaticArray<Primitive> primitives;	// 32
 		};
 
 		struct Node

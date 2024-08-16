@@ -31,15 +31,6 @@ namespace BB
 		ENUM_SIZE
 	};
 
-	enum class DEPTH_FORMAT : uint32_t
-	{
-		D32_SFLOAT,
-		D32_SFLOAT_S8_UINT,
-		D24_UNORM_S8_UINT,
-
-		ENUM_SIZE
-	};
-
 	enum class IMAGE_TILING : uint32_t
 	{
 		LINEAR,

@@ -18,28 +18,33 @@ namespace BB
 	constexpr uint32_t DEFAULT_SCENE_OBJ_MAX = 512;
 	constexpr uint32_t SCENE_OBJ_CHILD_MAX = 256;
 
+	struct MeshDrawInfo
+	{
+		Mesh mesh;
+		ShaderEffectHandle vertex_shader;
+		ShaderEffectHandle fragment_shader;
+		uint32_t index_start;
+		uint32_t index_count;
+		RTexture base_texture;
+		RTexture normal_texture;
+	};
+
 	struct SceneObject
 	{
-		const char* name;			// 8
-		MeshHandle mesh_handle;		// 16
-		uint32_t start_index;		// 20
-		uint32_t index_count;		// 24
+		const char* name;
+		MeshDrawInfo mesh_info;
 
-		RTexture albedo_texture;	// 28
-		RTexture normal_texture;	// 32
-		MaterialHandle material;	// 40
+		LightHandle light_handle;
 
-		LightHandle light_handle;	// 48
+		TransformHandle transform;
 
-		TransformHandle transform;	// 56
-
-		SceneObjectHandle parent;	// 64
+		SceneObjectHandle parent;
 		void AddChild(const SceneObjectHandle a_child)
 		{
-			BB_ASSERT(child_count < SCENE_OBJ_CHILD_MAX, "Too many childeren for a single scene object!");
+			BB_ASSERT(child_count < SCENE_OBJ_CHILD_MAX, "Too many children for a single scene object!");
 			children[child_count++] = a_child;
 		}
-		size_t child_count;			// 72
+		size_t child_count;
 		SceneObjectHandle children[SCENE_OBJ_CHILD_MAX];
 	};
 	
@@ -54,7 +59,7 @@ namespace BB
 
 		void DrawSceneHierarchy(const MaterialSystem& a_material_system, const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
 		SceneObjectHandle CreateSceneObject(const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
-		SceneObjectHandle CreateSceneObjectMesh(const float3 a_position, const MeshHandle a_mesh, const uint32_t a_start_index, const uint32_t a_index_count, const MaterialHandle a_material, const char* a_name, const SceneObjectHandle a_parent = SceneObjectHandle(BB_INVALID_HANDLE_64));
+		SceneObjectHandle CreateSceneObjectMesh(const float3 a_position, const MeshDrawInfo& a_mesh_info, const char* a_name, const SceneObjectHandle a_parent = SceneObjectHandle(BB_INVALID_HANDLE_64));
 		SceneObjectHandle CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
 		SceneObjectHandle CreateSceneObjectAsLight(const CreateLightInfo& a_light_create_info, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
 
@@ -77,18 +82,9 @@ namespace BB
 		SceneObjectHandle CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent);
 		void DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform);
 
-		struct MeshDrawCall
-		{
-			MeshHandle mesh;
-			MaterialHandle material;
-			uint32_t index_start;
-			uint32_t index_count;
-			RTexture base_texture;
-			RTexture normal_texture;
-		};
 		struct DrawList
 		{
-			MeshDrawCall* mesh_draw_call;
+			MeshDrawInfo* mesh_draw_call;
 			ShaderTransform* transform;
 			size_t size;
 			size_t max_size;

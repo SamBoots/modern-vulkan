@@ -410,12 +410,6 @@ public:
 	uint64_t GetLastCompletedValue() const { return m_fence.last_complete_value; }
 };
 
-struct Mesh
-{
-	GPUBufferView vertex_buffer;
-	GPUBufferView index_buffer;
-};
-
 struct ShaderEffect
 {
 	const char* name;				//8
@@ -434,7 +428,6 @@ constexpr uint32_t BACK_BUFFER_MAX = 3;
 
 struct UploadDataMesh
 {
-	MeshHandle mesh_index;
 	RenderCopyBufferRegion vertex_region;
 	RenderCopyBufferRegion index_region;
 };
@@ -537,7 +530,6 @@ struct RenderInterface_inst
 		void* start_mapped;
 	} cpu_index_buffer;
 
-	StaticSlotmap<Mesh, MeshHandle> mesh_map{};
 	StaticSlotmap<ShaderEffect, ShaderEffectHandle> shader_effects{};
 };
 
@@ -1132,7 +1124,6 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	s_render_inst->render_io.screen_height = a_render_create_info.swapchain_height;
 	s_render_inst->debug = a_render_create_info.debug;
 
-	s_render_inst->mesh_map.Init(a_arena, 256);
 	s_render_inst->shader_effects.Init(a_arena, 64);
 
 	s_render_inst->frame_upload_allocator.Init(a_arena, a_render_create_info.frame_upload_buffer_size, s_render_inst->graphics_queue.GetFence().fence, "frame upload allocator");
@@ -1843,32 +1834,15 @@ void BB::DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, co
 	Vulkan::DrawIndexed(a_list, a_index_count, a_instance_count, a_first_index, a_vertex_offset, a_first_instance);
 }
 
-void BB::RenderScenePerDraw(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const Slice<const ShaderEffectHandle> a_shader_effects)
-{
-	const RTexture render_target_texture = reinterpret_cast<RenderTargetStruct*>(a_render_target.handle)->GetTargetTexture();
-	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(render_target_texture);
-
-	const Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
-	const auto& scene_frame = render_scene3d.frames[s_render_inst->render_io.frame_index];
-
-}
-
-void BB::EndRenderScene(const RCommandList a_cmd_list, const RenderScene3DHandle a_scene, const RenderTarget a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, bool a_skip)
-{
-	Scene3D& render_scene3d = *reinterpret_cast<Scene3D*>(a_scene.handle);
-	const auto& scene_frame = render_scene3d.frames[s_render_inst->render_io.frame_index];
-
-	//transition depth buffer
-	{
-		//pipeline barrier
-		//0 = color image, 1 = depth image
-
-	}
-}
-
 void BB::DrawMesh(const RCommandList a_list, const MeshHandle a_mesh, const uint32_t a_index_start, const uint32_t a_index_count)
 {
-
+	const Mesh& mesh = s_render_inst->mesh_map.find(a_mesh);
+	DrawIndexed(a_list,
+		a_index_count,
+		1,
+		static_cast<uint32_t>(mesh.index_buffer.offset / sizeof(uint32_t)) + a_index_start,
+		0,
+		0);
 }
 
 CommandPool& BB::GetGraphicsCommandPool()
@@ -1945,37 +1919,39 @@ bool BB::ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, uint64
 	return true;
 }
 
-const MeshHandle BB::CreateMesh(const CreateMeshInfo& a_create_info)
+const Mesh BB::CreateMesh(const CreateMeshInfo& a_create_info)
 {
 	// make this it's own class or something
 	RenderInterface_inst::AssetUploader& uploader = s_render_inst->asset_uploader;
 
 	UploadBuffer upload_buffer = uploader.gpu_allocator.AllocateUploadMemory(a_create_info.vertices.sizeInBytes() + a_create_info.indices.sizeInBytes(), uploader.next_fence_value);
 
-	Mesh mesh;
-	mesh.vertex_buffer = AllocateFromVertexBuffer(a_create_info.vertices.sizeInBytes());
-	mesh.index_buffer = AllocateFromIndexBuffer(a_create_info.indices.sizeInBytes());
-
+	GPUBufferView vertex_buffer = AllocateFromVertexBuffer(a_create_info.vertices.sizeInBytes());
+	GPUBufferView index_buffer = AllocateFromIndexBuffer(a_create_info.indices.sizeInBytes());
 	const size_t vertex_offset = 0;
 	const size_t index_offset = a_create_info.vertices.sizeInBytes();
 	upload_buffer.SafeMemcpy(vertex_offset, a_create_info.vertices.data(), a_create_info.vertices.sizeInBytes());
 	upload_buffer.SafeMemcpy(index_offset, a_create_info.indices.data(), a_create_info.indices.sizeInBytes());
 
 	UploadDataMesh task{};
-	task.vertex_region.size = mesh.vertex_buffer.size;
-	task.vertex_region.dst_offset = mesh.vertex_buffer.offset;
+	task.vertex_region.size = vertex_buffer.size;
+	task.vertex_region.dst_offset = vertex_buffer.offset;
 	task.vertex_region.src_offset = vertex_offset + upload_buffer.base_offset;
-	task.index_region.size = mesh.index_buffer.size;
-	task.index_region.dst_offset = mesh.index_buffer.offset;
+	task.index_region.size = index_buffer.size;
+	task.index_region.dst_offset = index_buffer.offset;
 	task.index_region.src_offset = index_offset + upload_buffer.base_offset;
-	task.mesh_index = s_render_inst->mesh_map.insert(mesh); // TODO, place a debug mesh in mesh_index!
 	uploader.upload_meshes.EnQueue(task);
-	return task.mesh_index;
+
+	Mesh mesh{};
+	mesh.vertex_buffer_offset = vertex_buffer.offset;
+	mesh.index_buffer_offset = index_buffer.offset;
+
+	return mesh;
 }
 
-void BB::FreeMesh(const MeshHandle a_mesh)
+void BB::FreeMesh(const Mesh a_mesh)
 {
-	s_render_inst->mesh_map.erase(a_mesh);
+	// free the vertex memory
 }
 
 RDescriptorLayout BB::CreateDescriptorLayout(MemoryArena& a_temp_arena, Slice<DescriptorBindingInfo> a_bindings)

@@ -887,7 +887,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 	create_mesh.vertices = Slice(vertices, vertex_count);
 	create_mesh.indices = Slice(indices, index_count);
 
-	a_mesh.mesh_handle = CreateMesh(create_mesh);
+	a_mesh.mesh = CreateMesh(create_mesh);
 }
 
 struct LoadgltfMeshBatch_params
@@ -1057,7 +1057,7 @@ const StringView Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const Mesh
 
 	Model::Mesh& mesh = model->meshes[0];
 	mesh.primitives[0] = primitive;
-	mesh.mesh_handle = CreateMesh(mesh_info);
+	mesh.mesh = CreateMesh(mesh_info);
 
 	*model->root_node_indices = 0;
 

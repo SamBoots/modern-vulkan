@@ -42,7 +42,6 @@ namespace BB
 	using LightHandle = FrameworkHandle<struct LightHandleTag>;
 	
 	using ShaderCode = FrameworkHandle<struct ShdaerCodeTag>;
-	using MeshHandle = FrameworkHandle<struct MeshHandleTag>;
 	using ShaderEffectHandle = FrameworkHandle<struct ShaderEffectHandleTag>;
 
 	constexpr uint32_t UNIQUE_SHADER_STAGE_COUNT = 2;
@@ -67,6 +66,10 @@ namespace BB
 		RGB8_SRGB,
 
 		A8_UNORM,
+
+		D32_SFLOAT,
+		D32_SFLOAT_S8_UINT,
+		D24_UNORM_S8_UINT,
 
 		ENUM_SIZE
 	};
@@ -329,5 +332,11 @@ namespace BB
 		GPUBuffer dst;
 		GPUBuffer src;
 		Slice<RenderCopyBufferRegion> regions;
+	};
+
+	struct Mesh
+	{
+		uint64_t vertex_buffer_offset;
+		uint64_t index_buffer_offset;
 	};
 }

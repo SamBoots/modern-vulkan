@@ -131,7 +131,6 @@ namespace BB
 	void SetClearColor(const RCommandList a_list, const float3 a_clear_color);
 	void SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor);
 
-	void DrawMesh(const RCommandList a_list, const MeshHandle a_mesh, const uint32_t a_index_start, const uint32_t a_index_count);
 	void DrawVertices(const RCommandList a_list, const uint32_t a_vertex_count, const uint32_t a_instance_count, const uint32_t a_first_vertex, const uint32_t a_first_instance);
 	void DrawCubemap(const RCommandList a_list, const uint32_t a_instance_count, const uint32_t a_first_instance);
 	void DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance);
@@ -149,8 +148,9 @@ namespace BB
 	WriteableGPUBufferView AllocateFromWritableIndexBuffer(const size_t a_size_in_bytes);
 
 	// returns invalid mesh when not enough upload buffer space
-	const MeshHandle CreateMesh(const CreateMeshInfo& a_create_info);
-	void FreeMesh(const MeshHandle a_mesh);
+	// maybe do this on the engine side, and upload later
+	const Mesh CreateMesh(const CreateMeshInfo& a_create_info);
+	void FreeMesh(const Mesh a_mesh);
 
 	RDescriptorLayout CreateDescriptorLayout(MemoryArena& a_temp_arena, Slice<DescriptorBindingInfo> a_bindings);
 	DescriptorAllocation AllocateDescriptor(const RDescriptorLayout a_descriptor);
