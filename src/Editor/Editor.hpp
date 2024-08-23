@@ -18,7 +18,8 @@ namespace BB
 	public:
 		void Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent, const size_t a_editor_memory = EDITOR_DEFAULT_MEMORY);
 		void Destroy();
-
+		void CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const char* a_json_path);
+		void CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const JsonParser& a_parsed_file);
 		void RegisterSceneHierarchy(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint2 a_window_extent);
 
 		template<typename game_interface>

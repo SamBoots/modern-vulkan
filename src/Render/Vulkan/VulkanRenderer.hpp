@@ -29,8 +29,6 @@ namespace BB
 		const RImageView CreateViewImage(const ImageViewCreateInfo& a_create_info);
 		void FreeViewImage(const RImageView a_image_view);
 
-		void CreateDepthBuffer(const RenderDepthCreateInfo& a_create_info, RImage& a_out_image, RImageView& a_out_image_view);
-
 		RDescriptorLayout CreateDescriptorLayout(MemoryArena& a_temp_arena, Slice<DescriptorBindingInfo> a_bindings);
 		RDescriptorLayout CreateDescriptorSamplerLayout(const Slice<SamplerCreateInfo> a_static_samplers);
 		DescriptorAllocation AllocateDescriptor(const RDescriptorLayout a_descriptor);

@@ -339,4 +339,54 @@ namespace BB
 		uint64_t vertex_buffer_offset;
 		uint64_t index_buffer_offset;
 	};
+	struct PipelineBarrierGlobalInfo
+	{
+		BARRIER_PIPELINE_STAGE src_stage{};
+		BARRIER_PIPELINE_STAGE dst_stage{};
+		BARRIER_ACCESS_MASK src_mask{};
+		BARRIER_ACCESS_MASK dst_mask{};
+	};
+
+	struct PipelineBarrierBufferInfo
+	{
+		GPUBuffer buffer{};
+		uint32_t size = 0;
+		uint32_t offset = 0;
+		BARRIER_PIPELINE_STAGE src_stage{};
+		BARRIER_PIPELINE_STAGE dst_stage{};
+		BARRIER_ACCESS_MASK src_mask{};
+		BARRIER_ACCESS_MASK dst_mask{};
+
+		QUEUE_TRANSITION src_queue = QUEUE_TRANSITION::NO_TRANSITION;
+		QUEUE_TRANSITION dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
+	};
+
+	struct PipelineBarrierImageInfo
+	{
+		RImage image{};						//8
+		IMAGE_LAYOUT old_layout{};			//12
+		IMAGE_LAYOUT new_layout{};			//16
+		BARRIER_PIPELINE_STAGE src_stage{};	//20
+		BARRIER_PIPELINE_STAGE dst_stage{};	//24
+		BARRIER_ACCESS_MASK src_mask{};		//28
+		BARRIER_ACCESS_MASK dst_mask{};		//32
+
+		QUEUE_TRANSITION src_queue{};		//36
+		QUEUE_TRANSITION dst_queue{};		//40
+
+		uint32_t base_mip_level = 0;		//44
+		uint32_t level_count = 0;			//48
+		uint32_t base_array_layer = 0;		//52
+		uint32_t layer_count = 0;			//56
+	};
+
+	struct PipelineBarrierInfo
+	{
+		uint32_t global_info_count = 0;
+		const PipelineBarrierGlobalInfo* global_infos = nullptr;
+		uint32_t buffer_info_count = 0;
+		const PipelineBarrierBufferInfo* buffer_infos = nullptr;
+		uint32_t image_info_count = 0;
+		const PipelineBarrierImageInfo* image_infos = nullptr;
+	};
 }

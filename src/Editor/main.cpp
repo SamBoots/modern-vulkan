@@ -82,51 +82,6 @@ int main(int argc, char** argv)
 	Editor editor{};
 	editor.Init(main_arena, window_handle, window_extent);
 
-	MemoryArenaScope(main_arena)
-	{
-		ShaderEffectHandle shader_effects[3]{};
-
-		Buffer debug_shader = ReadOSFile(main_arena, "../../resources/shaders/hlsl/Debug.hlsl");
-
-		CreateShaderEffectInfo shader_effect_create_infos[3];
-		shader_effect_create_infos[0].name = "debug vertex shader";
-		shader_effect_create_infos[0].stage = SHADER_STAGE::VERTEX;
-		shader_effect_create_infos[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
-		shader_effect_create_infos[0].shader_data = debug_shader;
-		shader_effect_create_infos[0].shader_entry = "VertexMain";
-		shader_effect_create_infos[0].push_constant_space = sizeof(ShaderIndices);
-		shader_effect_create_infos[0].pass_type = RENDER_PASS_TYPE::STANDARD_3D;
-
-		shader_effect_create_infos[1].name = "debug fragment shader";
-		shader_effect_create_infos[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
-		shader_effect_create_infos[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
-		shader_effect_create_infos[1].shader_data = debug_shader;
-		shader_effect_create_infos[1].shader_entry = "FragmentMain";
-		shader_effect_create_infos[1].push_constant_space = sizeof(ShaderIndices);
-		shader_effect_create_infos[1].pass_type = RENDER_PASS_TYPE::STANDARD_3D;
-
-		Buffer jitter_shader = ReadOSFile(main_arena, "../../resources/shaders/hlsl/Jitter.hlsl");
-
-		shader_effect_create_infos[2].name = "jitter vertex shader";
-		shader_effect_create_infos[2].stage = SHADER_STAGE::VERTEX;
-		shader_effect_create_infos[2].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
-		shader_effect_create_infos[2].shader_data = jitter_shader;
-		shader_effect_create_infos[2].shader_entry = "VertexMain";
-		shader_effect_create_infos[2].push_constant_space = sizeof(ShaderIndices);
-		shader_effect_create_infos[2].pass_type = RENDER_PASS_TYPE::STANDARD_3D;
-
-		BB_ASSERT(editor.CreateShaderEffect(main_arena,
-			Slice(shader_effect_create_infos, _countof(shader_effect_create_infos)),
-			shader_effects), "Failed to create shader objects");
-
-		CreateMaterialInfo material_info;
-		material_info.name = "default material";
-		material_info.shader_effects = Slice<const ShaderEffectHandle>(shader_effects, 2);
-
-		const MaterialHandle base_material = editor.CreateMaterial(material_info);
-		SetDefaultMaterial(base_material);
-	}
-
 	SetWindowCloseEvent(CustomCloseWindow);
 	SetWindowResizeEvent(CustomResizeWindow);
 
@@ -147,7 +102,7 @@ int main(int argc, char** argv)
 
 			Threads::WaitForTask(view_upload);
 		}
-		object_viewer.InitViaJson(main_arena, json_file);
+		editor.CreateSceneHierarchyViaJson(main_arena, object_viewer, json_file);
 	}
 
 	DungeonGame def_game{};
@@ -155,40 +110,6 @@ int main(int argc, char** argv)
 
 	editor.RegisterSceneHierarchy(main_arena, def_game.GetSceneHierarchy(), window_extent);
 	editor.RegisterSceneHierarchy(main_arena, object_viewer, window_extent / uint2(2));
-
-	MemoryArenaScope(main_arena)
-	{
-		ShaderEffectHandle skybox_shaders[2]{};
-
-		Buffer skybox_shader = ReadOSFile(main_arena, "../../resources/shaders/hlsl/Skybox.hlsl");
-
-		CreateShaderEffectInfo shader_effect_create_infos[2];
-		shader_effect_create_infos[0].name = "skybox vertex shader";
-		shader_effect_create_infos[0].stage = SHADER_STAGE::VERTEX;
-		shader_effect_create_infos[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
-		shader_effect_create_infos[0].shader_data = skybox_shader;
-		shader_effect_create_infos[0].shader_entry = "VertexMain";
-		shader_effect_create_infos[0].push_constant_space = sizeof(ShaderIndices);
-		shader_effect_create_infos[0].pass_type = RENDER_PASS_TYPE::STANDARD_3D;
-
-		shader_effect_create_infos[1].name = "skybox fragment shader";
-		shader_effect_create_infos[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
-		shader_effect_create_infos[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
-		shader_effect_create_infos[1].shader_data = skybox_shader;
-		shader_effect_create_infos[1].shader_entry = "FragmentMain";
-		shader_effect_create_infos[1].push_constant_space = sizeof(ShaderIndices);
-		shader_effect_create_infos[1].pass_type = RENDER_PASS_TYPE::STANDARD_3D;
-
-		BB_ASSERT(editor.CreateShaderEffect(main_arena,
-			Slice(shader_effect_create_infos, _countof(shader_effect_create_infos)),
-			skybox_shaders), "Failed to create shader objects");
-
-		def_game.GetSceneHierarchy().SetSkyboxVertexShader(skybox_shaders[0]);
-		def_game.GetSceneHierarchy().SetSkyboxFragmentShader(skybox_shaders[1]);
-
-		object_viewer.SetSkyboxVertexShader(skybox_shaders[0]);
-		object_viewer.SetSkyboxFragmentShader(skybox_shaders[1]);
-	}
 
 	while (!quit_app)
 	{

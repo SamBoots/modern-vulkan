@@ -13,7 +13,6 @@ namespace BB
 	using SceneObjectHandle = FrameworkHandle<struct SceneObjectHandleTag>;
 	constexpr SceneObjectHandle INVALID_SCENE_OBJ = SceneObjectHandle(BB_INVALID_HANDLE_64);
 	class JsonParser;
-	class MaterialSystem;
 
 	constexpr uint32_t DEFAULT_SCENE_OBJ_MAX = 512;
 	constexpr uint32_t SCENE_OBJ_CHILD_MAX = 256;
@@ -47,36 +46,35 @@ namespace BB
 		size_t child_count;
 		SceneObjectHandle children[SCENE_OBJ_CHILD_MAX];
 	};
+
+	struct SceneHierarchyCreateInfo
+	{
+		StringView name;
+		ShaderEffectHandle default_vertex_shader;
+		ShaderEffectHandle default_fragment_shader;
+		ShaderEffectHandle skybox_vertex_shader;
+		ShaderEffectHandle skybox_fragment_shader;
+	};
 	
 	class SceneHierarchy
 	{
 	public:
 		friend class Editor;
-		void Init(MemoryArena& a_memory_arena, const StringView a_name, const uint32_t a_scene_obj_max = DEFAULT_SCENE_OBJ_MAX);
-		void InitViaJson(MemoryArena& a_memory_arena, const char* a_json_path, const uint32_t a_scene_obj_max = DEFAULT_SCENE_OBJ_MAX);
-		void InitViaJson(MemoryArena& a_memory_arena, const JsonParser& a_parsed_file, const uint32_t a_scene_obj_max = DEFAULT_SCENE_OBJ_MAX);
+		void Init(MemoryArena& a_memory_arena, const SceneHierarchyCreateInfo& a_create_info, const uint32_t a_scene_obj_max = DEFAULT_SCENE_OBJ_MAX);
 		static StaticArray<Asset::AsyncAsset> PreloadAssetsFromJson(MemoryArena& a_arena, const JsonParser& a_parsed_file);
 
-		void DrawSceneHierarchy(const MaterialSystem& a_material_system, const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
+		void DrawSceneHierarchy(const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
 		SceneObjectHandle CreateSceneObject(const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
 		SceneObjectHandle CreateSceneObjectMesh(const float3 a_position, const MeshDrawInfo& a_mesh_info, const char* a_name, const SceneObjectHandle a_parent = SceneObjectHandle(BB_INVALID_HANDLE_64));
 		SceneObjectHandle CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
 		SceneObjectHandle CreateSceneObjectAsLight(const CreateLightInfo& a_light_create_info, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
-
-		void SetSkyboxVertexShader(const ShaderEffectHandle a_vertex_shader)
-		{
-			m_skybox_shaders[0] = a_vertex_shader;
-		}
-		void SetSkyboxFragmentShader(const ShaderEffectHandle a_fragment_shader)
-		{
-			m_skybox_shaders[1] = a_fragment_shader;
-		}
 
 		void SetView(const float4x4& a_view);
 		void SetProjection(const float4x4& a_projection);
 
 		void SetClearColor(const float3 a_clear_color) { m_clear_color = a_clear_color; }
 
+		static RDescriptorLayout GetSceneDescriptorLayout();
 	private:
 		void AddToDrawList(const SceneObject& scene_object, const float4x4& a_transform);
 		SceneObjectHandle CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent);
@@ -99,7 +97,6 @@ namespace BB
 		};
 
 		DrawList m_draw_list;
-		RDescriptorLayout m_scene_descriptor_layout;
 		DescriptorAllocation m_scene_descriptor;
 
 		PerFrameData m_per_frame;
@@ -111,7 +108,6 @@ namespace BB
 		StaticSlotmap<SceneObject, SceneObjectHandle> m_scene_objects;
 
 		StaticSlotmap<Light, LightHandle> m_light_container;
-		DrawList m_draw_list;
 
 		uint2 m_previous_draw_area;
 		RTexture m_depth_image;
@@ -122,5 +118,6 @@ namespace BB
 		float3 m_clear_color;
 		RTexture m_skybox;
 		ShaderEffectHandle m_skybox_shaders[2]{};
+		ShaderEffectHandle m_default_shaders[2]{};
 	};
 }

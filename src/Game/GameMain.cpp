@@ -180,8 +180,13 @@ SceneObjectHandle DungeonMap::CreateRenderObject(MemoryArena& a_temp_arena, Scen
 		CreateMeshInfo create_mesh_info;
 		create_mesh_info.vertices = Slice(vertices.data(), vertices.size());
 		create_mesh_info.indices = Slice(indices.data(), indices.size());
-		MeshHandle mesh = CreateMesh(create_mesh_info);
-		map_obj = a_scene_hierarchy.CreateSceneObjectMesh(float3(3.f, 0.f, 0.f), mesh, 0, indices.size(), GetStandardMaterial(), "dungeon map");
+		Mesh mesh = CreateMesh(create_mesh_info);
+		MeshDrawInfo mesh_info;
+		mesh_info.mesh = mesh;
+		mesh_info.index_start = 0;
+		mesh_info.index_count = indices.size();
+		mesh_info. // DO MORE!
+		map_obj = a_scene_hierarchy.CreateSceneObjectMesh(float3(3.f, 0.f, 0.f), mesh_info, "dungeon map");
 	}
 	return map_obj;
 }

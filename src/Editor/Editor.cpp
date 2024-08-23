@@ -327,7 +327,7 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 		shaders[0].stage = SHADER_STAGE::VERTEX;
 		shaders[0].next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::FRAGMENT_PIXEL);
 		shaders[0].push_constant_space = sizeof(ShaderIndices2D);
-		shaders[0].pass_type = RENDER_PASS_TYPE::STANDARD_3D;
+		shaders[0].desc_layout_count = 0;
 
 		shaders[1].name = "imgui Fragment shader";
 		shaders[1].shader_data = imgui_shader;
@@ -335,7 +335,7 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 		shaders[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
 		shaders[1].next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::NONE);
 		shaders[1].push_constant_space = sizeof(ShaderIndices2D);
-		shaders[1].pass_type = RENDER_PASS_TYPE::STANDARD_3D;
+		shaders[1].desc_layout_count = 0;
 
 		BB_ASSERT(this->CreateShaderEffect(a_arena, Slice(shaders, _countof(shaders)), shader_effs),
 			"Failed to create imgui shaders");
@@ -349,6 +349,143 @@ void Editor::Destroy()
 {
 	DestroyImGuiInput();
 	DirectDestroyOSWindow(m_main_window);
+}
+
+void Editor::CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const char* a_json_path)
+{
+	JsonParser json_file(a_json_path);
+	CreateSceneHierarchyViaJson(a_arena, a_hierarchy, json_file);
+}
+
+void Editor::CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const JsonParser& a_parsed_file)
+{
+	const JsonObject& scene_obj = a_parsed_file.GetRootNode()->GetObject().Find("scene")->GetObject();
+	BB_UNIMPLEMENTED();
+	{
+		// get shaders compiled.
+		ShaderEffectHandle shader_handles[4];
+		MemoryArenaScope(a_arena)
+		{
+			const JsonObject& shader_node = scene_obj.Find("shaders")->GetObject();
+
+			// 0 default vertex, 1 default fragment, 2 skybox vertex, 3 skybox fragment
+			CreateShaderEffectInfo shader_info[4];
+
+			shader_info[0].name = "default vertex shader";
+			shader_info[0].stage = SHADER_STAGE::VERTEX;
+			shader_info[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
+			shader_info[0].shader_data = ReadOSFile(a_arena, shader_node.Find("default_vertex")->GetString());
+			shader_info[0].shader_entry = shader_node.Find("default_vertex_entry")->GetString();
+			shader_info[0].push_constant_space = sizeof(ShaderIndices);
+			shader_info[0].desc_layouts[0] = SceneHierarchy::GetSceneDescriptorLayout();
+			shader_info[0].desc_layout_count = 1;
+
+			shader_info[1].name = "default fragment shader";
+			shader_info[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
+			shader_info[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
+			shader_info[1].shader_data = ReadOSFile(a_arena, shader_node.Find("default_fragment")->GetString());
+			shader_info[1].shader_entry = shader_node.Find("default_fragment_entry")->GetString();
+			shader_info[1].push_constant_space = sizeof(ShaderIndices);
+			shader_info[1].desc_layouts[0] = SceneHierarchy::GetSceneDescriptorLayout();
+			shader_info[1].desc_layout_count = 1;
+
+			shader_info[2].name = "skybox vertex shader";
+			shader_info[2].stage = SHADER_STAGE::VERTEX;
+			shader_info[2].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
+			shader_info[2].shader_data = ReadOSFile(a_arena, shader_node.Find("skybox_vertex")->GetString());;
+			shader_info[2].shader_entry = shader_node.Find("skybox_vertex_entry")->GetString();
+			shader_info[2].push_constant_space = sizeof(ShaderIndices);
+			shader_info[2].desc_layouts[0] = SceneHierarchy::GetSceneDescriptorLayout();
+			shader_info[2].desc_layout_count = 1;
+
+			shader_info[3].name = "skybox fragment shader";
+			shader_info[3].stage = SHADER_STAGE::FRAGMENT_PIXEL;
+			shader_info[3].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
+			shader_info[3].shader_data = ReadOSFile(a_arena, shader_node.Find("skybox_fragment")->GetString());;
+			shader_info[3].shader_entry = shader_node.Find("skybox_fragment_entry")->GetString();
+			shader_info[3].push_constant_space = sizeof(ShaderIndices);
+			shader_info[3].desc_layouts[0] = SceneHierarchy::GetSceneDescriptorLayout();
+			shader_info[3].desc_layout_count = 1;
+
+			BB_ASSERT(this->CreateShaderEffect(a_arena,
+				Slice(shader_info, _countof(shader_info)),
+				shader_handles), "Failed to create shader objects");
+		}
+
+
+		SceneHierarchyCreateInfo hierarchy_create_info;
+		hierarchy_create_info.name = Asset::FindOrCreateString(scene_obj.Find("name")->GetString());
+		hierarchy_create_info.default_vertex_shader = shader_handles[0];
+		hierarchy_create_info.default_fragment_shader = shader_handles[1];
+		hierarchy_create_info.skybox_vertex_shader = shader_handles[2];
+		hierarchy_create_info.skybox_fragment_shader = shader_handles[3];
+		a_hierarchy.Init(a_arena, hierarchy_create_info);
+	}
+
+	const JsonList& scene_objects = scene_obj.Find("scene_objects")->GetList();
+
+	for (size_t i = 0; i < scene_objects.node_count; i++)
+	{
+		const JsonObject& sce_obj = scene_objects.nodes[i]->GetObject();
+		const char* model_name = scene_objects.nodes[i]->GetObject().Find("file_name")->GetString();
+		const char* obj_name = scene_objects.nodes[i]->GetObject().Find("file_name")->GetString();
+		const Model* model = Asset::FindModelByName(model_name);
+		BB_ASSERT(model != nullptr, "model failed to be found");
+		const JsonList& position_list = sce_obj.Find("position")->GetList();
+		BB_ASSERT(position_list.node_count == 3, "scene_object position in scene json is not 3 elements");
+		float3 position;
+		position.x = position_list.nodes[0]->GetNumber();
+		position.y = position_list.nodes[1]->GetNumber();
+		position.z = position_list.nodes[2]->GetNumber();
+
+		a_hierarchy.CreateSceneObjectViaModel(*model, position, obj_name);
+	}
+
+	const JsonList& lights = scene_obj.Find("lights")->GetList();
+	for (size_t i = 0; i < lights.node_count; i++)
+	{
+		const JsonObject& light_obj = lights.nodes[i]->GetObject();
+		CreateLightInfo light_info;
+
+		const char* light_type = light_obj.Find("light_type")->GetString();
+		if (strcmp(light_type, "spotlight") == 0)
+			light_info.light_type = LIGHT_TYPE::SPOT_LIGHT;
+		else if (strcmp(light_type, "pointlight") == 0)
+			light_info.light_type = LIGHT_TYPE::POINT_LIGHT;
+		else
+			BB_ASSERT(false, "invalid light type in json");
+
+		const JsonList& position = light_obj.Find("position")->GetList();
+		BB_ASSERT(position.node_count == 3, "light position in scene json is not 3 elements");
+		light_info.pos.x = position.nodes[0]->GetNumber();
+		light_info.pos.y = position.nodes[1]->GetNumber();
+		light_info.pos.z = position.nodes[2]->GetNumber();
+
+		const JsonList& color = light_obj.Find("color")->GetList();
+		BB_ASSERT(color.node_count == 3, "light color in scene json is not 3 elements");
+		light_info.color.x = color.nodes[0]->GetNumber();
+		light_info.color.y = color.nodes[1]->GetNumber();
+		light_info.color.z = color.nodes[2]->GetNumber();
+
+		light_info.specular_strength = light_obj.Find("specular_strength")->GetNumber();
+		light_info.radius_constant = light_obj.Find("constant")->GetNumber();
+		light_info.radius_linear = light_obj.Find("linear")->GetNumber();
+		light_info.radius_quadratic = light_obj.Find("quadratic")->GetNumber();
+
+		if (light_info.light_type == LIGHT_TYPE::SPOT_LIGHT)
+		{
+			const JsonList& spot_dir = light_obj.Find("spotlight_dir")->GetList();
+			BB_ASSERT(color.node_count == 3, "light spotlight_dir in scene json is not 3 elements");
+			light_info.spotlight_direction.x = spot_dir.nodes[0]->GetNumber();
+			light_info.spotlight_direction.y = spot_dir.nodes[1]->GetNumber();
+			light_info.spotlight_direction.z = spot_dir.nodes[2]->GetNumber();
+
+			light_info.cutoff_radius = light_obj.Find("cutoff_radius")->GetNumber();
+		}
+
+		const StringView light_name = Asset::FindOrCreateString(light_obj.Find("name")->GetString());
+		a_hierarchy.CreateSceneObjectAsLight(light_info, light_name.c_str());
+	}
 }
 
 void Editor::RegisterSceneHierarchy(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint2 a_window_extent)

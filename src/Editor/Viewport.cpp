@@ -8,13 +8,15 @@
 
 using namespace BB;
 
-void Viewport::Init(MemoryArena& a_arena, const uint2 a_extent, const uint2 a_offset, const StringView a_name)
+void Viewport::Init(MemoryArena& a_arena, const uint2 a_extent, const uint2 a_offset, const uint32_t a_render_target_count, const StringView a_name)
 {
 	m_extent = a_extent;
 	m_offset = a_offset;
-	m_render_target = CreateRenderTarget(a_arena, a_extent, a_name.c_str());
-	// use constructors and destructors :)))))))))))))))))))))))))))
-	new (&m_name)StringView(a_name);
+	m_texture_count = a_render_target_count;
+	m_textures = ArenaAllocArr(a_arena, RTexture, m_texture_count);
+	m_name = a_name;
+	m_current_target = 0;
+	CreateTextures();
 }
 
 void Viewport::Resize(const uint2 a_new_extent)
@@ -23,16 +25,11 @@ void Viewport::Resize(const uint2 a_new_extent)
 		return;
 
 	m_extent = a_new_extent;
-	ResizeRenderTarget(m_render_target, a_new_extent);
-}
-
-void Viewport::DrawScene(const RCommandList a_list, const SceneHierarchy& a_scene_hierarchy)
-{
-	StartRenderTarget(a_list, m_render_target);
-
-	a_scene_hierarchy.DrawSceneHierarchy(a_list, m_render_target, m_extent, int2(0, 0));
-
-	EndRenderTarget(a_list, m_render_target);
+	for (size_t i = 0; i < m_texture_count; i++)
+	{
+		FreeTexture(m_textures[i]);
+	}
+	CreateTextures();
 }
 
 void Viewport::DrawImgui(bool& a_resized, const uint2 a_minimum_size)
@@ -40,7 +37,7 @@ void Viewport::DrawImgui(bool& a_resized, const uint2 a_minimum_size)
 	a_resized = false;
 	if (ImGui::Begin(m_name.c_str(), nullptr, ImGuiWindowFlags_MenuBar))
 	{
-		const RTexture render_target = GetCurrentRenderTargetTexture(m_render_target);
+		const RTexture render_target = m_textures[m_current_target];
 		if (ImGui::BeginMenuBar())
 		{
 			if (ImGui::BeginMenu("screenshot"))
@@ -122,6 +119,54 @@ void Viewport::DrawImgui(bool& a_resized, const uint2 a_minimum_size)
 	ImGui::End();
 }
 
+const RTexture& Viewport::StartRenderTarget(const RCommandList a_cmd_list) const
+{
+	const RTexture render_target = m_textures[m_current_target];
+
+	PipelineBarrierImageInfo render_target_transition;
+	render_target_transition.src_mask = BARRIER_ACCESS_MASK::NONE;
+	render_target_transition.dst_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
+	render_target_transition.image = GetImage(render_target);
+	render_target_transition.old_layout = IMAGE_LAYOUT::UNDEFINED;
+	render_target_transition.new_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+	render_target_transition.layer_count = 1;
+	render_target_transition.level_count = 1;
+	render_target_transition.base_array_layer = 0;
+	render_target_transition.base_mip_level = 0;
+	render_target_transition.src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
+	render_target_transition.dst_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
+
+	PipelineBarrierInfo pipeline_info{};
+	pipeline_info.image_info_count = 1;
+	pipeline_info.image_infos = &render_target_transition;
+	PipelineBarriers(a_cmd_list, pipeline_info);
+
+	return render_target;
+}
+
+void Viewport::EndRenderTarget(const RCommandList a_cmd_list, const RTexture& a_render_target, const IMAGE_LAYOUT a_current_layout)
+{
+	PipelineBarrierImageInfo render_target_transition;
+	render_target_transition.src_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
+	render_target_transition.dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
+	render_target_transition.image = GetImage(a_render_target);
+	render_target_transition.old_layout = a_current_layout;
+	render_target_transition.new_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+	render_target_transition.layer_count = 1;
+	render_target_transition.level_count = 1;
+	render_target_transition.base_array_layer = 0;
+	render_target_transition.base_mip_level = 0;
+	render_target_transition.src_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
+	render_target_transition.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
+
+	PipelineBarrierInfo pipeline_info{};
+	pipeline_info.image_info_count = 1;
+	pipeline_info.image_infos = &render_target_transition;
+	PipelineBarriers(a_cmd_list, pipeline_info);
+
+	++m_current_target;
+}
+
 bool Viewport::PositionWithinViewport(const uint2 a_pos) const
 {
 	if (m_offset.x < a_pos.x &&
@@ -135,4 +180,19 @@ bool Viewport::PositionWithinViewport(const uint2 a_pos) const
 float4x4 Viewport::CreateProjection(const float a_fov, const float a_near_field, const float a_far_field) const
 {
 	return Float4x4Perspective(ToRadians(a_fov), static_cast<float>(m_extent.x) / static_cast<float>(m_extent.y), a_near_field, a_far_field);
+}
+
+void  Viewport::CreateTextures()
+{
+	for (size_t i = 0; i < m_texture_count; i++)
+	{
+		CreateTextureInfo render_target_info;
+		render_target_info.width = m_extent.x;
+		render_target_info.height = m_extent.y;
+		render_target_info.format = RENDER_TARGET_IMAGE_FORMAT;
+		render_target_info.usage = IMAGE_USAGE::RENDER_TARGET;
+		render_target_info.array_layers = 1; // TODO: make this equal to m_texture_count and remove the dynamic array
+		render_target_info.name = m_name.c_str();
+		m_textures[i] = CreateTexture(render_target_info);
+	}
 }

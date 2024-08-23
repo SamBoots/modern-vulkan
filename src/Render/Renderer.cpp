@@ -487,7 +487,6 @@ struct RenderInterface_inst
 	GPUTextureManager texture_manager;
 
 	GPUBufferView cubemap_position;
-	MaterialHandle standard_3d_material;
 	RTexture white;
 	RTexture black;
 
@@ -1323,7 +1322,6 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	
 	IMGUI_IMPL::ImInit(a_arena);
 
-	s_render_inst->standard_3d_material = MaterialHandle(BB_INVALID_HANDLE_64);
 	const uint64_t fence_value_transfer = s_render_inst->asset_uploader.next_fence_value.fetch_add(1);
 
 	// setup cube positions
@@ -1472,7 +1470,6 @@ static void UploadAssets(MemoryArena& a_thread_arena, void*)
 	{
 		MemoryArenaScope(a_thread_arena)
 		{
-			MeshHandle* mesh_handles = ArenaAllocArr(a_thread_arena, MeshHandle, MAX_MESH_UPLOAD_QUEUE);
 			RenderCopyBufferRegion* vertex_regions = ArenaAllocArr(a_thread_arena, RenderCopyBufferRegion, MAX_MESH_UPLOAD_QUEUE);
 			RenderCopyBufferRegion* index_regions = ArenaAllocArr(a_thread_arena, RenderCopyBufferRegion, MAX_MESH_UPLOAD_QUEUE);
 
@@ -1481,7 +1478,6 @@ static void UploadAssets(MemoryArena& a_thread_arena, void*)
 			while (s_render_inst->asset_uploader.upload_meshes.DeQueue(upload_data) &&
 				index < MAX_MESH_UPLOAD_QUEUE)
 			{
-				mesh_handles[index] = upload_data.mesh_index;
 				vertex_regions[index] = upload_data.vertex_region;
 				index_regions[index] = upload_data.index_region;
 				++index;
@@ -1668,90 +1664,6 @@ void BB::EndFrame(const RCommandList a_list, const ShaderEffectHandle a_imgui_ve
 	s_render_inst->render_io.frame_ended = true;
 }
 
-struct RenderTargetStruct
-{
-	RTexture render_targets[3]; // same amount as back buffer amount
-	uint2 extent;
-	const char* name;
-
-	RTexture GetTargetTexture() const { return render_targets[s_render_inst->render_io.frame_index]; }
-};
-
-void BB::ResizeRenderTarget(const RenderTarget render_target, const uint2 a_render_target_extent)
-{
-	RenderTargetStruct* viewport = reinterpret_cast<RenderTargetStruct*>(render_target.handle);
-	
-	// we can't garuntee that the viewport is not being worked on or used in copy commands, so wait all commands.
-	s_render_inst->graphics_queue.WaitIdle();
-
-	CreateTextureInfo texture_info;
-	texture_info.width = a_render_target_extent.x;
-	texture_info.height = a_render_target_extent.y;
-	texture_info.name = viewport->name;
-	texture_info.format = RENDER_TARGET_IMAGE_FORMAT;
-	texture_info.usage = IMAGE_USAGE::RENDER_TARGET;
-	texture_info.array_layers = 1;
-
-	for (uint32_t i = 0; i < s_render_inst->render_io.frame_count; i++)
-	{
-		FreeTexture(viewport->render_targets[i]);
-		viewport->render_targets[i] = CreateTexture(texture_info);
-	}
-	viewport->extent = a_render_target_extent;
-}
-
-void BB::StartRenderTarget(const RCommandList a_list, const RTexture a_texture, const uint32_t a_base_array_layer)
-{
-	GPUTextureManager::TextureSlot& slot = s_render_inst->texture_manager.GetTextureSlot(a_texture);
-	{
-		PipelineBarrierImageInfo render_target_transition;
-		render_target_transition.src_mask = BARRIER_ACCESS_MASK::NONE;
-		render_target_transition.dst_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
-		render_target_transition.image = slot.texture_info.image;
-		render_target_transition.old_layout = IMAGE_LAYOUT::UNDEFINED;
-		render_target_transition.new_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-		render_target_transition.layer_count = 1;
-		render_target_transition.level_count = 1;
-		render_target_transition.base_array_layer = 0;
-		render_target_transition.base_mip_level = 0;
-		render_target_transition.src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
-		render_target_transition.dst_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
-
-		PipelineBarrierInfo pipeline_info{};
-		pipeline_info.image_info_count = 1;
-		pipeline_info.image_infos = &render_target_transition;
-		Vulkan::PipelineBarriers(a_list, pipeline_info);
-
-		slot.texture_info.current_layout = render_target_transition.new_layout;
-	}
-}
-
-void BB::EndRenderTarget(const RCommandList a_list, const RTexture a_texture, const uint32_t a_base_array_layer)
-{
-	GPUTextureManager::TextureSlot& slot = s_render_inst->texture_manager.GetTextureSlot(a_texture);
-	{
-		PipelineBarrierImageInfo render_target_transition;
-		render_target_transition.src_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
-		render_target_transition.dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
-		render_target_transition.image = slot.texture_info.image;
-		render_target_transition.old_layout = slot.texture_info.current_layout;
-		render_target_transition.new_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
-		render_target_transition.layer_count = 1;
-		render_target_transition.level_count = 1;
-		render_target_transition.base_array_layer = a_base_array_layer;
-		render_target_transition.base_mip_level = 0;
-		render_target_transition.src_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
-		render_target_transition.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
-
-		PipelineBarrierInfo pipeline_info{};
-		pipeline_info.image_info_count = 1;
-		pipeline_info.image_infos = &render_target_transition;
-		Vulkan::PipelineBarriers(a_list, pipeline_info);
-
-		slot.texture_info.current_layout = render_target_transition.new_layout;
-	}
-}
-
 void BB::StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info)
 {
 	Vulkan::StartRenderPass(a_list, a_render_info);
@@ -1832,17 +1744,6 @@ void BB::DrawCubemap(const RCommandList a_list, const uint32_t a_instance_count,
 void BB::DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance)
 {
 	Vulkan::DrawIndexed(a_list, a_index_count, a_instance_count, a_first_index, a_vertex_offset, a_first_instance);
-}
-
-void BB::DrawMesh(const RCommandList a_list, const MeshHandle a_mesh, const uint32_t a_index_start, const uint32_t a_index_count)
-{
-	const Mesh& mesh = s_render_inst->mesh_map.find(a_mesh);
-	DrawIndexed(a_list,
-		a_index_count,
-		1,
-		static_cast<uint32_t>(mesh.index_buffer.offset / sizeof(uint32_t)) + a_index_start,
-		0,
-		0);
 }
 
 CommandPool& BB::GetGraphicsCommandPool()
@@ -1968,6 +1869,7 @@ bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderE
 {
 	// our default layouts
 	// array size should be SPACE_AMOUNT
+	constexpr size_t USER_DESCRIPTOR_LAYOUT_START = 2;
 	FixedArray<RDescriptorLayout, SPACE_AMOUNT> desc_layouts = {
 			s_render_inst->static_sampler_descriptor_set,
 			s_render_inst->global_descriptor_set,
@@ -1986,30 +1888,29 @@ bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderE
 
 	for (size_t i = 0; i < a_create_infos.size(); i++)
 	{
-		switch (a_create_infos[i].pass_type)
+		const CreateShaderEffectInfo& create_info = a_create_infos[i];
+
+		BB_ASSERT(create_info.desc_layout_count <= 3, "more then three descriptor layouts given, this is not possible.");
+
+		for (size_t desc_index = 0; desc_index < create_info.desc_layout_count; desc_index++)
 		{
-		case RENDER_PASS_TYPE::STANDARD_3D:
-			desc_layouts[SPACE_PER_SCENE] = s_render_inst->scene3d_descriptor_layout;
-			break;
-		default:
-			BB_ASSERT(false, "Unsupported/Unimplemented RENDER_PASS_TYPE");
-			break;
+			desc_layouts[USER_DESCRIPTOR_LAYOUT_START + desc_index] = create_info.desc_layouts[desc_index];
 		}
 
-		push_constant.size = a_create_infos[i].push_constant_space;
+		push_constant.size = create_info.push_constant_space;
 		shader_effects[i].pipeline_layout = Vulkan::CreatePipelineLayout(desc_layouts.data(), 3, &push_constant, 1);
 
 		shader_codes[i] = CompileShader(s_render_inst->shader_compiler,
-			a_create_infos[i].shader_data,
-			a_create_infos[i].shader_entry,
-			a_create_infos[i].stage);
+			create_info.shader_data,
+			create_info.shader_entry,
+			create_info.stage);
 		Buffer shader_buffer = GetShaderCodeBuffer(shader_codes[i]);
 
-		shader_object_infos[i].stage = a_create_infos[i].stage;
-		shader_object_infos[i].next_stages = a_create_infos[i].next_stages;
+		shader_object_infos[i].stage = create_info.stage;
+		shader_object_infos[i].next_stages = create_info.next_stages;
 		shader_object_infos[i].shader_code_size = shader_buffer.size;
 		shader_object_infos[i].shader_code = shader_buffer.data;
-		shader_object_infos[i].shader_entry = a_create_infos[i].shader_entry;
+		shader_object_infos[i].shader_entry = create_info.shader_entry;
 
 		shader_object_infos[i].descriptor_layout_count = 3;
 		shader_object_infos[i].descriptor_layouts = desc_layouts;
@@ -2021,13 +1922,15 @@ bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderE
 
 	for (size_t i = 0; i < a_create_infos.size(); i++)
 	{
-		shader_effects[i].name = a_create_infos[i].name;
+		const CreateShaderEffectInfo& create_info = a_create_infos[i];
+
+		shader_effects[i].name = create_info.name;
 		shader_effects[i].shader_object = shader_objects[i];
-		shader_effects[i].shader_stage = a_create_infos[i].stage;
-		shader_effects[i].shader_stages_next = a_create_infos[i].next_stages;
+		shader_effects[i].shader_stage = create_info.stage;
+		shader_effects[i].shader_stages_next = create_info.next_stages;
 #ifdef _ENABLE_REBUILD_SHADERS
 		shader_effects[i].create_info = shader_object_infos[i];
-		shader_effects[i].shader_entry = a_create_infos[i].shader_entry;
+		shader_effects[i].shader_entry = create_info.shader_entry;
 #endif // _ENABLE_REBUILD_SHADERS
 
 		a_handles[i] = s_render_inst->shader_effects.emplace(shader_effects[i]);
@@ -2348,27 +2251,27 @@ void BB::DescriptorWriteImageBuffer(const DescriptorWriteImageInfo& a_write_info
 	Vulkan::DescriptorWriteImageBuffer(a_write_info);
 }
 
-RFence CreateFence(const uint64_t a_initial_value, const char* a_name)
+RFence BB::CreateFence(const uint64_t a_initial_value, const char* a_name)
 {
 	return Vulkan::CreateFence(a_initial_value, a_name);
 }
 
-void FreeFence(const RFence a_fence)
+void BB::FreeFence(const RFence a_fence)
 {
 	Vulkan::FreeFence(a_fence);
 }
 
-void WaitFence(const RFence a_fence, const uint64_t a_fence_value)
+void BB::WaitFence(const RFence a_fence, const uint64_t a_fence_value)
 {
 	Vulkan::WaitFence(a_fence, a_fence_value);
 }
 
-void WaitFences(const RFence* a_fences, const uint64_t* a_fence_values, const uint32_t a_fence_count)
+void BB::WaitFences(const RFence* a_fences, const uint64_t* a_fence_values, const uint32_t a_fence_count)
 {
 	Vulkan::WaitFences(a_fences, a_fence_values, a_fence_count);
 }
 
-uint64_t GetCurrentFenceValue(const RFence a_fence)
+uint64_t BB::GetCurrentFenceValue(const RFence a_fence)
 {
 	return Vulkan::GetCurrentFenceValue(a_fence);
 }

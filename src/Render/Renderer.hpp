@@ -9,13 +9,10 @@
 
 #include "BBImage.hpp"
 
+class RenderQueue;
+
 namespace BB
 {
-	enum class RENDER_PASS_TYPE
-	{
-		STANDARD_3D
-	};
-
 	struct CreateShaderEffectInfo
 	{
 		const char* name;
@@ -24,7 +21,11 @@ namespace BB
 		SHADER_STAGE stage;
 		SHADER_STAGE_FLAGS next_stages;
 		uint32_t push_constant_space;
-		RENDER_PASS_TYPE pass_type;
+		// 0 : scene
+		// 1 : material
+		// 2 : mesh
+		RDescriptorLayout desc_layouts[3];
+		uint32_t desc_layout_count;
 	};
 
 	struct RendererCreateInfo
@@ -71,7 +72,7 @@ namespace BB
 	// get one pool per thread
 	class CommandPool : public LinkedListNode<CommandPool>
 	{
-		friend class RenderQueue;
+		friend RenderQueue;
 		uint32_t m_list_count; //4 
 		uint32_t m_list_current_free; //8
 		RCommandList* m_lists; //16
@@ -187,7 +188,7 @@ namespace BB
 	const RTexture CreateTextureCubeMap(const CreateTextureInfo& a_create_info);
 	void BlitTexture(const RCommandList a_list, const BlitTextureInfo& a_blit_info);
 	void CopyTexture(const RCommandList a_list, const CopyTextureInfo& a_copy_info);
-	const GPUFenceValue WriteTexture(const RTexture a_texture, const WriteTextureInfo& a_write_info);
+	GPUFenceValue WriteTexture(const RTexture a_texture, const WriteTextureInfo& a_write_info);
 	// Hacky shit to get image/view. Change plz
 	const RImage GetImage(const RTexture a_texture);
 	const RImageView GetImageView(const RTexture a_texture, const uint32_t a_view_index);

@@ -572,7 +572,6 @@ struct Vulkan_inst
 	{
 		VkDescriptorType descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::ENUM_SIZE)];
 		VkImageLayout image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::ENUM_SIZE)];
-		VkFormat depth_formats[static_cast<uint32_t>(DEPTH_FORMAT::ENUM_SIZE)];
 		VkFormat image_formats[static_cast<uint32_t>(IMAGE_FORMAT::ENUM_SIZE)];
 		VkImageType image_types[static_cast<uint32_t>(IMAGE_TYPE::ENUM_SIZE)];
 		VkImageViewType image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::ENUM_SIZE)];
@@ -724,24 +723,6 @@ static inline VkImageLayout ImageLayout(const IMAGE_LAYOUT a_image_layout)
 #endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
-static inline VkFormat DepthFormat(const DEPTH_FORMAT a_depth_format)
-{
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.depth_formats[static_cast<uint32_t>(a_depth_format)];
-#else
-	switch (a_depth_format)
-	{
-	case DEPTH_FORMAT::D32_SFLOAT:				return VK_FORMAT_D32_SFLOAT;
-	case DEPTH_FORMAT::D32_SFLOAT_S8_UINT:		return VK_FORMAT_D32_SFLOAT_S8_UINT;
-	case DEPTH_FORMAT::D24_UNORM_S8_UINT:		return VK_FORMAT_D24_UNORM_S8_UINT;
-	default:
-		BB_ASSERT(false, "Vulkan: DEPTH_FORMAT failed to convert to a VkFormat.");
-		return VK_FORMAT_D32_SFLOAT;
-		break;
-	}
-#endif //ENUM_CONVERSATION_BY_ARRAY
-}
-
 static inline VkFormat ImageFormats(const IMAGE_FORMAT a_image_format)
 {
 #ifdef ENUM_CONVERSATION_BY_ARRAY
@@ -755,6 +736,9 @@ static inline VkFormat ImageFormats(const IMAGE_FORMAT a_image_format)
 	case IMAGE_FORMAT::RGBA8_UNORM:		return VK_FORMAT_R8G8B8A8_UNORM;
 	case IMAGE_FORMAT::RGB8_SRGB:		return VK_FORMAT_R8G8B8_SRGB;
 	case IMAGE_FORMAT::A8_UNORM:		return VK_FORMAT_R8_UNORM;
+	case IMAGE_FORMAT::D32_SFLOAT:				return VK_FORMAT_D32_SFLOAT;
+	case IMAGE_FORMAT::D32_SFLOAT_S8_UINT:		return VK_FORMAT_D32_SFLOAT_S8_UINT;
+	case IMAGE_FORMAT::D24_UNORM_S8_UINT:		return VK_FORMAT_D24_UNORM_S8_UINT;
 	default:
 		BB_ASSERT(false, "Vulkan: IMAGE_FORMAT failed to convert to a VkFormat.");
 		return VK_FORMAT_R8G8B8A8_SRGB;
@@ -1578,53 +1562,6 @@ void Vulkan::FreeViewImage(const RImageView a_image_view)
 			nullptr);
 }
 
-void Vulkan::CreateDepthBuffer(const RenderDepthCreateInfo& a_create_info, RImage& a_out_image, RImageView& a_out_image_view)
-{
-	VkImageCreateInfo image_create_info{ VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
-	image_create_info.extent.width = a_create_info.width;
-	image_create_info.extent.height = a_create_info.height;
-	image_create_info.extent.depth = a_create_info.depth;
-	image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-	image_create_info.imageType = VK_IMAGE_TYPE_2D;
-	image_create_info.format = DepthFormat(a_create_info.depth_format);
-	image_create_info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-	image_create_info.mipLevels = 1;
-	image_create_info.arrayLayers = 1;
-	//Will be defined in the first layout transition.
-	image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
-	image_create_info.flags = 0;
-
-	VkImageViewCreateInfo view_info{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
-	view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	view_info.format = image_create_info.format;
-	if (a_create_info.depth_format == DEPTH_FORMAT::D32_SFLOAT)
-		view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-	else
-		view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-	view_info.subresourceRange.baseMipLevel = 0;
-	view_info.subresourceRange.levelCount = image_create_info.mipLevels;
-	view_info.subresourceRange.baseArrayLayer = 0;
-	view_info.subresourceRange.layerCount = image_create_info.arrayLayers;
-
-	VmaAllocationCreateInfo alloc_info{};
-	alloc_info.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-
-	VkImage image;
-	VmaAllocation allocation;
-	VKASSERT(vmaCreateImage(s_vulkan_inst->vma, &image_create_info, &alloc_info, &image, &allocation, nullptr), "Vulkan: Failed to create image");
-	view_info.image = image;
-	VkImageView image_view;
-	VKASSERT(vkCreateImageView(s_vulkan_inst->device, &view_info, nullptr, &image_view), "Vulkan: Failed to create image view.");
-
-	SetDebugName(a_create_info.name, image, VK_OBJECT_TYPE_IMAGE);
-	SetDebugName(a_create_info.name, image_view, VK_OBJECT_TYPE_IMAGE_VIEW);
-
-	a_out_image = RImage(reinterpret_cast<uint64_t>(image));
-	a_out_image_view = RImageView(reinterpret_cast<uint64_t>(image_view));
-}
-
 RDescriptorLayout Vulkan::CreateDescriptorLayout(MemoryArena& a_temp_arena, Slice<DescriptorBindingInfo> a_bindings)
 {
 	VkDescriptorSetLayoutBinding* layout_binds = ArenaAllocArr(a_temp_arena, VkDescriptorSetLayoutBinding, a_bindings.size());
@@ -1711,28 +1648,6 @@ RDescriptorLayout Vulkan::CreateDescriptorSamplerLayout(const Slice<SamplerCreat
 DescriptorAllocation Vulkan::AllocateDescriptor(const RDescriptorLayout a_descriptor)
 {
 	return s_vulkan_inst->pdescriptor_buffer->AllocateDescriptor(a_descriptor);
-}
-
-void Vulkan::DescriptorWriteUniformBuffer(const DescriptorWriteUniformBufferInfo& a_write_info)
-{
-	VkDescriptorAddressInfoEXT buffer = GetDescriptorAddressInfo(s_vulkan_inst->device, a_write_info.buffer_view);
-
-	VkDescriptorGetInfoEXT desc_info{ VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT };
-	desc_info.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	desc_info.data.pUniformBuffer = &buffer;
-
-	VkDeviceSize descriptor_offset;
-	s_vulkan_inst->pfn.GetDescriptorSetLayoutBindingOffsetEXT(s_vulkan_inst->device,
-		reinterpret_cast<VkDescriptorSetLayout>(a_write_info.descriptor_layout.handle),
-		a_write_info.binding,
-		&descriptor_offset);
-
-	const size_t descriptor_size = s_vulkan_inst->descriptor_sizes.uniform_buffer;
-
-	descriptor_offset += descriptor_size * a_write_info.descriptor_index;
-	void* descriptor_mem = Pointer::Add(a_write_info.allocation.buffer_start, a_write_info.allocation.offset + descriptor_offset);
-
-	s_vulkan_inst->pfn.GetDescriptorEXT(s_vulkan_inst->device, &desc_info, descriptor_size, descriptor_mem);
 }
 
 inline static void DescriptorWrite(const VkDescriptorGetInfoEXT& a_desc_info, const RDescriptorLayout a_layout, const uint32_t a_binding, const uint32_t a_descriptor_size, const uint32_t a_descriptor_index, const uint32_t a_buffer_offset, void* a_buffer_start)

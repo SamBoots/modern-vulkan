@@ -2,10 +2,9 @@
 #include "Math.inl"
 #include "BBjson.hpp"
 #include "BBThreadScheduler.hpp"
-#include "MaterialSystem.hpp"
-
 #include "RendererTypes.hpp"
 #include "imgui.h"
+#include "OS/Program.h"
 
 #include <vector>
 
@@ -14,7 +13,7 @@ using namespace BB;
 // arbritrary, but just for a stack const char array
 constexpr size_t UNIQUE_MODELS_PER_SCENE = 128;
 
-void SceneHierarchy::Init(MemoryArena& a_arena, const StringView a_name, const uint32_t a_scene_obj_max)
+void SceneHierarchy::Init(MemoryArena& a_arena, const SceneHierarchyCreateInfo& a_create_info, const uint32_t a_scene_obj_max)
 {
 	m_transform_pool.Init(a_arena, a_scene_obj_max);
 	m_scene_objects.Init(a_arena, a_scene_obj_max);
@@ -63,31 +62,14 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const StringView a_name, const u
 	// also rework this to be more static and internal to the drawmesh
 	m_draw_list.max_size = a_scene_obj_max;
 	m_draw_list.size = 0;
-	m_draw_list.mesh_draw_call = ArenaAllocArr(a_arena, MeshDrawCall, m_draw_list.max_size);
+	m_draw_list.mesh_draw_call = ArenaAllocArr(a_arena, MeshDrawInfo, m_draw_list.max_size);
 	m_draw_list.transform = ArenaAllocArr(a_arena, ShaderTransform, m_draw_list.max_size);
 
 	m_previous_draw_area = { 0, 0 };
 
 	m_light_container.Init(a_arena, 128); // magic number jank yes shoot me
 
-	//per-frame descriptor set 1 for renderpass
-	DescriptorBindingInfo descriptor_bindings[3];
-	descriptor_bindings[0].binding = PER_SCENE_SCENE_DATA_BINDING;
-	descriptor_bindings[0].count = 1;
-	descriptor_bindings[0].shader_stage = SHADER_STAGE::ALL;
-	descriptor_bindings[0].type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
-
-	descriptor_bindings[1].binding = PER_SCENE_TRANSFORM_DATA_BINDING;
-	descriptor_bindings[1].count = 1;
-	descriptor_bindings[1].shader_stage = SHADER_STAGE::VERTEX;
-	descriptor_bindings[1].type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
-
-	descriptor_bindings[2].binding = PER_SCENE_LIGHT_DATA_BINDING;
-	descriptor_bindings[2].count = 1;
-	descriptor_bindings[2].shader_stage = SHADER_STAGE::FRAGMENT_PIXEL;
-	descriptor_bindings[2].type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
-	m_scene_descriptor_layout = CreateDescriptorLayout(a_arena, Slice(descriptor_bindings, _countof(descriptor_bindings)));
-	m_scene_descriptor = AllocateDescriptor(m_scene_descriptor_layout);
+	m_scene_descriptor = AllocateDescriptor(GetSceneDescriptorLayout());
 
 	const size_t backbuffer_count = GetRenderIO().frame_count;
 	m_per_frame.fence = CreateFence(0, "scene fence");
@@ -108,7 +90,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const StringView a_name, const u
 	}
 	m_per_frame.frame_allocator.Init(a_arena, mbSize * 4, m_per_frame.fence, "scene upload buffer");
 
-	m_scene_name = StringView(a_name.c_str(), a_name.size());
+	m_scene_name = a_create_info.name;
 }
 
 static bool NameIsWithinCharArray(const char** a_arr, const size_t a_arr_size, const char* a_str)
@@ -119,88 +101,6 @@ static bool NameIsWithinCharArray(const char** a_arr, const size_t a_arr_size, c
 			return true;
 	}
 	return false;
-}
-
-void BB::SceneHierarchy::InitViaJson(MemoryArena& a_arena, const char* a_json_path, const uint32_t a_scene_obj_max)
-{
-	JsonParser json_file(a_json_path);
-	InitViaJson(a_arena, json_file, a_scene_obj_max);
-}
-
-void BB::SceneHierarchy::InitViaJson(MemoryArena& a_arena, const JsonParser& a_parsed_file, const uint32_t a_scene_obj_max)
-{
-	const JsonObject& scene_obj = a_parsed_file.GetRootNode()->GetObject().Find("scene")->GetObject();
-
-	{
-		const JsonNode& name_node = *scene_obj.Find("name");
-		const StringView scene_name = Asset::FindOrCreateString(name_node.GetString());
-		Init(a_arena, scene_name, a_scene_obj_max);
-	}
-
-	const JsonList& scene_objects = scene_obj.Find("scene_objects")->GetList();
-
-	for (size_t i = 0; i < scene_objects.node_count; i++)
-	{
-		const JsonObject& sce_obj = scene_objects.nodes[i]->GetObject();
-		const char* model_name = scene_objects.nodes[i]->GetObject().Find("file_name")->GetString();
-		const char* obj_name = scene_objects.nodes[i]->GetObject().Find("file_name")->GetString();
-		const Model* model = Asset::FindModelByName(model_name);
-		BB_ASSERT(model != nullptr, "model failed to be found");
-		const JsonList& position_list = sce_obj.Find("position")->GetList();
-		BB_ASSERT(position_list.node_count == 3, "scene_object position in scene json is not 3 elements");
-		float3 position;
-		position.x = position_list.nodes[0]->GetNumber();
-		position.y = position_list.nodes[1]->GetNumber();
-		position.z = position_list.nodes[2]->GetNumber();
-
-		CreateSceneObjectViaModel(*model, position, obj_name);
-	}
-
-	const JsonList& lights = scene_obj.Find("lights")->GetList();
-	for (size_t i = 0; i < lights.node_count; i++)
-	{
-		const JsonObject& light_obj = lights.nodes[i]->GetObject();
-		CreateLightInfo light_info;
-
-		const char* light_type = light_obj.Find("light_type")->GetString();
-		if (strcmp(light_type, "spotlight") == 0)
-			light_info.light_type = LIGHT_TYPE::SPOT_LIGHT;
-		else if (strcmp(light_type, "pointlight") == 0)
-			light_info.light_type = LIGHT_TYPE::POINT_LIGHT;
-		else
-			BB_ASSERT(false, "invalid light type in json");
-
-		const JsonList& position = light_obj.Find("position")->GetList();
-		BB_ASSERT(position.node_count == 3, "light position in scene json is not 3 elements");
-		light_info.pos.x = position.nodes[0]->GetNumber();
-		light_info.pos.y = position.nodes[1]->GetNumber();
-		light_info.pos.z = position.nodes[2]->GetNumber();
-
-		const JsonList& color = light_obj.Find("color")->GetList();
-		BB_ASSERT(color.node_count == 3, "light color in scene json is not 3 elements");
-		light_info.color.x = color.nodes[0]->GetNumber();
-		light_info.color.y = color.nodes[1]->GetNumber();
-		light_info.color.z = color.nodes[2]->GetNumber();
-
-		light_info.specular_strength = light_obj.Find("specular_strength")->GetNumber();
-		light_info.radius_constant = light_obj.Find("constant")->GetNumber();
-		light_info.radius_linear = light_obj.Find("linear")->GetNumber();
-		light_info.radius_quadratic = light_obj.Find("quadratic")->GetNumber();
-
-		if (light_info.light_type == LIGHT_TYPE::SPOT_LIGHT)
-		{
-			const JsonList& spot_dir = light_obj.Find("spotlight_dir")->GetList();
-			BB_ASSERT(color.node_count == 3, "light spotlight_dir in scene json is not 3 elements");
-			light_info.spotlight_direction.x = spot_dir.nodes[0]->GetNumber();
-			light_info.spotlight_direction.y = spot_dir.nodes[1]->GetNumber();
-			light_info.spotlight_direction.z = spot_dir.nodes[2]->GetNumber();
-
-			light_info.cutoff_radius = light_obj.Find("cutoff_radius")->GetNumber();
-		}
-
-		const StringView light_name = Asset::FindOrCreateString(light_obj.Find("name")->GetString());
-		CreateSceneObjectAsLight(light_info, light_name.c_str());
-	}
 }
 
 StaticArray<Asset::AsyncAsset> SceneHierarchy::PreloadAssetsFromJson(MemoryArena& a_arena, const JsonParser& a_parsed_file)
@@ -416,7 +316,7 @@ void SceneHierarchy::SetProjection(const float4x4& a_projection)
 	m_per_frame.scene_info.proj = a_projection;
 }
 
-void SceneHierarchy::DrawSceneHierarchy(const MaterialSystem& a_material_system, const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset)
+void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset)
 {
 	{	// RenderScenePerDraw(a_list, m_render_scene, a_render_target, a_draw_area_size, a_draw_area_offset, Slice(m_skybox_shaders, _countof(m_skybox_shaders)));
 
@@ -522,7 +422,7 @@ void SceneHierarchy::DrawSceneHierarchy(const MaterialSystem& a_material_system,
 
 		{	// WRITE DESCRIPTORS HERE
 			DescriptorWriteBufferInfo desc_write;
-			desc_write.descriptor_layout = m_scene_descriptor_layout;
+			desc_write.descriptor_layout = GetSceneDescriptorLayout();
 			desc_write.allocation = m_scene_descriptor;
 			desc_write.descriptor_index = 0;
 
@@ -638,6 +538,39 @@ void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, con
 	{
 		DrawSceneObject(scene_object.children[i], local_transform);
 	}
+}
+
+RDescriptorLayout SceneHierarchy::GetSceneDescriptorLayout()
+{
+	static RDescriptorLayout s_scene_descriptor_layout{};
+	if (s_scene_descriptor_layout.IsValid())
+	{
+		return s_scene_descriptor_layout;
+	}
+
+	// create a temp one just to make the function nicer.
+	MemoryArena temp_arena = MemoryArenaCreate(ARENA_DEFAULT_COMMIT);
+
+	//per-frame descriptor set 1 for renderpass
+	DescriptorBindingInfo descriptor_bindings[3];
+	descriptor_bindings[0].binding = PER_SCENE_SCENE_DATA_BINDING;
+	descriptor_bindings[0].count = 1;
+	descriptor_bindings[0].shader_stage = SHADER_STAGE::ALL;
+	descriptor_bindings[0].type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
+
+	descriptor_bindings[1].binding = PER_SCENE_TRANSFORM_DATA_BINDING;
+	descriptor_bindings[1].count = 1;
+	descriptor_bindings[1].shader_stage = SHADER_STAGE::VERTEX;
+	descriptor_bindings[1].type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
+
+	descriptor_bindings[2].binding = PER_SCENE_LIGHT_DATA_BINDING;
+	descriptor_bindings[2].count = 1;
+	descriptor_bindings[2].shader_stage = SHADER_STAGE::FRAGMENT_PIXEL;
+	descriptor_bindings[2].type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
+	s_scene_descriptor_layout = CreateDescriptorLayout(temp_arena, Slice(descriptor_bindings, _countof(descriptor_bindings)));
+
+	MemoryArenaFree(temp_arena);
+	return s_scene_descriptor_layout;
 }
 
 void SceneHierarchy::AddToDrawList(const SceneObject& a_scene_object, const float4x4& a_transform)

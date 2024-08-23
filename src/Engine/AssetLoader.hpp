@@ -18,7 +18,7 @@ namespace BB
 		uint32_t width;		//4
 		uint32_t height;	//8
 
-		RTexture gpu_image;	//16
+		RTexture gpu_image;//16
 		AssetHandle asset_handle; //24
 	};
 
@@ -44,7 +44,7 @@ namespace BB
 
 		struct Mesh
 		{
-			::Mesh mesh;				// 16
+			BB::Mesh mesh;				// 16
 			StaticArray<Primitive> primitives;	// 32
 		};
 
