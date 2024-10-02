@@ -78,6 +78,14 @@ namespace BB
         uint2 scene_resolution;     // 156
     };
 
+    struct MeshMetallic
+    {
+        float4 base_color_factor;
+        float metallic_factor;
+        float roughness_factor;
+        float2 pad;
+    }
+
 #ifndef __HLSL_VERSION // C++ version
     enum class LIGHT_TYPE : uint
     {

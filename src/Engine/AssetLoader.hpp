@@ -28,15 +28,14 @@ namespace BB
 		{
 			RTexture base_texture;		// 4
 			RTexture normal_texture;	// 8
+			MeshMetallic mesh_metallic;
 		};
 		struct Primitive
 		{
 			//change this with material.
 			uint32_t start_index;				// 4
 			uint32_t index_count;				// 8
-					
-			ShaderEffectHandle vertex_shader;	// 16
-			ShaderEffectHandle fragment_shader;	// 24
+
 			MaterialData material_data;			// 32
 
 			const char* name;					// 40
@@ -44,19 +43,19 @@ namespace BB
 
 		struct Mesh
 		{
-			BB::Mesh mesh;				// 16
+			BB::Mesh mesh;						// 16
 			StaticArray<Primitive> primitives;	// 32
 		};
 
 		struct Node
 		{
-			float3 translation;			// 12
-			float3 scale;				// 24
-			Quat rotation;				// 40
-			Node* childeren;			// 48
-			size_t child_count;			// 56
-			Mesh* mesh;					// 64
-			const char* name;			// 72
+			float3 translation;
+			float3 scale;
+			Quat rotation;
+			Node* childeren;
+			size_t child_count;
+			Mesh* mesh;
+			const char* name;
 		};
 
 		StaticArray<Mesh> meshes;

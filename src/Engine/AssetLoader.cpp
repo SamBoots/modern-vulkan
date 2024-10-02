@@ -109,14 +109,15 @@ static uint64_t TurboCrappyImageHash(const void* a_pixels, const size_t a_byte_s
 	while (remaining >= sizeof(VecUint4))
 	{
 		b128_hash = AddUint4(b128_hash, LoadUint4(reinterpret_cast<const uint32_t*>(a_pixels)));
-
 		a_pixels = Pointer::Add(a_pixels, sizeof(VecUint4));
 		remaining -= sizeof(VecUint4);
 	}
 
 	const uint64_t* b128_to_b64 = reinterpret_cast<const uint64_t*>(&b128_hash);
 
-	return b128_to_b64[0] + b128_to_b64[1];
+	const size_t size_addition = a_byte_size ^ 8;
+
+	return b128_to_b64[0] + b128_to_b64[1] + size_addition;
 }
 
 enum class ASSET_TYPE : uint8_t
@@ -793,9 +794,14 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 
 		model_prim.name = "primitive [NUM]";
 		
-		// const StringView material_name = prim.material->name ? Asset::FindOrCreateString(prim.material->name) : "no name";
-		model_prim.material = GetStandardMaterial();
-
+		MeshMetallic& metallic_info = model_prim.material_data.mesh_metallic;
+		metallic_info.base_color_factor.x = prim.material->pbr_metallic_roughness.base_color_factor[0];
+		metallic_info.base_color_factor.y = prim.material->pbr_metallic_roughness.base_color_factor[1];
+		metallic_info.base_color_factor.z = prim.material->pbr_metallic_roughness.base_color_factor[2];
+		metallic_info.base_color_factor.w = prim.material->pbr_metallic_roughness.base_color_factor[3];
+		metallic_info.metallic_factor = prim.material->pbr_metallic_roughness.metallic_factor;
+		metallic_info.roughness_factor = prim.material->pbr_metallic_roughness.roughness_factor;
+		
 		if (prim.material->pbr_metallic_roughness.base_color_texture.texture)
 		{
 			const cgltf_image& image = *prim.material->pbr_metallic_roughness.base_color_texture.texture->image;
