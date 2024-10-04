@@ -84,7 +84,7 @@ namespace BB
         float metallic_factor;
         float roughness_factor;
         float2 pad;
-    }
+    };
 
 #ifndef __HLSL_VERSION // C++ version
     enum class LIGHT_TYPE : uint

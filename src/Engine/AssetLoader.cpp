@@ -65,7 +65,7 @@ static bool IsPathImage(const StringView a_view)
 {
 	const size_t extension_pos = a_view.find_last_of('.');
 
-	if (a_view.compare(extension_pos, ".png") || a_view.compare(extension_pos, ".jpg") || a_view.compare(extension_pos, ".bmp"))
+	if (a_view.compare(".png", extension_pos) || a_view.compare(".jpg", extension_pos) || a_view.compare(".bmp", extension_pos))
 		return true;
 	return false;
 }

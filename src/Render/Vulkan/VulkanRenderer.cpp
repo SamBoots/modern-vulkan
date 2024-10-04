@@ -1775,24 +1775,21 @@ static uint64_t PipelineLayoutCreateInfoHash(const VkPipelineLayoutCreateInfo& a
 	return hash;
 }
 
-RPipelineLayout Vulkan::CreatePipelineLayout(const RDescriptorLayout* a_descriptor_layouts, const uint32_t a_layout_count, const PushConstantRange* a_constant_ranges, const uint32_t a_constant_range_count)
+RPipelineLayout Vulkan::CreatePipelineLayout(const RDescriptorLayout* a_descriptor_layouts, const uint32_t a_layout_count, const PushConstantRange a_constant_range)
 {
 	VkPipelineLayoutCreateInfo create_info{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
 	create_info.setLayoutCount = a_layout_count;
 	create_info.pSetLayouts = reinterpret_cast<const VkDescriptorSetLayout*>(a_descriptor_layouts);
 	
-	if (a_constant_range_count)
+	if (a_constant_range.size > 0)
 	{
-		VkPushConstantRange* constant_ranges = BBstackAlloc(a_constant_range_count, VkPushConstantRange);
-		for (size_t i = 0; i < a_constant_range_count; i++)
-		{
-			constant_ranges[i].stageFlags = ShaderStageFlags(a_constant_ranges[i].stages);
-			constant_ranges[i].size = a_constant_ranges[i].size;
-			constant_ranges[i].offset = a_constant_ranges[i].offset;
-		}
+		VkPushConstantRange constant_range;
+		constant_range.stageFlags = ShaderStageFlags(a_constant_range.stages);
+		constant_range.size = a_constant_range.size;
+		constant_range.offset = 0;
 
-		create_info.pushConstantRangeCount = a_constant_range_count;
-		create_info.pPushConstantRanges = constant_ranges;
+		create_info.pushConstantRangeCount = 1;
+		create_info.pPushConstantRanges = &constant_range;
 
 		const uint64_t pipeline_hash = PipelineLayoutCreateInfoHash(create_info);
 		if (VkPipelineLayout* layout = s_vulkan_inst->pipeline_layout_cache.find(pipeline_hash))
@@ -1856,7 +1853,7 @@ ShaderObject Vulkan::CreateShaderObject(const ShaderObjectCreateInfo& a_shader_o
 		VkPushConstantRange constant_range;
 		constant_range.stageFlags = ShaderStageFlags(a_shader_object.push_constant_range.stages);
 		constant_range.size = a_shader_object.push_constant_range.size;
-		constant_range.offset = a_shader_object.push_constant_range.offset;
+		constant_range.offset = 0;
 		shader_create_info.pPushConstantRanges = &constant_range;
 		shader_create_info.pushConstantRangeCount = 1;
 
@@ -1914,7 +1911,7 @@ void Vulkan::CreateShaderObjects(MemoryArena& a_temp_arena, Slice<ShaderObjectCr
 			VkPushConstantRange* constant_ranges = ArenaAllocType(a_temp_arena, VkPushConstantRange);
 			constant_ranges->stageFlags = ShaderStageFlags(shad_info.push_constant_range.stages);
 			constant_ranges->size = shad_info.push_constant_range.size;
-			constant_ranges->offset = shad_info.push_constant_range.offset;
+			constant_ranges->offset = 0;
 			create_inf.pPushConstantRanges = constant_ranges;
 			create_inf.pushConstantRangeCount = 1;
 		}

@@ -1865,22 +1865,9 @@ DescriptorAllocation BB::AllocateDescriptor(const RDescriptorLayout a_descriptor
 	return Vulkan::AllocateDescriptor(a_descriptor);
 }
 
-bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles)
+bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles, bool a_link_shaders)
 {
-	// our default layouts
-	// array size should be SPACE_AMOUNT
-	constexpr size_t USER_DESCRIPTOR_LAYOUT_START = 2;
-	FixedArray<RDescriptorLayout, SPACE_AMOUNT> desc_layouts = {
-			s_render_inst->static_sampler_descriptor_set,
-			s_render_inst->global_descriptor_set,
-			RDescriptorLayout(BB_INVALID_HANDLE_64),	// SCENE SET
-			RDescriptorLayout(BB_INVALID_HANDLE_64),	// MATERIAL SET, NOT USED
-			RDescriptorLayout(BB_INVALID_HANDLE_64) };	// OBJECT SET, NOT USED
-
-	// all of them use this push constant for the shader indices.
-	PushConstantRange push_constant;
-	push_constant.stages = SHADER_STAGE::ALL;
-	push_constant.offset = 0;
+	// clean this all up, tons of duplication going on.
 
 	ShaderEffect* shader_effects = ArenaAllocArr(a_temp_arena, ShaderEffect, a_create_infos.size());
 	ShaderCode* shader_codes = ArenaAllocArr(a_temp_arena, ShaderCode, a_create_infos.size());
@@ -1892,13 +1879,11 @@ bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderE
 
 		BB_ASSERT(create_info.desc_layout_count <= 3, "more then three descriptor layouts given, this is not possible.");
 
-		for (size_t desc_index = 0; desc_index < create_info.desc_layout_count; desc_index++)
-		{
-			desc_layouts[USER_DESCRIPTOR_LAYOUT_START + desc_index] = create_info.desc_layouts[desc_index];
-		}
+		PushConstantRange push_constant_range;
+		push_constant_range.stages = SHADER_STAGE::ALL;
+		push_constant_range.size = create_info.push_constant_space;
 
-		push_constant.size = create_info.push_constant_space;
-		shader_effects[i].pipeline_layout = Vulkan::CreatePipelineLayout(desc_layouts.data(), 3, &push_constant, 1);
+		shader_effects[i].pipeline_layout = Vulkan::CreatePipelineLayout(create_info.desc_layouts.data(), create_info.desc_layout_count, push_constant_range);
 
 		shader_codes[i] = CompileShader(s_render_inst->shader_compiler,
 			create_info.shader_data,
@@ -1913,8 +1898,8 @@ bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderE
 		shader_object_infos[i].shader_entry = create_info.shader_entry;
 
 		shader_object_infos[i].descriptor_layout_count = 3;
-		shader_object_infos[i].descriptor_layouts = desc_layouts;
-		shader_object_infos[i].push_constant_range = push_constant;
+		shader_object_infos[i].descriptor_layouts = create_info.desc_layouts;
+		shader_object_infos[i].push_constant_range = push_constant_range;
 	}
 
 	ShaderObject* shader_objects = ArenaAllocArr(a_temp_arena, ShaderObject, a_create_infos.size());
@@ -2309,4 +2294,14 @@ RTexture BB::GetBlackTexture()
 RTexture BB::GetDebugTexture()
 {
 	return s_render_inst->texture_manager.GetDebugTexture();
+}
+
+RDescriptorLayout BB::GetStaticSamplerDescriptorLayout()
+{
+	return s_render_inst->static_sampler_descriptor_set;
+}
+
+RDescriptorLayout BB::GetGlobalDescriptorLayout()
+{
+	return s_render_inst->global_descriptor_set;
 }

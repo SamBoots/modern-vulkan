@@ -22,7 +22,7 @@ namespace BB
 
 		bool operator==(const String_View<CharT>& a_rhs) const
 		{
-			return Compare(a_rhs.c_str(), a_rhs.size);
+			return compare(a_rhs);
 		}
 
 		size_t find_first_of(const CharT a_char) const
@@ -61,12 +61,17 @@ namespace BB
 			return last_pos;
 		}
 
-		bool compare(const size_t a_pos, const CharT* a_str) const
+		bool compare(const String_View<CharT>& a_str_view, const size_t a_pos = 0) const
 		{
-			return compare(a_pos, a_str, Memory::StrLength(a_str) - 1);
+			return compare(a_str_view.size(), a_str_view.c_str(), a_pos);
 		}
 
-		bool compare(const size_t a_pos, const CharT* a_str, const size_t a_str_size) const
+		bool compare(const CharT* a_str, const size_t a_pos = 0) const
+		{
+			return compare(Memory::StrLength(a_str) - 1, a_str, a_pos);
+		}
+
+		bool compare(const size_t a_str_size, const CharT* a_str, const size_t a_pos = 0) const
 		{
 			BB_ASSERT(a_pos + a_str_size <= m_size, "trying to read the string out of bounds");
 

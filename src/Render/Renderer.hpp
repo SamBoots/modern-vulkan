@@ -6,13 +6,15 @@
 
 #include "Storage/LinkedList.h"
 #include "MemoryInterfaces.hpp"
-
+#include "Storage/FixedArray.h"
 #include "BBImage.hpp"
 
 class RenderQueue;
 
 namespace BB
 {
+	constexpr size_t SHADER_DESC_LAYOUT_MAX = SPACE_AMOUNT;
+
 	struct CreateShaderEffectInfo
 	{
 		const char* name;
@@ -21,10 +23,11 @@ namespace BB
 		SHADER_STAGE stage;
 		SHADER_STAGE_FLAGS next_stages;
 		uint32_t push_constant_space;
+
 		// 0 : scene
 		// 1 : material
 		// 2 : mesh
-		RDescriptorLayout desc_layouts[3];
+		FixedArray<RDescriptorLayout, SHADER_DESC_LAYOUT_MAX> desc_layouts;
 		uint32_t desc_layout_count;
 	};
 
@@ -156,7 +159,7 @@ namespace BB
 	RDescriptorLayout CreateDescriptorLayout(MemoryArena& a_temp_arena, Slice<DescriptorBindingInfo> a_bindings);
 	DescriptorAllocation AllocateDescriptor(const RDescriptorLayout a_descriptor);
 
-	bool CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles);
+	bool CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles, bool a_link_shaders);
 	bool ReloadShaderEffect(const ShaderEffectHandle a_shader_effect, const Buffer& a_shader);
 
 	struct BlitTextureInfo
@@ -221,4 +224,9 @@ namespace BB
 	RTexture GetWhiteTexture();
 	RTexture GetBlackTexture();
 	RTexture GetDebugTexture();
+
+	// should always be placed as layout 0
+	RDescriptorLayout GetStaticSamplerDescriptorLayout();
+	// should always be placed as layout 1
+	RDescriptorLayout GetGlobalDescriptorLayout();
 }

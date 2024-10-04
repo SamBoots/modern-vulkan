@@ -9,10 +9,10 @@
 
 #include "MemoryArena.hpp"
 
-//https://simoncoenen.com/blog/programming/graphics/DxcCompiling Guide used, I'll also use this as reference to remind myself.
+// https://simoncoenen.com/blog/programming/graphics/DxcCompiling Guide used, I'll also use this as reference to remind myself.
 
 #if defined(__GNUC__) || defined(__MINGW32__) || defined(__clang__) || defined(__clang_major__)
-//ignore warning related to using IID_PPV_ARGS
+// ignore warning related to using IID_PPV_ARGS
 BB_PRAGMA(clang diagnostic push)
 BB_PRAGMA(clang diagnostic ignored "-Wlanguage-extension-token")
 #endif 
@@ -67,11 +67,8 @@ const ShaderCode BB::CompileShader(const ShaderCompiler a_shader_compiler, const
 	wchar_t entry_w[MAX_FILE_PATH];
 
 	size_t conv_chars = 0;
-	BB_ASSERT(mbstowcs_s(&conv_chars, entry_w, entry_str_size, a_entry, MAX_FILE_PATH) == 0 , "8 bit char to 16 bit wide char for a_entry failed");
-
-	//mbstowcs_s already handles the null terminator.
-	//full_path_w[full_path_str_size] = L'\0';
-	//entry_w[entry_str_size] = L'\0';
+	errno_t error = mbstowcs_s(&conv_chars, entry_w, entry_str_size, a_entry, MAX_FILE_PATH) == 0;
+	BB_ASSERT(error == 0, "8 bit char to 16 bit wide char for a_entry failed");
 
 	//Lots of arguments, since we will add some extra.
 	LPCWSTR shader_compile_args[] =

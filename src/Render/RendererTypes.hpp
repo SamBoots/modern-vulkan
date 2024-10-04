@@ -168,8 +168,7 @@ namespace BB
 	struct PushConstantRange
 	{
 		SHADER_STAGE stages;
-		uint32_t offset;
-		uint32_t size;
+		uint32_t size; // zero for no push constant
 	};
 
 	struct ShaderObjectCreateInfo
