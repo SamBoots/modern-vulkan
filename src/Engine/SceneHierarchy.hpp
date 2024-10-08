@@ -84,8 +84,8 @@ namespace BB
 		{
 			MeshDrawInfo* mesh_draw_call;
 			ShaderTransform* transform;
-			size_t size;
-			size_t max_size;
+			uint32_t size;
+			uint32_t max_size;
 		};
 		struct PerFrameData
 		{

@@ -71,7 +71,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const SceneHierarchyCreateInfo& 
 
 	m_scene_descriptor = AllocateDescriptor(GetSceneDescriptorLayout());
 
-	const size_t backbuffer_count = GetRenderIO().frame_count;
+	const uint32_t backbuffer_count = GetRenderIO().frame_count;
 	m_per_frame.fence = CreateFence(0, "scene fence");
 
 	m_per_frame.scene_info.ambient_light = float3(1.f, 1.f, 1.f);
@@ -79,7 +79,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const SceneHierarchyCreateInfo& 
 	m_per_frame.scene_info.skybox_texture = m_skybox.handle;
 
 	m_per_frame.uniform_buffer.Init(a_arena, backbuffer_count);
-	for (size_t i = 0; i < m_per_frame.uniform_buffer.size(); i++)
+	for (uint32_t i = 0; i < m_per_frame.uniform_buffer.size(); i++)
 	{
 		GPUBufferCreateInfo buffer_info;
 		buffer_info.name = "scene uniform buffer";
@@ -499,7 +499,7 @@ void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTextu
 		SetFrontFace(a_list, false);
 		SetCullMode(a_list, CULL_MODE::NONE);
 
-		for (size_t i = 0; i < m_draw_list.size; i++)
+		for (uint32_t i = 0; i < m_draw_list.size; i++)
 		{
 			const MeshDrawInfo& mesh_draw_call = m_draw_list.mesh_draw_call[i];
 

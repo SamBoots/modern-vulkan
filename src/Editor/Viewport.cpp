@@ -121,7 +121,7 @@ void Viewport::DrawImgui(bool& a_resized, const uint2 a_minimum_size)
 
 const RTexture& Viewport::StartRenderTarget(const RCommandList a_cmd_list) const
 {
-	const RTexture render_target = m_textures[m_current_target];
+	const RTexture& render_target = m_textures[m_current_target];
 
 	PipelineBarrierImageInfo render_target_transition;
 	render_target_transition.src_mask = BARRIER_ACCESS_MASK::NONE;

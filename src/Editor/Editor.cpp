@@ -392,7 +392,7 @@ void Editor::CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a
 			shader_info[2].name = "skybox vertex shader";
 			shader_info[2].stage = SHADER_STAGE::VERTEX;
 			shader_info[2].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
-			shader_info[2].shader_data = ReadOSFile(a_arena, shader_node.Find("skybox_vertex")->GetString());;
+			shader_info[2].shader_data = ReadOSFile(a_arena, shader_node.Find("skybox_vertex")->GetString());
 			shader_info[2].shader_entry = shader_node.Find("skybox_vertex_entry")->GetString();
 			shader_info[2].push_constant_space = sizeof(ShaderIndices);
 			shader_info[2].desc_layouts[0] = SceneHierarchy::GetSceneDescriptorLayout();
@@ -401,7 +401,7 @@ void Editor::CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a
 			shader_info[3].name = "skybox fragment shader";
 			shader_info[3].stage = SHADER_STAGE::FRAGMENT_PIXEL;
 			shader_info[3].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
-			shader_info[3].shader_data = ReadOSFile(a_arena, shader_node.Find("skybox_fragment")->GetString());;
+			shader_info[3].shader_data = ReadOSFile(a_arena, shader_node.Find("skybox_fragment")->GetString());
 			shader_info[3].shader_entry = shader_node.Find("skybox_fragment_entry")->GetString();
 			shader_info[3].push_constant_space = sizeof(ShaderIndices);
 			shader_info[3].desc_layouts[0] = SceneHierarchy::GetSceneDescriptorLayout();

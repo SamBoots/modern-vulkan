@@ -2276,7 +2276,7 @@ void BB::SetDescriptorBufferOffset(const RCommandList a_list, const RPipelineLay
 	Vulkan::SetDescriptorBufferOffset(a_list, a_pipe_layout, a_first_set, a_set_count, a_buffer_indices, a_offsets);
 }
 
-const BB::DescriptorAllocation& GetGlobalDescriptorAllocation()
+const BB::DescriptorAllocation& BB::GetGlobalDescriptorAllocation()
 {
 	return s_render_inst->global_descriptor_allocation;
 }
