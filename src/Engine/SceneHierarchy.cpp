@@ -5,6 +5,7 @@
 #include "RendererTypes.hpp"
 #include "imgui.h"
 #include "OS/Program.h"
+#include "MaterialSystem.hpp"
 
 #include <vector>
 
@@ -13,8 +14,10 @@ using namespace BB;
 // arbritrary, but just for a stack const char array
 constexpr size_t UNIQUE_MODELS_PER_SCENE = 128;
 
-void SceneHierarchy::Init(MemoryArena& a_arena, const SceneHierarchyCreateInfo& a_create_info, const uint32_t a_scene_obj_max)
+void SceneHierarchy::Init(MemoryArena& a_arena, const StringView a_name, const uint32_t a_scene_obj_max)
 {
+	m_scene_name = a_name;
+
 	m_transform_pool.Init(a_arena, a_scene_obj_max);
 	m_scene_objects.Init(a_arena, a_scene_obj_max);
 	m_top_level_objects = ArenaAllocArr(a_arena, SceneObjectHandle, a_scene_obj_max);
@@ -40,6 +43,22 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const SceneHierarchyCreateInfo& 
 		"../../resources/textures/skybox/4.jpg",
 		"../../resources/textures/skybox/5.jpg",
 	};
+
+	MaterialCreateInfo skybox_material;
+	skybox_material.pass_type = PASS_TYPE::SCENE;
+	skybox_material.material_type = MATERIAL_TYPE::NONE;
+	skybox_material.vertex_shader_info.path = "../../resources/shaders/hlsl/skybox.hlsl";
+	skybox_material.vertex_shader_info.entry = "VertexMain";
+	skybox_material.vertex_shader_info.stage = SHADER_STAGE::VERTEX;
+	skybox_material.vertex_shader_info.next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
+	skybox_material.fragment_shader_info.path = "../../resources/shaders/hlsl/skybox.hlsl";
+	skybox_material.fragment_shader_info.entry = "FragmentMain";
+	skybox_material.fragment_shader_info.stage = SHADER_STAGE::FRAGMENT_PIXEL;
+	skybox_material.fragment_shader_info.next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
+	MemoryArenaScope(a_arena)
+	{
+		m_skybox_material = Material::CreateMaterial(a_arena, skybox_material, "skybox material");
+	}
 
 	for (size_t i = 0; i < 6; i++)
 	{
@@ -89,8 +108,6 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const SceneHierarchyCreateInfo& 
 		m_per_frame.uniform_buffer[i].Init(buffer_info);
 	}
 	m_per_frame.frame_allocator.Init(a_arena, mbSize * 4, m_per_frame.fence, "scene upload buffer");
-
-	m_scene_name = a_create_info.name;
 }
 
 static bool NameIsWithinCharArray(const char** a_arr, const size_t a_arr_size, const char* a_str)
@@ -153,15 +170,14 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 		{
 			BB_ASSERT(scene_obj.child_count <= SCENE_OBJ_CHILD_MAX, "Too many children for a single scene object!");
 			SceneObject prim_obj{};
-			prim_obj.name = mesh.primitives[i].name;
+			prim_obj.name = "unimplemented naming";
 
 			scene_obj.mesh_info.mesh = mesh.mesh;
 			scene_obj.mesh_info.index_start = mesh.primitives[i].start_index;
 			scene_obj.mesh_info.index_count = mesh.primitives[i].index_count;
 			scene_obj.mesh_info.base_texture = mesh.primitives[i].material_data.base_texture;
 			scene_obj.mesh_info.normal_texture = mesh.primitives[i].material_data.normal_texture;
-			scene_obj.mesh_info.vertex_shader = mesh.primitives[i].vertex_shader;
-			scene_obj.mesh_info.fragment_shader = mesh.primitives[i].fragment_shader;
+			scene_obj.mesh_info.material = mesh.primitives[i].material_data.material;
 
 			scene_obj.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 			prim_obj.transform = m_transform_pool.CreateTransform(float3(0, 0, 0));
@@ -320,7 +336,7 @@ void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTextu
 {
 	{	// RenderScenePerDraw(a_list, m_render_scene, a_render_target, a_draw_area_size, a_draw_area_offset, Slice(m_skybox_shaders, _countof(m_skybox_shaders)));
 
-		RPipelineLayout pipe_layout = BindShaders(a_list, Slice(m_skybox_shaders, _countof(m_skybox_shaders)));
+		const RPipelineLayout pipe_layout = BindShaders(a_list, Material::GetMaterialShaders(m_skybox_material));
 
 		// set 0
 		{
@@ -503,8 +519,8 @@ void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTextu
 		{
 			const MeshDrawInfo& mesh_draw_call = m_draw_list.mesh_draw_call[i];
 
-			ShaderEffectHandle shader_effects[2]{ mesh_draw_call.vertex_shader, mesh_draw_call.fragment_shader };
-			RPipelineLayout pipe_layout = BindShaders(a_list, Slice(shader_effects, _countof(shader_effects)));
+			Slice<const ShaderEffectHandle> shader_effects = Material::GetMaterialShaders(mesh_draw_call.material);
+			RPipelineLayout pipe_layout = BindShaders(a_list, shader_effects);
 
 			ShaderIndices shader_indices;
 			shader_indices.transform_index = i;
@@ -531,7 +547,7 @@ void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, con
 	const float4x4 local_transform = a_transform * m_transform_pool.GetTransformMatrix(scene_object.transform);
 
 	// mesh_info should be a pointer in the drawlist. Preferably. 
-	if (scene_object.mesh_info.vertex_shader.IsValid())
+	if (scene_object.mesh_info.material.IsValid())
 		AddToDrawList(scene_object, local_transform);
 
 	for (size_t i = 0; i < scene_object.child_count; i++)

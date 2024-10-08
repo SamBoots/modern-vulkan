@@ -16,6 +16,8 @@
 
 #include "Storage/Queue.hpp"
 
+#include "MaterialSystem.hpp"
+
 BB_WARNINGS_OFF
 #define CGLTF_IMPLEMENTATION
 #include "cgltf.h"
@@ -792,8 +794,6 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 		model_prim.start_index = index_offset;
 		model_prim.index_count = static_cast<uint32_t>(prim.indices->count);
 
-		model_prim.name = "primitive [NUM]";
-		
 		MeshMetallic& metallic_info = model_prim.material_data.mesh_metallic;
 		metallic_info.base_color_factor.x = prim.material->pbr_metallic_roughness.base_color_factor[0];
 		metallic_info.base_color_factor.y = prim.material->pbr_metallic_roughness.base_color_factor[1];
@@ -802,6 +802,8 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 		metallic_info.metallic_factor = prim.material->pbr_metallic_roughness.metallic_factor;
 		metallic_info.roughness_factor = prim.material->pbr_metallic_roughness.roughness_factor;
 		
+		model_prim.material_data.material = Material::GetDefaultMaterial(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D);
+
 		if (prim.material->pbr_metallic_roughness.base_color_texture.texture)
 		{
 			const cgltf_image& image = *prim.material->pbr_metallic_roughness.base_color_texture.texture->image;
@@ -1055,7 +1057,6 @@ const StringView Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const Mesh
 	model->root_node_indices = ArenaAllocArr(s_asset_manager->asset_arena, uint32_t, 1);
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 	Model::Primitive primitive;
-	primitive.name = "PRIMITIVE [NUM]";
 	primitive.material_data.base_texture = a_mesh_op.base_color;
 	primitive.material_data.normal_texture = GetWhiteTexture();
 	primitive.start_index = 0;

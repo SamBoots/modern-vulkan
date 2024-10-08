@@ -1,6 +1,7 @@
 #pragma once
 #include "Rendererfwd.hpp"
 #include "Utils/Slice.h"
+#include "Enginefwd.hpp"
 
 // forward declare this, I don't know why that didn't actually work
 #include "Storage/BBString.h"
@@ -26,8 +27,9 @@ namespace BB
 	{
 		struct MaterialData
 		{
-			RTexture base_texture;		// 4
-			RTexture normal_texture;	// 8
+			MaterialHandle material;	// 8
+			RTexture base_texture;		// 12
+			RTexture normal_texture;	// 16
 			MeshMetallic mesh_metallic;
 		};
 		struct Primitive
@@ -37,8 +39,6 @@ namespace BB
 			uint32_t index_count;				// 8
 
 			MaterialData material_data;			// 32
-
-			const char* name;					// 40
 		};
 
 		struct Mesh

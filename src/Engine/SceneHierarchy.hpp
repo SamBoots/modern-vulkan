@@ -20,8 +20,7 @@ namespace BB
 	struct MeshDrawInfo
 	{
 		Mesh mesh;
-		ShaderEffectHandle vertex_shader;
-		ShaderEffectHandle fragment_shader;
+		MaterialHandle material;
 		uint32_t index_start;
 		uint32_t index_count;
 		RTexture base_texture;
@@ -50,17 +49,13 @@ namespace BB
 	struct SceneHierarchyCreateInfo
 	{
 		StringView name;
-		ShaderEffectHandle default_vertex_shader;
-		ShaderEffectHandle default_fragment_shader;
-		ShaderEffectHandle skybox_vertex_shader;
-		ShaderEffectHandle skybox_fragment_shader;
 	};
 	
 	class SceneHierarchy
 	{
 	public:
 		friend class Editor;
-		void Init(MemoryArena& a_memory_arena, const SceneHierarchyCreateInfo& a_create_info, const uint32_t a_scene_obj_max = DEFAULT_SCENE_OBJ_MAX);
+		void Init(MemoryArena& a_memory_arena, const StringView a_name, const uint32_t a_scene_obj_max = DEFAULT_SCENE_OBJ_MAX);
 		static StaticArray<Asset::AsyncAsset> PreloadAssetsFromJson(MemoryArena& a_arena, const JsonParser& a_parsed_file);
 
 		void DrawSceneHierarchy(const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
@@ -117,7 +112,6 @@ namespace BB
 
 		float3 m_clear_color;
 		RTexture m_skybox;
-		ShaderEffectHandle m_skybox_shaders[2]{};
-		ShaderEffectHandle m_default_shaders[2]{};
+		MaterialHandle m_skybox_material;
 	};
 }

@@ -1674,7 +1674,7 @@ void BB::EndRenderPass(const RCommandList a_list)
 	Vulkan::EndRenderPass(a_list);
 }
 
-RPipelineLayout BB::BindShaders(const RCommandList a_list, const Slice<ShaderEffectHandle> a_shader_effects)
+RPipelineLayout BB::BindShaders(const RCommandList a_list, const Slice<const ShaderEffectHandle> a_shader_effects)
 {
 	constexpr size_t SHADERS_MAX = 5;
 	BB_ASSERT(SHADERS_MAX >= a_shader_effects.size(), "binding more then 5 shaders at a time, this is wrong or increase SHADERS_MAX");

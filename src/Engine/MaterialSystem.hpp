@@ -1,11 +1,10 @@
 #pragma once
 #include "Storage/BBString.h"
 #include "Rendererfwd.hpp"
+#include "Enginefwd.hpp"
 
 namespace BB
 {
-	using MaterialHandle = FrameworkHandle<struct MaterialHandleTag>;
-
 	struct MaterialShaderCreateInfo
 	{
 		StringView path;
@@ -23,8 +22,9 @@ namespace BB
 
 	enum class MATERIAL_TYPE
 	{
-		SCENE_3D,
-		SCENE_2D,
+		MATERIAL_3D,
+		MATERIAL_2D,
+		NONE,
 		ENUM_SIZE
 	};
 
@@ -54,6 +54,6 @@ namespace BB
 
 		MaterialHandle CreateMaterial(MemoryArena& a_temp_arena, const MaterialCreateInfo& a_create_info, const StringView a_name);
 		MaterialHandle GetDefaultMaterial(const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type);
+		Slice<const ShaderEffectHandle> GetMaterialShaders(const MaterialHandle a_material);
 	};
-
 }

@@ -129,7 +129,7 @@ namespace BB
 
 	void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info);
 	void EndRenderPass(const RCommandList a_list);
-	RPipelineLayout BindShaders(const RCommandList a_list, const Slice<ShaderEffectHandle> a_shader_effects);
+	RPipelineLayout BindShaders(const RCommandList a_list, const Slice<const ShaderEffectHandle> a_shader_effects);
 	void SetFrontFace(const RCommandList a_list, const bool a_is_clockwise);
 	void SetCullMode(const RCommandList a_list, const CULL_MODE a_cull_mode);
 	void SetClearColor(const RCommandList a_list, const float3 a_clear_color);

@@ -1,5 +1,6 @@
 #include "GameMain.hpp"
 #include "BBImage.hpp"
+#include "MaterialSystem.hpp"
 
 using namespace BB;
 
@@ -185,7 +186,7 @@ SceneObjectHandle DungeonMap::CreateRenderObject(MemoryArena& a_temp_arena, Scen
 		mesh_info.mesh = mesh;
 		mesh_info.index_start = 0;
 		mesh_info.index_count = indices.size();
-		mesh_info. // DO MORE!
+		mesh_info.material = Material::GetDefaultMaterial(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D);
 		map_obj = a_scene_hierarchy.CreateSceneObjectMesh(float3(3.f, 0.f, 0.f), mesh_info, "dungeon map");
 	}
 	return map_obj;
@@ -194,6 +195,7 @@ SceneObjectHandle DungeonMap::CreateRenderObject(MemoryArena& a_temp_arena, Scen
 bool DungeonGame::InitGame()
 {
 	m_game_memory = MemoryArenaCreate();
+
 	m_scene_hierarchy.Init(m_game_memory, Asset::FindOrCreateString("game hierarchy"));
 	m_scene_hierarchy.SetClearColor(float3(0.3f, 0.3f, 0.3f));
 	DungeonRoom room;
