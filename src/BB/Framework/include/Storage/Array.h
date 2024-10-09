@@ -4,6 +4,7 @@
 #include "MemoryArena.hpp"
 
 #include "Utils/Utils.h"
+#include "Slice.h"
 
 namespace BB
 {
@@ -68,7 +69,7 @@ namespace BB
 			BB_ASSERT(a_size != 0, "Dynamic_array size is specified to be 0");
 			m_capacity = RoundUp(a_size, Array_Specs::multipleValue);
 
-			m_Arr = reinterpret_cast<T*>(BBalloc(m_allocator, m_capacity * sizeof(T)));
+			m_arr = reinterpret_cast<T*>(BBalloc(m_allocator, m_capacity * sizeof(T)));
 		}
 
 		Array(const Array<T>& a_Array)
@@ -76,9 +77,9 @@ namespace BB
 			m_allocator = a_Array.m_allocator;
 			m_size = a_Array.m_size;
 			m_capacity = a_Array.m_capacity;
-			m_Arr = reinterpret_cast<T*>(BBalloc(m_allocator, m_capacity * sizeof(T)));
+			m_arr = reinterpret_cast<T*>(BBalloc(m_allocator, m_capacity * sizeof(T)));
 
-			Memory::Copy<T>(m_Arr, a_Array.m_Arr, m_size);
+			Memory::Copy<T>(m_arr, a_Array.m_arr, m_size);
 		}
 
 		Array(Array<T>&& a_Array) noexcept
@@ -86,28 +87,28 @@ namespace BB
 			m_allocator = a_Array.m_allocator;
 			m_size = a_Array.m_size;
 			m_capacity = a_Array.m_capacity;
-			m_Arr = a_Array.m_Arr;
+			m_arr = a_Array.m_arr;
 
 			a_Array.m_size = 0;
 			a_Array.m_capacity = 0;
-			a_Array.m_Arr = nullptr;
+			a_Array.m_arr = nullptr;
 			a_Array.m_allocator.allocator = nullptr;
 			a_Array.m_allocator.func = nullptr;
 		}
 
 		~Array()
 		{
-			if (m_Arr != nullptr)
+			if (m_arr != nullptr)
 			{
 				if constexpr (!trivialDestructible_T)
 				{
 					for (size_t i = 0; i < m_size; i++)
 					{
-						m_Arr[i].~T();
+						m_arr[i].~T();
 					}
 				}
 
-				BBfree(m_allocator, m_Arr);
+				BBfree(m_allocator, m_arr);
 			}
 		}
 
@@ -118,9 +119,9 @@ namespace BB
 			m_allocator = a_rhs.m_allocator;
 			m_size = a_rhs.m_size;
 			m_capacity = a_rhs.m_capacity;
-			m_Arr = reinterpret_cast<T*>(BBalloc(m_allocator, m_capacity * sizeof(T)));
+			m_arr = reinterpret_cast<T*>(BBalloc(m_allocator, m_capacity * sizeof(T)));
 
-			Memory::Copy<T>(m_Arr, a_rhs.m_Arr, m_size);
+			Memory::Copy<T>(m_arr, a_rhs.m_arr, m_size);
 
 			return *this;
 		}
@@ -132,11 +133,11 @@ namespace BB
 			m_allocator = a_rhs.m_allocator;
 			m_size = a_rhs.m_size;
 			m_capacity = a_rhs.m_capacity;
-			m_Arr = a_rhs.m_Arr;
+			m_arr = a_rhs.m_arr;
 
 			a_rhs.m_size = 0;
 			a_rhs.m_capacity = 0;
-			a_rhs.m_Arr = nullptr;
+			a_rhs.m_arr = nullptr;
 			a_rhs.m_allocator.allocator = nullptr;
 			a_rhs.m_allocator.func = nullptr;
 
@@ -146,7 +147,7 @@ namespace BB
 		T& operator[](const size_t a_Index) const
 		{
 			BB_ASSERT(a_Index <= m_size, "Dynamic_Array, trying to get an element using the [] operator but that element is not there.");
-			return m_Arr[a_Index];
+			return m_arr[a_Index];
 		}
 
 		void push_back(T& a_Element)
@@ -158,7 +159,7 @@ namespace BB
 			if (m_size + a_count > m_capacity)
 				grow(a_count);
 
-			Memory::Copy<T>(m_Arr, a_Elements, a_count);
+			Memory::Copy<T>(m_arr, a_Elements, a_count);
 
 			m_size += a_count;
 		}
@@ -172,7 +173,7 @@ namespace BB
 			if (m_size >= m_capacity)
 				grow();
 
-			new (&m_Arr[m_size]) T(std::forward<Args>(a_args)...);
+			new (&m_arr[m_size]) T(std::forward<Args>(a_args)...);
 			m_size++;
 		}
 		template <class... Args>
@@ -187,18 +188,18 @@ namespace BB
 				//Move all elements after a_position 1 to the front.
 				for (size_t i = m_size; i > a_position; i--)
 				{
-					new (&m_Arr[i]) T(m_Arr[i - 1]);
-					m_Arr[i - 1].~T();
+					new (&m_arr[i]) T(m_arr[i - 1]);
+					m_arr[i - 1].~T();
 				}
 			}
 			else
 			{
 				//Move all elements after a_position 1 to the front.
 				//Using memmove for more safety.
-				memmove(&m_Arr[a_position + 1], &m_Arr[a_position], sizeof(T) * (m_size - a_position));
+				memmove(&m_arr[a_position + 1], &m_arr[a_position], sizeof(T) * (m_size - a_position));
 			}
 
-			new (&m_Arr[a_position]) T(std::forward<Args>(a_args)...);
+			new (&m_arr[a_position]) T(std::forward<Args>(a_args)...);
 			m_size++;
 		}
 
@@ -219,7 +220,7 @@ namespace BB
 
 			for (size_t i = m_size; i < a_size; i++)
 			{
-				new (&m_Arr[i]) T();
+				new (&m_arr[i]) T();
 			}
 
 			m_size = a_size;
@@ -231,7 +232,7 @@ namespace BB
 			--m_size;
 			if constexpr (!trivialDestructible_T)
 			{
-				m_Arr[m_size].~T();
+				m_arr[m_size].~T();
 			}
 		}
 
@@ -241,7 +242,7 @@ namespace BB
 			{
 				for (size_t i = 0; i < m_size; i++)
 				{
-					m_Arr[i].~T();
+					m_arr[i].~T();
 				}
 			}
 			m_size = 0;
@@ -249,10 +250,10 @@ namespace BB
 
 		size_t size() const { return m_size; }
 		size_t capacity() const { return m_capacity; }
-		T* data() const { return m_Arr; }
+		T* data() const { return m_arr; }
 
-		Iterator begin() { return Iterator(m_Arr); }
-		Iterator end() { return Iterator(&m_Arr[m_size + 1]); } //Get an out of bounds Iterator.
+		Iterator begin() { return Iterator(m_arr); }
+		Iterator end() { return Iterator(&m_arr[m_size + 1]); } //Get an out of bounds Iterator.
 			 
 	private:
 		void grow(size_t a_MinCapacity = 0)
@@ -269,16 +270,16 @@ namespace BB
 		{
 			T* t_NewArr = reinterpret_cast<T*>(BBalloc(m_allocator, a_new_capacity * sizeof(T)));
 
-			Memory::Move(t_NewArr, m_Arr, m_size);
-			BBfree(m_allocator, m_Arr);
+			Memory::Move(t_NewArr, m_arr, m_size);
+			BBfree(m_allocator, m_arr);
 
-			m_Arr = t_NewArr;
+			m_arr = t_NewArr;
 			m_capacity = a_new_capacity;
 		}
 
 		Allocator m_allocator;
 
-		T* m_Arr;
+		T* m_arr;
 		size_t m_size = 0;
 		size_t m_capacity;
 	};
@@ -339,7 +340,7 @@ namespace BB
 			BB_ASSERT(a_size != 0, "StaticArray size is specified to be 0");
 			m_capacity = a_size;
 
-			m_Arr = reinterpret_cast<T*>(ArenaAllocArr(a_arena, T, m_capacity));
+			m_arr = reinterpret_cast<T*>(ArenaAllocArr(a_arena, T, m_capacity));
 		}
 
 		void Init(void* a_mem, const uint32_t a_size)
@@ -347,8 +348,8 @@ namespace BB
 			BB_ASSERT(a_size != 0, "StaticArray size is specified to be 0");
 			m_capacity = a_size;
 
-			m_Arr = reinterpret_cast<T*>(a_mem);
-			memset(m_Arr, 0, a_size * sizeof(T));
+			m_arr = reinterpret_cast<T*>(a_mem);
+			memset(m_arr, 0, a_size * sizeof(T));
 		}
 
 		void Destroy()
@@ -356,18 +357,18 @@ namespace BB
 			DestroyAllElements();
 			m_capacity = 0;
 			m_size = 0;
-			m_Arr = nullptr;
+			m_arr = nullptr;
 		}
 
 		void DestroyAllElements()
 		{
 			if constexpr (!trivialDestructible_T)
 			{
-				if (m_Arr != nullptr)
+				if (m_arr != nullptr)
 				{
 					for (size_t i = 0; i < m_size; i++)
 					{
-						m_Arr[i].~T();
+						m_arr[i].~T();
 					}
 				}
 			}
@@ -376,7 +377,7 @@ namespace BB
 		T& operator[](const size_t a_Index) const
 		{
 			BB_ASSERT(a_Index <= m_size, "StaticArray, trying to get an element using the [] operator but that element is not there.");
-			return m_Arr[a_Index];
+			return m_arr[a_Index];
 		}
 
 		void push_back(T& a_Element)
@@ -387,7 +388,7 @@ namespace BB
 		{
 			BB_ASSERT(m_size + a_count < m_capacity, "StaticArray is full");
 
-			Memory::Copy<T>(m_Arr, a_Elements, a_count);
+			Memory::Copy<T>(m_arr, a_Elements, a_count);
 
 			m_size += a_count;
 		}
@@ -400,7 +401,7 @@ namespace BB
 		{
 			BB_ASSERT(m_size <= m_capacity, "StaticArray is full");
 
-			new (&m_Arr[m_size]) T(std::forward<Args>(a_args)...);
+			new (&m_arr[m_size]) T(std::forward<Args>(a_args)...);
 			m_size++;
 		}
 		template <class... Args>
@@ -414,18 +415,18 @@ namespace BB
 				//Move all elements after a_position 1 to the front.
 				for (size_t i = m_size; i > a_position; i--)
 				{
-					new (&m_Arr[i]) T(m_Arr[i - 1]);
-					m_Arr[i - 1].~T();
+					new (&m_arr[i]) T(m_arr[i - 1]);
+					m_arr[i - 1].~T();
 				}
 			}
 			else
 			{
 				//Move all elements after a_position 1 to the front.
 				//Using memmove for more safety.
-				memmove(&m_Arr[a_position + 1], &m_Arr[a_position], sizeof(T) * (m_size - a_position));
+				memmove(&m_arr[a_position + 1], &m_arr[a_position], sizeof(T) * (m_size - a_position));
 			}
 
-			new (&m_Arr[a_position]) T(std::forward<Args>(a_args)...);
+			new (&m_arr[a_position]) T(std::forward<Args>(a_args)...);
 			m_size++;
 		}
 
@@ -435,7 +436,7 @@ namespace BB
 			--m_size;
 			if constexpr (!trivialDestructible_T)
 			{
-				m_Arr[m_size].~T();
+				m_arr[m_size].~T();
 			}
 		}
 
@@ -445,7 +446,7 @@ namespace BB
 			{
 				for (size_t i = 0; i < m_size; i++)
 				{
-					m_Arr[i].~T();
+					m_arr[i].~T();
 				}
 			}
 			m_size = 0;
@@ -455,7 +456,7 @@ namespace BB
 		{
 			BB_ASSERT(a_new_size <= m_capacity, "new size is bigger then the static array's capacity");
 			if (m_size > a_new_size)
-				memset(&m_Arr[m_size], 0, a_new_size - m_size);
+				memset(&m_arr[m_size], 0, a_new_size - m_size);
 
 			m_size = a_new_size;
 		}
@@ -464,20 +465,29 @@ namespace BB
 		{
 			for (size_t i = 0; i < m_capacity; i++)
 			{
-				new (&m_Arr[i]) T(a_value);
+				new (&m_arr[i]) T(a_value);
 			}
 			m_size = m_capacity;
 		}
 
 		uint32_t size() const { return m_size; }
 		uint32_t capacity() const { return m_capacity; }
-		T* data() const { return m_Arr; }
+		T* data() const { return m_arr; }
 
-		Iterator begin() { return Iterator(m_Arr); }
-		Iterator end() { return Iterator(&m_Arr[m_size + 1]); } //Get an out of bounds Iterator.
+		Iterator begin() { return Iterator(m_arr); }
+		Iterator end() { return Iterator(&m_arr[m_size + 1]); } //Get an out of bounds Iterator.
+		Slice<const T> slice()
+		{
+			return slice(m_size);
+		}
+		Slice<const T> slice(const size_t a_size, const size_t a_begin = 0)
+		{
+			BB_ASSERT(a_begin + a_size < m_size, "requesting an out of bounds slice");
+			return Slice<const T>(&m_arr[a_begin], a_size);
+		}
 
 	private:
-		T* m_Arr;
+		T* m_arr;
 		uint32_t m_size = 0;
 		uint32_t m_capacity;
 	};

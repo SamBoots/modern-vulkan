@@ -48,6 +48,12 @@ namespace BB
 		MaterialShaderCreateInfo default_2d_fragment;
 	};
 
+	struct CachedShaderInfo
+	{
+		ShaderEffectHandle handle;
+		CreateShaderEffectInfo create_info;
+	};
+
 	namespace Material
 	{
 		void InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCreateInfo& a_create_info);
@@ -55,5 +61,6 @@ namespace BB
 		MaterialHandle CreateMaterial(MemoryArena& a_temp_arena, const MaterialCreateInfo& a_create_info, const StringView a_name);
 		MaterialHandle GetDefaultMaterial(const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type);
 		Slice<const ShaderEffectHandle> GetMaterialShaders(const MaterialHandle a_material);
+		Slice<const CachedShaderInfo> GetAllCachedShaders();
 	};
 }

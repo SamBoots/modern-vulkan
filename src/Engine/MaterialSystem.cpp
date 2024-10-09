@@ -4,8 +4,6 @@
 #include "Program.h"
 #include "Storage/Hashmap.h"
 
-#include <tuple>
-
 using namespace BB;
 
 BB_STATIC_ASSERT(sizeof(ShaderIndices) == sizeof(ShaderIndices2D), "shaderindices not the same sizeof.");
@@ -27,7 +25,7 @@ struct sMaterial
 struct MaterialSystem_inst
 {
 	StaticSlotmap<sMaterial, MaterialHandle> material_map;
-	StaticArray<std::tuple<ShaderEffectHandle, MaterialShaderCreateInfo>> shader_effects;
+	StaticArray<CachedShaderInfo> shader_effects;
 
 	RDescriptorLayout scene_desc_layout;
 
@@ -103,7 +101,7 @@ static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_ar
 		{
 			for (size_t i = 0; i < shader_effect_count; i++)
 			{
-				s_material_inst->shader_effects.emplace_back(handles[i]);
+				s_material_inst->shader_effects.emplace_back(handles[i], shader_effects[i]);
 			}
 		}
 	}
@@ -210,4 +208,9 @@ Slice<const ShaderEffectHandle> Material::GetMaterialShaders(const MaterialHandl
 	BB_ASSERT(a_material.IsValid(), "invalid material send!");
 	const sMaterial& mat = s_material_inst->material_map.find(a_material);
 	return Slice(mat.shader_effects.data(), mat.shader_effect_count);
+}
+
+Slice<const CachedShaderInfo> Material::GetAllCachedShaders()
+{
+	return s_material_inst->shader_effects.slice();
 }

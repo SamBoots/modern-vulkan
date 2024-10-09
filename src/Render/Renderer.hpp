@@ -13,24 +13,6 @@ class RenderQueue;
 
 namespace BB
 {
-	constexpr size_t SHADER_DESC_LAYOUT_MAX = SPACE_AMOUNT;
-
-	struct CreateShaderEffectInfo
-	{
-		const char* name;
-		const char* shader_entry;
-		Buffer shader_data;
-		SHADER_STAGE stage;
-		SHADER_STAGE_FLAGS next_stages;
-		uint32_t push_constant_space;
-
-		// 0 : scene
-		// 1 : material
-		// 2 : mesh
-		FixedArray<RDescriptorLayout, SHADER_DESC_LAYOUT_MAX> desc_layouts;
-		uint32_t desc_layout_count;
-	};
-
 	struct RendererCreateInfo
 	{
 		WindowHandle window_handle;
