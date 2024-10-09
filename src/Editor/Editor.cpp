@@ -11,10 +11,9 @@
 
 using namespace BB;
 
-constexpr size_t EDITOR_MATERIAL_ARRAY_SIZE = 4092;
-constexpr size_t EDITOR_SHADER_EFFECTS_ARRAY_SIZE = 1024;
 constexpr size_t EDITOR_VIEWPORT_ARRAY_SIZE = 16;
 constexpr size_t EDITOR_MODEL_NAME_ARRAY_SIZE = 256;
+constexpr uint32_t CURRENT_RENDER_TARGET_COUNT = 3;
 
 struct ImInputData
 {
@@ -292,12 +291,12 @@ void Editor::ThreadFuncForDrawing(MemoryArena&, void* a_param)
 	SceneHierarchy& scene_hierarchy = param_in->scene_hierarchy;
 	RCommandList list = param_in->command_list;
 
-	viewport.DrawScene(list, scene_hierarchy);
+	scene_hierarchy.DrawSceneHierarchy(list, viewport.StartRenderTarget(list), viewport.GetExtent(), viewport.GetOffset());
 }
 
 void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent, const size_t a_editor_memory)
 {
-	m_main_window = a_window; 
+	m_main_window = a_window;
 	m_app_window_extent = a_window_extent;
 
 	SetupImGuiInput(a_arena, m_main_window);
@@ -305,44 +304,38 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 	m_gpu_info = GetGPUInfo(a_arena);
 
 	m_editor_allocator.Initialize(a_arena, a_editor_memory);
-	void* materials_mem = m_editor_allocator.Alloc(EDITOR_MATERIAL_ARRAY_SIZE * sizeof(decltype(m_materials)::TYPE), 16);
-	void* shader_effects_mem = m_editor_allocator.Alloc(EDITOR_SHADER_EFFECTS_ARRAY_SIZE * sizeof(decltype(m_shader_effects)::TYPE), 16);
 	void* viewports_mem = m_editor_allocator.Alloc(EDITOR_VIEWPORT_ARRAY_SIZE * sizeof(decltype(m_viewport_and_scenes)::TYPE), 16);
 	void* loaded_model_names = m_editor_allocator.Alloc(EDITOR_MODEL_NAME_ARRAY_SIZE * sizeof(decltype(m_loaded_models_names)::TYPE), 16);
-	
-	m_materials.Init(materials_mem, EDITOR_MATERIAL_ARRAY_SIZE);
-	m_shader_effects.Init(shader_effects_mem, EDITOR_SHADER_EFFECTS_ARRAY_SIZE);
+
 	m_viewport_and_scenes.Init(viewports_mem, EDITOR_VIEWPORT_ARRAY_SIZE);
 	m_loaded_models_names.Init(loaded_model_names, EDITOR_MODEL_NAME_ARRAY_SIZE);
 
-	MemoryArenaScope(a_arena)
-	{
-		ShaderEffectHandle shader_effs[2];
-		Buffer imgui_shader = ReadOSFile(a_arena, "../../resources/shaders/hlsl/Imgui.hlsl");
+	MaterialSystemCreateInfo material_system_init;
+	material_system_init.max_materials = 128;
+	material_system_init.max_shader_effects = 64;
+	material_system_init.default_2d_vertex.path = "../../resources/shaders/hlsl/Imgui.hlsl";
+	material_system_init.default_2d_vertex.entry = "VertexMain";
+	material_system_init.default_2d_vertex.stage = SHADER_STAGE::VERTEX;
+	material_system_init.default_2d_vertex.next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::FRAGMENT_PIXEL);
 
-		CreateShaderEffectInfo shaders[2];
-		shaders[0].name = "imgui vertex shader";
-		shaders[0].shader_data = imgui_shader;
-		shaders[0].shader_entry = "VertexMain";
-		shaders[0].stage = SHADER_STAGE::VERTEX;
-		shaders[0].next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::FRAGMENT_PIXEL);
-		shaders[0].push_constant_space = sizeof(ShaderIndices2D);
-		shaders[0].desc_layout_count = 0;
+	material_system_init.default_2d_fragment.path = "../../resources/shaders/hlsl/Imgui.hlsl";
+	material_system_init.default_2d_fragment.entry = "FragmentMain";
+	material_system_init.default_2d_fragment.stage = SHADER_STAGE::FRAGMENT_PIXEL;
+	material_system_init.default_2d_fragment.next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::NONE);
 
-		shaders[1].name = "imgui Fragment shader";
-		shaders[1].shader_data = imgui_shader;
-		shaders[1].shader_entry = "FragmentMain";
-		shaders[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
-		shaders[1].next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::NONE);
-		shaders[1].push_constant_space = sizeof(ShaderIndices2D);
-		shaders[1].desc_layout_count = 0;
+	material_system_init.default_3d_vertex.path = "../../resources/shaders/hlsl/Debug.hlsl";
+	material_system_init.default_3d_vertex.entry = "VertexMain";
+	material_system_init.default_3d_vertex.stage = SHADER_STAGE::VERTEX;
+	material_system_init.default_3d_vertex.next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::FRAGMENT_PIXEL);
 
-		BB_ASSERT(this->CreateShaderEffect(a_arena, Slice(shaders, _countof(shaders)), shader_effs),
-			"Failed to create imgui shaders");
+	material_system_init.default_3d_fragment.path = "../../resources/shaders/hlsl/Debug.hlsl";
+	material_system_init.default_3d_fragment.entry = "FragmentMain";
+	material_system_init.default_3d_fragment.stage = SHADER_STAGE::FRAGMENT_PIXEL;
+	material_system_init.default_3d_fragment.next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::NONE);
 
-		m_imgui_vertex = shader_effs[0];
-		m_imgui_fragment = shader_effs[1];
-	}
+	Material::InitMaterialSystem(a_arena, material_system_init);
+
+	m_imgui_material = Material::GetDefaultMaterial(PASS_TYPE::GLOBAL, MATERIAL_TYPE::MATERIAL_2D);
 }
 
 void Editor::Destroy()
@@ -360,66 +353,8 @@ void Editor::CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a
 void Editor::CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const JsonParser& a_parsed_file)
 {
 	const JsonObject& scene_obj = a_parsed_file.GetRootNode()->GetObject().Find("scene")->GetObject();
-	BB_UNIMPLEMENTED();
 	{
-		// get shaders compiled.
-		ShaderEffectHandle shader_handles[4];
-		MemoryArenaScope(a_arena)
-		{
-			const JsonObject& shader_node = scene_obj.Find("shaders")->GetObject();
-
-			// 0 default vertex, 1 default fragment, 2 skybox vertex, 3 skybox fragment
-			CreateShaderEffectInfo shader_info[4];
-
-			shader_info[0].name = "default vertex shader";
-			shader_info[0].stage = SHADER_STAGE::VERTEX;
-			shader_info[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
-			shader_info[0].shader_data = ReadOSFile(a_arena, shader_node.Find("default_vertex")->GetString());
-			shader_info[0].shader_entry = shader_node.Find("default_vertex_entry")->GetString();
-			shader_info[0].push_constant_space = sizeof(ShaderIndices);
-			shader_info[0].desc_layouts[0] = SceneHierarchy::GetSceneDescriptorLayout();
-			shader_info[0].desc_layout_count = 1;
-
-			shader_info[1].name = "default fragment shader";
-			shader_info[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
-			shader_info[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
-			shader_info[1].shader_data = ReadOSFile(a_arena, shader_node.Find("default_fragment")->GetString());
-			shader_info[1].shader_entry = shader_node.Find("default_fragment_entry")->GetString();
-			shader_info[1].push_constant_space = sizeof(ShaderIndices);
-			shader_info[1].desc_layouts[0] = SceneHierarchy::GetSceneDescriptorLayout();
-			shader_info[1].desc_layout_count = 1;
-
-			shader_info[2].name = "skybox vertex shader";
-			shader_info[2].stage = SHADER_STAGE::VERTEX;
-			shader_info[2].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
-			shader_info[2].shader_data = ReadOSFile(a_arena, shader_node.Find("skybox_vertex")->GetString());
-			shader_info[2].shader_entry = shader_node.Find("skybox_vertex_entry")->GetString();
-			shader_info[2].push_constant_space = sizeof(ShaderIndices);
-			shader_info[2].desc_layouts[0] = SceneHierarchy::GetSceneDescriptorLayout();
-			shader_info[2].desc_layout_count = 1;
-
-			shader_info[3].name = "skybox fragment shader";
-			shader_info[3].stage = SHADER_STAGE::FRAGMENT_PIXEL;
-			shader_info[3].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
-			shader_info[3].shader_data = ReadOSFile(a_arena, shader_node.Find("skybox_fragment")->GetString());
-			shader_info[3].shader_entry = shader_node.Find("skybox_fragment_entry")->GetString();
-			shader_info[3].push_constant_space = sizeof(ShaderIndices);
-			shader_info[3].desc_layouts[0] = SceneHierarchy::GetSceneDescriptorLayout();
-			shader_info[3].desc_layout_count = 1;
-
-			BB_ASSERT(this->CreateShaderEffect(a_arena,
-				Slice(shader_info, _countof(shader_info)),
-				shader_handles), "Failed to create shader objects");
-		}
-
-
-		SceneHierarchyCreateInfo hierarchy_create_info;
-		hierarchy_create_info.name = Asset::FindOrCreateString(scene_obj.Find("name")->GetString());
-		hierarchy_create_info.default_vertex_shader = shader_handles[0];
-		hierarchy_create_info.default_fragment_shader = shader_handles[1];
-		hierarchy_create_info.skybox_vertex_shader = shader_handles[2];
-		hierarchy_create_info.skybox_fragment_shader = shader_handles[3];
-		a_hierarchy.Init(a_arena, hierarchy_create_info);
+		a_hierarchy.Init(a_arena, Asset::FindOrCreateString(scene_obj.Find("name")->GetString()));
 	}
 
 	const JsonList& scene_objects = scene_obj.Find("scene_objects")->GetList();
@@ -445,7 +380,7 @@ void Editor::CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a
 	for (size_t i = 0; i < lights.node_count; i++)
 	{
 		const JsonObject& light_obj = lights.nodes[i]->GetObject();
-		CreateLightInfo light_info;
+		LightCreateInfo light_info;
 
 		const char* light_type = light_obj.Find("light_type")->GetString();
 		if (strcmp(light_type, "spotlight") == 0)
@@ -493,7 +428,7 @@ void Editor::RegisterSceneHierarchy(MemoryArena& a_arena, SceneHierarchy& a_hier
 	ViewportAndScene viewport_scene{ a_hierarchy };
 	StackString<256> viewport_name{ a_hierarchy.m_scene_name.c_str(),  a_hierarchy.m_scene_name.size() };
 	viewport_name.append(" viewport");
-	viewport_scene.viewport.Init(a_arena, a_window_extent, uint2(), Asset::FindOrCreateString(viewport_name.GetView()));
+	viewport_scene.viewport.Init(a_arena, a_window_extent, int2(), CURRENT_RENDER_TARGET_COUNT, Asset::FindOrCreateString(viewport_name.GetView()));
 
 	m_viewport_and_scenes.push_back(viewport_scene);
 }
@@ -602,7 +537,6 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time, const Slice<
 		{
 			ImGuiDisplayShaderEffects();
 			ImGuiDisplayMaterials();
-			ImGuiCreateMaterial();
 		}
 		ImGui::End();
 
@@ -646,51 +580,14 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time, const Slice<
 			pools[i].EndCommandList(lists[i]);
 		}
 
-		EndFrame(lists[0], m_imgui_vertex, m_imgui_fragment);
+
+		Slice imgui_shaders = Material::GetMaterialShaders(m_imgui_material);
+		EndFrame(lists[0], imgui_shaders[0], imgui_shaders[1]);
 
 		pools[0].EndCommandList(lists[0]);
 		uint64_t fence_value;
 		PresentFrame(Slice(pools, command_list_count), fence_value);
 	}
-}
-
-bool Editor::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles)
-{
-	bool ret_val = ::CreateShaderEffect(a_temp_arena, a_create_infos, a_handles);
-
-	for (size_t i = 0; i < a_create_infos.size(); i++)
-	{
-		const CreateShaderEffectInfo& ci = a_create_infos[i];
-
-		ShaderEffectInfo shader_eff_info;
-		shader_eff_info.handle = a_handles[i];
-		// god I hate this
-		shader_eff_info.name = Asset::FindOrCreateString(ci.name);
-		shader_eff_info.entry_point = Asset::FindOrCreateString(ci.shader_entry);
-		shader_eff_info.shader_stage = ci.stage;
-		shader_eff_info.next_stages = ci.next_stages;
-		shader_eff_info.shader_data.size = ci.shader_data.size;
-		shader_eff_info.shader_data.data = m_editor_allocator.Alloc(shader_eff_info.shader_data.size, 4);
-		memcpy(shader_eff_info.shader_data.data, ci.shader_data.data, shader_eff_info.shader_data.size);
-		m_shader_effects.push_back(shader_eff_info);
-	}
-
-	return ret_val;
-}
-
-const MaterialHandle Editor::CreateMaterial(const CreateMaterialInfo& a_create_info)
-{
-	const MaterialHandle material = ::CreateMaterial(a_create_info);
-
-	MaterialInfo mat_info;
-	mat_info.handle = material;
-	mat_info.name = Asset::FindOrCreateString(a_create_info.name);
-	mat_info.shader_handle_count = a_create_info.shader_effects.size();
-	mat_info.shader_handles = reinterpret_cast<ShaderEffectHandle*>(m_editor_allocator.Alloc(mat_info.shader_handle_count * sizeof(ShaderEffectHandle), alignof(ShaderEffectHandle)));
-	memcpy(mat_info.shader_handles, a_create_info.shader_effects.data(), a_create_info.shader_effects.sizeInBytes());
-
-	m_materials.push_back(mat_info);
-	return material;
 }
 
 ThreadTask Editor::LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets, Editor* a_editor)
@@ -755,7 +652,7 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 			ImGui::TreePop();
 		}
 
-		if (scene_object.mesh_handle.IsValid())
+		if (scene_object.mesh_info.index_count > 0)
 		{
 			if (ImGui::TreeNodeEx("rendering"))
 			{
@@ -764,18 +661,19 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 				if (ImGui::TreeNodeEx("material"))
 				{
 					ImGui::Indent();
-					ImGuiDisplayMaterial(scene_object.material);
+					Material::GetMaterialInstance(scene_object.mesh_info.material);
 
 					if (ImGui::TreeNodeEx("switch material"))
 					{
 						ImGui::Indent();
 
-						for (size_t i = 0; i < m_materials.size(); i++)
+						Slice materials = Material::GetAllMaterials();
+						for (size_t i = 0; i < materials.size(); i++)
 						{
-							const MaterialInfo new_mat = m_materials[i];
+							const MaterialInstance& new_mat = materials[i];
 							if (ImGui::Button(new_mat.name.c_str()))
 							{
-								scene_object.material = new_mat.handle;
+								scene_object.mesh_info.material = new_mat.handle;
 							}
 						}
 
@@ -797,7 +695,7 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 			if (ImGui::TreeNodeEx("light object"))
 			{
 				ImGui::Indent();
-				Light& light = GetLight(a_hierarchy.m_render_scene, scene_object.light_handle);
+				Light& light = a_hierarchy.GetLight(scene_object.light_handle);
 
 				if (position_changed)
 				{
@@ -810,7 +708,7 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 
 				if (ImGui::Button("remove light"))
 				{
-					FreeLight(a_hierarchy.m_render_scene, scene_object.light_handle);
+					a_hierarchy.FreeLight(scene_object.light_handle);
 					scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 				}
 				ImGui::Unindent();
@@ -889,25 +787,21 @@ void Editor::ImguiCreateSceneObject(SceneHierarchy& a_hierarchy, const SceneObje
 	}
 }
 
-void Editor::ImGuiDisplayShaderEffect(const ShaderEffectHandle a_handle) const
+void Editor::ImGuiDisplayShaderEffect(const CachedShaderInfo& a_shader_info) const
 {
-	const Editor::ShaderEffectInfo& effect = m_shader_effects[a_handle.index];
-	if (ImGui::CollapsingHeader(effect.name.c_str()))
+	if (ImGui::CollapsingHeader(a_shader_info.create_info.name))
 	{
 		ImGui::Indent();
-
-		ImGui::Text("ENTRY POINT: %s", effect.entry_point.c_str());
-		ImGui::Text("SHADER STAGE: %s", ShaderStageToCChar(effect.shader_stage));
-		const StackString<256> next_stages = ShaderStagesToCChar(effect.next_stages);
+		ImGui::Text("HANDLE: %u | GENERATION: %u", a_shader_info.handle.index, a_shader_info.handle.extra_index);
+		ImGui::Text("ENTRY POINT: %s", a_shader_info.create_info.shader_entry);
+		ImGui::Text("SHADER STAGE: %s", ShaderStageToCChar(a_shader_info.create_info.stage));
+		const StackString<256> next_stages = ShaderStagesToCChar(a_shader_info.create_info.next_stages);
 		ImGui::Text("NEXT EXPECTED STAGES: %s", next_stages.c_str());
 
 		if (ImGui::Button("Reload Shader"))
 		{
-			BB_ASSERT(ReloadShaderEffect(effect.handle, effect.shader_data), "something went wrong with reloading a shader");
-		}
-		if (ImGui::CollapsingHeader("shader code"))
-		{
-			ImGui::TextUnformatted(reinterpret_cast<const char*>(effect.shader_data.data));
+			BB_UNIMPLEMENTED();
+			//BB_ASSERT(ReloadShaderEffect(effect.handle, effect.shader_data), "something went wrong with reloading a shader");
 		}
 		ImGui::Unindent();
 	}
@@ -918,29 +812,29 @@ void Editor::ImGuiDisplayShaderEffects()
 	if (ImGui::CollapsingHeader("shader effects"))
 	{
 		ImGui::Indent();
-		for (size_t i = 0; i < m_shader_effects.size(); i++)
+		const Slice shaders = Material::GetAllCachedShaders();
+		for (size_t i = 0; i < shaders.size(); i++)
 		{
 			ImGui::PushID(static_cast<int>(i));
 			// rework this?
-			ImGuiDisplayShaderEffect(ShaderEffectHandle(i));
+			ImGuiDisplayShaderEffect(shaders[i]);
 			ImGui::PopID();
 		}
 		ImGui::Unindent();
 	}
 }
 
-void Editor::ImGuiDisplayMaterial(const MaterialHandle a_handle) const
+void Editor::ImGuiDisplayMaterial(const MaterialInstance& a_material) const
 {
-	const MaterialInfo& mat = m_materials[a_handle.index];
-	if (ImGui::CollapsingHeader(mat.name.c_str()))
+	if (ImGui::CollapsingHeader(a_material.name.c_str()))
 	{
-		ImGui::PushID(static_cast<int>(a_handle.index));
+		ImGui::PushID(static_cast<int>(a_material.handle.index));
 		ImGui::Indent();
 
-		for (size_t eff_index = 0; eff_index < mat.shader_handle_count; eff_index++)
+		for (size_t eff_index = 0; eff_index < a_material.shader_effect_count; eff_index++)
 		{
 			ImGui::PushID(static_cast<int>(eff_index));
-			ImGuiDisplayShaderEffect(mat.shader_handles[eff_index]);
+			//ImGuiDisplayShaderEffect();
 			ImGui::PopID();
 		}
 
@@ -954,107 +848,11 @@ void Editor::ImGuiDisplayMaterials()
 	if (ImGui::CollapsingHeader("materials"))
 	{
 		ImGui::Indent();
-		for (uint32_t i = 0; i < m_materials.size(); i++)
+		const Slice materials = Material::GetAllMaterials();
+		for (uint32_t i = 0; i < materials.size(); i++)
 		{
-			const MaterialInfo& mat = m_materials[i];
-			ImGuiDisplayMaterial(mat.handle);
-
+			ImGuiDisplayMaterial(materials[i]);
 		}
-		ImGui::Unindent();
-	}
-}
-
-void Editor::ImGuiCreateMaterial()
-{
-	if (ImGui::CollapsingHeader("create material"))
-	{
-		static char material_name_buffer[256]{};
-		static const ShaderEffectInfo* pvertex_effect = nullptr;
-		static const ShaderEffectInfo* pfragment_effect = nullptr;
-
-		ImGui::Indent();
-
-		if (ImGui::Button("generate material"))
-		{
-			if (pvertex_effect && pfragment_effect && material_name_buffer[0] != '\0')
-			{
-				CreateMaterialInfo create_material_info;
-				create_material_info.name = material_name_buffer; // TEMP
-				const ShaderEffectHandle effects[2]{ pvertex_effect->handle, pfragment_effect->handle };
-				create_material_info.shader_effects = Slice(effects, _countof(effects));
-				this->CreateMaterial(create_material_info);
-			}
-			else
-			{
-				BB_WARNING(false, "failed to generate material because the vertex, fragment shader is not selected or the name is empty", WarningType::MEDIUM);
-			}
-		}
-
-		ImGui::InputText("material name", material_name_buffer, _countof(material_name_buffer));
-
-		if (ImGui::CollapsingHeader("vertex shader"))
-		{
-			ImGui::Indent();
-			if (pvertex_effect != nullptr)
-			{
-				ImGuiDisplayShaderEffect(pvertex_effect->handle);
-			}
-			else
-			{
-				ImGui::Text("no vertex shader selected");
-			}
-
-			if (ImGui::CollapsingHeader("select vertex shader"))
-			{
-				ImGui::Indent();
-				for (size_t i = 0; i < m_shader_effects.size(); i++)
-				{
-					const ShaderEffectInfo& sd_inf = m_shader_effects[i];
-					if (sd_inf.shader_stage != SHADER_STAGE::VERTEX)
-						continue;
-					ImGui::PushID(static_cast<int>(i));
-					if (ImGui::Button(sd_inf.name.c_str()))
-					{
-						pvertex_effect = &sd_inf;
-					}
-					ImGui::PopID();
-				}
-				ImGui::Unindent();
-			}
-			ImGui::Unindent();
-		}
-
-		if (ImGui::CollapsingHeader("fragment shader"))
-		{
-			ImGui::Indent();
-			if (pfragment_effect != nullptr)
-			{
-				ImGuiDisplayShaderEffect(pfragment_effect->handle);
-			}
-			else
-			{
-				ImGui::Text("no fragment shader selected");
-			}
-			if (ImGui::CollapsingHeader("select fragment shader"))
-			{
-				ImGui::Indent();
-				for (size_t i = 0; i < m_shader_effects.size(); i++)
-				{
-					const ShaderEffectInfo& sd_inf = m_shader_effects[i];
-					if (sd_inf.shader_stage != SHADER_STAGE::FRAGMENT_PIXEL)
-						continue;
-					ImGui::PushID(static_cast<int>(i));
-					if (ImGui::Button(sd_inf.name.c_str()))
-					{
-						pfragment_effect = &sd_inf;
-					}
-					ImGui::PopID();
-				}
-				ImGui::Unindent();
-			}
-			ImGui::Unindent();
-		}
-
 		ImGui::Unindent();
 	}
 }

@@ -8,7 +8,7 @@
 
 using namespace BB;
 
-void Viewport::Init(MemoryArena& a_arena, const uint2 a_extent, const uint2 a_offset, const uint32_t a_render_target_count, const StringView a_name)
+void Viewport::Init(MemoryArena& a_arena, const uint2 a_extent, const int2 a_offset, const uint32_t a_render_target_count, const StringView a_name)
 {
 	m_extent = a_extent;
 	m_offset = a_offset;
@@ -94,7 +94,7 @@ void Viewport::DrawImgui(bool& a_resized, const uint2 a_minimum_size)
 		ImGuiIO im_io = ImGui::GetIO();
 
 		const ImVec2 window_offset = ImGui::GetWindowPos();
-		m_offset = uint2(static_cast<unsigned int>(window_offset.x), static_cast<unsigned int>(window_offset.y));
+		m_offset = int2(static_cast<int>(window_offset.x), static_cast<int>(window_offset.y));
 
 		if (static_cast<unsigned int>(ImGui::GetWindowSize().x) < a_minimum_size.x ||
 			static_cast<unsigned int>(ImGui::GetWindowSize().y) < a_minimum_size.y)

@@ -27,6 +27,21 @@ namespace BB
 		RTexture normal_texture;
 	};
 
+	struct LightCreateInfo
+	{
+		LIGHT_TYPE light_type;      // 4
+		float3 color;               // 16
+		float3 pos;                 // 28
+		float specular_strength;    // 32
+
+		float radius_constant;      // 36
+		float radius_linear;        // 40
+		float radius_quadratic;     // 44
+
+		float3 spotlight_direction; // 56
+		float cutoff_radius;        // 60
+	};
+
 	struct SceneObject
 	{
 		const char* name;
@@ -46,11 +61,6 @@ namespace BB
 		SceneObjectHandle children[SCENE_OBJ_CHILD_MAX];
 	};
 
-	struct SceneHierarchyCreateInfo
-	{
-		StringView name;
-	};
-	
 	class SceneHierarchy
 	{
 	public:
@@ -62,7 +72,7 @@ namespace BB
 		SceneObjectHandle CreateSceneObject(const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
 		SceneObjectHandle CreateSceneObjectMesh(const float3 a_position, const MeshDrawInfo& a_mesh_info, const char* a_name, const SceneObjectHandle a_parent = SceneObjectHandle(BB_INVALID_HANDLE_64));
 		SceneObjectHandle CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
-		SceneObjectHandle CreateSceneObjectAsLight(const CreateLightInfo& a_light_create_info, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
+		SceneObjectHandle CreateSceneObjectAsLight(const LightCreateInfo& a_light_create_info, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
 
 		void SetView(const float4x4& a_view);
 		void SetProjection(const float4x4& a_projection);
@@ -74,6 +84,10 @@ namespace BB
 		void AddToDrawList(const SceneObject& scene_object, const float4x4& a_transform);
 		SceneObjectHandle CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent);
 		void DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform);
+
+		LightHandle CreateLight(const LightCreateInfo& a_light_info);
+		Light& GetLight(const LightHandle a_light) const;
+		void FreeLight(const LightHandle a_light);
 
 		struct DrawList
 		{

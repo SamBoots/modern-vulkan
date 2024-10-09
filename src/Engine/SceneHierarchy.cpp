@@ -279,7 +279,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModel(const Model& a_model
 	return scene_object_handle;
 }
 
-SceneObjectHandle SceneHierarchy::CreateSceneObjectAsLight(const CreateLightInfo& a_light_create_info, const char* a_name, const SceneObjectHandle a_parent)
+SceneObjectHandle SceneHierarchy::CreateSceneObjectAsLight(const LightCreateInfo& a_light_create_info, const char* a_name, const SceneObjectHandle a_parent)
 {
 	SceneObjectHandle scene_object_handle = m_scene_objects.emplace(SceneObject());
 	SceneObject& scene_object = m_scene_objects.find(scene_object_handle);
@@ -301,23 +301,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectAsLight(const CreateLightInfo
 	
 	scene_object.transform = m_transform_pool.CreateTransform(a_light_create_info.pos);
 	scene_object.child_count = 0;
-
-	{
-		Light light;
-		light.light_type = static_cast<uint32_t>(a_light_create_info.light_type);
-		light.color = a_light_create_info.color;
-		light.pos = a_light_create_info.pos;
-
-		light.specular_strength = a_light_create_info.specular_strength;
-		light.radius_constant = a_light_create_info.radius_constant;
-		light.radius_linear = a_light_create_info.radius_linear;
-		light.radius_quadratic = a_light_create_info.radius_quadratic;
-
-		light.spotlight_direction = a_light_create_info.spotlight_direction;
-		light.cutoff_radius = a_light_create_info.cutoff_radius;
-
-		scene_object.light_handle = m_light_container.insert(light);
-	}
+	scene_object.light_handle = CreateLight(a_light_create_info);
 
 	return scene_object_handle;
 }
@@ -595,4 +579,31 @@ void SceneHierarchy::AddToDrawList(const SceneObject& a_scene_object, const floa
 	m_draw_list.mesh_draw_call[m_draw_list.size] = a_scene_object.mesh_info;
 	m_draw_list.transform[m_draw_list.size].transform = a_transform;
 	m_draw_list.transform[m_draw_list.size++].inverse = Float4x4Inverse(a_transform);
+}
+
+LightHandle SceneHierarchy::CreateLight(const LightCreateInfo& a_light_info)
+{
+	Light light;
+	light.light_type = static_cast<uint32_t>(a_light_info.light_type);
+	light.color = a_light_info.color;
+	light.pos = a_light_info.pos;
+
+	light.specular_strength = a_light_info.specular_strength;
+	light.radius_constant = a_light_info.radius_constant;
+	light.radius_linear = a_light_info.radius_linear;
+	light.radius_quadratic = a_light_info.radius_quadratic;
+
+	light.spotlight_direction = a_light_info.spotlight_direction;
+	light.cutoff_radius = a_light_info.cutoff_radius;
+	return m_light_container.insert(light);
+}
+
+Light& SceneHierarchy::GetLight(const LightHandle a_light) const
+{
+	return m_light_container.find(a_light);
+}
+
+void SceneHierarchy::FreeLight(const LightHandle a_light)
+{
+	m_light_container.erase(a_light);
 }

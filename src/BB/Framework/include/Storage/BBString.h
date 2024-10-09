@@ -73,7 +73,10 @@ namespace BB
 
 		bool compare(const size_t a_str_size, const CharT* a_str, const size_t a_pos = 0) const
 		{
-			BB_ASSERT(a_pos + a_str_size <= m_size, "trying to read the string out of bounds");
+			if (a_pos + a_str_size > m_size)
+			{
+				return false;
+			}
 
 			// maybe optimize that big strings are early out'd and see if memcmp works better
 

@@ -26,7 +26,7 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
         sizeof(BB::ShaderTransform) * shader_indices.transform_index);
     
     VSOutput output = (VSOutput)0;
-    output.pos = mul(scene_info.proj, mul(scene_info.view, mul(transform.transform, float4(cur_vertex.position.xyz, 1.0))));
+    output.pos = mul(scene_info.proj, mul(scene_info.view, mul(transform.transform, float4(cur_vertex.position, 1.0))));
     output.frag_pos = float4(mul(transform.transform, float4(cur_vertex.position, 1.0f))).xyz;
     output.uv = cur_vertex.uv;
     output.color = cur_vertex.color;

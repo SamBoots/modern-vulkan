@@ -66,8 +66,8 @@ const ShaderCode BB::CompileShader(const ShaderCompiler a_shader_compiler, const
 	size_t entry_str_size = strlen(a_entry) + 1;
 	wchar_t entry_w[MAX_FILE_PATH];
 
-	size_t conv_chars = 0;
-	errno_t error = mbstowcs_s(&conv_chars, entry_w, entry_str_size, a_entry, MAX_FILE_PATH) == 0;
+	size_t conv_chars = 0; 
+	errno_t error = mbstowcs_s(&conv_chars, entry_w, entry_str_size, a_entry, MAX_FILE_PATH);
 	BB_ASSERT(error == 0, "8 bit char to 16 bit wide char for a_entry failed");
 
 	//Lots of arguments, since we will add some extra.

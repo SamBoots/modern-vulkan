@@ -11,20 +11,10 @@ BB_STATIC_ASSERT(sizeof(ShaderIndices) == sizeof(ShaderIndices2D), "shaderindice
 constexpr size_t PUSH_CONSTANT_SPACE_SIZE = sizeof(ShaderIndices);
 // store this to avoid confusion later when adding more.
 constexpr size_t CURRENT_DESC_LAYOUT_COUNT = 3;
-constexpr size_t MAX_SHADER_EFFECTS_PER_MATERIAL = 4;
-
-struct sMaterial
-{
-	StringView name;
-	FixedArray<ShaderEffectHandle, MAX_SHADER_EFFECTS_PER_MATERIAL> shader_effects;
-	size_t shader_effect_count;
-	PASS_TYPE pass_type;
-	MATERIAL_TYPE material_type;
-};
 
 struct MaterialSystem_inst
 {
-	StaticSlotmap<sMaterial, MaterialHandle> material_map;
+	StaticSlotmap<MaterialInstance, MaterialHandle> material_map;
 	StaticArray<CachedShaderInfo> shader_effects;
 
 	RDescriptorLayout scene_desc_layout;
@@ -41,14 +31,16 @@ static inline MaterialHandle& GetDefaultMaterial_impl(const PASS_TYPE a_pass_typ
 
 static inline MaterialHandle CreateMaterial_impl(const ShaderEffectHandle a_vertex, const ShaderEffectHandle a_fragment, const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type, const StringView name = "default")
 {
-	sMaterial material;
-	material.name = name;
-	material.shader_effects[0] = a_vertex;
-	material.shader_effects[1] = a_fragment;
-	material.shader_effect_count = 2;
-	material.pass_type = a_pass_type;
-	material.material_type = a_material_type;
-	return s_material_inst->material_map.insert(material);
+	const MaterialHandle material = s_material_inst->material_map.emplace();
+	MaterialInstance& inst = s_material_inst->material_map.find(material);
+	inst.name = name;
+	inst.shader_effects[0] = a_vertex;
+	inst.shader_effects[1] = a_fragment;
+	inst.shader_effect_count = 2;
+	inst.pass_type = a_pass_type;
+	inst.material_type = a_material_type;
+	inst.handle = material;
+	return material;
 }
 
 static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_arena, const Slice<const MaterialShaderCreateInfo> a_shader_effects_info)
@@ -84,8 +76,8 @@ static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_ar
 			shader_info.name = name.c_str();
 			shader_info.shader_entry = info.entry.c_str();
 			shader_info.shader_data = shader_buffer;
-			shader_info.stage = SHADER_STAGE::VERTEX;
-			shader_info.next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::FRAGMENT_PIXEL);
+			shader_info.stage = info.stage;
+			shader_info.next_stages = info.next_stages;
 			shader_info.push_constant_space = PUSH_CONSTANT_SPACE_SIZE;
 			shader_info.desc_layouts[0] = s_material_inst->scene_desc_layout;
 			shader_info.desc_layout_count = CURRENT_DESC_LAYOUT_COUNT;
@@ -203,14 +195,24 @@ MaterialHandle Material::GetDefaultMaterial(const PASS_TYPE a_pass_type, const M
 	return GetDefaultMaterial_impl(a_pass_type, a_material_type);
 }
 
+const MaterialInstance& Material::GetMaterialInstance(const MaterialHandle a_material)
+{
+	return s_material_inst->material_map.find(a_material);
+}
+
 Slice<const ShaderEffectHandle> Material::GetMaterialShaders(const MaterialHandle a_material)
 {
 	BB_ASSERT(a_material.IsValid(), "invalid material send!");
-	const sMaterial& mat = s_material_inst->material_map.find(a_material);
+	const MaterialInstance& mat = s_material_inst->material_map.find(a_material);
 	return Slice(mat.shader_effects.data(), mat.shader_effect_count);
 }
 
 Slice<const CachedShaderInfo> Material::GetAllCachedShaders()
 {
 	return s_material_inst->shader_effects.slice();
+}
+
+Slice<const MaterialInstance> Material::GetAllMaterials()
+{
+	return s_material_inst->material_map.slice();
 }

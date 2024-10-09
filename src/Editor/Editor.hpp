@@ -5,6 +5,7 @@
 #include "AssetLoader.hpp"
 #include "GameInterface.hpp"
 #include "Viewport.hpp"
+#include "MaterialSystem.hpp"
 
 #include <tuple>
 
@@ -33,28 +34,7 @@ namespace BB
 			Update(a_arena, a_delta_time, a_input_events);
 		}
 
-		bool CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles);
-		const MaterialHandle CreateMaterial(const CreateMaterialInfo& a_create_info);
-
 		static ThreadTask LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets, Editor* a_editor);
-
-		struct ShaderEffectInfo
-		{
-			ShaderEffectHandle handle;
-			StringView name;
-			StringView entry_point;
-			SHADER_STAGE shader_stage;
-			SHADER_STAGE_FLAGS next_stages;
-			Buffer shader_data;
-		};
-
-		struct MaterialInfo
-		{
-			MaterialHandle handle;
-			StringView name;
-			size_t shader_handle_count;
-			ShaderEffectHandle* shader_handles;
-		};
 
 	private:
 		void Update(MemoryArena& a_arena, const float a_delta_time, const Slice<InputEvent> a_input_events);
@@ -63,11 +43,10 @@ namespace BB
 		void ImguiDisplaySceneHierarchy(SceneHierarchy& a_hierarchy);
 		void ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObjectHandle a_object);
 		void ImguiCreateSceneObject(SceneHierarchy& a_hierarchy, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
-		void ImGuiDisplayShaderEffect(const ShaderEffectHandle a_handle) const;
+		void ImGuiDisplayShaderEffect(const CachedShaderInfo& a_shader_info) const;
 		void ImGuiDisplayShaderEffects();
-		void ImGuiDisplayMaterial(const MaterialHandle a_handle) const;
+		void ImGuiDisplayMaterial(const MaterialInstance& a_material) const;
 		void ImGuiDisplayMaterials();
-		void ImGuiCreateMaterial();
 
 		struct LoadAssetsAsync_params
 		{
@@ -86,8 +65,6 @@ namespace BB
 		};
 		static void ThreadFuncForDrawing(MemoryArena& a_thread_arena, void* a_param);
 
-		StaticArray<MaterialInfo> m_materials;
-		StaticArray<ShaderEffectInfo> m_shader_effects;
 		StaticArray<StringView> m_loaded_models_names;
 
 		struct ViewportAndScene
@@ -99,9 +76,7 @@ namespace BB
 		uint2 m_app_window_extent;
 		StaticArray<ViewportAndScene> m_viewport_and_scenes;
 
-		// temp
-		ShaderEffectHandle m_imgui_vertex;
-		ShaderEffectHandle m_imgui_fragment;
+		MaterialHandle m_imgui_material;
 
 		ViewportAndScene* m_active_viewport = nullptr;
 		float2 m_previous_mouse_pos{};

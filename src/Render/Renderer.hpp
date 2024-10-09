@@ -76,21 +76,6 @@ namespace BB
 		void EndCommandList(RCommandList a_list);
 	};
 
-	struct CreateLightInfo
-	{
-		LIGHT_TYPE light_type;      // 4
-		float3 color;               // 16
-		float3 pos;                 // 28
-		float specular_strength;    // 32
-
-		float radius_constant;      // 36
-		float radius_linear;        // 40
-		float radius_quadratic;     // 44
-
-		float3 spotlight_direction; // 56
-		float cutoff_radius;        // 60
-	};
-
 	const RenderIO& GetRenderIO();
 
 	bool InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_render_create_info);
@@ -114,7 +99,6 @@ namespace BB
 	RPipelineLayout BindShaders(const RCommandList a_list, const Slice<const ShaderEffectHandle> a_shader_effects);
 	void SetFrontFace(const RCommandList a_list, const bool a_is_clockwise);
 	void SetCullMode(const RCommandList a_list, const CULL_MODE a_cull_mode);
-	void SetClearColor(const RCommandList a_list, const float3 a_clear_color);
 	void SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor);
 
 	void DrawVertices(const RCommandList a_list, const uint32_t a_vertex_count, const uint32_t a_instance_count, const uint32_t a_first_vertex, const uint32_t a_first_instance);

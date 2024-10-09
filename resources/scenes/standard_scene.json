@@ -1,17 +1,6 @@
 {
   "scene": {
     "name": "standard scene",
-    "shaders": {
-      "default_vertex": "../../resources/shaders/hlsl/Debug.hlsl",
-      "default_vertex_entry": "VertexMain",
-      "default_fragment": "../../resources/shaders/hlsl/Debug.hlsl",
-      "default_fragment_entry": "VertexMain",
-      "skybox_vertex": "../../resources/shaders/hlsl/Skybox.hlsl",
-      "skybox_vertex_entry": "VertexMain",
-      "skybox_fragment": "../../resources/shaders/hlsl/Skybox.hlsl",
-      "skybox_fragment_entry": "VertexMain"
-
-    }
     "scene_objects": [
       {
         "file_name": "../../resources/models/ABeautifulGame.gltf",

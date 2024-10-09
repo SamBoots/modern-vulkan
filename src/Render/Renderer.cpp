@@ -1721,11 +1721,6 @@ void BB::SetCullMode(const RCommandList a_list, const CULL_MODE a_cull_mode)
 	Vulkan::SetCullMode(a_list, a_cull_mode);
 }
 
-void BB::SetClearColor(const RCommandList a_list, const float3 a_clear_color)
-{
-	Vulkan::SetClearColor(a_list, a_clear_color);
-}
-
 void BB::SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor)
 {
 	Vulkan::SetScissor(a_list, a_scissor);
