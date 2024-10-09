@@ -291,7 +291,7 @@ void Editor::ThreadFuncForDrawing(MemoryArena&, void* a_param)
 	SceneHierarchy& scene_hierarchy = param_in->scene_hierarchy;
 	RCommandList list = param_in->command_list;
 
-	scene_hierarchy.DrawSceneHierarchy(list, viewport.StartRenderTarget(list), viewport.GetExtent(), viewport.GetOffset());
+	scene_hierarchy.DrawSceneHierarchy(list, viewport.StartRenderTarget(list), viewport.GetExtent(), int2());
 }
 
 void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent, const size_t a_editor_memory)

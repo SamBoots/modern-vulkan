@@ -14,7 +14,7 @@ void GPULinearBuffer::Init(const GPUBufferCreateInfo& a_buffer_info)
 bool GPULinearBuffer::Allocate(const size_t a_byte_amount, GPUBufferView& a_out_view)
 {
 	const size_t offset = m_size.fetch_add(a_byte_amount);
-	if (m_capacity >= offset)
+	if (m_capacity < offset)
 	{
 		return false;
 	}

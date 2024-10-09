@@ -5,8 +5,9 @@
 namespace BB
 {
 	template<typename T, size_t arr_size>
-	struct FixedArray
+	class FixedArray
 	{
+	public:
 		FixedArray() = default;
 		FixedArray(const FixedArray<T, arr_size>& a_array)
 		{
@@ -41,6 +42,7 @@ namespace BB
 		constexpr size_t size() const { return arr_size; }
 		constexpr const T* data() const { return m_arr; }
 
+	private:
 		T m_arr[arr_size]{};
 	};
 }

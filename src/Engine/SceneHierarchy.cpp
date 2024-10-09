@@ -98,6 +98,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const StringView a_name, const u
 	m_per_frame.scene_info.skybox_texture = m_skybox.handle;
 
 	m_per_frame.uniform_buffer.Init(a_arena, backbuffer_count);
+	m_per_frame.uniform_buffer.resize(backbuffer_count);
 	for (uint32_t i = 0; i < m_per_frame.uniform_buffer.size(); i++)
 	{
 		GPUBufferCreateInfo buffer_info;
@@ -405,19 +406,29 @@ void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTextu
 		RenderCopyBuffer matrix_buffer_copy;
 		matrix_buffer_copy.src = upload_buffer.buffer;
 		matrix_buffer_copy.dst = cur_scene_buffer.GetBuffer();
+		int copy_region_count = 0;
 		RenderCopyBufferRegion buffer_regions[3]; // 0 = scene, 1 = matrix, 2 = lights
-		buffer_regions[0].src_offset = scene_offset;
-		buffer_regions[0].dst_offset = scene_view.offset;
-		buffer_regions[0].size = scene_upload_size;
+		buffer_regions[copy_region_count].src_offset = scene_offset;
+		buffer_regions[copy_region_count].dst_offset = scene_view.offset;
+		buffer_regions[copy_region_count].size = scene_upload_size;
+		++copy_region_count;
+		if (matrices_upload_size)
+		{
+			buffer_regions[copy_region_count].src_offset = matrix_offset;
+			buffer_regions[copy_region_count].dst_offset = transform_view.offset;
+			buffer_regions[copy_region_count].size = matrices_upload_size;
+			++copy_region_count;
+		}
 
-		buffer_regions[1].src_offset = matrix_offset;
-		buffer_regions[1].dst_offset = transform_view.offset;
-		buffer_regions[1].size = matrices_upload_size;
+		if (light_upload_size)
+		{
+			buffer_regions[copy_region_count].src_offset = light_offset;
+			buffer_regions[copy_region_count].dst_offset = light_view.offset;
+			buffer_regions[copy_region_count].size = light_upload_size;
+			++copy_region_count;
+		}
 
-		buffer_regions[2].src_offset = light_offset;
-		buffer_regions[2].dst_offset = light_view.offset;
-		buffer_regions[2].size = light_upload_size;
-		matrix_buffer_copy.regions = Slice(buffer_regions, _countof(buffer_regions));
+		matrix_buffer_copy.regions = Slice(buffer_regions, copy_region_count);
 		CopyBuffer(a_list, matrix_buffer_copy);
 
 		{	// WRITE DESCRIPTORS HERE
@@ -426,17 +437,22 @@ void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTextu
 			desc_write.allocation = m_scene_descriptor;
 			desc_write.descriptor_index = 0;
 
-			desc_write.binding = PER_SCENE_SCENE_DATA_BINDING;
-			desc_write.buffer_view = scene_view;
-			DescriptorWriteUniformBuffer(desc_write);
+			if (matrices_upload_size)
+			{
+				desc_write.binding = PER_SCENE_SCENE_DATA_BINDING;
+				desc_write.buffer_view = scene_view;
+				DescriptorWriteUniformBuffer(desc_write);
+			}
 
 			desc_write.binding = PER_SCENE_TRANSFORM_DATA_BINDING;
 			desc_write.buffer_view = transform_view;
 			DescriptorWriteUniformBuffer(desc_write);
-
-			desc_write.binding = PER_SCENE_LIGHT_DATA_BINDING;
-			desc_write.buffer_view = light_view;
-			DescriptorWriteUniformBuffer(desc_write);
+			if (light_upload_size)
+			{
+				desc_write.binding = PER_SCENE_LIGHT_DATA_BINDING;
+				desc_write.buffer_view = light_view;
+				DescriptorWriteUniformBuffer(desc_write);
+			}
 		}
 	}
 
@@ -452,7 +468,9 @@ void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTextu
 			depth_info.name = "standard depth buffer";
 			depth_info.width = a_draw_area_size.x;
 			depth_info.height = a_draw_area_size.y;
+			depth_info.array_layers = 1;
 			depth_info.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
+			depth_info.usage = IMAGE_USAGE::DEPTH;
 			m_depth_image = CreateTexture(depth_info);
 			m_previous_draw_area = a_draw_area_size;
 		}
@@ -575,7 +593,7 @@ RDescriptorLayout SceneHierarchy::GetSceneDescriptorLayout()
 
 void SceneHierarchy::AddToDrawList(const SceneObject& a_scene_object, const float4x4& a_transform)
 {
-	BB_ASSERT(m_draw_list.size + 1 >= m_draw_list.max_size, "too many drawn elements!");
+	BB_ASSERT(m_draw_list.size + 1 < m_draw_list.max_size, "too many drawn elements!");
 	m_draw_list.mesh_draw_call[m_draw_list.size] = a_scene_object.mesh_info;
 	m_draw_list.transform[m_draw_list.size].transform = a_transform;
 	m_draw_list.transform[m_draw_list.size++].inverse = Float4x4Inverse(a_transform);

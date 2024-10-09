@@ -10,8 +10,8 @@ namespace BB
 {
 	namespace Array_Specs
 	{
-		constexpr const size_t multipleValue = 8;
-		constexpr const size_t standardSize = 8;
+		constexpr const size_t multiple_value = 8;
+		constexpr const size_t standard_size = 8;
 	};
 
 	template<typename T>
@@ -61,39 +61,39 @@ namespace BB
 		};
 
 		Array(Allocator a_allocator)
-			: Array(a_allocator, Array_Specs::standardSize) {}
+			: Array(a_allocator, Array_Specs::standard_size) {}
 
 		Array(Allocator a_allocator, size_t a_size)
 			: m_allocator(a_allocator)
 		{
 			BB_ASSERT(a_size != 0, "Dynamic_array size is specified to be 0");
-			m_capacity = RoundUp(a_size, Array_Specs::multipleValue);
+			m_capacity = RoundUp(a_size, Array_Specs::multiple_value);
 
 			m_arr = reinterpret_cast<T*>(BBalloc(m_allocator, m_capacity * sizeof(T)));
 		}
 
-		Array(const Array<T>& a_Array)
+		Array(const Array<T>& a_array)
 		{
-			m_allocator = a_Array.m_allocator;
-			m_size = a_Array.m_size;
-			m_capacity = a_Array.m_capacity;
+			m_allocator = a_array.m_allocator;
+			m_size = a_array.m_size;
+			m_capacity = a_array.m_capacity;
 			m_arr = reinterpret_cast<T*>(BBalloc(m_allocator, m_capacity * sizeof(T)));
 
-			Memory::Copy<T>(m_arr, a_Array.m_arr, m_size);
+			Memory::Copy<T>(m_arr, a_array.m_arr, m_size);
 		}
 
-		Array(Array<T>&& a_Array) noexcept
+		Array(Array<T>&& a_array) noexcept
 		{
-			m_allocator = a_Array.m_allocator;
-			m_size = a_Array.m_size;
-			m_capacity = a_Array.m_capacity;
-			m_arr = a_Array.m_arr;
+			m_allocator = a_array.m_allocator;
+			m_size = a_array.m_size;
+			m_capacity = a_array.m_capacity;
+			m_arr = a_array.m_arr;
 
-			a_Array.m_size = 0;
-			a_Array.m_capacity = 0;
-			a_Array.m_arr = nullptr;
-			a_Array.m_allocator.allocator = nullptr;
-			a_Array.m_allocator.func = nullptr;
+			a_array.m_size = 0;
+			a_array.m_capacity = 0;
+			a_array.m_arr = nullptr;
+			a_array.m_allocator.allocator = nullptr;
+			a_array.m_allocator.func = nullptr;
 		}
 
 		~Array()
@@ -144,28 +144,28 @@ namespace BB
 			return *this;
 		}
 
-		T& operator[](const size_t a_Index) const
+		T& operator[](const size_t a_index) const
 		{
-			BB_ASSERT(a_Index <= m_size, "Dynamic_Array, trying to get an element using the [] operator but that element is not there.");
-			return m_arr[a_Index];
+			BB_ASSERT(a_index <= m_size, "Dynamic_Array, trying to get an element using the [] operator but that element is not there.");
+			return m_arr[a_index];
 		}
 
-		void push_back(T& a_Element)
+		void push_back(T& a_element)
 		{
-			emplace_back(a_Element);
+			emplace_back(a_element);
 		}
-		void push_back(const T* a_Elements, size_t a_count)
+		void push_back(const T* a_elements, size_t a_count)
 		{
 			if (m_size + a_count > m_capacity)
 				grow(a_count);
 
-			Memory::Copy<T>(m_arr, a_Elements, a_count);
+			Memory::Copy<T>(m_arr, a_elements, a_count);
 
 			m_size += a_count;
 		}
-		void insert(size_t a_position, const T& a_Element)
+		void insert(size_t a_position, const T& a_element)
 		{
-			emplace(a_position, a_Element);
+			emplace(a_position, a_element);
 		}
 		template <class... Args>
 		void emplace_back(Args&&... a_args)
@@ -207,9 +207,9 @@ namespace BB
 		{
 			if (a_size > m_capacity)
 			{
-				size_t t_ModifiedCapacity = RoundUp(a_size, Array_Specs::multipleValue);
+				size_t modified_capacity = RoundUp(a_size, Array_Specs::multiple_value);
 
-				reallocate(t_ModifiedCapacity);
+				reallocate(modified_capacity);
 				return;
 			}
 		}
@@ -258,22 +258,22 @@ namespace BB
 	private:
 		void grow(size_t a_MinCapacity = 0)
 		{
-			size_t t_ModifiedCapacity = m_capacity * 2;
+			size_t modified_capacity = m_capacity * 2;
 
-			if (a_MinCapacity > t_ModifiedCapacity)
-				t_ModifiedCapacity = RoundUp(a_MinCapacity, Array_Specs::multipleValue);
+			if (a_MinCapacity > modified_capacity)
+				modified_capacity = RoundUp(a_MinCapacity, Array_Specs::multiple_value);
 
-			reallocate(t_ModifiedCapacity);
+			reallocate(modified_capacity);
 		}
 		
 		void reallocate(size_t a_new_capacity)
 		{
-			T* t_NewArr = reinterpret_cast<T*>(BBalloc(m_allocator, a_new_capacity * sizeof(T)));
+			T* new_arr = reinterpret_cast<T*>(BBalloc(m_allocator, a_new_capacity * sizeof(T)));
 
-			Memory::Move(t_NewArr, m_arr, m_size);
+			Memory::Move(new_arr, m_arr, m_size);
 			BBfree(m_allocator, m_arr);
 
-			m_arr = t_NewArr;
+			m_arr = new_arr;
 			m_capacity = a_new_capacity;
 		}
 
@@ -374,27 +374,27 @@ namespace BB
 			}
 		}
 
-		T& operator[](const size_t a_Index) const
+		T& operator[](const size_t a_index) const
 		{
-			BB_ASSERT(a_Index <= m_size, "StaticArray, trying to get an element using the [] operator but that element is not there.");
-			return m_arr[a_Index];
+			BB_ASSERT(a_index <= m_size, "StaticArray, trying to get an element using the [] operator but that element is not there.");
+			return m_arr[a_index];
 		}
 
-		void push_back(T& a_Element)
+		void push_back(T& a_element)
 		{
-			emplace_back(a_Element);
+			emplace_back(a_element);
 		}
-		void push_back(const T* a_Elements, uint32_t a_count)
+		void push_back(const T* a_elements, uint32_t a_count)
 		{
 			BB_ASSERT(m_size + a_count < m_capacity, "StaticArray is full");
 
-			Memory::Copy<T>(m_arr, a_Elements, a_count);
+			Memory::Copy<T>(m_arr, a_elements, a_count);
 
 			m_size += a_count;
 		}
-		void insert(size_t a_position, const T& a_Element)
+		void insert(size_t a_position, const T& a_element)
 		{
-			emplace(a_position, a_Element);
+			emplace(a_position, a_element);
 		}
 		template <class... Args>
 		void emplace_back(Args&&... a_args)
