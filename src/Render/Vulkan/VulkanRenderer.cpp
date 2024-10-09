@@ -1537,7 +1537,10 @@ const RImageView Vulkan::CreateViewImage(const ImageViewCreateInfo& a_create_inf
 	view_info.image = reinterpret_cast<VkImage>(a_create_info.image.handle);
 	view_info.viewType = ImageViewTypes(a_create_info.type);
 	view_info.format = ImageFormats(a_create_info.format);
-	view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	if (a_create_info.is_depth_image)
+		view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+	else
+		view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	view_info.subresourceRange.baseMipLevel = 0;
 	view_info.subresourceRange.levelCount = a_create_info.mip_levels;
 	view_info.subresourceRange.baseArrayLayer = 0;

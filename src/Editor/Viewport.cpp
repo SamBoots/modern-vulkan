@@ -169,10 +169,10 @@ void Viewport::EndRenderTarget(const RCommandList a_cmd_list, const RTexture& a_
 
 bool Viewport::PositionWithinViewport(const uint2 a_pos) const
 {
-	if (m_offset.x < a_pos.x &&
-		m_offset.y < a_pos.y &&
-		m_offset.x + m_extent.x > a_pos.x &&
-		m_offset.y + m_extent.y > a_pos.y)
+	if (m_offset.x < static_cast<int>(a_pos.x) &&
+		m_offset.y < static_cast<int>(a_pos.y) &&
+		m_offset.x + static_cast<int>(m_extent.x) > static_cast<int>(a_pos.x) &&
+		m_offset.y + static_cast<int>(m_extent.y) > static_cast<int>(a_pos.y))
 		return true;
 	return false;
 }

@@ -78,6 +78,11 @@ namespace BB
 		void SetProjection(const float4x4& a_projection);
 
 		void SetClearColor(const float3 a_clear_color) { m_clear_color = a_clear_color; }
+		void GetFenceInfo(RFence* a_out_fence, uint64_t* a_out_value) const 
+		{ 
+			*a_out_fence = m_per_frame.fence;  
+			*a_out_value = m_per_frame.fence_value;
+		}
 
 		static RDescriptorLayout GetSceneDescriptorLayout();
 	private:

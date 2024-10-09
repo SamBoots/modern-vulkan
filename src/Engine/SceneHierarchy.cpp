@@ -24,6 +24,24 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const StringView a_name, const u
 
 	m_top_level_object_count = 0;
 
+	// skybox stuff
+	
+	MaterialCreateInfo skybox_material;
+	skybox_material.pass_type = PASS_TYPE::SCENE;
+	skybox_material.material_type = MATERIAL_TYPE::NONE;
+	skybox_material.vertex_shader_info.path = "../../resources/shaders/hlsl/skybox.hlsl";
+	skybox_material.vertex_shader_info.entry = "VertexMain";
+	skybox_material.vertex_shader_info.stage = SHADER_STAGE::VERTEX;
+	skybox_material.vertex_shader_info.next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
+	skybox_material.fragment_shader_info.path = "../../resources/shaders/hlsl/skybox.hlsl";
+	skybox_material.fragment_shader_info.entry = "FragmentMain";
+	skybox_material.fragment_shader_info.stage = SHADER_STAGE::FRAGMENT_PIXEL;
+	skybox_material.fragment_shader_info.next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
+	MemoryArenaScope(a_arena)
+	{
+		m_skybox_material = Material::CreateMaterial(a_arena, skybox_material, "skybox material");
+	}
+
 	CreateTextureInfo texture_info;
 	texture_info.name = "skybox";
 	texture_info.usage = IMAGE_USAGE::TEXTURE;
@@ -43,22 +61,6 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const StringView a_name, const u
 		"../../resources/textures/skybox/4.jpg",
 		"../../resources/textures/skybox/5.jpg",
 	};
-
-	MaterialCreateInfo skybox_material;
-	skybox_material.pass_type = PASS_TYPE::SCENE;
-	skybox_material.material_type = MATERIAL_TYPE::NONE;
-	skybox_material.vertex_shader_info.path = "../../resources/shaders/hlsl/skybox.hlsl";
-	skybox_material.vertex_shader_info.entry = "VertexMain";
-	skybox_material.vertex_shader_info.stage = SHADER_STAGE::VERTEX;
-	skybox_material.vertex_shader_info.next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
-	skybox_material.fragment_shader_info.path = "../../resources/shaders/hlsl/skybox.hlsl";
-	skybox_material.fragment_shader_info.entry = "FragmentMain";
-	skybox_material.fragment_shader_info.stage = SHADER_STAGE::FRAGMENT_PIXEL;
-	skybox_material.fragment_shader_info.next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
-	MemoryArenaScope(a_arena)
-	{
-		m_skybox_material = Material::CreateMaterial(a_arena, skybox_material, "skybox material");
-	}
 
 	for (size_t i = 0; i < 6; i++)
 	{
@@ -406,7 +408,7 @@ void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTextu
 		RenderCopyBuffer matrix_buffer_copy;
 		matrix_buffer_copy.src = upload_buffer.buffer;
 		matrix_buffer_copy.dst = cur_scene_buffer.GetBuffer();
-		int copy_region_count = 0;
+		size_t copy_region_count = 0;
 		RenderCopyBufferRegion buffer_regions[3]; // 0 = scene, 1 = matrix, 2 = lights
 		buffer_regions[copy_region_count].src_offset = scene_offset;
 		buffer_regions[copy_region_count].dst_offset = scene_view.offset;

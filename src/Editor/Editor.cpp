@@ -585,8 +585,18 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time, const Slice<
 		EndFrame(lists[0], imgui_shaders[0], imgui_shaders[1]);
 
 		pools[0].EndCommandList(lists[0]);
-		uint64_t fence_value;
-		PresentFrame(Slice(pools, command_list_count), fence_value);
+
+		const uint32_t scene_fence_count = m_viewport_and_scenes.size();
+		RFence* scene_fences = ArenaAllocArr(a_arena, RFence, scene_fence_count);
+		uint64_t* scene_fence_values = ArenaAllocArr(a_arena, uint64_t, scene_fence_count);
+
+		for (uint32_t i = 0; i < scene_fence_count; i++)
+		{
+			m_viewport_and_scenes[i].scene.GetFenceInfo(&scene_fences[i], &scene_fence_values[i]);
+		}
+		
+		uint64_t present_queue_value;
+		PresentFrame(Slice(pools, command_list_count), scene_fences, scene_fence_values, scene_fence_count, present_queue_value);
 	}
 }
 

@@ -93,7 +93,8 @@ static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_ar
 		{
 			for (size_t i = 0; i < shader_effect_count; i++)
 			{
-				s_material_inst->shader_effects.emplace_back(handles[i], shader_effects[i]);
+				CachedShaderInfo shader_info = { handles[i], shader_effects[i] };
+				s_material_inst->shader_effects.emplace_back(shader_info);
 			}
 		}
 	}
@@ -115,21 +116,8 @@ void Material::InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCrea
 	
 	s_material_inst->scene_desc_layout = SceneHierarchy::GetSceneDescriptorLayout();
 
-	const MaterialShaderCreateInfo shader_effects_info[]
-	{ 
-		a_create_info.default_2d_vertex, 
-		a_create_info.default_2d_fragment,
-		a_create_info.default_3d_vertex,
-		a_create_info.default_3d_fragment,
-	};
 	MemoryArenaScope(a_arena)
 	{
-		constexpr size_t VERT_2D = 0;
-		constexpr size_t FRAG_2D = 1;
-		constexpr size_t VERT_3D = 2;
-		constexpr size_t FRAG_3D = 3;
-
-
 		MaterialCreateInfo material_info;
 		material_info.material_type = MATERIAL_TYPE::MATERIAL_2D;
 		material_info.vertex_shader_info = a_create_info.default_2d_vertex;

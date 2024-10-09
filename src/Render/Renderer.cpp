@@ -907,6 +907,7 @@ void GPUTextureManager::Init(MemoryArena& a_arena, const RCommandList a_list)
 		image_view_info.mip_levels = 1;
 		image_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
 		image_view_info.format = image_info.format;
+		image_view_info.is_depth_image = false;
 		m_debug_texture.view = Vulkan::CreateViewImage(image_view_info);
 
 		m_debug_texture.width = 1;
@@ -1751,7 +1752,7 @@ CommandPool& BB::GetTransferCommandPool()
 	return s_render_inst->transfer_queue.GetCommandPool();
 }
 
-bool BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, uint64_t& a_fence_value)
+bool BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value)
 {
 	if (s_render_inst->render_io.resizing_request)
 	{
@@ -1782,7 +1783,7 @@ bool BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, uint64_t& a_fenc
 	s_render_inst->frames[s_render_inst->render_io.frame_index].graphics_queue_fence_value = s_render_inst->graphics_queue.GetNextFenceValue();
 
 	s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
-	const PRESENT_IMAGE_RESULT result = s_render_inst->graphics_queue.ExecutePresentCommands(lists, list_count, nullptr, nullptr, 0, nullptr, nullptr, 0, s_render_inst->render_io.frame_index, a_fence_value);
+	const PRESENT_IMAGE_RESULT result = s_render_inst->graphics_queue.ExecutePresentCommands(lists, list_count, a_signal_fences, a_signal_values, a_signal_count, nullptr, nullptr, 0, s_render_inst->render_io.frame_index, a_out_present_fence_value);
 	s_render_inst->render_io.frame_index = (s_render_inst->render_io.frame_index + 1) % s_render_inst->render_io.frame_count;
 
 	s_render_inst->render_io.frame_ended = false;
@@ -1794,7 +1795,7 @@ bool BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, uint64_t& a_fenc
 	return true;
 }
 
-bool BB::ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, uint64_t& a_out_fence_value)
+bool BB::ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value)
 {
 	uint32_t list_count = 0;
 	for (size_t i = 0; i < a_cmd_pools.size(); i++)
@@ -1811,7 +1812,7 @@ bool BB::ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, uint64
 	}
 
 	s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
-	s_render_inst->graphics_queue.ExecuteCommands(lists, list_count, nullptr, nullptr, 0, nullptr, nullptr, 0, a_out_fence_value);
+	s_render_inst->graphics_queue.ExecuteCommands(lists, list_count, a_signal_fences, a_signal_values, a_signal_count, nullptr, nullptr, 0, a_out_present_fence_value);
 	return true;
 }
 
@@ -1989,6 +1990,7 @@ const RTexture BB::CreateTexture(const CreateTextureInfo& a_create_info)
 		image_view_info.mip_levels = 1;
 		image_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
 		image_view_info.format = image_info.format;
+		image_view_info.is_depth_image = a_create_info.usage == IMAGE_USAGE::DEPTH;
 		tex_info.view = Vulkan::CreateViewImage(image_view_info);
 	}
 
@@ -2031,6 +2033,7 @@ const RTexture BB::CreateTextureCubeMap(const CreateTextureInfo& a_create_info)
 		image_view_info.mip_levels = 1;
 		image_view_info.type = IMAGE_VIEW_TYPE::CUBE;
 		image_view_info.format = image_info.format;
+		image_view_info.is_depth_image = false;
 		tex_info.view = Vulkan::CreateViewImage(image_view_info);
 	}
 

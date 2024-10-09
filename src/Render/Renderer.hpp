@@ -108,8 +108,8 @@ namespace BB
 	CommandPool& GetGraphicsCommandPool();
 	CommandPool& GetTransferCommandPool();
 
-	bool PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, uint64_t& a_out_fence_value);
-	bool ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, uint64_t& a_out_fence_value);
+	bool PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value);
+	bool ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value);
 	
 	GPUBufferView AllocateFromVertexBuffer(const size_t a_size_in_bytes);
 	GPUBufferView AllocateFromIndexBuffer(const size_t a_size_in_bytes);
