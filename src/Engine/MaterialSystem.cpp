@@ -43,7 +43,7 @@ static inline MaterialHandle CreateMaterial_impl(const ShaderEffectHandle a_vert
 	return material;
 }
 
-static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_arena, const Slice<const MaterialShaderCreateInfo> a_shader_effects_info)
+static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_arena, const Slice<const MaterialShaderCreateInfo> a_shader_effects_info, const ShaderDescriptorLayouts& a_desc_layouts)
 {
 	ShaderEffectHandle* handles = ArenaAllocArr(a_temp_arena, ShaderEffectHandle, a_shader_effects_info.size());
 
@@ -79,7 +79,7 @@ static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_ar
 			shader_info.stage = info.stage;
 			shader_info.next_stages = info.next_stages;
 			shader_info.push_constant_space = PUSH_CONSTANT_SPACE_SIZE;
-			shader_info.desc_layouts[0] = s_material_inst->scene_desc_layout;
+			shader_info.desc_layouts = a_desc_layouts;
 			shader_info.desc_layout_count = CURRENT_DESC_LAYOUT_COUNT;
 		}
 
@@ -129,17 +129,26 @@ void Material::InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCrea
 		constexpr size_t VERT_3D = 2;
 		constexpr size_t FRAG_3D = 3;
 
-		const Slice<ShaderEffectHandle> effects = CreateShaderEffects_impl(a_arena, Slice(shader_effects_info, _countof(shader_effects_info)));
 
-		GetDefaultMaterial_impl(PASS_TYPE::GLOBAL, MATERIAL_TYPE::MATERIAL_2D) = 
-			CreateMaterial_impl(effects[VERT_2D], effects[FRAG_2D], PASS_TYPE::GLOBAL, MATERIAL_TYPE::MATERIAL_2D, "default global 2d");
-		GetDefaultMaterial_impl(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_2D) = 
-			CreateMaterial_impl(effects[VERT_2D], effects[FRAG_2D], PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_2D, "default scene 2d");
+		MaterialCreateInfo material_info;
+		material_info.material_type = MATERIAL_TYPE::MATERIAL_2D;
+		material_info.vertex_shader_info = a_create_info.default_2d_vertex;
+		material_info.fragment_shader_info = a_create_info.default_2d_fragment;
 
-		GetDefaultMaterial_impl(PASS_TYPE::GLOBAL, MATERIAL_TYPE::MATERIAL_3D) = 
-			CreateMaterial_impl(effects[VERT_3D], effects[FRAG_3D], PASS_TYPE::GLOBAL, MATERIAL_TYPE::MATERIAL_3D, "default global 3d");
-		GetDefaultMaterial_impl(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D) = 
-			CreateMaterial_impl(effects[VERT_3D], effects[FRAG_3D], PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D, "default scene 3d");
+		material_info.pass_type = PASS_TYPE::GLOBAL;
+		GetDefaultMaterial_impl(PASS_TYPE::GLOBAL, MATERIAL_TYPE::MATERIAL_2D) = CreateMaterial(a_arena, material_info, "default global 2d");
+		material_info.pass_type = PASS_TYPE::SCENE;
+		GetDefaultMaterial_impl(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_2D) = CreateMaterial(a_arena, material_info, "default global 2d");
+
+
+		material_info.material_type = MATERIAL_TYPE::MATERIAL_3D;
+		material_info.vertex_shader_info = a_create_info.default_3d_vertex;
+		material_info.fragment_shader_info = a_create_info.default_3d_fragment;
+
+		material_info.pass_type = PASS_TYPE::GLOBAL;
+		GetDefaultMaterial_impl(PASS_TYPE::GLOBAL, MATERIAL_TYPE::MATERIAL_3D) = CreateMaterial(a_arena, material_info, "default global 3d");
+		material_info.pass_type = PASS_TYPE::SCENE;
+		GetDefaultMaterial_impl(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D) = CreateMaterial(a_arena, material_info, "default global 3d");
 	}
 }
 
@@ -148,17 +157,19 @@ MaterialHandle Material::CreateMaterial(MemoryArena& a_temp_arena, const Materia
 	BB_ASSERT(a_create_info.vertex_shader_info.stage == SHADER_STAGE::VERTEX, "vertex_shader_info.stage is not SHADER_STAGE::VERTEX");
 	BB_ASSERT(a_create_info.fragment_shader_info.stage == SHADER_STAGE::FRAGMENT_PIXEL, "fragment_shader_info.stage is not SHADER_STAGE::FRAGMENT_PIXEL");
 
-	FixedArray<RDescriptorLayout, SHADER_DESC_LAYOUT_MAX> desc_layouts = {
-			GetStaticSamplerDescriptorLayout(),
-			GetGlobalDescriptorLayout(),
-			RDescriptorLayout(BB_INVALID_HANDLE_64),	// PER SCENE SET
-			RDescriptorLayout(BB_INVALID_HANDLE_64),	// PER MATERIAL SET
-			RDescriptorLayout(BB_INVALID_HANDLE_64) };	// PER MESH SET
+	ShaderDescriptorLayouts desc_layouts;
+	desc_layouts[SPACE_IMMUTABLE_SAMPLER] = GetStaticSamplerDescriptorLayout();
+	desc_layouts[SPACE_GLOBAL] = GetGlobalDescriptorLayout();
+	desc_layouts[SPACE_PER_SCENE] = RDescriptorLayout(BB_INVALID_HANDLE_64);	// PER SCENE SET
+	desc_layouts[SPACE_PER_MATERIAL] = RDescriptorLayout(BB_INVALID_HANDLE_64);	// PER MATERIAL SET
+	desc_layouts[SPACE_PER_MESH] = RDescriptorLayout(BB_INVALID_HANDLE_64);	// PER MESH SET
+
 
 	switch (a_create_info.pass_type)
 	{
 	case PASS_TYPE::GLOBAL:
 		BB_LOG("GLOBAL pass unimplemented");
+		desc_layouts[SPACE_PER_SCENE] = s_material_inst->scene_desc_layout;
 		break;
 	case PASS_TYPE::SCENE:
 		desc_layouts[SPACE_PER_SCENE] = s_material_inst->scene_desc_layout;
@@ -185,7 +196,7 @@ MaterialHandle Material::CreateMaterial(MemoryArena& a_temp_arena, const Materia
 	}
 
 	const MaterialShaderCreateInfo shader_effects_info[2]{ a_create_info.vertex_shader_info, a_create_info.fragment_shader_info };
-	const Slice<ShaderEffectHandle> shader_effects = CreateShaderEffects_impl(a_temp_arena, Slice(shader_effects_info, _countof(shader_effects_info)));
+	const Slice<ShaderEffectHandle> shader_effects = CreateShaderEffects_impl(a_temp_arena, Slice(shader_effects_info, _countof(shader_effects_info)), desc_layouts);
 
 	return CreateMaterial_impl(shader_effects[0], shader_effects[1], a_create_info.pass_type, a_create_info.material_type, a_name);
 }

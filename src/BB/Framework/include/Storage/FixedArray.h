@@ -7,16 +7,35 @@ namespace BB
 	template<typename T, size_t arr_size>
 	struct FixedArray
 	{
-		operator Slice<T>()
+		FixedArray() = default;
+		FixedArray(const FixedArray<T, arr_size>& a_array)
 		{
-			return Slice<T>(m_arr, arr_size);
+			Memory::Copy<T>(m_arr, a_array.m_arr, arr_size);
 		}
 
+		FixedArray<T, arr_size>& operator=(const FixedArray<T, arr_size>& a_rhs)
+		{
+			this->~FixedArray();
+
+			Memory::Copy<T>(m_arr, a_rhs.m_arr, arr_size);
+
+			return *this;
+		}
 
 		T& operator[](const size_t a_index)
 		{
 			BB_ASSERT(a_index <= arr_size, "FixedArray, trying to access a index that is out of bounds.");
 			return m_arr[a_index];
+		}
+
+		Slice<const T> slice()
+		{
+			return slice(arr_size);
+		}
+		Slice<const T> slice(const size_t a_size, const size_t a_begin = 0)
+		{
+			BB_ASSERT(a_begin + a_size < arr_size, "requesting an out of bounds slice");
+			return Slice<const T>(&m_arr[a_begin], a_size);
 		}
 
 		constexpr size_t size() const { return arr_size; }

@@ -55,11 +55,12 @@ namespace BB
 	};
 
 	constexpr size_t MAX_SHADER_EFFECTS_PER_MATERIAL = 4;
+	using MaterialShaderEffects = FixedArray<ShaderEffectHandle, MAX_SHADER_EFFECTS_PER_MATERIAL>;
 
 	struct MaterialInstance
 	{
 		StringView name;
-		FixedArray<ShaderEffectHandle, MAX_SHADER_EFFECTS_PER_MATERIAL> shader_effects;
+		MaterialShaderEffects shader_effects;
 		size_t shader_effect_count;
 		PASS_TYPE pass_type;
 		MATERIAL_TYPE material_type;
