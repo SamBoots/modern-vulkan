@@ -19,9 +19,9 @@ namespace BB
 	public:
 		void Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent, const size_t a_editor_memory = EDITOR_DEFAULT_MEMORY);
 		void Destroy();
-		void CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const char* a_json_path);
-		void CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const JsonParser& a_parsed_file);
-		void RegisterSceneHierarchy(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint2 a_window_extent);
+		void CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint32_t a_back_buffer_count, const char* a_json_path);
+		void CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint32_t a_back_buffer_count, const JsonParser& a_parsed_file);
+		void RegisterSceneHierarchy(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint2 a_window_extent, const uint32_t a_back_buffer_count);
 
 		template<typename game_interface>
 		requires is_game_interface<game_interface>
@@ -59,6 +59,7 @@ namespace BB
 		void MainEditorImGuiInfo(const MemoryArena& a_arena);
 		struct ThreadFuncForDrawing_Params
 		{
+			uint32_t back_buffer_index;
 			Viewport& viewport;
 			SceneHierarchy& scene_hierarchy;
 			RCommandList command_list;

@@ -65,10 +65,10 @@ namespace BB
 	{
 	public:
 		friend class Editor;
-		void Init(MemoryArena& a_memory_arena, const StringView a_name, const uint32_t a_scene_obj_max = DEFAULT_SCENE_OBJ_MAX);
+		void Init(MemoryArena& a_memory_arena, const uint32_t a_back_buffers, const StringView a_name, const uint32_t a_scene_obj_max = DEFAULT_SCENE_OBJ_MAX);
 		static StaticArray<Asset::AsyncAsset> PreloadAssetsFromJson(MemoryArena& a_arena, const JsonParser& a_parsed_file);
 
-		void DrawSceneHierarchy(const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
+		void DrawSceneHierarchy(const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const uint32_t a_back_buffer_index);
 		SceneObjectHandle CreateSceneObject(const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
 		SceneObjectHandle CreateSceneObjectMesh(const float3 a_position, const MeshDrawInfo& a_mesh_info, const char* a_name, const SceneObjectHandle a_parent = SceneObjectHandle(BB_INVALID_HANDLE_64));
 		SceneObjectHandle CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
@@ -78,10 +78,10 @@ namespace BB
 		void SetProjection(const float4x4& a_projection);
 
 		void SetClearColor(const float3 a_clear_color) { m_clear_color = a_clear_color; }
-		void GetFenceInfo(RFence* a_out_fence, uint64_t* a_out_value) const 
+		void IncrementNextFenceValue(RFence* a_out_fence, uint64_t* a_out_value) 
 		{ 
-			*a_out_fence = m_per_frame.fence;  
-			*a_out_value = m_per_frame.fence_value;
+			*a_out_fence = m_fence;  
+			*a_out_value = m_next_fence_value++;
 		}
 
 		static RDescriptorLayout GetSceneDescriptorLayout();
@@ -103,17 +103,19 @@ namespace BB
 		};
 		struct PerFrameData
 		{
-			RFence fence;
 			uint64_t fence_value;
-			GPUUploadRingAllocator frame_allocator;
-			StaticArray<GPULinearBuffer> uniform_buffer;
-			Scene3DInfo scene_info;
+			DescriptorAllocation scene_descriptor;
+			GPULinearBuffer uniform_buffer;
 		};
 
+		Scene3DInfo m_scene_info;
 		DrawList m_draw_list;
-		DescriptorAllocation m_scene_descriptor;
 
-		PerFrameData m_per_frame;
+		RFence m_fence;
+		uint64_t m_next_fence_value;
+		uint64_t m_last_completed_fence_value;
+		GPUUploadRingAllocator m_upload_allocator;
+		StaticArray<PerFrameData> m_per_frame;
 
 		StringView m_scene_name;
 

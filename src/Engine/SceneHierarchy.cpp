@@ -14,7 +14,7 @@ using namespace BB;
 // arbritrary, but just for a stack const char array
 constexpr size_t UNIQUE_MODELS_PER_SCENE = 128;
 
-void SceneHierarchy::Init(MemoryArena& a_arena, const StringView a_name, const uint32_t a_scene_obj_max)
+void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, const StringView a_name, const uint32_t a_scene_obj_max)
 {
 	m_scene_name = a_name;
 
@@ -90,27 +90,32 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const StringView a_name, const u
 
 	m_light_container.Init(a_arena, 128); // magic number jank yes shoot me
 
-	m_scene_descriptor = AllocateDescriptor(GetSceneDescriptorLayout());
+	m_fence = CreateFence(0, "scene fence");
+	m_last_completed_fence_value = 0;
+	m_next_fence_value = 1;
 
-	const uint32_t backbuffer_count = GetRenderIO().frame_count;
-	m_per_frame.fence = CreateFence(0, "scene fence");
+	m_upload_allocator.Init(a_arena, mbSize * 4, m_fence, "scene upload buffer");
 
-	m_per_frame.scene_info.ambient_light = float3(1.f, 1.f, 1.f);
-	m_per_frame.scene_info.ambient_strength = 1;
-	m_per_frame.scene_info.skybox_texture = m_skybox.handle;
+	m_scene_info.ambient_light = float3(1.f, 1.f, 1.f);
+	m_scene_info.ambient_strength = 1;
+	m_scene_info.skybox_texture = m_skybox.handle;
 
-	m_per_frame.uniform_buffer.Init(a_arena, backbuffer_count);
-	m_per_frame.uniform_buffer.resize(backbuffer_count);
-	for (uint32_t i = 0; i < m_per_frame.uniform_buffer.size(); i++)
+	m_per_frame.Init(a_arena, a_back_buffers);
+	m_per_frame.resize(a_back_buffers);
+	for (uint32_t i = 0; i < m_per_frame.size(); i++)
 	{
+		PerFrameData& pfd = m_per_frame[i];
 		GPUBufferCreateInfo buffer_info;
 		buffer_info.name = "scene uniform buffer";
 		buffer_info.size = mbSize * 4;
 		buffer_info.type = BUFFER_TYPE::UNIFORM;
 		buffer_info.host_writable = false;
-		m_per_frame.uniform_buffer[i].Init(buffer_info);
+
+		pfd.scene_descriptor = AllocateDescriptor(GetSceneDescriptorLayout());
+		pfd.uniform_buffer.Init(buffer_info);
+		pfd.fence_value = 0;
 	}
-	m_per_frame.frame_allocator.Init(a_arena, mbSize * 4, m_per_frame.fence, "scene upload buffer");
+
 }
 
 static bool NameIsWithinCharArray(const char** a_arr, const size_t a_arr_size, const char* a_str)
@@ -311,16 +316,18 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectAsLight(const LightCreateInfo
 
 void SceneHierarchy::SetView(const float4x4& a_view)
 {
-	m_per_frame.scene_info.view = a_view;
+	m_scene_info.view = a_view;
 }
 
 void SceneHierarchy::SetProjection(const float4x4& a_projection)
 {
-	m_per_frame.scene_info.proj = a_projection;
+	m_scene_info.proj = a_projection;
 }
 
-void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset)
+void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const uint32_t a_back_buffer_index)
 {
+	PerFrameData& pfd = m_per_frame[a_back_buffer_index];
+
 	{	// RenderScenePerDraw(a_list, m_render_scene, a_render_target, a_draw_area_size, a_draw_area_offset, Slice(m_skybox_shaders, _countof(m_skybox_shaders)));
 
 		const RPipelineLayout pipe_layout = BindShaders(a_list, Material::GetMaterialShaders(m_skybox_material));
@@ -329,7 +336,7 @@ void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTextu
 		{
 			const uint32_t buffer_indices[] = { 0, 0 };
 			const DescriptorAllocation& global_desc_alloc = GetGlobalDescriptorAllocation();
-			const size_t buffer_offsets[]{ global_desc_alloc.offset, m_scene_descriptor.offset };
+			const size_t buffer_offsets[]{ global_desc_alloc.offset, pfd.scene_descriptor.offset };
 			//set 1-2
 			SetDescriptorBufferOffset(a_list,
 				pipe_layout,
@@ -358,6 +365,7 @@ void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTextu
 
 		EndRenderPass(a_list);
 	}
+
 	m_draw_list.size = 0;
 
 	for (size_t i = 0; i < m_top_level_object_count; i++)
@@ -366,15 +374,16 @@ void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTextu
 		DrawSceneObject(m_top_level_objects[i], Float4x4Identity());
 	}
 
-	// WAIT TO SEE IF WE CAN ACTUALLY DO COMMANDS
+
+	WaitFence(m_fence, pfd.fence_value);
+	pfd.fence_value = m_next_fence_value;
 
 	{	// EndRenderScene(a_list, m_render_scene, a_render_target, a_draw_area_size, a_draw_area_offset);
-		const RenderIO render_io = GetRenderIO();
-		GPULinearBuffer& cur_scene_buffer = m_per_frame.uniform_buffer[render_io.frame_index];
+		GPULinearBuffer& cur_scene_buffer = pfd.uniform_buffer;
 		cur_scene_buffer.Clear();
 
-		m_per_frame.scene_info.light_count = m_light_container.size();
-		m_per_frame.scene_info.scene_resolution = a_draw_area_size;
+		m_scene_info.light_count = m_light_container.size();
+		m_scene_info.scene_resolution = a_draw_area_size;
 
 		const size_t scene_upload_size = sizeof(Scene3DInfo);
 		const size_t matrices_upload_size = sizeof(ShaderTransform) * m_draw_list.size;
@@ -382,10 +391,10 @@ void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTextu
 		// optimize this
 		const size_t total_size = scene_upload_size + matrices_upload_size + light_upload_size;
 
-		const UploadBuffer upload_buffer = m_per_frame.frame_allocator.AllocateUploadMemory(total_size, m_per_frame.fence_value + 1);
+		const UploadBuffer upload_buffer = m_upload_allocator.AllocateUploadMemory(total_size, pfd.fence_value);
 
 		size_t bytes_uploaded = 0;
-		upload_buffer.SafeMemcpy(bytes_uploaded, &m_per_frame.scene_info, scene_upload_size);
+		upload_buffer.SafeMemcpy(bytes_uploaded, &m_scene_info, scene_upload_size);
 		const size_t scene_offset = bytes_uploaded + upload_buffer.base_offset;
 		bytes_uploaded += scene_upload_size;
 
@@ -436,19 +445,20 @@ void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTextu
 		{	// WRITE DESCRIPTORS HERE
 			DescriptorWriteBufferInfo desc_write;
 			desc_write.descriptor_layout = GetSceneDescriptorLayout();
-			desc_write.allocation = m_scene_descriptor;
+			desc_write.allocation = pfd.scene_descriptor;
 			desc_write.descriptor_index = 0;
+
+
+			desc_write.binding = PER_SCENE_SCENE_DATA_BINDING;
+			desc_write.buffer_view = scene_view;
+			DescriptorWriteUniformBuffer(desc_write);
 
 			if (matrices_upload_size)
 			{
-				desc_write.binding = PER_SCENE_SCENE_DATA_BINDING;
-				desc_write.buffer_view = scene_view;
+				desc_write.binding = PER_SCENE_TRANSFORM_DATA_BINDING;
+				desc_write.buffer_view = transform_view;
 				DescriptorWriteUniformBuffer(desc_write);
 			}
-
-			desc_write.binding = PER_SCENE_TRANSFORM_DATA_BINDING;
-			desc_write.buffer_view = transform_view;
-			DescriptorWriteUniformBuffer(desc_write);
 			if (light_upload_size)
 			{
 				desc_write.binding = PER_SCENE_LIGHT_DATA_BINDING;

@@ -13,7 +13,6 @@ using namespace BB;
 
 constexpr size_t EDITOR_VIEWPORT_ARRAY_SIZE = 16;
 constexpr size_t EDITOR_MODEL_NAME_ARRAY_SIZE = 256;
-constexpr uint32_t CURRENT_RENDER_TARGET_COUNT = 3;
 
 struct ImInputData
 {
@@ -287,11 +286,14 @@ void Editor::ThreadFuncForDrawing(MemoryArena&, void* a_param)
 {
 	ThreadFuncForDrawing_Params* param_in = reinterpret_cast<ThreadFuncForDrawing_Params*>(a_param);
 
+	uint32_t back_buffer_index = param_in->back_buffer_index;
 	Viewport& viewport = param_in->viewport;
 	SceneHierarchy& scene_hierarchy = param_in->scene_hierarchy;
 	RCommandList list = param_in->command_list;
 
-	scene_hierarchy.DrawSceneHierarchy(list, viewport.StartRenderTarget(list), viewport.GetExtent(), int2());
+	const RTexture render_target = viewport.StartRenderTarget(list, back_buffer_index);
+	scene_hierarchy.DrawSceneHierarchy(list, render_target, viewport.GetExtent(), int2(), back_buffer_index);
+	viewport.EndRenderTarget(list, render_target, IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL);
 }
 
 void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent, const size_t a_editor_memory)
@@ -344,17 +346,17 @@ void Editor::Destroy()
 	DirectDestroyOSWindow(m_main_window);
 }
 
-void Editor::CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const char* a_json_path)
+void Editor::CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint32_t a_back_buffer_count, const char* a_json_path)
 {
 	JsonParser json_file(a_json_path);
-	CreateSceneHierarchyViaJson(a_arena, a_hierarchy, json_file);
+	CreateSceneHierarchyViaJson(a_arena, a_hierarchy, a_back_buffer_count, json_file);
 }
 
-void Editor::CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const JsonParser& a_parsed_file)
+void Editor::CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint32_t a_back_buffer_count, const JsonParser& a_parsed_file)
 {
 	const JsonObject& scene_obj = a_parsed_file.GetRootNode()->GetObject().Find("scene")->GetObject();
 	{
-		a_hierarchy.Init(a_arena, Asset::FindOrCreateString(scene_obj.Find("name")->GetString()));
+		a_hierarchy.Init(a_arena, a_back_buffer_count, Asset::FindOrCreateString(scene_obj.Find("name")->GetString()));
 	}
 
 	const JsonList& scene_objects = scene_obj.Find("scene_objects")->GetList();
@@ -423,12 +425,12 @@ void Editor::CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a
 	}
 }
 
-void Editor::RegisterSceneHierarchy(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint2 a_window_extent)
+void Editor::RegisterSceneHierarchy(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint2 a_window_extent, const uint32_t a_back_buffer_count)
 {
 	ViewportAndScene viewport_scene{ a_hierarchy };
 	StackString<256> viewport_name{ a_hierarchy.m_scene_name.c_str(),  a_hierarchy.m_scene_name.size() };
 	viewport_name.append(" viewport");
-	viewport_scene.viewport.Init(a_arena, a_window_extent, int2(), CURRENT_RENDER_TARGET_COUNT, Asset::FindOrCreateString(viewport_name.GetView()));
+	viewport_scene.viewport.Init(a_arena, a_window_extent, int2(), a_back_buffer_count, Asset::FindOrCreateString(viewport_name.GetView()));
 
 	m_viewport_and_scenes.push_back(viewport_scene);
 }
@@ -531,7 +533,8 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time, const Slice<
 		start_info.delta_time = a_delta_time;
 		start_info.mouse_pos = m_previous_mouse_pos;
 
-		StartFrame(lists[0], start_info);
+		uint32_t back_buffer_index;
+		StartFrame(lists[0], start_info, back_buffer_index);
 
 		if (ImGui::Begin("Editor - Renderer"))
 		{
@@ -555,15 +558,16 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time, const Slice<
 			ImguiDisplaySceneHierarchy(vs.scene);
 
 			bool resized = false;
-			vs.viewport.DrawImgui(resized);
+			vs.viewport.DrawImgui(resized, back_buffer_index);
 			if (resized)
 			{
 				vs.scene.SetProjection(vs.viewport.CreateProjection(60.f, 0.001f, 10000.0f));
 			}
 			ThreadFuncForDrawing_Params* draw_params = ArenaAllocType(a_arena, ThreadFuncForDrawing_Params) {
+				back_buffer_index,
 				vs.viewport,
-					vs.scene,
-					lists[i]
+				vs.scene,
+				lists[i]
 			};
 
 			thread_tasks[i] = Threads::StartTaskThread(ThreadFuncForDrawing, draw_params, L"scene draw task");
@@ -592,7 +596,7 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time, const Slice<
 
 		for (uint32_t i = 0; i < scene_fence_count; i++)
 		{
-			m_viewport_and_scenes[i].scene.GetFenceInfo(&scene_fences[i], &scene_fence_values[i]);
+			m_viewport_and_scenes[i].scene.IncrementNextFenceValue(&scene_fences[i], &scene_fence_values[i]);
 		}
 		
 		uint64_t present_queue_value;

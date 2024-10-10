@@ -73,6 +73,7 @@ int main(int argc, char** argv)
 	render_create_info.debug = true;
 
 	InitializeRenderer(main_arena, render_create_info);
+	const uint32_t back_buffer_count = GetRenderIO().frame_count;
 
 	{
 		const Asset::AssetManagerInitInfo asset_manager_info = {};
@@ -102,14 +103,14 @@ int main(int argc, char** argv)
 
 			Threads::WaitForTask(view_upload);
 		}
-		editor.CreateSceneHierarchyViaJson(main_arena, object_viewer, json_file);
+		editor.CreateSceneHierarchyViaJson(main_arena, object_viewer, back_buffer_count, json_file);
 	}
 
 	DungeonGame def_game{};
 	def_game.InitGame();
 
-	editor.RegisterSceneHierarchy(main_arena, def_game.GetSceneHierarchy(), window_extent);
-	editor.RegisterSceneHierarchy(main_arena, object_viewer, window_extent / uint2(2));
+	editor.RegisterSceneHierarchy(main_arena, def_game.GetSceneHierarchy(), window_extent, back_buffer_count);
+	editor.RegisterSceneHierarchy(main_arena, object_viewer, window_extent / uint2(2), back_buffer_count);
 
 	while (!quit_app)
 	{

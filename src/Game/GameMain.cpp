@@ -195,8 +195,8 @@ SceneObjectHandle DungeonMap::CreateRenderObject(MemoryArena& a_temp_arena, Scen
 bool DungeonGame::InitGame()
 {
 	m_game_memory = MemoryArenaCreate();
-
-	m_scene_hierarchy.Init(m_game_memory, Asset::FindOrCreateString("game hierarchy"));
+	const uint32_t back_buffer_count = GetRenderIO().frame_count;
+	m_scene_hierarchy.Init(m_game_memory, back_buffer_count, Asset::FindOrCreateString("game hierarchy"));
 	m_scene_hierarchy.SetClearColor(float3(0.3f, 0.3f, 0.3f));
 	DungeonRoom room;
 	room.CreateRoom(m_game_memory, "../../resources/game/dungeon_rooms/map1.bmp");

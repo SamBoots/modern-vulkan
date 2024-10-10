@@ -1403,7 +1403,7 @@ GPUDeviceInfo BB::GetGPUInfo(MemoryArena& a_arena)
 	return Vulkan::GetGPUDeviceInfo(a_arena);
 }
 
-void BB::StartFrame(const RCommandList a_list, const StartFrameInfo& a_info)
+void BB::StartFrame(const RCommandList a_list, const StartFrameInfo& a_info, uint32_t& a_out_back_buffer_index)
 {
 	// check if we need to resize
 	if (s_render_inst->render_io.resizing_request)
@@ -1456,6 +1456,8 @@ void BB::StartFrame(const RCommandList a_list, const StartFrameInfo& a_info)
 	IMGUI_IMPL::ImNewFrame();
 	ImGui::NewFrame();
 	ImguiDisplayRenderer();
+
+	a_out_back_buffer_index = frame_index;
 }
 
 static bool uploading_assets = false;

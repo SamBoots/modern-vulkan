@@ -12,10 +12,8 @@ void Viewport::Init(MemoryArena& a_arena, const uint2 a_extent, const int2 a_off
 {
 	m_extent = a_extent;
 	m_offset = a_offset;
-	m_texture_count = a_render_target_count;
-	m_textures = ArenaAllocArr(a_arena, RTexture, m_texture_count);
+	m_textures.Init(a_arena, a_render_target_count);
 	m_name = a_name;
-	m_current_target = 0;
 	CreateTextures();
 }
 
@@ -25,19 +23,19 @@ void Viewport::Resize(const uint2 a_new_extent)
 		return;
 
 	m_extent = a_new_extent;
-	for (size_t i = 0; i < m_texture_count; i++)
+	for (uint32_t i = 0; i < m_textures.size(); i++)
 	{
 		FreeTexture(m_textures[i]);
 	}
 	CreateTextures();
 }
 
-void Viewport::DrawImgui(bool& a_resized, const uint2 a_minimum_size)
+void Viewport::DrawImgui(bool& a_resized, uint64_t a_back_buffer_index, const uint2 a_minimum_size)
 {
 	a_resized = false;
 	if (ImGui::Begin(m_name.c_str(), nullptr, ImGuiWindowFlags_MenuBar))
 	{
-		const RTexture render_target = m_textures[m_current_target];
+		const RTexture render_target = m_textures[a_back_buffer_index];
 		if (ImGui::BeginMenuBar())
 		{
 			if (ImGui::BeginMenu("screenshot"))
@@ -119,9 +117,9 @@ void Viewport::DrawImgui(bool& a_resized, const uint2 a_minimum_size)
 	ImGui::End();
 }
 
-const RTexture& Viewport::StartRenderTarget(const RCommandList a_cmd_list) const
+const RTexture& Viewport::StartRenderTarget(const RCommandList a_cmd_list, uint64_t a_back_buffer_index) const
 {
-	const RTexture& render_target = m_textures[m_current_target];
+	const RTexture& render_target = m_textures[a_back_buffer_index];
 
 	PipelineBarrierImageInfo render_target_transition;
 	render_target_transition.src_mask = BARRIER_ACCESS_MASK::NONE;
@@ -163,8 +161,6 @@ void Viewport::EndRenderTarget(const RCommandList a_cmd_list, const RTexture& a_
 	pipeline_info.image_info_count = 1;
 	pipeline_info.image_infos = &render_target_transition;
 	PipelineBarriers(a_cmd_list, pipeline_info);
-
-	++m_current_target;
 }
 
 bool Viewport::PositionWithinViewport(const uint2 a_pos) const
@@ -184,7 +180,7 @@ float4x4 Viewport::CreateProjection(const float a_fov, const float a_near_field,
 
 void  Viewport::CreateTextures()
 {
-	for (size_t i = 0; i < m_texture_count; i++)
+	for (size_t i = 0; i < m_textures.size(); i++)
 	{
 		CreateTextureInfo render_target_info;
 		render_target_info.width = m_extent.x;
