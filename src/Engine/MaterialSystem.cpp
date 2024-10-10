@@ -70,7 +70,7 @@ static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_ar
 				previous_shader_path = info.path;
 			}
 
-			const StringView name = info.path.c_str() + info.path.find_last_of('\\');
+			const StringView name = info.path.c_str() + info.path.find_last_of('/');
 
 			CreateShaderEffectInfo& shader_info = shader_effects[shader_effect_count++];
 			shader_info.name = name.c_str();
@@ -98,7 +98,6 @@ static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_ar
 			}
 		}
 	}
-
 
 	return Slice(handles, a_shader_effects_info.size());
 }

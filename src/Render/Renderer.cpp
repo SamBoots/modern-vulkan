@@ -1614,7 +1614,7 @@ static void UploadAssets(MemoryArena& a_thread_arena, void*)
 	uploading_assets = false;
 }
 
-void BB::EndFrame(const RCommandList a_list, const ShaderEffectHandle a_imgui_vertex, const ShaderEffectHandle a_imgui_fragment, bool a_skip)
+void BB::EndFrame(const RCommandList a_list, const ShaderEffectHandle a_imgui_vertex, const ShaderEffectHandle a_imgui_fragment, const uint32_t a_back_buffer_index, bool a_skip)
 {
 	BB_ASSERT(s_render_inst->render_io.frame_started == true, "did not call StartFrame before a EndFrame");
 
@@ -1629,7 +1629,7 @@ void BB::EndFrame(const RCommandList a_list, const ShaderEffectHandle a_imgui_ve
 		ImGui::EndFrame();
 		return;
 	}
-	const uint32_t frame_index = s_render_inst->render_io.frame_index;
+	const uint32_t frame_index = a_back_buffer_index;
 	const RenderInterface_inst::Frame& cur_frame = s_render_inst->frames[frame_index];
 	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(cur_frame.render_target);
 
@@ -1661,7 +1661,7 @@ void BB::EndFrame(const RCommandList a_list, const ShaderEffectHandle a_imgui_ve
 
 	const int2 swapchain_size(static_cast<int>(s_render_inst->render_io.screen_width), static_cast<int>(s_render_inst->render_io.screen_height));
 
-	const PRESENT_IMAGE_RESULT result = Vulkan::UploadImageToSwapchain(a_list, render_target.texture_info.image, swapchain_size, swapchain_size, s_render_inst->render_io.frame_index);
+	const PRESENT_IMAGE_RESULT result = Vulkan::UploadImageToSwapchain(a_list, render_target.texture_info.image, swapchain_size, swapchain_size, a_back_buffer_index);
 	if (result == PRESENT_IMAGE_RESULT::SWAPCHAIN_OUT_OF_DATE)
 		s_render_inst->render_io.resizing_request = true;
 	s_render_inst->render_io.frame_ended = true;

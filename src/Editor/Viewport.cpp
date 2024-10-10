@@ -13,6 +13,7 @@ void Viewport::Init(MemoryArena& a_arena, const uint2 a_extent, const int2 a_off
 	m_extent = a_extent;
 	m_offset = a_offset;
 	m_textures.Init(a_arena, a_render_target_count);
+	m_textures.resize(a_render_target_count);
 	m_name = a_name;
 	CreateTextures();
 }
@@ -142,7 +143,7 @@ const RTexture& Viewport::StartRenderTarget(const RCommandList a_cmd_list, uint6
 	return render_target;
 }
 
-void Viewport::EndRenderTarget(const RCommandList a_cmd_list, const RTexture& a_render_target, const IMAGE_LAYOUT a_current_layout)
+void Viewport::EndRenderTarget(const RCommandList a_cmd_list, const RTexture a_render_target, const IMAGE_LAYOUT a_current_layout)
 {
 	PipelineBarrierImageInfo render_target_transition;
 	render_target_transition.src_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;

@@ -586,7 +586,7 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time, const Slice<
 
 
 		Slice imgui_shaders = Material::GetMaterialShaders(m_imgui_material);
-		EndFrame(lists[0], imgui_shaders[0], imgui_shaders[1]);
+		EndFrame(lists[0], imgui_shaders[0], imgui_shaders[1], back_buffer_index);
 
 		pools[0].EndCommandList(lists[0]);
 

@@ -15,7 +15,7 @@ namespace BB
 		void DrawImgui(bool& a_resized, uint64_t a_back_buffer_index, const uint2 a_minimum_size = uint2(160, 80));
 
 		const RTexture& StartRenderTarget(const RCommandList a_cmd_list, uint64_t a_back_buffer_index) const;
-		void EndRenderTarget(const RCommandList a_cmd_list, const RTexture& a_render_target, const IMAGE_LAYOUT a_current_layout);
+		void EndRenderTarget(const RCommandList a_cmd_list, const RTexture a_render_target, const IMAGE_LAYOUT a_current_layout);
 
 		bool PositionWithinViewport(const uint2 a_pos) const;
 

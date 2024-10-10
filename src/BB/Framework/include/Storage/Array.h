@@ -376,7 +376,7 @@ namespace BB
 
 		T& operator[](const size_t a_index) const
 		{
-			BB_ASSERT(a_index <= m_size, "StaticArray, trying to get an element using the [] operator but that element is not there.");
+			BB_ASSERT(a_index < m_size, "StaticArray, trying to get an element using the [] operator but that element is not there.");
 			return m_arr[a_index];
 		}
 
@@ -482,7 +482,7 @@ namespace BB
 		}
 		Slice<const T> slice(const size_t a_size, const size_t a_begin = 0)
 		{
-			BB_ASSERT(a_begin + a_size < m_size, "requesting an out of bounds slice");
+			BB_ASSERT(a_begin + a_size <= m_size, "requesting an out of bounds slice");
 			return Slice<const T>(&m_arr[a_begin], a_size);
 		}
 

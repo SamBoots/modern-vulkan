@@ -351,6 +351,7 @@ void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTextu
 		color_attach.store_color = true;
 		color_attach.image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 		color_attach.image_view = GetImageView(a_render_target, 0);
+		color_attach.clear_value_rgba.x = 1.f;
 
 		StartRenderingInfo start_rendering_info;
 		start_rendering_info.render_area_extent = a_draw_area_size;
@@ -407,11 +408,14 @@ void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTextu
 		bytes_uploaded += light_upload_size;
 
 		GPUBufferView scene_view;
-		BB_ASSERT(cur_scene_buffer.Allocate(scene_upload_size, scene_view), "failed to allocate frame memory");
+		bool success = cur_scene_buffer.Allocate(scene_upload_size, scene_view);
+		BB_ASSERT(success, "failed to allocate frame memory");
 		GPUBufferView transform_view;
-		BB_ASSERT(cur_scene_buffer.Allocate(matrices_upload_size, transform_view), "failed to allocate frame memory");
+		success = cur_scene_buffer.Allocate(matrices_upload_size, transform_view);
+		BB_ASSERT(success, "failed to allocate frame memory");
 		GPUBufferView light_view;
-		BB_ASSERT(cur_scene_buffer.Allocate(light_upload_size, light_view), "failed to allocate frame memory");
+		success = cur_scene_buffer.Allocate(light_upload_size, light_view);
+		BB_ASSERT(success, "failed to allocate frame memory");
 
 		//upload to some GPU buffer here.
 		RenderCopyBuffer matrix_buffer_copy;
@@ -447,7 +451,6 @@ void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTextu
 			desc_write.descriptor_layout = GetSceneDescriptorLayout();
 			desc_write.allocation = pfd.scene_descriptor;
 			desc_write.descriptor_index = 0;
-
 
 			desc_write.binding = PER_SCENE_SCENE_DATA_BINDING;
 			desc_write.buffer_view = scene_view;

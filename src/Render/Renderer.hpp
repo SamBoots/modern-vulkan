@@ -92,7 +92,7 @@ namespace BB
 	};
 
 	void StartFrame(const RCommandList a_list, const StartFrameInfo& a_info, uint32_t& a_out_back_buffer_index);
-	void EndFrame(const RCommandList a_list, const ShaderEffectHandle a_imgui_vertex, const ShaderEffectHandle a_imgui_fragment, bool a_skip = false);
+	void EndFrame(const RCommandList a_list, const ShaderEffectHandle a_imgui_vertex, const ShaderEffectHandle a_imgui_fragment, const uint32_t a_back_buffer_index, bool a_skip = false);
 
 	void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info);
 	void EndRenderPass(const RCommandList a_list);
