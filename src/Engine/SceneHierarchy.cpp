@@ -106,13 +106,13 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 	{
 		PerFrameData& pfd = m_per_frame[i];
 		GPUBufferCreateInfo buffer_info;
-		buffer_info.name = "scene uniform buffer";
+		buffer_info.name = "scene STORAGE buffer";
 		buffer_info.size = mbSize * 4;
-		buffer_info.type = BUFFER_TYPE::UNIFORM;
+		buffer_info.type = BUFFER_TYPE::STORAGE;
 		buffer_info.host_writable = false;
 
 		pfd.scene_descriptor = AllocateDescriptor(GetSceneDescriptorLayout());
-		pfd.uniform_buffer.Init(buffer_info);
+		pfd.storage_buffer.Init(buffer_info);
 		pfd.fence_value = 0;
 	}
 
@@ -375,12 +375,11 @@ void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTextu
 		DrawSceneObject(m_top_level_objects[i], Float4x4Identity());
 	}
 
-
 	WaitFence(m_fence, pfd.fence_value);
 	pfd.fence_value = m_next_fence_value;
 
 	{	// EndRenderScene(a_list, m_render_scene, a_render_target, a_draw_area_size, a_draw_area_offset);
-		GPULinearBuffer& cur_scene_buffer = pfd.uniform_buffer;
+		GPULinearBuffer& cur_scene_buffer = pfd.storage_buffer;
 		cur_scene_buffer.Clear();
 
 		m_scene_info.light_count = m_light_container.size();
@@ -418,9 +417,9 @@ void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTextu
 		BB_ASSERT(success, "failed to allocate frame memory");
 
 		//upload to some GPU buffer here.
-		RenderCopyBuffer scene_buffer_copy;
-		scene_buffer_copy.src = upload_buffer.buffer;
-		scene_buffer_copy.dst = cur_scene_buffer.GetBuffer();
+		RenderCopyBuffer matrix_buffer_copy;
+		matrix_buffer_copy.src = upload_buffer.buffer;
+		matrix_buffer_copy.dst = cur_scene_buffer.GetBuffer();
 		size_t copy_region_count = 0;
 		RenderCopyBufferRegion buffer_regions[3]; // 0 = scene, 1 = matrix, 2 = lights
 		buffer_regions[copy_region_count].src_offset = scene_offset;
@@ -443,8 +442,8 @@ void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTextu
 			++copy_region_count;
 		}
 
-		scene_buffer_copy.regions = Slice(buffer_regions, copy_region_count);
-		CopyBuffer(a_list, scene_buffer_copy);
+		matrix_buffer_copy.regions = Slice(buffer_regions, copy_region_count);
+		CopyBuffer(a_list, matrix_buffer_copy);
 
 		{	// WRITE DESCRIPTORS HERE
 			DescriptorWriteBufferInfo desc_write;
@@ -454,19 +453,19 @@ void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTextu
 
 			desc_write.binding = PER_SCENE_SCENE_DATA_BINDING;
 			desc_write.buffer_view = scene_view;
-			DescriptorWriteUniformBuffer(desc_write);
+			DescriptorWriteStorageBuffer(desc_write);
 
 			if (matrices_upload_size)
 			{
 				desc_write.binding = PER_SCENE_TRANSFORM_DATA_BINDING;
 				desc_write.buffer_view = transform_view;
-				DescriptorWriteUniformBuffer(desc_write);
+				DescriptorWriteStorageBuffer(desc_write);
 			}
 			if (light_upload_size)
 			{
 				desc_write.binding = PER_SCENE_LIGHT_DATA_BINDING;
 				desc_write.buffer_view = light_view;
-				DescriptorWriteUniformBuffer(desc_write);
+				DescriptorWriteStorageBuffer(desc_write);
 			}
 		}
 	}
@@ -489,6 +488,7 @@ void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTextu
 			m_depth_image = CreateTexture(depth_info);
 			m_previous_draw_area = a_draw_area_size;
 		}
+
 
 		PipelineBarrierImageInfo image_transitions[1]{};
 		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::NONE;
@@ -588,17 +588,17 @@ RDescriptorLayout SceneHierarchy::GetSceneDescriptorLayout()
 	descriptor_bindings[0].binding = PER_SCENE_SCENE_DATA_BINDING;
 	descriptor_bindings[0].count = 1;
 	descriptor_bindings[0].shader_stage = SHADER_STAGE::ALL;
-	descriptor_bindings[0].type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
+	descriptor_bindings[0].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
 
 	descriptor_bindings[1].binding = PER_SCENE_TRANSFORM_DATA_BINDING;
 	descriptor_bindings[1].count = 1;
 	descriptor_bindings[1].shader_stage = SHADER_STAGE::VERTEX;
-	descriptor_bindings[1].type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
+	descriptor_bindings[1].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
 
 	descriptor_bindings[2].binding = PER_SCENE_LIGHT_DATA_BINDING;
 	descriptor_bindings[2].count = 1;
 	descriptor_bindings[2].shader_stage = SHADER_STAGE::FRAGMENT_PIXEL;
-	descriptor_bindings[2].type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
+	descriptor_bindings[2].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
 	s_scene_descriptor_layout = CreateDescriptorLayout(temp_arena, Slice(descriptor_bindings, _countof(descriptor_bindings)));
 
 	MemoryArenaFree(temp_arena);

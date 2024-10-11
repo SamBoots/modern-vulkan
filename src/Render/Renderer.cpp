@@ -1681,11 +1681,12 @@ bool BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_
 	}
 
 	//set the next fence value for the frame
-	s_render_inst->frames[s_render_inst->render_io.frame_index].graphics_queue_fence_value = s_render_inst->graphics_queue.GetNextFenceValue();
+
 
 	s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
 	const PRESENT_IMAGE_RESULT result = s_render_inst->graphics_queue.ExecutePresentCommands(lists, list_count, a_signal_fences, a_signal_values, a_signal_count, nullptr, nullptr, 0, s_render_inst->render_io.frame_index, a_out_present_fence_value);
 	s_render_inst->render_io.frame_index = (s_render_inst->render_io.frame_index + 1) % s_render_inst->render_io.frame_count;
+	s_render_inst->frames[s_render_inst->render_io.frame_index].graphics_queue_fence_value = a_out_present_fence_value;
 
 	s_render_inst->render_io.frame_ended = false;
 	s_render_inst->render_io.frame_started = false;

@@ -105,7 +105,8 @@ namespace BB
 		{
 			uint64_t fence_value;
 			DescriptorAllocation scene_descriptor;
-			GPULinearBuffer uniform_buffer;
+			// i want this to be uniform but hlsl is giga cringe
+			GPULinearBuffer storage_buffer;
 		};
 
 		Scene3DInfo m_scene_info;
