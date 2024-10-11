@@ -418,9 +418,9 @@ void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTextu
 		BB_ASSERT(success, "failed to allocate frame memory");
 
 		//upload to some GPU buffer here.
-		RenderCopyBuffer matrix_buffer_copy;
-		matrix_buffer_copy.src = upload_buffer.buffer;
-		matrix_buffer_copy.dst = cur_scene_buffer.GetBuffer();
+		RenderCopyBuffer scene_buffer_copy;
+		scene_buffer_copy.src = upload_buffer.buffer;
+		scene_buffer_copy.dst = cur_scene_buffer.GetBuffer();
 		size_t copy_region_count = 0;
 		RenderCopyBufferRegion buffer_regions[3]; // 0 = scene, 1 = matrix, 2 = lights
 		buffer_regions[copy_region_count].src_offset = scene_offset;
@@ -443,8 +443,8 @@ void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTextu
 			++copy_region_count;
 		}
 
-		matrix_buffer_copy.regions = Slice(buffer_regions, copy_region_count);
-		CopyBuffer(a_list, matrix_buffer_copy);
+		scene_buffer_copy.regions = Slice(buffer_regions, copy_region_count);
+		CopyBuffer(a_list, scene_buffer_copy);
 
 		{	// WRITE DESCRIPTORS HERE
 			DescriptorWriteBufferInfo desc_write;
@@ -489,7 +489,6 @@ void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTextu
 			m_depth_image = CreateTexture(depth_info);
 			m_previous_draw_area = a_draw_area_size;
 		}
-
 
 		PipelineBarrierImageInfo image_transitions[1]{};
 		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::NONE;

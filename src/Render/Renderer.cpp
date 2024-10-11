@@ -187,7 +187,7 @@ private:
 	StaticArray<PipelineBarrierImageInfo> m_graphics_texture_transitions;
 	
 	// purple color
-	TextureInfo m_debug_texture;
+	RTexture m_debug_texture;
 };
 
 RCommandList CommandPool::StartCommandList(const char* a_name)
@@ -886,127 +886,43 @@ void GPUTextureManager::Init(MemoryArena& a_arena, const RCommandList a_list)
 	m_descriptor_writes.Init(a_arena, MAX_TEXTURES / 4);
 	m_graphics_texture_transitions.Init(a_arena, MAX_TEXTURES / 4);
 
-	{	//special debug image that gets placed on ALL empty or fried texture slots.
-		ImageCreateInfo image_info;
-		image_info.name = "debug purple";
-		image_info.width = 1;
-		image_info.height = 1;
-		image_info.depth = 1;
-		image_info.array_layers = 1;
-		image_info.mip_levels = 1;
-		image_info.type = IMAGE_TYPE::TYPE_2D;
-		image_info.tiling = IMAGE_TILING::OPTIMAL;
-		image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
-		image_info.usage = IMAGE_USAGE::TEXTURE;
-		m_debug_texture.image = Vulkan::CreateImage(image_info);
-
-		ImageViewCreateInfo image_view_info;
-		image_view_info.image = m_debug_texture.image;
-		image_view_info.name = image_info.name;
-		image_view_info.array_layers = 1;
-		image_view_info.mip_levels = 1;
-		image_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
-		image_view_info.format = image_info.format;
-		image_view_info.is_depth_image = false;
-		m_debug_texture.view = Vulkan::CreateViewImage(image_view_info);
-
-		m_debug_texture.width = 1;
-		m_debug_texture.height = 1;
-		m_debug_texture.format = IMAGE_FORMAT::RGBA8_SRGB;
-		{
-			PipelineBarrierImageInfo image_write_transition;
-			image_write_transition.src_mask = BARRIER_ACCESS_MASK::NONE;
-			image_write_transition.dst_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
-			image_write_transition.image = m_debug_texture.image;
-			image_write_transition.old_layout = IMAGE_LAYOUT::UNDEFINED;
-			image_write_transition.new_layout = IMAGE_LAYOUT::TRANSFER_DST;
-			image_write_transition.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
-			image_write_transition.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
-			image_write_transition.layer_count = 1;
-			image_write_transition.level_count = 1;
-			image_write_transition.base_array_layer = 0;
-			image_write_transition.base_mip_level = 0;
-			image_write_transition.src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
-			image_write_transition.dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
-
-			PipelineBarrierInfo pipeline_info{};
-			pipeline_info.image_info_count = 1;
-			pipeline_info.image_infos = &image_write_transition;
-			Vulkan::PipelineBarriers(a_list, pipeline_info);
-		}
-		const uint32_t debug_purple = (209u << 24u) | (106u << 16u) | (255u << 8u) | (255u << 0u);
-
-		//now upload the image.
-		UploadBuffer upload_buffer = s_render_inst->frame_upload_allocator.AllocateUploadMemory(sizeof(debug_purple), s_render_inst->asset_uploader.next_fence_value.load());
-		upload_buffer.SafeMemcpy(0, &debug_purple, sizeof(debug_purple));
-
-		RenderCopyBufferToImageInfo buffer_to_image;
-		buffer_to_image.src_buffer = upload_buffer.buffer;
-		buffer_to_image.src_offset = static_cast<uint32_t>(upload_buffer.base_offset);
-
-		buffer_to_image.dst_image = m_debug_texture.image;
-		buffer_to_image.dst_extent = uint3(1u, 1u, 1u);
-		buffer_to_image.dst_image_info.offset_x = 0;
-		buffer_to_image.dst_image_info.offset_y = 0;
-		buffer_to_image.dst_image_info.offset_z = 0;
-		buffer_to_image.dst_image_info.mip_level = 0;
-		buffer_to_image.dst_image_info.layer_count = 1;
-		buffer_to_image.dst_image_info.base_array_layer = 0;
-
-		Vulkan::CopyBufferToImage(a_list, buffer_to_image);
-
-		{
-			PipelineBarrierImageInfo image_shader_transition;
-			image_shader_transition.src_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
-			image_shader_transition.dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
-			image_shader_transition.image = m_debug_texture.image;
-			image_shader_transition.old_layout = IMAGE_LAYOUT::TRANSFER_DST;
-			image_shader_transition.new_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
-			image_shader_transition.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
-			image_shader_transition.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
-			image_shader_transition.layer_count = 1;
-			image_shader_transition.level_count = 1;
-			image_shader_transition.base_array_layer = 0;
-			image_shader_transition.base_mip_level = 0;
-			image_shader_transition.src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
-			image_shader_transition.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
-
-			m_graphics_texture_transitions.emplace_back(image_shader_transition);
-
-			m_debug_texture.current_layout = image_shader_transition.new_layout;
-		}
-
-		DescriptorWriteImageInfo write_desc;
-		write_desc.allocation = s_render_inst->global_descriptor_allocation;
-		write_desc.descriptor_layout = s_render_inst->global_descriptor_set;
-
-		for (uint32_t i = 0; i < MAX_TEXTURES; i++)
-		{
-			write_desc.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
-			write_desc.descriptor_index = i; //handle is also the descriptor index
-			write_desc.view = m_debug_texture.view;
-			write_desc.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
-			DescriptorWriteImage(write_desc);
-		}
-	}
-
+	m_next_free = 0;
 	m_lock = OSCreateRWLock();
-	//texture 0 is always the debug texture.
-	m_textures[0].texture_info = m_debug_texture;
-	m_textures[0].name = DEBUG_TEXTURE_NAME;
-	m_textures[0].next_free = UINT32_MAX;
-
-	m_next_free = 1;
-
-	for (uint32_t i = 1; i < MAX_TEXTURES - 1; i++)
+	
+	// setup the freelist before making the debug texture
+	for (uint32_t i = m_next_free; i < MAX_TEXTURES - 1; i++)
 	{
-		m_textures[i].texture_info = m_debug_texture;
-		m_textures[i].name = DEBUG_TEXTURE_NAME;
 		m_textures[i].next_free = i + 1;
 	}
-
-	m_textures[MAX_TEXTURES - 1].texture_info = m_debug_texture;
 	m_textures[MAX_TEXTURES - 1].next_free = UINT32_MAX;
+
+
+	{	// create debug texture
+		CreateTextureInfo debug_texture_info;
+		debug_texture_info.name = "debug purple";
+		debug_texture_info.width = 1;
+		debug_texture_info.height = 1;
+		debug_texture_info.array_layers = 1;
+		debug_texture_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+		debug_texture_info.usage = IMAGE_USAGE::TEXTURE;
+		m_debug_texture = CreateTexture(debug_texture_info);
+
+		const uint32_t debug_purple = (209u << 0u) | (106u << 8u) | (255u << 16u) | (255u << 24u);
+		WriteTextureInfo debug_write_info;
+		debug_write_info.extent = uint2(1, 1);
+		debug_write_info.offset = int2(0, 0);
+		debug_write_info.layer_count = 1;
+		debug_write_info.base_array_layer = 0;
+		debug_write_info.pixels = &debug_purple;
+		debug_write_info.set_shader_visible = true;
+		WriteTexture(RTexture(0), debug_write_info);
+	}
+
+	for (uint32_t i = m_next_free; i < MAX_TEXTURES; i++)
+	{
+		m_textures[i].texture_info = GetTextureSlot(m_debug_texture).texture_info;
+		m_textures[i].name = DEBUG_TEXTURE_NAME;
+	}
 }
 
 const RTexture GPUTextureManager::SetTextureSlot(const TextureInfo& a_texture_info, const char* a_name)
@@ -1088,7 +1004,7 @@ void GPUTextureManager::FreeTexture(const RTexture a_texture)
 	OSReleaseSRWLockWrite(&m_lock);
 
 	slot.name = DEBUG_TEXTURE_NAME;
-	slot.texture_info = m_debug_texture;
+	slot.texture_info = GetTextureSlot(m_debug_texture).texture_info;
 }
 
 const RenderIO& BB::GetRenderIO()
