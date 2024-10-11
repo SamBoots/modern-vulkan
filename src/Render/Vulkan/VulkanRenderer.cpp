@@ -1687,7 +1687,7 @@ void Vulkan::DescriptorWriteStorageBuffer(const DescriptorWriteBufferInfo& a_wri
 	DescriptorWrite(desc_info, a_write_info.descriptor_layout, a_write_info.binding, s_vulkan_inst->descriptor_sizes.storage_buffer, a_write_info.descriptor_index, a_write_info.allocation.offset, a_write_info.allocation.buffer_start);
 }
 
-void Vulkan::DescriptorWriteImageBuffer(const DescriptorWriteImageInfo& a_write_info)
+void Vulkan::DescriptorWriteImage(const DescriptorWriteImageInfo& a_write_info)
 {
 	VkDescriptorImageInfo image
 	{
@@ -1700,65 +1700,6 @@ void Vulkan::DescriptorWriteImageBuffer(const DescriptorWriteImageInfo& a_write_
 	desc_info.data.pSampledImage = &image;
 
 	DescriptorWrite(desc_info, a_write_info.descriptor_layout, a_write_info.binding, s_vulkan_inst->descriptor_sizes.sampled_image, a_write_info.descriptor_index, a_write_info.allocation.offset, a_write_info.allocation.buffer_start);
-}
-
-void Vulkan::WriteDescriptors(const WriteDescriptorInfos& a_write_info)
-{
-	for (size_t i = 0; i < a_write_info.data.size(); i++)
-	{
-		const WriteDescriptorData& write_data = a_write_info.data[i];
-
-		union VkDescData
-		{
-			VkDescriptorAddressInfoEXT buffer;
-			VkDescriptorImageInfo image;
-		};
-
-		VkDescData data{};
-
-		VkDeviceSize descriptor_size;
-		VkDescriptorGetInfoEXT desc_info{ VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT };
-		switch (write_data.type)
-		{
-		case DESCRIPTOR_TYPE::READONLY_CONSTANT:
-			data.buffer = GetDescriptorAddressInfo(s_vulkan_inst->device, write_data.buffer_view);
-			desc_info.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			desc_info.data.pUniformBuffer = &data.buffer;
-			descriptor_size = s_vulkan_inst->descriptor_sizes.uniform_buffer;
-			break;
-		case DESCRIPTOR_TYPE::READONLY_BUFFER:
-		case DESCRIPTOR_TYPE::READWRITE:
-			data.buffer = GetDescriptorAddressInfo(s_vulkan_inst->device, write_data.buffer_view);
-			desc_info.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-			desc_info.data.pStorageBuffer = &data.buffer;
-			descriptor_size = s_vulkan_inst->descriptor_sizes.storage_buffer;
-			break;
-		case DESCRIPTOR_TYPE::IMAGE:
-			data.image.imageView = reinterpret_cast<VkImageView>(write_data.image_view.view.handle);
-			data.image.imageLayout = ImageLayout(write_data.image_view.layout);
-			data.image.sampler = VK_NULL_HANDLE; //we only do static samplers :)
-			desc_info.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-			desc_info.data.pSampledImage = &data.image;
-			descriptor_size = s_vulkan_inst->descriptor_sizes.sampled_image;
-			break;
-		default:
-			BB_ASSERT(false, "Vulkan: DESCRIPTOR_TYPE failed to convert to a VkDescriptorType.");
-			desc_info.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			descriptor_size = 0;
-			break;
-		}
-
-		VkDeviceSize descriptor_offset;
-		s_vulkan_inst->pfn.GetDescriptorSetLayoutBindingOffsetEXT(s_vulkan_inst->device,
-			reinterpret_cast<VkDescriptorSetLayout>(a_write_info.descriptor_layout.handle),
-			write_data.binding,
-			&descriptor_offset);
-
-		descriptor_offset += descriptor_size * write_data.descriptor_index;
-		void* descriptor_mem = Pointer::Add(a_write_info.allocation.buffer_start, a_write_info.allocation.offset + descriptor_offset);
-
-		s_vulkan_inst->pfn.GetDescriptorEXT(s_vulkan_inst->device, &desc_info, descriptor_size, descriptor_mem);
-	}
 }
 
 //we won't have that many pipeline layouts, so make a basic one.

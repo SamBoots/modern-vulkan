@@ -174,7 +174,7 @@ namespace BB
 
 	void DescriptorWriteUniformBuffer(const DescriptorWriteBufferInfo& a_write_info);
 	void DescriptorWriteStorageBuffer(const DescriptorWriteBufferInfo& a_write_info);
-	void DescriptorWriteImageBuffer(const DescriptorWriteImageInfo& a_write_info);
+	void DescriptorWriteImage(const DescriptorWriteImageInfo& a_write_info);
 
 	RFence CreateFence(const uint64_t a_initial_value, const char* a_name);
 	void FreeFence(const RFence a_fence);

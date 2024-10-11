@@ -34,8 +34,7 @@ namespace BB
 		DescriptorAllocation AllocateDescriptor(const RDescriptorLayout a_descriptor);
 		void DescriptorWriteUniformBuffer(const DescriptorWriteBufferInfo& a_write_info);
 		void DescriptorWriteStorageBuffer(const DescriptorWriteBufferInfo& a_write_info);
-		void DescriptorWriteImageBuffer(const DescriptorWriteImageInfo& a_write_info);
-		void WriteDescriptors(const WriteDescriptorInfos& a_write_info);
+		void DescriptorWriteImage(const DescriptorWriteImageInfo& a_write_info);
 
 		RPipelineLayout CreatePipelineLayout(const RDescriptorLayout* a_descriptor_layouts, const uint32_t a_layout_count, const PushConstantRange a_constant_range);
 		void FreePipelineLayout(const RPipelineLayout a_layout);

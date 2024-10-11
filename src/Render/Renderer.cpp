@@ -115,7 +115,7 @@ public:
 		OSReleaseSRWLockWrite(&m_lock);
 	}
 
-	void AddGraphicsTransition(const PipelineBarrierImageInfo& a_transition_info, const WriteDescriptorData& a_write_descriptor)
+	void AddGraphicsTransition(const PipelineBarrierImageInfo& a_transition_info, const DescriptorWriteImageInfo& a_write_descriptor)
 	{
 		OSAcquireSRWLockWrite(&m_lock);
 		m_graphics_texture_transitions.emplace_back(a_transition_info);
@@ -183,7 +183,7 @@ private:
 	TextureSlot m_textures[MAX_TEXTURES];
 	BBRWLock m_lock;
 	
-	StaticArray<WriteDescriptorData> m_descriptor_writes;
+	StaticArray<DescriptorWriteImageInfo> m_descriptor_writes;
 	StaticArray<PipelineBarrierImageInfo> m_graphics_texture_transitions;
 	
 	// purple color
@@ -976,23 +976,18 @@ void GPUTextureManager::Init(MemoryArena& a_arena, const RCommandList a_list)
 			m_debug_texture.current_layout = image_shader_transition.new_layout;
 		}
 
-		WriteDescriptorData write_desc[MAX_TEXTURES]{};
+		DescriptorWriteImageInfo write_desc;
+		write_desc.allocation = s_render_inst->global_descriptor_allocation;
+		write_desc.descriptor_layout = s_render_inst->global_descriptor_set;
 
 		for (uint32_t i = 0; i < MAX_TEXTURES; i++)
 		{
-			write_desc[i].binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
-			write_desc[i].descriptor_index = i; //handle is also the descriptor index
-			write_desc[i].type = DESCRIPTOR_TYPE::IMAGE;
-			write_desc[i].image_view.view = m_debug_texture.view;
-			write_desc[i].image_view.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+			write_desc.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
+			write_desc.descriptor_index = i; //handle is also the descriptor index
+			write_desc.view = m_debug_texture.view;
+			write_desc.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+			DescriptorWriteImage(write_desc);
 		}
-
-		WriteDescriptorInfos image_write_infos;
-		image_write_infos.allocation = s_render_inst->global_descriptor_allocation;
-		image_write_infos.descriptor_layout = s_render_inst->global_descriptor_set;
-		image_write_infos.data = Slice(write_desc, _countof(write_desc));
-
-		Vulkan::WriteDescriptors(image_write_infos);
 	}
 
 	m_lock = OSCreateRWLock();
@@ -1024,19 +1019,15 @@ const RTexture GPUTextureManager::SetTextureSlot(const TextureInfo& a_texture_in
 	slot.name = a_name;
 	slot.texture_info = a_texture_info;
 
-	WriteDescriptorData write_desc{};
-	write_desc.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
-	write_desc.descriptor_index = texture_slot.handle; // handle is also the descriptor index
-	write_desc.type = DESCRIPTOR_TYPE::IMAGE;
-	write_desc.image_view.view = slot.texture_info.view;
-	write_desc.image_view.layout = IMAGE_LAYOUT::UNDEFINED;
+	DescriptorWriteImageInfo write_info;
+	write_info.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
+	write_info.descriptor_index = texture_slot.handle; // handle is also the descriptor index
+	write_info.view = slot.texture_info.view;
+	write_info.layout = IMAGE_LAYOUT::UNDEFINED;
+	write_info.allocation = s_render_inst->global_descriptor_allocation;
+	write_info.descriptor_layout = s_render_inst->global_descriptor_set;
 
-	WriteDescriptorInfos image_write_infos;
-	image_write_infos.allocation = s_render_inst->global_descriptor_allocation;
-	image_write_infos.descriptor_layout = s_render_inst->global_descriptor_set;
-	image_write_infos.data = Slice(&write_desc, 1);
-
-	Vulkan::WriteDescriptors(image_write_infos);
+	DescriptorWriteImage(write_info);
 
 	slot.texture_info.current_layout = IMAGE_LAYOUT::UNDEFINED;
 	return texture_slot;
@@ -1057,16 +1048,11 @@ void GPUTextureManager::TransitionTextures(const RCommandList a_list)
 		m_graphics_texture_transitions.clear();
 	}
 
-	if (m_descriptor_writes.size())
+	for (uint32_t i = 0; i < m_descriptor_writes.size(); i++)
 	{
-		WriteDescriptorInfos image_write_infos{};
-		image_write_infos.allocation = s_render_inst->global_descriptor_allocation;
-		image_write_infos.descriptor_layout = s_render_inst->global_descriptor_set;
-		image_write_infos.data = Slice(m_descriptor_writes.data(), m_descriptor_writes.size());
-		Vulkan::WriteDescriptors(image_write_infos);
-		m_descriptor_writes.clear();
+		Vulkan::DescriptorWriteImage(m_descriptor_writes[i]);
 	}
-
+	m_descriptor_writes.clear();
 	OSReleaseSRWLockWrite(&m_lock);
 };
 
@@ -1214,43 +1200,39 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		s_render_inst->cpu_vertex_buffer.used = 0;
 		s_render_inst->cpu_vertex_buffer.start_mapped = Vulkan::MapBufferMemory(s_render_inst->cpu_vertex_buffer.buffer);
 
-		GPUBufferView view;
-		view.buffer = s_render_inst->vertex_buffer.buffer;
-		view.offset = 0;
-		view.size = s_render_inst->vertex_buffer.size;
-
-		GPUBufferView cpu_view;
-		cpu_view.buffer = s_render_inst->cpu_vertex_buffer.buffer;
-		cpu_view.offset = 0;
-		cpu_view.size = s_render_inst->cpu_vertex_buffer.size;
-
-		WriteDescriptorData global_descriptor_write[3]{};
-		global_descriptor_write[0].binding = GLOBAL_VERTEX_BUFFER_BINDING;
-		global_descriptor_write[0].descriptor_index = 0;
-		global_descriptor_write[0].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-		global_descriptor_write[0].buffer_view = view;
-
-		global_descriptor_write[1].binding = GLOBAL_CPU_VERTEX_BUFFER_BINDING;
-		global_descriptor_write[1].descriptor_index = 0;
-		global_descriptor_write[1].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-		global_descriptor_write[1].buffer_view = cpu_view;
-
-		GPUBufferView global_view;
-		cpu_view.buffer = s_render_inst->global_buffer.buffer;
-		cpu_view.offset = 0;
-		cpu_view.size = sizeof(s_render_inst->global_buffer.data);
-
-		global_descriptor_write[2].binding = GLOBAL_BUFFER_BINDING;
-		global_descriptor_write[2].descriptor_index = 0;
-		global_descriptor_write[2].type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
-		global_descriptor_write[2].buffer_view = cpu_view;
-
-		WriteDescriptorInfos global_descriptor_info;
-		global_descriptor_info.allocation = s_render_inst->global_descriptor_allocation;
-		global_descriptor_info.descriptor_layout = s_render_inst->global_descriptor_set;
-		global_descriptor_info.data = Slice(global_descriptor_write, _countof(global_descriptor_write));
-
-		Vulkan::WriteDescriptors(global_descriptor_info);
+		{
+			DescriptorWriteBufferInfo buffer_info;
+			buffer_info.descriptor_layout = s_render_inst->global_descriptor_set;
+			buffer_info.descriptor_index = 0;
+			buffer_info.allocation = s_render_inst->global_descriptor_allocation;
+			buffer_info.binding = GLOBAL_VERTEX_BUFFER_BINDING;
+			buffer_info.buffer_view.buffer = s_render_inst->vertex_buffer.buffer;
+			buffer_info.buffer_view.offset = 0;
+			buffer_info.buffer_view.size = s_render_inst->vertex_buffer.size;
+			DescriptorWriteStorageBuffer(buffer_info);
+		}
+		{
+			DescriptorWriteBufferInfo buffer_info;
+			buffer_info.descriptor_layout = s_render_inst->global_descriptor_set;
+			buffer_info.descriptor_index = 0;
+			buffer_info.allocation = s_render_inst->global_descriptor_allocation;
+			buffer_info.binding = GLOBAL_CPU_VERTEX_BUFFER_BINDING;
+			buffer_info.buffer_view.buffer = s_render_inst->cpu_vertex_buffer.buffer;
+			buffer_info.buffer_view.offset = 0;
+			buffer_info.buffer_view.size = s_render_inst->cpu_vertex_buffer.size;
+			DescriptorWriteStorageBuffer(buffer_info);
+		}
+		{
+			DescriptorWriteBufferInfo buffer_info;
+			buffer_info.descriptor_layout = s_render_inst->global_descriptor_set;
+			buffer_info.descriptor_index = 0;
+			buffer_info.allocation = s_render_inst->global_descriptor_allocation;
+			buffer_info.binding = GLOBAL_BUFFER_BINDING;
+			buffer_info.buffer_view.buffer = s_render_inst->global_buffer.buffer;
+			buffer_info.buffer_view.offset = 0;
+			buffer_info.buffer_view.size = sizeof(s_render_inst->global_buffer.data);
+			DescriptorWriteUniformBuffer(buffer_info);
+		}
 	}
 	{
 		GPUBufferCreateInfo index_buffer;
@@ -1576,12 +1558,13 @@ static void UploadAssets(MemoryArena& a_thread_arena, void*)
 					pi.src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
 					pi.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
 
-					WriteDescriptorData write_data{};
+					DescriptorWriteImageInfo write_data{};
+					write_data.allocation = s_render_inst->global_descriptor_allocation;
+					write_data.descriptor_layout = s_render_inst->global_descriptor_set;
 					write_data.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
 					write_data.descriptor_index = upload_data.texture_index.handle;
-					write_data.type = DESCRIPTOR_TYPE::IMAGE;
-					write_data.image_view.view = texture_slot.texture_info.view;
-					write_data.image_view.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+					write_data.view = texture_slot.texture_info.view;
+					write_data.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
 
 					s_render_inst->texture_manager.AddGraphicsTransition(pi, write_data);
 				}
@@ -2231,9 +2214,9 @@ void BB::DescriptorWriteStorageBuffer(const DescriptorWriteBufferInfo& a_write_i
 	Vulkan::DescriptorWriteStorageBuffer(a_write_info);
 }
 
-void BB::DescriptorWriteImageBuffer(const DescriptorWriteImageInfo& a_write_info)
+void BB::DescriptorWriteImage(const DescriptorWriteImageInfo& a_write_info)
 {
-	Vulkan::DescriptorWriteImageBuffer(a_write_info);
+	Vulkan::DescriptorWriteImage(a_write_info);
 }
 
 RFence BB::CreateFence(const uint64_t a_initial_value, const char* a_name)
