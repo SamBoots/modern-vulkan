@@ -488,12 +488,9 @@ struct Vulkan_inst
 		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::D32_SFLOAT_S8_UINT)] = VK_FORMAT_D32_SFLOAT_S8_UINT;
 		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::D24_UNORM_S8_UINT)] = VK_FORMAT_D24_UNORM_S8_UINT;
 
-
-
 		enum_conv.image_types[static_cast<uint32_t>(IMAGE_TYPE::TYPE_1D)] = VK_IMAGE_TYPE_1D;
 		enum_conv.image_types[static_cast<uint32_t>(IMAGE_TYPE::TYPE_2D)] = VK_IMAGE_TYPE_2D;
 		enum_conv.image_types[static_cast<uint32_t>(IMAGE_TYPE::TYPE_3D)] = VK_IMAGE_TYPE_3D;
-
 
 		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_1D)] = VK_IMAGE_VIEW_TYPE_1D;
 		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_2D)] = VK_IMAGE_VIEW_TYPE_2D;

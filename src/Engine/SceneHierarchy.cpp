@@ -66,7 +66,6 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 
 		pfd.shadow_map.array_count = INITIAL_DEPTH_ARRAY_COUNT;
 
-		continue;
 		CreateTextureInfo shadow_map_info;
 		shadow_map_info.name = "shadow map array";
 		shadow_map_info.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
@@ -340,7 +339,7 @@ void SceneHierarchy::SetProjection(const float4x4& a_projection)
 	m_scene_info.proj = a_projection;
 }
 
-void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const uint32_t a_back_buffer_index)
+void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RTexture a_render_target, const uint32_t a_back_buffer_index, const uint2 a_draw_area_size, const int2 a_draw_area_offset)
 {
 	PerFrameData& pfd = m_per_frame[a_back_buffer_index];
 	WaitFence(m_fence, pfd.fence_value);
@@ -351,7 +350,7 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RTextur
 	m_scene_info.depth_texture_count = 0;
 	m_scene_info.depth_texture_array = pfd.shadow_map.texture.handle;
 
-	SkyboxPass(pfd, a_list, a_render_target, a_draw_area_size, a_draw_area_offset);
+	SkyboxPass(pfd, a_list, a_render_target, a_back_buffer_index, a_draw_area_size, a_draw_area_offset);
 
 	ResourceUploadPass(pfd, a_list);
 
@@ -376,7 +375,7 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RTextur
 		depth_info.name = "standard depth buffer";
 		depth_info.width = a_draw_area_size.x;
 		depth_info.height = a_draw_area_size.y;
-		depth_info.array_layers = 1;
+		depth_info.array_layers = static_cast<uint16_t>(m_per_frame.size());
 		depth_info.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
 		depth_info.usage = IMAGE_USAGE::DEPTH;
 		m_depth_image = CreateTexture(depth_info);
@@ -384,7 +383,7 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RTextur
 	}
 
 
-	RenderPass(pfd, a_list, a_render_target, a_draw_area_size, a_draw_area_offset);
+	RenderPass(pfd, a_list, a_render_target, a_back_buffer_index, a_draw_area_size, a_draw_area_offset);
 }
 
 void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform)
@@ -441,7 +440,7 @@ RDescriptorLayout SceneHierarchy::GetSceneDescriptorLayout()
 	return s_scene_descriptor_layout;
 }
 
-void SceneHierarchy::SkyboxPass(const PerFrameData& pfd, const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset)
+void SceneHierarchy::SkyboxPass(const PerFrameData& pfd, const RCommandList a_list, const RTexture a_render_target, const uint32_t a_back_buffer_index, const uint2 a_draw_area_size, const int2 a_draw_area_offset)
 {
 	const RPipelineLayout pipe_layout = BindShaders(a_list, Material::GetMaterialShaders(m_skybox_material));
 
@@ -462,7 +461,7 @@ void SceneHierarchy::SkyboxPass(const PerFrameData& pfd, const RCommandList a_li
 	color_attach.load_color = false;
 	color_attach.store_color = true;
 	color_attach.image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-	color_attach.image_view = GetImageView(a_render_target, 0);
+	color_attach.image_view = GetImageView(a_render_target, a_back_buffer_index);
 
 	StartRenderingInfo start_rendering_info;
 	start_rendering_info.render_area_extent = a_draw_area_size;
@@ -648,7 +647,7 @@ void SceneHierarchy::ShadowMapPass(const PerFrameData& pfd, const RCommandList a
 
 }
 
-void SceneHierarchy::RenderPass(const PerFrameData& pfd, const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset)
+void SceneHierarchy::RenderPass(const PerFrameData& pfd, const RCommandList a_list, const RTexture a_render_target, const uint32_t a_back_buffer_index, const uint2 a_draw_area_size, const int2 a_draw_area_offset)
 {
 	PipelineBarrierImageInfo image_transitions[1]{};
 	image_transitions[0].src_mask = BARRIER_ACCESS_MASK::NONE;
@@ -672,13 +671,13 @@ void SceneHierarchy::RenderPass(const PerFrameData& pfd, const RCommandList a_li
 	color_attach.load_color = true;
 	color_attach.store_color = true;
 	color_attach.image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-	color_attach.image_view = GetImageView(a_render_target, 0);
+	color_attach.image_view = GetImageView(a_render_target, a_back_buffer_index);
 
 	RenderingAttachmentDepth depth_attach{};
 	depth_attach.load_depth = false;
 	depth_attach.store_depth = true;
 	depth_attach.image_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
-	depth_attach.image_view = GetImageView(m_depth_image, 0);
+	depth_attach.image_view = GetImageView(m_depth_image, a_back_buffer_index);
 
 	StartRenderingInfo rendering_info;
 	rendering_info.color_attachments = Slice(&color_attach, 1);

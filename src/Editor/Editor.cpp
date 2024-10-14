@@ -292,8 +292,8 @@ void Editor::ThreadFuncForDrawing(MemoryArena&, void* a_param)
 	RCommandList list = param_in->command_list;
 
 	const RTexture render_target = viewport.StartRenderTarget(list, back_buffer_index);
-	scene_hierarchy.DrawSceneHierarchy(list, render_target, viewport.GetExtent(), int2(), back_buffer_index);
-	viewport.EndRenderTarget(list, render_target, IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL);
+	scene_hierarchy.DrawSceneHierarchy(list, render_target, back_buffer_index, viewport.GetExtent(), int2());
+	viewport.EndRenderTarget(list, back_buffer_index, IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL);
 }
 
 void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent, const size_t a_editor_memory)
@@ -430,7 +430,7 @@ void Editor::RegisterSceneHierarchy(MemoryArena& a_arena, SceneHierarchy& a_hier
 	ViewportAndScene viewport_scene{ a_hierarchy };
 	StackString<256> viewport_name{ a_hierarchy.m_scene_name.c_str(),  a_hierarchy.m_scene_name.size() };
 	viewport_name.append(" viewport");
-	viewport_scene.viewport.Init(a_arena, a_window_extent, int2(), a_back_buffer_count, Asset::FindOrCreateString(viewport_name.GetView()));
+	viewport_scene.viewport.Init(a_window_extent, int2(), a_back_buffer_count, Asset::FindOrCreateString(viewport_name.GetView()));
 
 	m_viewport_and_scenes.push_back(viewport_scene);
 }

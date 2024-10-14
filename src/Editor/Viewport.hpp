@@ -10,12 +10,12 @@ namespace BB
 	class Viewport
 	{
 	public:
-		void Init(MemoryArena& a_arena, const uint2 a_extent, const int2 a_offset, const uint32_t a_render_target_count, const StringView a_name);
+		void Init(const uint2 a_extent, const int2 a_offset, const uint32_t a_render_target_count, const StringView a_name);
 		void Resize(const uint2 a_new_extent);
-		void DrawImgui(bool& a_resized, uint64_t a_back_buffer_index, const uint2 a_minimum_size = uint2(160, 80));
+		void DrawImgui(bool& a_resized, uint32_t a_back_buffer_index, const uint2 a_minimum_size = uint2(160, 80));
 
-		const RTexture& StartRenderTarget(const RCommandList a_cmd_list, uint64_t a_back_buffer_index) const;
-		void EndRenderTarget(const RCommandList a_cmd_list, const RTexture a_render_target, const IMAGE_LAYOUT a_current_layout);
+		const RTexture& StartRenderTarget(const RCommandList a_cmd_list, uint32_t a_back_buffer_index) const;
+		void EndRenderTarget(const RCommandList a_cmd_list, const uint32_t a_back_buffer_index, const IMAGE_LAYOUT a_current_layout);
 
 		bool PositionWithinViewport(const uint2 a_pos) const;
 
@@ -30,7 +30,8 @@ namespace BB
 
 		uint2 m_extent;
 		int2 m_offset;
-		StaticArray<RTexture> m_textures;
+		uint32_t m_texture_array_count;
+		RTexture m_texture;
 		StringView m_name;
 	};
 }

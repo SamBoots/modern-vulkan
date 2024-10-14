@@ -68,8 +68,9 @@ namespace BB
 		RImage image;				//16
 		uint16_t array_layers = 0;	//18
 		uint16_t mip_levels = 0;	//20
-		IMAGE_VIEW_TYPE type{};		//24
-		IMAGE_FORMAT format{};		//28
+		uint16_t base_array_layer = 0;//22
+		IMAGE_VIEW_TYPE type{};		//26
+		IMAGE_FORMAT format{};		//30
 		bool is_depth_image = false;
 	};
 

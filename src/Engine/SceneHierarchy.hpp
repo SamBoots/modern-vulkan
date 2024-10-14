@@ -68,7 +68,7 @@ namespace BB
 		void Init(MemoryArena& a_memory_arena, const uint32_t a_back_buffers, const StringView a_name, const uint32_t a_scene_obj_max = DEFAULT_SCENE_OBJ_MAX);
 		static StaticArray<Asset::AsyncAsset> PreloadAssetsFromJson(MemoryArena& a_arena, const JsonParser& a_parsed_file);
 
-		void DrawSceneHierarchy(const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const uint32_t a_back_buffer_index);
+		void DrawSceneHierarchy(const RCommandList a_list, const RTexture a_render_target, const uint32_t a_back_buffer_index, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
 		SceneObjectHandle CreateSceneObject(const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
 		SceneObjectHandle CreateSceneObjectMesh(const float3 a_position, const MeshDrawInfo& a_mesh_info, const char* a_name, const SceneObjectHandle a_parent = SceneObjectHandle(BB_INVALID_HANDLE_64));
 		SceneObjectHandle CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
@@ -99,10 +99,10 @@ namespace BB
 			} shadow_map;
 		};
 
-		void SkyboxPass(const PerFrameData& pfd, const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
+		void SkyboxPass(const PerFrameData& pfd, const RCommandList a_list, const RTexture a_render_target, const uint32_t a_back_buffer_index, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
 		void ResourceUploadPass(PerFrameData& pfd, const RCommandList a_list);
 		void ShadowMapPass(const PerFrameData& pfd, const RCommandList a_list, const uint2 a_shadow_map_resolution);
-		void RenderPass(const PerFrameData& pfd, const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
+		void RenderPass(const PerFrameData& pfd, const RCommandList a_list, const RTexture a_render_target, const uint32_t a_back_buffer_index, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
 
 		void AddToDrawList(const SceneObject& scene_object, const float4x4& a_transform);
 		SceneObjectHandle CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent);

@@ -71,6 +71,7 @@ constexpr uint32_t MAX_MESH_UPLOAD_QUEUE = 128;
 constexpr uint32_t MAX_TEXTURE_UPLOAD_QUEUE = 256;
 
 constexpr uint32_t MAX_TEXTURES = 1024;
+constexpr uint32_t MAX_IMAGE_VIEWS = 2048;
 constexpr const char* DEBUG_TEXTURE_NAME = "debug texture";
 
 constexpr IMAGE_FORMAT SCREENSHOT_IMAGE_FORMAT = IMAGE_FORMAT::RGBA8_SRGB; // check the variable below here before you change shit k thnx
@@ -79,17 +80,17 @@ constexpr size_t SCREENSHOT_IMAGE_PIXEL_BYTE_SIZE = 4;	// check the variable abo
 struct TextureInfo
 {
 	RImage image;				// 8
-	RImageView view;			// 16
+	Slice<RImageView> views;	// 24
 
-	uint32_t width;				// 20
-	uint32_t height;			// 24
-	uint32_t array_layers;		// 28
-	uint32_t mip_levels;		// 32
-	IMAGE_FORMAT format;		// 36
-	IMAGE_LAYOUT current_layout;// 40
+	uint32_t width;				// 28
+	uint32_t height;			// 32
+	uint32_t array_layers;		// 36
+	uint32_t mip_levels;		// 40
+	IMAGE_FORMAT format;		// 44
+	IMAGE_LAYOUT current_layout;// 48
 
 	// debug extra, not required for anything
-	IMAGE_USAGE usage;			// 44
+	IMAGE_USAGE usage;			// 52
 };
 
 class GPUTextureManager
@@ -104,7 +105,7 @@ public:
 
 	void Init(MemoryArena& a_arena, const RCommandList a_list);
 
-	const RTexture SetTextureSlot(const TextureInfo& a_texture_info, const char* a_name);
+	const RTexture SetTextureSlot(const TextureInfo& a_texture_info, const size_t a_view_count, const char* a_name);
 
 	void TransitionTextures(const RCommandList a_list);
 
@@ -121,6 +122,18 @@ public:
 		m_graphics_texture_transitions.emplace_back(a_transition_info);
 		m_descriptor_writes.emplace_back(a_write_descriptor);
 		OSReleaseSRWLockWrite(&m_lock);
+	}
+
+	const Slice<RImageView> GetTextureViews(const uint32_t a_count)
+	{
+		// kinda giga shit, should make a freelist that does not waste much time on a header
+		void* memory = m_view_allocator.Alloc(a_count * sizeof(RImageView), alignof(RImageView));
+		return Slice(reinterpret_cast<RImageView*>(memory), a_count);
+	}
+
+	void FreeTextureViews(const Slice<RImageView> a_views)
+	{
+		m_view_allocator.Free(a_views.data());
 	}
 
 	void FreeTexture(const RTexture a_texture);
@@ -182,6 +195,8 @@ private:
 	uint32_t m_next_free;
 	TextureSlot m_textures[MAX_TEXTURES];
 	BBRWLock m_lock;
+
+	FreelistInterface m_view_allocator;
 	
 	StaticArray<DescriptorWriteImageInfo> m_descriptor_writes;
 	StaticArray<PipelineBarrierImageInfo> m_graphics_texture_transitions;
@@ -895,7 +910,7 @@ void GPUTextureManager::Init(MemoryArena& a_arena, const RCommandList a_list)
 		m_textures[i].next_free = i + 1;
 	}
 	m_textures[MAX_TEXTURES - 1].next_free = UINT32_MAX;
-
+	m_view_allocator.Initialize(a_arena, MAX_IMAGE_VIEWS * sizeof(RImageView));
 
 	{	// create debug texture
 		CreateTextureInfo debug_texture_info;
@@ -925,7 +940,7 @@ void GPUTextureManager::Init(MemoryArena& a_arena, const RCommandList a_list)
 	}
 }
 
-const RTexture GPUTextureManager::SetTextureSlot(const TextureInfo& a_texture_info, const char* a_name)
+const RTexture GPUTextureManager::SetTextureSlot(const TextureInfo& a_texture_info, const size_t a_view_count, const char* a_name)
 {
 	OSAcquireSRWLockWrite(&m_lock);
 	const RTexture texture_slot = RTexture(m_next_free);
@@ -935,15 +950,19 @@ const RTexture GPUTextureManager::SetTextureSlot(const TextureInfo& a_texture_in
 	slot.name = a_name;
 	slot.texture_info = a_texture_info;
 
-	DescriptorWriteImageInfo write_info;
-	write_info.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
-	write_info.descriptor_index = texture_slot.handle; // handle is also the descriptor index
-	write_info.view = slot.texture_info.view;
-	write_info.layout = IMAGE_LAYOUT::UNDEFINED;
-	write_info.allocation = s_render_inst->global_descriptor_allocation;
-	write_info.descriptor_layout = s_render_inst->global_descriptor_set;
+	for (size_t i = 0; i < a_view_count; i++)
+	{
+		DescriptorWriteImageInfo write_info;
+		write_info.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
+		write_info.descriptor_index = texture_slot.handle; // handle is also the descriptor index
+		write_info.view = slot.texture_info.views[i];
+		write_info.layout = IMAGE_LAYOUT::UNDEFINED;
+		write_info.allocation = s_render_inst->global_descriptor_allocation;
+		write_info.descriptor_layout = s_render_inst->global_descriptor_set;
 
-	DescriptorWriteImage(write_info);
+		DescriptorWriteImage(write_info);
+	}
+
 
 	slot.texture_info.current_layout = IMAGE_LAYOUT::UNDEFINED;
 	return texture_slot;
@@ -996,7 +1015,11 @@ void GPUTextureManager::FreeTexture(const RTexture a_texture)
 {
 	TextureSlot& slot = m_textures[a_texture.handle];
 	Vulkan::FreeImage(slot.texture_info.image);
-	Vulkan::FreeViewImage(slot.texture_info.view);
+	for (size_t i = 0; i < slot.texture_info.views.size(); i++)
+	{
+		Vulkan::FreeViewImage(slot.texture_info.views[i]);
+	}
+	FreeTextureViews(slot.texture_info.views);
 
 	OSAcquireSRWLockWrite(&m_lock);
 	slot.next_free = m_next_free;
@@ -1479,10 +1502,14 @@ static void UploadAssets(MemoryArena& a_thread_arena, void*)
 					write_data.descriptor_layout = s_render_inst->global_descriptor_set;
 					write_data.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
 					write_data.descriptor_index = upload_data.texture_index.handle;
-					write_data.view = texture_slot.texture_info.view;
+	
 					write_data.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
 
-					s_render_inst->texture_manager.AddGraphicsTransition(pi, write_data);
+					for (size_t i = 0; i < texture_slot.texture_info.views.size(); i++)
+					{
+						write_data.view = texture_slot.texture_info.views[i];
+						s_render_inst->texture_manager.AddGraphicsTransition(pi, write_data);
+					}
 				}
 			}
 
@@ -1533,7 +1560,7 @@ void BB::EndFrame(const RCommandList a_list, const ShaderEffectHandle a_imgui_ve
 	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(cur_frame.render_target);
 
 	ImGui::Render();
-	IMGUI_IMPL::ImRenderFrame(a_list, render_target.texture_info.view, true, a_imgui_vertex, a_imgui_fragment);
+	IMGUI_IMPL::ImRenderFrame(a_list, render_target.texture_info.views[0], true, a_imgui_vertex, a_imgui_fragment);
 	ImGui::EndFrame();
 
 	{
@@ -1885,18 +1912,24 @@ const RTexture BB::CreateTexture(const CreateTextureInfo& a_create_info)
 		image_info.usage = a_create_info.usage;
 		tex_info.image = Vulkan::CreateImage(image_info);
 
-		ImageViewCreateInfo image_view_info;
-		image_view_info.image = tex_info.image;
-		image_view_info.name = a_create_info.name;
-		image_view_info.array_layers = a_create_info.array_layers;
-		image_view_info.mip_levels = 1;
-		image_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
-		image_view_info.format = image_info.format;
-		image_view_info.is_depth_image = a_create_info.usage == IMAGE_USAGE::DEPTH;
-		tex_info.view = Vulkan::CreateViewImage(image_view_info);
+		tex_info.views = s_render_inst->texture_manager.GetTextureViews(image_info.array_layers);
+		for (size_t i = 0; i < tex_info.views.size(); i++)
+		{
+			ImageViewCreateInfo image_view_info;
+			image_view_info.image = tex_info.image;
+			image_view_info.name = a_create_info.name;
+			image_view_info.array_layers = 1;
+			image_view_info.mip_levels = 1;
+			image_view_info.base_array_layer = static_cast<uint16_t>(i);
+			image_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
+			image_view_info.format = image_info.format;
+			image_view_info.is_depth_image = a_create_info.usage == IMAGE_USAGE::DEPTH;
+			tex_info.views[i] = Vulkan::CreateViewImage(image_view_info);
+		}
+
 	}
 
-	return s_render_inst->texture_manager.SetTextureSlot(tex_info, a_create_info.name);
+	return s_render_inst->texture_manager.SetTextureSlot(tex_info, tex_info.views.size(), a_create_info.name);
 }
 
 const RTexture BB::CreateTextureCubeMap(const CreateTextureInfo& a_create_info)
@@ -1936,10 +1969,11 @@ const RTexture BB::CreateTextureCubeMap(const CreateTextureInfo& a_create_info)
 		image_view_info.type = IMAGE_VIEW_TYPE::CUBE;
 		image_view_info.format = image_info.format;
 		image_view_info.is_depth_image = false;
-		tex_info.view = Vulkan::CreateViewImage(image_view_info);
+		tex_info.views = s_render_inst->texture_manager.GetTextureViews(1);
+		tex_info.views[0] = Vulkan::CreateViewImage(image_view_info);
 	}
 
-	return s_render_inst->texture_manager.SetTextureSlot(tex_info, a_create_info.name);
+	return s_render_inst->texture_manager.SetTextureSlot(tex_info, 1, a_create_info.name);
 }
 
 static inline bool IsImageWithinBounds(const GPUTextureManager::TextureSlot& a_slot, const uint2 a_extent, const int2 a_offset)
@@ -2040,7 +2074,7 @@ const RImage BB::GetImage(const RTexture a_texture)
 
 const RImageView BB::GetImageView(const RTexture a_texture, const uint32_t a_view_index)
 {
-	return s_render_inst->texture_manager.GetTextureSlot(a_texture).texture_info.view;
+	return s_render_inst->texture_manager.GetTextureSlot(a_texture).texture_info.views[a_view_index];
 }
 
 void BB::FreeTexture(const RTexture a_texture)
