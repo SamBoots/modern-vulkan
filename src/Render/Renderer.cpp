@@ -1061,7 +1061,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		}
 		{
 			//global descriptor set 1
-			DescriptorBindingInfo descriptor_bindings[4];
+			FixedArray<DescriptorBindingInfo, 4> descriptor_bindings;
 			descriptor_bindings[0].binding = GLOBAL_VERTEX_BUFFER_BINDING;
 			descriptor_bindings[0].count = 1;
 			descriptor_bindings[0].shader_stage = SHADER_STAGE::VERTEX;
@@ -1082,7 +1082,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 			descriptor_bindings[3].shader_stage = SHADER_STAGE::FRAGMENT_PIXEL;
 			descriptor_bindings[3].type = DESCRIPTOR_TYPE::IMAGE;
 
-			s_render_inst->global_descriptor_set = Vulkan::CreateDescriptorLayout(a_arena, Slice(descriptor_bindings, _countof(descriptor_bindings)));
+			s_render_inst->global_descriptor_set = Vulkan::CreateDescriptorLayout(a_arena, descriptor_bindings.slice());
 			s_render_inst->global_descriptor_allocation = Vulkan::AllocateDescriptor(s_render_inst->global_descriptor_set);
 		}
 	}

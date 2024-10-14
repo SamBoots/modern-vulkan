@@ -22,6 +22,7 @@ namespace BB
 #define PER_SCENE_SCENE_DATA_BINDING 0
 #define PER_SCENE_TRANSFORM_DATA_BINDING 1
 #define PER_SCENE_LIGHT_DATA_BINDING 2
+#define PER_SCENE_LIGHT_PROJECTION_VIEW_DATA_BINDING 3
 
 #define CUBEMAP_BACK    0
 #define CUBEMAP_BOTTOM  1
@@ -68,14 +69,18 @@ namespace BB
         float4x4 view;              // 64
         float4x4 proj;              // 128
 
-        float3 ambient_light;       // 136
+        float3 ambient_light;       // 140
         float ambient_strength;     // 144
 
         uint light_count;           // 148
 
         uint skybox_texture;        // 152
 
-        uint2 scene_resolution;     // 156
+        uint2 scene_resolution;     // 160
+
+        uint depth_texture_count;   // 164
+        uint depth_texture_array;   // 168
+        uint2 pad;
     };
 
     struct MeshMetallic
@@ -111,12 +116,18 @@ namespace BB
         float cutoff_radius;        // 56
         float pad;                  // 60
         uint light_type;            // 64
+       
     };
 
     struct ShaderTransform
     {
         float4x4 transform;         // 64
         float4x4 inverse;           // 128
+    };
+
+    struct LightProjectionView
+    {
+        float4x4 projection_view;
     };
 
     //could make the size the same for shaderindices and shaderindices2d so that the pushconstant pipelinelayout is the same.....
@@ -135,5 +146,13 @@ namespace BB
         uint albedo_texture;        // 8
         float2 rect_scale;          // 16
         float2 translate;           // 24
+    };
+
+    struct ShaderIndicesShadowMapping
+    {
+        uint vertex_buffer_offset;  // 4
+        uint transform_index;       // 8
+        uint light_projection_view_index; // 12
+        uint3 padding;             // 24
     };
 }

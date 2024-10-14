@@ -14,6 +14,10 @@ using namespace BB;
 // arbritrary, but just for a stack const char array
 constexpr size_t UNIQUE_MODELS_PER_SCENE = 128;
 
+constexpr uint32_t INITIAL_DEPTH_ARRAY_COUNT = 8;
+
+constexpr uint32_t DEPTH_IMAGE_SIZE_W_H = 1028;
+
 void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, const StringView a_name, const uint32_t a_scene_obj_max)
 {
 	m_scene_name = a_name;
@@ -23,6 +27,56 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 	m_top_level_objects = ArenaAllocArr(a_arena, SceneObjectHandle, a_scene_obj_max);
 
 	m_top_level_object_count = 0;
+
+	// maybe make this part of some data structure
+	// also rework this to be more static and internal to the drawmesh
+	m_draw_list.max_size = a_scene_obj_max;
+	m_draw_list.size = 0;
+	m_draw_list.mesh_draw_call = ArenaAllocArr(a_arena, MeshDrawInfo, m_draw_list.max_size);
+	m_draw_list.transform = ArenaAllocArr(a_arena, ShaderTransform, m_draw_list.max_size);
+
+	m_previous_draw_area = { 0, 0 };
+
+	m_light_container.Init(a_arena, 128); // magic number jank yes shoot me
+	m_light_projection_view.Init(a_arena, 128);
+
+	m_fence = CreateFence(0, "scene fence");
+	m_last_completed_fence_value = 0;
+	m_next_fence_value = 1;
+
+	m_upload_allocator.Init(a_arena, mbSize * 4, m_fence, "scene upload buffer");
+
+	m_scene_info.ambient_light = float3(1.f, 1.f, 1.f);
+	m_scene_info.ambient_strength = 1;
+	m_scene_info.skybox_texture = m_skybox.handle;
+
+	m_per_frame.Init(a_arena, a_back_buffers);
+	m_per_frame.resize(a_back_buffers);
+	for (uint32_t i = 0; i < m_per_frame.size(); i++)
+	{
+		PerFrameData& pfd = m_per_frame[i];
+		GPUBufferCreateInfo buffer_info;
+		buffer_info.name = "scene STORAGE buffer";
+		buffer_info.size = mbSize * 4;
+		buffer_info.type = BUFFER_TYPE::STORAGE;
+		buffer_info.host_writable = false;
+
+		pfd.scene_descriptor = AllocateDescriptor(GetSceneDescriptorLayout());
+		pfd.storage_buffer.Init(buffer_info);
+		pfd.fence_value = 0;
+
+		pfd.shadow_map.array_count = INITIAL_DEPTH_ARRAY_COUNT;
+
+		continue;
+		CreateTextureInfo shadow_map_info;
+		shadow_map_info.name = "shadow map array";
+		shadow_map_info.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
+		shadow_map_info.usage = IMAGE_USAGE::DEPTH;
+		shadow_map_info.array_layers = pfd.shadow_map.array_count;
+		shadow_map_info.width = DEPTH_IMAGE_SIZE_W_H;
+		shadow_map_info.height = DEPTH_IMAGE_SIZE_W_H;
+		pfd.shadow_map.texture = CreateTexture(shadow_map_info);
+	}
 
 	// skybox stuff
 	
@@ -78,44 +132,6 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 
 		Asset::FreeImageCPU(pixels);
 	}
-
-	// maybe make this part of some data structure
-	// also rework this to be more static and internal to the drawmesh
-	m_draw_list.max_size = a_scene_obj_max;
-	m_draw_list.size = 0;
-	m_draw_list.mesh_draw_call = ArenaAllocArr(a_arena, MeshDrawInfo, m_draw_list.max_size);
-	m_draw_list.transform = ArenaAllocArr(a_arena, ShaderTransform, m_draw_list.max_size);
-
-	m_previous_draw_area = { 0, 0 };
-
-	m_light_container.Init(a_arena, 128); // magic number jank yes shoot me
-
-	m_fence = CreateFence(0, "scene fence");
-	m_last_completed_fence_value = 0;
-	m_next_fence_value = 1;
-
-	m_upload_allocator.Init(a_arena, mbSize * 4, m_fence, "scene upload buffer");
-
-	m_scene_info.ambient_light = float3(1.f, 1.f, 1.f);
-	m_scene_info.ambient_strength = 1;
-	m_scene_info.skybox_texture = m_skybox.handle;
-
-	m_per_frame.Init(a_arena, a_back_buffers);
-	m_per_frame.resize(a_back_buffers);
-	for (uint32_t i = 0; i < m_per_frame.size(); i++)
-	{
-		PerFrameData& pfd = m_per_frame[i];
-		GPUBufferCreateInfo buffer_info;
-		buffer_info.name = "scene STORAGE buffer";
-		buffer_info.size = mbSize * 4;
-		buffer_info.type = BUFFER_TYPE::STORAGE;
-		buffer_info.host_writable = false;
-
-		pfd.scene_descriptor = AllocateDescriptor(GetSceneDescriptorLayout());
-		pfd.storage_buffer.Init(buffer_info);
-		pfd.fence_value = 0;
-	}
-
 }
 
 static bool NameIsWithinCharArray(const char** a_arr, const size_t a_arr_size, const char* a_str)
@@ -324,48 +340,20 @@ void SceneHierarchy::SetProjection(const float4x4& a_projection)
 	m_scene_info.proj = a_projection;
 }
 
-void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const uint32_t a_back_buffer_index)
+void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const uint32_t a_back_buffer_index)
 {
 	PerFrameData& pfd = m_per_frame[a_back_buffer_index];
+	WaitFence(m_fence, pfd.fence_value);
+	pfd.fence_value = m_next_fence_value;
 
-	{	// RenderScenePerDraw(a_list, m_render_scene, a_render_target, a_draw_area_size, a_draw_area_offset, Slice(m_skybox_shaders, _countof(m_skybox_shaders)));
+	m_scene_info.light_count = m_light_container.size();
+	m_scene_info.scene_resolution = a_draw_area_size;
+	m_scene_info.depth_texture_count = 0;
+	m_scene_info.depth_texture_array = pfd.shadow_map.texture.handle;
 
-		const RPipelineLayout pipe_layout = BindShaders(a_list, Material::GetMaterialShaders(m_skybox_material));
+	SkyboxPass(pfd, a_list, a_render_target, a_draw_area_size, a_draw_area_offset);
 
-		// set 0
-		{
-			const uint32_t buffer_indices[] = { 0, 0 };
-			const DescriptorAllocation& global_desc_alloc = GetGlobalDescriptorAllocation();
-			const size_t buffer_offsets[]{ global_desc_alloc.offset, pfd.scene_descriptor.offset };
-			//set 1-2
-			SetDescriptorBufferOffset(a_list,
-				pipe_layout,
-				SPACE_GLOBAL,
-				_countof(buffer_offsets),
-				buffer_indices,
-				buffer_offsets);
-		}
-
-		RenderingAttachmentColor color_attach{};
-		color_attach.load_color = false;
-		color_attach.store_color = true;
-		color_attach.image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-		color_attach.image_view = GetImageView(a_render_target, 0);
-		color_attach.clear_value_rgba.x = 1.f;
-
-		StartRenderingInfo start_rendering_info;
-		start_rendering_info.render_area_extent = a_draw_area_size;
-		start_rendering_info.render_area_offset = a_draw_area_offset;
-		start_rendering_info.color_attachments = Slice(&color_attach, 1);
-		start_rendering_info.depth_attachment = nullptr;
-		StartRenderPass(a_list, start_rendering_info);
-		SetFrontFace(a_list, false);
-		SetCullMode(a_list, CULL_MODE::NONE);
-
-		DrawCubemap(a_list, 1, 0);
-
-		EndRenderPass(a_list);
-	}
+	ResourceUploadPass(pfd, a_list);
 
 	m_draw_list.size = 0;
 
@@ -375,185 +363,28 @@ void SceneHierarchy::DrawSceneHierarchy( const RCommandList a_list, const RTextu
 		DrawSceneObject(m_top_level_objects[i], Float4x4Identity());
 	}
 
-	WaitFence(m_fence, pfd.fence_value);
-	pfd.fence_value = m_next_fence_value;
+	ShadowMapPass(pfd, a_list, uint2(DEPTH_IMAGE_SIZE_W_H, DEPTH_IMAGE_SIZE_W_H));
 
-	{	// EndRenderScene(a_list, m_render_scene, a_render_target, a_draw_area_size, a_draw_area_offset);
-		GPULinearBuffer& cur_scene_buffer = pfd.storage_buffer;
-		cur_scene_buffer.Clear();
-
-		m_scene_info.light_count = m_light_container.size();
-		m_scene_info.scene_resolution = a_draw_area_size;
-
-		const size_t scene_upload_size = sizeof(Scene3DInfo);
-		const size_t matrices_upload_size = sizeof(ShaderTransform) * m_draw_list.size;
-		const size_t light_upload_size = sizeof(Light) * m_light_container.size();
-		// optimize this
-		const size_t total_size = scene_upload_size + matrices_upload_size + light_upload_size;
-
-		const UploadBuffer upload_buffer = m_upload_allocator.AllocateUploadMemory(total_size, pfd.fence_value);
-
-		size_t bytes_uploaded = 0;
-		upload_buffer.SafeMemcpy(bytes_uploaded, &m_scene_info, scene_upload_size);
-		const size_t scene_offset = bytes_uploaded + upload_buffer.base_offset;
-		bytes_uploaded += scene_upload_size;
-
-		upload_buffer.SafeMemcpy(bytes_uploaded, m_draw_list.transform, matrices_upload_size);
-		const size_t matrix_offset = bytes_uploaded + upload_buffer.base_offset;
-		bytes_uploaded += matrices_upload_size;
-
-		upload_buffer.SafeMemcpy(bytes_uploaded, m_light_container.data(), light_upload_size);
-		const size_t light_offset = bytes_uploaded + upload_buffer.base_offset;
-		bytes_uploaded += light_upload_size;
-
-		GPUBufferView scene_view;
-		bool success = cur_scene_buffer.Allocate(scene_upload_size, scene_view);
-		BB_ASSERT(success, "failed to allocate frame memory");
-		GPUBufferView transform_view;
-		success = cur_scene_buffer.Allocate(matrices_upload_size, transform_view);
-		BB_ASSERT(success, "failed to allocate frame memory");
-		GPUBufferView light_view;
-		success = cur_scene_buffer.Allocate(light_upload_size, light_view);
-		BB_ASSERT(success, "failed to allocate frame memory");
-
-		//upload to some GPU buffer here.
-		RenderCopyBuffer matrix_buffer_copy;
-		matrix_buffer_copy.src = upload_buffer.buffer;
-		matrix_buffer_copy.dst = cur_scene_buffer.GetBuffer();
-		size_t copy_region_count = 0;
-		RenderCopyBufferRegion buffer_regions[3]; // 0 = scene, 1 = matrix, 2 = lights
-		buffer_regions[copy_region_count].src_offset = scene_offset;
-		buffer_regions[copy_region_count].dst_offset = scene_view.offset;
-		buffer_regions[copy_region_count].size = scene_upload_size;
-		++copy_region_count;
-		if (matrices_upload_size)
+	if (m_previous_draw_area != a_draw_area_size)
+	{
+		if (m_depth_image.IsValid())
 		{
-			buffer_regions[copy_region_count].src_offset = matrix_offset;
-			buffer_regions[copy_region_count].dst_offset = transform_view.offset;
-			buffer_regions[copy_region_count].size = matrices_upload_size;
-			++copy_region_count;
+			FreeTexture(m_depth_image);
 		}
 
-		if (light_upload_size)
-		{
-			buffer_regions[copy_region_count].src_offset = light_offset;
-			buffer_regions[copy_region_count].dst_offset = light_view.offset;
-			buffer_regions[copy_region_count].size = light_upload_size;
-			++copy_region_count;
-		}
-
-		matrix_buffer_copy.regions = Slice(buffer_regions, copy_region_count);
-		CopyBuffer(a_list, matrix_buffer_copy);
-
-		{	// WRITE DESCRIPTORS HERE
-			DescriptorWriteBufferInfo desc_write;
-			desc_write.descriptor_layout = GetSceneDescriptorLayout();
-			desc_write.allocation = pfd.scene_descriptor;
-			desc_write.descriptor_index = 0;
-
-			desc_write.binding = PER_SCENE_SCENE_DATA_BINDING;
-			desc_write.buffer_view = scene_view;
-			DescriptorWriteStorageBuffer(desc_write);
-
-			if (matrices_upload_size)
-			{
-				desc_write.binding = PER_SCENE_TRANSFORM_DATA_BINDING;
-				desc_write.buffer_view = transform_view;
-				DescriptorWriteStorageBuffer(desc_write);
-			}
-			if (light_upload_size)
-			{
-				desc_write.binding = PER_SCENE_LIGHT_DATA_BINDING;
-				desc_write.buffer_view = light_view;
-				DescriptorWriteStorageBuffer(desc_write);
-			}
-		}
+		CreateTextureInfo depth_info;
+		depth_info.name = "standard depth buffer";
+		depth_info.width = a_draw_area_size.x;
+		depth_info.height = a_draw_area_size.y;
+		depth_info.array_layers = 1;
+		depth_info.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
+		depth_info.usage = IMAGE_USAGE::DEPTH;
+		m_depth_image = CreateTexture(depth_info);
+		m_previous_draw_area = a_draw_area_size;
 	}
 
-	{	// actual rendering
-		if (m_previous_draw_area != a_draw_area_size)
-		{
-			if (m_depth_image.IsValid())
-			{
-				FreeTexture(m_depth_image);
-			}
 
-			CreateTextureInfo depth_info;
-			depth_info.name = "standard depth buffer";
-			depth_info.width = a_draw_area_size.x;
-			depth_info.height = a_draw_area_size.y;
-			depth_info.array_layers = 1;
-			depth_info.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
-			depth_info.usage = IMAGE_USAGE::DEPTH;
-			m_depth_image = CreateTexture(depth_info);
-			m_previous_draw_area = a_draw_area_size;
-		}
-
-
-		PipelineBarrierImageInfo image_transitions[1]{};
-		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::NONE;
-		image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE;
-		image_transitions[0].image = GetImage(m_depth_image);
-		image_transitions[0].old_layout = IMAGE_LAYOUT::UNDEFINED;
-		image_transitions[0].new_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
-		image_transitions[0].layer_count = 1;
-		image_transitions[0].level_count = 1;
-		image_transitions[0].base_array_layer = 0;
-		image_transitions[0].base_mip_level = 0;
-		image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
-		image_transitions[0].dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
-
-		PipelineBarrierInfo pipeline_info{};
-		pipeline_info.image_info_count = _countof(image_transitions);
-		pipeline_info.image_infos = image_transitions;
-		PipelineBarriers(a_list, pipeline_info);
-
-		RenderingAttachmentColor color_attach{};
-		color_attach.load_color = true;
-		color_attach.store_color = true;
-		color_attach.image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-		color_attach.image_view = GetImageView(a_render_target, 0);
-
-		RenderingAttachmentDepth depth_attach{};
-		depth_attach.load_depth = false;
-		depth_attach.store_depth = true;
-		depth_attach.image_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
-		depth_attach.image_view = GetImageView(m_depth_image, 0);
-
-		StartRenderingInfo rendering_info;
-		rendering_info.color_attachments = Slice(&color_attach, 1);
-		rendering_info.depth_attachment = &depth_attach;
-		rendering_info.render_area_extent = a_draw_area_size;
-		rendering_info.render_area_offset = a_draw_area_offset;
-
-		StartRenderPass(a_list, rendering_info);
-
-		SetFrontFace(a_list, false);
-		SetCullMode(a_list, CULL_MODE::NONE);
-
-		for (uint32_t i = 0; i < m_draw_list.size; i++)
-		{
-			const MeshDrawInfo& mesh_draw_call = m_draw_list.mesh_draw_call[i];
-
-			Slice<const ShaderEffectHandle> shader_effects = Material::GetMaterialShaders(mesh_draw_call.material);
-			RPipelineLayout pipe_layout = BindShaders(a_list, shader_effects);
-
-			ShaderIndices shader_indices;
-			shader_indices.transform_index = i;
-			shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_buffer_offset);
-			shader_indices.albedo_texture = mesh_draw_call.base_texture.handle;
-			shader_indices.normal_texture = mesh_draw_call.normal_texture.handle;
-			SetPushConstants(a_list, pipe_layout, 0, sizeof(shader_indices), &shader_indices);
-			DrawIndexed(a_list,
-				mesh_draw_call.index_count,
-				1,
-				static_cast<uint32_t>(mesh_draw_call.mesh.index_buffer_offset / sizeof(uint32_t)) + mesh_draw_call.index_start,
-				0,
-				0);
-		}
-
-		EndRenderPass(a_list);
-	}
+	RenderPass(pfd, a_list, a_render_target, a_draw_area_size, a_draw_area_offset);
 }
 
 void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform)
@@ -584,7 +415,7 @@ RDescriptorLayout SceneHierarchy::GetSceneDescriptorLayout()
 	MemoryArena temp_arena = MemoryArenaCreate(ARENA_DEFAULT_COMMIT);
 
 	//per-frame descriptor set 1 for renderpass
-	DescriptorBindingInfo descriptor_bindings[3];
+	FixedArray<DescriptorBindingInfo, 4> descriptor_bindings;
 	descriptor_bindings[0].binding = PER_SCENE_SCENE_DATA_BINDING;
 	descriptor_bindings[0].count = 1;
 	descriptor_bindings[0].shader_stage = SHADER_STAGE::ALL;
@@ -599,10 +430,289 @@ RDescriptorLayout SceneHierarchy::GetSceneDescriptorLayout()
 	descriptor_bindings[2].count = 1;
 	descriptor_bindings[2].shader_stage = SHADER_STAGE::FRAGMENT_PIXEL;
 	descriptor_bindings[2].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-	s_scene_descriptor_layout = CreateDescriptorLayout(temp_arena, Slice(descriptor_bindings, _countof(descriptor_bindings)));
+
+	descriptor_bindings[3].binding = PER_SCENE_LIGHT_PROJECTION_VIEW_DATA_BINDING;
+	descriptor_bindings[3].count = 1;
+	descriptor_bindings[3].shader_stage = SHADER_STAGE::FRAGMENT_PIXEL;
+	descriptor_bindings[3].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
+	s_scene_descriptor_layout = CreateDescriptorLayout(temp_arena, descriptor_bindings.slice());
 
 	MemoryArenaFree(temp_arena);
 	return s_scene_descriptor_layout;
+}
+
+void SceneHierarchy::SkyboxPass(const PerFrameData& pfd, const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset)
+{
+	const RPipelineLayout pipe_layout = BindShaders(a_list, Material::GetMaterialShaders(m_skybox_material));
+
+	{
+		const uint32_t buffer_indices[] = { 0, 0 };
+		const DescriptorAllocation& global_desc_alloc = GetGlobalDescriptorAllocation();
+		const size_t buffer_offsets[]{ global_desc_alloc.offset, pfd.scene_descriptor.offset };
+		//set 1-2
+		SetDescriptorBufferOffset(a_list,
+			pipe_layout,
+			SPACE_GLOBAL,
+			_countof(buffer_offsets),
+			buffer_indices,
+			buffer_offsets);
+	}
+
+	RenderingAttachmentColor color_attach;
+	color_attach.load_color = false;
+	color_attach.store_color = true;
+	color_attach.image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+	color_attach.image_view = GetImageView(a_render_target, 0);
+
+	StartRenderingInfo start_rendering_info;
+	start_rendering_info.render_area_extent = a_draw_area_size;
+	start_rendering_info.render_area_offset = a_draw_area_offset;
+	start_rendering_info.color_attachments = Slice(&color_attach, 1);
+	start_rendering_info.depth_attachment = nullptr;
+	StartRenderPass(a_list, start_rendering_info);
+	SetFrontFace(a_list, false);
+	SetCullMode(a_list, CULL_MODE::NONE);
+
+	DrawCubemap(a_list, 1, 0);
+
+	EndRenderPass(a_list);
+}
+
+void SceneHierarchy::ResourceUploadPass(PerFrameData& pfd, const RCommandList a_list)
+{
+	GPULinearBuffer& cur_scene_buffer = pfd.storage_buffer;
+	cur_scene_buffer.Clear();
+
+	const size_t scene_upload_size = sizeof(Scene3DInfo);
+	const size_t matrices_upload_size = sizeof(ShaderTransform) * m_draw_list.size;
+	const size_t light_upload_size = sizeof(Light) * m_light_container.size();
+	const size_t light_projection_view_size = sizeof(LightProjectionView) * m_light_projection_view.size();
+	// optimize this
+	const size_t total_size = scene_upload_size + matrices_upload_size + light_upload_size + light_projection_view_size;
+
+	const UploadBuffer upload_buffer = m_upload_allocator.AllocateUploadMemory(total_size, pfd.fence_value);
+
+	size_t bytes_uploaded = 0;
+	upload_buffer.SafeMemcpy(bytes_uploaded, &m_scene_info, scene_upload_size);
+	const size_t scene_offset = bytes_uploaded + upload_buffer.base_offset;
+	bytes_uploaded += scene_upload_size;
+
+	upload_buffer.SafeMemcpy(bytes_uploaded, m_draw_list.transform, matrices_upload_size);
+	const size_t matrix_offset = bytes_uploaded + upload_buffer.base_offset;
+	bytes_uploaded += matrices_upload_size;
+
+	upload_buffer.SafeMemcpy(bytes_uploaded, m_light_container.data(), light_upload_size);
+	const size_t light_offset = bytes_uploaded + upload_buffer.base_offset;
+	bytes_uploaded += light_upload_size;
+
+	upload_buffer.SafeMemcpy(bytes_uploaded, m_light_projection_view.data(), light_projection_view_size);
+	const size_t light_projection_view_offset = bytes_uploaded + upload_buffer.base_offset;
+	bytes_uploaded += light_projection_view_size;
+
+	GPUBufferView scene_view;
+	bool success = cur_scene_buffer.Allocate(scene_upload_size, scene_view);
+	BB_ASSERT(success, "failed to allocate frame memory");
+	GPUBufferView transform_view;
+	success = cur_scene_buffer.Allocate(matrices_upload_size, transform_view);
+	BB_ASSERT(success, "failed to allocate frame memory");
+	GPUBufferView light_view;
+	success = cur_scene_buffer.Allocate(light_upload_size, light_view);
+	BB_ASSERT(success, "failed to allocate frame memory");
+	GPUBufferView light_projection_view;
+	success = cur_scene_buffer.Allocate(light_projection_view_size, light_projection_view);
+	BB_ASSERT(success, "failed to allocate frame memory");
+
+	//upload to some GPU buffer here.
+	RenderCopyBuffer matrix_buffer_copy;
+	matrix_buffer_copy.src = upload_buffer.buffer;
+	matrix_buffer_copy.dst = cur_scene_buffer.GetBuffer();
+	size_t copy_region_count = 0;
+	FixedArray<RenderCopyBufferRegion, 4> buffer_regions; // 0 = scene, 1 = matrix, 2 = lights, 3 = light projection view
+	buffer_regions[copy_region_count].src_offset = scene_offset;
+	buffer_regions[copy_region_count].dst_offset = scene_view.offset;
+	buffer_regions[copy_region_count].size = scene_upload_size;
+	++copy_region_count;
+	if (matrices_upload_size)
+	{
+		buffer_regions[copy_region_count].src_offset = matrix_offset;
+		buffer_regions[copy_region_count].dst_offset = transform_view.offset;
+		buffer_regions[copy_region_count].size = matrices_upload_size;
+		++copy_region_count;
+	}
+
+	if (light_upload_size)
+	{
+		buffer_regions[copy_region_count].src_offset = light_offset;
+		buffer_regions[copy_region_count].dst_offset = light_view.offset;
+		buffer_regions[copy_region_count].size = light_upload_size;
+		++copy_region_count;
+
+		buffer_regions[copy_region_count].src_offset = light_projection_view_offset;
+		buffer_regions[copy_region_count].dst_offset = light_projection_view.offset;
+		buffer_regions[copy_region_count].size = light_projection_view_size;
+		++copy_region_count;
+	}
+
+	matrix_buffer_copy.regions = buffer_regions.slice(copy_region_count);
+	CopyBuffer(a_list, matrix_buffer_copy);
+
+	{	// WRITE DESCRIPTORS HERE
+		DescriptorWriteBufferInfo desc_write;
+		desc_write.descriptor_layout = GetSceneDescriptorLayout();
+		desc_write.allocation = pfd.scene_descriptor;
+		desc_write.descriptor_index = 0;
+
+		desc_write.binding = PER_SCENE_SCENE_DATA_BINDING;
+		desc_write.buffer_view = scene_view;
+		DescriptorWriteStorageBuffer(desc_write);
+
+		if (matrices_upload_size)
+		{
+			desc_write.binding = PER_SCENE_TRANSFORM_DATA_BINDING;
+			desc_write.buffer_view = transform_view;
+			DescriptorWriteStorageBuffer(desc_write);
+		}
+		if (light_upload_size)
+		{
+			desc_write.binding = PER_SCENE_LIGHT_DATA_BINDING;
+			desc_write.buffer_view = light_view;
+			DescriptorWriteStorageBuffer(desc_write);
+
+			desc_write.binding = PER_SCENE_LIGHT_PROJECTION_VIEW_DATA_BINDING;
+			desc_write.buffer_view = light_projection_view;
+			DescriptorWriteStorageBuffer(desc_write);
+		}
+	}
+}
+
+void SceneHierarchy::ShadowMapPass(const PerFrameData& pfd, const RCommandList a_list, const uint2 a_shadow_map_resolution)
+{
+	return;
+	const uint32_t shadow_map_count = m_light_projection_view.size();
+
+	const RPipelineLayout pipe_layout = BindShaders(a_list, Material::GetMaterialShaders(m_shadowmap_material));
+
+	PipelineBarrierImageInfo depth_images_transition = {};
+	depth_images_transition.src_mask = BARRIER_ACCESS_MASK::NONE;
+	depth_images_transition.dst_mask = BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE;
+	depth_images_transition.image = GetImage(m_depth_image);
+	depth_images_transition.old_layout = IMAGE_LAYOUT::UNDEFINED;
+	depth_images_transition.new_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
+	depth_images_transition.layer_count = shadow_map_count;
+	depth_images_transition.level_count = 1;
+	depth_images_transition.base_array_layer = 0;
+	depth_images_transition.base_mip_level = 0;
+	depth_images_transition.src_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
+	depth_images_transition.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
+
+	PipelineBarrierInfo pipeline_info{};
+	pipeline_info.image_info_count = 1;
+	pipeline_info.image_infos = &depth_images_transition;
+	PipelineBarriers(a_list, pipeline_info);
+
+	RenderingAttachmentColor color_attach{};
+	color_attach.load_color = false;
+	color_attach.store_color = true;
+	color_attach.image_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
+
+	StartRenderingInfo rendering_info;
+	rendering_info.color_attachments = Slice(&color_attach, 1);
+	rendering_info.depth_attachment = nullptr;
+	rendering_info.render_area_extent = a_shadow_map_resolution;
+	rendering_info.render_area_offset = int2(0, 0);
+
+	for (uint32_t shadow_map_index = 0; shadow_map_index < shadow_map_count; shadow_map_index++)
+	{
+		color_attach.image_view = GetImageView(pfd.shadow_map.texture, shadow_map_index);
+		StartRenderPass(a_list, rendering_info);
+
+		for (uint32_t draw_index = 0; draw_index < m_draw_list.size; draw_index++)
+		{
+			const MeshDrawInfo& mesh_draw_call = m_draw_list.mesh_draw_call[draw_index];
+
+			ShaderIndicesShadowMapping shader_indices;
+			shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_buffer_offset);
+			shader_indices.transform_index = draw_index;
+			shader_indices.light_projection_view_index = shadow_map_index;
+			SetPushConstants(a_list, pipe_layout, 0, sizeof(shader_indices), &shader_indices);
+			DrawIndexed(a_list,
+				mesh_draw_call.index_count,
+				1,
+				static_cast<uint32_t>(mesh_draw_call.mesh.index_buffer_offset / sizeof(uint32_t)) + mesh_draw_call.index_start,
+				0,
+				0);
+		}
+
+		EndRenderPass(a_list);
+	}
+
+}
+
+void SceneHierarchy::RenderPass(const PerFrameData& pfd, const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset)
+{
+	PipelineBarrierImageInfo image_transitions[1]{};
+	image_transitions[0].src_mask = BARRIER_ACCESS_MASK::NONE;
+	image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE;
+	image_transitions[0].image = GetImage(m_depth_image);
+	image_transitions[0].old_layout = IMAGE_LAYOUT::UNDEFINED;
+	image_transitions[0].new_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
+	image_transitions[0].layer_count = 1;
+	image_transitions[0].level_count = 1;
+	image_transitions[0].base_array_layer = 0;
+	image_transitions[0].base_mip_level = 0;
+	image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
+	image_transitions[0].dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
+
+	PipelineBarrierInfo pipeline_info{};
+	pipeline_info.image_info_count = _countof(image_transitions);
+	pipeline_info.image_infos = image_transitions;
+	PipelineBarriers(a_list, pipeline_info);
+
+	RenderingAttachmentColor color_attach{};
+	color_attach.load_color = true;
+	color_attach.store_color = true;
+	color_attach.image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+	color_attach.image_view = GetImageView(a_render_target, 0);
+
+	RenderingAttachmentDepth depth_attach{};
+	depth_attach.load_depth = false;
+	depth_attach.store_depth = true;
+	depth_attach.image_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
+	depth_attach.image_view = GetImageView(m_depth_image, 0);
+
+	StartRenderingInfo rendering_info;
+	rendering_info.color_attachments = Slice(&color_attach, 1);
+	rendering_info.depth_attachment = &depth_attach;
+	rendering_info.render_area_extent = a_draw_area_size;
+	rendering_info.render_area_offset = a_draw_area_offset;
+
+	StartRenderPass(a_list, rendering_info);
+
+	SetFrontFace(a_list, false);
+	SetCullMode(a_list, CULL_MODE::NONE);
+
+	for (uint32_t i = 0; i < m_draw_list.size; i++)
+	{
+		const MeshDrawInfo& mesh_draw_call = m_draw_list.mesh_draw_call[i];
+
+		Slice<const ShaderEffectHandle> shader_effects = Material::GetMaterialShaders(mesh_draw_call.material);
+		RPipelineLayout pipe_layout = BindShaders(a_list, shader_effects);
+
+		ShaderIndices shader_indices;
+		shader_indices.transform_index = i;
+		shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_buffer_offset);
+		shader_indices.albedo_texture = mesh_draw_call.base_texture.handle;
+		shader_indices.normal_texture = mesh_draw_call.normal_texture.handle;
+		SetPushConstants(a_list, pipe_layout, 0, sizeof(shader_indices), &shader_indices);
+		DrawIndexed(a_list,
+			mesh_draw_call.index_count,
+			1,
+			static_cast<uint32_t>(mesh_draw_call.mesh.index_buffer_offset / sizeof(uint32_t)) + mesh_draw_call.index_start,
+			0,
+			0);
+	}
+
+	EndRenderPass(a_list);
 }
 
 void SceneHierarchy::AddToDrawList(const SceneObject& a_scene_object, const float4x4& a_transform)
@@ -627,7 +737,17 @@ LightHandle SceneHierarchy::CreateLight(const LightCreateInfo& a_light_info)
 
 	light.spotlight_direction = a_light_info.spotlight_direction;
 	light.cutoff_radius = a_light_info.cutoff_radius;
-	return m_light_container.insert(light);
+
+	const LightHandle light_handle = m_light_container.insert(light);
+
+	const float near_plane = 1.0f, far_plane = 7.5f;
+	const float4x4 projection = Float4x4Perspective(light.cutoff_radius, 1, near_plane, far_plane);
+	const float4x4 view = Float4x4Lookat(light.pos, light.pos + light.spotlight_direction, float3(0.0f, 1.0f, 0.0f));
+	const LightHandle light_handle_view = m_light_projection_view.emplace(projection * view);
+
+	BB_ASSERT(light_handle == light_handle_view, "Something went wrong trying to create a light");
+
+	return light_handle;
 }
 
 Light& SceneHierarchy::GetLight(const LightHandle a_light) const

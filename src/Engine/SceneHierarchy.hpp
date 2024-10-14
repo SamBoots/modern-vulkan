@@ -86,6 +86,24 @@ namespace BB
 
 		static RDescriptorLayout GetSceneDescriptorLayout();
 	private:
+		struct PerFrameData
+		{
+			uint64_t fence_value;
+			DescriptorAllocation scene_descriptor;
+			// i want this to be uniform but hlsl is giga cringe
+			GPULinearBuffer storage_buffer;
+			struct ShadowMap
+			{
+				RTexture texture;
+				uint32_t array_count;
+			} shadow_map;
+		};
+
+		void SkyboxPass(const PerFrameData& pfd, const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
+		void ResourceUploadPass(PerFrameData& pfd, const RCommandList a_list);
+		void ShadowMapPass(const PerFrameData& pfd, const RCommandList a_list, const uint2 a_shadow_map_resolution);
+		void RenderPass(const PerFrameData& pfd, const RCommandList a_list, const RTexture a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
+
 		void AddToDrawList(const SceneObject& scene_object, const float4x4& a_transform);
 		SceneObjectHandle CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent);
 		void DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform);
@@ -100,13 +118,6 @@ namespace BB
 			ShaderTransform* transform;
 			uint32_t size;
 			uint32_t max_size;
-		};
-		struct PerFrameData
-		{
-			uint64_t fence_value;
-			DescriptorAllocation scene_descriptor;
-			// i want this to be uniform but hlsl is giga cringe
-			GPULinearBuffer storage_buffer;
 		};
 
 		Scene3DInfo m_scene_info;
@@ -125,6 +136,7 @@ namespace BB
 		StaticSlotmap<SceneObject, SceneObjectHandle> m_scene_objects;
 
 		StaticSlotmap<Light, LightHandle> m_light_container;
+		StaticSlotmap<LightProjectionView, LightHandle> m_light_projection_view;
 
 		uint2 m_previous_draw_area;
 		RTexture m_depth_image;
@@ -135,5 +147,6 @@ namespace BB
 		float3 m_clear_color;
 		RTexture m_skybox;
 		MaterialHandle m_skybox_material;
+		MaterialHandle m_shadowmap_material;
 	};
 }
