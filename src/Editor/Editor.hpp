@@ -11,7 +11,7 @@
 
 namespace BB
 {
-	constexpr size_t EDITOR_DEFAULT_MEMORY = gbSize * 4;
+	constexpr size_t EDITOR_DEFAULT_MEMORY = mbSize * 4;
 
 	struct MemoryArena;
 	class Editor
