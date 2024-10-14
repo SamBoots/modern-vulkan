@@ -48,7 +48,6 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 
 	m_scene_info.ambient_light = float3(1.f, 1.f, 1.f);
 	m_scene_info.ambient_strength = 1;
-	m_scene_info.skybox_texture = m_skybox.handle;
 
 	m_per_frame.Init(a_arena, a_back_buffers);
 	m_per_frame.resize(a_back_buffers);
@@ -105,6 +104,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 	texture_info.array_layers = 6;
 
 	m_skybox = CreateTextureCubeMap(texture_info);
+	m_scene_info.skybox_texture = m_skybox.handle;
 
 	constexpr const char* SKY_BOX_NAME[6]
 	{
