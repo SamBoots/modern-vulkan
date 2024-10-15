@@ -70,6 +70,8 @@ struct RenderFence
 constexpr uint32_t MAX_MESH_UPLOAD_QUEUE = 128;
 constexpr uint32_t MAX_TEXTURE_UPLOAD_QUEUE = 256;
 
+constexpr uint16_t INVALID_BLOCK = UINT16_MAX;
+
 constexpr uint32_t MAX_TEXTURES = 1024;
 constexpr uint32_t MAX_IMAGE_VIEWS = 2048;
 constexpr const char* DEBUG_TEXTURE_NAME = "debug texture";
@@ -107,6 +109,18 @@ public:
 
 	const RTexture SetTextureSlot(const TextureInfo& a_texture_info, const size_t a_view_count, const char* a_name);
 
+	const Slice<RImageView> GetTextureViews(const uint32_t a_count)
+	{
+		// kinda giga shit, should make a freelist that does not waste much time on a header
+		void* memory = m_view_allocator.Alloc(a_count * sizeof(RImageView), alignof(RImageView));
+		return Slice(reinterpret_cast<RImageView*>(memory), a_count);
+	}
+
+	void FreeTextureViews(const Slice<RImageView> a_views)
+	{
+		m_view_allocator.Free(a_views.data());
+	}
+
 	void TransitionTextures(const RCommandList a_list);
 
 	void AddGraphicsTransition(const PipelineBarrierImageInfo& a_transition_info)
@@ -122,18 +136,6 @@ public:
 		m_graphics_texture_transitions.emplace_back(a_transition_info);
 		m_descriptor_writes.emplace_back(a_write_descriptor);
 		OSReleaseSRWLockWrite(&m_lock);
-	}
-
-	const Slice<RImageView> GetTextureViews(const uint32_t a_count)
-	{
-		// kinda giga shit, should make a freelist that does not waste much time on a header
-		void* memory = m_view_allocator.Alloc(a_count * sizeof(RImageView), alignof(RImageView));
-		return Slice(reinterpret_cast<RImageView*>(memory), a_count);
-	}
-
-	void FreeTextureViews(const Slice<RImageView> a_views)
-	{
-		m_view_allocator.Free(a_views.data());
 	}
 
 	void FreeTexture(const RTexture a_texture);
@@ -196,6 +198,78 @@ private:
 	TextureSlot m_textures[MAX_TEXTURES];
 	BBRWLock m_lock;
 
+	struct ViewBlock
+	{
+		uint32_t index;
+		uint16_t size;
+		uint16_t next_free;
+	};
+
+	union ViewBlockImageU
+	{
+		RImageView image_view;
+		ViewBlock view_block;
+	};
+
+	class ViewDescriptorFreelist
+	{
+	public:
+		void Init(MemoryArena& a_arena, const uint32_t a_image_view_count)
+		{
+			m_free_block.index = 0;
+			m_free_block.size = a_image_view_count;
+			m_free_block.next_free = INVALID_BLOCK;
+			m_views = ArenaAllocArr(a_arena, ViewBlockImageU, a_image_view_count);
+		}
+
+		const ViewBlock AllocateImageViews(const uint32_t a_count)
+		{
+			ViewBlock* prev_block = nullptr;
+			ViewBlock* cur_block = &m_free_block;
+			while (cur_block->size < a_count)
+			{
+				if (cur_block->next_free == INVALID_BLOCK)
+				{
+					return ViewBlock(0, 0, 0);
+				}
+				prev_block = cur_block;
+				cur_block = &m_views[cur_block->next_free].view_block;
+			}
+
+
+			ViewBlock block;
+			block.index = cur_block->index;
+			block.size = static_cast<uint16_t>(a_count);
+			block.next_free = INVALID_BLOCK;
+
+			cur_block->index += a_count;
+			cur_block->size -= block.size;
+			if (cur_block->size == 0 && prev_block)
+			{
+				prev_block->next_free = cur_block->next_free;
+			}
+			return block;
+		}
+
+		RImageView GetImageView(const ViewBlock& a_block, const uint32_t a_index)
+		{
+			BB_ASSERT(a_index <= static_cast<uint32_t>(a_block.size), "index out of bounds for image view");
+			return m_views[a_block.index + a_index].image_view;
+		}
+
+		void FreeImageViews(const ViewBlock& a_block)
+		{
+			// sanity check the free block
+			m_free_block.next_free = static_cast<uint16_t>(m_free_block.index);
+			m_free_block.index = a_block.index;
+			m_free_block.size = a_block.size;
+		}
+
+	private:
+		ViewBlockImageU* m_views;
+		ViewBlock m_free_block;
+	};
+
 	FreelistInterface m_view_allocator;
 	
 	StaticArray<DescriptorWriteImageInfo> m_descriptor_writes;
@@ -207,8 +281,8 @@ private:
 
 RCommandList CommandPool::StartCommandList(const char* a_name)
 {
-	BB_ASSERT(m_recording == false, "already recording a commandlist from this commandpool!");
-	BB_ASSERT(m_list_current_free < m_list_count, "command pool out of lists!");
+	BB_ASSERT(m_recording == false, "already recording a commandlist from this commandpool");
+	BB_ASSERT(m_list_current_free < m_list_count, "command pool out of lists");
 	RCommandList list{ m_lists[m_list_current_free++] };
 	Vulkan::StartCommandList(list, a_name);
 	m_recording = true;

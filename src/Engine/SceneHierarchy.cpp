@@ -11,7 +11,7 @@
 
 using namespace BB;
 
-// arbritrary, but just for a stack const char array
+// arbitrary, but just for a stack const char array
 constexpr size_t UNIQUE_MODELS_PER_SCENE = 128;
 
 constexpr uint32_t INITIAL_DEPTH_ARRAY_COUNT = 8;
