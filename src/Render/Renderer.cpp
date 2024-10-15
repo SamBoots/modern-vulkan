@@ -222,7 +222,7 @@ private:
 			m_views = ArenaAllocArr(a_arena, ViewBlockImageU, a_image_view_count);
 		}
 
-		const ViewBlock AllocateImageViews(const uint32_t a_count)
+		const Slice<RImageView> AllocateImageViews(const uint32_t a_count, uint32_t& a_out_descriptor_index)
 		{
 			ViewBlock* prev_block = nullptr;
 			ViewBlock* cur_block = &m_free_block;
@@ -230,25 +230,21 @@ private:
 			{
 				if (cur_block->next_free == INVALID_BLOCK)
 				{
-					return ViewBlock(0, 0, 0);
+					return Slice<RImageView>();
 				}
 				prev_block = cur_block;
 				cur_block = &m_views[cur_block->next_free].view_block;
 			}
 
-
-			ViewBlock block;
-			block.index = cur_block->index;
-			block.size = static_cast<uint16_t>(a_count);
-			block.next_free = INVALID_BLOCK;
+			const Slice<RImageView> views = Slice<RImageView>(&m_views[cur_block->index].image_view, a_count);
 
 			cur_block->index += a_count;
-			cur_block->size -= block.size;
+			cur_block->size -= static_cast<uint32_t>(a_count);
 			if (cur_block->size == 0 && prev_block)
 			{
 				prev_block->next_free = cur_block->next_free;
 			}
-			return block;
+			return views;
 		}
 
 		RImageView GetImageView(const ViewBlock& a_block, const uint32_t a_index)
