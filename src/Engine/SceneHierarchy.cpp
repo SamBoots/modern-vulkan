@@ -700,10 +700,8 @@ void SceneHierarchy::RenderPass(const PerFrameData& pfd, const RCommandList a_li
 		ShaderIndices shader_indices;
 		shader_indices.transform_index = i;
 		shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_buffer_offset);
-		if (mesh_draw_call.base_texture.IsValid())
-			shader_indices.albedo_texture = GetImageDescriptorIndex(mesh_draw_call.base_texture, 0);
-		if (mesh_draw_call.normal_texture.IsValid())
-			shader_indices.normal_texture = GetImageDescriptorIndex(mesh_draw_call.normal_texture, 0);
+		shader_indices.albedo_texture = GetImageDescriptorIndex(mesh_draw_call.base_texture, 0);
+		shader_indices.normal_texture = GetImageDescriptorIndex(mesh_draw_call.normal_texture, 0);
 		SetPushConstants(a_list, pipe_layout, 0, sizeof(shader_indices), &shader_indices);
 		DrawIndexed(a_list,
 			mesh_draw_call.index_count,

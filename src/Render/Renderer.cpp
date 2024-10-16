@@ -2151,9 +2151,13 @@ const RImageView BB::GetImageView(const RTexture a_texture, const uint32_t a_vie
 
 uint32_t BB::GetImageDescriptorIndex(const RTexture a_texture, const uint32_t a_view_index)
 {
-	const GPUTextureManager::TextureSlot& slot = s_render_inst->texture_manager.GetTextureSlot(a_texture);
-	BB_ASSERT(slot.texture_info.views.size() > a_view_index, "descriptor index out of bounds");
-	return slot.texture_info.descriptor_index + a_view_index;
+	if (a_texture.IsValid())
+	{
+		const GPUTextureManager::TextureSlot& slot = s_render_inst->texture_manager.GetTextureSlot(a_texture);
+		BB_ASSERT(slot.texture_info.views.size() > a_view_index, "descriptor index out of bounds");
+		return slot.texture_info.descriptor_index + a_view_index;
+	}
+	return 0; // debug texture
 }
 
 void BB::FreeTexture(const RTexture a_texture)
