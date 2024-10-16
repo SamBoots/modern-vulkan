@@ -172,14 +172,10 @@ public:
 						ImGui::TextUnformatted("UNNAMED! This might be an error");
 
 					const ImVec2 image_size = { 160, 160 };
-					for (uint32_t array_layer = 0; array_layer < slot.texture_info.array_layers; array_layer++)
+					for (uint32_t view_index = 0; view_index < static_cast<uint32_t>(slot.texture_info.views.size()); view_index++)
 					{
-						ImGui::Text("array layer: %u", array_layer);
-						for (uint32_t mip_level = 1; mip_level < slot.texture_info.mip_levels + 1; mip_level++)
-						{
-							ImGui::Text("mip level: %u", mip_level);
-							ImGui::Image(i, image_size);
-						}
+						ImGui::Text("view: %u", view_index);
+						ImGui::Image(slot.texture_info.descriptor_index + view_index, image_size);
 					}
 
 					ImGui::Unindent();
@@ -667,7 +663,7 @@ namespace IMGUI_IMPL
 		{
 			ShaderIndices2D shader_indices;
 			shader_indices.vertex_buffer_offset = a_vert_pos;
-			shader_indices.albedo_texture = bd->font_image.handle;
+			shader_indices.albedo_texture = GetImageDescriptorIndex(bd->font_image, 0);
 			shader_indices.rect_scale.x = 2.0f / a_draw_data.DisplaySize.x;
 			shader_indices.rect_scale.y = 2.0f / a_draw_data.DisplaySize.y;
 			shader_indices.translate.x = -1.0f - a_draw_data.DisplayPos.x * shader_indices.rect_scale.x;
@@ -762,7 +758,7 @@ namespace IMGUI_IMPL
 
 		Vulkan::BindIndexBuffer(a_cmd_list, rb.index_buffer.buffer, rb.index_buffer.offset);
 
-		ImTextureID last_texture = bd->font_image.handle;
+		ImTextureID last_texture = GetImageDescriptorIndex(bd->font_image, 0);
 		for (int n = 0; n < draw_data.CmdListsCount; n++)
 		{
 			const ImDrawList* cmd_list = draw_data.CmdLists[n];
@@ -883,7 +879,7 @@ namespace IMGUI_IMPL
 		write_info.base_array_layer = 0;
 		WriteTexture(bd->font_image, write_info);
 
-		io.Fonts->SetTexID(bd->font_image.handle);
+		io.Fonts->SetTexID(GetImageDescriptorIndex(bd->font_image, 0));
 
 		return bd->font_image.IsValid();
 	}
@@ -2151,6 +2147,13 @@ const RImage BB::GetImage(const RTexture a_texture)
 const RImageView BB::GetImageView(const RTexture a_texture, const uint32_t a_view_index)
 {
 	return s_render_inst->texture_manager.GetTextureSlot(a_texture).texture_info.views[a_view_index];
+}
+
+uint32_t BB::GetImageDescriptorIndex(const RTexture a_texture, const uint32_t a_view_index)
+{
+	const GPUTextureManager::TextureSlot& slot = s_render_inst->texture_manager.GetTextureSlot(a_texture);
+	BB_ASSERT(slot.texture_info.views.size() > a_view_index, "descriptor index out of bounds");
+	return slot.texture_info.descriptor_index + a_view_index;
 }
 
 void BB::FreeTexture(const RTexture a_texture)

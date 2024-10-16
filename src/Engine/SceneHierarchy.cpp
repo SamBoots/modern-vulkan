@@ -103,7 +103,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 	texture_info.array_layers = 6;
 
 	m_skybox = CreateTextureCubeMap(texture_info);
-	m_scene_info.skybox_texture = m_skybox.handle;
+	m_scene_info.skybox_texture = GetImageDescriptorIndex(m_skybox, 0);
 
 	constexpr const char* SKY_BOX_NAME[6]
 	{
@@ -348,7 +348,7 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RTextur
 	m_scene_info.light_count = m_light_container.size();
 	m_scene_info.scene_resolution = a_draw_area_size;
 	m_scene_info.depth_texture_count = 0;
-	m_scene_info.depth_texture_array = pfd.shadow_map.texture.handle;
+	m_scene_info.depth_texture_array = 0;
 
 	SkyboxPass(pfd, a_list, a_render_target, a_back_buffer_index, a_draw_area_size, a_draw_area_offset);
 
@@ -700,8 +700,10 @@ void SceneHierarchy::RenderPass(const PerFrameData& pfd, const RCommandList a_li
 		ShaderIndices shader_indices;
 		shader_indices.transform_index = i;
 		shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_buffer_offset);
-		shader_indices.albedo_texture = mesh_draw_call.base_texture.handle;
-		shader_indices.normal_texture = mesh_draw_call.normal_texture.handle;
+		if (mesh_draw_call.base_texture.IsValid())
+			shader_indices.albedo_texture = GetImageDescriptorIndex(mesh_draw_call.base_texture, 0);
+		if (mesh_draw_call.normal_texture.IsValid())
+			shader_indices.normal_texture = GetImageDescriptorIndex(mesh_draw_call.normal_texture, 0);
 		SetPushConstants(a_list, pipe_layout, 0, sizeof(shader_indices), &shader_indices);
 		DrawIndexed(a_list,
 			mesh_draw_call.index_count,

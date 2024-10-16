@@ -107,7 +107,7 @@ void Viewport::DrawImgui(bool& a_resized, const uint32_t a_back_buffer_index, co
 			Resize(window_size_u);
 		}
 
-		ImGui::Image(m_texture.handle, viewport_draw_area);
+		ImGui::Image(GetImageDescriptorIndex(m_texture, a_back_buffer_index), viewport_draw_area);
 
 	}
 	ImGui::End();

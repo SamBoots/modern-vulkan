@@ -161,6 +161,7 @@ namespace BB
 	// Hacky shit to get image/view. Change plz
 	const RImage GetImage(const RTexture a_texture);
 	const RImageView GetImageView(const RTexture a_texture, const uint32_t a_view_index);
+	uint32_t GetImageDescriptorIndex(const RTexture a_texture, const uint32_t a_view_index);
 	void FreeTexture(const RTexture a_texture);
 	GPUFenceValue ReadTexture(const RTexture a_texture, const uint2 a_extent, const int2 a_offset, const GPUBuffer a_readback_buffer, const size_t a_readback_buffer_size);
 
