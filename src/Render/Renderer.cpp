@@ -199,9 +199,8 @@ private:
 
 	struct ViewBlock
 	{
-		uint32_t index;
-		uint16_t size;
-		uint16_t next_free;
+		uint32_t size;
+		uint32_t next_free;
 	};
 
 	union ViewBlockImageU
@@ -215,16 +214,18 @@ private:
 	public:
 		void Init(MemoryArena& a_arena, const uint32_t a_image_view_count)
 		{
-			m_free_block.index = 0;
-			m_free_block.size = a_image_view_count;
-			m_free_block.next_free = INVALID_BLOCK;
 			m_views = ArenaAllocArr(a_arena, ViewBlockImageU, a_image_view_count);
+			m_free_block = 0;
+			m_views[0].view_block.size = a_image_view_count;
+			m_views[0].view_block.next_free = INVALID_BLOCK;
+			m_lock = OSCreateRWLock();
 		}
 
 		const Slice<RImageView> AllocateImageViews(const uint32_t a_count, uint32_t& a_out_descriptor_index)
 		{
+			OSAcquireSRWLockWrite(&m_lock);
 			ViewBlock* prev_block = nullptr;
-			ViewBlock* cur_block = &m_free_block;
+			ViewBlock* cur_block = &m_views[m_free_block].view_block;
 			while (cur_block->size < a_count)
 			{
 				if (cur_block->next_free == INVALID_BLOCK)
@@ -235,30 +236,41 @@ private:
 				cur_block = &m_views[cur_block->next_free].view_block;
 			}
 
-			a_out_descriptor_index = cur_block->index;
-			const Slice<RImageView> views = Slice<RImageView>(&m_views[cur_block->index].image_view, a_count);
+			const uint32_t index = reinterpret_cast<size_t>(Pointer::Subtract(cur_block, reinterpret_cast<size_t>(&m_views[0]))) / sizeof(&m_views[0]);
+			a_out_descriptor_index = index;
+			const Slice<RImageView> views = Slice<RImageView>(&m_views[index].image_view, a_count);
 
-			cur_block->index += a_count;
-			cur_block->size -= static_cast<uint32_t>(a_count);
-			if (cur_block->size == 0 && prev_block)
+			if (cur_block->size == a_count)
 			{
-				prev_block->next_free = cur_block->next_free;
+				m_free_block = cur_block->next_free;
 			}
+			else
+			{
+				m_free_block = index + a_count;
+				m_views[m_free_block].view_block.next_free = cur_block->next_free;
+				m_views[m_free_block].view_block.size = cur_block->size - a_count;
+			}
+			OSReleaseSRWLockWrite(&m_lock);
 	
 			return views;
 		}
 
 		void FreeImageViews(const Slice<RImageView> a_views, const uint32_t a_index)
 		{
+			OSAcquireSRWLockWrite(&m_lock);
 			// sanity check the free block
-			m_free_block.next_free = static_cast<uint16_t>(m_free_block.index);
-			m_free_block.index = static_cast<uint32_t>(a_index);
-			m_free_block.size = static_cast<uint16_t>(a_views.size());
+			ViewBlock* new_free = &m_views[a_index].view_block;
+
+			new_free->next_free = m_free_block;
+			new_free->size = a_views.size();
+			m_free_block = a_index;
+			OSReleaseSRWLockWrite(&m_lock);
 		}
 
 	private:
 		ViewBlockImageU* m_views;
-		ViewBlock m_free_block;
+		uint32_t m_free_block;
+		BBRWLock m_lock;
 	};
 
 	ViewDescriptorFreelist m_view_allocator;
