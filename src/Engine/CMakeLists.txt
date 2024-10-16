@@ -6,7 +6,9 @@ cmake_minimum_required (VERSION 3.8)
 add_library(Engine
 	"Transform.cpp"
 	"AssetLoader.cpp"
-	"SceneHierarchy.cpp" "MaterialSystem.cpp")
+	"SceneHierarchy.cpp" 
+	"MaterialSystem.cpp" 
+	)
 	
 target_include_directories(Engine PUBLIC
 	"")	# this gets the current directory

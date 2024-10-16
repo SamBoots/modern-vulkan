@@ -1528,7 +1528,7 @@ void Vulkan::FreeImage(const RImage a_image)
 	s_vulkan_inst->allocation_map.erase(a_image.handle);
 }
 
-const RImageView Vulkan::CreateViewImage(const ImageViewCreateInfo& a_create_info)
+const RImageView Vulkan::CreateImageView(const ImageViewCreateInfo& a_create_info)
 {
 	VkImageViewCreateInfo view_info{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
 	view_info.image = reinterpret_cast<VkImage>(a_create_info.image.handle);

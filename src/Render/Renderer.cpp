@@ -1949,6 +1949,16 @@ bool BB::ReloadShaderEffect(const ShaderEffectHandle a_shader_effect, const Buff
 	return true;
 }
 
+const RImage BB::CreateImage(const ImageCreateInfo& a_create_info)
+{
+	return Vulkan::CreateImage(a_create_info);
+}
+
+const RImageView BB::CreateImageView(const ImageViewCreateInfo& a_create_info)
+{
+	return Vulkan::CreateImageView(a_create_info);
+}
+
 const RTexture BB::CreateTexture(const CreateTextureInfo& a_create_info)
 {
 	TextureInfo tex_info;
@@ -1988,7 +1998,7 @@ const RTexture BB::CreateTexture(const CreateTextureInfo& a_create_info)
 			image_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
 			image_view_info.format = image_info.format;
 			image_view_info.is_depth_image = a_create_info.usage == IMAGE_USAGE::DEPTH;
-			tex_info.views[i] = Vulkan::CreateViewImage(image_view_info);
+			tex_info.views[i] = Vulkan::CreateImageView(image_view_info);
 		}
 
 	}
@@ -2034,7 +2044,7 @@ const RTexture BB::CreateTextureCubeMap(const CreateTextureInfo& a_create_info)
 		image_view_info.format = image_info.format;
 		image_view_info.is_depth_image = false;
 		tex_info.views = s_render_inst->texture_manager.GetTextureViews(1, tex_info.descriptor_index);
-		tex_info.views[0] = Vulkan::CreateViewImage(image_view_info);
+		tex_info.views[0] = Vulkan::CreateImageView(image_view_info);
 	}
 
 	return s_render_inst->texture_manager.SetTextureSlot(tex_info, 1, a_create_info.name);

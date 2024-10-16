@@ -26,7 +26,7 @@ namespace BB
 		const RImage CreateImage(const ImageCreateInfo& a_create_info);
 		void FreeImage(const RImage a_image);
 
-		const RImageView CreateViewImage(const ImageViewCreateInfo& a_create_info);
+		const RImageView CreateImageView(const ImageViewCreateInfo& a_create_info);
 		void FreeViewImage(const RImageView a_image_view);
 
 		RDescriptorLayout CreateDescriptorLayout(MemoryArena& a_temp_arena, Slice<DescriptorBindingInfo> a_bindings);

@@ -153,6 +153,9 @@ namespace BB
 	};
 
 	// returns invalid texture when not enough upload buffer space
+	const RImage CreateImage(const ImageCreateInfo& a_create_info);
+	const RImageView CreateImageView(const ImageViewCreateInfo& a_create_info);
+
 	const RTexture CreateTexture(const CreateTextureInfo& a_create_info);
 	const RTexture CreateTextureCubeMap(const CreateTextureInfo& a_create_info);
 	void BlitTexture(const RCommandList a_list, const BlitTextureInfo& a_blit_info);

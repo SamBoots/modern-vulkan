@@ -45,35 +45,6 @@ namespace BB
 		SUCCESS
 	};
 
-	struct ImageCreateInfo
-	{
-		const char* name = nullptr;	//8
-		uint32_t width = 0;			//12
-		uint32_t height = 0;		//16
-		uint32_t depth = 0;			//20
-
-		uint16_t array_layers = 0;	//22
-		uint16_t mip_levels = 0;	//24
-		IMAGE_TYPE type{};			//28
-		IMAGE_FORMAT format{};		//32
-		IMAGE_TILING tiling{};		//36
-		IMAGE_USAGE usage{};		//40
-		bool is_cube_map = false;	
-	};
-
-	struct ImageViewCreateInfo
-	{
-		const char* name = nullptr;	//8
-
-		RImage image;				//16
-		uint16_t array_layers = 0;	//18
-		uint16_t mip_levels = 0;	//20
-		uint16_t base_array_layer = 0;//22
-		IMAGE_VIEW_TYPE type{};		//26
-		IMAGE_FORMAT format{};		//30
-		bool is_depth_image = false;
-	};
-
 	enum class SAMPLER_ADDRESS_MODE : uint32_t
 	{
 		REPEAT,

@@ -398,11 +398,39 @@ namespace BB
 
 	struct PipelineBarrierInfo
 	{
-		uint32_t global_info_count = 0;
-		const PipelineBarrierGlobalInfo* global_infos = nullptr;
-		uint32_t buffer_info_count = 0;
-		const PipelineBarrierBufferInfo* buffer_infos = nullptr;
-		uint32_t image_info_count = 0;
-		const PipelineBarrierImageInfo* image_infos = nullptr;
+		uint32_t global_info_count;
+		const PipelineBarrierGlobalInfo* global_infos;
+		uint32_t buffer_info_count;
+		const PipelineBarrierBufferInfo* buffer_infos;
+		uint32_t image_info_count;
+		const PipelineBarrierImageInfo* image_infos;
+	};
+
+	struct ImageCreateInfo
+	{
+		const char* name;
+		uint32_t width;
+		uint32_t height;
+		uint32_t depth;
+
+		uint16_t array_layers;
+		uint16_t mip_levels;
+		IMAGE_TYPE type;
+		IMAGE_FORMAT format;
+		IMAGE_TILING tiling;
+		IMAGE_USAGE usage;
+		bool is_cube_map;
+	};
+
+	struct ImageViewCreateInfo
+	{
+		const char* name;
+		RImage image;
+		uint16_t array_layers;
+		uint16_t mip_levels;
+		uint16_t base_array_layer;
+		IMAGE_VIEW_TYPE type;
+		IMAGE_FORMAT format;
+		bool is_depth_image;
 	};
 }
