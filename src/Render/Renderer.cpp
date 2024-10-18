@@ -73,11 +73,49 @@ constexpr uint32_t MAX_TEXTURE_UPLOAD_QUEUE = 256;
 constexpr uint16_t INVALID_BLOCK = UINT16_MAX;
 
 constexpr uint32_t MAX_TEXTURES = 1024;
-constexpr uint32_t MAX_IMAGE_VIEWS = 2048;
 constexpr const char* DEBUG_TEXTURE_NAME = "debug texture";
 
 constexpr IMAGE_FORMAT SCREENSHOT_IMAGE_FORMAT = IMAGE_FORMAT::RGBA8_SRGB; // check the variable below here before you change shit k thnx
 constexpr size_t SCREENSHOT_IMAGE_PIXEL_BYTE_SIZE = 4;	// check the variable above here before you change shit k thnx
+
+static void CreateBasicColorImage(RImage& a_image, RDescriptorIndex& a_index, const char* a_name, const uint32_t a_color)
+{
+	ImageCreateInfo image_info;
+	image_info.name = a_name;
+	image_info.width = 1;
+	image_info.height = 1;
+	image_info.depth = 1;
+	image_info.array_layers = 1;
+	image_info.mip_levels = 0;
+	image_info.type = IMAGE_TYPE::TYPE_2D;
+	image_info.tiling = IMAGE_TILING::OPTIMAL;
+	image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+	image_info.usage = IMAGE_USAGE::TEXTURE;
+	image_info.is_cube_map = false;
+	a_image = CreateImage(image_info);
+
+	ImageViewCreateInfo debug_view_info;
+	debug_view_info.name = a_name;
+	debug_view_info.base_array_layer = 0;
+	debug_view_info.mip_levels = 0;
+	debug_view_info.array_layers = 0;
+	debug_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
+	debug_view_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+	debug_view_info.image = a_image;
+	debug_view_info.is_depth_image = false;
+	a_index = CreateImageView(debug_view_info);
+
+	const uint32_t debug_purple = (209u << 0u) | (106u << 8u) | (255u << 16u) | (255u << 24u);
+	WriteImageInfo debug_write_info;
+	debug_write_info.image = a_image;
+	debug_write_info.extent = uint2(1, 1);
+	debug_write_info.offset = int2(0, 0);
+	debug_write_info.layer_count = 1;
+	debug_write_info.base_array_layer = 0;
+	debug_write_info.pixels = &debug_purple;
+	debug_write_info.set_shader_visible = true;
+	WriteTexture(debug_write_info);
+}
 
 struct TextureInfo
 {
@@ -106,18 +144,82 @@ public:
 		uint32_t next_free;			// 48
 	};
 
-	void Init(MemoryArena& a_arena, const RCommandList a_list);
-
-	const RTexture SetTextureSlot(const TextureInfo& a_texture_info, const size_t a_view_count, const char* a_name);
-
-	const Slice<RImageView> GetTextureViews(const uint32_t a_count, uint32_t& a_out_descriptor_index)
+	void Init(MemoryArena& a_arena, const RCommandList a_list)
 	{
-		return m_view_allocator.AllocateImageViews(a_count, a_out_descriptor_index);
+		m_graphics_texture_transitions.Init(a_arena, MAX_TEXTURES / 4);
+
+		m_next_free = 0;
+		m_lock = OSCreateRWLock();
+
+		// setup the freelist before making the debug texture
+		for (uint32_t i = m_next_free; i < MAX_TEXTURES - 1; i++)
+		{
+			m_views[i].index = i + 1;
+		}
+		m_views[MAX_TEXTURES - 1].index = UINT32_MAX;
+
+		{	// create debug texture
+			const uint32_t debug_purple = (209u << 0u) | (106u << 8u) | (255u << 16u) | (255u << 24u);
+			CreateBasicColorImage(m_debug_image, m_debug_descriptor_index, "debug purple", debug_purple);
+		}
+
+		DescriptorWriteImageInfo image_write;
+		image_write.descriptor_layout = s_render_inst->global_descriptor_set;
+		image_write.allocation = s_render_inst->global_descriptor_allocation;
+		image_write.view = GetImageView(m_debug_descriptor_index);
+		image_write.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+		image_write.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
+		for (uint32_t i = 0; i < MAX_TEXTURES; i++)
+		{
+			image_write.descriptor_index = i;
+			DescriptorWriteImage(image_write);
+		}
 	}
 
-	void FreeTextureViews(const Slice<RImageView> a_views, uint32_t a_descriptor_index)
+	const RDescriptorIndex AllocAndWriteImageView(const ImageViewCreateInfo& a_info)
 	{
-		m_view_allocator.FreeImageViews(a_views, a_descriptor_index);
+		OSAcquireSRWLockWrite(&m_lock);
+		const uint32_t descriptor_index = m_next_free;
+		m_next_free = m_views[descriptor_index].index;
+		OSReleaseSRWLockWrite(&m_lock);
+
+		m_views[descriptor_index] =  Vulkan::CreateImageView(a_info);
+
+		DescriptorWriteImageInfo write_info;
+		write_info.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
+		write_info.descriptor_index = descriptor_index;
+		write_info.view = m_views[descriptor_index];
+		write_info.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+		write_info.allocation = s_render_inst->global_descriptor_allocation;
+		write_info.descriptor_layout = s_render_inst->global_descriptor_set;
+
+		DescriptorWriteImage(write_info);
+
+		return RDescriptorIndex(descriptor_index);
+	}
+
+	void FreeImageView(const RDescriptorIndex a_descriptor_index)
+	{
+		OSAcquireSRWLockWrite(&m_lock);
+		const uint32_t descriptor_index = m_next_free;
+		Vulkan::FreeViewImage(m_views[descriptor_index]);
+		m_next_free = m_views[descriptor_index].index;
+		OSReleaseSRWLockWrite(&m_lock);
+
+		DescriptorWriteImageInfo write_info;
+		write_info.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
+		write_info.descriptor_index = a_descriptor_index.handle;
+		write_info.view = GetImageView(m_debug_descriptor_index);
+		write_info.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+		write_info.allocation = s_render_inst->global_descriptor_allocation;
+		write_info.descriptor_layout = s_render_inst->global_descriptor_set;
+
+		DescriptorWriteImage(write_info);
+	}
+
+	const RImageView GetImageView(const RDescriptorIndex a_index) const
+	{
+		return m_views[a_index.handle];
 	}
 
 	void TransitionTextures(const RCommandList a_list);
@@ -129,21 +231,6 @@ public:
 		OSReleaseSRWLockWrite(&m_lock);
 	}
 
-	void AddGraphicsTransition(const PipelineBarrierImageInfo& a_transition_info, const DescriptorWriteImageInfo& a_write_descriptor)
-	{
-		OSAcquireSRWLockWrite(&m_lock);
-		m_graphics_texture_transitions.emplace_back(a_transition_info);
-		m_descriptor_writes.emplace_back(a_write_descriptor);
-		OSReleaseSRWLockWrite(&m_lock);
-	}
-
-	void FreeTexture(const RTexture a_texture);
-
-	TextureSlot& GetTextureSlot(const RTexture a_texture)
-	{
-		return m_textures[a_texture.handle];
-	}
-
 	void DisplayTextureListImgui()
 	{
 		if (ImGui::CollapsingHeader("Texture Manager"))
@@ -152,7 +239,7 @@ public:
 			if (ImGui::CollapsingHeader("next free image slot"))
 			{
 				ImGui::Indent();
-				ImGui::Text("Texture slot index: %u", m_next_free);
+				ImGui::Text("RImageView index: %u", m_next_free);
 				const ImVec2 image_size = { 160, 160 };
 
 				ImGui::Image(m_next_free, image_size);
@@ -161,26 +248,13 @@ public:
 
 			for (uint32_t i = 0; i < MAX_TEXTURES; i++)
 			{
-				const TextureSlot& slot = m_textures[i];
 				const size_t id = i;
 				if (ImGui::TreeNodeEx(reinterpret_cast<void*>(id), 0, "Texture Slot: %u", i))
 				{
 					ImGui::Indent();
-					if (slot.name != nullptr)
-						ImGui::TextUnformatted(slot.name);
-					else
-						ImGui::TextUnformatted("UNNAMED! This might be an error");
 
 					const ImVec2 image_size = { 160, 160 };
-					for (uint32_t array_layer = 0; array_layer < slot.texture_info.array_layers; array_layer++)
-					{
-						ImGui::Text("array layer: %u", array_layer);
-						for (uint32_t mip_level = 1; mip_level < slot.texture_info.mip_levels + 1; mip_level++)
-						{
-							ImGui::Text("mip level: %u", mip_level);
-							ImGui::Image(i, image_size);
-						}
-					}
+					ImGui::Image(i, image_size);
 
 					ImGui::Unindent();
 					ImGui::TreePop();
@@ -190,84 +264,19 @@ public:
 		}
 	}
 
-	RTexture GetDebugTexture() const { return RTexture(0); }
+	RDescriptorIndex GetDebugImageViewDescriptorIndex() const { return m_debug_descriptor_index; }
+	RImageView GetDebugImageView() const { return GetImageView(m_debug_descriptor_index); }
 
 private:
 	uint32_t m_next_free;
-	TextureSlot m_textures[MAX_TEXTURES];
+	RImageView m_views[MAX_TEXTURES];
 	BBRWLock m_lock;
-
-	struct ViewBlock
-	{
-		uint32_t index;
-		uint16_t size;
-		uint16_t next_free;
-	};
-
-	union ViewBlockImageU
-	{
-		RImageView image_view;
-		ViewBlock view_block;
-	};
-
-	class ViewDescriptorFreelist
-	{
-	public:
-		void Init(MemoryArena& a_arena, const uint32_t a_image_view_count)
-		{
-			m_free_block.index = 0;
-			m_free_block.size = a_image_view_count;
-			m_free_block.next_free = INVALID_BLOCK;
-			m_views = ArenaAllocArr(a_arena, ViewBlockImageU, a_image_view_count);
-		}
-
-		const Slice<RImageView> AllocateImageViews(const uint32_t a_count, uint32_t& a_out_descriptor_index)
-		{
-			ViewBlock* prev_block = nullptr;
-			ViewBlock* cur_block = &m_free_block;
-			while (cur_block->size < a_count)
-			{
-				if (cur_block->next_free == INVALID_BLOCK)
-				{
-					return Slice<RImageView>();
-				}
-				prev_block = cur_block;
-				cur_block = &m_views[cur_block->next_free].view_block;
-			}
-
-			a_out_descriptor_index = cur_block->index;
-			const Slice<RImageView> views = Slice<RImageView>(&m_views[cur_block->index].image_view, a_count);
-
-			cur_block->index += a_count;
-			cur_block->size -= static_cast<uint32_t>(a_count);
-			if (cur_block->size == 0 && prev_block)
-			{
-				prev_block->next_free = cur_block->next_free;
-			}
 	
-			return views;
-		}
-
-		void FreeImageViews(const Slice<RImageView> a_views, const uint32_t a_index)
-		{
-			// sanity check the free block
-			m_free_block.next_free = static_cast<uint16_t>(m_free_block.index);
-			m_free_block.index = static_cast<uint32_t>(a_index);
-			m_free_block.size = static_cast<uint16_t>(a_views.size());
-		}
-
-	private:
-		ViewBlockImageU* m_views;
-		ViewBlock m_free_block;
-	};
-
-	ViewDescriptorFreelist m_view_allocator;
-	
-	StaticArray<DescriptorWriteImageInfo> m_descriptor_writes;
 	StaticArray<PipelineBarrierImageInfo> m_graphics_texture_transitions;
 	
 	// purple color
-	RTexture m_debug_texture;
+	RImage m_debug_image;
+	RDescriptorIndex m_debug_descriptor_index;
 };
 
 RCommandList CommandPool::StartCommandList(const char* a_name)
@@ -520,7 +529,7 @@ enum class UPLOAD_TEXTURE_TYPE
 
 struct UploadDataTexture
 {
-	RTexture texture_index;
+	RImage image;
 	UPLOAD_TEXTURE_TYPE upload_type;
 	union 
 	{
@@ -540,9 +549,11 @@ struct RenderInterface_inst
 
 	RenderIO render_io;
 
+	RImage render_target_image;
 	struct Frame
 	{
-		RTexture render_target;
+		RImageView render_target_view;
+		RDescriptorIndex render_target_descriptor;
 		uint64_t graphics_queue_fence_value;
 	};
 	Frame* frames;
@@ -565,10 +576,17 @@ struct RenderInterface_inst
 	AssetUploader asset_uploader;
 
 	GPUTextureManager texture_manager;
+	struct BasicColorImage
+	{
+		RImage image;
+		RDescriptorIndex index;
+	};
+	BasicColorImage white;
+	BasicColorImage black;
 
 	GPUBufferView cubemap_position;
-	RTexture white;
-	RTexture black;
+	RDescriptorIndex white;
+	RDescriptorIndex black;
 
 	RDescriptorLayout static_sampler_descriptor_set;
 	RDescriptorLayout global_descriptor_set;
@@ -627,11 +645,12 @@ namespace IMGUI_IMPL
 
 	struct ImRenderData
 	{
-		RTexture font_image;			// 4
+		RImage font_image;				 // 8
+		RDescriptorIndex font_descriptor;// 12
 
 		// Render buffers for main window
-		uint32_t frame_index;           // 8
-		ImRenderBuffer* frame_buffers;	// 16
+		uint32_t frame_index;            // 16
+		ImRenderBuffer* frame_buffers;	 // 24
 	};
 
 	inline static ImRenderData* ImGetRenderData()
@@ -655,7 +674,7 @@ namespace IMGUI_IMPL
 		{
 			ShaderIndices2D shader_indices;
 			shader_indices.vertex_buffer_offset = a_vert_pos;
-			shader_indices.albedo_texture = bd->font_image.handle;
+			shader_indices.albedo_texture = bd->font_descriptor;
 			shader_indices.rect_scale.x = 2.0f / a_draw_data.DisplaySize.x;
 			shader_indices.rect_scale.y = 2.0f / a_draw_data.DisplaySize.y;
 			shader_indices.translate.x = -1.0f - a_draw_data.DisplayPos.x * shader_indices.rect_scale.x;
@@ -855,21 +874,39 @@ namespace IMGUI_IMPL
 		int width, height;
 		io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
 
-		CreateTextureInfo font_info{};
+		ImageCreateInfo font_info{};
 		font_info.name = "imgui font";
 		font_info.width = static_cast<uint32_t>(width);
 		font_info.height = static_cast<uint32_t>(height);
+		font_info.depth = 1;
 		font_info.format = IMAGE_FORMAT::RGBA8_UNORM;
 		font_info.usage = IMAGE_USAGE::TEXTURE;
 		font_info.array_layers = 1;
-		bd->font_image = CreateTexture(font_info);
-		WriteTextureInfo write_info{};
+		font_info.mip_levels = 0;
+		font_info.tiling = IMAGE_TILING::OPTIMAL;
+		font_info.type = IMAGE_TYPE::TYPE_2D;
+		font_info.is_cube_map = false;
+		bd->font_image = CreateImage(font_info);
+
+		ImageViewCreateInfo view_info;
+		view_info.name = "imgui font";
+		view_info.image = bd->font_image;
+		view_info.format = IMAGE_FORMAT::RGBA8_UNORM;
+		view_info.base_array_layer = 0;
+		view_info.array_layers = 1;
+		view_info.mip_levels = 0;
+		view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
+		view_info.is_depth_image = false;
+		bd->font_descriptor = CreateImageView(view_info);
+
+		WriteImageInfo write_info{};
+		write_info.image = bd->font_image;
 		write_info.extent = { font_info.width, font_info.height };
 		write_info.pixels = pixels;
 		write_info.set_shader_visible = true;
 		write_info.layer_count = 1;
 		write_info.base_array_layer = 0;
-		WriteTexture(bd->font_image, write_info);
+		WriteTexture(write_info);
 
 		io.Fonts->SetTexID(bd->font_image.handle);
 
@@ -883,8 +920,11 @@ namespace IMGUI_IMPL
 		ImGuiIO& io = ImGui::GetIO();
 
 		//delete my things here.
-		FreeTexture(bd->font_image);
-		bd->font_image = RTexture(BB_INVALID_HANDLE_32);
+		FreeImage(bd->font_image);	
+		bd->font_image = RImage();
+
+		FreeImageView(bd->font_descriptor);
+		bd->font_descriptor = RDescriptorIndex();
 
 		io.BackendRendererName = nullptr;
 		io.BackendRendererUserData = nullptr;
@@ -961,80 +1001,9 @@ WriteableGPUBufferView BB::AllocateFromWritableIndexBuffer(const size_t a_size_i
 	return view;
 }
 
-void GPUTextureManager::Init(MemoryArena& a_arena, const RCommandList a_list)
-{
-	m_descriptor_writes.Init(a_arena, MAX_TEXTURES / 4);
-	m_graphics_texture_transitions.Init(a_arena, MAX_TEXTURES / 4);
-
-	m_next_free = 0;
-	m_lock = OSCreateRWLock();
-	
-	// setup the freelist before making the debug texture
-	for (uint32_t i = m_next_free; i < MAX_TEXTURES - 1; i++)
-	{
-		m_textures[i].next_free = i + 1;
-	}
-	m_textures[MAX_TEXTURES - 1].next_free = UINT32_MAX;
-	m_view_allocator.Init(a_arena, MAX_IMAGE_VIEWS);
-
-	{	// create debug texture
-		CreateTextureInfo debug_texture_info;
-		debug_texture_info.name = "debug purple";
-		debug_texture_info.width = 1;
-		debug_texture_info.height = 1;
-		debug_texture_info.array_layers = 1;
-		debug_texture_info.format = IMAGE_FORMAT::RGBA8_SRGB;
-		debug_texture_info.usage = IMAGE_USAGE::TEXTURE;
-		m_debug_texture = CreateTexture(debug_texture_info);
-
-		const uint32_t debug_purple = (209u << 0u) | (106u << 8u) | (255u << 16u) | (255u << 24u);
-		WriteTextureInfo debug_write_info;
-		debug_write_info.extent = uint2(1, 1);
-		debug_write_info.offset = int2(0, 0);
-		debug_write_info.layer_count = 1;
-		debug_write_info.base_array_layer = 0;
-		debug_write_info.pixels = &debug_purple;
-		debug_write_info.set_shader_visible = true;
-		WriteTexture(RTexture(0), debug_write_info);
-	}
-
-	for (uint32_t i = m_next_free; i < MAX_TEXTURES; i++)
-	{
-		m_textures[i].texture_info = GetTextureSlot(m_debug_texture).texture_info;
-		m_textures[i].name = DEBUG_TEXTURE_NAME;
-	}
-}
-
-const RTexture GPUTextureManager::SetTextureSlot(const TextureInfo& a_texture_info, const size_t a_view_count, const char* a_name)
-{
-	OSAcquireSRWLockWrite(&m_lock);
-	const RTexture texture_slot = RTexture(m_next_free);
-	TextureSlot& slot = m_textures[texture_slot.handle];
-	m_next_free = slot.next_free;
-	OSReleaseSRWLockWrite(&m_lock);
-	slot.name = a_name;
-	slot.texture_info = a_texture_info;
-
-	for (size_t i = 0; i < a_view_count; i++)
-	{
-		DescriptorWriteImageInfo write_info;
-		write_info.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
-		write_info.descriptor_index = a_texture_info.descriptor_index + i;
-		write_info.view = slot.texture_info.views[i];
-		write_info.layout = IMAGE_LAYOUT::UNDEFINED;
-		write_info.allocation = s_render_inst->global_descriptor_allocation;
-		write_info.descriptor_layout = s_render_inst->global_descriptor_set;
-
-		DescriptorWriteImage(write_info);
-	}
-
-	slot.texture_info.current_layout = IMAGE_LAYOUT::UNDEFINED;
-	return texture_slot;
-}
-
 void GPUTextureManager::TransitionTextures(const RCommandList a_list)
 {
-	if (m_graphics_texture_transitions.size() == 0 && m_descriptor_writes.size() == 0)
+	if (m_graphics_texture_transitions.size() == 0)
 		return;
 
 	OSAcquireSRWLockWrite(&m_lock);
@@ -1046,12 +1015,6 @@ void GPUTextureManager::TransitionTextures(const RCommandList a_list)
 		Vulkan::PipelineBarriers(a_list, barrier_info);
 		m_graphics_texture_transitions.clear();
 	}
-
-	for (uint32_t i = 0; i < m_descriptor_writes.size(); i++)
-	{
-		Vulkan::DescriptorWriteImage(m_descriptor_writes[i]);
-	}
-	m_descriptor_writes.clear();
 	OSReleaseSRWLockWrite(&m_lock);
 };
 
@@ -1073,25 +1036,6 @@ static size_t GetByteSizeOfImageFormat(const IMAGE_FORMAT a_format)
 		BB_ASSERT(false, "Unsupported bit_count for upload image");
 		return 4;
 	}
-}
-
-void GPUTextureManager::FreeTexture(const RTexture a_texture)
-{
-	TextureSlot& slot = m_textures[a_texture.handle];
-	for (size_t i = 0; i < slot.texture_info.views.size(); i++)
-	{
-		Vulkan::FreeViewImage(slot.texture_info.views[i]);
-	}
-	Vulkan::FreeImage(slot.texture_info.image);
-	FreeTextureViews(slot.texture_info.views, slot.texture_info.descriptor_index);
-
-	OSAcquireSRWLockWrite(&m_lock);
-	slot.next_free = m_next_free;
-	m_next_free = a_texture.handle;
-	OSReleaseSRWLockWrite(&m_lock);
-
-	slot.name = DEBUG_TEXTURE_NAME;
-	slot.texture_info = GetTextureSlot(m_debug_texture).texture_info;
 }
 
 const RenderIO& BB::GetRenderIO()
@@ -1264,45 +1208,42 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 
 		//some basic colors
 		const uint32_t white = UINT32_MAX;
+		CreateBasicColorImage(s_render_inst->white.image, s_render_inst->white.index, "white", white);
 		const uint32_t black = 0x000000FF;
-		
-		CreateTextureInfo image_info;
-		image_info.name = "white";
-		image_info.width = 1;
-		image_info.height = 1;
-		image_info.array_layers = 1;
-		image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
-		image_info.usage = IMAGE_USAGE::TEXTURE;
-		WriteTextureInfo write_info{};
-		write_info.extent = { image_info.width, image_info.height };
-		write_info.set_shader_visible = true;
-		write_info.pixels = &white;
-		write_info.layer_count = 1;
-		write_info.base_array_layer = 0;
-
-		s_render_inst->white = CreateTexture(image_info);
-		WriteTexture(s_render_inst->white, write_info);
-
-		image_info.name = "black";
-		s_render_inst->black = CreateTexture(image_info);
-		write_info.pixels = &black;
-		WriteTexture(s_render_inst->black, write_info);
+		CreateBasicColorImage(s_render_inst->black.image, s_render_inst->black.index, "black", black);
 	}
 
 	{
-		CreateTextureInfo upload_info;
-		upload_info.name = "image before transfer to swapchain";
-		upload_info.width = s_render_inst->render_io.screen_width;
-		upload_info.height = s_render_inst->render_io.screen_height;
-		upload_info.array_layers = 1;
-		upload_info.format = RENDER_TARGET_IMAGE_FORMAT;
-		upload_info.usage = IMAGE_USAGE::SWAPCHAIN_COPY_IMG;
+		ImageCreateInfo render_target_info;
+		render_target_info.name = "image before transfer to swapchain";
+		render_target_info.width = s_render_inst->render_io.screen_width;
+		render_target_info.height = s_render_inst->render_io.screen_height;
+		render_target_info.depth = 1;
+		render_target_info.array_layers = s_render_inst->render_io.frame_count;
+		render_target_info.mip_levels = 0;
+		render_target_info.type = IMAGE_TYPE::TYPE_2D;
+		render_target_info.tiling = IMAGE_TILING::OPTIMAL;
+		render_target_info.is_cube_map = false;
+		render_target_info.format = RENDER_TARGET_IMAGE_FORMAT;
+		render_target_info.usage = IMAGE_USAGE::SWAPCHAIN_COPY_IMG;
+
+		s_render_inst->render_target_image = CreateImage(render_target_info);
 
 		s_render_inst->frames = ArenaAllocArr(a_arena, RenderInterface_inst::Frame, s_render_inst->render_io.frame_count);
 		for (size_t i = 0; i < s_render_inst->render_io.frame_count; i++)
 		{
-			s_render_inst->frames[i].render_target = CreateTexture(upload_info);
-			s_render_inst->frames[i].graphics_queue_fence_value = 0;
+			ImageViewCreateInfo view_info;
+			view_info.name = "image before transfer to swapchain";
+			view_info.image = s_render_inst->render_target_image;
+			view_info.array_layers = 1;
+			view_info.base_array_layer = static_cast<uint16_t>(i);
+			view_info.mip_levels = 0;
+			view_info.is_depth_image = false;
+			view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
+			view_info.format = RENDER_TARGET_IMAGE_FORMAT;
+
+			s_render_inst->frames[i].render_target_descriptor = CreateImageView(view_info);
+			s_render_inst->frames[i].render_target_view = GetImageView(s_render_inst->frames[i].render_target_descriptor);
 		}
 	}
 	
@@ -1359,20 +1300,39 @@ static void ResizeRendererSwapchain(const uint32_t a_width, const uint32_t a_hei
 	s_render_inst->render_io.screen_width = a_width;
 	s_render_inst->render_io.screen_height = a_height;
 
+	FreeImage(s_render_inst->render_target_image);
+
+	ImageCreateInfo render_target_info;
+	render_target_info.name = "image before transfer to swapchain";
+	render_target_info.width = s_render_inst->render_io.screen_width;
+	render_target_info.height = s_render_inst->render_io.screen_height;
+	render_target_info.depth = 1;
+	render_target_info.array_layers = s_render_inst->render_io.frame_count;
+	render_target_info.mip_levels = 0;
+	render_target_info.type = IMAGE_TYPE::TYPE_2D;
+	render_target_info.tiling = IMAGE_TILING::OPTIMAL;
+	render_target_info.is_cube_map = false;
+	render_target_info.format = RENDER_TARGET_IMAGE_FORMAT;
+	render_target_info.usage = IMAGE_USAGE::SWAPCHAIN_COPY_IMG;
+
+	s_render_inst->render_target_image = CreateImage(render_target_info);
+
 	for (size_t i = 0; i < s_render_inst->render_io.frame_count; i++)
 	{
-		FreeTexture(s_render_inst->frames[i].render_target);
+		FreeImageView(s_render_inst->frames[i].render_target_descriptor);
 
-		CreateTextureInfo upload_info;
-		upload_info.name = "image before transfer to swapchain";
-		upload_info.width = s_render_inst->render_io.screen_width;
-		upload_info.height = s_render_inst->render_io.screen_height;
-		upload_info.array_layers = 1;
-		upload_info.format = RENDER_TARGET_IMAGE_FORMAT;
-		upload_info.usage = IMAGE_USAGE::SWAPCHAIN_COPY_IMG;
+		ImageViewCreateInfo view_info;
+		view_info.name = "image before transfer to swapchain";
+		view_info.image = s_render_inst->render_target_image;
+		view_info.array_layers = 1;
+		view_info.base_array_layer = 0;
+		view_info.mip_levels = 0;
+		view_info.is_depth_image = false;
+		view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
+		view_info.format = RENDER_TARGET_IMAGE_FORMAT;
 
-		s_render_inst->frames[i].render_target = CreateTexture(upload_info);
-		s_render_inst->frames[i].graphics_queue_fence_value = 0;
+		s_render_inst->frames[i].render_target_descriptor = CreateImageView(view_info);
+		s_render_inst->frames[i].render_target_view = GetImageView(s_render_inst->frames[i].render_target_descriptor);
 	}
 
 	s_render_inst->global_buffer.data.swapchain_resolution = uint2(a_width, a_height);
@@ -1406,17 +1366,16 @@ void BB::StartFrame(const RCommandList a_list, const StartFrameInfo& a_info, uin
 
 	s_render_inst->graphics_queue.WaitFenceValue(cur_frame.graphics_queue_fence_value);
 
-	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(cur_frame.render_target);
 	{
 		PipelineBarrierImageInfo image_transitions[1]{};
 		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::NONE;
 		image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
-		image_transitions[0].image = render_target.texture_info.image;
+		image_transitions[0].image = s_render_inst->render_target_image;
 		image_transitions[0].old_layout = IMAGE_LAYOUT::UNDEFINED;
 		image_transitions[0].new_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 		image_transitions[0].layer_count = 1;
 		image_transitions[0].level_count = 1;
-		image_transitions[0].base_array_layer = 0;
+		image_transitions[0].base_array_layer = frame_index;
 		image_transitions[0].base_mip_level = 0;
 		image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
 		image_transitions[0].dst_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
@@ -1508,7 +1467,6 @@ static void UploadAssets(MemoryArena& a_thread_arena, void*)
 			while (s_render_inst->asset_uploader.upload_textures.DeQueue(upload_data) &&
 				index++ < MAX_TEXTURE_UPLOAD_QUEUE)
 			{
-				GPUTextureManager::TextureSlot& texture_slot = s_render_inst->texture_manager.GetTextureSlot(upload_data.texture_index);
 				switch (upload_data.upload_type)
 				{
 				case UPLOAD_TEXTURE_TYPE::WRITE:
@@ -1531,7 +1489,7 @@ static void UploadAssets(MemoryArena& a_thread_arena, void*)
 					PipelineBarrierImageInfo& pi = before_transition[before_trans_count++];
 					pi.src_mask = BARRIER_ACCESS_MASK::NONE;
 					pi.dst_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
-					pi.image = texture_slot.texture_info.image;
+					pi.image = upload_data.image;
 					pi.old_layout = upload_data.start_layout;
 					pi.new_layout = IMAGE_LAYOUT::TRANSFER_DST;
 					pi.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
@@ -1549,7 +1507,7 @@ static void UploadAssets(MemoryArena& a_thread_arena, void*)
 					PipelineBarrierImageInfo pi{};
 					pi.src_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
 					pi.dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
-					pi.image = texture_slot.texture_info.image;
+					pi.image = upload_data.image;
 					pi.old_layout = IMAGE_LAYOUT::TRANSFER_DST;
 					pi.new_layout = upload_data.end_layout;
 					pi.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
@@ -1560,20 +1518,7 @@ static void UploadAssets(MemoryArena& a_thread_arena, void*)
 					pi.base_mip_level = 0;
 					pi.src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
 					pi.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
-
-					DescriptorWriteImageInfo write_data{};
-					write_data.allocation = s_render_inst->global_descriptor_allocation;
-					write_data.descriptor_layout = s_render_inst->global_descriptor_set;
-					write_data.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
-	
-					write_data.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
-
-					for (size_t i = 0; i < texture_slot.texture_info.views.size(); i++)
-					{
-						write_data.descriptor_index = texture_slot.texture_info.descriptor_index + i;
-						write_data.view = texture_slot.texture_info.views[i];
-						s_render_inst->texture_manager.AddGraphicsTransition(pi, write_data);
-					}
+					s_render_inst->texture_manager.AddGraphicsTransition(pi);
 				}
 			}
 
@@ -1621,22 +1566,21 @@ void BB::EndFrame(const RCommandList a_list, const ShaderEffectHandle a_imgui_ve
 	}
 	const uint32_t frame_index = a_back_buffer_index;
 	const RenderInterface_inst::Frame& cur_frame = s_render_inst->frames[frame_index];
-	const GPUTextureManager::TextureSlot render_target = s_render_inst->texture_manager.GetTextureSlot(cur_frame.render_target);
 
 	ImGui::Render();
-	IMGUI_IMPL::ImRenderFrame(a_list, render_target.texture_info.views[0], true, a_imgui_vertex, a_imgui_fragment);
+	IMGUI_IMPL::ImRenderFrame(a_list, cur_frame.render_target_view, true, a_imgui_vertex, a_imgui_fragment);
 	ImGui::EndFrame();
 
 	{
 		PipelineBarrierImageInfo image_transitions[1]{};
 		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
 		image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
-		image_transitions[0].image = render_target.texture_info.image;
+		image_transitions[0].image = s_render_inst->render_target_image;
 		image_transitions[0].old_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 		image_transitions[0].new_layout = IMAGE_LAYOUT::TRANSFER_SRC;
 		image_transitions[0].layer_count = 1;
 		image_transitions[0].level_count = 1;
-		image_transitions[0].base_array_layer = 0;
+		image_transitions[0].base_array_layer = a_back_buffer_index;
 		image_transitions[0].base_mip_level = 0;
 		image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
 		image_transitions[0].dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
@@ -1651,7 +1595,7 @@ void BB::EndFrame(const RCommandList a_list, const ShaderEffectHandle a_imgui_ve
 
 	const int2 swapchain_size(static_cast<int>(s_render_inst->render_io.screen_width), static_cast<int>(s_render_inst->render_io.screen_height));
 
-	const PRESENT_IMAGE_RESULT result = Vulkan::UploadImageToSwapchain(a_list, render_target.texture_info.image, swapchain_size, swapchain_size, a_back_buffer_index);
+	const PRESENT_IMAGE_RESULT result = Vulkan::UploadImageToSwapchain(a_list, s_render_inst->render_target_image, swapchain_size, swapchain_size, a_back_buffer_index);
 	if (result == PRESENT_IMAGE_RESULT::SWAPCHAIN_OUT_OF_DATE)
 		s_render_inst->render_io.resizing_request = true;
 	s_render_inst->render_io.frame_ended = true;
@@ -1954,100 +1898,24 @@ const RImage BB::CreateImage(const ImageCreateInfo& a_create_info)
 	return Vulkan::CreateImage(a_create_info);
 }
 
-const RImageView BB::CreateImageView(const ImageViewCreateInfo& a_create_info)
+const RDescriptorIndex BB::CreateImageView(const ImageViewCreateInfo& a_create_info)
 {
-	return Vulkan::CreateImageView(a_create_info);
+	return s_render_inst->texture_manager.AllocAndWriteImageView(a_create_info);
 }
 
-const RTexture BB::CreateTexture(const CreateTextureInfo& a_create_info)
+const RImageView BB::GetImageView(const RDescriptorIndex a_index)
 {
-	TextureInfo tex_info;
-	tex_info.width = a_create_info.width;
-	tex_info.height = a_create_info.height;
-	tex_info.array_layers = a_create_info.array_layers;
-	tex_info.mip_levels = 1;
-	tex_info.format = a_create_info.format;
-	tex_info.current_layout = IMAGE_LAYOUT::UNDEFINED;
-
-	// not required to be remembered
-	tex_info.usage = a_create_info.usage;
-
-	{
-		ImageCreateInfo image_info;
-		image_info.name = a_create_info.name;
-		image_info.width = a_create_info.width;
-		image_info.height = a_create_info.height;
-		image_info.depth = 1;
-		image_info.array_layers = a_create_info.array_layers;
-		image_info.mip_levels = 1;
-		image_info.type = IMAGE_TYPE::TYPE_2D;
-		image_info.tiling = IMAGE_TILING::OPTIMAL;
-		image_info.format = a_create_info.format;
-		image_info.usage = a_create_info.usage;
-		tex_info.image = Vulkan::CreateImage(image_info);
-
-		tex_info.views = s_render_inst->texture_manager.GetTextureViews(image_info.array_layers, tex_info.descriptor_index);
-		for (size_t i = 0; i < tex_info.views.size(); i++)
-		{
-			ImageViewCreateInfo image_view_info;
-			image_view_info.image = tex_info.image;
-			image_view_info.name = a_create_info.name;
-			image_view_info.array_layers = 1;
-			image_view_info.mip_levels = 1;
-			image_view_info.base_array_layer = static_cast<uint16_t>(i);
-			image_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
-			image_view_info.format = image_info.format;
-			image_view_info.is_depth_image = a_create_info.usage == IMAGE_USAGE::DEPTH;
-			tex_info.views[i] = Vulkan::CreateImageView(image_view_info);
-		}
-
-	}
-
-	return s_render_inst->texture_manager.SetTextureSlot(tex_info, tex_info.views.size(), a_create_info.name);
+	return s_render_inst->texture_manager.GetImageView(a_index);
 }
 
-const RTexture BB::CreateTextureCubeMap(const CreateTextureInfo& a_create_info)
+void BB::FreeImage(const RImage a_image)
 {
-	BB_ASSERT(a_create_info.array_layers % 6 == 0, "creating a cubemap but the array_layers are not a multiple of 6");
-	TextureInfo tex_info;
-	tex_info.width = a_create_info.width;
-	tex_info.height = a_create_info.height;
-	tex_info.array_layers = a_create_info.array_layers;
-	tex_info.mip_levels = 1;
-	tex_info.format = a_create_info.format;
-	tex_info.current_layout = IMAGE_LAYOUT::UNDEFINED;
+	Vulkan::FreeImage(a_image);
+}
 
-	// not required to be remembered
-	tex_info.usage = a_create_info.usage;
-
-	{
-		ImageCreateInfo image_info;
-		image_info.name = a_create_info.name;
-		image_info.width = a_create_info.width;
-		image_info.height = a_create_info.height;
-		image_info.depth = 1;
-		image_info.array_layers = a_create_info.array_layers;
-		image_info.mip_levels = 1;
-		image_info.type = IMAGE_TYPE::TYPE_2D;
-		image_info.tiling = IMAGE_TILING::OPTIMAL;
-		image_info.format = a_create_info.format;
-		image_info.usage = a_create_info.usage;
-		image_info.is_cube_map = true;
-		tex_info.image = Vulkan::CreateImage(image_info);
-
-		ImageViewCreateInfo image_view_info;
-		image_view_info.image = tex_info.image;
-		image_view_info.name = a_create_info.name;
-		image_view_info.array_layers = a_create_info.array_layers;
-		image_view_info.mip_levels = 1;
-		image_view_info.type = IMAGE_VIEW_TYPE::CUBE;
-		image_view_info.format = image_info.format;
-		image_view_info.is_depth_image = false;
-		tex_info.views = s_render_inst->texture_manager.GetTextureViews(1, tex_info.descriptor_index);
-		tex_info.views[0] = Vulkan::CreateImageView(image_view_info);
-	}
-
-	return s_render_inst->texture_manager.SetTextureSlot(tex_info, 1, a_create_info.name);
+void BB::FreeImageView(const RDescriptorIndex a_index)
+{
+	s_render_inst->texture_manager.FreeImageView(a_index);
 }
 
 static inline bool IsImageWithinBounds(const GPUTextureManager::TextureSlot& a_slot, const uint2 a_extent, const int2 a_offset)
@@ -2058,59 +1926,27 @@ static inline bool IsImageWithinBounds(const GPUTextureManager::TextureSlot& a_s
 	return false;
 }
 
-void BB::BlitTexture(const RCommandList a_list, const BlitTextureInfo& a_blit_info)
+void BB::BlitImage(const RCommandList a_list, const BlitImageInfo& a_blit_info)
 {
 	// use with new asset system, but this is not used now.
 	BB_UNIMPLEMENTED();
 
-	GPUTextureManager::TextureSlot& src_texture = s_render_inst->texture_manager.GetTextureSlot(a_blit_info.src);
-	GPUTextureManager::TextureSlot& dst_texture = s_render_inst->texture_manager.GetTextureSlot(a_blit_info.dst);
-
-	BlitImageInfo blit_image;
-	blit_image.src_image = src_texture.texture_info.image;
-	blit_image.src_offset_p0 = int3(a_blit_info.src_point_0.x, a_blit_info.src_point_0.y, 0);
-	blit_image.src_offset_p1 = int3(a_blit_info.src_point_1.x, a_blit_info.src_point_1.y, 1);
-	blit_image.src_base_layer = 0;
-	blit_image.src_mip_level = 0;
-	blit_image.src_layer_count = 1;
-
-	blit_image.dst_image = dst_texture.texture_info.image;
-	blit_image.dst_offset_p0 = int3(a_blit_info.dst_point_0.x, a_blit_info.dst_point_0.y, 0);
-	blit_image.dst_offset_p1 = int3(a_blit_info.dst_point_1.x, a_blit_info.dst_point_1.y, 1);
-	blit_image.dst_base_layer = 0;
-	blit_image.dst_mip_level = 0;
-	blit_image.dst_layer_count = 1;
-
-	Vulkan::BlitImage(a_list, blit_image);
+	Vulkan::BlitImage(a_list, a_blit_info);
 }
 
-void BB::CopyTexture(const RCommandList a_list, const CopyTextureInfo& a_copy_info)
+void BB::CopyImage(const RCommandList a_list, const CopyImageInfo& a_copy_info)
 {
 	// use with new asset system, but this is not used.
 	BB_UNIMPLEMENTED();
-	GPUTextureManager::TextureSlot& src_texture = s_render_inst->texture_manager.GetTextureSlot(a_copy_info.src);
-	GPUTextureManager::TextureSlot& dst_texture = s_render_inst->texture_manager.GetTextureSlot(a_copy_info.dst);
 
-	BB_ASSERT(IsImageWithinBounds(src_texture, uint2(a_copy_info.extent.x, a_copy_info.extent.y), int2(a_copy_info.src_copy_info.offset_x, a_copy_info.src_copy_info.offset_y)), "src image out of bounds");
-	BB_ASSERT(IsImageWithinBounds(dst_texture, uint2(a_copy_info.extent.x, a_copy_info.extent.y), int2(a_copy_info.dst_copy_info.offset_x, a_copy_info.dst_copy_info.offset_y)), "dst image out of bounds");
-
-	RenderCopyImage render_copy_image;
-	render_copy_image.extent = a_copy_info.extent;
-	render_copy_image.src_image = src_texture.texture_info.image;
-	render_copy_image.src_copy_info = a_copy_info.src_copy_info;
-	render_copy_image.dst_image = dst_texture.texture_info.image;
-	render_copy_image.dst_copy_info = a_copy_info.dst_copy_info;
-	Vulkan::CopyImage(a_list, render_copy_image);
+	Vulkan::CopyImage(a_list, a_copy_info);
 }
 
-GPUFenceValue BB::WriteTexture(const RTexture a_texture, const WriteTextureInfo& a_write_info)
+GPUFenceValue BB::WriteTexture(const WriteImageInfo& a_write_info)
 {
-	const GPUTextureManager::TextureSlot& texture_slot = s_render_inst->texture_manager.GetTextureSlot(a_texture);
-	BB_ASSERT(IsImageWithinBounds(texture_slot, a_write_info.extent, a_write_info.offset), "write image out of bounds");
-
 	RenderInterface_inst::AssetUploader& uploader = s_render_inst->asset_uploader;
 
-	const size_t byte_per_pixel = GetByteSizeOfImageFormat(texture_slot.texture_info.format);
+	const size_t byte_per_pixel = GetByteSizeOfImageFormat(a_write_info.format);
 	//now upload the image.
 	UploadBuffer upload_buffer = uploader.gpu_allocator.AllocateUploadMemory(byte_per_pixel * a_write_info.extent.x * a_write_info.extent.y, uploader.next_fence_value);
 	upload_buffer.SafeMemcpy(0, a_write_info.pixels, byte_per_pixel * a_write_info.extent.x * a_write_info.extent.y);
@@ -2119,7 +1955,7 @@ GPUFenceValue BB::WriteTexture(const RTexture a_texture, const WriteTextureInfo&
 	buffer_to_image.src_buffer = upload_buffer.buffer;
 	buffer_to_image.src_offset = static_cast<uint32_t>(upload_buffer.base_offset);
 
-	buffer_to_image.dst_image = texture_slot.texture_info.image;
+	buffer_to_image.dst_image = a_write_info.image;
 	buffer_to_image.dst_extent.x = a_write_info.extent.x;
 	buffer_to_image.dst_extent.y = a_write_info.extent.y;
 	buffer_to_image.dst_extent.z = 1;
@@ -2131,7 +1967,7 @@ GPUFenceValue BB::WriteTexture(const RTexture a_texture, const WriteTextureInfo&
 	buffer_to_image.dst_image_info.base_array_layer = a_write_info.base_array_layer;
 
 	UploadDataTexture upload_texture{};
-	upload_texture.texture_index = a_texture;
+	upload_texture.image = a_write_info.image;
 	upload_texture.upload_type = UPLOAD_TEXTURE_TYPE::WRITE;
 	upload_texture.write_info = buffer_to_image;
 	upload_texture.start_layout = IMAGE_LAYOUT::UNDEFINED;
@@ -2141,29 +1977,8 @@ GPUFenceValue BB::WriteTexture(const RTexture a_texture, const WriteTextureInfo&
 	return GPUFenceValue(uploader.next_fence_value.load());
 }
 
-const RImage BB::GetImage(const RTexture a_texture)
+GPUFenceValue BB::ReadTexture(const RImage a_image, const IMAGE_LAYOUT a_current_layout, const uint2 a_extent, const int2 a_offset, const GPUBuffer a_readback_buffer, const size_t a_readback_buffer_size)
 {
-	return s_render_inst->texture_manager.GetTextureSlot(a_texture).texture_info.image;
-}
-
-const RImageView BB::GetImageView(const RTexture a_texture, const uint32_t a_view_index)
-{
-	return s_render_inst->texture_manager.GetTextureSlot(a_texture).texture_info.views[a_view_index];
-}
-
-void BB::FreeTexture(const RTexture a_texture)
-{
-	return s_render_inst->texture_manager.FreeTexture(a_texture);
-}
-
-GPUFenceValue BB::ReadTexture(const RTexture a_texture, const uint2 a_extent, const int2 a_offset, const GPUBuffer a_readback_buffer, const size_t a_readback_buffer_size)
-{
-	const GPUTextureManager::TextureSlot& selected_texture = s_render_inst->texture_manager.GetTextureSlot(a_texture);
-	BB_ASSERT(selected_texture.texture_info.format == SCREENSHOT_IMAGE_FORMAT, "image format is not SRGB, image write may not be successful");
-	BB_ASSERT(IsImageWithinBounds(selected_texture, a_extent, a_offset), "reading texture out of bounds!");
-
-	const IMAGE_LAYOUT original_layout = selected_texture.texture_info.current_layout;
-
 	RenderInterface_inst::AssetUploader& uploader = s_render_inst->asset_uploader;
 
 	const size_t image_size =
@@ -2177,7 +1992,7 @@ GPUFenceValue BB::ReadTexture(const RTexture a_texture, const uint2 a_extent, co
 	image_to_buffer.dst_buffer = a_readback_buffer;
 	image_to_buffer.dst_offset = 0; // change this if i have a global readback buffer thing
 
-	image_to_buffer.src_image = selected_texture.texture_info.image;
+	image_to_buffer.src_image = a_image;
 	image_to_buffer.src_extent.x = a_extent.x;
 	image_to_buffer.src_extent.y = a_extent.y;
 	image_to_buffer.src_extent.z = 1;
@@ -2189,11 +2004,11 @@ GPUFenceValue BB::ReadTexture(const RTexture a_texture, const uint2 a_extent, co
 	image_to_buffer.src_image_info.base_array_layer = 0;
 
 	UploadDataTexture upload_texture{};
-	upload_texture.texture_index = a_texture;
+	upload_texture.image = a_image;
 	upload_texture.upload_type = UPLOAD_TEXTURE_TYPE::READ;
 	upload_texture.read_info = image_to_buffer;
-	upload_texture.start_layout = original_layout;
-	upload_texture.end_layout = original_layout;
+	upload_texture.start_layout = a_current_layout;
+	upload_texture.end_layout = a_current_layout;
 	uploader.upload_textures.EnQueue(upload_texture);
 
 	return GPUFenceValue(uploader.next_fence_value.load());
@@ -2289,19 +2104,19 @@ const BB::DescriptorAllocation& BB::GetGlobalDescriptorAllocation()
 	return s_render_inst->global_descriptor_allocation;
 }
 
-RTexture BB::GetWhiteTexture()
+RDescriptorIndex BB::GetWhiteTexture()
 {
-	return s_render_inst->white;
+	return s_render_inst->white.index;
 }
 
-RTexture BB::GetBlackTexture()
+RDescriptorIndex BB::GetBlackTexture()
 {
-	return s_render_inst->black;
+	return s_render_inst->black.index;
 }
 
-RTexture BB::GetDebugTexture()
+RDescriptorIndex BB::GetDebugTexture()
 {
-	return s_render_inst->texture_manager.GetDebugTexture();
+	return s_render_inst->texture_manager.GetDebugImageViewDescriptorIndex();
 }
 
 RDescriptorLayout BB::GetStaticSamplerDescriptorLayout()

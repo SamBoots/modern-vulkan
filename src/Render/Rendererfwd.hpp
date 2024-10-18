@@ -1,5 +1,4 @@
 #pragma once
-#include "Common.h"
 //shared shader include
 #include "shared_common.hlsl.h"
 #include "Storage/Array.h"
@@ -32,11 +31,8 @@ namespace BB
 	using GPUFenceValue = FrameworkHandle<struct GPUFenceValueTag>;
 
 	using GPUBuffer = FrameworkHandle<struct RBufferTag>;
-	//TEMP START
 	using RImage = FrameworkHandle<struct RImageTag>;
 	using RImageView = FrameworkHandle<struct RImageViewTag>;
-	//TEMP END
-	using RTexture = FrameworkHandle32Bit<struct RTextureTag>;
 
 	using RFence = FrameworkHandle<struct RFenceTag>;
 
@@ -90,6 +86,14 @@ namespace BB
 		TYPE_2D,
 		TYPE_3D,
 		CUBE,
+
+		ENUM_SIZE
+	};
+
+	enum class IMAGE_TILING : uint32_t
+	{
+		LINEAR,
+		OPTIMAL,
 
 		ENUM_SIZE
 	};
@@ -239,17 +243,6 @@ namespace BB
 		void* mapped;
 	};
 
-	struct ImageCopyInfo
-	{
-		int32_t offset_x;
-		int32_t offset_y;
-		int32_t offset_z;
-
-		uint32_t mip_level;
-		uint16_t base_array_layer;
-		uint16_t layer_count;
-	};
-
 	enum class DESCRIPTOR_TYPE : uint32_t
 	{
 		READONLY_CONSTANT, //CBV or uniform buffer
@@ -267,6 +260,43 @@ namespace BB
 		uint32_t count;
 		DESCRIPTOR_TYPE type;
 		SHADER_STAGE shader_stage;
+	};
+
+	struct ImageSizeInfo
+	{
+		int32_t offset_x;
+		int32_t offset_y;
+		int32_t offset_z;
+
+		uint32_t mip_level;
+		uint16_t base_array_layer;
+		uint16_t layer_count;
+	};
+
+	struct CopyImageInfo
+	{
+		uint3 extent;
+		RImage src_image;
+		ImageSizeInfo src_copy_info;
+		RImage dst_image;
+		ImageSizeInfo dst_copy_info;
+	};
+
+	struct BlitImageInfo
+	{
+		RImage src_image;
+		int3 src_offset_p0;
+		int3 src_offset_p1;
+		uint32_t src_mip_level;
+		uint32_t src_layer_count;
+		uint32_t src_base_layer;
+
+		RImage dst_image;
+		int3 dst_offset_p0;
+		int3 dst_offset_p1;
+		uint32_t dst_mip_level;
+		uint32_t dst_layer_count;
+		uint32_t dst_base_layer;
 	};
 
 	struct DescriptorAllocation
@@ -295,7 +325,6 @@ namespace BB
 
 		RImageView view;
 		IMAGE_LAYOUT layout;
-
 	};
 
 	struct GPUDeviceInfo

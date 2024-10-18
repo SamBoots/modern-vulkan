@@ -33,26 +33,19 @@ namespace BB
 		Slice<uint32_t> indices;
 	};
 
-	struct WriteTextureInfo
+	struct WriteImageInfo
 	{
+		RImage image;
 		uint2 extent;
 		int2 offset;
 		uint16_t layer_count;
 		uint16_t base_array_layer;
+		IMAGE_FORMAT format;
 		const void* pixels;
 		bool set_shader_visible;
 	};
 
 	constexpr IMAGE_FORMAT RENDER_TARGET_IMAGE_FORMAT = IMAGE_FORMAT::RGBA8_SRGB; // due to screenshots this is now RGBA8_SGRB, should be RGBA16_SFLOAT
-	struct CreateTextureInfo
-	{
-		const char* name;
-		IMAGE_FORMAT format;
-		IMAGE_USAGE usage;
-		uint32_t width;
-		uint32_t height;
-		uint16_t array_layers;
-	};
 
 	// get one pool per thread
 	class CommandPool : public LinkedListNode<CommandPool>
@@ -128,44 +121,17 @@ namespace BB
 	bool CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles, bool a_link_shaders);
 	bool ReloadShaderEffect(const ShaderEffectHandle a_shader_effect, const Buffer& a_shader);
 
-	struct BlitTextureInfo
-	{
-		RTexture src;
-		int2 src_point_0;
-		int2 src_point_1;
-		bool src_set_shader_visible;
-
-		RTexture dst;
-		int2 dst_point_0;
-		int2 dst_point_1;
-		bool dst_set_shader_visible;
-	};
-
-	struct CopyTextureInfo
-	{
-		uint3 extent;
-		RTexture src;
-		bool src_set_shader_visible;
-		ImageCopyInfo src_copy_info;
-		RTexture dst;
-		bool dst_set_shader_visible;
-		ImageCopyInfo dst_copy_info;
-	};
-
 	// returns invalid texture when not enough upload buffer space
 	const RImage CreateImage(const ImageCreateInfo& a_create_info);
-	const RImageView CreateImageView(const ImageViewCreateInfo& a_create_info);
+	const RDescriptorIndex CreateImageView(const ImageViewCreateInfo& a_create_info);
+	const RImageView GetImageView(const RDescriptorIndex a_index);
+	void FreeImage(const RImage a_image);
+	void FreeImageView(const RDescriptorIndex a_index);
 
-	const RTexture CreateTexture(const CreateTextureInfo& a_create_info);
-	const RTexture CreateTextureCubeMap(const CreateTextureInfo& a_create_info);
-	void BlitTexture(const RCommandList a_list, const BlitTextureInfo& a_blit_info);
-	void CopyTexture(const RCommandList a_list, const CopyTextureInfo& a_copy_info);
-	GPUFenceValue WriteTexture(const RTexture a_texture, const WriteTextureInfo& a_write_info);
-	// Hacky shit to get image/view. Change plz
-	const RImage GetImage(const RTexture a_texture);
-	const RImageView GetImageView(const RTexture a_texture, const uint32_t a_view_index);
-	void FreeTexture(const RTexture a_texture);
-	GPUFenceValue ReadTexture(const RTexture a_texture, const uint2 a_extent, const int2 a_offset, const GPUBuffer a_readback_buffer, const size_t a_readback_buffer_size);
+	void BlitImage(const RCommandList a_list, const BlitImageInfo& a_blit_info);
+	void CopyImage(const RCommandList a_list, const CopyImageInfo& a_copy_info);
+	GPUFenceValue WriteTexture(const WriteImageInfo& a_write_info);
+	GPUFenceValue ReadTexture(const RImage a_image, const IMAGE_LAYOUT a_current_layout, const uint2 a_extent, const int2 a_offset, const GPUBuffer a_readback_buffer, const size_t a_readback_buffer_size);
 
 	GPUFenceValue GetTransferFenceValue();
 
@@ -190,9 +156,9 @@ namespace BB
 	void SetDescriptorBufferOffset(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_first_set, const uint32_t a_set_count, const uint32_t* a_buffer_indices, const size_t* a_offsets);
 	const DescriptorAllocation& GetGlobalDescriptorAllocation();
 
-	RTexture GetWhiteTexture();
-	RTexture GetBlackTexture();
-	RTexture GetDebugTexture();
+	RDescriptorIndex GetWhiteTexture();
+	RDescriptorIndex GetBlackTexture();
+	RDescriptorIndex GetDebugTexture();
 
 	// should always be placed as layout 0
 	RDescriptorLayout GetStaticSamplerDescriptorLayout();

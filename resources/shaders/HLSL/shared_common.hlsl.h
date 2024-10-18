@@ -66,20 +66,20 @@ namespace BB
 
     struct Scene3DInfo
     {
-        float4x4 view;              // 64
-        float4x4 proj;              // 128
+        float4x4 view;                   // 64
+        float4x4 proj;                   // 128
 
-        float3 ambient_light;       // 140
-        float ambient_strength;     // 144
+        float3 ambient_light;            // 140
+        float ambient_strength;          // 144
 
-        uint light_count;           // 148
+        uint light_count;                // 148
 
-        uint skybox_texture;        // 152
+        RDescriptorIndex skybox_texture; // 152
 
-        uint2 scene_resolution;     // 160
+        uint2 scene_resolution;          // 160
 
-        uint depth_texture_count;   // 164
-        uint depth_texture_array;   // 168
+        uint depth_texture_count;        // 164
+        uint depth_texture_array;        // 168
         uint2 pad;
     };
 
@@ -133,26 +133,26 @@ namespace BB
     //could make the size the same for shaderindices and shaderindices2d so that the pushconstant pipelinelayout is the same.....
     struct ShaderIndices
     {
-        uint vertex_buffer_offset;  // 4
-        uint transform_index;       // 8
-        uint albedo_texture;        // 12
-        uint normal_texture;        // 16
-        float2 padding;             // 24
+        uint vertex_buffer_offset;       // 4
+        uint transform_index;            // 8
+        RDescriptorIndex albedo_texture; // 12
+        RDescriptorIndex normal_texture; // 16
+        float2 padding;                  // 24
     };
 
     struct ShaderIndices2D
     {
-        uint vertex_buffer_offset;  // 4
-        uint albedo_texture;        // 8
-        float2 rect_scale;          // 16
-        float2 translate;           // 24
+        uint vertex_buffer_offset;       // 4
+        RDescriptorIndex albedo_texture; // 8
+        float2 rect_scale;               // 16
+        float2 translate;                // 24
     };
 
     struct ShaderIndicesShadowMapping
     {
-        uint vertex_buffer_offset;  // 4
-        uint transform_index;       // 8
+        uint vertex_buffer_offset;        // 4
+        uint transform_index;             // 8
         uint light_projection_view_index; // 12
-        uint3 padding;             // 24
+        uint3 padding;                    // 24
     };
 }
