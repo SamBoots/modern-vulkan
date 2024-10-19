@@ -291,7 +291,7 @@ void Editor::ThreadFuncForDrawing(MemoryArena&, void* a_param)
 	SceneHierarchy& scene_hierarchy = param_in->scene_hierarchy;
 	RCommandList list = param_in->command_list;
 
-	const RTexture render_target = viewport.StartRenderTarget(list, back_buffer_index);
+	const RImageView render_target = viewport.StartRenderTarget(list, back_buffer_index);
 	scene_hierarchy.DrawSceneHierarchy(list, render_target, back_buffer_index, viewport.GetExtent(), int2());
 	viewport.EndRenderTarget(list, back_buffer_index, IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL);
 }

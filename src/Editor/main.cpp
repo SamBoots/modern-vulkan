@@ -109,8 +109,8 @@ int main(int argc, char** argv)
 	DungeonGame def_game{};
 	def_game.InitGame();
 
-	editor.RegisterSceneHierarchy(main_arena, def_game.GetSceneHierarchy(), window_extent, back_buffer_count);
-	editor.RegisterSceneHierarchy(main_arena, object_viewer, window_extent / uint2(2), back_buffer_count);
+	editor.RegisterSceneHierarchy(def_game.GetSceneHierarchy(), window_extent, back_buffer_count);
+	editor.RegisterSceneHierarchy(object_viewer, window_extent / uint2(2), back_buffer_count);
 
 	while (!quit_app)
 	{

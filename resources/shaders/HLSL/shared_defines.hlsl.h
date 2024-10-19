@@ -10,6 +10,6 @@ namespace BB
 }
 #else // __HLSL_VERSION
 
-#define RDescriptorIndex uint;
+typedef uint RDescriptorIndex;
 
 #endif // __HLSL_VERSION

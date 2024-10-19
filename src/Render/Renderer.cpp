@@ -83,7 +83,7 @@ static void CreateBasicColorImage(RImage& a_image, RDescriptorIndex& a_index, co
 	image_info.height = 1;
 	image_info.depth = 1;
 	image_info.array_layers = 1;
-	image_info.mip_levels = 0;
+	image_info.mip_levels = 1;
 	image_info.type = IMAGE_TYPE::TYPE_2D;
 	image_info.use_optimal_tiling = true;
 	image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
@@ -94,8 +94,8 @@ static void CreateBasicColorImage(RImage& a_image, RDescriptorIndex& a_index, co
 	ImageViewCreateInfo debug_view_info;
 	debug_view_info.name = a_name;
 	debug_view_info.base_array_layer = 0;
-	debug_view_info.mip_levels = 0;
-	debug_view_info.array_layers = 0;
+	debug_view_info.mip_levels = 1;
+	debug_view_info.array_layers = 1;
 	debug_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
 	debug_view_info.format = IMAGE_FORMAT::RGBA8_SRGB;
 	debug_view_info.image = a_image;
@@ -104,6 +104,7 @@ static void CreateBasicColorImage(RImage& a_image, RDescriptorIndex& a_index, co
 
 	WriteImageInfo debug_write_info;
 	debug_write_info.image = a_image;
+	debug_write_info.format = IMAGE_FORMAT::RGBA8_SRGB;
 	debug_write_info.extent = uint2(1, 1);
 	debug_write_info.offset = int2(0, 0);
 	debug_write_info.layer_count = 1;
@@ -870,7 +871,7 @@ namespace IMGUI_IMPL
 		font_info.format = IMAGE_FORMAT::RGBA8_UNORM;
 		font_info.usage = IMAGE_USAGE::TEXTURE;
 		font_info.array_layers = 1;
-		font_info.mip_levels = 0;
+		font_info.mip_levels = 1;
 		font_info.use_optimal_tiling = true;
 		font_info.type = IMAGE_TYPE::TYPE_2D;
 		font_info.is_cube_map = false;
@@ -882,13 +883,14 @@ namespace IMGUI_IMPL
 		view_info.format = IMAGE_FORMAT::RGBA8_UNORM;
 		view_info.base_array_layer = 0;
 		view_info.array_layers = 1;
-		view_info.mip_levels = 0;
+		view_info.mip_levels = 1;
 		view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
 		view_info.is_depth_image = false;
 		bd->font_descriptor = CreateImageView(view_info);
 
 		WriteImageInfo write_info{};
 		write_info.image = bd->font_image;
+		write_info.format = IMAGE_FORMAT::RGBA8_UNORM;
 		write_info.extent = { font_info.width, font_info.height };
 		write_info.pixels = pixels;
 		write_info.set_shader_visible = true;
@@ -1208,7 +1210,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		render_target_info.height = s_render_inst->render_io.screen_height;
 		render_target_info.depth = 1;
 		render_target_info.array_layers = static_cast<uint16_t>(s_render_inst->render_io.frame_count);
-		render_target_info.mip_levels = 0;
+		render_target_info.mip_levels = 1;
 		render_target_info.type = IMAGE_TYPE::TYPE_2D;
 		render_target_info.use_optimal_tiling = true;
 		render_target_info.is_cube_map = false;
@@ -1225,7 +1227,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 			view_info.image = s_render_inst->render_target_image;
 			view_info.array_layers = 1;
 			view_info.base_array_layer = static_cast<uint16_t>(i);
-			view_info.mip_levels = 0;
+			view_info.mip_levels = 1;
 			view_info.is_depth_image = false;
 			view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
 			view_info.format = RENDER_TARGET_IMAGE_FORMAT;
@@ -1296,7 +1298,7 @@ static void ResizeRendererSwapchain(const uint32_t a_width, const uint32_t a_hei
 	render_target_info.height = s_render_inst->render_io.screen_height;
 	render_target_info.depth = 1;
 	render_target_info.array_layers = static_cast<uint16_t>(s_render_inst->render_io.frame_count);
-	render_target_info.mip_levels = 0;
+	render_target_info.mip_levels = 1;
 	render_target_info.type = IMAGE_TYPE::TYPE_2D;
 	render_target_info.use_optimal_tiling = true;
 	render_target_info.is_cube_map = false;
@@ -1314,7 +1316,7 @@ static void ResizeRendererSwapchain(const uint32_t a_width, const uint32_t a_hei
 		view_info.image = s_render_inst->render_target_image;
 		view_info.array_layers = 1;
 		view_info.base_array_layer = 0;
-		view_info.mip_levels = 0;
+		view_info.mip_levels = 1;
 		view_info.is_depth_image = false;
 		view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
 		view_info.format = RENDER_TARGET_IMAGE_FORMAT;

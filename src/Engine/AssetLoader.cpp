@@ -44,6 +44,8 @@ constexpr size_t MAX_STRING_SIZE_STORAGE = 2024;
 constexpr const char TEXTURE_DIRECTORY[] = "../../resources/textures/";
 constexpr const char ICON_DIRECTORY[] = "../../resources/icons/";
 
+constexpr const IMAGE_FORMAT ICON_IMAGE_FORMAT = IMAGE_FORMAT::RGBA8_SRGB;
+
 using PathString = StackString<MAX_PATH_SIZE>;
 using AssetString = StackString<MAX_ASSET_NAME_SIZE>;
 
@@ -347,6 +349,7 @@ static inline IconSlot LoadIconFromPath(MemoryArena& a_temp_arena, const StringV
 
 	WriteImageInfo write_icon_info;
 	write_icon_info.image = s_asset_manager->icons_storage.image;
+	write_icon_info.format = ICON_IMAGE_FORMAT;
 	write_icon_info.extent = ICON_EXTENT;
 	write_icon_info.offset = int2(static_cast<int>(slot.slot_index * ICON_EXTENT.x), 0);
 	write_icon_info.pixels = write_pixels;
@@ -364,6 +367,7 @@ static inline IconSlot LoadIconFromPixels(const void* a_pixels, const bool a_set
 
 	WriteImageInfo write_icon_info;
 	write_icon_info.image = s_asset_manager->icons_storage.image;
+	write_icon_info.format = ICON_IMAGE_FORMAT;
 	write_icon_info.extent = ICON_EXTENT;
 	write_icon_info.offset = int2(static_cast<int>(slot.slot_index * ICON_EXTENT.x), 0);
 	write_icon_info.pixels = a_pixels;
@@ -428,12 +432,12 @@ void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
 	icons_image_info.name = "icon mega image";
 	icons_image_info.width = ICON_EXTENT.x * s_asset_manager->icons_storage.max_slots;
 	icons_image_info.height = ICON_EXTENT.y;
-	icons_image_info.depth = 0;
-	icons_image_info.mip_levels = 0;
+	icons_image_info.depth = 1;
+	icons_image_info.mip_levels = 1;
 	icons_image_info.array_layers = 1;
 	icons_image_info.type = IMAGE_TYPE::TYPE_2D;
 	icons_image_info.usage = IMAGE_USAGE::TEXTURE;
-	icons_image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+	icons_image_info.format = ICON_IMAGE_FORMAT;
 	icons_image_info.use_optimal_tiling = true;
 	icons_image_info.is_cube_map = false;
 
@@ -444,7 +448,7 @@ void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
 	icons_view_info.image = s_asset_manager->icons_storage.image;
 	icons_view_info.array_layers = 1;
 	icons_view_info.base_array_layer = 0;
-	icons_view_info.mip_levels = 0;
+	icons_view_info.mip_levels = 1;
 	icons_view_info.format = IMAGE_FORMAT::RGBA8_SRGB;
 	icons_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
 	icons_view_info.is_depth_image = false;
@@ -559,9 +563,9 @@ static inline void CreateImage_func(const StringView& a_name, const uint32_t a_w
 	create_image_info.name = a_name.c_str();
 	create_image_info.width = static_cast<uint32_t>(a_width);
 	create_image_info.height = static_cast<uint32_t>(a_height);
-	create_image_info.depth = 0;
+	create_image_info.depth = 1;
 	create_image_info.array_layers = 1;
-	create_image_info.mip_levels = 0;
+	create_image_info.mip_levels = 1;
 	create_image_info.type = IMAGE_TYPE::TYPE_2D;
 	create_image_info.format = a_format;
 	create_image_info.usage = IMAGE_USAGE::TEXTURE;
@@ -574,7 +578,7 @@ static inline void CreateImage_func(const StringView& a_name, const uint32_t a_w
 	create_view_info.image = a_out_image;
 	create_view_info.base_array_layer = 0;
 	create_view_info.array_layers = 1;
-	create_view_info.mip_levels = 0;
+	create_view_info.mip_levels = 1;
 	create_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
 	create_view_info.format = a_format;
 	create_view_info.is_depth_image = false;
@@ -599,6 +603,7 @@ const StringView Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_p
 
 	WriteImageInfo write_info{};
 	write_info.image = gpu_image;
+	write_info.format = format;
 	write_info.pixels = pixels;
 	write_info.extent = { uwidth, uheight };
 	write_info.set_shader_visible = true;
@@ -702,6 +707,7 @@ const StringView Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBI
 
 	WriteImageInfo write_info{};
 	write_info.image = gpu_image;
+	write_info.format = format;
 	write_info.pixels = a_image.GetPixels();
 	write_info.extent = { uwidth, uheight };
 	write_info.set_shader_visible = true;

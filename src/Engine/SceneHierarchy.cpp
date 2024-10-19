@@ -72,7 +72,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 		shadow_map_img.height = DEPTH_IMAGE_SIZE_W_H;
 		shadow_map_img.depth = 1;
 		shadow_map_img.array_layers = static_cast<uint16_t>(pfd.shadow_map.array_count);
-		shadow_map_img.mip_levels = 0;
+		shadow_map_img.mip_levels = 1;
 		shadow_map_img.use_optimal_tiling = true;
 		shadow_map_img.type = IMAGE_TYPE::TYPE_2D;
 		shadow_map_img.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
@@ -85,7 +85,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 		shadow_map_img_view.image = pfd.shadow_map.image;
 		shadow_map_img_view.base_array_layer = 0;
 		shadow_map_img_view.array_layers = static_cast<uint16_t>(pfd.shadow_map.array_count);
-		shadow_map_img_view.mip_levels = 0;
+		shadow_map_img_view.mip_levels = 1;
 		shadow_map_img_view.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
 		shadow_map_img_view.type = IMAGE_VIEW_TYPE::TYPE_2D_ARRAY;
 		shadow_map_img_view.is_depth_image = false;
@@ -117,7 +117,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 		skybox_image_info.height = 2048;
 		skybox_image_info.depth = 1;
 		skybox_image_info.array_layers = 6;
-		skybox_image_info.mip_levels = 0;
+		skybox_image_info.mip_levels = 1;
 		skybox_image_info.use_optimal_tiling = true;
 		skybox_image_info.type = IMAGE_TYPE::TYPE_2D;
 		skybox_image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
@@ -130,7 +130,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 		skybox_image_view_info.image = m_skybox;
 		skybox_image_view_info.base_array_layer = 0;
 		skybox_image_view_info.array_layers = 6;
-		skybox_image_view_info.mip_levels = 0;
+		skybox_image_view_info.mip_levels = 1;
 		skybox_image_view_info.format = IMAGE_FORMAT::RGBA8_SRGB;
 		skybox_image_view_info.type = IMAGE_VIEW_TYPE::CUBE;
 		skybox_image_view_info.is_depth_image = false;
@@ -153,6 +153,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 			BB_ASSERT(static_cast<uint32_t>(dummy_x) == skybox_image_info.width && static_cast<uint32_t>(dummy_y) == skybox_image_info.height && dummy_bytes_per == 4, "skybox dimentions wrong");
 			WriteImageInfo write_info{};
 			write_info.image = m_skybox;
+			write_info.format = IMAGE_FORMAT::RGBA8_SRGB;
 			write_info.extent = { skybox_image_info.width, skybox_image_info.height };
 			write_info.offset = {};
 			write_info.layer_count = 1;
@@ -410,7 +411,7 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RImageV
 		depth_img_info.width = a_draw_area_size.x;
 		depth_img_info.height = a_draw_area_size.y;
 		depth_img_info.depth = 1;
-		depth_img_info.mip_levels = 0;
+		depth_img_info.mip_levels = 1;
 		depth_img_info.array_layers = 1;
 		depth_img_info.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
 		depth_img_info.usage = IMAGE_USAGE::DEPTH;
@@ -425,7 +426,7 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RImageV
 		depth_img_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
 		depth_img_view_info.base_array_layer = 0;
 		depth_img_view_info.array_layers = 1;
-		depth_img_view_info.mip_levels = 0;
+		depth_img_view_info.mip_levels = 1;
 		depth_img_view_info.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
 		depth_img_view_info.is_depth_image = true;
 		pfd.depth_image_descriptor_index = CreateImageView(depth_img_view_info);
