@@ -385,7 +385,7 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RImageV
 	m_scene_info.scene_resolution = a_draw_area_size;
 	m_scene_info.depth_texture_count = 0;
 	m_scene_info.depth_texture_array = pfd.shadow_map.descriptor_index;
-
+	m_scene_info.skybox_texture = m_skybox_descriptor_index;
 	SkyboxPass(pfd, a_list, a_render_target_view, a_draw_area_size, a_draw_area_offset);
 
 	ResourceUploadPass(pfd, a_list);
