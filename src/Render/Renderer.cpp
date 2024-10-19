@@ -85,7 +85,7 @@ static void CreateBasicColorImage(RImage& a_image, RDescriptorIndex& a_index, co
 	image_info.array_layers = 1;
 	image_info.mip_levels = 0;
 	image_info.type = IMAGE_TYPE::TYPE_2D;
-	image_info.tiling = IMAGE_TILING::OPTIMAL;
+	image_info.use_optimal_tiling = true;
 	image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
 	image_info.usage = IMAGE_USAGE::TEXTURE;
 	image_info.is_cube_map = false;
@@ -871,7 +871,7 @@ namespace IMGUI_IMPL
 		font_info.usage = IMAGE_USAGE::TEXTURE;
 		font_info.array_layers = 1;
 		font_info.mip_levels = 0;
-		font_info.tiling = IMAGE_TILING::OPTIMAL;
+		font_info.use_optimal_tiling = true;
 		font_info.type = IMAGE_TYPE::TYPE_2D;
 		font_info.is_cube_map = false;
 		bd->font_image = CreateImage(font_info);
@@ -1210,7 +1210,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		render_target_info.array_layers = static_cast<uint16_t>(s_render_inst->render_io.frame_count);
 		render_target_info.mip_levels = 0;
 		render_target_info.type = IMAGE_TYPE::TYPE_2D;
-		render_target_info.tiling = IMAGE_TILING::OPTIMAL;
+		render_target_info.use_optimal_tiling = true;
 		render_target_info.is_cube_map = false;
 		render_target_info.format = RENDER_TARGET_IMAGE_FORMAT;
 		render_target_info.usage = IMAGE_USAGE::SWAPCHAIN_COPY_IMG;
@@ -1298,7 +1298,7 @@ static void ResizeRendererSwapchain(const uint32_t a_width, const uint32_t a_hei
 	render_target_info.array_layers = static_cast<uint16_t>(s_render_inst->render_io.frame_count);
 	render_target_info.mip_levels = 0;
 	render_target_info.type = IMAGE_TYPE::TYPE_2D;
-	render_target_info.tiling = IMAGE_TILING::OPTIMAL;
+	render_target_info.use_optimal_tiling = true;
 	render_target_info.is_cube_map = false;
 	render_target_info.format = RENDER_TARGET_IMAGE_FORMAT;
 	render_target_info.usage = IMAGE_USAGE::SWAPCHAIN_COPY_IMG;

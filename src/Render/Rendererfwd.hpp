@@ -92,14 +92,6 @@ namespace BB
 		ENUM_SIZE
 	};
 
-	enum class IMAGE_TILING : uint32_t
-	{
-		LINEAR,
-		OPTIMAL,
-
-		ENUM_SIZE
-	};
-
 	enum class IMAGE_LAYOUT : uint32_t
 	{
 		UNDEFINED,
@@ -448,8 +440,8 @@ namespace BB
 		uint16_t mip_levels;
 		IMAGE_TYPE type;
 		IMAGE_FORMAT format;
-		IMAGE_TILING tiling;
 		IMAGE_USAGE usage;
+		bool use_optimal_tiling;
 		bool is_cube_map;
 	};
 

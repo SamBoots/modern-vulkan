@@ -499,9 +499,6 @@ struct Vulkan_inst
 		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_2D_ARRAY)] = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
 		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::CUBE)] = VK_IMAGE_VIEW_TYPE_CUBE;
 
-		enum_conv.image_tilings[static_cast<uint32_t>(IMAGE_TILING::LINEAR)] = VK_IMAGE_TILING_LINEAR;
-		enum_conv.image_tilings[static_cast<uint32_t>(IMAGE_TILING::OPTIMAL)] = VK_IMAGE_TILING_OPTIMAL;
-
 		enum_conv.sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::REPEAT)] = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 		enum_conv.sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::MIRROR)] = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
 		enum_conv.sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::BORDER)] = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
@@ -574,7 +571,6 @@ struct Vulkan_inst
 		VkFormat image_formats[static_cast<uint32_t>(IMAGE_FORMAT::ENUM_SIZE)];
 		VkImageType image_types[static_cast<uint32_t>(IMAGE_TYPE::ENUM_SIZE)];
 		VkImageViewType image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::ENUM_SIZE)];
-		VkImageTiling image_tilings[static_cast<uint32_t>(IMAGE_TILING::ENUM_SIZE)];
 		VkSamplerAddressMode sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::ENUM_SIZE)];
 		VkPipelineStageFlags2 pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::ENUM_SIZE)];
 		VkAccessFlags2 access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::ENUM_SIZE)];
@@ -777,23 +773,6 @@ static inline VkImageViewType ImageViewTypes(const IMAGE_VIEW_TYPE a_image_types
 	case IMAGE_TYPE::CUBE:			return VK_IMAGE_VIEW_TYPE_CUBE;
 	default:
 		BB_ASSERT(false, "Vulkan: IMAGE_TYPE failed to convert to a VkImageViewType.");
-		return VK_IMAGE_TYPE_1D;
-		break;
-	}
-#endif //ENUM_CONVERSATION_BY_ARRAY
-}
-
-static inline VkImageTiling ImageTilings(const IMAGE_TILING a_image_tiling)
-{
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.image_tilings[static_cast<uint32_t>(a_image_tiling)];
-#else
-	switch (a_image_tiling)
-	{
-	case IMAGE_TILING::LINEAR:		return VK_IMAGE_TILING_LINEAR;
-	case IMAGE_TILING::OPTIMAL:		return VK_IMAGE_TILING_OPTIMAL;
-	default:
-		BB_ASSERT(false, "Vulkan: IMAGE_TILING failed to convert to a VkImageTiling.");
 		return VK_IMAGE_TYPE_1D;
 		break;
 	}
@@ -1485,7 +1464,7 @@ const RImage Vulkan::CreateImage(const ImageCreateInfo& a_create_info)
 	image_create_info.arrayLayers = a_create_info.array_layers;
 
 	image_create_info.imageType = ImageTypes(a_create_info.type);
-	image_create_info.tiling = ImageTilings(a_create_info.tiling);
+	image_create_info.tiling = a_create_info.use_optimal_tiling ? VK_IMAGE_TILING_OPTIMAL : VK_IMAGE_TILING_LINEAR;
 	image_create_info.format = ImageFormats(a_create_info.format);
 	image_create_info.usage = ImageUsage(a_create_info.usage);
 

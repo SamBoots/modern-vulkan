@@ -18,8 +18,9 @@ namespace BB
 		uint32_t width;		//4
 		uint32_t height;	//8
 
-		RTexture gpu_image;//16
+		RImage gpu_image;   //16
 		AssetHandle asset_handle; //24
+		RDescriptorIndex descriptor_index;
 	};
 
 	struct Model
@@ -27,8 +28,8 @@ namespace BB
 		struct MaterialData
 		{
 			MaterialHandle material;	// 8
-			RTexture base_texture;		// 12
-			RTexture normal_texture;	// 16
+			RDescriptorIndex base_texture;		// 12
+			RDescriptorIndex normal_texture;	// 16
 			MeshMetallic mesh_metallic;
 		};
 		struct Primitive
@@ -105,7 +106,7 @@ namespace BB
 			// material def here....
 			Slice<Vertex> vertices;
 			Slice<uint32_t> indices;
-			RTexture base_color;
+			RDescriptorIndex base_albedo;
 		};
 
 		struct MeshLoadFromDisk

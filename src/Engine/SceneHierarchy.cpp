@@ -73,7 +73,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 		shadow_map_img.depth = 1;
 		shadow_map_img.array_layers = static_cast<uint16_t>(pfd.shadow_map.array_count);
 		shadow_map_img.mip_levels = 0;
-		shadow_map_img.tiling = IMAGE_TILING::OPTIMAL;
+		shadow_map_img.use_optimal_tiling = true;
 		shadow_map_img.type = IMAGE_TYPE::TYPE_2D;
 		shadow_map_img.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
 		shadow_map_img.usage = IMAGE_USAGE::DEPTH;
@@ -118,7 +118,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 		skybox_image_info.depth = 1;
 		skybox_image_info.array_layers = 6;
 		skybox_image_info.mip_levels = 0;
-		skybox_image_info.tiling = IMAGE_TILING::OPTIMAL;
+		skybox_image_info.use_optimal_tiling = true;
 		skybox_image_info.type = IMAGE_TYPE::TYPE_2D;
 		skybox_image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
 		skybox_image_info.usage = IMAGE_USAGE::TEXTURE;
@@ -415,7 +415,7 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RImageV
 		depth_img_info.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
 		depth_img_info.usage = IMAGE_USAGE::DEPTH;
 		depth_img_info.type = IMAGE_TYPE::TYPE_2D;
-		depth_img_info.tiling = IMAGE_TILING::OPTIMAL;
+		depth_img_info.use_optimal_tiling = true;
 		depth_img_info.is_cube_map = false;
 		pfd.depth_image = CreateImage(depth_img_info);
 
