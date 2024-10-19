@@ -70,10 +70,7 @@ struct RenderFence
 constexpr uint32_t MAX_MESH_UPLOAD_QUEUE = 128;
 constexpr uint32_t MAX_TEXTURE_UPLOAD_QUEUE = 256;
 
-constexpr uint16_t INVALID_BLOCK = UINT16_MAX;
-
 constexpr uint32_t MAX_TEXTURES = 1024;
-constexpr const char* DEBUG_TEXTURE_NAME = "debug texture";
 
 constexpr IMAGE_FORMAT SCREENSHOT_IMAGE_FORMAT = IMAGE_FORMAT::RGBA8_SRGB; // check the variable below here before you change shit k thnx
 constexpr size_t SCREENSHOT_IMAGE_PIXEL_BYTE_SIZE = 4;	// check the variable above here before you change shit k thnx
@@ -105,14 +102,13 @@ static void CreateBasicColorImage(RImage& a_image, RDescriptorIndex& a_index, co
 	debug_view_info.is_depth_image = false;
 	a_index = CreateImageView(debug_view_info);
 
-	const uint32_t debug_purple = (209u << 0u) | (106u << 8u) | (255u << 16u) | (255u << 24u);
 	WriteImageInfo debug_write_info;
 	debug_write_info.image = a_image;
 	debug_write_info.extent = uint2(1, 1);
 	debug_write_info.offset = int2(0, 0);
 	debug_write_info.layer_count = 1;
 	debug_write_info.base_array_layer = 0;
-	debug_write_info.pixels = &debug_purple;
+	debug_write_info.pixels = &a_color;
 	debug_write_info.set_shader_visible = true;
 	WriteTexture(debug_write_info);
 }
@@ -137,17 +133,11 @@ struct TextureInfo
 class GPUTextureManager
 {
 public:
-	struct TextureSlot
-	{
-		const char* name;			// 8
-		TextureInfo texture_info;	// 44
-		uint32_t next_free;			// 48
-	};
-
-	void Init(MemoryArena& a_arena, const RCommandList a_list)
+	void Init(MemoryArena& a_arena, const RDescriptorLayout a_global_layout, const DescriptorAllocation& a_allocation)
 	{
 		m_graphics_texture_transitions.Init(a_arena, MAX_TEXTURES / 4);
 
+		m_views = ArenaAllocArr(a_arena, RImageView, MAX_TEXTURES);
 		m_next_free = 0;
 		m_lock = OSCreateRWLock();
 
@@ -164,8 +154,8 @@ public:
 		}
 
 		DescriptorWriteImageInfo image_write;
-		image_write.descriptor_layout = s_render_inst->global_descriptor_set;
-		image_write.allocation = s_render_inst->global_descriptor_allocation;
+		image_write.descriptor_layout = a_global_layout;
+		image_write.allocation = a_allocation;
 		image_write.view = GetImageView(m_debug_descriptor_index);
 		image_write.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
 		image_write.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
@@ -176,7 +166,7 @@ public:
 		}
 	}
 
-	const RDescriptorIndex AllocAndWriteImageView(const ImageViewCreateInfo& a_info)
+	const RDescriptorIndex AllocAndWriteImageView(const ImageViewCreateInfo& a_info, const RDescriptorLayout a_global_layout, const DescriptorAllocation& a_allocation)
 	{
 		OSAcquireSRWLockWrite(&m_lock);
 		const uint32_t descriptor_index = m_next_free;
@@ -190,15 +180,15 @@ public:
 		write_info.descriptor_index = descriptor_index;
 		write_info.view = m_views[descriptor_index];
 		write_info.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
-		write_info.allocation = s_render_inst->global_descriptor_allocation;
-		write_info.descriptor_layout = s_render_inst->global_descriptor_set;
+		write_info.allocation = a_allocation;
+		write_info.descriptor_layout = a_global_layout;
 
 		DescriptorWriteImage(write_info);
 
 		return RDescriptorIndex(descriptor_index);
 	}
 
-	void FreeImageView(const RDescriptorIndex a_descriptor_index)
+	void FreeImageView(const RDescriptorIndex a_descriptor_index, const RDescriptorLayout a_global_layout, const DescriptorAllocation& a_allocation)
 	{
 		OSAcquireSRWLockWrite(&m_lock);
 		const uint32_t descriptor_index = m_next_free;
@@ -211,8 +201,8 @@ public:
 		write_info.descriptor_index = a_descriptor_index.handle;
 		write_info.view = GetImageView(m_debug_descriptor_index);
 		write_info.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
-		write_info.allocation = s_render_inst->global_descriptor_allocation;
-		write_info.descriptor_layout = s_render_inst->global_descriptor_set;
+		write_info.allocation = a_allocation;
+		write_info.descriptor_layout = a_global_layout;
 
 		DescriptorWriteImage(write_info);
 	}
@@ -269,7 +259,7 @@ public:
 
 private:
 	uint32_t m_next_free;
-	RImageView m_views[MAX_TEXTURES];
+	RImageView* m_views;
 	BBRWLock m_lock;
 	
 	StaticArray<PipelineBarrierImageInfo> m_graphics_texture_transitions;
@@ -585,8 +575,6 @@ struct RenderInterface_inst
 	BasicColorImage black;
 
 	GPUBufferView cubemap_position;
-	RDescriptorIndex white;
-	RDescriptorIndex black;
 
 	RDescriptorLayout static_sampler_descriptor_set;
 	RDescriptorLayout global_descriptor_set;
@@ -769,7 +757,7 @@ namespace IMGUI_IMPL
 
 		Vulkan::BindIndexBuffer(a_cmd_list, rb.index_buffer.buffer, rb.index_buffer.offset);
 
-		ImTextureID last_texture = bd->font_image.handle;
+		ImTextureID last_texture = bd->font_descriptor.handle;
 		for (int n = 0; n < draw_data.CmdListsCount; n++)
 		{
 			const ImDrawList* cmd_list = draw_data.CmdLists[n];
@@ -908,9 +896,9 @@ namespace IMGUI_IMPL
 		write_info.base_array_layer = 0;
 		WriteTexture(write_info);
 
-		io.Fonts->SetTexID(bd->font_image.handle);
+		io.Fonts->SetTexID(bd->font_descriptor.handle);
 
-		return bd->font_image.IsValid();
+		return bd->font_descriptor.IsValid() && bd->font_image.IsValid();
 	}
 
 	inline static void ImShutdown()
@@ -1204,7 +1192,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	const RCommandList list = start_up_pool.StartCommandList();
 
 	{	//initialize texture system
-		s_render_inst->texture_manager.Init(a_arena, list);
+		s_render_inst->texture_manager.Init(a_arena, s_render_inst->global_descriptor_set, s_render_inst->global_descriptor_allocation);
 
 		//some basic colors
 		const uint32_t white = UINT32_MAX;
@@ -1219,7 +1207,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		render_target_info.width = s_render_inst->render_io.screen_width;
 		render_target_info.height = s_render_inst->render_io.screen_height;
 		render_target_info.depth = 1;
-		render_target_info.array_layers = s_render_inst->render_io.frame_count;
+		render_target_info.array_layers = static_cast<uint16_t>(s_render_inst->render_io.frame_count);
 		render_target_info.mip_levels = 0;
 		render_target_info.type = IMAGE_TYPE::TYPE_2D;
 		render_target_info.tiling = IMAGE_TILING::OPTIMAL;
@@ -1307,7 +1295,7 @@ static void ResizeRendererSwapchain(const uint32_t a_width, const uint32_t a_hei
 	render_target_info.width = s_render_inst->render_io.screen_width;
 	render_target_info.height = s_render_inst->render_io.screen_height;
 	render_target_info.depth = 1;
-	render_target_info.array_layers = s_render_inst->render_io.frame_count;
+	render_target_info.array_layers = static_cast<uint16_t>(s_render_inst->render_io.frame_count);
 	render_target_info.mip_levels = 0;
 	render_target_info.type = IMAGE_TYPE::TYPE_2D;
 	render_target_info.tiling = IMAGE_TILING::OPTIMAL;
@@ -1900,7 +1888,7 @@ const RImage BB::CreateImage(const ImageCreateInfo& a_create_info)
 
 const RDescriptorIndex BB::CreateImageView(const ImageViewCreateInfo& a_create_info)
 {
-	return s_render_inst->texture_manager.AllocAndWriteImageView(a_create_info);
+	return s_render_inst->texture_manager.AllocAndWriteImageView(a_create_info, s_render_inst->global_descriptor_set, s_render_inst->global_descriptor_allocation);
 }
 
 const RImageView BB::GetImageView(const RDescriptorIndex a_index)
@@ -1915,15 +1903,7 @@ void BB::FreeImage(const RImage a_image)
 
 void BB::FreeImageView(const RDescriptorIndex a_index)
 {
-	s_render_inst->texture_manager.FreeImageView(a_index);
-}
-
-static inline bool IsImageWithinBounds(const GPUTextureManager::TextureSlot& a_slot, const uint2 a_extent, const int2 a_offset)
-{
-	if (a_slot.texture_info.width >= a_extent.x + static_cast<uint32_t>(a_offset.x) &&
-		a_slot.texture_info.height >= a_extent.y + static_cast<uint32_t>(a_offset.y))
-		return true;
-	return false;
+	s_render_inst->texture_manager.FreeImageView(a_index, s_render_inst->global_descriptor_set, s_render_inst->global_descriptor_allocation);
 }
 
 void BB::BlitImage(const RCommandList a_list, const BlitImageInfo& a_blit_info)

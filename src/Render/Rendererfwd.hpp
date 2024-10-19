@@ -85,6 +85,8 @@ namespace BB
 		TYPE_1D,
 		TYPE_2D,
 		TYPE_3D,
+		TYPE_1D_ARRAY,
+		TYPE_2D_ARRAY,
 		CUBE,
 
 		ENUM_SIZE

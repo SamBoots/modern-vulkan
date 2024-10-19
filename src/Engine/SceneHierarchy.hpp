@@ -23,8 +23,8 @@ namespace BB
 		MaterialHandle material;
 		uint32_t index_start;
 		uint32_t index_count;
-		RTexture base_texture;
-		RTexture normal_texture;
+		RDescriptorIndex base_texture;
+		RDescriptorIndex normal_texture;
 	};
 
 	struct LightCreateInfo
@@ -68,7 +68,7 @@ namespace BB
 		void Init(MemoryArena& a_memory_arena, const uint32_t a_back_buffers, const StringView a_name, const uint32_t a_scene_obj_max = DEFAULT_SCENE_OBJ_MAX);
 		static StaticArray<Asset::AsyncAsset> PreloadAssetsFromJson(MemoryArena& a_arena, const JsonParser& a_parsed_file);
 
-		void DrawSceneHierarchy(const RCommandList a_list, const RTexture a_render_target, const uint32_t a_back_buffer_index, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
+		void DrawSceneHierarchy(const RCommandList a_list, const RImageView a_render_target_view, const uint32_t a_back_buffer_index, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
 		SceneObjectHandle CreateSceneObject(const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
 		SceneObjectHandle CreateSceneObjectMesh(const float3 a_position, const MeshDrawInfo& a_mesh_info, const char* a_name, const SceneObjectHandle a_parent = SceneObjectHandle(BB_INVALID_HANDLE_64));
 		SceneObjectHandle CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
@@ -88,21 +88,25 @@ namespace BB
 	private:
 		struct PerFrameData
 		{
+			uint2 previous_draw_area;
 			uint64_t fence_value;
 			DescriptorAllocation scene_descriptor;
 			// i want this to be uniform but hlsl is giga cringe
 			GPULinearBuffer storage_buffer;
+			RImage depth_image;
+			RDescriptorIndex depth_image_descriptor_index;
 			struct ShadowMap
 			{
-				RTexture texture;
+				RImage image;
+				RDescriptorIndex descriptor_index;
 				uint32_t array_count;
 			} shadow_map;
 		};
 
-		void SkyboxPass(const PerFrameData& pfd, const RCommandList a_list, const RTexture a_render_target, const uint32_t a_back_buffer_index, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
+		void SkyboxPass(const PerFrameData& pfd, const RCommandList a_list, const RImageView a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
 		void ResourceUploadPass(PerFrameData& pfd, const RCommandList a_list);
 		void ShadowMapPass(const PerFrameData& pfd, const RCommandList a_list, const uint2 a_shadow_map_resolution);
-		void RenderPass(const PerFrameData& pfd, const RCommandList a_list, const RTexture a_render_target, const uint32_t a_back_buffer_index, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
+		void RenderPass(const PerFrameData& pfd, const RCommandList a_list, const RImageView a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
 
 		void AddToDrawList(const SceneObject& scene_object, const float4x4& a_transform);
 		SceneObjectHandle CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent);
@@ -138,14 +142,12 @@ namespace BB
 		StaticSlotmap<Light, LightHandle> m_light_container;
 		StaticSlotmap<LightProjectionView, LightHandle> m_light_projection_view;
 
-		uint2 m_previous_draw_area;
-		RTexture m_depth_image;
-
 		uint32_t m_top_level_object_count;
 		SceneObjectHandle* m_top_level_objects;
 
 		float3 m_clear_color;
-		RTexture m_skybox;
+		RImage m_skybox;
+		RDescriptorIndex m_skybox_descriptor_index;
 		MaterialHandle m_skybox_material;
 		MaterialHandle m_shadowmap_material;
 	};

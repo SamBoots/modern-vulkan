@@ -425,7 +425,7 @@ void Editor::CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a
 	}
 }
 
-void Editor::RegisterSceneHierarchy(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint2 a_window_extent, const uint32_t a_back_buffer_count)
+void Editor::RegisterSceneHierarchy(SceneHierarchy& a_hierarchy, const uint2 a_window_extent, const uint32_t a_back_buffer_count)
 {
 	ViewportAndScene viewport_scene{ a_hierarchy };
 	StackString<256> viewport_name{ a_hierarchy.m_scene_name.c_str(),  a_hierarchy.m_scene_name.size() };

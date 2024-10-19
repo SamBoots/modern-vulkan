@@ -495,6 +495,8 @@ struct Vulkan_inst
 		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_1D)] = VK_IMAGE_VIEW_TYPE_1D;
 		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_2D)] = VK_IMAGE_VIEW_TYPE_2D;
 		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_3D)] = VK_IMAGE_VIEW_TYPE_3D;
+		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_1D_ARRAY)] = VK_IMAGE_VIEW_TYPE_1D_ARRAY;
+		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_2D_ARRAY)] = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
 		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::CUBE)] = VK_IMAGE_VIEW_TYPE_CUBE;
 
 		enum_conv.image_tilings[static_cast<uint32_t>(IMAGE_TILING::LINEAR)] = VK_IMAGE_TILING_LINEAR;
@@ -1943,7 +1945,7 @@ void Vulkan::CopyBuffer(const RCommandList a_list, const RenderCopyBuffer& a_cop
 		copy_regions);
 }
 
-void Vulkan::CopyImage(const RCommandList a_list, const RenderCopyImage& a_copy_info)
+void Vulkan::CopyImage(const RCommandList a_list, const CopyImageInfo& a_copy_info)
 {
 	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 
