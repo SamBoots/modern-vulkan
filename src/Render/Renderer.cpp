@@ -192,9 +192,8 @@ public:
 	void FreeImageView(const RDescriptorIndex a_descriptor_index, const RDescriptorLayout a_global_layout, const DescriptorAllocation& a_allocation)
 	{
 		OSAcquireSRWLockWrite(&m_lock);
-		const uint32_t descriptor_index = m_next_free;
-		Vulkan::FreeViewImage(m_views[descriptor_index]);
-		m_next_free = m_views[descriptor_index].index;
+		Vulkan::FreeViewImage(m_views[a_descriptor_index.handle]);
+		m_next_free = m_views[a_descriptor_index.handle].index;
 		OSReleaseSRWLockWrite(&m_lock);
 
 		DescriptorWriteImageInfo write_info;

@@ -468,7 +468,7 @@ namespace BB
 		}
 		Slice<const T> slice(const size_t a_size, const size_t a_begin = 0)
 		{
-			BB_ASSERT(a_begin + a_size < m_size, "requesting an out of bounds slice");
+			BB_ASSERT(a_begin + a_size <= m_size, "requesting an out of bounds slice");
 			return Slice<const T>(&m_obj_arr[a_begin], a_size);
 		}
 

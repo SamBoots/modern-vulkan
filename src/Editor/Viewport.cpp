@@ -120,7 +120,7 @@ void Viewport::DrawImgui(bool& a_resized, const uint32_t a_back_buffer_index, co
 
 const RImageView Viewport::StartRenderTarget(const RCommandList a_cmd_list, uint32_t a_back_buffer_index) const
 {
-	BB_ASSERT(a_back_buffer_index >= m_render_target_count, "");
+	BB_ASSERT(a_back_buffer_index <= m_render_target_count, "back buffer index accessing render target out of bounds");
 	PipelineBarrierImageInfo render_target_transition;
 	render_target_transition.src_mask = BARRIER_ACCESS_MASK::NONE;
 	render_target_transition.dst_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;

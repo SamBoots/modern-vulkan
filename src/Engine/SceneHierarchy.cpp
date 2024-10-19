@@ -66,6 +66,8 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 
 		pfd.shadow_map.array_count = INITIAL_DEPTH_ARRAY_COUNT;
 
+		pfd.depth_image = RImage();
+
 		ImageCreateInfo shadow_map_img;
 		shadow_map_img.name = "shadow map array";
 		shadow_map_img.width = DEPTH_IMAGE_SIZE_W_H;
@@ -88,7 +90,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 		shadow_map_img_view.mip_levels = 1;
 		shadow_map_img_view.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
 		shadow_map_img_view.type = IMAGE_VIEW_TYPE::TYPE_2D_ARRAY;
-		shadow_map_img_view.is_depth_image = false;
+		shadow_map_img_view.is_depth_image = true;
 		pfd.depth_image_descriptor_index = CreateImageView(shadow_map_img_view);
 	}
 
