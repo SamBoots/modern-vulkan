@@ -78,8 +78,8 @@ namespace BB
 
         uint2 scene_resolution;          // 160
 
-        uint depth_texture_count;        // 164
-        RDescriptorIndex depth_texture_array; // 168
+        uint shadow_map_count;           // 164
+        RDescriptorIndex shadow_map_array_descriptor; // 168
         uint2 pad;
     };
 

@@ -70,7 +70,7 @@ namespace BB
 
 		void DrawSceneHierarchy(const RCommandList a_list, const RImageView a_render_target_view, const uint32_t a_back_buffer_index, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
 		SceneObjectHandle CreateSceneObject(const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
-		SceneObjectHandle CreateSceneObjectMesh(const float3 a_position, const MeshDrawInfo& a_mesh_info, const char* a_name, const SceneObjectHandle a_parent = SceneObjectHandle(BB_INVALID_HANDLE_64));
+		SceneObjectHandle CreateSceneObjectMesh(const float3 a_position, const MeshDrawInfo& a_mesh_info, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
 		SceneObjectHandle CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
 		SceneObjectHandle CreateSceneObjectAsLight(const LightCreateInfo& a_light_create_info, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
 
@@ -91,7 +91,7 @@ namespace BB
 			uint2 previous_draw_area;
 			uint64_t fence_value;
 			DescriptorAllocation scene_descriptor;
-			// i want this to be uniform but hlsl is giga cringe
+			// I want this to be uniform but hlsl is giga cringe
 			GPULinearBuffer storage_buffer;
 			RImage depth_image;
 			RDescriptorIndex depth_image_descriptor_index;
@@ -99,7 +99,7 @@ namespace BB
 			{
 				RImage image;
 				RDescriptorIndex descriptor_index;
-				uint32_t array_count;
+				StaticArray<RImageView> render_pass_views;
 			} shadow_map;
 		};
 

@@ -44,7 +44,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 
 	m_upload_allocator.Init(a_arena, mbSize * 4, m_fence, "scene upload buffer");
 
-	m_scene_info.ambient_light = float3(1.f, 1.f, 1.f);
+	m_scene_info.ambient_light = float3(0.05f, 0.05f, 0.05f);
 	m_scene_info.ambient_strength = 1;
 
 	m_per_frame.Init(a_arena, a_back_buffers);
@@ -64,34 +64,73 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 		pfd.storage_buffer.Init(buffer_info);
 		pfd.fence_value = 0;
 
-		pfd.shadow_map.array_count = INITIAL_DEPTH_ARRAY_COUNT;
-
 		pfd.depth_image = RImage();
 
-		ImageCreateInfo shadow_map_img;
-		shadow_map_img.name = "shadow map array";
-		shadow_map_img.width = DEPTH_IMAGE_SIZE_W_H;
-		shadow_map_img.height = DEPTH_IMAGE_SIZE_W_H;
-		shadow_map_img.depth = 1;
-		shadow_map_img.array_layers = static_cast<uint16_t>(pfd.shadow_map.array_count);
-		shadow_map_img.mip_levels = 1;
-		shadow_map_img.use_optimal_tiling = true;
-		shadow_map_img.type = IMAGE_TYPE::TYPE_2D;
-		shadow_map_img.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
-		shadow_map_img.usage = IMAGE_USAGE::DEPTH;
-		shadow_map_img.is_cube_map = false;
-		pfd.shadow_map.image = CreateImage(shadow_map_img);
 
-		ImageViewCreateInfo shadow_map_img_view;
-		shadow_map_img_view.name = "shadow map array view";
-		shadow_map_img_view.image = pfd.shadow_map.image;
-		shadow_map_img_view.base_array_layer = 0;
-		shadow_map_img_view.array_layers = static_cast<uint16_t>(pfd.shadow_map.array_count);
-		shadow_map_img_view.mip_levels = 1;
-		shadow_map_img_view.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
-		shadow_map_img_view.type = IMAGE_VIEW_TYPE::TYPE_2D_ARRAY;
-		shadow_map_img_view.is_depth_image = true;
-		pfd.depth_image_descriptor_index = CreateImageView(shadow_map_img_view);
+		pfd.shadow_map.render_pass_views.Init(a_arena, INITIAL_DEPTH_ARRAY_COUNT);
+		pfd.shadow_map.render_pass_views.resize(INITIAL_DEPTH_ARRAY_COUNT);
+		{
+			ImageCreateInfo shadow_map_img;
+			shadow_map_img.name = "shadow map array";
+			shadow_map_img.width = DEPTH_IMAGE_SIZE_W_H;
+			shadow_map_img.height = DEPTH_IMAGE_SIZE_W_H;
+			shadow_map_img.depth = 1;
+			shadow_map_img.array_layers = static_cast<uint16_t>(pfd.shadow_map.render_pass_views.size());
+			shadow_map_img.mip_levels = 1;
+			shadow_map_img.use_optimal_tiling = true;
+			shadow_map_img.type = IMAGE_TYPE::TYPE_2D;
+			shadow_map_img.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
+			shadow_map_img.usage = IMAGE_USAGE::SHADOW_MAP;
+			shadow_map_img.is_cube_map = false;
+			pfd.shadow_map.image = CreateImage(shadow_map_img);
+		}
+
+		{
+			ImageViewCreateInfo shadow_map_img_view;
+			shadow_map_img_view.name = "shadow map array view";
+			shadow_map_img_view.image = pfd.shadow_map.image;
+			shadow_map_img_view.base_array_layer = 0;
+			shadow_map_img_view.array_layers = static_cast<uint16_t>(pfd.shadow_map.render_pass_views.size());
+			shadow_map_img_view.mip_levels = 1;
+			shadow_map_img_view.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
+			shadow_map_img_view.type = IMAGE_VIEW_TYPE::TYPE_2D_ARRAY;
+			shadow_map_img_view.is_depth_image = true;
+			pfd.shadow_map.descriptor_index = CreateImageView(shadow_map_img_view);
+		}
+
+		{
+			ImageViewCreateInfo render_pass_shadow_view{};
+			render_pass_shadow_view.name = "shadow map renderpass view";
+			render_pass_shadow_view.image = pfd.shadow_map.image;
+			render_pass_shadow_view.array_layers = 1;
+			render_pass_shadow_view.mip_levels = 1;
+			render_pass_shadow_view.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
+			render_pass_shadow_view.type = IMAGE_VIEW_TYPE::TYPE_2D;
+			render_pass_shadow_view.is_depth_image = true;
+			for (uint32_t shadow_index = 0; shadow_index < pfd.shadow_map.render_pass_views.size(); shadow_index++)
+			{
+				render_pass_shadow_view.base_array_layer = static_cast<uint16_t>(shadow_index);
+				pfd.shadow_map.render_pass_views[i] = CreateImageViewShaderInaccessible(render_pass_shadow_view);
+			}
+		}
+	}
+
+	// shadow map shader
+
+	MaterialCreateInfo shadow_map_material;
+	shadow_map_material.pass_type = PASS_TYPE::SCENE;
+	shadow_map_material.material_type = MATERIAL_TYPE::NONE;
+	shadow_map_material.vertex_shader_info.path = "../../resources/shaders/hlsl/ShadowMap.hlsl";
+	shadow_map_material.vertex_shader_info.entry = "VertexMain";
+	shadow_map_material.vertex_shader_info.stage = SHADER_STAGE::VERTEX;
+	shadow_map_material.vertex_shader_info.next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
+	shadow_map_material.fragment_shader_info.path = "../../resources/shaders/hlsl/ShadowMap.hlsl";
+	shadow_map_material.fragment_shader_info.entry = "FragmentMain";
+	shadow_map_material.fragment_shader_info.stage = SHADER_STAGE::FRAGMENT_PIXEL;
+	shadow_map_material.fragment_shader_info.next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
+	MemoryArenaScope(a_arena)
+	{
+		m_shadowmap_material = Material::CreateMaterial(a_arena, shadow_map_material, "shadow map material");
 	}
 
 	// skybox stuff
@@ -383,8 +422,8 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RImageV
 
 	m_scene_info.light_count = m_light_container.size();
 	m_scene_info.scene_resolution = a_draw_area_size;
-	m_scene_info.depth_texture_count = 0;
-	m_scene_info.depth_texture_array = pfd.shadow_map.descriptor_index;
+	m_scene_info.shadow_map_count = pfd.shadow_map.render_pass_views.size();
+	m_scene_info.shadow_map_array_descriptor = pfd.shadow_map.descriptor_index;
 	m_scene_info.skybox_texture = m_skybox_descriptor_index;
 	SkyboxPass(pfd, a_list, a_render_target_view, a_draw_area_size, a_draw_area_offset);
 
@@ -639,43 +678,47 @@ void SceneHierarchy::ResourceUploadPass(PerFrameData& pfd, const RCommandList a_
 
 void SceneHierarchy::ShadowMapPass(const PerFrameData& pfd, const RCommandList a_list, const uint2 a_shadow_map_resolution)
 {
-	return;
 	const uint32_t shadow_map_count = m_light_projection_view.size();
+	if (shadow_map_count == 0)
+	{
+		return;
+	}
+	BB_ASSERT(shadow_map_count <= pfd.shadow_map.render_pass_views.size(), "too many lights! Make a dynamic shadow mapping array");
 
 	const RPipelineLayout pipe_layout = BindShaders(a_list, Material::GetMaterialShaders(m_shadowmap_material));
 
-	PipelineBarrierImageInfo depth_images_transition = {};
-	depth_images_transition.src_mask = BARRIER_ACCESS_MASK::NONE;
-	depth_images_transition.dst_mask = BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE;
-	depth_images_transition.image = pfd.depth_image;
-	depth_images_transition.old_layout = IMAGE_LAYOUT::UNDEFINED;
-	depth_images_transition.new_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
-	depth_images_transition.layer_count = shadow_map_count;
-	depth_images_transition.level_count = 1;
-	depth_images_transition.base_array_layer = 0;
-	depth_images_transition.base_mip_level = 0;
-	depth_images_transition.src_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
-	depth_images_transition.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
+	PipelineBarrierImageInfo shadow_map_write_transition = {};
+	shadow_map_write_transition.src_mask = BARRIER_ACCESS_MASK::NONE;
+	shadow_map_write_transition.dst_mask = BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE;
+	shadow_map_write_transition.image = pfd.shadow_map.image;
+	shadow_map_write_transition.old_layout = IMAGE_LAYOUT::UNDEFINED;
+	shadow_map_write_transition.new_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
+	shadow_map_write_transition.layer_count = shadow_map_count;
+	shadow_map_write_transition.level_count = 1;
+	shadow_map_write_transition.base_array_layer = 0;
+	shadow_map_write_transition.base_mip_level = 0;
+	shadow_map_write_transition.src_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
+	shadow_map_write_transition.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
 
 	PipelineBarrierInfo pipeline_info{};
 	pipeline_info.image_info_count = 1;
-	pipeline_info.image_infos = &depth_images_transition;
+	pipeline_info.image_infos = &shadow_map_write_transition;
 	PipelineBarriers(a_list, pipeline_info);
 
-	RenderingAttachmentColor color_attach{};
-	color_attach.load_color = false;
-	color_attach.store_color = true;
-	color_attach.image_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
+	RenderingAttachmentDepth depth_attach{};
+	depth_attach.load_depth = false;
+	depth_attach.store_depth = true;
+	depth_attach.image_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
 
 	StartRenderingInfo rendering_info;
-	rendering_info.color_attachments = Slice(&color_attach, 1);
-	rendering_info.depth_attachment = nullptr;
+	rendering_info.color_attachments = {};	// null
+	rendering_info.depth_attachment = &depth_attach;
 	rendering_info.render_area_extent = a_shadow_map_resolution;
 	rendering_info.render_area_offset = int2(0, 0);
 
 	for (uint32_t shadow_map_index = 0; shadow_map_index < shadow_map_count; shadow_map_index++)
 	{
-		color_attach.image_view = GetImageView(pfd.shadow_map.descriptor_index);
+		depth_attach.image_view = pfd.shadow_map.render_pass_views[shadow_map_index];
 		StartRenderPass(a_list, rendering_info);
 
 		for (uint32_t draw_index = 0; draw_index < m_draw_list.size; draw_index++)
@@ -698,6 +741,23 @@ void SceneHierarchy::ShadowMapPass(const PerFrameData& pfd, const RCommandList a
 		EndRenderPass(a_list);
 	}
 
+	PipelineBarrierImageInfo shadow_map_read_transition = {};
+	shadow_map_read_transition.src_mask = BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE;
+	shadow_map_read_transition.dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
+	shadow_map_read_transition.image = pfd.shadow_map.image;
+	shadow_map_read_transition.old_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
+	shadow_map_read_transition.new_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+	shadow_map_read_transition.layer_count = shadow_map_count;
+	shadow_map_read_transition.level_count = 1;
+	shadow_map_read_transition.base_array_layer = 0;
+	shadow_map_read_transition.base_mip_level = 0;
+	shadow_map_read_transition.src_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
+	shadow_map_read_transition.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
+
+	pipeline_info = {};
+	pipeline_info.image_info_count = 1;
+	pipeline_info.image_infos = &shadow_map_read_transition;
+	PipelineBarriers(a_list, pipeline_info);
 }
 
 void SceneHierarchy::RenderPass(const PerFrameData& pfd, const RCommandList a_list, const RImageView a_render_target_view, const uint2 a_draw_area_size, const int2 a_draw_area_offset)
@@ -748,7 +808,7 @@ void SceneHierarchy::RenderPass(const PerFrameData& pfd, const RCommandList a_li
 		const MeshDrawInfo& mesh_draw_call = m_draw_list.mesh_draw_call[i];
 
 		Slice<const ShaderEffectHandle> shader_effects = Material::GetMaterialShaders(mesh_draw_call.material);
-		RPipelineLayout pipe_layout = BindShaders(a_list, shader_effects);
+		const RPipelineLayout pipe_layout = BindShaders(a_list, shader_effects);
 
 		ShaderIndices shader_indices;
 		shader_indices.transform_index = i;
@@ -795,7 +855,8 @@ LightHandle SceneHierarchy::CreateLight(const LightCreateInfo& a_light_info)
 	const float near_plane = 1.0f, far_plane = 7.5f;
 	const float4x4 projection = Float4x4Perspective(light.cutoff_radius, 1, near_plane, far_plane);
 	const float4x4 view = Float4x4Lookat(light.pos, light.pos + light.spotlight_direction, float3(0.0f, 1.0f, 0.0f));
-	const LightHandle light_handle_view = m_light_projection_view.emplace(projection * view);
+	const LightProjectionView vp = { projection * view };
+	const LightHandle light_handle_view = m_light_projection_view.emplace(vp);
 
 	BB_ASSERT(light_handle == light_handle_view, "Something went wrong trying to create a light");
 

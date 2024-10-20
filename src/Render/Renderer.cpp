@@ -1892,6 +1892,11 @@ const RDescriptorIndex BB::CreateImageView(const ImageViewCreateInfo& a_create_i
 	return s_render_inst->texture_manager.AllocAndWriteImageView(a_create_info, s_render_inst->global_descriptor_set, s_render_inst->global_descriptor_allocation);
 }
 
+const RImageView BB::CreateImageViewShaderInaccessible(const ImageViewCreateInfo& a_create_info)
+{
+	return Vulkan::CreateImageView(a_create_info);
+}
+
 const RImageView BB::GetImageView(const RDescriptorIndex a_index)
 {
 	return s_render_inst->texture_manager.GetImageView(a_index);
@@ -1905,6 +1910,11 @@ void BB::FreeImage(const RImage a_image)
 void BB::FreeImageView(const RDescriptorIndex a_index)
 {
 	s_render_inst->texture_manager.FreeImageView(a_index, s_render_inst->global_descriptor_set, s_render_inst->global_descriptor_allocation);
+}
+
+void BB::FreeImageViewShaderInaccessible(const RImageView a_view)
+{
+	Vulkan::FreeViewImage(a_view);
 }
 
 void BB::BlitImage(const RCommandList a_list, const BlitImageInfo& a_blit_info)

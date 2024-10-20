@@ -109,6 +109,7 @@ namespace BB
 	enum class IMAGE_USAGE : uint32_t
 	{
 		DEPTH,
+		SHADOW_MAP,
 		TEXTURE,
 		SWAPCHAIN_COPY_IMG, //maybe finally use bitflags.
 		RENDER_TARGET,

@@ -124,9 +124,11 @@ namespace BB
 	// returns invalid texture when not enough upload buffer space
 	const RImage CreateImage(const ImageCreateInfo& a_create_info);
 	const RDescriptorIndex CreateImageView(const ImageViewCreateInfo& a_create_info);
+	const RImageView CreateImageViewShaderInaccessible(const ImageViewCreateInfo& a_create_info);
 	const RImageView GetImageView(const RDescriptorIndex a_index);
 	void FreeImage(const RImage a_image);
 	void FreeImageView(const RDescriptorIndex a_index);
+	void FreeImageViewShaderInaccessible(const RImageView a_image_view);
 
 	void BlitImage(const RCommandList a_list, const BlitImageInfo& a_blit_info);
 	void CopyImage(const RCommandList a_list, const CopyImageInfo& a_copy_info);
