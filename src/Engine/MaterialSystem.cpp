@@ -10,7 +10,7 @@ BB_STATIC_ASSERT(sizeof(ShaderIndices) == sizeof(ShaderIndices2D), "shaderindice
 
 constexpr size_t PUSH_CONSTANT_SPACE_SIZE = sizeof(ShaderIndices);
 // store this to avoid confusion later when adding more.
-constexpr size_t CURRENT_DESC_LAYOUT_COUNT = 3;
+constexpr uint32_t CURRENT_DESC_LAYOUT_COUNT = 3;
 
 static uint64_t ShaderEffectHash(const MaterialShaderCreateInfo& a_create_info)
 {
@@ -40,7 +40,7 @@ struct MaterialSystem_inst
 
 	RDescriptorLayout scene_desc_layout;
 
-	MaterialHandle default_materials[static_cast<size_t>(PASS_TYPE::ENUM_SIZE)][static_cast<size_t>(MATERIAL_TYPE::ENUM_SIZE)];
+	MaterialHandle default_materials[static_cast<uint32_t>(PASS_TYPE::ENUM_SIZE)][static_cast<uint32_t>(MATERIAL_TYPE::ENUM_SIZE)];
 };
 
 static MaterialSystem_inst* s_material_inst;
@@ -68,12 +68,9 @@ static inline MaterialHandle CreateMaterial_impl(const Slice<ShaderEffectHandle>
 
 static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_arena, const Slice<MaterialShaderCreateInfo> a_shader_effects_info, const ShaderDescriptorLayouts& a_desc_layouts)
 {
-	ShaderEffectHandle* found_handles = ArenaAllocArr(a_temp_arena, ShaderEffectHandle, a_shader_effects_info.size());
-	ShaderEffectHandle* created_handles = ArenaAllocArr(a_temp_arena, ShaderEffectHandle, a_shader_effects_info.size());
-	ShaderEffectHandle* sorted_shaders = ArenaAllocArr(a_temp_arena, ShaderEffectHandle, a_shader_effects_info.size());
+	ShaderEffectHandle* return_handles = ArenaAllocArr(a_temp_arena, ShaderEffectHandle, a_shader_effects_info.size());
 	MemoryArenaScope(a_temp_arena)
 	{
-		bool* handle_already_exists = ArenaAllocArr(a_temp_arena, bool, a_shader_effects_info.size());
 		CreateShaderEffectInfo* shader_effects = ArenaAllocArr(a_temp_arena, CreateShaderEffectInfo, a_shader_effects_info.size());
 		size_t created_shader_effect_count = 0;
 
@@ -87,13 +84,11 @@ static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_ar
 
 			if (const ShaderEffectHandle* found_shader = s_material_inst->shader_effect_cache.find(ShaderEffectHash(info)))
 			{
-				found_handles[i] = *found_shader;
-				handle_already_exists[i] = true;
+				return_handles[i] = *found_shader;
 			}
 			else
 			{
-				handle_already_exists[i] = false;
-
+				return_handles[i] = {};
 				if (previous_shader_path != info.path)
 				{
 					MemoryArenaSetMemoryMarker(a_temp_arena, memory_pos_before_shader_read);
@@ -115,12 +110,13 @@ static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_ar
 			}
 		}
 
-		// shaders already exist, return them.
+		// all shaders already exist, return them.
 		if (created_shader_effect_count == 0)
 		{
-			return Slice(found_handles, a_shader_effects_info.size());
+			return Slice(return_handles, a_shader_effects_info.size());
 		}
 
+		ShaderEffectHandle* created_handles = ArenaAllocArr(a_temp_arena, ShaderEffectHandle, created_shader_effect_count);
 		bool success = CreateShaderEffect(a_temp_arena, Slice(shader_effects, created_shader_effect_count), created_handles, true);
 		if (!success)
 		{
@@ -134,33 +130,31 @@ static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_ar
 			{
 				for (size_t i = 0; i < created_shader_effect_count; i++)
 				{
-					CachedShaderInfo shader_info = { created_handles[i], shader_effects[i] };
+					const CachedShaderInfo shader_info = { created_handles[i], shader_effects[i] };
 					s_material_inst->shader_effects.emplace_back(shader_info);
 					s_material_inst->shader_effect_cache.insert(ShaderEffectHash(a_shader_effects_info[i]), shader_info.handle);
 				}
 				return Slice(created_handles, a_shader_effects_info.size());
 			}
 
-			// some are created and some are found. Sort them.
-			int found_shader_i = 0;
+			// some are created and some are found. Sort them inside the empty slots in found_handles
 			int created_shader_i = 0;
 			for (size_t i = 0; i < a_shader_effects_info.size(); i++)
 			{
-				if (handle_already_exists[i])
+				if (return_handles[i].IsValid())
 				{
-					CachedShaderInfo shader_info = { found_handles[found_shader_i++], shader_effects[i] };
+					const CachedShaderInfo shader_info = { return_handles[i], shader_effects[i] };
 					s_material_inst->shader_effects.emplace_back(shader_info);
-					sorted_shaders[i] = shader_info.handle;
 				}
 				else
 				{
-					CachedShaderInfo shader_info = { created_handles[created_shader_i++], shader_effects[i] };
+					const CachedShaderInfo shader_info = { created_handles[created_shader_i++], shader_effects[i] };
 					s_material_inst->shader_effects.emplace_back(shader_info);
 					s_material_inst->shader_effect_cache.insert(ShaderEffectHash(a_shader_effects_info[i]), shader_info.handle);
-					sorted_shaders[i] = shader_info.handle;
+					return_handles[i] = shader_info.handle;
 				}
 			}
-			return Slice(sorted_shaders, a_shader_effects_info.size());
+			return Slice(return_handles, a_shader_effects_info.size());
 		}
 	}
 }
