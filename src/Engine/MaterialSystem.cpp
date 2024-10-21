@@ -29,21 +29,23 @@ static inline MaterialHandle& GetDefaultMaterial_impl(const PASS_TYPE a_pass_typ
 	return s_material_inst->default_materials[static_cast<uint32_t>(a_pass_type)][static_cast<uint32_t>(a_material_type)];
 }
 
-static inline MaterialHandle CreateMaterial_impl(const ShaderEffectHandle a_vertex, const ShaderEffectHandle a_fragment, const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type, const StringView name = "default")
+static inline MaterialHandle CreateMaterial_impl(const Slice<ShaderEffectHandle> a_shaders, const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type, const StringView name = "default")
 {
 	const MaterialHandle material = s_material_inst->material_map.emplace();
 	MaterialInstance& inst = s_material_inst->material_map.find(material);
 	inst.name = name;
-	inst.shader_effects[0] = a_vertex;
-	inst.shader_effects[1] = a_fragment;
-	inst.shader_effect_count = 2;
+	inst.shader_effect_count = a_shaders.size();
+	for (size_t i = 0; i < a_shaders.size(); i++)
+	{
+		inst.shader_effects[i] = a_shaders[i];
+	}
 	inst.pass_type = a_pass_type;
 	inst.material_type = a_material_type;
 	inst.handle = material;
 	return material;
 }
 
-static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_arena, const Slice<const MaterialShaderCreateInfo> a_shader_effects_info, const ShaderDescriptorLayouts& a_desc_layouts)
+static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_arena, const Slice<MaterialShaderCreateInfo> a_shader_effects_info, const ShaderDescriptorLayouts& a_desc_layouts)
 {
 	ShaderEffectHandle* handles = ArenaAllocArr(a_temp_arena, ShaderEffectHandle, a_shader_effects_info.size());
 
@@ -119,18 +121,17 @@ void Material::InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCrea
 	{
 		MaterialCreateInfo material_info;
 		material_info.material_type = MATERIAL_TYPE::MATERIAL_2D;
-		material_info.vertex_shader_info = a_create_info.default_2d_vertex;
-		material_info.fragment_shader_info = a_create_info.default_2d_fragment;
+		MaterialShaderCreateInfo default_2d_shaders[]{ a_create_info.default_2d_vertex, a_create_info.default_2d_fragment };
+		material_info.shader_infos = Slice(default_2d_shaders, _countof(default_2d_shaders));
 
 		material_info.pass_type = PASS_TYPE::GLOBAL;
 		GetDefaultMaterial_impl(PASS_TYPE::GLOBAL, MATERIAL_TYPE::MATERIAL_2D) = CreateMaterial(a_arena, material_info, "default global 2d");
 		material_info.pass_type = PASS_TYPE::SCENE;
 		GetDefaultMaterial_impl(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_2D) = CreateMaterial(a_arena, material_info, "default global 2d");
 
-
+		MaterialShaderCreateInfo default_3d_shaders[]{ a_create_info.default_3d_vertex, a_create_info.default_3d_fragment };
 		material_info.material_type = MATERIAL_TYPE::MATERIAL_3D;
-		material_info.vertex_shader_info = a_create_info.default_3d_vertex;
-		material_info.fragment_shader_info = a_create_info.default_3d_fragment;
+		material_info.shader_infos = Slice(default_3d_shaders, _countof(default_3d_shaders));
 
 		material_info.pass_type = PASS_TYPE::GLOBAL;
 		GetDefaultMaterial_impl(PASS_TYPE::GLOBAL, MATERIAL_TYPE::MATERIAL_3D) = CreateMaterial(a_arena, material_info, "default global 3d");
@@ -141,9 +142,6 @@ void Material::InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCrea
 
 MaterialHandle Material::CreateMaterial(MemoryArena& a_temp_arena, const MaterialCreateInfo& a_create_info, const StringView a_name)
 {
-	BB_ASSERT(a_create_info.vertex_shader_info.stage == SHADER_STAGE::VERTEX, "vertex_shader_info.stage is not SHADER_STAGE::VERTEX");
-	BB_ASSERT(a_create_info.fragment_shader_info.stage == SHADER_STAGE::FRAGMENT_PIXEL, "fragment_shader_info.stage is not SHADER_STAGE::FRAGMENT_PIXEL");
-
 	ShaderDescriptorLayouts desc_layouts;
 	desc_layouts[SPACE_IMMUTABLE_SAMPLER] = GetStaticSamplerDescriptorLayout();
 	desc_layouts[SPACE_GLOBAL] = GetGlobalDescriptorLayout();
@@ -182,10 +180,9 @@ MaterialHandle Material::CreateMaterial(MemoryArena& a_temp_arena, const Materia
 		break;
 	}
 
-	const MaterialShaderCreateInfo shader_effects_info[2]{ a_create_info.vertex_shader_info, a_create_info.fragment_shader_info };
-	const Slice<ShaderEffectHandle> shader_effects = CreateShaderEffects_impl(a_temp_arena, Slice(shader_effects_info, _countof(shader_effects_info)), desc_layouts);
+	const Slice<ShaderEffectHandle> shader_effects = CreateShaderEffects_impl(a_temp_arena, a_create_info.shader_infos, desc_layouts);
 
-	return CreateMaterial_impl(shader_effects[0], shader_effects[1], a_create_info.pass_type, a_create_info.material_type, a_name);
+	return CreateMaterial_impl(shader_effects, a_create_info.pass_type, a_create_info.material_type, a_name);
 }
 
 MaterialHandle Material::GetDefaultMaterial(const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type)

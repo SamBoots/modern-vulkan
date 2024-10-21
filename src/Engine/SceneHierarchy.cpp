@@ -81,14 +81,16 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 	MaterialCreateInfo skybox_material;
 	skybox_material.pass_type = PASS_TYPE::SCENE;
 	skybox_material.material_type = MATERIAL_TYPE::NONE;
-	skybox_material.vertex_shader_info.path = "../../resources/shaders/hlsl/skybox.hlsl";
-	skybox_material.vertex_shader_info.entry = "VertexMain";
-	skybox_material.vertex_shader_info.stage = SHADER_STAGE::VERTEX;
-	skybox_material.vertex_shader_info.next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
-	skybox_material.fragment_shader_info.path = "../../resources/shaders/hlsl/skybox.hlsl";
-	skybox_material.fragment_shader_info.entry = "FragmentMain";
-	skybox_material.fragment_shader_info.stage = SHADER_STAGE::FRAGMENT_PIXEL;
-	skybox_material.fragment_shader_info.next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
+	MaterialShaderCreateInfo skybox_shaders[2];
+	skybox_shaders[0].path = "../../resources/shaders/hlsl/skybox.hlsl";
+	skybox_shaders[0].entry = "VertexMain";
+	skybox_shaders[0].stage = SHADER_STAGE::VERTEX;
+	skybox_shaders[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
+	skybox_shaders[1].path = "../../resources/shaders/hlsl/skybox.hlsl";
+	skybox_shaders[1].entry = "FragmentMain";
+	skybox_shaders[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
+	skybox_shaders[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
+	skybox_material.shader_infos = Slice(skybox_shaders, _countof(skybox_shaders));
 	MemoryArenaScope(a_arena)
 	{
 		m_skybox_material = Material::CreateMaterial(a_arena, skybox_material, "skybox material");

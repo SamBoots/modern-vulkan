@@ -30,8 +30,7 @@ namespace BB
 
 	struct MaterialCreateInfo
 	{
-		MaterialShaderCreateInfo vertex_shader_info;
-		MaterialShaderCreateInfo fragment_shader_info;
+		Slice<MaterialShaderCreateInfo> shader_infos;
 		PASS_TYPE pass_type;
 		MATERIAL_TYPE material_type;
 	};
