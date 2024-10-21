@@ -1823,7 +1823,7 @@ ShaderObject Vulkan::CreateShaderObject(const ShaderObjectCreateInfo& a_shader_o
 	}
 }
 
-void Vulkan::CreateShaderObjects(MemoryArena& a_temp_arena, Slice<ShaderObjectCreateInfo> a_shader_objects, ShaderObject* a_pshader_objects)
+void Vulkan::CreateShaderObjects(MemoryArena& a_temp_arena, Slice<ShaderObjectCreateInfo> a_shader_objects, ShaderObject* a_pshader_objects, const bool a_link_shaders)
 {
 	VkShaderCreateInfoEXT* shader_create_infos = ArenaAllocArr(a_temp_arena, VkShaderCreateInfoEXT, a_shader_objects.size());
 
@@ -1833,11 +1833,7 @@ void Vulkan::CreateShaderObjects(MemoryArena& a_temp_arena, Slice<ShaderObjectCr
 		VkShaderCreateInfoEXT& create_inf = shader_create_infos[i];
 		create_inf.sType = VK_STRUCTURE_TYPE_SHADER_CREATE_INFO_EXT;
 		create_inf.pNext = nullptr;
-#ifdef _ENABLE_REBUILD_SHADERS
-		create_inf.flags = 0;
-#else 
-		create_inf.flags = VK_SHADER_CREATE_LINK_STAGE_BIT_EXT;
-#endif // _ENABLE_REBUILD_SHADERS
+		create_inf.flags = a_link_shaders ? VK_SHADER_CREATE_LINK_STAGE_BIT_EXT : 0;
 		create_inf.stage = static_cast<VkShaderStageFlagBits>(ShaderStageFlags(shad_info.stage));
 		create_inf.nextStage = ShaderStageFlagsFromFlags(shad_info.next_stages);
 		create_inf.codeType = VK_SHADER_CODE_TYPE_SPIRV_EXT; //for now always SPIR-V

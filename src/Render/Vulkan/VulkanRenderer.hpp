@@ -40,7 +40,7 @@ namespace BB
 		void FreePipelineLayout(const RPipelineLayout a_layout);
 
 		ShaderObject CreateShaderObject(const ShaderObjectCreateInfo& a_shader_object);
-		void CreateShaderObjects(MemoryArena& a_temp_arena, Slice<ShaderObjectCreateInfo> a_shader_objects, ShaderObject* a_pshader_objects);
+		void CreateShaderObjects(MemoryArena& a_temp_arena, Slice<ShaderObjectCreateInfo> a_shader_objects, ShaderObject* a_pshader_objects, const bool a_link_shaders);
 		void DestroyShaderObject(const ShaderObject a_shader_object);
 
 		void* MapBufferMemory(const GPUBuffer a_buffer);
