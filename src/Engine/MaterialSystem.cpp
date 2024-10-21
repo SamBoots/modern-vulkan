@@ -12,10 +12,31 @@ constexpr size_t PUSH_CONSTANT_SPACE_SIZE = sizeof(ShaderIndices);
 // store this to avoid confusion later when adding more.
 constexpr size_t CURRENT_DESC_LAYOUT_COUNT = 3;
 
+static uint64_t ShaderEffectHash(const MaterialShaderCreateInfo& a_create_info)
+{
+	uint64_t hash = 256;
+	for (size_t i = 0; i < a_create_info.entry.size() - 1; i++)
+	{
+		hash += a_create_info.entry.c_str()[i];
+	}
+
+	const StringView path_no_extension = StringView(a_create_info.path.c_str(), a_create_info.path.find_last_of('.'));
+	for (size_t i = path_no_extension.find_last_of('/'); i < path_no_extension.size(); i++)
+	{
+		hash *= path_no_extension.c_str()[i];
+	}
+
+	hash *= static_cast<uint32_t>(a_create_info.stage);
+	hash ^= a_create_info.next_stages;
+
+	return hash;
+}
+
 struct MaterialSystem_inst
 {
 	StaticSlotmap<MaterialInstance, MaterialHandle> material_map;
 	StaticArray<CachedShaderInfo> shader_effects;
+	StaticOL_HashMap<uint64_t, ShaderEffectHandle> shader_effect_cache;
 
 	RDescriptorLayout scene_desc_layout;
 
@@ -47,13 +68,14 @@ static inline MaterialHandle CreateMaterial_impl(const Slice<ShaderEffectHandle>
 
 static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_arena, const Slice<MaterialShaderCreateInfo> a_shader_effects_info, const ShaderDescriptorLayouts& a_desc_layouts)
 {
-	ShaderEffectHandle* handles = ArenaAllocArr(a_temp_arena, ShaderEffectHandle, a_shader_effects_info.size());
-
+	ShaderEffectHandle* found_handles = ArenaAllocArr(a_temp_arena, ShaderEffectHandle, a_shader_effects_info.size());
+	ShaderEffectHandle* created_handles = ArenaAllocArr(a_temp_arena, ShaderEffectHandle, a_shader_effects_info.size());
+	ShaderEffectHandle* sorted_shaders = ArenaAllocArr(a_temp_arena, ShaderEffectHandle, a_shader_effects_info.size());
 	MemoryArenaScope(a_temp_arena)
 	{
+		bool* handle_already_exists = ArenaAllocArr(a_temp_arena, bool, a_shader_effects_info.size());
 		CreateShaderEffectInfo* shader_effects = ArenaAllocArr(a_temp_arena, CreateShaderEffectInfo, a_shader_effects_info.size());
-		size_t shader_effect_count = 0;
-
+		size_t created_shader_effect_count = 0;
 
 		MemoryArenaMarker memory_pos_before_shader_read = MemoryArenaGetMemoryMarker(a_temp_arena);
 		StringView previous_shader_path;
@@ -61,31 +83,45 @@ static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_ar
 
 		for (size_t i = 0; i < a_shader_effects_info.size(); i++)
 		{
-			// TODO: do a search, if found shader is already compiled then continue.
-
 			const MaterialShaderCreateInfo& info = a_shader_effects_info[i];
 
-			if (previous_shader_path != info.path)
+			if (const ShaderEffectHandle* found_shader = s_material_inst->shader_effect_cache.find(ShaderEffectHash(info)))
 			{
-				MemoryArenaSetMemoryMarker(a_temp_arena, memory_pos_before_shader_read);
-				shader_buffer = ReadOSFile(a_temp_arena, info.path.c_str());
-				previous_shader_path = info.path;
+				found_handles[i] = *found_shader;
+				handle_already_exists[i] = true;
 			}
+			else
+			{
+				handle_already_exists[i] = false;
 
-			const StringView name = info.path.c_str() + info.path.find_last_of('/');
+				if (previous_shader_path != info.path)
+				{
+					MemoryArenaSetMemoryMarker(a_temp_arena, memory_pos_before_shader_read);
+					shader_buffer = ReadOSFile(a_temp_arena, info.path.c_str());
+					previous_shader_path = info.path;
+				}
 
-			CreateShaderEffectInfo& shader_info = shader_effects[shader_effect_count++];
-			shader_info.name = name.c_str();
-			shader_info.shader_entry = info.entry.c_str();
-			shader_info.shader_data = shader_buffer;
-			shader_info.stage = info.stage;
-			shader_info.next_stages = info.next_stages;
-			shader_info.push_constant_space = PUSH_CONSTANT_SPACE_SIZE;
-			shader_info.desc_layouts = a_desc_layouts;
-			shader_info.desc_layout_count = CURRENT_DESC_LAYOUT_COUNT;
+				const StringView name = info.path.c_str() + info.path.find_last_of('/');
+
+				CreateShaderEffectInfo& shader_info = shader_effects[created_shader_effect_count++];
+				shader_info.name = name.c_str();
+				shader_info.shader_entry = info.entry.c_str();
+				shader_info.shader_data = shader_buffer;
+				shader_info.stage = info.stage;
+				shader_info.next_stages = info.next_stages;
+				shader_info.push_constant_space = PUSH_CONSTANT_SPACE_SIZE;
+				shader_info.desc_layouts = a_desc_layouts;
+				shader_info.desc_layout_count = CURRENT_DESC_LAYOUT_COUNT;
+			}
 		}
 
-		bool success = CreateShaderEffect(a_temp_arena, Slice(shader_effects, shader_effect_count), handles, true);
+		// shaders already exist, return them.
+		if (created_shader_effect_count == 0)
+		{
+			return Slice(found_handles, a_shader_effects_info.size());
+		}
+
+		bool success = CreateShaderEffect(a_temp_arena, Slice(shader_effects, created_shader_effect_count), created_handles, true);
 		if (!success)
 		{
 			BB_WARNING(false, "Material created failed due to failing to create shader effects", WarningType::MEDIUM);
@@ -93,15 +129,40 @@ static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_ar
 		}
 		else
 		{
-			for (size_t i = 0; i < shader_effect_count; i++)
+			// all created shaders are filled, send them.
+			if (a_shader_effects_info.size() == created_shader_effect_count)
 			{
-				CachedShaderInfo shader_info = { handles[i], shader_effects[i] };
-				s_material_inst->shader_effects.emplace_back(shader_info);
+				for (size_t i = 0; i < created_shader_effect_count; i++)
+				{
+					CachedShaderInfo shader_info = { created_handles[i], shader_effects[i] };
+					s_material_inst->shader_effects.emplace_back(shader_info);
+					s_material_inst->shader_effect_cache.insert(ShaderEffectHash(a_shader_effects_info[i]), shader_info.handle);
+				}
+				return Slice(created_handles, a_shader_effects_info.size());
 			}
+
+			// some are created and some are found. Sort them.
+			int found_shader_i = 0;
+			int created_shader_i = 0;
+			for (size_t i = 0; i < a_shader_effects_info.size(); i++)
+			{
+				if (handle_already_exists[i])
+				{
+					CachedShaderInfo shader_info = { found_handles[found_shader_i++], shader_effects[i] };
+					s_material_inst->shader_effects.emplace_back(shader_info);
+					sorted_shaders[i] = shader_info.handle;
+				}
+				else
+				{
+					CachedShaderInfo shader_info = { created_handles[created_shader_i++], shader_effects[i] };
+					s_material_inst->shader_effects.emplace_back(shader_info);
+					s_material_inst->shader_effect_cache.insert(ShaderEffectHash(a_shader_effects_info[i]), shader_info.handle);
+					sorted_shaders[i] = shader_info.handle;
+				}
+			}
+			return Slice(sorted_shaders, a_shader_effects_info.size());
 		}
 	}
-
-	return Slice(handles, a_shader_effects_info.size());
 }
 
 void Material::InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCreateInfo& a_create_info)
@@ -114,6 +175,7 @@ void Material::InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCrea
 	s_material_inst = ArenaAllocType(a_arena, MaterialSystem_inst);
 	s_material_inst->material_map.Init(a_arena, a_create_info.max_materials);
 	s_material_inst->shader_effects.Init(a_arena, a_create_info.max_shader_effects);
+	s_material_inst->shader_effect_cache.Init(a_arena, a_create_info.max_shader_effects);
 	
 	s_material_inst->scene_desc_layout = SceneHierarchy::GetSceneDescriptorLayout();
 
