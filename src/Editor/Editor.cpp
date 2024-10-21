@@ -291,7 +291,7 @@ void Editor::ThreadFuncForDrawing(MemoryArena&, void* a_param)
 	SceneHierarchy& scene_hierarchy = param_in->scene_hierarchy;
 	RCommandList list = param_in->command_list;
 
-	const RTexture render_target = viewport.StartRenderTarget(list, back_buffer_index);
+	const RImageView render_target = viewport.StartRenderTarget(list, back_buffer_index);
 	scene_hierarchy.DrawSceneHierarchy(list, render_target, back_buffer_index, viewport.GetExtent(), int2());
 	viewport.EndRenderTarget(list, back_buffer_index, IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL);
 }
@@ -425,7 +425,7 @@ void Editor::CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a
 	}
 }
 
-void Editor::RegisterSceneHierarchy(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint2 a_window_extent, const uint32_t a_back_buffer_count)
+void Editor::RegisterSceneHierarchy(SceneHierarchy& a_hierarchy, const uint2 a_window_extent, const uint32_t a_back_buffer_count)
 {
 	ViewportAndScene viewport_scene{ a_hierarchy };
 	StackString<256> viewport_name{ a_hierarchy.m_scene_name.c_str(),  a_hierarchy.m_scene_name.size() };

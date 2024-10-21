@@ -31,47 +31,10 @@ namespace BB
 		ENUM_SIZE
 	};
 
-	enum class IMAGE_TILING : uint32_t
-	{
-		LINEAR,
-		OPTIMAL,
-
-		ENUM_SIZE
-	};
-
 	enum class PRESENT_IMAGE_RESULT
 	{
 		SWAPCHAIN_OUT_OF_DATE,
 		SUCCESS
-	};
-
-	struct ImageCreateInfo
-	{
-		const char* name = nullptr;	//8
-		uint32_t width = 0;			//12
-		uint32_t height = 0;		//16
-		uint32_t depth = 0;			//20
-
-		uint16_t array_layers = 0;	//22
-		uint16_t mip_levels = 0;	//24
-		IMAGE_TYPE type{};			//28
-		IMAGE_FORMAT format{};		//32
-		IMAGE_TILING tiling{};		//36
-		IMAGE_USAGE usage{};		//40
-		bool is_cube_map = false;	
-	};
-
-	struct ImageViewCreateInfo
-	{
-		const char* name = nullptr;	//8
-
-		RImage image;				//16
-		uint16_t array_layers = 0;	//18
-		uint16_t mip_levels = 0;	//20
-		uint16_t base_array_layer = 0;//22
-		IMAGE_VIEW_TYPE type{};		//26
-		IMAGE_FORMAT format{};		//30
-		bool is_depth_image = false;
 	};
 
 	enum class SAMPLER_ADDRESS_MODE : uint32_t
@@ -111,43 +74,17 @@ namespace BB
 
 		RImage dst_image;
 		uint3 dst_extent;
-		ImageCopyInfo dst_image_info;
+		ImageSizeInfo dst_image_info;
 	};
 
 	struct RenderCopyImageToBufferInfo
 	{
 		RImage src_image;
 		uint3 src_extent;
-		ImageCopyInfo src_image_info;
+		ImageSizeInfo src_image_info;
 
 		GPUBuffer dst_buffer;
 		uint32_t dst_offset;
-	};
-
-	struct RenderCopyImage
-	{
-		uint3 extent;
-		RImage src_image;
-		ImageCopyInfo src_copy_info;
-		RImage dst_image;
-		ImageCopyInfo dst_copy_info;
-	};
-
-	struct BlitImageInfo
-	{
-		RImage src_image;
-		int3 src_offset_p0;
-		int3 src_offset_p1;
-		uint32_t src_mip_level;
-		uint32_t src_layer_count;
-		uint32_t src_base_layer;
-
-		RImage dst_image;
-		int3 dst_offset_p0;
-		int3 dst_offset_p1;
-		uint32_t dst_mip_level;
-		uint32_t dst_layer_count;
-		uint32_t dst_base_layer;
 	};
 
 	using RQueue = FrameworkHandle<struct RQueueTag>;
@@ -183,31 +120,5 @@ namespace BB
 		uint32_t descriptor_layout_count;
 		FixedArray<RDescriptorLayout, SPACE_AMOUNT> descriptor_layouts;
 		PushConstantRange push_constant_range;
-	};
-
-	struct WriteDescriptorImage
-	{
-		RImageView view;
-		IMAGE_LAYOUT layout;
-	};
-
-	struct WriteDescriptorData
-	{
-		uint32_t binding;
-		uint32_t descriptor_index;
-		DESCRIPTOR_TYPE type{};
-		union
-		{
-			GPUBufferView buffer_view{};
-			WriteDescriptorImage image_view;
-		};
-	};
-
-	struct WriteDescriptorInfos
-	{
-		RDescriptorLayout descriptor_layout{};
-		DescriptorAllocation allocation;
-
-		BB::Slice<WriteDescriptorData> data;
 	};
 }

@@ -4,4 +4,12 @@
 #include "Common.h"
 //most of the BB types share a similiar name to those of hlsl, good coincidence
 #define uint uint32_t
-#endif //IS HLSL
+namespace BB
+{
+	using RDescriptorIndex = FrameworkHandle32Bit<struct RDescriptorIndexTag>;
+}
+#else // __HLSL_VERSION
+
+typedef uint RDescriptorIndex;
+
+#endif // __HLSL_VERSION

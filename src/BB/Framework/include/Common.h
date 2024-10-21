@@ -86,8 +86,8 @@ namespace BB
 		};
 		uint64_t handle;
 
-		inline bool operator ==(const FrameworkHandle a_rhs) const { return handle == a_rhs.handle; }
-		inline bool operator !=(const FrameworkHandle a_rhs) const { return handle != a_rhs.handle; }
+		inline bool operator ==(const FrameworkHandle<Tag> a_rhs) const { return handle == a_rhs.handle; }
+		inline bool operator !=(const FrameworkHandle<Tag> a_rhs) const { return handle != a_rhs.handle; }
 	};
 
 	using WindowHandle = FrameworkHandle<struct WindowHandleTag>;
@@ -108,12 +108,11 @@ namespace BB
 		constexpr FrameworkHandle32Bit() : handle(BB_INVALID_HANDLE_32) {}
 		constexpr explicit FrameworkHandle32Bit(const uint32_t a_handle) : handle(a_handle) {}
 
+		bool IsValid() const { return handle != BB_INVALID_HANDLE_32; }
 		uint32_t handle;
 
-		bool IsValid() const { return handle != BB_INVALID_HANDLE_32; }
-
-		inline bool operator ==(const FrameworkHandle32Bit a_rhs) const { return handle == a_rhs.handle; }
-		inline bool operator !=(const FrameworkHandle32Bit a_rhs) const { return handle != a_rhs.handle; }
+		inline bool operator ==(const FrameworkHandle32Bit<Tag> a_rhs) const { return handle == a_rhs.handle; }
+		inline bool operator !=(const FrameworkHandle32Bit<Tag> a_rhs) const { return handle != a_rhs.handle; }
 	};
 
 	using wchar = wchar_t;

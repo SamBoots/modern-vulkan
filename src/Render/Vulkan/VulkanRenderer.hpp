@@ -26,7 +26,7 @@ namespace BB
 		const RImage CreateImage(const ImageCreateInfo& a_create_info);
 		void FreeImage(const RImage a_image);
 
-		const RImageView CreateViewImage(const ImageViewCreateInfo& a_create_info);
+		const RImageView CreateImageView(const ImageViewCreateInfo& a_create_info);
 		void FreeViewImage(const RImageView a_image_view);
 
 		RDescriptorLayout CreateDescriptorLayout(MemoryArena& a_temp_arena, Slice<DescriptorBindingInfo> a_bindings);
@@ -51,7 +51,7 @@ namespace BB
 		void EndCommandList(const RCommandList a_list);
 
 		void CopyBuffer(const RCommandList a_list, const RenderCopyBuffer& a_copy_buffer);
-		void CopyImage(const RCommandList a_list, const RenderCopyImage& a_copy_info);
+		void CopyImage(const RCommandList a_list, const CopyImageInfo& a_copy_info);
 		void CopyBufferToImage(const RCommandList a_list, const RenderCopyBufferToImageInfo& a_copy_info);
 		void CopyImageToBuffer(const RCommandList a_list, const RenderCopyImageToBufferInfo& a_copy_info);
 		void PipelineBarriers(const RCommandList a_list, const PipelineBarrierInfo& a_BarrierInfo);

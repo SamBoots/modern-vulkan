@@ -21,7 +21,7 @@ namespace BB
 		void Destroy();
 		void CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint32_t a_back_buffer_count, const char* a_json_path);
 		void CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint32_t a_back_buffer_count, const JsonParser& a_parsed_file);
-		void RegisterSceneHierarchy(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint2 a_window_extent, const uint32_t a_back_buffer_count);
+		void RegisterSceneHierarchy(SceneHierarchy& a_hierarchy, const uint2 a_window_extent, const uint32_t a_back_buffer_count);
 
 		template<typename game_interface>
 		requires is_game_interface<game_interface>

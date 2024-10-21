@@ -495,10 +495,9 @@ struct Vulkan_inst
 		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_1D)] = VK_IMAGE_VIEW_TYPE_1D;
 		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_2D)] = VK_IMAGE_VIEW_TYPE_2D;
 		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_3D)] = VK_IMAGE_VIEW_TYPE_3D;
+		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_1D_ARRAY)] = VK_IMAGE_VIEW_TYPE_1D_ARRAY;
+		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_2D_ARRAY)] = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
 		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::CUBE)] = VK_IMAGE_VIEW_TYPE_CUBE;
-
-		enum_conv.image_tilings[static_cast<uint32_t>(IMAGE_TILING::LINEAR)] = VK_IMAGE_TILING_LINEAR;
-		enum_conv.image_tilings[static_cast<uint32_t>(IMAGE_TILING::OPTIMAL)] = VK_IMAGE_TILING_OPTIMAL;
 
 		enum_conv.sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::REPEAT)] = VK_SAMPLER_ADDRESS_MODE_REPEAT;
 		enum_conv.sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::MIRROR)] = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
@@ -524,6 +523,7 @@ struct Vulkan_inst
 		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::HOST_READABLE)] = VK_ACCESS_2_HOST_READ_BIT;
 
 		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::DEPTH)] = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
+		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::SHADOW_MAP)] = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
 		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::TEXTURE)] = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
 		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::SWAPCHAIN_COPY_IMG)] = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
 		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::RENDER_TARGET)] = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
@@ -572,7 +572,6 @@ struct Vulkan_inst
 		VkFormat image_formats[static_cast<uint32_t>(IMAGE_FORMAT::ENUM_SIZE)];
 		VkImageType image_types[static_cast<uint32_t>(IMAGE_TYPE::ENUM_SIZE)];
 		VkImageViewType image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::ENUM_SIZE)];
-		VkImageTiling image_tilings[static_cast<uint32_t>(IMAGE_TILING::ENUM_SIZE)];
 		VkSamplerAddressMode sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::ENUM_SIZE)];
 		VkPipelineStageFlags2 pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::ENUM_SIZE)];
 		VkAccessFlags2 access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::ENUM_SIZE)];
@@ -775,23 +774,6 @@ static inline VkImageViewType ImageViewTypes(const IMAGE_VIEW_TYPE a_image_types
 	case IMAGE_TYPE::CUBE:			return VK_IMAGE_VIEW_TYPE_CUBE;
 	default:
 		BB_ASSERT(false, "Vulkan: IMAGE_TYPE failed to convert to a VkImageViewType.");
-		return VK_IMAGE_TYPE_1D;
-		break;
-	}
-#endif //ENUM_CONVERSATION_BY_ARRAY
-}
-
-static inline VkImageTiling ImageTilings(const IMAGE_TILING a_image_tiling)
-{
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.image_tilings[static_cast<uint32_t>(a_image_tiling)];
-#else
-	switch (a_image_tiling)
-	{
-	case IMAGE_TILING::LINEAR:		return VK_IMAGE_TILING_LINEAR;
-	case IMAGE_TILING::OPTIMAL:		return VK_IMAGE_TILING_OPTIMAL;
-	default:
-		BB_ASSERT(false, "Vulkan: IMAGE_TILING failed to convert to a VkImageTiling.");
 		return VK_IMAGE_TYPE_1D;
 		break;
 	}
@@ -1483,7 +1465,7 @@ const RImage Vulkan::CreateImage(const ImageCreateInfo& a_create_info)
 	image_create_info.arrayLayers = a_create_info.array_layers;
 
 	image_create_info.imageType = ImageTypes(a_create_info.type);
-	image_create_info.tiling = ImageTilings(a_create_info.tiling);
+	image_create_info.tiling = a_create_info.use_optimal_tiling ? VK_IMAGE_TILING_OPTIMAL : VK_IMAGE_TILING_LINEAR;
 	image_create_info.format = ImageFormats(a_create_info.format);
 	image_create_info.usage = ImageUsage(a_create_info.usage);
 
@@ -1528,7 +1510,7 @@ void Vulkan::FreeImage(const RImage a_image)
 	s_vulkan_inst->allocation_map.erase(a_image.handle);
 }
 
-const RImageView Vulkan::CreateViewImage(const ImageViewCreateInfo& a_create_info)
+const RImageView Vulkan::CreateImageView(const ImageViewCreateInfo& a_create_info)
 {
 	VkImageViewCreateInfo view_info{ VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
 	view_info.image = reinterpret_cast<VkImage>(a_create_info.image.handle);
@@ -1939,7 +1921,7 @@ void Vulkan::CopyBuffer(const RCommandList a_list, const RenderCopyBuffer& a_cop
 		copy_regions);
 }
 
-void Vulkan::CopyImage(const RCommandList a_list, const RenderCopyImage& a_copy_info)
+void Vulkan::CopyImage(const RCommandList a_list, const CopyImageInfo& a_copy_info)
 {
 	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 

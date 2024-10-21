@@ -14,7 +14,7 @@ namespace BB
 		void Resize(const uint2 a_new_extent);
 		void DrawImgui(bool& a_resized, uint32_t a_back_buffer_index, const uint2 a_minimum_size = uint2(160, 80));
 
-		const RTexture& StartRenderTarget(const RCommandList a_cmd_list, uint32_t a_back_buffer_index) const;
+		const RImageView StartRenderTarget(const RCommandList a_cmd_list, uint32_t a_back_buffer_index) const;
 		void EndRenderTarget(const RCommandList a_cmd_list, const uint32_t a_back_buffer_index, const IMAGE_LAYOUT a_current_layout);
 
 		bool PositionWithinViewport(const uint2 a_pos) const;
@@ -30,8 +30,9 @@ namespace BB
 
 		uint2 m_extent;
 		int2 m_offset;
-		uint32_t m_texture_array_count;
-		RTexture m_texture;
+		uint32_t m_render_target_count;
+		RImage m_image;
+		RDescriptorIndex m_image_indices[3];
 		StringView m_name;
 	};
 }

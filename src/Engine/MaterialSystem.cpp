@@ -115,7 +115,7 @@ static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_ar
 	}
 
 	ShaderEffectHandle* created_handles = ArenaAllocArr(a_temp_arena, ShaderEffectHandle, created_shader_effect_count);
-	bool success = CreateShaderEffect(a_temp_arena, Slice(shader_effects, created_shader_effect_count), created_handles, true);
+	bool success = CreateShaderEffect(a_temp_arena, Slice(shader_effects, created_shader_effect_count), created_handles, false);
 	if (!success)
 	{
 		BB_WARNING(false, "Material created failed due to failing to create shader effects", WarningType::MEDIUM);

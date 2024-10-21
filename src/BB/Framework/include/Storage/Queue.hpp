@@ -102,7 +102,7 @@ namespace BB
 		}
 
 		// thread safe
-		bool EnQueue(T& a_element)
+		bool EnQueue(const T& a_element)
 		{
 			const size_t current_size = m_size.fetch_add(1, std::memory_order_acquire);
 			if (current_size >= m_capacity)

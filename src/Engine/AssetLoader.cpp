@@ -44,6 +44,8 @@ constexpr size_t MAX_STRING_SIZE_STORAGE = 2024;
 constexpr const char TEXTURE_DIRECTORY[] = "../../resources/textures/";
 constexpr const char ICON_DIRECTORY[] = "../../resources/icons/";
 
+constexpr const IMAGE_FORMAT ICON_IMAGE_FORMAT = IMAGE_FORMAT::RGBA8_SRGB;
+
 using PathString = StackString<MAX_PATH_SIZE>;
 using AssetString = StackString<MAX_ASSET_NAME_SIZE>;
 
@@ -194,7 +196,8 @@ struct AssetManager
 	{
 		IconSlot empty_slot;
 		BBRWLock icon_lock;
-		RTexture texture;
+		RImage image;
+		RDescriptorIndex image_descriptor_index;
 		IconSlot* slots;
 		uint32_t max_slots;	// a slot is a texture space that is equal to ICON_EXTENT
 		uint32_t next_slot;
@@ -319,7 +322,7 @@ static inline bool IconWriteToDisk(const IconSlot a_slot, const PathString& a_wr
 
 	const int2 read_offset(static_cast<int>(a_slot.slot_index * ICON_EXTENT.x), 0);
 
-	const GPUFenceValue fence_value = ReadTexture(s_asset_manager->icons_storage.texture, ICON_EXTENT, read_offset, readback, readback_buff.size);
+	const GPUFenceValue fence_value = ReadTexture(s_asset_manager->icons_storage.image, IMAGE_LAYOUT::SHADER_READ_ONLY, ICON_EXTENT, read_offset, readback, readback_buff.size);
 
 	IconWriteToDisk_params params;
 	params.readback = readback;
@@ -344,14 +347,16 @@ static inline IconSlot LoadIconFromPath(MemoryArena& a_temp_arena, const StringV
 
 	const IconSlot slot = GetIconSlotSpace();
 
-	WriteTextureInfo write_icon_info;
+	WriteImageInfo write_icon_info;
+	write_icon_info.image = s_asset_manager->icons_storage.image;
+	write_icon_info.format = ICON_IMAGE_FORMAT;
 	write_icon_info.extent = ICON_EXTENT;
 	write_icon_info.offset = int2(static_cast<int>(slot.slot_index * ICON_EXTENT.x), 0);
 	write_icon_info.pixels = write_pixels;
 	write_icon_info.set_shader_visible = a_set_icons_shader_visible;
 	write_icon_info.layer_count = 1;
 	write_icon_info.base_array_layer = 0;
-	WriteTexture(s_asset_manager->icons_storage.texture, write_icon_info);
+	WriteTexture(write_icon_info);
 
 	return slot;
 }
@@ -360,14 +365,16 @@ static inline IconSlot LoadIconFromPixels(const void* a_pixels, const bool a_set
 {
 	const IconSlot slot = GetIconSlotSpace();
 
-	WriteTextureInfo write_icon_info;
+	WriteImageInfo write_icon_info;
+	write_icon_info.image = s_asset_manager->icons_storage.image;
+	write_icon_info.format = ICON_IMAGE_FORMAT;
 	write_icon_info.extent = ICON_EXTENT;
 	write_icon_info.offset = int2(static_cast<int>(slot.slot_index * ICON_EXTENT.x), 0);
 	write_icon_info.pixels = a_pixels;
 	write_icon_info.set_shader_visible = a_set_icons_shader_visible;
 	write_icon_info.layer_count = 1;
 	write_icon_info.base_array_layer = 0;
-	WriteTexture(s_asset_manager->icons_storage.texture, write_icon_info);
+	WriteTexture(write_icon_info);
 
 	return slot;
 }
@@ -421,14 +428,31 @@ void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
 	s_asset_manager->icons_storage.max_slots = a_init_info.asset_count;
 	s_asset_manager->icons_storage.slots = ArenaAllocArr(s_asset_manager->asset_arena, IconSlot, a_init_info.asset_count);
 	s_asset_manager->icons_storage.next_slot = 1;
-	CreateTextureInfo icons_texture_info;
-	icons_texture_info.name = "icon mega texture";
-	icons_texture_info.width = ICON_EXTENT.x * s_asset_manager->icons_storage.max_slots;
-	icons_texture_info.height = ICON_EXTENT.y;
-	icons_texture_info.usage = IMAGE_USAGE::TEXTURE;
-	icons_texture_info.format = IMAGE_FORMAT::RGBA8_SRGB;
-	icons_texture_info.array_layers = 1;
-	s_asset_manager->icons_storage.texture = CreateTexture(icons_texture_info);
+	ImageCreateInfo icons_image_info;
+	icons_image_info.name = "icon mega image";
+	icons_image_info.width = ICON_EXTENT.x * s_asset_manager->icons_storage.max_slots;
+	icons_image_info.height = ICON_EXTENT.y;
+	icons_image_info.depth = 1;
+	icons_image_info.mip_levels = 1;
+	icons_image_info.array_layers = 1;
+	icons_image_info.type = IMAGE_TYPE::TYPE_2D;
+	icons_image_info.usage = IMAGE_USAGE::TEXTURE;
+	icons_image_info.format = ICON_IMAGE_FORMAT;
+	icons_image_info.use_optimal_tiling = true;
+	icons_image_info.is_cube_map = false;
+
+	s_asset_manager->icons_storage.image = CreateImage(icons_image_info);
+
+	ImageViewCreateInfo icons_view_info;
+	icons_view_info.name = "icon mega image view";
+	icons_view_info.image = s_asset_manager->icons_storage.image;
+	icons_view_info.array_layers = 1;
+	icons_view_info.base_array_layer = 0;
+	icons_view_info.mip_levels = 1;
+	icons_view_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+	icons_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
+	icons_view_info.is_depth_image = false;
+	s_asset_manager->icons_storage.image_descriptor_index = CreateImageView(icons_view_info);
 
 	//slot 0 is for debug
 	s_asset_manager->icons_storage.empty_slot = { 0, 0 };
@@ -533,38 +557,68 @@ static void LoadAsync_func(MemoryArena&, void* a_param)
 	MemoryArenaFree(params->memory_arena);
 }
 
+static inline void CreateImage_func(const StringView& a_name, const uint32_t a_width, const uint32_t a_height, const IMAGE_FORMAT a_format, RImage& a_out_image, RDescriptorIndex& a_out_index)
+{
+	ImageCreateInfo create_image_info;
+	create_image_info.name = a_name.c_str();
+	create_image_info.width = static_cast<uint32_t>(a_width);
+	create_image_info.height = static_cast<uint32_t>(a_height);
+	create_image_info.depth = 1;
+	create_image_info.array_layers = 1;
+	create_image_info.mip_levels = 1;
+	create_image_info.type = IMAGE_TYPE::TYPE_2D;
+	create_image_info.format = a_format;
+	create_image_info.usage = IMAGE_USAGE::TEXTURE;
+	create_image_info.use_optimal_tiling = true;
+	create_image_info.is_cube_map = false;
+	a_out_image = CreateImage(create_image_info);
+
+	ImageViewCreateInfo create_view_info;
+	create_view_info.name = a_name.c_str();
+	create_view_info.image = a_out_image;
+	create_view_info.base_array_layer = 0;
+	create_view_info.array_layers = 1;
+	create_view_info.mip_levels = 1;
+	create_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
+	create_view_info.format = a_format;
+	create_view_info.is_depth_image = false;
+	a_out_index = CreateImageView(create_view_info);
+}
+
 const StringView Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path)
 {
 	AssetString asset_name;
 	GetAssetNameFromPath(a_path, asset_name);
-	StringView image_name = FindOrCreateString(asset_name.GetView());
+	const StringView image_name = FindOrCreateString(asset_name.GetView());
 
 	int width = 0, height = 0, channels = 0;
 	stbi_uc* pixels = stbi_load(a_path, &width, &height, &channels, 4);
 
-	CreateTextureInfo create_image_info;
-	create_image_info.name = image_name.c_str();
-	create_image_info.width = static_cast<uint32_t>(width);
-	create_image_info.height = static_cast<uint32_t>(height);
-	create_image_info.format = ImageFormatFromChannels(4);
-	create_image_info.usage = IMAGE_USAGE::TEXTURE;
-	create_image_info.array_layers = 1;
+	RImage gpu_image;
+	RDescriptorIndex descriptor_index;
+	const IMAGE_FORMAT format = ImageFormatFromChannels(4);
+	const uint32_t uwidth = static_cast<uint32_t>(width);
+	const uint32_t uheight = static_cast<uint32_t>(height);
+	CreateImage_func(image_name, uwidth, uheight, format, gpu_image, descriptor_index);
 
-	WriteTextureInfo write_info{};
+	WriteImageInfo write_info{};
+	write_info.image = gpu_image;
+	write_info.format = format;
 	write_info.pixels = pixels;
-	write_info.extent = { create_image_info.width, create_image_info.height };
+	write_info.extent = { uwidth, uheight };
 	write_info.set_shader_visible = true;
 	write_info.layer_count = 1;
 	write_info.base_array_layer = 0;
-	const RTexture gpu_image = CreateTexture(create_image_info);
-	WriteTexture(gpu_image, write_info);
+
+	WriteTexture(write_info);
 	
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
 	Image* image = ArenaAllocType(s_asset_manager->asset_arena, Image);
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
-	image->width = create_image_info.width;
-	image->height = create_image_info.height;
+	image->width = uwidth;
+	image->height = uheight;
 	image->gpu_image = gpu_image;
+	image->descriptor_index = descriptor_index;
 
 	const uint64_t path_hash = StringHash(a_path, strnlen_s(a_path, MAX_PATH_SIZE));
 
@@ -582,9 +636,9 @@ const StringView Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_p
 	else
 	{
 		const void* icon_write = pixels;
-		if (create_image_info.width != ICON_EXTENT.x || create_image_info.height != ICON_EXTENT.y)
+		if (uwidth != ICON_EXTENT.x || uheight != ICON_EXTENT.y)
 		{
-			icon_write = ResizeImage(a_temp_arena, pixels, static_cast<int>(create_image_info.width), static_cast<int>(create_image_info.height), static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
+			icon_write = ResizeImage(a_temp_arena, pixels, width, height, static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
 		}
 		asset.icon = LoadIconFromPixels(icon_write, true);
 		IconWriteToDisk(asset.icon, icon_path);
@@ -624,47 +678,50 @@ const StringView Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBI
 {
 	const StringView image_name = FindOrCreateString(a_name);
 
-	CreateTextureInfo create_image_info;
-	create_image_info.name = image_name.c_str();
-	create_image_info.width = a_image.GetWidth();
-	create_image_info.height = a_image.GetHeight();
-	create_image_info.usage = IMAGE_USAGE::TEXTURE;
-	create_image_info.array_layers = 1;
+	const uint32_t uwidth = a_image.GetWidth();
+	const uint32_t uheight = a_image.GetHeight();
+	IMAGE_FORMAT format;
 	switch (a_image.GetBytesPerPixel())
 	{
 	case 8:
-		create_image_info.format = IMAGE_FORMAT::RGBA16_UNORM;
+		format = IMAGE_FORMAT::RGBA16_UNORM;
 		break;
 	case 4:
-		create_image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+		format = IMAGE_FORMAT::RGBA8_SRGB;
 		break;
 	case 3:
-		create_image_info.format = IMAGE_FORMAT::RGB8_SRGB;
+		format = IMAGE_FORMAT::RGB8_SRGB;
 		break;
 	case 1:
-		create_image_info.format = IMAGE_FORMAT::A8_UNORM;
+		format = IMAGE_FORMAT::A8_UNORM;
 		break;
 	default:
 		BB_ASSERT(false, "Current unsupported image bitcount.");
-		create_image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+		format = IMAGE_FORMAT::RGBA8_SRGB;
 		break;
 	}
 
-	WriteTextureInfo write_info{};
+	RImage gpu_image;
+	RDescriptorIndex descriptor_index;
+	CreateImage_func(image_name, uwidth, uheight, format,  gpu_image, descriptor_index);
+
+	WriteImageInfo write_info{};
+	write_info.image = gpu_image;
+	write_info.format = format;
 	write_info.pixels = a_image.GetPixels();
-	write_info.extent = { create_image_info.width, create_image_info.height };
+	write_info.extent = { uwidth, uheight };
 	write_info.set_shader_visible = true;
 	write_info.layer_count = 1;
 	write_info.base_array_layer = 0;
-	const RTexture gpu_image = CreateTexture(create_image_info);
-	WriteTexture(gpu_image, write_info);
+	WriteTexture(write_info);
 
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
 	Image* image = ArenaAllocType(s_asset_manager->asset_arena, Image);
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
-	image->width = create_image_info.width;
-	image->height = create_image_info.height;
+	image->width = uwidth;
+	image->height = uheight;
 	image->gpu_image = gpu_image;
+	image->descriptor_index = descriptor_index;
 
 	const uint64_t hash = TurboCrappyImageHash(a_image.GetPixels(), static_cast<size_t>(image->width) + image->height + a_image.GetBytesPerPixel());
 	// BB_ASSERT(hash != 0, "Image hashing failed");
@@ -683,9 +740,9 @@ const StringView Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBI
 	else
 	{
 		const void* icon_write = a_image.GetPixels();
-		if (create_image_info.width != ICON_EXTENT.x || create_image_info.height != ICON_EXTENT.y)
+		if (uwidth != ICON_EXTENT.x || uheight != ICON_EXTENT.y)
 		{
-			icon_write = ResizeImage(a_temp_arena, a_image.GetPixels(), static_cast<int>(create_image_info.width), static_cast<int>(create_image_info.height), static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
+			icon_write = ResizeImage(a_temp_arena, a_image.GetPixels(), static_cast<int>(uwidth), static_cast<int>(uheight), static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
 		}
 		asset.icon = LoadIconFromPixels(icon_write, true);
 		IconWriteToDisk(asset.icon, icon_path);
@@ -810,7 +867,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
 			const StringView img = Asset::LoadImageDisk(a_temp_arena, full_image_path);
 
-			model_prim.material_data.base_texture = Asset::FindImageByName(img.c_str())->gpu_image;
+			model_prim.material_data.base_texture = Asset::FindImageByName(img.c_str())->descriptor_index;
 		}
 		if (prim.material->normal_texture.texture)
 		{
@@ -818,7 +875,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
 			const StringView img = Asset::LoadImageDisk(a_temp_arena, full_image_path);
 			
-			model_prim.material_data.normal_texture = Asset::FindImageByName(img.c_str())->gpu_image;
+			model_prim.material_data.normal_texture = Asset::FindImageByName(img.c_str())->descriptor_index;
 		}
 		{	// get indices
 			void* index_data = GetAccessorDataPtr(prim.indices);
@@ -1057,7 +1114,7 @@ const StringView Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const Mesh
 	model->root_node_indices = ArenaAllocArr(s_asset_manager->asset_arena, uint32_t, 1);
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 	Model::Primitive primitive;
-	primitive.material_data.base_texture = a_mesh_op.base_color;
+	primitive.material_data.base_texture = a_mesh_op.base_albedo;
 	primitive.material_data.normal_texture = GetWhiteTexture();
 	primitive.start_index = 0;
 	primitive.index_count = static_cast<uint32_t>(a_mesh_op.indices.size());
@@ -1263,7 +1320,7 @@ void Asset::ShowAssetMenu(MemoryArena& a_arena)
 					const ImVec2 uv0(slot_size_in_float * static_cast<float>(slot->icon.slot_index), 0);
 					const ImVec2 uv1(uv0.x + slot_size_in_float, 1);
 
-					ImGui::Image(s_asset_manager->icons_storage.texture.handle, ImVec2(ICON_EXTENT_F.x, ICON_EXTENT_F.y), uv0, uv1);
+					ImGui::Image(s_asset_manager->icons_storage.image_descriptor_index.handle, ImVec2(ICON_EXTENT_F.x, ICON_EXTENT_F.y), uv0, uv1);
 				}
 
 

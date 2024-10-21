@@ -1,5 +1,4 @@
 #pragma once
-#include "Common.h"
 //shared shader include
 #include "shared_common.hlsl.h"
 #include "Storage/Array.h"
@@ -32,11 +31,8 @@ namespace BB
 	using GPUFenceValue = FrameworkHandle<struct GPUFenceValueTag>;
 
 	using GPUBuffer = FrameworkHandle<struct RBufferTag>;
-	//TEMP START
 	using RImage = FrameworkHandle<struct RImageTag>;
 	using RImageView = FrameworkHandle<struct RImageViewTag>;
-	//TEMP END
-	using RTexture = FrameworkHandle32Bit<struct RTextureTag>;
 
 	using RFence = FrameworkHandle<struct RFenceTag>;
 
@@ -89,6 +85,8 @@ namespace BB
 		TYPE_1D,
 		TYPE_2D,
 		TYPE_3D,
+		TYPE_1D_ARRAY,
+		TYPE_2D_ARRAY,
 		CUBE,
 
 		ENUM_SIZE
@@ -111,6 +109,7 @@ namespace BB
 	enum class IMAGE_USAGE : uint32_t
 	{
 		DEPTH,
+		SHADOW_MAP,
 		TEXTURE,
 		SWAPCHAIN_COPY_IMG, //maybe finally use bitflags.
 		RENDER_TARGET,
@@ -239,17 +238,6 @@ namespace BB
 		void* mapped;
 	};
 
-	struct ImageCopyInfo
-	{
-		int32_t offset_x;
-		int32_t offset_y;
-		int32_t offset_z;
-
-		uint32_t mip_level;
-		uint16_t base_array_layer;
-		uint16_t layer_count;
-	};
-
 	enum class DESCRIPTOR_TYPE : uint32_t
 	{
 		READONLY_CONSTANT, //CBV or uniform buffer
@@ -267,6 +255,43 @@ namespace BB
 		uint32_t count;
 		DESCRIPTOR_TYPE type;
 		SHADER_STAGE shader_stage;
+	};
+
+	struct ImageSizeInfo
+	{
+		int32_t offset_x;
+		int32_t offset_y;
+		int32_t offset_z;
+
+		uint32_t mip_level;
+		uint16_t base_array_layer;
+		uint16_t layer_count;
+	};
+
+	struct CopyImageInfo
+	{
+		uint3 extent;
+		RImage src_image;
+		ImageSizeInfo src_copy_info;
+		RImage dst_image;
+		ImageSizeInfo dst_copy_info;
+	};
+
+	struct BlitImageInfo
+	{
+		RImage src_image;
+		int3 src_offset_p0;
+		int3 src_offset_p1;
+		uint32_t src_mip_level;
+		uint32_t src_layer_count;
+		uint32_t src_base_layer;
+
+		RImage dst_image;
+		int3 dst_offset_p0;
+		int3 dst_offset_p1;
+		uint32_t dst_mip_level;
+		uint32_t dst_layer_count;
+		uint32_t dst_base_layer;
 	};
 
 	struct DescriptorAllocation
@@ -295,7 +320,6 @@ namespace BB
 
 		RImageView view;
 		IMAGE_LAYOUT layout;
-
 	};
 
 	struct GPUDeviceInfo
@@ -398,11 +422,39 @@ namespace BB
 
 	struct PipelineBarrierInfo
 	{
-		uint32_t global_info_count = 0;
-		const PipelineBarrierGlobalInfo* global_infos = nullptr;
-		uint32_t buffer_info_count = 0;
-		const PipelineBarrierBufferInfo* buffer_infos = nullptr;
-		uint32_t image_info_count = 0;
-		const PipelineBarrierImageInfo* image_infos = nullptr;
+		uint32_t global_info_count;
+		const PipelineBarrierGlobalInfo* global_infos;
+		uint32_t buffer_info_count;
+		const PipelineBarrierBufferInfo* buffer_infos;
+		uint32_t image_info_count;
+		const PipelineBarrierImageInfo* image_infos;
+	};
+
+	struct ImageCreateInfo
+	{
+		const char* name;
+		uint32_t width;
+		uint32_t height;
+		uint32_t depth;
+
+		uint16_t array_layers;
+		uint16_t mip_levels;
+		IMAGE_TYPE type;
+		IMAGE_FORMAT format;
+		IMAGE_USAGE usage;
+		bool use_optimal_tiling;
+		bool is_cube_map;
+	};
+
+	struct ImageViewCreateInfo
+	{
+		const char* name;
+		RImage image;
+		uint16_t array_layers;
+		uint16_t mip_levels;
+		uint16_t base_array_layer;
+		IMAGE_VIEW_TYPE type;
+		IMAGE_FORMAT format;
+		bool is_depth_image;
 	};
 }
