@@ -7,16 +7,10 @@ struct VSOutput
     _BBEXT(1)float3 color : COLOR0;
     _BBEXT(2)float2 uv : UV0;
     _BBEXT(3)float3 normal : NORMAL0;
-    _BBEXT(4)float4 shadow_coord : POSITION1;
+    _BBEXT(4)float4 frag_pos_light : POSITION1;
 };
 
 _BBCONSTANT(BB::ShaderIndices) shader_indices;
-
-static const float4x4 shadow_bias_mat = float4x4(
-	0.5, 0.0, 0.0, 0.5,
-	0.0, 0.5, 0.0, 0.5,
-	0.0, 0.0, 1.0, 0.0,
-	0.0, 0.0, 0.0, 1.0);
 
 VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 {
@@ -42,7 +36,7 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
     output.uv = cur_vertex.uv;
     output.color = cur_vertex.color;
     output.normal = normalize(mul(transform.inverse, float4(cur_vertex.normal.xyz, 0)).xyz);
-    output.shadow_coord = mul(shadow_bias_mat, mul(projview.projection_view, mul(transform.transform, float4(cur_vertex.position, 1))));
+    output.frag_pos_light = mul(projview.projection_view, float4(output.frag_pos, 1.0));
     return output;
 }
 
@@ -60,10 +54,9 @@ float4 FragmentMain(VSOutput a_input) : SV_Target
         diffuse += CalculateLight(light, a_input.normal, a_input.frag_pos).xyz;
     }
     
-    const float shadow = CalculateShadow(a_input.shadow_coord / a_input.shadow_coord.w, scene_info.shadow_map_array_descriptor, 0);
-    const float4 diffuse_color = float4(diffuse, 1.0) * color;
+    const float shadow = CalculateShadow(a_input.frag_pos_light, scene_info.shadow_map_array_descriptor, 0);
     
-    const float4 result = diffuse_color * shadow;
+    float4 result = float4(scene_info.ambient_light + (1.0 - shadow) * (diffuse), 1.0) * color;
     
     return result;
 }

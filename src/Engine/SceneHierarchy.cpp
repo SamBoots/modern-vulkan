@@ -66,7 +66,6 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 
 		pfd.depth_image = RImage();
 
-
 		pfd.shadow_map.render_pass_views.Init(a_arena, INITIAL_DEPTH_ARRAY_COUNT);
 		pfd.shadow_map.render_pass_views.resize(INITIAL_DEPTH_ARRAY_COUNT);
 		{
@@ -420,6 +419,14 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RImageV
 	WaitFence(m_fence, pfd.fence_value);
 	pfd.fence_value = m_next_fence_value;
 
+	m_draw_list.size = 0;
+
+	for (size_t i = 0; i < m_top_level_object_count; i++)
+	{
+		// identity hack to awkwardly get the first matrix. 
+		DrawSceneObject(m_top_level_objects[i], Float4x4Identity());
+	}
+
 	m_scene_info.light_count = m_light_container.size();
 	m_scene_info.scene_resolution = a_draw_area_size;
 	m_scene_info.shadow_map_count = pfd.shadow_map.render_pass_views.size();
@@ -428,14 +435,6 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RImageV
 	SkyboxPass(pfd, a_list, a_render_target_view, a_draw_area_size, a_draw_area_offset);
 
 	ResourceUploadPass(pfd, a_list);
-
-	m_draw_list.size = 0;
-
-	for (size_t i = 0; i < m_top_level_object_count; i++)
-	{
-		// identity hack to awkwardly get the first matrix. 
-		DrawSceneObject(m_top_level_objects[i], Float4x4Identity());
-	}
 
 	ShadowMapPass(pfd, a_list, uint2(DEPTH_IMAGE_SIZE_W_H, DEPTH_IMAGE_SIZE_W_H));
 
@@ -524,7 +523,7 @@ RDescriptorLayout SceneHierarchy::GetSceneDescriptorLayout()
 
 	descriptor_bindings[3].binding = PER_SCENE_LIGHT_PROJECTION_VIEW_DATA_BINDING;
 	descriptor_bindings[3].count = 1;
-	descriptor_bindings[3].shader_stage = SHADER_STAGE::FRAGMENT_PIXEL;
+	descriptor_bindings[3].shader_stage = SHADER_STAGE::VERTEX;
 	descriptor_bindings[3].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
 	s_scene_descriptor_layout = CreateDescriptorLayout(temp_arena, descriptor_bindings.slice());
 
@@ -716,6 +715,7 @@ void SceneHierarchy::ShadowMapPass(const PerFrameData& pfd, const RCommandList a
 	rendering_info.render_area_extent = a_shadow_map_resolution;
 	rendering_info.render_area_offset = int2(0, 0);
 
+	SetFrontFace(a_list, true);
 	for (uint32_t shadow_map_index = 0; shadow_map_index < shadow_map_count; shadow_map_index++)
 	{
 		depth_attach.image_view = pfd.shadow_map.render_pass_views[shadow_map_index];
@@ -801,7 +801,7 @@ void SceneHierarchy::RenderPass(const PerFrameData& pfd, const RCommandList a_li
 	StartRenderPass(a_list, rendering_info);
 
 	SetFrontFace(a_list, false);
-	SetCullMode(a_list, CULL_MODE::NONE);
+	SetCullMode(a_list, CULL_MODE::BACK);
 
 	for (uint32_t i = 0; i < m_draw_list.size; i++)
 	{
@@ -852,7 +852,7 @@ LightHandle SceneHierarchy::CreateLight(const LightCreateInfo& a_light_info)
 
 	const LightHandle light_handle = m_light_container.insert(light);
 
-	const float near_plane = 1.0f, far_plane = 7.5f;
+	const float near_plane = 1.0f, far_plane = 17.5f;
 	const float4x4 projection = Float4x4Perspective(light.cutoff_radius, 1, near_plane, far_plane);
 	const float4x4 view = Float4x4Lookat(light.pos, light.pos + light.spotlight_direction, float3(0.0f, 1.0f, 0.0f));
 	const LightProjectionView vp = { projection * view };

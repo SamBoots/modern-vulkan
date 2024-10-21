@@ -42,17 +42,13 @@ float4 UnpackR8B8G8A8_UNORMToFloat4(uint a_packed)
     return unpacked * sc;
 }
 
-float CalculateShadow(const float4 a_shadow_cord, const RDescriptorIndex a_shadow_map_texture, const uint a_shadow_map_base_layer)
+float CalculateShadow(const float4 a_frag_pos_light, const RDescriptorIndex a_shadow_map_texture, const uint a_shadow_map_base_layer)
 {
-    float shadow = 1.0;
-    if (a_shadow_cord.z > -1.0 && a_shadow_cord.z < 1.0)
-    {
-        float dist = textures_array_data[a_shadow_map_texture].Sample(basic_3d_sampler, float3(a_shadow_cord.xy, (float)a_shadow_map_base_layer)).r;
-        if (a_shadow_cord.w > 0.0 && dist < a_shadow_cord.z)
-        {
-            shadow = 0.1;
-        }
-    }
+    const float3 proj_coords = (a_frag_pos_light.xyz / a_frag_pos_light.w) * 0.5 + 0.5;
+    const float closest_depth = textures_array_data[a_shadow_map_texture].Sample(basic_3d_sampler, float3(proj_coords.xy, float(a_shadow_map_base_layer))).r;
+    const float current_depth = proj_coords.z;
+    const float shadow = current_depth > closest_depth ? 1.0 : 0.0;
+    
     return shadow;
 }
 
