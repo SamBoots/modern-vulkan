@@ -15,7 +15,7 @@
     "lights": [
       {
         "name": "light 0",
-        "light_type": "spotlight",
+        "light_type": "directional",
         "position": [
           0.0,
           1.0,
@@ -32,7 +32,7 @@
         "quadratic": 0.44,
 
         "direction": [
-          0.0,
+          1.0,
           -1.0,
           0.0
         ],

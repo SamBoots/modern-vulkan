@@ -476,7 +476,6 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RImageV
 		pfd.previous_draw_area = a_draw_area_size;
 	}
 
-
 	RenderPass(pfd, a_list, a_render_target_view, a_draw_area_size, a_draw_area_offset);
 }
 
@@ -864,6 +863,7 @@ LightHandle SceneHierarchy::CreateLight(const LightCreateInfo& a_light_info)
 	light.direction = float4(a_light_info.direction.x, a_light_info.direction.y, a_light_info.direction.z, a_light_info.cutoff_radius);
 
 	const LightHandle light_handle = m_light_container.insert(light);
+
 
 	const float near_plane = 1.0f, far_plane = 17.5f;
 	const float4x4 projection = Float4x4Perspective(light.direction.w, 1, near_plane, far_plane);

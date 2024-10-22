@@ -411,7 +411,7 @@ void Editor::CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a
 		light_info.radius_linear = light_obj.Find("linear")->GetNumber();
 		light_info.radius_quadratic = light_obj.Find("quadratic")->GetNumber();
 
-		if (light_info.light_type == LIGHT_TYPE::SPOT_LIGHT)
+		if (light_info.light_type == LIGHT_TYPE::SPOT_LIGHT || light_info.light_type == LIGHT_TYPE::DIRECTIONAL_LIGHT)
 		{
 			const JsonList& spot_dir = light_obj.Find("direction")->GetList();
 			BB_ASSERT(color.node_count == 3, "light direction in scene json is not 3 elements");
