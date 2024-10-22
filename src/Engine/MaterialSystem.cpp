@@ -17,13 +17,13 @@ static uint64_t ShaderEffectHash(const MaterialShaderCreateInfo& a_create_info)
 	uint64_t hash = 256;
 	for (size_t i = 0; i < a_create_info.entry.size() - 1; i++)
 	{
-		hash += a_create_info.entry.c_str()[i];
+		hash += static_cast<uint64_t>(a_create_info.entry.c_str()[i]);
 	}
 
 	const StringView path_no_extension = StringView(a_create_info.path.c_str(), a_create_info.path.find_last_of('.'));
 	for (size_t i = path_no_extension.find_last_of('/'); i < path_no_extension.size(); i++)
 	{
-		hash *= path_no_extension.c_str()[i];
+		hash *= static_cast<uint64_t>(path_no_extension.c_str()[i]);
 	}
 
 	hash *= static_cast<uint32_t>(a_create_info.stage);

@@ -8,8 +8,11 @@ namespace BB
 {
 	using RDescriptorIndex = FrameworkHandle32Bit<struct RDescriptorIndexTag>;
 }
+
+#define ALIGN_STRUCT(x) alignas(x)
 #else // __HLSL_VERSION
 
+#define ALIGN_STRUCT(x)
 typedef uint RDescriptorIndex;
 
 #endif // __HLSL_VERSION

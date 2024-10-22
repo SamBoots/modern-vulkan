@@ -7,7 +7,7 @@
         "object_name": "chess game",
         "position": [
           0.0,
-          -3.0,
+          -1.0,
           0.0
         ]
       }
@@ -15,10 +15,10 @@
     "lights": [
       {
         "name": "light 0",
-        "light_type": "spotlight",
+        "light_type": "directional",
         "position": [
           0.0,
-          0.0,
+          1.0,
           0.0
         ],
         "color": [
@@ -31,7 +31,7 @@
         "linear": 0.35,
         "quadratic": 0.44,
 
-        "spotlight_dir": [
+        "direction": [
           1.0,
           0.0,
           0.0

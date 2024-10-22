@@ -3,7 +3,6 @@
 #include "BBjson.hpp"
 #include "BBThreadScheduler.hpp"
 #include "RendererTypes.hpp"
-#include "imgui.h"
 #include "OS/Program.h"
 #include "MaterialSystem.hpp"
 
@@ -28,6 +27,10 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 
 	m_top_level_object_count = 0;
 
+	m_options.skip_skybox = false;
+	m_options.skip_shadow_mapping = false;
+	m_options.skip_object_rendering = false;
+
 	// maybe make this part of some data structure
 	// also rework this to be more static and internal to the drawmesh
 	m_draw_list.max_size = a_scene_obj_max;
@@ -44,8 +47,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 
 	m_upload_allocator.Init(a_arena, mbSize * 4, m_fence, "scene upload buffer");
 
-	m_scene_info.ambient_light = float3(0.05f, 0.05f, 0.05f);
-	m_scene_info.ambient_strength = 1;
+	m_scene_info.ambient_light = float4(0.05f, 0.05f, 0.05f, 1.f);
 
 	m_per_frame.Init(a_arena, a_back_buffers);
 	m_per_frame.resize(a_back_buffers);
@@ -560,6 +562,11 @@ void SceneHierarchy::SkyboxPass(const PerFrameData& pfd, const RCommandList a_li
 	start_rendering_info.color_attachments = Slice(&color_attach, 1);
 	start_rendering_info.depth_attachment = nullptr;
 	StartRenderPass(a_list, start_rendering_info);
+	if (m_options.skip_skybox)
+	{
+		EndRenderPass(a_list);
+	}
+
 	SetFrontFace(a_list, false);
 	SetCullMode(a_list, CULL_MODE::NONE);
 
@@ -715,27 +722,29 @@ void SceneHierarchy::ShadowMapPass(const PerFrameData& pfd, const RCommandList a
 	rendering_info.render_area_extent = a_shadow_map_resolution;
 	rendering_info.render_area_offset = int2(0, 0);
 
-	SetFrontFace(a_list, true);
 	for (uint32_t shadow_map_index = 0; shadow_map_index < shadow_map_count; shadow_map_index++)
 	{
 		depth_attach.image_view = pfd.shadow_map.render_pass_views[shadow_map_index];
 		StartRenderPass(a_list, rendering_info);
 
-		for (uint32_t draw_index = 0; draw_index < m_draw_list.size; draw_index++)
+		if (!m_options.skip_shadow_mapping)
 		{
-			const MeshDrawInfo& mesh_draw_call = m_draw_list.mesh_draw_call[draw_index];
+			for (uint32_t draw_index = 0; draw_index < m_draw_list.size; draw_index++)
+			{
+				const MeshDrawInfo& mesh_draw_call = m_draw_list.mesh_draw_call[draw_index];
 
-			ShaderIndicesShadowMapping shader_indices;
-			shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_buffer_offset);
-			shader_indices.transform_index = draw_index;
-			shader_indices.light_projection_view_index = shadow_map_index;
-			SetPushConstants(a_list, pipe_layout, 0, sizeof(shader_indices), &shader_indices);
-			DrawIndexed(a_list,
-				mesh_draw_call.index_count,
-				1,
-				static_cast<uint32_t>(mesh_draw_call.mesh.index_buffer_offset / sizeof(uint32_t)) + mesh_draw_call.index_start,
-				0,
-				0);
+				ShaderIndicesShadowMapping shader_indices;
+				shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_buffer_offset);
+				shader_indices.transform_index = draw_index;
+				shader_indices.light_projection_view_index = shadow_map_index;
+				SetPushConstants(a_list, pipe_layout, 0, sizeof(shader_indices), &shader_indices);
+				DrawIndexed(a_list,
+					mesh_draw_call.index_count,
+					1,
+					static_cast<uint32_t>(mesh_draw_call.mesh.index_buffer_offset / sizeof(uint32_t)) + mesh_draw_call.index_start,
+					0,
+					0);
+			}
 		}
 
 		EndRenderPass(a_list);
@@ -800,6 +809,11 @@ void SceneHierarchy::RenderPass(const PerFrameData& pfd, const RCommandList a_li
 
 	StartRenderPass(a_list, rendering_info);
 
+	if (m_options.skip_object_rendering)
+	{
+		EndRenderPass(a_list);
+		return;
+	}
 	SetFrontFace(a_list, false);
 	SetCullMode(a_list, CULL_MODE::BACK);
 
@@ -839,22 +853,20 @@ LightHandle SceneHierarchy::CreateLight(const LightCreateInfo& a_light_info)
 {
 	Light light;
 	light.light_type = static_cast<uint32_t>(a_light_info.light_type);
-	light.color = a_light_info.color;
-	light.pos = a_light_info.pos;
+	light.color = float4(a_light_info.color.x, a_light_info.color.y, a_light_info.color.z, a_light_info.specular_strength);
+	light.pos = float4(a_light_info.pos.x, a_light_info.pos.y, a_light_info.pos.z, 0.0f);
 
-	light.specular_strength = a_light_info.specular_strength;
 	light.radius_constant = a_light_info.radius_constant;
 	light.radius_linear = a_light_info.radius_linear;
 	light.radius_quadratic = a_light_info.radius_quadratic;
 
-	light.spotlight_direction = a_light_info.spotlight_direction;
-	light.cutoff_radius = a_light_info.cutoff_radius;
+	light.direction = float4(a_light_info.direction.x, a_light_info.direction.y, a_light_info.direction.z, a_light_info.cutoff_radius);
 
 	const LightHandle light_handle = m_light_container.insert(light);
 
 	const float near_plane = 1.0f, far_plane = 17.5f;
-	const float4x4 projection = Float4x4Perspective(light.cutoff_radius, 1, near_plane, far_plane);
-	const float4x4 view = Float4x4Lookat(light.pos, light.pos + light.spotlight_direction, float3(0.0f, 1.0f, 0.0f));
+	const float4x4 projection = Float4x4Perspective(light.direction.w, 1, near_plane, far_plane);
+	const float4x4 view = Float4x4Lookat(a_light_info.pos, a_light_info.pos + a_light_info.direction, float3(0.0f, 1.0f, 0.0f));
 	const LightProjectionView vp = { projection * view };
 	const LightHandle light_handle_view = m_light_projection_view.emplace(vp);
 

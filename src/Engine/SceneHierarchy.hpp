@@ -38,7 +38,7 @@ namespace BB
 		float radius_linear;        // 40
 		float radius_quadratic;     // 44
 
-		float3 spotlight_direction; // 56
+		float3 direction;           // 56
 		float cutoff_radius;        // 60
 	};
 
@@ -76,6 +76,21 @@ namespace BB
 
 		void SetView(const float4x4& a_view);
 		void SetProjection(const float4x4& a_projection);
+
+		bool ToggleSkipSkyboxPass()
+		{
+			return m_options.skip_skybox = !m_options.skip_skybox;
+		}
+
+		bool ToggleSkipShadowMappingPass()
+		{
+			return m_options.skip_shadow_mapping = !m_options.skip_shadow_mapping;
+		}
+
+		bool ToggleSkipObjectRenderingPass()
+		{
+			return m_options.skip_object_rendering = !m_options.skip_object_rendering;
+		}
 
 		void SetClearColor(const float3 a_clear_color) { m_clear_color = a_clear_color; }
 		void IncrementNextFenceValue(RFence* a_out_fence, uint64_t* a_out_value) 
@@ -123,6 +138,13 @@ namespace BB
 			uint32_t size;
 			uint32_t max_size;
 		};
+
+		struct Options
+		{
+			bool skip_skybox;
+			bool skip_shadow_mapping;
+			bool skip_object_rendering;
+		} m_options;
 
 		Scene3DInfo m_scene_info;
 		DrawList m_draw_list;

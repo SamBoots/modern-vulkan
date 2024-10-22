@@ -389,6 +389,8 @@ void Editor::CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a
 			light_info.light_type = LIGHT_TYPE::SPOT_LIGHT;
 		else if (strcmp(light_type, "pointlight") == 0)
 			light_info.light_type = LIGHT_TYPE::POINT_LIGHT;
+		else if (strcmp(light_type, "directional") == 0)
+			light_info.light_type = LIGHT_TYPE::DIRECTIONAL_LIGHT;
 		else
 			BB_ASSERT(false, "invalid light type in json");
 
@@ -411,11 +413,11 @@ void Editor::CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a
 
 		if (light_info.light_type == LIGHT_TYPE::SPOT_LIGHT)
 		{
-			const JsonList& spot_dir = light_obj.Find("spotlight_dir")->GetList();
-			BB_ASSERT(color.node_count == 3, "light spotlight_dir in scene json is not 3 elements");
-			light_info.spotlight_direction.x = spot_dir.nodes[0]->GetNumber();
-			light_info.spotlight_direction.y = spot_dir.nodes[1]->GetNumber();
-			light_info.spotlight_direction.z = spot_dir.nodes[2]->GetNumber();
+			const JsonList& spot_dir = light_obj.Find("direction")->GetList();
+			BB_ASSERT(color.node_count == 3, "light direction in scene json is not 3 elements");
+			light_info.direction.x = spot_dir.nodes[0]->GetNumber();
+			light_info.direction.y = spot_dir.nodes[1]->GetNumber();
+			light_info.direction.z = spot_dir.nodes[2]->GetNumber();
 
 			light_info.cutoff_radius = light_obj.Find("cutoff_radius")->GetNumber();
 		}
@@ -627,6 +629,21 @@ void Editor::ImguiDisplaySceneHierarchy(SceneHierarchy& a_hierarchy)
 
 		ImguiCreateSceneObject(a_hierarchy);
 
+		if (ImGui::CollapsingHeader("Skip render pass option"))
+		{
+			if (ImGui::Button("toggle skipping skybox pass"))
+			{
+				a_hierarchy.ToggleSkipSkyboxPass();
+			}
+			if (ImGui::Button("toggle shadowmapping pass"))
+			{
+				a_hierarchy.ToggleSkipShadowMappingPass();
+			}
+			if (ImGui::Button("toggle skipping object rendering pass"))
+			{
+				a_hierarchy.ToggleSkipObjectRenderingPass();
+			}
+		}
 
 		for (size_t i = 0; i < a_hierarchy.m_top_level_object_count; i++)
 		{
@@ -652,15 +669,9 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 		ImGui::Indent();
 		Transform& transform = a_hierarchy.m_transform_pool.GetTransform(scene_object.transform);
 
-		bool position_changed = false;
-
 		if (ImGui::TreeNodeEx("transform"))
 		{
-			if (ImGui::InputFloat3("position", transform.m_pos.e))
-			{
-				position_changed = true;
-			}
-
+			ImGui::InputFloat3("position", transform.m_pos.e);
 			ImGui::InputFloat4("rotation quat (xyzw)", transform.m_rot.xyzw.e);
 			ImGui::InputFloat3("scale", transform.m_scale.e);
 			ImGui::TreePop();
@@ -711,14 +722,28 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 				ImGui::Indent();
 				Light& light = a_hierarchy.GetLight(scene_object.light_handle);
 
-				if (position_changed)
-				{
-					light.pos = transform.m_pos;
-				}
+				light.pos.x = transform.m_pos.x;
+				light.pos.y = transform.m_pos.y;
+				light.pos.z = transform.m_pos.z;
 
 				ImGui::InputFloat3("color", light.color.e);
 				ImGui::InputFloat("linear radius", &light.radius_linear);
 				ImGui::InputFloat("quadratic radius", &light.radius_quadratic);
+
+				switch (static_cast<LIGHT_TYPE>(light.light_type))
+				{
+				case LIGHT_TYPE::POINT_LIGHT:
+
+					break;
+				case LIGHT_TYPE::SPOT_LIGHT:
+					ImGui::InputFloat3("direction", light.direction.e);
+					break;
+				case LIGHT_TYPE::DIRECTIONAL_LIGHT:
+					ImGui::InputFloat3("direction", light.direction.e);
+					break;
+				default:
+					break;
+				}
 
 				if (ImGui::Button("remove light"))
 				{

@@ -52,50 +52,41 @@ float CalculateShadow(const float4 a_frag_pos_light, const RDescriptorIndex a_sh
     return shadow;
 }
 
-// don't use this
-float3 CalculateLight_impl(const BB::Light a_light, const float3 a_normal, const float3 a_frag_pos, const float3 a_light_dir)
+// don't use this directly
+float3 CalculateLight_impl(const float3 a_light_pos, const float3 a_color, const float specular_strength, const float3 a_normal, const float3 a_frag_pos, const float3 a_light_dir)
 {
-    const float distance = length(a_light.pos - a_frag_pos);
-    const float attenuation = 1.0f / (a_light.radius_constant, a_light.radius_linear * distance + a_light.radius_quadratic * (distance * distance));
+    const float3 light_dir = a_light_pos - a_frag_pos;
+    // maybe normalize a_normal
     
-    const float diff = max(dot(a_normal, a_light_dir), 0.0f);
-    const float3 diffuse = mul(diff, a_light.color) * attenuation;
+    const float diff = max(dot(a_normal, light_dir), 0.0);
+    const float3 diffuse = diff * a_color;
     
-    const float3 view_pos = float3(0.f, 0.f, 0.f);
-    const float3 view_dir = normalize(view_pos - a_frag_pos);
-    const float3 reflect_dir = reflect(-a_light_dir, a_normal);
-    
-    const float spec = pow(max(dot(view_dir, reflect_dir), 0.0), 32);
-    const float3 specular = a_light.specular_strength * spec * a_light.color;
-    
-    const float3 lighting = diffuse + specular;
-    
-    return lighting;
+    return diffuse;
 }
 
 float3 CalculateLight(const BB::Light a_light, float3 a_normal, float3 a_frag_pos)
 {
-    const float3 light_dir = normalize(a_light.pos - a_frag_pos);
-    
-    switch (a_light.light_type)
+    if (a_light.light_type == POINT_LIGHT)
     {
-        case POINT_LIGHT:
-		{
-                return CalculateLight_impl(a_light, a_normal, a_frag_pos, light_dir);
-            }
-            break;
-        case SPOT_LIGHT:
-		{
-                const float theta = dot(light_dir, normalize(-a_light.spotlight_direction));
-                if (theta > a_light.cutoff_radius)
-                {
-                    return CalculateLight_impl(a_light, a_normal, a_frag_pos, light_dir);
-                }
-                return float3(0.f, 0.f, 0.f);
-            }
-            break;
+        const float3 light_dir = normalize(a_light.pos.xyz - a_frag_pos);
+        return CalculateLight_impl(a_light.pos.xyz, a_light.color.xyz, a_light.color.w, a_normal, a_frag_pos, light_dir);
     }
-    return float3(1.f, 1.f, 0.f);
+    else if (a_light.light_type == SPOT_LIGHT)
+    {
+        const float3 light_dir = normalize(a_light.pos.xyz - a_frag_pos);
+        const float theta = dot(light_dir, normalize(-a_light.direction.xyz));
+        if (theta > a_light.direction.w)
+        {
+            return CalculateLight_impl(a_light.pos.xyz, a_light.color.xyz, a_light.color.w, a_normal, a_frag_pos, light_dir);
+        }
+    }
+    else if (a_light.light_type == DIRECTIONAL_LIGHT)
+    {
+        const float3 light_dir = normalize(-a_light.direction.xyz);
+        return CalculateLight_impl(a_light.direction.xyz, a_light.color.xyz, a_light.color.w, a_normal, a_frag_pos, light_dir);
+    }
+    
+    return float3(0.0, 0.0, 0.0);
 }
 
 #endif //COMMON_HLSL

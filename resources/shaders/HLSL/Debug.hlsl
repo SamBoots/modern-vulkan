@@ -31,8 +31,8 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
         sizeof(BB::LightProjectionView) * light_proj_view_temp);
     
     VSOutput output = (VSOutput)0;
-    output.pos = mul(scene_info.proj, mul(scene_info.view, mul(transform.transform, float4(cur_vertex.position, 1.0))));
     output.frag_pos = float4(mul(transform.transform, float4(cur_vertex.position, 1.0f))).xyz;
+    output.pos = mul(scene_info.proj, mul(scene_info.view, float4(output.frag_pos, 1.0)));
     output.uv = cur_vertex.uv;
     output.color = cur_vertex.color;
     output.normal = normalize(mul(transform.inverse, float4(cur_vertex.normal.xyz, 0)).xyz);
@@ -56,7 +56,7 @@ float4 FragmentMain(VSOutput a_input) : SV_Target
     
     const float shadow = CalculateShadow(a_input.frag_pos_light, scene_info.shadow_map_array_descriptor, 0);
     
-    float4 result = float4(scene_info.ambient_light + (1.0 - shadow) * (diffuse), 1.0) * color;
+    float4 result = float4(scene_info.ambient_light.xyz + (1.0 - shadow) * (diffuse), 1.0) * color;
     
     return result;
 }

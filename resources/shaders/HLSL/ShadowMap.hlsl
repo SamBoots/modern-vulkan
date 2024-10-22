@@ -22,8 +22,3 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
     output.pos = mul(mul(projview.projection_view, transform.transform), float4(cur_vertex_pos, 1.0));
     return output;
 }
-
-void FragmentMain() : SV_TARGET
-{
-    //
-}

@@ -52,7 +52,7 @@ namespace BB
         uint color;         
     };
 
-    struct GlobalRenderData
+    struct ALIGN_STRUCT(16) GlobalRenderData
     {
         float2 mouse_pos;           // 8
         uint2 swapchain_resolution; // 16
@@ -61,26 +61,23 @@ namespace BB
         float delta_time;           // 28
         float total_time;           // 32
         uint cube_vertexpos_vertex_buffer_pos; // 36 used for cubemaps, the type is VertexPos
-        uint padding;               // 40
+        uint3 padding;               // 48
     };
 
-    struct Scene3DInfo
+    struct ALIGN_STRUCT(16) Scene3DInfo
     {
         float4x4 view;                   // 64
         float4x4 proj;                   // 128
 
-        float3 ambient_light;            // 140
-        float ambient_strength;          // 144
+        float4 ambient_light;            // 144
 
-        uint light_count;                // 148
-
-        RDescriptorIndex skybox_texture; // 152
-
-        uint2 scene_resolution;          // 160
+        uint2 scene_resolution;          // 152
+        uint2 pad;                       // 160
 
         uint shadow_map_count;           // 164
         RDescriptorIndex shadow_map_array_descriptor; // 168
-        uint2 pad;
+        uint light_count;                // 172
+        RDescriptorIndex skybox_texture; // 176
     };
 
     struct MeshMetallic
@@ -94,29 +91,27 @@ namespace BB
 #ifndef __HLSL_VERSION // C++ version
     enum class LIGHT_TYPE : uint
     {
-        POINT_LIGHT = 0,
-        SPOT_LIGHT = 1
+        POINT_LIGHT = 1,
+        SPOT_LIGHT = 2,
+        DIRECTIONAL_LIGHT = 3
     };
 #else   // HLSL version
-#define POINT_LIGHT (0)
-#define SPOT_LIGHT (1)
+#define POINT_LIGHT (1)
+#define SPOT_LIGHT (2)
+#define DIRECTIONAL_LIGHT (3)
 #endif //__HLSL_VERSION
 
-    struct Light
+    struct ALIGN_STRUCT(16) Light
     {
-        float3 color;               // 12
-        float3 pos;                 // 24
+        float4 color;               // 16 color + w = specular strength
+        float4 pos;                 // 32 w = padding
+        float4 direction;           // 64 w = cutoff-radius
 
-        float specular_strength;    // 28
-        float radius_constant;      // 32
-        float radius_linear;        // 36
-        float radius_quadratic;     // 40
+        float radius_constant;      // 40
+        float radius_linear;        // 44
+        float radius_quadratic;     // 48
 
-        float3 spotlight_direction; // 52
-        float cutoff_radius;        // 56
-        float pad;                  // 60
         uint light_type;            // 64
-       
     };
 
     struct ShaderTransform
