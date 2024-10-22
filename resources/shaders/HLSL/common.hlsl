@@ -74,8 +74,15 @@ float3 CalculateSpecular_impl(const float3 a_light_dir, const float3 a_color, co
 float3 CalculatePointLight_impl(const BB::Light a_light, const float3 a_normal, const float3 a_frag_pos, const float3 a_view_dir, const float a_shininess)
 {
     const float3 light_dir = normalize(a_light.pos.xyz - a_frag_pos);
-    const float3 diffuse = CalculateDiffuse_impl(light_dir, a_light.color.xyz, a_normal, a_frag_pos);
-    const float3 specular = CalculateSpecular_impl(light_dir, a_light.color.xyz, a_normal, a_view_dir, a_frag_pos, a_light.color.w, a_shininess);
+    float3 diffuse = CalculateDiffuse_impl(light_dir, a_light.color.xyz, a_normal, a_frag_pos);
+    float3 specular = CalculateSpecular_impl(light_dir, a_light.color.xyz, a_normal, a_view_dir, a_frag_pos, a_light.color.w, a_shininess);
+    
+    const float distance = length(a_light.pos.xyz - a_frag_pos);
+    const float attenuation = 1.0 / (a_light.radius_constant + a_light.radius_linear * distance + a_light.radius_quadratic * (distance * distance));
+    
+    diffuse = diffuse * attenuation;
+    specular = specular * attenuation;
+    
     return diffuse + specular;
 }
 
@@ -83,13 +90,16 @@ float3 CalculateSpotLight_impl(const BB::Light a_light, const float3 a_normal, c
 {
     const float3 light_dir = normalize(a_light.pos.xyz - a_frag_pos);
     const float theta = dot(light_dir, normalize(-a_light.direction.xyz));
-    if (theta > a_light.direction.w)
+    if (theta <= a_light.direction.w)
     {
-        const float3 diffuse = CalculateDiffuse_impl(light_dir, a_light.color.xyz, a_normal, a_frag_pos);
-        const float3 specular = CalculateSpecular_impl(light_dir, a_light.color.xyz, a_normal, a_view_dir, a_frag_pos, a_light.color.w, a_shininess);
-        return diffuse + specular;
+        return float3(0.0, 0.0, 0.0);
     }
-    return float3(0.0, 0.0, 0.0);
+    
+    const float3 diffuse = CalculateDiffuse_impl(light_dir, a_light.color.xyz, a_normal, a_frag_pos);
+    const float3 specular = CalculateSpecular_impl(light_dir, a_light.color.xyz, a_normal, a_view_dir, a_frag_pos, a_light.color.w, a_shininess);
+    
+    return diffuse + specular;
+
 }
 
 float3 CalculateDirectionalLight_impl(const BB::Light a_light, const float3 a_normal, const float3 a_frag_pos, const float3 a_view_dir, const float a_shininess)

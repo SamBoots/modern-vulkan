@@ -41,7 +41,7 @@ struct ThreadInfo
 	//debug value for the ThreadHandle extra_index;
 	BBConditionalVariable condition;
 	const wchar_t* task_name;
-	uint32_t generation;
+	std::atomic<uint32_t> generation;
 };
 
 struct Thread

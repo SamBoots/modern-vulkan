@@ -15,7 +15,7 @@
     "lights": [
       {
         "name": "light 0",
-        "light_type": "pointlight",
+        "light_type": "spotlight",
         "position": [
           0.0,
           1.0,
@@ -32,11 +32,11 @@
         "quadratic": 0.44,
 
         "direction": [
-          1.0,
           0.0,
+          -1.0,
           0.0
         ],
-        "cutoff_radius": 0.218166
+        "cutoff_radius": 0.20944
       }
     ]
   }
