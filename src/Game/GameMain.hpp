@@ -70,7 +70,7 @@ namespace BB
 	{
 	public:
 		bool InitGame();
-		bool Update(const Slice<InputEvent> a_input_events, const float4x4* a_overwrite_view_matrix = nullptr);
+		bool Update(const Slice<InputEvent> a_input_events, const float4x4* a_overwrite_view_matrix = nullptr, const float3* a_overwrite_view_pos = nullptr);
 		// maybe ifdef this for editor
 		void DisplayImGuiInfo();
 		void Destroy();

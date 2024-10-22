@@ -555,7 +555,7 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time, const Slice<
 		for (size_t i = 0; i < m_viewport_and_scenes.size(); i++)
 		{
 			ViewportAndScene& vs = m_viewport_and_scenes[i];
-			vs.scene.SetView(vs.camera.CalculateView());
+			vs.scene.SetView(vs.camera.CalculateView(), vs.camera.GetPosition());
 
 			ImguiDisplaySceneHierarchy(vs.scene);
 

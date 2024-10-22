@@ -405,9 +405,10 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectAsLight(const LightCreateInfo
 	return scene_object_handle;
 }
 
-void SceneHierarchy::SetView(const float4x4& a_view)
+void SceneHierarchy::SetView(const float4x4& a_view, const float3& a_view_position)
 {
 	m_scene_info.view = a_view;
+	m_scene_info.view_pos = float4(a_view_position.x, a_view_position.y, a_view_position.z, 0.0);
 }
 
 void SceneHierarchy::SetProjection(const float4x4& a_projection)

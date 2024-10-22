@@ -15,7 +15,7 @@
     "lights": [
       {
         "name": "light 0",
-        "light_type": "directional",
+        "light_type": "pointlight",
         "position": [
           0.0,
           1.0,

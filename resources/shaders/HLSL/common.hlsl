@@ -52,38 +52,67 @@ float CalculateShadow(const float4 a_frag_pos_light, const RDescriptorIndex a_sh
     return shadow;
 }
 
-// don't use this directly
-float3 CalculateLight_impl(const float3 a_light_pos, const float3 a_color, const float specular_strength, const float3 a_normal, const float3 a_frag_pos, const float3 a_light_dir)
+float3 CalculateDiffuse_impl(const float3 a_light_dir, const float3 a_color, const float3 a_normal, const float3 a_frag_pos)
 {
-    const float3 light_dir = a_light_pos - a_frag_pos;
-    // maybe normalize a_normal
-    
-    const float diff = max(dot(a_normal, light_dir), 0.0);
+    const float diff = max(dot(a_normal, a_light_dir), 0.0);
     const float3 diffuse = diff * a_color;
-    
+   
     return diffuse;
 }
 
-float3 CalculateLight(const BB::Light a_light, float3 a_normal, float3 a_frag_pos)
+float3 CalculateSpecular_impl(const float3 a_light_dir, const float3 a_color, const float3 a_normal, const float3 a_view_dir, const float3 a_frag_pos, const float a_specular_strength, const float a_shininess)
+{
+    const float3 view_dir = normalize(a_view_dir - a_frag_pos);
+    const float3 reflect_dir = reflect(-a_light_dir, a_normal);
+    
+    const float spec = pow(max(dot(view_dir, reflect_dir), 0.0), a_shininess);
+    const float3 specular = a_specular_strength * spec * a_color;
+
+    return specular;
+}
+
+float3 CalculatePointLight_impl(const BB::Light a_light, const float3 a_normal, const float3 a_frag_pos, const float3 a_view_dir, const float a_shininess)
+{
+    const float3 light_dir = normalize(a_light.pos.xyz - a_frag_pos);
+    const float3 diffuse = CalculateDiffuse_impl(light_dir, a_light.color.xyz, a_normal, a_frag_pos);
+    const float3 specular = CalculateSpecular_impl(light_dir, a_light.color.xyz, a_normal, a_view_dir, a_frag_pos, a_light.color.w, a_shininess);
+    return diffuse + specular;
+}
+
+float3 CalculateSpotLight_impl(const BB::Light a_light, const float3 a_normal, const float3 a_frag_pos, const float3 a_view_dir, const float a_shininess)
+{
+    const float3 light_dir = normalize(a_light.pos.xyz - a_frag_pos);
+    const float theta = dot(light_dir, normalize(-a_light.direction.xyz));
+    if (theta > a_light.direction.w)
+    {
+        const float3 diffuse = CalculateDiffuse_impl(light_dir, a_light.color.xyz, a_normal, a_frag_pos);
+        const float3 specular = CalculateSpecular_impl(light_dir, a_light.color.xyz, a_normal, a_view_dir, a_frag_pos, a_light.color.w, a_shininess);
+        return diffuse + specular;
+    }
+    return float3(0.0, 0.0, 0.0);
+}
+
+float3 CalculateDirectionalLight_impl(const BB::Light a_light, const float3 a_normal, const float3 a_frag_pos, const float3 a_view_dir, const float a_shininess)
+{
+    const float3 light_dir = normalize(-a_light.direction.xyz);
+    const float3 diffuse = CalculateDiffuse_impl(light_dir, a_light.color.xyz, a_normal, a_frag_pos);
+    const float3 specular = CalculateSpecular_impl(light_dir, a_light.color.xyz, a_normal, a_view_dir, a_frag_pos, a_light.color.w, a_shininess);
+    return diffuse + specular;
+}
+
+float3 CalculateLight(const BB::Light a_light, const float3 a_normal, const float3 a_frag_pos, const float3 a_view_dir, const float a_shininess)
 {
     if (a_light.light_type == POINT_LIGHT)
     {
-        const float3 light_dir = normalize(a_light.pos.xyz - a_frag_pos);
-        return CalculateLight_impl(a_light.pos.xyz, a_light.color.xyz, a_light.color.w, a_normal, a_frag_pos, light_dir);
+        return CalculatePointLight_impl(a_light, a_normal, a_frag_pos, a_view_dir, a_shininess);
     }
     else if (a_light.light_type == SPOT_LIGHT)
     {
-        const float3 light_dir = normalize(a_light.pos.xyz - a_frag_pos);
-        const float theta = dot(light_dir, normalize(-a_light.direction.xyz));
-        if (theta > a_light.direction.w)
-        {
-            return CalculateLight_impl(a_light.pos.xyz, a_light.color.xyz, a_light.color.w, a_normal, a_frag_pos, light_dir);
-        }
+        return CalculateSpotLight_impl(a_light, a_normal, a_frag_pos, a_view_dir, a_shininess);
     }
     else if (a_light.light_type == DIRECTIONAL_LIGHT)
     {
-        const float3 light_dir = normalize(-a_light.direction.xyz);
-        return CalculateLight_impl(a_light.direction.xyz, a_light.color.xyz, a_light.color.w, a_normal, a_frag_pos, light_dir);
+        return CalculateDirectionalLight_impl(a_light, a_normal, a_frag_pos, a_view_dir, a_shininess);
     }
     
     return float3(0.0, 0.0, 0.0);

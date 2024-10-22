@@ -74,10 +74,12 @@ namespace BB
         uint2 scene_resolution;          // 152
         uint2 pad;                       // 160
 
-        uint shadow_map_count;           // 164
-        RDescriptorIndex shadow_map_array_descriptor; // 168
-        uint light_count;                // 172
-        RDescriptorIndex skybox_texture; // 176
+        float4 view_pos;                 // 176 .w = padding
+
+        uint shadow_map_count;           // 180
+        RDescriptorIndex shadow_map_array_descriptor; // 184
+        uint light_count;                // 188
+        RDescriptorIndex skybox_texture; // 192
     };
 
     struct MeshMetallic

@@ -58,3 +58,8 @@ const float4x4 FreeCamera::CalculateView() const
 {
 	return Float4x4Lookat(m_pos, m_pos + m_forward, m_up);
 }
+
+const float3 FreeCamera::GetPosition() const
+{
+	return m_pos;
+}

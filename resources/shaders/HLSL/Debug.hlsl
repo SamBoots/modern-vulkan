@@ -51,7 +51,8 @@ float4 FragmentMain(VSOutput a_input) : SV_Target
     for (uint i = 0; i < scene_info.light_count; i++)
     {
         const BB::Light light = light_data.Load<BB::Light>(sizeof(BB::Light) * i);
-        diffuse += CalculateLight(light, a_input.normal, a_input.frag_pos).xyz;
+        const float TEMP_SHININESS = 32;
+        diffuse += CalculateLight(light, a_input.normal, a_input.frag_pos, scene_info.view_pos.xyz, TEMP_SHININESS).xyz;
     }
     
     const float shadow = CalculateShadow(a_input.frag_pos_light, scene_info.shadow_map_array_descriptor, 0);

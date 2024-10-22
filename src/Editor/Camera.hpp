@@ -13,6 +13,7 @@ namespace BB
 		void SetSpeed(const float a_speed_mod);
 
 		const float4x4 CalculateView() const;
+		const float3 GetPosition() const;
 	private:
 		float m_yaw;
 		float m_pitch;

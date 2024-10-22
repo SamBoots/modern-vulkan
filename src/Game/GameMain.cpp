@@ -209,7 +209,7 @@ bool DungeonGame::InitGame()
 	return true;
 }
 
-bool DungeonGame::Update(const Slice<InputEvent> a_input_events, const float4x4* a_overwrite_view_matrix)
+bool DungeonGame::Update(const Slice<InputEvent> a_input_events, const float4x4* a_overwrite_view_matrix, const float3* a_overwrite_view_pos)
 {
 	for (size_t i = 0; i < a_input_events.size(); i++)
 	{
@@ -217,8 +217,8 @@ bool DungeonGame::Update(const Slice<InputEvent> a_input_events, const float4x4*
 		(void)ip;
 	}
 
-	if (a_overwrite_view_matrix)
-		m_scene_hierarchy.SetView(*a_overwrite_view_matrix);
+	if (a_overwrite_view_matrix && a_overwrite_view_pos)
+		m_scene_hierarchy.SetView(*a_overwrite_view_matrix, *a_overwrite_view_pos);
 	else
 	{
 		// normal cam stuff
