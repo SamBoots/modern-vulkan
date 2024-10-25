@@ -339,18 +339,33 @@ namespace BB
 		return mat;
 	}
 
-	static inline float4x4 Float4x4Perspective(const float fov, const float aspect, const float nearField, const float farField)
+	static inline float4x4 Float4x4Perspective(const float a_fov, const float a_aspect, const float a_near, const float a_far)
 	{
-		const float tanHalfFov = tan(fov / 2.f);
+		const float tan_half_fov = tan(a_fov / 2.f);
 
 		float4x4 mat{};
-		mat.e[0][0] = 1.f / (aspect * tanHalfFov);
-		mat.e[1][1] = 1.f / (tanHalfFov);
-		mat.e[2][2] = -(farField + nearField) / (farField - nearField);
+		mat.e[0][0] = 1.f / (a_aspect * tan_half_fov);
+		mat.e[1][1] = 1.f / (tan_half_fov);
+		mat.e[2][2] = -(a_far + a_near) / (a_far - a_near);
 		mat.e[2][3] = -1.f;
-		mat.e[3][2] = -(2.f * farField * nearField) / (farField - nearField);
+		mat.e[3][2] = -(2.f * a_far * a_near) / (a_far - a_near);
 
 		mat.e[1][1] *= -1;
+
+		return mat;
+	}
+
+	static inline float4x4 Float4x4Ortographic(const float a_left, const float a_right, const float a_bottom, const float a_top, const float a_near, const float a_far)
+	{
+		float4x4 mat = Float4x4Identity();
+		// scale
+		mat.e[0][0] = 2 / (a_right - a_left);
+		mat.e[1][1] = 2 / (a_top - a_bottom);
+		mat.e[2][2] = 2 / (a_far - a_near);
+
+		mat.e[3][0] = -(a_right + a_left) / (a_right - a_left);
+		mat.e[3][1] = -(a_top + a_bottom) / (a_top - a_bottom);
+		mat.e[3][2] = -(a_far + a_near) / (a_far - a_near);
 
 		return mat;
 	}

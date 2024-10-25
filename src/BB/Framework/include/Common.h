@@ -184,6 +184,10 @@ namespace BB
 		constexpr float3() : x(0), y(0), z(0) {}
 		constexpr float3(const float a_value) : x(a_value), y(a_value), z(a_value) {}
 		constexpr float3(const float a_x, const float a_y, const float a_z) : x(a_x), y(a_y), z(a_z) {}
+		float3 operator-() const
+		{
+			return float3(-x, -y, -z);
+		}
 		float e[3];
 		struct
 		{

@@ -132,6 +132,7 @@ const RImageView Viewport::StartRenderTarget(const RCommandList a_cmd_list, uint
 	render_target_transition.base_mip_level = 0;
 	render_target_transition.src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
 	render_target_transition.dst_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
+	render_target_transition.aspects = IMAGE_ASPECT::COLOR;
 
 	PipelineBarrierInfo pipeline_info{};
 	pipeline_info.image_info_count = 1;
@@ -155,6 +156,7 @@ void Viewport::EndRenderTarget(const RCommandList a_cmd_list, const uint32_t a_b
 	render_target_transition.base_mip_level = 0;
 	render_target_transition.src_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
 	render_target_transition.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
+	render_target_transition.aspects = IMAGE_ASPECT::COLOR;
 
 	PipelineBarrierInfo pipeline_info{};
 	pipeline_info.image_info_count = 1;
@@ -200,7 +202,7 @@ void  Viewport::CreateTextures()
 	image_view_create.image = m_image;
 	image_view_create.format = RENDER_TARGET_IMAGE_FORMAT;
 	image_view_create.type = IMAGE_VIEW_TYPE::TYPE_2D;
-	image_view_create.is_depth_image = false;
+	image_view_create.aspects = IMAGE_ASPECT::COLOR;
 
 	for (uint32_t i = 0; i < m_render_target_count; i++)
 	{

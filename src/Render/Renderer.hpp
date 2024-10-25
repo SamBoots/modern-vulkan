@@ -130,6 +130,8 @@ namespace BB
 	void FreeImageView(const RDescriptorIndex a_index);
 	void FreeImageViewShaderInaccessible(const RImageView a_image_view);
 
+	void ClearImage(const RCommandList a_list, const ClearImageInfo& a_clear_info);
+	void ClearDepthImage(const RCommandList a_list, const ClearDepthImageInfo& a_clear_info);
 	void BlitImage(const RCommandList a_list, const BlitImageInfo& a_blit_info);
 	void CopyImage(const RCommandList a_list, const CopyImageInfo& a_copy_info);
 	GPUFenceValue WriteTexture(const WriteImageInfo& a_write_info);

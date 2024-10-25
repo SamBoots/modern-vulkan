@@ -80,7 +80,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 			shadow_map_img.mip_levels = 1;
 			shadow_map_img.use_optimal_tiling = true;
 			shadow_map_img.type = IMAGE_TYPE::TYPE_2D;
-			shadow_map_img.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
+			shadow_map_img.format = IMAGE_FORMAT::D16_UNORM;
 			shadow_map_img.usage = IMAGE_USAGE::SHADOW_MAP;
 			shadow_map_img.is_cube_map = false;
 			pfd.shadow_map.image = CreateImage(shadow_map_img);
@@ -93,9 +93,9 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 			shadow_map_img_view.base_array_layer = 0;
 			shadow_map_img_view.array_layers = static_cast<uint16_t>(pfd.shadow_map.render_pass_views.size());
 			shadow_map_img_view.mip_levels = 1;
-			shadow_map_img_view.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
+			shadow_map_img_view.format = IMAGE_FORMAT::D16_UNORM;
 			shadow_map_img_view.type = IMAGE_VIEW_TYPE::TYPE_2D_ARRAY;
-			shadow_map_img_view.is_depth_image = true;
+			shadow_map_img_view.aspects = IMAGE_ASPECT::DEPTH;
 			pfd.shadow_map.descriptor_index = CreateImageView(shadow_map_img_view);
 		}
 
@@ -105,9 +105,9 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 			render_pass_shadow_view.image = pfd.shadow_map.image;
 			render_pass_shadow_view.array_layers = 1;
 			render_pass_shadow_view.mip_levels = 1;
-			render_pass_shadow_view.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
+			render_pass_shadow_view.format = IMAGE_FORMAT::D16_UNORM;
 			render_pass_shadow_view.type = IMAGE_VIEW_TYPE::TYPE_2D;
-			render_pass_shadow_view.is_depth_image = true;
+			render_pass_shadow_view.aspects = IMAGE_ASPECT::DEPTH;
 			for (uint32_t shadow_index = 0; shadow_index < pfd.shadow_map.render_pass_views.size(); shadow_index++)
 			{
 				render_pass_shadow_view.base_array_layer = static_cast<uint16_t>(shadow_index);
@@ -175,7 +175,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 		skybox_image_view_info.mip_levels = 1;
 		skybox_image_view_info.format = IMAGE_FORMAT::RGBA8_SRGB;
 		skybox_image_view_info.type = IMAGE_VIEW_TYPE::CUBE;
-		skybox_image_view_info.is_depth_image = false;
+		skybox_image_view_info.aspects = IMAGE_ASPECT::COLOR;
 		m_skybox_descriptor_index = CreateImageView(skybox_image_view_info);
 
 		constexpr const char* SKY_BOX_NAME[6]
@@ -471,7 +471,7 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RImageV
 		depth_img_view_info.array_layers = 1;
 		depth_img_view_info.mip_levels = 1;
 		depth_img_view_info.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
-		depth_img_view_info.is_depth_image = true;
+		depth_img_view_info.aspects = IMAGE_ASPECT::DEPTH_STENCIL;
 		pfd.depth_image_descriptor_index = CreateImageView(depth_img_view_info);
 		pfd.previous_draw_area = a_draw_area_size;
 	}
@@ -565,6 +565,7 @@ void SceneHierarchy::SkyboxPass(const PerFrameData& pfd, const RCommandList a_li
 	if (m_options.skip_skybox)
 	{
 		EndRenderPass(a_list);
+		return;
 	}
 
 	SetFrontFace(a_list, false);
@@ -703,8 +704,9 @@ void SceneHierarchy::ShadowMapPass(const PerFrameData& pfd, const RCommandList a
 	shadow_map_write_transition.level_count = 1;
 	shadow_map_write_transition.base_array_layer = 0;
 	shadow_map_write_transition.base_mip_level = 0;
-	shadow_map_write_transition.src_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
+	shadow_map_write_transition.src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
 	shadow_map_write_transition.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
+	shadow_map_write_transition.aspects = IMAGE_ASPECT::DEPTH;
 
 	PipelineBarrierInfo pipeline_info{};
 	pipeline_info.image_info_count = 1;
@@ -722,32 +724,54 @@ void SceneHierarchy::ShadowMapPass(const PerFrameData& pfd, const RCommandList a
 	rendering_info.render_area_extent = a_shadow_map_resolution;
 	rendering_info.render_area_offset = int2(0, 0);
 
-	for (uint32_t shadow_map_index = 0; shadow_map_index < shadow_map_count; shadow_map_index++)
+	SetCullMode(a_list, CULL_MODE::NONE);
+	SetFrontFace(a_list, true);
+
+	if (m_options.skip_shadow_mapping)
 	{
-		depth_attach.image_view = pfd.shadow_map.render_pass_views[shadow_map_index];
-		StartRenderPass(a_list, rendering_info);
+		// validation issues, not nice to use but works for now.
+		ClearDepthImageInfo depth_clear;
+		depth_clear.image = pfd.shadow_map.image;
+		depth_clear.clear_depth = 1;
+		depth_clear.layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
+		depth_clear.depth_aspects = IMAGE_ASPECT::DEPTH;
+		depth_clear.layer_count = shadow_map_count;
+		depth_clear.base_array_layer = 0;
+		depth_clear.level_count = 1;
+		depth_clear.base_mip_level = 0;
 
-		if (!m_options.skip_shadow_mapping)
+		ClearDepthImage(a_list, depth_clear);
+	}
+	else
+	{
+		for (uint32_t shadow_map_index = 0; shadow_map_index < shadow_map_count; shadow_map_index++)
 		{
-			for (uint32_t draw_index = 0; draw_index < m_draw_list.size; draw_index++)
+			depth_attach.image_view = pfd.shadow_map.render_pass_views[shadow_map_index];
+
+			StartRenderPass(a_list, rendering_info);
+
+			if (!m_options.skip_shadow_mapping)
 			{
-				const MeshDrawInfo& mesh_draw_call = m_draw_list.mesh_draw_call[draw_index];
+				for (uint32_t draw_index = 0; draw_index < m_draw_list.size; draw_index++)
+				{
+					const MeshDrawInfo& mesh_draw_call = m_draw_list.mesh_draw_call[draw_index];
 
-				ShaderIndicesShadowMapping shader_indices;
-				shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_buffer_offset);
-				shader_indices.transform_index = draw_index;
-				shader_indices.light_projection_view_index = shadow_map_index;
-				SetPushConstants(a_list, pipe_layout, 0, sizeof(shader_indices), &shader_indices);
-				DrawIndexed(a_list,
-					mesh_draw_call.index_count,
-					1,
-					static_cast<uint32_t>(mesh_draw_call.mesh.index_buffer_offset / sizeof(uint32_t)) + mesh_draw_call.index_start,
-					0,
-					0);
+					ShaderIndicesShadowMapping shader_indices;
+					shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_buffer_offset);
+					shader_indices.transform_index = draw_index;
+					shader_indices.light_projection_view_index = shadow_map_index;
+					SetPushConstants(a_list, pipe_layout, 0, sizeof(shader_indices), &shader_indices);
+					DrawIndexed(a_list,
+						mesh_draw_call.index_count,
+						1,
+						static_cast<uint32_t>(mesh_draw_call.mesh.index_buffer_offset / sizeof(uint32_t)) + mesh_draw_call.index_start,
+						0,
+						0);
+				}
 			}
-		}
 
-		EndRenderPass(a_list);
+			EndRenderPass(a_list);
+		}
 	}
 
 	PipelineBarrierImageInfo shadow_map_read_transition = {};
@@ -755,13 +779,14 @@ void SceneHierarchy::ShadowMapPass(const PerFrameData& pfd, const RCommandList a
 	shadow_map_read_transition.dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
 	shadow_map_read_transition.image = pfd.shadow_map.image;
 	shadow_map_read_transition.old_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
-	shadow_map_read_transition.new_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+	shadow_map_read_transition.new_layout = IMAGE_LAYOUT::DEPTH_STENCIL_READ_ONLY;
 	shadow_map_read_transition.layer_count = shadow_map_count;
 	shadow_map_read_transition.level_count = 1;
 	shadow_map_read_transition.base_array_layer = 0;
 	shadow_map_read_transition.base_mip_level = 0;
 	shadow_map_read_transition.src_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
 	shadow_map_read_transition.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
+	shadow_map_read_transition.aspects = IMAGE_ASPECT::DEPTH;
 
 	pipeline_info = {};
 	pipeline_info.image_info_count = 1;
@@ -783,6 +808,7 @@ void SceneHierarchy::RenderPass(const PerFrameData& pfd, const RCommandList a_li
 	image_transitions[0].base_mip_level = 0;
 	image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
 	image_transitions[0].dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
+	image_transitions[0].aspects = IMAGE_ASPECT::DEPTH_STENCIL;
 
 	PipelineBarrierInfo pipeline_info{};
 	pipeline_info.image_info_count = _countof(image_transitions);
@@ -864,10 +890,9 @@ LightHandle SceneHierarchy::CreateLight(const LightCreateInfo& a_light_info)
 
 	const LightHandle light_handle = m_light_container.insert(light);
 
-
-	const float near_plane = 1.0f, far_plane = 17.5f;
-	const float4x4 projection = Float4x4Perspective(light.direction.w, 1, near_plane, far_plane);
-	const float4x4 view = Float4x4Lookat(a_light_info.pos, a_light_info.pos + a_light_info.direction, float3(0.0f, 1.0f, 0.0f));
+	const float near_plane = 1.f, far_plane = 7.5f;
+	float4x4 projection = Float4x4Perspective(ToRadians(45.f), 1.0f, near_plane, far_plane);
+	const float4x4 view = Float4x4Lookat(a_light_info.pos, float3(), float3(0.0f, -1.0f, 0.0f));
 	const LightProjectionView vp = { projection * view };
 	const LightHandle light_handle_view = m_light_projection_view.emplace(vp);
 

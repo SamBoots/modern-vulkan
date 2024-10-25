@@ -64,9 +64,19 @@ namespace BB
 
 		A8_UNORM,
 
+		D16_UNORM,
 		D32_SFLOAT,
 		D32_SFLOAT_S8_UINT,
 		D24_UNORM_S8_UINT,
+
+		ENUM_SIZE
+	};
+
+	enum class IMAGE_ASPECT : uint32_t
+	{
+		COLOR,
+		DEPTH, 
+		DEPTH_STENCIL,
 
 		ENUM_SIZE
 	};
@@ -100,6 +110,7 @@ namespace BB
 		TRANSFER_DST,
 		COLOR_ATTACHMENT_OPTIMAL,
 		DEPTH_STENCIL_ATTACHMENT,
+		DEPTH_STENCIL_READ_ONLY,
 		SHADER_READ_ONLY,
 		PRESENT,
 
@@ -403,21 +414,22 @@ namespace BB
 
 	struct PipelineBarrierImageInfo
 	{
-		RImage image{};						//8
-		IMAGE_LAYOUT old_layout{};			//12
-		IMAGE_LAYOUT new_layout{};			//16
-		BARRIER_PIPELINE_STAGE src_stage{};	//20
-		BARRIER_PIPELINE_STAGE dst_stage{};	//24
-		BARRIER_ACCESS_MASK src_mask{};		//28
-		BARRIER_ACCESS_MASK dst_mask{};		//32
+		RImage image{};						// 8
+		IMAGE_LAYOUT old_layout{};			// 12
+		IMAGE_LAYOUT new_layout{};			// 16
+		BARRIER_PIPELINE_STAGE src_stage{};	// 20
+		BARRIER_PIPELINE_STAGE dst_stage{};	// 24
+		BARRIER_ACCESS_MASK src_mask{};		// 28
+		BARRIER_ACCESS_MASK dst_mask{};		// 32
 
-		QUEUE_TRANSITION src_queue{};		//36
-		QUEUE_TRANSITION dst_queue{};		//40
+		QUEUE_TRANSITION src_queue{};		// 36
+		QUEUE_TRANSITION dst_queue{};		// 40
 
-		uint32_t base_mip_level = 0;		//44
-		uint32_t level_count = 0;			//48
-		uint32_t base_array_layer = 0;		//52
-		uint32_t layer_count = 0;			//56
+		uint32_t base_mip_level = 0;		// 44
+		uint32_t level_count = 0;			// 48
+		uint32_t base_array_layer = 0;		// 52
+		uint32_t layer_count = 0;			// 56
+		IMAGE_ASPECT aspects;				// 60
 	};
 
 	struct PipelineBarrierInfo
@@ -455,6 +467,30 @@ namespace BB
 		uint16_t base_array_layer;
 		IMAGE_VIEW_TYPE type;
 		IMAGE_FORMAT format;
-		bool is_depth_image;
+		IMAGE_ASPECT aspects;
+	};
+
+	struct ClearImageInfo
+	{
+		RImage image;
+		float4 clear_color;
+		IMAGE_LAYOUT layout;
+		uint32_t layer_count;
+		uint32_t base_array_layer;
+		uint32_t level_count;
+		uint32_t base_mip_level;
+	};
+
+	struct ClearDepthImageInfo
+	{
+		RImage image;
+		float clear_depth;
+		uint32_t clear_stencil;
+		IMAGE_ASPECT depth_aspects;
+		IMAGE_LAYOUT layout;
+		uint32_t layer_count;
+		uint32_t base_array_layer;
+		uint32_t level_count;
+		uint32_t base_mip_level;
 	};
 }

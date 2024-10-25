@@ -181,7 +181,7 @@ void Material::InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCrea
 		material_info.pass_type = PASS_TYPE::GLOBAL;
 		GetDefaultMaterial_impl(PASS_TYPE::GLOBAL, MATERIAL_TYPE::MATERIAL_2D) = CreateMaterial(a_arena, material_info, "default global 2d");
 		material_info.pass_type = PASS_TYPE::SCENE;
-		GetDefaultMaterial_impl(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_2D) = CreateMaterial(a_arena, material_info, "default global 2d");
+		GetDefaultMaterial_impl(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_2D) = CreateMaterial(a_arena, material_info, "default scene 2d");
 
 		MaterialShaderCreateInfo default_3d_shaders[]{ a_create_info.default_3d_vertex, a_create_info.default_3d_fragment };
 		material_info.material_type = MATERIAL_TYPE::MATERIAL_3D;
@@ -190,7 +190,7 @@ void Material::InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCrea
 		material_info.pass_type = PASS_TYPE::GLOBAL;
 		GetDefaultMaterial_impl(PASS_TYPE::GLOBAL, MATERIAL_TYPE::MATERIAL_3D) = CreateMaterial(a_arena, material_info, "default global 3d");
 		material_info.pass_type = PASS_TYPE::SCENE;
-		GetDefaultMaterial_impl(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D) = CreateMaterial(a_arena, material_info, "default global 3d");
+		GetDefaultMaterial_impl(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D) = CreateMaterial(a_arena, material_info, "default scene 3d");
 	}
 }
 

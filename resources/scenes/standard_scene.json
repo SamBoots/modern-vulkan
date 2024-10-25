@@ -7,7 +7,7 @@
         "object_name": "chess game",
         "position": [
           0.0,
-          -1.0,
+          0.0,
           0.0
         ]
       }
@@ -17,8 +17,8 @@
         "name": "light 0",
         "light_type": "directional",
         "position": [
-          0.0,
           1.0,
+          2.0,
           0.0
         ],
         "color": [
@@ -32,9 +32,9 @@
         "quadratic": 0.44,
 
         "direction": [
-          1.0,
+          -0.2,
           -1.0,
-          0.0
+          -0.3
         ],
         "cutoff_radius": 0.20944
       }

@@ -451,7 +451,7 @@ void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
 	icons_view_info.mip_levels = 1;
 	icons_view_info.format = IMAGE_FORMAT::RGBA8_SRGB;
 	icons_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
-	icons_view_info.is_depth_image = false;
+	icons_view_info.aspects = IMAGE_ASPECT::COLOR;
 	s_asset_manager->icons_storage.image_descriptor_index = CreateImageView(icons_view_info);
 
 	//slot 0 is for debug
@@ -581,7 +581,7 @@ static inline void CreateImage_func(const StringView& a_name, const uint32_t a_w
 	create_view_info.mip_levels = 1;
 	create_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
 	create_view_info.format = a_format;
-	create_view_info.is_depth_image = false;
+	create_view_info.aspects = IMAGE_ASPECT::COLOR;
 	a_out_index = CreateImageView(create_view_info);
 }
 

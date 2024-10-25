@@ -75,12 +75,14 @@ namespace BB
 		RImage dst_image;
 		uint3 dst_extent;
 		ImageSizeInfo dst_image_info;
+		IMAGE_ASPECT dst_aspects;
 	};
 
 	struct RenderCopyImageToBufferInfo
 	{
 		RImage src_image;
 		uint3 src_extent;
+		IMAGE_ASPECT src_aspects;
 		ImageSizeInfo src_image_info;
 
 		GPUBuffer dst_buffer;

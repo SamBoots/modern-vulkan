@@ -99,7 +99,7 @@ static void CreateBasicColorImage(RImage& a_image, RDescriptorIndex& a_index, co
 	debug_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
 	debug_view_info.format = IMAGE_FORMAT::RGBA8_SRGB;
 	debug_view_info.image = a_image;
-	debug_view_info.is_depth_image = false;
+	debug_view_info.aspects = IMAGE_ASPECT::COLOR;
 	a_index = CreateImageView(debug_view_info);
 
 	WriteImageInfo debug_write_info;
@@ -884,7 +884,7 @@ namespace IMGUI_IMPL
 		view_info.array_layers = 1;
 		view_info.mip_levels = 1;
 		view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
-		view_info.is_depth_image = false;
+		view_info.aspects = IMAGE_ASPECT::COLOR;
 		bd->font_descriptor = CreateImageView(view_info);
 
 		WriteImageInfo write_info{};
@@ -1068,16 +1068,25 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	MemoryArenaScope(a_arena)
 	{
 		{	//static sampler descriptor set 0
-			SamplerCreateInfo immutable_sampler{};
-			immutable_sampler.name = "standard 3d sampler";
-			immutable_sampler.mode_u = SAMPLER_ADDRESS_MODE::REPEAT;
-			immutable_sampler.mode_v = SAMPLER_ADDRESS_MODE::REPEAT;
-			immutable_sampler.mode_w = SAMPLER_ADDRESS_MODE::REPEAT;
-			immutable_sampler.filter = SAMPLER_FILTER::LINEAR;
-			immutable_sampler.max_anistoropy = 1.0f;
-			immutable_sampler.max_lod = 100.f;
-			immutable_sampler.min_lod = -100.f;
-			s_render_inst->static_sampler_descriptor_set = Vulkan::CreateDescriptorSamplerLayout(Slice(&immutable_sampler, 1));
+			FixedArray<SamplerCreateInfo, 2> immutable_samplers;
+			immutable_samplers[0].name = "standard 3d sampler";
+			immutable_samplers[0].mode_u = SAMPLER_ADDRESS_MODE::REPEAT;
+			immutable_samplers[0].mode_v = SAMPLER_ADDRESS_MODE::REPEAT;
+			immutable_samplers[0].mode_w = SAMPLER_ADDRESS_MODE::REPEAT;
+			immutable_samplers[0].filter = SAMPLER_FILTER::LINEAR;
+			immutable_samplers[0].max_anistoropy = 1.0f;
+			immutable_samplers[0].max_lod = 100.f;
+			immutable_samplers[0].min_lod = -100.f;
+
+			immutable_samplers[1].name = "shadow map sampler";
+			immutable_samplers[1].mode_u = SAMPLER_ADDRESS_MODE::CLAMP;
+			immutable_samplers[1].mode_v = SAMPLER_ADDRESS_MODE::CLAMP;
+			immutable_samplers[1].mode_w = SAMPLER_ADDRESS_MODE::CLAMP;
+			immutable_samplers[1].filter = SAMPLER_FILTER::LINEAR;
+			immutable_samplers[1].max_anistoropy = 1.0f;
+			immutable_samplers[1].max_lod = 1.f;
+			immutable_samplers[1].min_lod = 0.f;
+			s_render_inst->static_sampler_descriptor_set = Vulkan::CreateDescriptorSamplerLayout(immutable_samplers.slice());
 		}
 		{
 			//global descriptor set 1
@@ -1227,7 +1236,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 			view_info.array_layers = 1;
 			view_info.base_array_layer = static_cast<uint16_t>(i);
 			view_info.mip_levels = 1;
-			view_info.is_depth_image = false;
+			view_info.aspects = IMAGE_ASPECT::COLOR;
 			view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
 			view_info.format = RENDER_TARGET_IMAGE_FORMAT;
 
@@ -1316,7 +1325,7 @@ static void ResizeRendererSwapchain(const uint32_t a_width, const uint32_t a_hei
 		view_info.array_layers = 1;
 		view_info.base_array_layer = 0;
 		view_info.mip_levels = 1;
-		view_info.is_depth_image = false;
+		view_info.aspects = IMAGE_ASPECT::COLOR;
 		view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
 		view_info.format = RENDER_TARGET_IMAGE_FORMAT;
 
@@ -1368,6 +1377,7 @@ void BB::StartFrame(const RCommandList a_list, const StartFrameInfo& a_info, uin
 		image_transitions[0].base_mip_level = 0;
 		image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
 		image_transitions[0].dst_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
+		image_transitions[0].aspects = IMAGE_ASPECT::COLOR;
 
 		PipelineBarrierInfo pipeline_info{};
 		pipeline_info.image_info_count = _countof(image_transitions);
@@ -1489,6 +1499,7 @@ static void UploadAssets(MemoryArena& a_thread_arena, void*)
 					pi.base_mip_level = 0;
 					pi.src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
 					pi.dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
+					pi.aspects = IMAGE_ASPECT::COLOR;
 				}
 
 				if (upload_data.end_layout == IMAGE_LAYOUT::TRANSFER_DST)
@@ -1507,6 +1518,7 @@ static void UploadAssets(MemoryArena& a_thread_arena, void*)
 					pi.base_mip_level = 0;
 					pi.src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
 					pi.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
+					pi.aspects = IMAGE_ASPECT::COLOR;
 					s_render_inst->texture_manager.AddGraphicsTransition(pi);
 				}
 			}
@@ -1573,6 +1585,7 @@ void BB::EndFrame(const RCommandList a_list, const ShaderEffectHandle a_imgui_ve
 		image_transitions[0].base_mip_level = 0;
 		image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
 		image_transitions[0].dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
+		image_transitions[0].aspects = IMAGE_ASPECT::COLOR;
 
 		PipelineBarrierInfo pipeline_info{};
 		pipeline_info.image_info_count = _countof(image_transitions);
@@ -1917,6 +1930,16 @@ void BB::FreeImageViewShaderInaccessible(const RImageView a_view)
 	Vulkan::FreeViewImage(a_view);
 }
 
+void BB::ClearImage(const RCommandList a_list, const ClearImageInfo& a_clear_info)
+{
+	Vulkan::ClearImage(a_list, a_clear_info);
+}
+
+void BB::ClearDepthImage(const RCommandList a_list, const ClearDepthImageInfo& a_clear_info)
+{
+	Vulkan::ClearDepthImage(a_list, a_clear_info);
+}
+
 void BB::BlitImage(const RCommandList a_list, const BlitImageInfo& a_blit_info)
 {
 	// use with new asset system, but this is not used now.
@@ -1956,6 +1979,7 @@ GPUFenceValue BB::WriteTexture(const WriteImageInfo& a_write_info)
 	buffer_to_image.dst_image_info.mip_level = 0;
 	buffer_to_image.dst_image_info.layer_count = a_write_info.layer_count;
 	buffer_to_image.dst_image_info.base_array_layer = a_write_info.base_array_layer;
+	buffer_to_image.dst_aspects = IMAGE_ASPECT::COLOR;
 
 	UploadDataTexture upload_texture{};
 	upload_texture.image = a_write_info.image;

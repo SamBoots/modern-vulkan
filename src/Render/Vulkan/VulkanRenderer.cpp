@@ -470,8 +470,13 @@ struct Vulkan_inst
 		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::TRANSFER_DST)] = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL)] = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT)] = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::DEPTH_STENCIL_READ_ONLY)] = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::SHADER_READ_ONLY)] = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::PRESENT)] = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+		enum_conv.image_aspects[static_cast<uint32_t>(IMAGE_ASPECT::COLOR)] = VK_IMAGE_ASPECT_COLOR_BIT;
+		enum_conv.image_aspects[static_cast<uint32_t>(IMAGE_ASPECT::DEPTH)] = VK_IMAGE_ASPECT_DEPTH_BIT;
+		enum_conv.image_aspects[static_cast<uint32_t>(IMAGE_ASPECT::DEPTH_STENCIL)] = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
 
 		// 64 bit images
 		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::RGBA16_UNORM)] = VK_FORMAT_R16G16B16A16_UNORM;
@@ -484,6 +489,7 @@ struct Vulkan_inst
 		// 8 bit images
 		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::A8_UNORM)] = VK_FORMAT_R8_UNORM;
 		// depth images
+		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::D16_UNORM)] = VK_FORMAT_D16_UNORM;
 		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::D32_SFLOAT)] = VK_FORMAT_D32_SFLOAT;
 		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::D32_SFLOAT_S8_UINT)] = VK_FORMAT_D32_SFLOAT_S8_UINT;
 		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::D24_UNORM_S8_UINT)] = VK_FORMAT_D24_UNORM_S8_UINT;
@@ -569,6 +575,7 @@ struct Vulkan_inst
 	{
 		VkDescriptorType descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::ENUM_SIZE)];
 		VkImageLayout image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::ENUM_SIZE)];
+		VkImageAspectFlags image_aspects[static_cast<uint32_t>(IMAGE_ASPECT::ENUM_SIZE)];
 		VkFormat image_formats[static_cast<uint32_t>(IMAGE_FORMAT::ENUM_SIZE)];
 		VkImageType image_types[static_cast<uint32_t>(IMAGE_TYPE::ENUM_SIZE)];
 		VkImageViewType image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::ENUM_SIZE)];
@@ -696,6 +703,24 @@ static inline VkShaderStageFlags ShaderStageFlagsFromFlags(const SHADER_STAGE_FL
 	return stage_flags;
 }
 
+static inline VkImageAspectFlags ImageAspect(const IMAGE_ASPECT a_aspects)
+{
+#ifdef ENUM_CONVERSATION_BY_ARRAY
+	return s_vulkan_inst->enum_conv.image_aspects[static_cast<uint32_t>(a_aspects)];
+#else
+	switch (a_aspects)
+	{
+	case IMAGE_ASPECT::COLOR:         return VK_IMAGE_ASPECT_COLOR_BIT;
+	case IMAGE_ASPECT::DEPTH:         return VK_IMAGE_ASPECT_DEPTH_BIT;
+	case IMAGE_ASPECT::DEPTH_STENCIL: return VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+	default:
+		BB_ASSERT(false, "Vulkan: IMAGE_ASPECT failed to convert to a VkImageAspectFlags.");
+		return 0;
+		break;
+	}
+#endif // ENUM_CONVERSATION_BY_ARRAY
+}
+
 static inline VkImageLayout ImageLayout(const IMAGE_LAYOUT a_image_layout)
 {
 #ifdef ENUM_CONVERSATION_BY_ARRAY
@@ -732,6 +757,7 @@ static inline VkFormat ImageFormats(const IMAGE_FORMAT a_image_format)
 	case IMAGE_FORMAT::RGBA8_UNORM:		return VK_FORMAT_R8G8B8A8_UNORM;
 	case IMAGE_FORMAT::RGB8_SRGB:		return VK_FORMAT_R8G8B8_SRGB;
 	case IMAGE_FORMAT::A8_UNORM:		return VK_FORMAT_R8_UNORM;
+	case IMAGE_FORMAT::D16_UNORM:				return VK_FORMAT_D16_UNORM;
 	case IMAGE_FORMAT::D32_SFLOAT:				return VK_FORMAT_D32_SFLOAT;
 	case IMAGE_FORMAT::D32_SFLOAT_S8_UINT:		return VK_FORMAT_D32_SFLOAT_S8_UINT;
 	case IMAGE_FORMAT::D24_UNORM_S8_UINT:		return VK_FORMAT_D24_UNORM_S8_UINT;
@@ -1516,10 +1542,7 @@ const RImageView Vulkan::CreateImageView(const ImageViewCreateInfo& a_create_inf
 	view_info.image = reinterpret_cast<VkImage>(a_create_info.image.handle);
 	view_info.viewType = ImageViewTypes(a_create_info.type);
 	view_info.format = ImageFormats(a_create_info.format);
-	if (a_create_info.is_depth_image)
-		view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-	else
-		view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	view_info.subresourceRange.aspectMask = ImageAspect(a_create_info.aspects);
 	view_info.subresourceRange.baseMipLevel = 0;
 	view_info.subresourceRange.levelCount = a_create_info.mip_levels;
 	view_info.subresourceRange.baseArrayLayer = 0;
@@ -1969,10 +1992,10 @@ void Vulkan::CopyBufferToImage(const RCommandList a_list, const RenderCopyBuffer
 	copy_image.imageOffset.y = a_copy_info.dst_image_info.offset_y;
 	copy_image.imageOffset.z = a_copy_info.dst_image_info.offset_z;
 
-	copy_image.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 	copy_image.imageSubresource.mipLevel = a_copy_info.dst_image_info.mip_level;
 	copy_image.imageSubresource.baseArrayLayer = a_copy_info.dst_image_info.base_array_layer;
 	copy_image.imageSubresource.layerCount = a_copy_info.dst_image_info.layer_count;
+	copy_image.imageSubresource.aspectMask = ImageAspect(a_copy_info.dst_aspects);
 
 	vkCmdCopyBufferToImage(cmd_list,
 		reinterpret_cast<VkBuffer>(a_copy_info.src_buffer.handle),
@@ -1998,7 +2021,7 @@ void Vulkan::CopyImageToBuffer(const RCommandList a_list, const RenderCopyImageT
 	copy_image.imageOffset.y = a_copy_info.src_image_info.offset_y;
 	copy_image.imageOffset.z = a_copy_info.src_image_info.offset_z;
 
-	copy_image.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	copy_image.imageSubresource.aspectMask = ImageAspect(a_copy_info.src_aspects);
 	copy_image.imageSubresource.mipLevel = a_copy_info.src_image_info.mip_level;
 	copy_image.imageSubresource.baseArrayLayer = a_copy_info.src_image_info.base_array_layer;
 	copy_image.imageSubresource.layerCount = a_copy_info.src_image_info.layer_count;
@@ -2011,24 +2034,42 @@ void Vulkan::CopyImageToBuffer(const RCommandList a_list, const RenderCopyImageT
 		&copy_image);
 }
 
-void Vulkan::ClearImage(const RCommandList a_list, const RImage a_image, const IMAGE_LAYOUT a_layout, const float4 a_clear_color)
+void Vulkan::ClearImage(const RCommandList a_list, const ClearImageInfo& a_clear_info)
 {
 	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 
 	VkClearColorValue clear_color;
-	clear_color.float32[0] = a_clear_color.e[0];
-	clear_color.float32[1] = a_clear_color.e[1];
-	clear_color.float32[2] = a_clear_color.e[2];
-	clear_color.float32[3] = a_clear_color.e[3];
+	clear_color.float32[0] = a_clear_info.clear_color.e[0];
+	clear_color.float32[1] = a_clear_info.clear_color.e[1];
+	clear_color.float32[2] = a_clear_info.clear_color.e[2];
+	clear_color.float32[3] = a_clear_info.clear_color.e[3];
 
 	VkImageSubresourceRange subresource;
 	subresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	subresource.layerCount = 1;
-	subresource.levelCount = 1;
-	subresource.baseArrayLayer = 0;
-	subresource.baseMipLevel = 0;
+	subresource.layerCount = a_clear_info.layer_count;
+	subresource.levelCount = a_clear_info.level_count;
+	subresource.baseArrayLayer = a_clear_info.base_array_layer;
+	subresource.baseMipLevel = a_clear_info.base_mip_level;
 
-	vkCmdClearColorImage(cmd_list, reinterpret_cast<VkImage>(a_image.handle), ImageLayout(a_layout), &clear_color, 1, &subresource);
+	vkCmdClearColorImage(cmd_list, reinterpret_cast<VkImage>(a_clear_info.image.handle), ImageLayout(a_clear_info.layout), &clear_color, 1, &subresource);
+}
+
+void Vulkan::ClearDepthImage(const RCommandList a_list, const ClearDepthImageInfo& a_clear_info)
+{
+	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+
+	VkClearDepthStencilValue clear_color;
+	clear_color.depth = a_clear_info.clear_depth;
+	clear_color.stencil = a_clear_info.clear_stencil;
+
+	VkImageSubresourceRange subresource;
+	subresource.aspectMask = ImageAspect(a_clear_info.depth_aspects);
+	subresource.layerCount = a_clear_info.layer_count;
+	subresource.levelCount = a_clear_info.level_count;
+	subresource.baseArrayLayer = a_clear_info.base_array_layer;
+	subresource.baseMipLevel = a_clear_info.base_mip_level;
+
+	vkCmdClearDepthStencilImage(cmd_list, reinterpret_cast<VkImage>(a_clear_info.image.handle), ImageLayout(a_clear_info.layout), &clear_color, 1, &subresource);
 }
 
 void Vulkan::BlitImage(const RCommandList a_list, const BlitImageInfo& a_info)
@@ -2133,11 +2174,7 @@ void Vulkan::PipelineBarriers(const RCommandList a_list, const PipelineBarrierIn
 		image_barriers[i].oldLayout = ImageLayout(barrier_info.old_layout);
 		image_barriers[i].newLayout = ImageLayout(barrier_info.new_layout);
 		image_barriers[i].image = reinterpret_cast<VkImage>(barrier_info.image.handle);
-		if (barrier_info.new_layout == IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT ||
-			barrier_info.old_layout == IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT)
-			image_barriers[i].subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-		else
-			image_barriers[i].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		image_barriers[i].subresourceRange.aspectMask = ImageAspect(barrier_info.aspects);
 		image_barriers[i].subresourceRange.baseMipLevel = barrier_info.base_mip_level;
 		image_barriers[i].subresourceRange.levelCount = barrier_info.level_count;
 		image_barriers[i].subresourceRange.baseArrayLayer = barrier_info.base_array_layer;

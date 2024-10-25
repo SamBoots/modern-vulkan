@@ -14,6 +14,7 @@
 
 //IMMUTABLE SAMPLERS
 _BBBIND(IMMUTABLE_SAMPLER_BASIC_BINDING, SPACE_IMMUTABLE_SAMPLER)SamplerState basic_3d_sampler;
+_BBBIND(IMMUTABLE_SAMPLER_SHADOW_MAP_BINDING, SPACE_IMMUTABLE_SAMPLER)SamplerState shadow_map_sampler;
 
 //GLOBAL BINDINGS
 _BBBIND(GLOBAL_VERTEX_BUFFER_BINDING, SPACE_GLOBAL)ByteAddressBuffer vertex_data;
@@ -44,11 +45,17 @@ float4 UnpackR8B8G8A8_UNORMToFloat4(uint a_packed)
 
 float CalculateShadow(const float4 a_frag_pos_light, const RDescriptorIndex a_shadow_map_texture, const uint a_shadow_map_base_layer)
 {
-    const float3 proj_coords = (a_frag_pos_light.xyz / a_frag_pos_light.w) * 0.5 + 0.5;
-    const float closest_depth = textures_array_data[a_shadow_map_texture].Sample(basic_3d_sampler, float3(proj_coords.xy, float(a_shadow_map_base_layer))).r;
-    const float current_depth = proj_coords.z;
-    const float shadow = current_depth > closest_depth ? 1.0 : 0.0;
+    const float4 proj_coords = a_frag_pos_light / a_frag_pos_light.w;
     
+    float shadow = 1.0;
+    if (proj_coords.z > -1.0 && proj_coords.z < 1.0)
+    {
+        float dist = textures_array_data[a_shadow_map_texture].Sample(shadow_map_sampler, float3(proj_coords.xy, (float)a_shadow_map_base_layer)).r;
+        if (proj_coords.w > 0.0 && dist < proj_coords.z)
+        {
+            shadow = 0.0;
+        }
+    }
     return shadow;
 }
 

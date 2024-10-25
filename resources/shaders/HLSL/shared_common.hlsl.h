@@ -10,9 +10,10 @@ namespace BB
 #define SPACE_PER_MESH 4
 #define SPACE_AMOUNT 5
 
-#define STATIC_SAMPLER_MAX 1
+#define STATIC_SAMPLER_MAX 2
 
 #define IMMUTABLE_SAMPLER_BASIC_BINDING 0
+#define IMMUTABLE_SAMPLER_SHADOW_MAP_BINDING 1
 
 #define GLOBAL_VERTEX_BUFFER_BINDING 0
 #define GLOBAL_CPU_VERTEX_BUFFER_BINDING 1
@@ -150,6 +151,7 @@ namespace BB
         uint vertex_buffer_offset;        // 4
         uint transform_index;             // 8
         uint light_projection_view_index; // 12
-        uint3 padding;                    // 24
+        uint pad1;
+        uint2 pad2;                    // 24
     };
 }
