@@ -61,7 +61,7 @@ float4 FragmentMain(VSOutput a_input) : SV_Target
         diffuse += CalculateLight(light, a_input.normal, a_input.frag_pos, scene_info.view_pos.xyz, TEMP_SHININESS).xyz;
     }
     
-    const float shadow = CalculateShadow(a_input.frag_pos_light, scene_info.shadow_map_array_descriptor, 0);
+    const float shadow = CalculateShadowPCF(a_input.frag_pos_light, scene_info.shadow_map_resolution, scene_info.shadow_map_array_descriptor, 0);
     
     float4 result = float4(scene_info.ambient_light.xyz + (1.0 - shadow) * (diffuse), 1.0) * color;
     

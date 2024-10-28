@@ -73,7 +73,7 @@ namespace BB
         float4 ambient_light;            // 144
 
         uint2 scene_resolution;          // 152
-        uint2 pad;                       // 160
+        float2 shadow_map_resolution;    // 160
 
         float4 view_pos;                 // 176 .w = padding
 

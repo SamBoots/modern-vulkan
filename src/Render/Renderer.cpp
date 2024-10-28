@@ -1077,6 +1077,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 			immutable_samplers[0].max_anistoropy = 1.0f;
 			immutable_samplers[0].max_lod = 100.f;
 			immutable_samplers[0].min_lod = -100.f;
+			immutable_samplers[0].border_color = SAMPLER_BORDER_COLOR::COLOR_FLOAT_OPAQUE_BLACK;
 
 			immutable_samplers[1].name = "shadow map sampler";
 			immutable_samplers[1].mode_u = SAMPLER_ADDRESS_MODE::CLAMP;
@@ -1086,6 +1087,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 			immutable_samplers[1].max_anistoropy = 1.0f;
 			immutable_samplers[1].max_lod = 1.f;
 			immutable_samplers[1].min_lod = 0.f;
+			immutable_samplers[1].border_color = SAMPLER_BORDER_COLOR::COLOR_FLOAT_OPAQUE_WHITE;
 			s_render_inst->static_sampler_descriptor_set = Vulkan::CreateDescriptorSamplerLayout(immutable_samplers.slice());
 		}
 		{

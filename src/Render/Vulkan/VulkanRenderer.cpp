@@ -510,6 +510,13 @@ struct Vulkan_inst
 		enum_conv.sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::BORDER)] = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 		enum_conv.sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::CLAMP)] = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 
+		enum_conv.border_colors[static_cast<uint32_t>(SAMPLER_BORDER_COLOR::COLOR_FLOAT_TRANSPARENT_BLACK)] = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+		enum_conv.border_colors[static_cast<uint32_t>(SAMPLER_BORDER_COLOR::COLOR_INT_TRANSPARENT_BLACK)] = VK_BORDER_COLOR_INT_TRANSPARENT_BLACK;
+		enum_conv.border_colors[static_cast<uint32_t>(SAMPLER_BORDER_COLOR::COLOR_FLOAT_OPAQUE_BLACK)] = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+		enum_conv.border_colors[static_cast<uint32_t>(SAMPLER_BORDER_COLOR::COLOR_INT_OPAQUE_BLACK)] = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+		enum_conv.border_colors[static_cast<uint32_t>(SAMPLER_BORDER_COLOR::COLOR_FLOAT_OPAQUE_WHITE)] = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+		enum_conv.border_colors[static_cast<uint32_t>(SAMPLER_BORDER_COLOR::COLOR_INT_OPAQUE_WHITE)] = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
+
 		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE)] = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
 		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::TRANSFER)] = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
 		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::VERTEX_INPUT)] = VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT;
@@ -580,6 +587,7 @@ struct Vulkan_inst
 		VkImageType image_types[static_cast<uint32_t>(IMAGE_TYPE::ENUM_SIZE)];
 		VkImageViewType image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::ENUM_SIZE)];
 		VkSamplerAddressMode sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::ENUM_SIZE)];
+		VkBorderColor border_colors[static_cast<uint32_t>(SAMPLER_BORDER_COLOR::ENUM_SIZE)];
 		VkPipelineStageFlags2 pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::ENUM_SIZE)];
 		VkAccessFlags2 access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::ENUM_SIZE)];
 		VkImageUsageFlags image_usages[static_cast<uint32_t>(IMAGE_USAGE::ENUM_SIZE)];
@@ -825,6 +833,27 @@ static inline VkSamplerAddressMode SamplerAddressModes(const SAMPLER_ADDRESS_MOD
 #endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
+static inline VkBorderColor SamplerBorderColor(const SAMPLER_BORDER_COLOR a_color)
+{
+#ifdef ENUM_CONVERSATION_BY_ARRAY
+	return s_vulkan_inst->enum_conv.border_colors[static_cast<uint32_t>(a_color)];
+#else
+	switch (a_address_mode)
+	{
+	case SAMPLER_BORDER_COLOR::COLOR_FLOAT_TRANSPARENT_BLACK:	return VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+	case SAMPLER_BORDER_COLOR::COLOR_INT_TRANSPARENT_BLACK:		return VK_BORDER_COLOR_INT_TRANSPARENT_BLACK;
+	case SAMPLER_BORDER_COLOR::COLOR_FLOAT_OPAQUE_BLACK:		return VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+	case SAMPLER_BORDER_COLOR::COLOR_INT_OPAQUE_BLACK:			return VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+	case SAMPLER_BORDER_COLOR::COLOR_FLOAT_OPAQUE_WHITE:		return VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+	case SAMPLER_BORDER_COLOR::COLOR_INT_OPAQUE_WHITE:			return VK_BORDER_COLOR_INT_OPAQUE_WHITE;
+	default:
+		BB_ASSERT(false, "Vulkan: SAMPLER_BORDER_COLOR failed to convert to a VkBorderColor.");
+		return VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+		break;
+	}
+#endif //ENUM_CONVERSATION_BY_ARRAY
+}
+
 static inline VkPipelineStageFlags2 PipelineStage(const BARRIER_PIPELINE_STAGE a_stage)
 {
 #ifdef ENUM_CONVERSATION_BY_ARRAY
@@ -891,13 +920,13 @@ static inline VkImageUsageFlags ImageUsage(const IMAGE_USAGE a_usage)
 #endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
-static VkSampler CreateSampler(const SamplerCreateInfo& a_CreateInfo)
+static VkSampler CreateSampler(const SamplerCreateInfo& a_create_info)
 {
 	VkSamplerCreateInfo sampler_info{ VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
-	sampler_info.addressModeU = SamplerAddressModes(a_CreateInfo.mode_u);
-	sampler_info.addressModeV = SamplerAddressModes(a_CreateInfo.mode_v);
-	sampler_info.addressModeW = SamplerAddressModes(a_CreateInfo.mode_w);
-	switch (a_CreateInfo.filter)
+	sampler_info.addressModeU = SamplerAddressModes(a_create_info.mode_u);
+	sampler_info.addressModeV = SamplerAddressModes(a_create_info.mode_v);
+	sampler_info.addressModeW = SamplerAddressModes(a_create_info.mode_w);
+	switch (a_create_info.filter)
 	{
 	case SAMPLER_FILTER::NEAREST:
 		sampler_info.magFilter = VK_FILTER_NEAREST;
@@ -908,19 +937,19 @@ static VkSampler CreateSampler(const SamplerCreateInfo& a_CreateInfo)
 		sampler_info.minFilter = VK_FILTER_LINEAR;
 		break;
 	}
-	sampler_info.minLod = a_CreateInfo.min_lod;
-	sampler_info.maxLod = a_CreateInfo.max_lod;
+	sampler_info.minLod = a_create_info.min_lod;
+	sampler_info.maxLod = a_create_info.max_lod;
 	sampler_info.mipLodBias = 0;
-	if (a_CreateInfo.max_anistoropy > 0)
+	if (a_create_info.max_anistoropy > 0)
 	{
 		sampler_info.anisotropyEnable = VK_TRUE;
-		sampler_info.maxAnisotropy = a_CreateInfo.max_anistoropy;
+		sampler_info.maxAnisotropy = a_create_info.max_anistoropy;
 	}
-
+	sampler_info.borderColor = SamplerBorderColor(a_create_info.border_color);
 	VkSampler sampler;
 	VKASSERT(vkCreateSampler(s_vulkan_inst->device, &sampler_info, nullptr, &sampler),
 		"Vulkan: Failed to create image sampler!");
-	SetDebugName(a_CreateInfo.name, sampler, VK_OBJECT_TYPE_SAMPLER);
+	SetDebugName(a_create_info.name, sampler, VK_OBJECT_TYPE_SAMPLER);
 
 	return sampler;
 }

@@ -48,6 +48,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 	m_upload_allocator.Init(a_arena, mbSize * 4, m_fence, "scene upload buffer");
 
 	m_scene_info.ambient_light = float4(0.05f, 0.05f, 0.05f, 1.f);
+	m_scene_info.shadow_map_resolution = float2(DEPTH_IMAGE_SIZE_W_H, DEPTH_IMAGE_SIZE_W_H);
 
 	m_per_frame.Init(a_arena, a_back_buffers);
 	m_per_frame.resize(a_back_buffers);
@@ -724,7 +725,7 @@ void SceneHierarchy::ShadowMapPass(const PerFrameData& pfd, const RCommandList a
 	rendering_info.render_area_extent = a_shadow_map_resolution;
 	rendering_info.render_area_offset = int2(0, 0);
 
-	SetCullMode(a_list, CULL_MODE::NONE);
+	SetCullMode(a_list, CULL_MODE::FRONT);
 	SetFrontFace(a_list, true);
 	SetDepthBias(a_list, 1.25f, 0.f, 1.75f);
 
@@ -893,14 +894,19 @@ LightHandle SceneHierarchy::CreateLight(const LightCreateInfo& a_light_info)
 	const LightHandle light_handle = m_light_container.insert(light);
 
 	const float near_plane = 1.f, far_plane = 7.5f;
-	float4x4 projection = Float4x4Perspective(ToRadians(45.f), 1.0f, near_plane, far_plane);
-	const float4x4 view = Float4x4Lookat(a_light_info.pos, float3(), float3(0.0f, -1.0f, 0.0f));
-	const LightProjectionView vp = { projection * view };
+	const LightProjectionView vp = CalculateLightProjectionView(a_light_info.pos, near_plane, far_plane);
 	const LightHandle light_handle_view = m_light_projection_view.emplace(vp);
 
 	BB_ASSERT(light_handle == light_handle_view, "Something went wrong trying to create a light");
 
 	return light_handle;
+}
+
+LightProjectionView SceneHierarchy::CalculateLightProjectionView(const float3 a_pos, const float a_near, const float a_far) const
+{
+	const float4x4 projection = Float4x4Perspective(ToRadians(45.f), 1.0f, a_near, a_far);
+	const float4x4 view = Float4x4Lookat(a_pos, float3(), float3(0.0f, -1.0f, 0.0f));
+	return { projection * view };
 }
 
 Light& SceneHierarchy::GetLight(const LightHandle a_light) const

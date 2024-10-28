@@ -47,6 +47,18 @@ namespace BB
 		ENUM_SIZE
 	};
 
+	enum class SAMPLER_BORDER_COLOR : uint32_t
+	{
+		COLOR_FLOAT_TRANSPARENT_BLACK,
+		COLOR_INT_TRANSPARENT_BLACK,
+		COLOR_FLOAT_OPAQUE_BLACK,
+		COLOR_INT_OPAQUE_BLACK,
+		COLOR_FLOAT_OPAQUE_WHITE,
+		COLOR_INT_OPAQUE_WHITE,
+
+		ENUM_SIZE
+	};
+
 	enum class SAMPLER_FILTER : uint32_t
 	{
 		NEAREST,
@@ -65,6 +77,7 @@ namespace BB
 
 		float min_lod;
 		float max_lod;
+		SAMPLER_BORDER_COLOR border_color;
 	};
 
 	struct RenderCopyBufferToImageInfo

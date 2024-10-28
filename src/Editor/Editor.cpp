@@ -668,10 +668,10 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 	{
 		ImGui::Indent();
 		Transform& transform = a_hierarchy.m_transform_pool.GetTransform(scene_object.transform);
-
+		bool position_changed;
 		if (ImGui::TreeNodeEx("transform"))
 		{
-			ImGui::InputFloat3("position", transform.m_pos.e);
+			position_changed = ImGui::InputFloat3("position", transform.m_pos.e);
 			ImGui::InputFloat4("rotation quat (xyzw)", transform.m_rot.xyzw.e);
 			ImGui::InputFloat3("scale", transform.m_scale.e);
 			ImGui::TreePop();
@@ -736,8 +736,6 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 
 					break;
 				case LIGHT_TYPE::SPOT_LIGHT:
-					ImGui::InputFloat3("direction", light.direction.e);
-					break;
 				case LIGHT_TYPE::DIRECTIONAL_LIGHT:
 					ImGui::InputFloat3("direction", light.direction.e);
 					break;
@@ -750,6 +748,14 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 					a_hierarchy.FreeLight(scene_object.light_handle);
 					scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 				}
+
+				if (position_changed)
+				{
+					LightProjectionView& vp = a_hierarchy.m_light_projection_view[scene_object.light_handle];
+					const float near_plane = 1.f, far_plane = 7.5f;
+					vp = a_hierarchy.CalculateLightProjectionView(transform.m_pos, near_plane, far_plane);
+				}
+
 				ImGui::Unindent();
 				ImGui::TreePop();
 			}

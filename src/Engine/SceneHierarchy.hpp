@@ -128,6 +128,7 @@ namespace BB
 		void DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform);
 
 		LightHandle CreateLight(const LightCreateInfo& a_light_info);
+		LightProjectionView CalculateLightProjectionView(const float3 a_pos, const float a_near, const float a_far) const;
 		Light& GetLight(const LightHandle a_light) const;
 		void FreeLight(const LightHandle a_light);
 

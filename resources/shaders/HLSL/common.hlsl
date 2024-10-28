@@ -43,12 +43,35 @@ float4 UnpackR8B8G8A8_UNORMToFloat4(uint a_packed)
     return unpacked * sc;
 }
 
+float CalculateShadowPCF(const float4 a_frag_pos_light, const float2 a_texture_xy, const RDescriptorIndex a_shadow_map_texture, const uint a_shadow_map_base_layer)
+{
+    const float4 proj_coords = a_frag_pos_light / a_frag_pos_light.w;
+    const float2 texture_size = 1.0 / a_texture_xy;
+    const float current_depth = proj_coords.z;
+    
+    float shadow = 0;
+    for (int x = -1; x <= 1; ++x)
+    {
+        for (int y = -1; y <= 1; ++y)
+        {
+            const float3 sample_cords = float3(proj_coords.xy + float2(x, y) * texture_size, (float)a_shadow_map_base_layer);
+            const float pcf_depth = textures_array_data[a_shadow_map_texture].Sample(shadow_map_sampler, sample_cords).r;
+            shadow += current_depth > pcf_depth ? 1.0 : 0.0;
+        }
+    }
+    
+    return shadow / 9;
+}
+
 float CalculateShadow(const float4 a_frag_pos_light, const RDescriptorIndex a_shadow_map_texture, const uint a_shadow_map_base_layer)
 {
     const float4 proj_coords = a_frag_pos_light / a_frag_pos_light.w;
     const float closest_depth = textures_array_data[a_shadow_map_texture].Sample(shadow_map_sampler, float3(proj_coords.xy, (float)a_shadow_map_base_layer)).r;
     const float current_depth = proj_coords.z;
     const float shadow = current_depth > closest_depth ? 1.0 : 0.0;
+    if (proj_coords.z > 1.0)
+        return 0.0;
+    
     return shadow;
 }
 
