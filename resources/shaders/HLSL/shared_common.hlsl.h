@@ -123,11 +123,6 @@ namespace BB
         float4x4 inverse;           // 128
     };
 
-    struct LightProjectionView
-    {
-        float4x4 projection_view;
-    };
-
     //could make the size the same for shaderindices and shaderindices2d so that the pushconstant pipelinelayout is the same.....
     struct ShaderIndices
     {

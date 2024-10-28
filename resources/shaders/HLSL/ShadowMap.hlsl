@@ -10,8 +10,7 @@ float4 VertexMain(uint a_vertex_index : SV_VertexID) : SV_POSITION
     BB::ShaderTransform transform = transform_data.Load<BB::ShaderTransform>(
         sizeof(BB::ShaderTransform) * shader_indices.transform_index);
     
-    BB::LightProjectionView projview = light_view_projection_data.Load<BB::LightProjectionView> (
-        sizeof(BB::LightProjectionView) * shader_indices.light_projection_view_index);
+    const float4x4 projview = light_view_projection_data.Load<float4x4>(sizeof(float4x4) * shader_indices.light_projection_view_index);
 
-    return mul(mul(projview.projection_view, transform.transform), float4(cur_vertex_pos, 1.0));
+    return mul(mul(projview, transform.transform), float4(cur_vertex_pos, 1.0));
 }

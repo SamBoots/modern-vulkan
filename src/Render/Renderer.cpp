@@ -96,6 +96,7 @@ static void CreateBasicColorImage(RImage& a_image, RDescriptorIndex& a_index, co
 	debug_view_info.base_array_layer = 0;
 	debug_view_info.mip_levels = 1;
 	debug_view_info.array_layers = 1;
+	debug_view_info.base_mip_level = 0;
 	debug_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
 	debug_view_info.format = IMAGE_FORMAT::RGBA8_SRGB;
 	debug_view_info.image = a_image;
@@ -883,6 +884,7 @@ namespace IMGUI_IMPL
 		view_info.base_array_layer = 0;
 		view_info.array_layers = 1;
 		view_info.mip_levels = 1;
+		view_info.base_mip_level = 0;
 		view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
 		view_info.aspects = IMAGE_ASPECT::COLOR;
 		bd->font_descriptor = CreateImageView(view_info);
@@ -1238,6 +1240,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 			view_info.array_layers = 1;
 			view_info.base_array_layer = static_cast<uint16_t>(i);
 			view_info.mip_levels = 1;
+			view_info.base_mip_level = 0;
 			view_info.aspects = IMAGE_ASPECT::COLOR;
 			view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
 			view_info.format = RENDER_TARGET_IMAGE_FORMAT;
@@ -1327,6 +1330,7 @@ static void ResizeRendererSwapchain(const uint32_t a_width, const uint32_t a_hei
 		view_info.array_layers = 1;
 		view_info.base_array_layer = 0;
 		view_info.mip_levels = 1;
+		view_info.base_mip_level = 0;
 		view_info.aspects = IMAGE_ASPECT::COLOR;
 		view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
 		view_info.format = RENDER_TARGET_IMAGE_FORMAT;

@@ -668,7 +668,7 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 	{
 		ImGui::Indent();
 		Transform& transform = a_hierarchy.m_transform_pool.GetTransform(scene_object.transform);
-		bool position_changed;
+		bool position_changed = false;
 		if (ImGui::TreeNodeEx("transform"))
 		{
 			position_changed = ImGui::InputFloat3("position", transform.m_pos.e);
@@ -751,7 +751,7 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 
 				if (position_changed)
 				{
-					LightProjectionView& vp = a_hierarchy.m_light_projection_view[scene_object.light_handle];
+					float4x4& vp = a_hierarchy.m_light_projection_view[scene_object.light_handle];
 					const float near_plane = 1.f, far_plane = 7.5f;
 					vp = a_hierarchy.CalculateLightProjectionView(transform.m_pos, near_plane, far_plane);
 				}

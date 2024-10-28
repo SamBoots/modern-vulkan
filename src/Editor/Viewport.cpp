@@ -199,6 +199,7 @@ void  Viewport::CreateTextures()
 	image_view_create.name = m_name.c_str();
 	image_view_create.array_layers = 1;
 	image_view_create.mip_levels = 1;
+	image_view_create.base_mip_level = 0;
 	image_view_create.image = m_image;
 	image_view_create.format = RENDER_TARGET_IMAGE_FORMAT;
 	image_view_create.type = IMAGE_VIEW_TYPE::TYPE_2D;
@@ -206,7 +207,7 @@ void  Viewport::CreateTextures()
 
 	for (uint32_t i = 0; i < m_render_target_count; i++)
 	{
-		image_view_create.base_array_layer = static_cast<uint16_t>(m_render_target_count);
+		image_view_create.base_array_layer = static_cast<uint16_t>(i);
 		m_image_indices[i] = CreateImageView(image_view_create);
 	}
 }

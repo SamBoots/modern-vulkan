@@ -37,6 +37,31 @@
           -0.3
         ],
         "cutoff_radius": 0.20944
+      },
+      {
+        "name": "light 1",
+        "light_type": "directional",
+        "position": [
+          1.0,
+          2.0,
+          1.0
+        ],
+        "color": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "specular_strength": 0.5,
+        "constant": 1.0,
+        "linear": 0.35,
+        "quadratic": 0.44,
+
+        "direction": [
+          -0.2,
+          -1.0,
+          -0.3
+        ],
+        "cutoff_radius": 0.20944
       }
     ]
   }

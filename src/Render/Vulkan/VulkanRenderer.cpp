@@ -1572,9 +1572,9 @@ const RImageView Vulkan::CreateImageView(const ImageViewCreateInfo& a_create_inf
 	view_info.viewType = ImageViewTypes(a_create_info.type);
 	view_info.format = ImageFormats(a_create_info.format);
 	view_info.subresourceRange.aspectMask = ImageAspect(a_create_info.aspects);
-	view_info.subresourceRange.baseMipLevel = 0;
+	view_info.subresourceRange.baseMipLevel = a_create_info.base_mip_level;
 	view_info.subresourceRange.levelCount = a_create_info.mip_levels;
-	view_info.subresourceRange.baseArrayLayer = 0;
+	view_info.subresourceRange.baseArrayLayer = a_create_info.base_array_layer;
 	view_info.subresourceRange.layerCount = a_create_info.array_layers;
 
 	VkImageView view;

@@ -94,6 +94,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 			shadow_map_img_view.base_array_layer = 0;
 			shadow_map_img_view.array_layers = static_cast<uint16_t>(pfd.shadow_map.render_pass_views.size());
 			shadow_map_img_view.mip_levels = 1;
+			shadow_map_img_view.base_mip_level = 0;
 			shadow_map_img_view.format = IMAGE_FORMAT::D16_UNORM;
 			shadow_map_img_view.type = IMAGE_VIEW_TYPE::TYPE_2D_ARRAY;
 			shadow_map_img_view.aspects = IMAGE_ASPECT::DEPTH;
@@ -106,6 +107,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 			render_pass_shadow_view.image = pfd.shadow_map.image;
 			render_pass_shadow_view.array_layers = 1;
 			render_pass_shadow_view.mip_levels = 1;
+			render_pass_shadow_view.base_mip_level = 0;
 			render_pass_shadow_view.format = IMAGE_FORMAT::D16_UNORM;
 			render_pass_shadow_view.type = IMAGE_VIEW_TYPE::TYPE_2D;
 			render_pass_shadow_view.aspects = IMAGE_ASPECT::DEPTH;
@@ -172,8 +174,9 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 		skybox_image_view_info.name = "skybox image view";
 		skybox_image_view_info.image = m_skybox;
 		skybox_image_view_info.base_array_layer = 0;
-		skybox_image_view_info.array_layers = 6;
 		skybox_image_view_info.mip_levels = 1;
+		skybox_image_view_info.array_layers = 6;
+		skybox_image_view_info.base_mip_level = 0;
 		skybox_image_view_info.format = IMAGE_FORMAT::RGBA8_SRGB;
 		skybox_image_view_info.type = IMAGE_VIEW_TYPE::CUBE;
 		skybox_image_view_info.aspects = IMAGE_ASPECT::COLOR;
@@ -471,6 +474,7 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RImageV
 		depth_img_view_info.base_array_layer = 0;
 		depth_img_view_info.array_layers = 1;
 		depth_img_view_info.mip_levels = 1;
+		depth_img_view_info.base_mip_level = 0;
 		depth_img_view_info.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
 		depth_img_view_info.aspects = IMAGE_ASPECT::DEPTH_STENCIL;
 		pfd.depth_image_descriptor_index = CreateImageView(depth_img_view_info);
@@ -585,7 +589,7 @@ void SceneHierarchy::ResourceUploadPass(PerFrameData& pfd, const RCommandList a_
 	const size_t scene_upload_size = sizeof(Scene3DInfo);
 	const size_t matrices_upload_size = sizeof(ShaderTransform) * m_draw_list.size;
 	const size_t light_upload_size = sizeof(Light) * m_light_container.size();
-	const size_t light_projection_view_size = sizeof(LightProjectionView) * m_light_projection_view.size();
+	const size_t light_projection_view_size = sizeof(float4x4) * m_light_projection_view.size();
 	// optimize this
 	const size_t total_size = scene_upload_size + matrices_upload_size + light_upload_size + light_projection_view_size;
 
@@ -894,7 +898,7 @@ LightHandle SceneHierarchy::CreateLight(const LightCreateInfo& a_light_info)
 	const LightHandle light_handle = m_light_container.insert(light);
 
 	const float near_plane = 1.f, far_plane = 7.5f;
-	const LightProjectionView vp = CalculateLightProjectionView(a_light_info.pos, near_plane, far_plane);
+	const float4x4 vp = CalculateLightProjectionView(a_light_info.pos, near_plane, far_plane);
 	const LightHandle light_handle_view = m_light_projection_view.emplace(vp);
 
 	BB_ASSERT(light_handle == light_handle_view, "Something went wrong trying to create a light");
@@ -902,11 +906,11 @@ LightHandle SceneHierarchy::CreateLight(const LightCreateInfo& a_light_info)
 	return light_handle;
 }
 
-LightProjectionView SceneHierarchy::CalculateLightProjectionView(const float3 a_pos, const float a_near, const float a_far) const
+float4x4 SceneHierarchy::CalculateLightProjectionView(const float3 a_pos, const float a_near, const float a_far) const
 {
 	const float4x4 projection = Float4x4Perspective(ToRadians(45.f), 1.0f, a_near, a_far);
 	const float4x4 view = Float4x4Lookat(a_pos, float3(), float3(0.0f, -1.0f, 0.0f));
-	return { projection * view };
+	return projection * view;
 }
 
 Light& SceneHierarchy::GetLight(const LightHandle a_light) const

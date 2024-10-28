@@ -465,6 +465,7 @@ namespace BB
 		uint16_t array_layers;
 		uint16_t mip_levels;
 		uint16_t base_array_layer;
+		uint16_t base_mip_level;
 		IMAGE_VIEW_TYPE type;
 		IMAGE_FORMAT format;
 		IMAGE_ASPECT aspects;

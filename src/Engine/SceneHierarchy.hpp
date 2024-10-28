@@ -128,7 +128,7 @@ namespace BB
 		void DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform);
 
 		LightHandle CreateLight(const LightCreateInfo& a_light_info);
-		LightProjectionView CalculateLightProjectionView(const float3 a_pos, const float a_near, const float a_far) const;
+		float4x4 CalculateLightProjectionView(const float3 a_pos, const float a_near, const float a_far) const;
 		Light& GetLight(const LightHandle a_light) const;
 		void FreeLight(const LightHandle a_light);
 
@@ -163,7 +163,7 @@ namespace BB
 		StaticSlotmap<SceneObject, SceneObjectHandle> m_scene_objects;
 
 		StaticSlotmap<Light, LightHandle> m_light_container;
-		StaticSlotmap<LightProjectionView, LightHandle> m_light_projection_view;
+		StaticSlotmap<float4x4, LightHandle> m_light_projection_view;
 
 		uint32_t m_top_level_object_count;
 		SceneObjectHandle* m_top_level_objects;

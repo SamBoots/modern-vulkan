@@ -449,6 +449,7 @@ void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
 	icons_view_info.array_layers = 1;
 	icons_view_info.base_array_layer = 0;
 	icons_view_info.mip_levels = 1;
+	icons_view_info.base_mip_level = 0;
 	icons_view_info.format = IMAGE_FORMAT::RGBA8_SRGB;
 	icons_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
 	icons_view_info.aspects = IMAGE_ASPECT::COLOR;
@@ -579,6 +580,7 @@ static inline void CreateImage_func(const StringView& a_name, const uint32_t a_w
 	create_view_info.base_array_layer = 0;
 	create_view_info.array_layers = 1;
 	create_view_info.mip_levels = 1;
+	create_view_info.base_mip_level = 0;
 	create_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
 	create_view_info.format = a_format;
 	create_view_info.aspects = IMAGE_ASPECT::COLOR;
