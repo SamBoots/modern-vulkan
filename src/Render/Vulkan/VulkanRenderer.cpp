@@ -2218,7 +2218,6 @@ void Vulkan::StartRenderPass(const RCommandList a_list, const StartRenderingInfo
 		vkCmdSetDepthTestEnable(cmd_buffer, VK_TRUE);
 		vkCmdSetDepthWriteEnable(cmd_buffer, VK_TRUE);
 		vkCmdSetDepthCompareOp(cmd_buffer, VK_COMPARE_OP_LESS_OR_EQUAL);
-		vkCmdSetDepthBias(cmd_buffer, 0.f, 0.f, 0.f);
 	}
 	else
 	{
@@ -2352,6 +2351,12 @@ void Vulkan::SetCullMode(const RCommandList a_list, const CULL_MODE a_cull_mode)
 {
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 	vkCmdSetCullMode(cmd_buffer, s_vulkan_inst->enum_conv.cull_modes[static_cast<uint32_t>(a_cull_mode)]);
+}
+
+void Vulkan::SetDepthBias(const RCommandList a_list, const float a_bias_constant_factor, const float a_bias_clamp, const float a_bias_slope_factor)
+{
+	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+	vkCmdSetDepthBias(cmd_buffer, a_bias_constant_factor, a_bias_clamp, a_bias_slope_factor);
 }
 
 void Vulkan::SetDescriptorImmutableSamplers(const RCommandList a_list, const RPipelineLayout a_pipe_layout)

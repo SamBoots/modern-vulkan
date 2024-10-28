@@ -15,7 +15,7 @@ constexpr size_t UNIQUE_MODELS_PER_SCENE = 128;
 
 constexpr uint32_t INITIAL_DEPTH_ARRAY_COUNT = 8;
 
-constexpr uint32_t DEPTH_IMAGE_SIZE_W_H = 1028;
+constexpr uint32_t DEPTH_IMAGE_SIZE_W_H = 4096;
 
 void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, const StringView a_name, const uint32_t a_scene_obj_max)
 {
@@ -111,7 +111,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 			for (uint32_t shadow_index = 0; shadow_index < pfd.shadow_map.render_pass_views.size(); shadow_index++)
 			{
 				render_pass_shadow_view.base_array_layer = static_cast<uint16_t>(shadow_index);
-				pfd.shadow_map.render_pass_views[i] = CreateImageViewShaderInaccessible(render_pass_shadow_view);
+				pfd.shadow_map.render_pass_views[shadow_index] = CreateImageViewShaderInaccessible(render_pass_shadow_view);
 			}
 		}
 	}
@@ -726,6 +726,7 @@ void SceneHierarchy::ShadowMapPass(const PerFrameData& pfd, const RCommandList a
 
 	SetCullMode(a_list, CULL_MODE::NONE);
 	SetFrontFace(a_list, true);
+	SetDepthBias(a_list, 1.25f, 0.f, 1.75f);
 
 	if (m_options.skip_shadow_mapping)
 	{
@@ -834,6 +835,7 @@ void SceneHierarchy::RenderPass(const PerFrameData& pfd, const RCommandList a_li
 	rendering_info.render_area_offset = a_draw_area_offset;
 
 	StartRenderPass(a_list, rendering_info);
+	SetDepthBias(a_list, 0.f, 0.f, 0.f);
 
 	if (m_options.skip_object_rendering)
 	{

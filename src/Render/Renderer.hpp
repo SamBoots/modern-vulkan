@@ -92,6 +92,7 @@ namespace BB
 	RPipelineLayout BindShaders(const RCommandList a_list, const Slice<const ShaderEffectHandle> a_shader_effects);
 	void SetFrontFace(const RCommandList a_list, const bool a_is_clockwise);
 	void SetCullMode(const RCommandList a_list, const CULL_MODE a_cull_mode);
+	void SetDepthBias(const RCommandList a_list, const float a_bias_constant_factor, const float a_bias_clamp, const float a_bias_slope_factor);
 	void SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor);
 
 	void DrawVertices(const RCommandList a_list, const uint32_t a_vertex_count, const uint32_t a_instance_count, const uint32_t a_first_vertex, const uint32_t a_first_instance);

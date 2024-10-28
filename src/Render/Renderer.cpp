@@ -1660,6 +1660,11 @@ void BB::SetCullMode(const RCommandList a_list, const CULL_MODE a_cull_mode)
 	Vulkan::SetCullMode(a_list, a_cull_mode);
 }
 
+void BB::SetDepthBias(const RCommandList a_list, const float a_bias_constant_factor, const float a_bias_clamp, const float a_bias_slope_factor)
+{
+	Vulkan::SetDepthBias(a_list, a_bias_constant_factor, a_bias_clamp, a_bias_slope_factor);
+}
+
 void BB::SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor)
 {
 	Vulkan::SetScissor(a_list, a_scissor);
