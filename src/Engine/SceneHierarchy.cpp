@@ -56,15 +56,27 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 	{
 		PerFrameData& pfd = m_per_frame[i];
 		pfd.previous_draw_area = { 0, 0 };
+		pfd.scene_descriptor = AllocateDescriptor(GetSceneDescriptorLayout());
+
+		pfd.scene_buffer.Init(BUFFER_TYPE::UNIFORM, sizeof(m_scene_info), "scene info buffer");
+		{
+			DescriptorWriteBufferInfo desc_write;
+			desc_write.descriptor_layout = GetSceneDescriptorLayout();
+			desc_write.allocation = pfd.scene_descriptor;
+			desc_write.descriptor_index = 0;
+
+			desc_write.binding = PER_SCENE_SCENE_DATA_BINDING;
+			desc_write.buffer_view = pfd.scene_buffer.GetView();
+			DescriptorWriteUniformBuffer(desc_write);
+		}
 
 		GPUBufferCreateInfo buffer_info;
 		buffer_info.name = "scene STORAGE buffer";
 		buffer_info.size = mbSize * 4;
 		buffer_info.type = BUFFER_TYPE::STORAGE;
 		buffer_info.host_writable = false;
-
-		pfd.scene_descriptor = AllocateDescriptor(GetSceneDescriptorLayout());
 		pfd.storage_buffer.Init(buffer_info);
+
 		pfd.fence_value = 0;
 
 		pfd.depth_image = RImage();
@@ -516,7 +528,7 @@ RDescriptorLayout SceneHierarchy::GetSceneDescriptorLayout()
 	descriptor_bindings[0].binding = PER_SCENE_SCENE_DATA_BINDING;
 	descriptor_bindings[0].count = 1;
 	descriptor_bindings[0].shader_stage = SHADER_STAGE::ALL;
-	descriptor_bindings[0].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
+	descriptor_bindings[0].type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
 
 	descriptor_bindings[1].binding = PER_SCENE_TRANSFORM_DATA_BINDING;
 	descriptor_bindings[1].count = 1;
@@ -586,19 +598,19 @@ void SceneHierarchy::ResourceUploadPass(PerFrameData& pfd, const RCommandList a_
 	GPULinearBuffer& cur_scene_buffer = pfd.storage_buffer;
 	cur_scene_buffer.Clear();
 
-	const size_t scene_upload_size = sizeof(Scene3DInfo);
+	{	// write scene info
+		pfd.scene_buffer.WriteTo(&m_scene_info, sizeof(m_scene_info), 0);
+	}
+
 	const size_t matrices_upload_size = sizeof(ShaderTransform) * m_draw_list.size;
 	const size_t light_upload_size = sizeof(Light) * m_light_container.size();
 	const size_t light_projection_view_size = sizeof(float4x4) * m_light_projection_view.size();
 	// optimize this
-	const size_t total_size = scene_upload_size + matrices_upload_size + light_upload_size + light_projection_view_size;
+	const size_t total_size = matrices_upload_size + light_upload_size + light_projection_view_size;
 
 	const UploadBuffer upload_buffer = m_upload_allocator.AllocateUploadMemory(total_size, pfd.fence_value);
 
 	size_t bytes_uploaded = 0;
-	upload_buffer.SafeMemcpy(bytes_uploaded, &m_scene_info, scene_upload_size);
-	const size_t scene_offset = bytes_uploaded + upload_buffer.base_offset;
-	bytes_uploaded += scene_upload_size;
 
 	upload_buffer.SafeMemcpy(bytes_uploaded, m_draw_list.transform, matrices_upload_size);
 	const size_t matrix_offset = bytes_uploaded + upload_buffer.base_offset;
@@ -612,11 +624,8 @@ void SceneHierarchy::ResourceUploadPass(PerFrameData& pfd, const RCommandList a_
 	const size_t light_projection_view_offset = bytes_uploaded + upload_buffer.base_offset;
 	bytes_uploaded += light_projection_view_size;
 
-	GPUBufferView scene_view;
-	bool success = cur_scene_buffer.Allocate(scene_upload_size, scene_view);
-	BB_ASSERT(success, "failed to allocate frame memory");
 	GPUBufferView transform_view;
-	success = cur_scene_buffer.Allocate(matrices_upload_size, transform_view);
+	bool success = cur_scene_buffer.Allocate(matrices_upload_size, transform_view);
 	BB_ASSERT(success, "failed to allocate frame memory");
 	GPUBufferView light_view;
 	success = cur_scene_buffer.Allocate(light_upload_size, light_view);
@@ -630,11 +639,7 @@ void SceneHierarchy::ResourceUploadPass(PerFrameData& pfd, const RCommandList a_
 	matrix_buffer_copy.src = upload_buffer.buffer;
 	matrix_buffer_copy.dst = cur_scene_buffer.GetBuffer();
 	size_t copy_region_count = 0;
-	FixedArray<RenderCopyBufferRegion, 4> buffer_regions; // 0 = scene, 1 = matrix, 2 = lights, 3 = light projection view
-	buffer_regions[copy_region_count].src_offset = scene_offset;
-	buffer_regions[copy_region_count].dst_offset = scene_view.offset;
-	buffer_regions[copy_region_count].size = scene_upload_size;
-	++copy_region_count;
+	FixedArray<RenderCopyBufferRegion, 3> buffer_regions; //0 = matrix, 1 = lights, 2 = light projection view
 	if (matrices_upload_size)
 	{
 		buffer_regions[copy_region_count].src_offset = matrix_offset;
@@ -657,17 +662,15 @@ void SceneHierarchy::ResourceUploadPass(PerFrameData& pfd, const RCommandList a_
 	}
 
 	matrix_buffer_copy.regions = buffer_regions.slice(copy_region_count);
-	CopyBuffer(a_list, matrix_buffer_copy);
-
-	{	// WRITE DESCRIPTORS HERE
+	if (copy_region_count)
+	{
+		CopyBuffer(a_list, matrix_buffer_copy);
+		
+		// WRITE DESCRIPTORS HERE
 		DescriptorWriteBufferInfo desc_write;
 		desc_write.descriptor_layout = GetSceneDescriptorLayout();
 		desc_write.allocation = pfd.scene_descriptor;
 		desc_write.descriptor_index = 0;
-
-		desc_write.binding = PER_SCENE_SCENE_DATA_BINDING;
-		desc_write.buffer_view = scene_view;
-		DescriptorWriteStorageBuffer(desc_write);
 
 		if (matrices_upload_size)
 		{

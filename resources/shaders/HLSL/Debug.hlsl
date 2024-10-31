@@ -20,7 +20,7 @@ static const float4x4 biasMat = float4x4(
 
 VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 {
-    const BB::Scene3DInfo scene_info = scene_data.Load<BB::Scene3DInfo>(0);
+    const BB::Scene3DInfo scene_info = scene_data;
     
     const uint vertex_offset = shader_indices.vertex_buffer_offset + sizeof(BB::Vertex) * a_vertex_index;
     BB::Vertex cur_vertex;
@@ -49,7 +49,7 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 
 float4 FragmentMain(VSOutput a_input) : SV_Target
 {
-    const BB::Scene3DInfo scene_info = scene_data.Load<BB::Scene3DInfo>(0);
+    const BB::Scene3DInfo scene_info = scene_data;
     
     const float4 texture_color = textures_data[shader_indices.albedo_texture].Sample(basic_3d_sampler, a_input.uv);
     const float4 color = float4(texture_color.xyz * a_input.color.xyz, 1.f);

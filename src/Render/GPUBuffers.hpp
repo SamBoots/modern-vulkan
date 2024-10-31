@@ -1,11 +1,28 @@
 #pragma once
 
 #include "Rendererfwd.hpp"
+#include "Storage/BBString.h"
 #include "Storage/Queue.hpp"
 #include <atomic>
 
 namespace BB
 {
+	class GPUStaticCPUWriteableBuffer
+	{
+	public:
+		void Init(const BUFFER_TYPE buffer_type, const size_t a_size, const StringView a_name);
+		void Destroy();
+
+		bool WriteTo(void* a_data, const size_t a_size, const uint32_t a_offset);
+		const GPUBufferView GetView() const;
+		const GPUBuffer GetBuffer() const { return m_buffer; }
+
+	private:
+		GPUBuffer m_buffer;
+		size_t m_size;
+		void* m_mapped_memory;
+	};
+
 	// THREAD SAFE
 	class GPULinearBuffer
 	{

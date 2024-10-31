@@ -8,7 +8,7 @@ struct VSOutput
 
 VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 {
-    const BB::Scene3DInfo scene_info = scene_data.Load<BB::Scene3DInfo>(0);
+    const BB::Scene3DInfo scene_info = scene_data;
     
     const uint vertex_offset = global_data.cube_vertexpos_vertex_buffer_pos + sizeof(BB::VertexPos) * a_vertex_index;
     BB::VertexPos cur_vertex;
@@ -29,6 +29,6 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 
 float4 FragmentMain(VSOutput a_input) : SV_Target
 {
-    const BB::Scene3DInfo scene_info = scene_data.Load<BB::Scene3DInfo>(0);
+    const BB::Scene3DInfo scene_info = scene_data;
     return textures_cube_data[scene_info.skybox_texture].Sample(basic_3d_sampler, a_input.uvw);
 }

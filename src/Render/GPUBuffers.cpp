@@ -4,6 +4,46 @@
 
 using namespace BB;
 
+void GPUStaticCPUWriteableBuffer::Init(const BUFFER_TYPE a_buffer_type, const size_t a_size, const StringView a_name)
+{
+	GPUBufferCreateInfo create_info;
+	create_info.name = a_name.c_str();
+	create_info.host_writable = true;
+	create_info.size = a_size;
+	create_info.type = a_buffer_type;
+	m_buffer = Vulkan::CreateBuffer(create_info);
+
+	m_size = a_size;
+	m_mapped_memory = Vulkan::MapBufferMemory(m_buffer);
+}
+
+void GPUStaticCPUWriteableBuffer::Destroy()
+{
+	Vulkan::UnmapBufferMemory(m_buffer);
+	Vulkan::FreeBuffer(m_buffer);
+}
+
+bool GPUStaticCPUWriteableBuffer::WriteTo(void* a_data, const size_t a_size, const uint32_t a_offset)
+{
+	if (a_size + a_offset > m_size)
+	{
+		BB_ASSERT(false, "writing out of bounds in CPU writeable GPU buffer");
+		return false;
+	}
+
+	memcpy(Pointer::Add(m_mapped_memory, a_offset), a_data, a_size);
+	return true;
+}
+
+const GPUBufferView GPUStaticCPUWriteableBuffer::GetView() const
+{
+	GPUBufferView view;
+	view.buffer = m_buffer;
+	view.size = m_size;
+	view.offset = 0;
+	return view;
+}
+
 void GPULinearBuffer::Init(const GPUBufferCreateInfo& a_buffer_info)
 {
 	m_buffer = Vulkan::CreateBuffer(a_buffer_info);

@@ -106,8 +106,12 @@ namespace BB
 			uint2 previous_draw_area;
 			uint64_t fence_value;
 			DescriptorAllocation scene_descriptor;
+
+			// scene data
+			GPUStaticCPUWriteableBuffer scene_buffer;
 			// I want this to be uniform but hlsl is giga cringe
 			GPULinearBuffer storage_buffer;
+			
 			RImage depth_image;
 			RDescriptorIndex depth_image_descriptor_index;
 			struct ShadowMap
