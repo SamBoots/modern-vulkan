@@ -1,5 +1,6 @@
 #pragma once
 #include "Storage/BBString.h"
+#include "Storage/Pool.h"
 #include "Rendererfwd.hpp"
 #include "Enginefwd.hpp"
 
