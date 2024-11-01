@@ -1,6 +1,6 @@
 #pragma once
 #include "Storage/BBString.h"
-#include "Storage/Pool.h"
+#include "Storage/FreelistArray.hpp"
 #include "Rendererfwd.hpp"
 #include "Enginefwd.hpp"
 
@@ -56,6 +56,18 @@ namespace BB
 
 	constexpr size_t MAX_SHADER_EFFECTS_PER_MATERIAL = 4;
 	using MaterialShaderEffects = FixedArray<ShaderEffectHandle, MAX_SHADER_EFFECTS_PER_MATERIAL>;
+
+	struct MaterialMaster
+	{
+		StringView name;
+		MaterialShaderEffects shader_effects;
+		size_t shader_effect_count;
+		PASS_TYPE pass_type;
+		MATERIAL_TYPE material_type;
+
+		size_t user_data_byte_size;
+		FreelistArray<void*> user_datas;
+	};
 
 	struct MaterialInstance
 	{

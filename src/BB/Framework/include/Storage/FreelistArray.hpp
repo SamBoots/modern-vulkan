@@ -7,7 +7,7 @@
 
 #include "MemoryArena.hpp"
 
-using namespace BB
+namespace BB
 {
 	template <typename T>
 	class FreelistArray
@@ -30,25 +30,19 @@ using namespace BB
 			//index to m_id_arr
 			m_next_free = 0;
 		}
-		FreelistArray(const FreelistArray<T>& a_map) = delete;
-		FreelistArray(FreelistArray<T>&& a_map) = delete;
+		FreelistArray(const FreelistArray& a_map) = delete;
+		FreelistArray(FreelistArray&& a_map) = delete;
 
-		FreelistArray<T>& operator=(const FreelistArray<T>& a_rhs) = delete;
-		FreelistArray<T>& operator=(FreelistArray<T>&& a_rhs) = delete;
+		FreelistArray& operator=(const FreelistArray& a_rhs) = delete;
+		FreelistArray& operator=(FreelistArray&& a_rhs) = delete;
 
 		void Init(MemoryArena& a_arena, const uint32_t a_size)
 		{
-			BB_ASSERT(m_id_arr == nullptr, "initializing a static slotmap while it was already initialized or not set to 0");
+			BB_ASSERT(m_arr == nullptr, "initializing a static slotmap while it was already initialized or not set to 0");
 			m_capacity = a_size;
 
 			m_arr = ArenaAllocArr(a_arena, ValueIndex, m_capacity);
-
-			for (uint32_t i = 0; i < m_capacity - 1; ++i)
-			{
-				m_arr[i].index = i + 1;
-			}
-
-			m_next_free = 0;
+			clear();
 		}
 
 		void Destroy()
@@ -56,55 +50,37 @@ using namespace BB
 			Memory::Set(this, 0, 1);
 		}
 
-		T& operator[](const HandleType a_handle) const
+		T& operator[](const size_t a_handle) const
 		{
-			CheckGen(a_handle);
 			return find(a_handle);
 		}
 
-		HandleType insert(T& a_obj)
+		size_t insert(T& a_obj)
 		{
 			return emplace(a_obj);
 		}
 
 		template <class... Args>
-		uint32_t emplace(Args&&... a_args)
+		size_t emplace(Args&&... a_args)
 		{
-			BB_ASSERT(m_size < m_capacity, "static slotmap over capacity!");
+			BB_ASSERT(m_size < m_capacity, "static freelistarray over capacity!");
+			const size_t index = m_next_free;
+			m_next_free = m_arr[index].index;
 
-			HandleType id = m_id_arr[m_next_free];
-			id.index = m_next_free;
-			//Set the next free to the one that is next, an unused m_id_arr entry holds the next free one.
-			m_next_free = m_id_arr[id.index].index;
-			m_id_arr[id.index].index = static_cast<uint32_t>(m_size);
-
-			new (&m_obj_arr[m_size]) T(std::forward<Args>(a_args)...);
-			m_erase_arr[m_size++] = id.index;
-
+			new (&m_arr[index].value) T(std::forward<Args>(a_args)...);
+			++m_size;
 			return id;
 		}
 
 		T& find(const uint32_t a_index) const
 		{
-			return m_arr[a_index];
+			return m_arr[a_index].value;
 		}
 
-		void erase(const HandleType a_handle)
+		void erase(const size_t a_index)
 		{
-			CheckGen(a_handle);
-			const uint32_t index = m_id_arr[a_handle.index].index;
-
-			if constexpr (!trivialDestructible_T)
-			{
-				//Before move call the destructor if it has one.
-				m_obj_arr[index].~T();
-			}
-
-			m_obj_arr[index] = std::move(m_obj_arr[--m_size]);
-			//Increment the gen for when placing it inside the m_id_arr again.
-			m_id_arr[m_erase_arr[index]] = a_handle;
-			++m_id_arr[m_erase_arr[index]].extra_index;
-			m_erase_arr[index] = std::move(m_erase_arr[m_size]);
+			m_arr[a_index].index = m_next_free;
+			m_next_free = a_index;
 		}
 
 		void clear()
@@ -120,7 +96,6 @@ using namespace BB
 
 		uint32_t size() const { return m_size; }
 		uint32_t capacity() const { return m_capacity; }
-		T* data() const { return &m_arr.value[0]; }
 
 	private:
 		ValueIndex* m_arr;
@@ -131,3 +106,4 @@ using namespace BB
 		size_t m_next_free;
 	};
 }
+
