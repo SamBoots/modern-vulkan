@@ -32,6 +32,8 @@ static uint64_t ShaderEffectHash(const MaterialShaderCreateInfo& a_create_info)
 	return hash;
 }
 
+
+
 struct MaterialSystem_inst
 {
 	StaticSlotmap<MaterialInstance, MaterialHandle> material_map;

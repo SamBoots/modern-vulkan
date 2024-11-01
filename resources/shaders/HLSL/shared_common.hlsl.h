@@ -83,12 +83,13 @@ namespace BB
         RDescriptorIndex skybox_texture; // 192
     };
 
-    struct MeshMetallic
+    struct ALIGN_STRUCT(16) MeshMetallic
     {
         float4 base_color_factor;
         float metallic_factor;
         float roughness_factor;
-        float2 pad;
+        RDescriptorIndex albedo_texture;
+        RDescriptorIndex normal_texture;
     };
 
 #ifndef __HLSL_VERSION // C++ version
@@ -128,9 +129,8 @@ namespace BB
     {
         uint vertex_buffer_offset;       // 4
         uint transform_index;            // 8
-        RDescriptorIndex albedo_texture; // 12
-        RDescriptorIndex normal_texture; // 16
-        float2 padding;                  // 24
+        RDescriptorIndex material_index; // 12
+        float3 padding;                  // 24
     };
 
     struct ShaderIndices2D

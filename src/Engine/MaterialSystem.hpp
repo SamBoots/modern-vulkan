@@ -71,11 +71,9 @@ namespace BB
 
 	struct MaterialInstance
 	{
-		StringView name;
-		MaterialShaderEffects shader_effects;
-		size_t shader_effect_count;
-		PASS_TYPE pass_type;
-		MATERIAL_TYPE material_type;
+		MasterMaterialHandle master_handle;
+		size_t user_data_size;
+		void* user_data;
 		MaterialHandle handle;
 	};
 
