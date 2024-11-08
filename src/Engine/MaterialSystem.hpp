@@ -34,11 +34,13 @@ namespace BB
 		Slice<MaterialShaderCreateInfo> shader_infos;
 		PASS_TYPE pass_type;
 		MATERIAL_TYPE material_type;
+		uint32_t user_data_size;
 	};
 
 	struct MaterialSystemCreateInfo
 	{
 		uint32_t max_materials;
+		uint32_t max_material_instances;
 		uint32_t max_shader_effects;
 
 		MaterialShaderCreateInfo default_3d_vertex;
@@ -57,35 +59,36 @@ namespace BB
 	constexpr size_t MAX_SHADER_EFFECTS_PER_MATERIAL = 4;
 	using MaterialShaderEffects = FixedArray<ShaderEffectHandle, MAX_SHADER_EFFECTS_PER_MATERIAL>;
 
-	struct MaterialMaster
+	struct MasterMaterial
 	{
 		StringView name;
 		MaterialShaderEffects shader_effects;
-		size_t shader_effect_count;
+		uint32_t shader_effect_count;
 		PASS_TYPE pass_type;
 		MATERIAL_TYPE material_type;
-
-		size_t user_data_byte_size;
-		FreelistArray<void*> user_datas;
+		
+		uint32_t user_data_size;
 	};
 
 	struct MaterialInstance
 	{
 		MasterMaterialHandle master_handle;
-		size_t user_data_size;
-		void* user_data;
-		MaterialHandle handle;
+		GPUBuffer buffer;
+		uint32_t buffer_descriptor_index;
+		uint32_t user_data_size;
+		void* mapper_ptr; // if true means the buffer is cpu writeable;
 	};
 
 	namespace Material
 	{
 		void InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCreateInfo& a_create_info);
 
-		MaterialHandle CreateMaterial(MemoryArena& a_temp_arena, const MaterialCreateInfo& a_create_info, const StringView a_name);
-		MaterialHandle GetDefaultMaterial(const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type);
-		const MaterialInstance& GetMaterialInstance(const MaterialHandle a_material);
- 		Slice<const ShaderEffectHandle> GetMaterialShaders(const MaterialHandle a_material);
+		MasterMaterialHandle CreateMasterMaterial(MemoryArena& a_temp_arena, const MaterialCreateInfo& a_create_info, const StringView a_name);
+		MaterialHandle CreateMaterialInstance(const MasterMaterialHandle a_master_material);
+		MasterMaterialHandle GetDefaultMasterMaterial(const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type);
+		const MasterMaterial& GetMasterMaterial(const MasterMaterialHandle a_master_material);
+ 		Slice<const ShaderEffectHandle> GetMaterialShaders(const MasterMaterialHandle a_master_material);
 		Slice<const CachedShaderInfo> GetAllCachedShaders();
-		Slice<const MaterialInstance> GetAllMaterials();
+		Slice<const MasterMaterial> GetAllMasterMaterials();
 	};
 }

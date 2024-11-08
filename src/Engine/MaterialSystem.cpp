@@ -32,39 +32,39 @@ static uint64_t ShaderEffectHash(const MaterialShaderCreateInfo& a_create_info)
 	return hash;
 }
 
-
-
 struct MaterialSystem_inst
 {
-	StaticSlotmap<MaterialInstance, MaterialHandle> material_map;
+	StaticSlotmap<MasterMaterial, MasterMaterialHandle> material_map;
 	StaticArray<CachedShaderInfo> shader_effects;
 	StaticOL_HashMap<uint64_t, ShaderEffectHandle> shader_effect_cache;
 
+	FreelistArray<MaterialInstance> material_instances;
+
 	RDescriptorLayout scene_desc_layout;
 
-	MaterialHandle default_materials[static_cast<uint32_t>(PASS_TYPE::ENUM_SIZE)][static_cast<uint32_t>(MATERIAL_TYPE::ENUM_SIZE)];
+	MasterMaterialHandle default_materials[static_cast<uint32_t>(PASS_TYPE::ENUM_SIZE)][static_cast<uint32_t>(MATERIAL_TYPE::ENUM_SIZE)];
 };
 
 static MaterialSystem_inst* s_material_inst;
 
-static inline MaterialHandle& GetDefaultMaterial_impl(const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type)
+static inline MasterMaterialHandle& GetDefaultMasterMaterial_impl(const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type)
 {
 	return s_material_inst->default_materials[static_cast<uint32_t>(a_pass_type)][static_cast<uint32_t>(a_material_type)];
 }
 
-static inline MaterialHandle CreateMaterial_impl(const Slice<ShaderEffectHandle> a_shaders, const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type, const StringView name = "default")
+static inline MasterMaterialHandle CreateMaterial_impl(const Slice<ShaderEffectHandle> a_shaders, const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type, const uint32_t a_user_data_size, const StringView name = "default")
 {
-	const MaterialHandle material = s_material_inst->material_map.emplace();
-	MaterialInstance& inst = s_material_inst->material_map.find(material);
+	const MasterMaterialHandle material = s_material_inst->material_map.emplace();
+	MasterMaterial& inst = s_material_inst->material_map.find(material);
 	inst.name = name;
-	inst.shader_effect_count = a_shaders.size();
+	inst.shader_effect_count = static_cast<uint32_t>(a_shaders.size());
 	for (size_t i = 0; i < a_shaders.size(); i++)
 	{
 		inst.shader_effects[i] = a_shaders[i];
 	}
 	inst.pass_type = a_pass_type;
 	inst.material_type = a_material_type;
-	inst.handle = material;
+	inst.user_data_size = a_user_data_size;
 	return material;
 }
 
@@ -168,6 +168,7 @@ void Material::InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCrea
 
 	s_material_inst = ArenaAllocType(a_arena, MaterialSystem_inst);
 	s_material_inst->material_map.Init(a_arena, a_create_info.max_materials);
+	s_material_inst->material_instances.Init(a_arena, a_create_info.max_material_instances);
 	s_material_inst->shader_effects.Init(a_arena, a_create_info.max_shader_effects);
 	s_material_inst->shader_effect_cache.Init(a_arena, a_create_info.max_shader_effects);
 	
@@ -179,24 +180,26 @@ void Material::InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCrea
 		material_info.material_type = MATERIAL_TYPE::MATERIAL_2D;
 		MaterialShaderCreateInfo default_2d_shaders[]{ a_create_info.default_2d_vertex, a_create_info.default_2d_fragment };
 		material_info.shader_infos = Slice(default_2d_shaders, _countof(default_2d_shaders));
+		material_info.user_data_size = 0;
 
 		material_info.pass_type = PASS_TYPE::GLOBAL;
-		GetDefaultMaterial_impl(PASS_TYPE::GLOBAL, MATERIAL_TYPE::MATERIAL_2D) = CreateMaterial(a_arena, material_info, "default global 2d");
+		GetDefaultMasterMaterial_impl(PASS_TYPE::GLOBAL, MATERIAL_TYPE::MATERIAL_2D) = CreateMasterMaterial(a_arena, material_info, "default global 2d");
 		material_info.pass_type = PASS_TYPE::SCENE;
-		GetDefaultMaterial_impl(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_2D) = CreateMaterial(a_arena, material_info, "default scene 2d");
+		GetDefaultMasterMaterial_impl(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_2D) = CreateMasterMaterial(a_arena, material_info, "default scene 2d");
 
 		MaterialShaderCreateInfo default_3d_shaders[]{ a_create_info.default_3d_vertex, a_create_info.default_3d_fragment };
 		material_info.material_type = MATERIAL_TYPE::MATERIAL_3D;
 		material_info.shader_infos = Slice(default_3d_shaders, _countof(default_3d_shaders));
+		material_info.user_data_size = sizeof(MeshMetallic);
 
 		material_info.pass_type = PASS_TYPE::GLOBAL;
-		GetDefaultMaterial_impl(PASS_TYPE::GLOBAL, MATERIAL_TYPE::MATERIAL_3D) = CreateMaterial(a_arena, material_info, "default global 3d");
+		GetDefaultMasterMaterial_impl(PASS_TYPE::GLOBAL, MATERIAL_TYPE::MATERIAL_3D) = CreateMasterMaterial(a_arena, material_info, "default global 3d");
 		material_info.pass_type = PASS_TYPE::SCENE;
-		GetDefaultMaterial_impl(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D) = CreateMaterial(a_arena, material_info, "default scene 3d");
+		GetDefaultMasterMaterial_impl(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D) = CreateMasterMaterial(a_arena, material_info, "default scene 3d");
 	}
 }
 
-MaterialHandle Material::CreateMaterial(MemoryArena& a_temp_arena, const MaterialCreateInfo& a_create_info, const StringView a_name)
+MasterMaterialHandle Material::CreateMasterMaterial(MemoryArena& a_temp_arena, const MaterialCreateInfo& a_create_info, const StringView a_name)
 {
 	ShaderDescriptorLayouts desc_layouts;
 	desc_layouts[SPACE_IMMUTABLE_SAMPLER] = GetStaticSamplerDescriptorLayout();
@@ -204,7 +207,6 @@ MaterialHandle Material::CreateMaterial(MemoryArena& a_temp_arena, const Materia
 	desc_layouts[SPACE_PER_SCENE] = RDescriptorLayout(BB_INVALID_HANDLE_64);	// PER SCENE SET
 	desc_layouts[SPACE_PER_MATERIAL] = RDescriptorLayout(BB_INVALID_HANDLE_64);	// PER MATERIAL SET
 	desc_layouts[SPACE_PER_MESH] = RDescriptorLayout(BB_INVALID_HANDLE_64);	// PER MESH SET
-
 
 	switch (a_create_info.pass_type)
 	{
@@ -238,23 +240,32 @@ MaterialHandle Material::CreateMaterial(MemoryArena& a_temp_arena, const Materia
 
 	const Slice<ShaderEffectHandle> shader_effects = CreateShaderEffects_impl(a_temp_arena, a_create_info.shader_infos, desc_layouts);
 
-	return CreateMaterial_impl(shader_effects, a_create_info.pass_type, a_create_info.material_type, a_name);
+	return CreateMaterial_impl(shader_effects, a_create_info.pass_type, a_create_info.material_type, a_create_info.user_data_size, a_name);
 }
 
-MaterialHandle Material::GetDefaultMaterial(const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type)
+MaterialHandle Material::CreateMaterialInstance(const MasterMaterialHandle a_master_material)
 {
-	return GetDefaultMaterial_impl(a_pass_type, a_material_type);
+	const MasterMaterial& master = s_material_inst->material_map.find(a_master_material);
+	BB_UNIMPLEMENTED();
+
+
+	return;
 }
 
-const MaterialInstance& Material::GetMaterialInstance(const MaterialHandle a_material)
+MasterMaterialHandle Material::GetDefaultMasterMaterial(const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type)
 {
-	return s_material_inst->material_map.find(a_material);
+	return GetDefaultMasterMaterial_impl(a_pass_type, a_material_type);
 }
 
-Slice<const ShaderEffectHandle> Material::GetMaterialShaders(const MaterialHandle a_material)
+const MasterMaterial& Material::GetMasterMaterial(const MasterMaterialHandle a_master_material)
 {
-	BB_ASSERT(a_material.IsValid(), "invalid material send!");
-	const MaterialInstance& mat = s_material_inst->material_map.find(a_material);
+	return s_material_inst->material_map.find(a_master_material);
+}
+
+Slice<const ShaderEffectHandle> Material::GetMaterialShaders(const MasterMaterialHandle a_master_material)
+{
+	BB_ASSERT(a_master_material.IsValid(), "invalid material send!");
+	const MasterMaterial& mat = s_material_inst->material_map.find(a_master_material);
 	return Slice(mat.shader_effects.data(), mat.shader_effect_count);
 }
 
@@ -263,7 +274,7 @@ Slice<const CachedShaderInfo> Material::GetAllCachedShaders()
 	return s_material_inst->shader_effects.slice();
 }
 
-Slice<const MaterialInstance> Material::GetAllMaterials()
+Slice<const MasterMaterial> Material::GetAllMasterMaterials()
 {
 	return s_material_inst->material_map.slice();
 }
