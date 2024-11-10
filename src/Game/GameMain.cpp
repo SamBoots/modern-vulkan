@@ -186,7 +186,9 @@ SceneObjectHandle DungeonMap::CreateRenderObject(MemoryArena& a_temp_arena, Scen
 		mesh_info.mesh = mesh;
 		mesh_info.index_start = 0;
 		mesh_info.index_count = indices.size();
-		mesh_info.material = Material::GetDefaultMaterial(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D);
+		mesh_info.master_material = Material::GetDefaultMasterMaterial(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D);
+		mesh_info.material = Material::CreateMaterialInstance(mesh_info.master_material);
+		Material::WriteMaterial(mesh_info.material, 0, 0, 0);
 		map_obj = a_scene_hierarchy.CreateSceneObjectMesh(float3(3.f, 0.f, 0.f), mesh_info, "dungeon map");
 	}
 	return map_obj;

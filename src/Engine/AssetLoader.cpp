@@ -861,7 +861,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 		metallic_info.metallic_factor = prim.material->pbr_metallic_roughness.metallic_factor;
 		metallic_info.roughness_factor = prim.material->pbr_metallic_roughness.roughness_factor;
 		
-		model_prim.material_data.material = Material::GetDefaultMaterial(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D);
+		model_prim.material_data.material = Material::GetDefaultMasterMaterial(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D);
 
 		if (prim.material->pbr_metallic_roughness.base_color_texture.texture)
 		{

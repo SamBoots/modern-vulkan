@@ -17,16 +17,6 @@ namespace BB
 	constexpr uint32_t DEFAULT_SCENE_OBJ_MAX = 512;
 	constexpr uint32_t SCENE_OBJ_CHILD_MAX = 256;
 
-	struct MeshDrawInfo
-	{
-		Mesh mesh;
-		MaterialHandle material;
-		uint32_t index_start;
-		uint32_t index_count;
-		RDescriptorIndex base_texture;
-		RDescriptorIndex normal_texture;
-	};
-
 	struct LightCreateInfo
 	{
 		LIGHT_TYPE light_type;      // 4
@@ -40,6 +30,15 @@ namespace BB
 
 		float3 direction;           // 56
 		float cutoff_radius;        // 60
+	};
+
+	struct MeshDrawInfo
+	{
+		Mesh mesh;
+		MasterMaterialHandle master_material;
+		MaterialHandle material;
+		uint32_t index_start;
+		uint32_t index_count;
 	};
 
 	struct SceneObject
@@ -61,6 +60,15 @@ namespace BB
 		SceneObjectHandle children[SCENE_OBJ_CHILD_MAX];
 	};
 
+	struct SceneMeshCreateInfo
+	{
+		Mesh mesh;
+		uint32_t index_start;
+		uint32_t index_count;
+		MasterMaterialHandle master_material;
+		Buffer material_data;
+	};
+
 	class SceneHierarchy
 	{
 	public:
@@ -70,7 +78,7 @@ namespace BB
 
 		void DrawSceneHierarchy(const RCommandList a_list, const RImageView a_render_target_view, const uint32_t a_back_buffer_index, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
 		SceneObjectHandle CreateSceneObject(const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
-		SceneObjectHandle CreateSceneObjectMesh(const float3 a_position, const MeshDrawInfo& a_mesh_info, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
+		SceneObjectHandle CreateSceneObjectMesh(const float3 a_position, const SceneMeshCreateInfo& a_mesh_info, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
 		SceneObjectHandle CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
 		SceneObjectHandle CreateSceneObjectAsLight(const LightCreateInfo& a_light_create_info, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
 
@@ -175,7 +183,7 @@ namespace BB
 		float3 m_clear_color;
 		RImage m_skybox;
 		RDescriptorIndex m_skybox_descriptor_index;
-		MaterialHandle m_skybox_material;
-		MaterialHandle m_shadowmap_material;
+		MasterMaterialHandle m_skybox_material;
+		MasterMaterialHandle m_shadowmap_material;
 	};
 }

@@ -35,6 +35,7 @@ namespace BB
 		PASS_TYPE pass_type;
 		MATERIAL_TYPE material_type;
 		uint32_t user_data_size;
+		bool cpu_writeable;
 	};
 
 	struct MaterialSystemCreateInfo
@@ -68,14 +69,15 @@ namespace BB
 		MATERIAL_TYPE material_type;
 		
 		uint32_t user_data_size;
+		MasterMaterialHandle handle;
+		bool cpu_writeable;
 	};
 
 	struct MaterialInstance
 	{
 		MasterMaterialHandle master_handle;
-		GPUBuffer buffer;
-		uint32_t buffer_descriptor_index;
 		uint32_t user_data_size;
+		GPUBuffer buffer;
 		void* mapper_ptr; // if true means the buffer is cpu writeable;
 	};
 
@@ -85,6 +87,9 @@ namespace BB
 
 		MasterMaterialHandle CreateMasterMaterial(MemoryArena& a_temp_arena, const MaterialCreateInfo& a_create_info, const StringView a_name);
 		MaterialHandle CreateMaterialInstance(const MasterMaterialHandle a_master_material);
+		void FreeMaterialInstance(const MaterialHandle a_material);
+		void WriteMaterial(const MaterialHandle a_material, const RCommandList a_list, const GPUBuffer a_src_buffer, const size_t a_src_offset);
+		void WriteMaterialCPU(const MaterialHandle a_material, const void* a_memory, const size_t a_memory_size);
 		MasterMaterialHandle GetDefaultMasterMaterial(const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type);
 		const MasterMaterial& GetMasterMaterial(const MasterMaterialHandle a_master_material);
  		Slice<const ShaderEffectHandle> GetMaterialShaders(const MasterMaterialHandle a_master_material);

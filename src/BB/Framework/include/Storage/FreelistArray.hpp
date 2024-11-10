@@ -69,10 +69,10 @@ namespace BB
 
 			new (&m_arr[index].value) T(std::forward<Args>(a_args)...);
 			++m_size;
-			return id;
+			return index;
 		}
 
-		T& find(const uint32_t a_index) const
+		T& find(const size_t a_index) const
 		{
 			return m_arr[a_index].value;
 		}

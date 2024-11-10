@@ -45,7 +45,7 @@ namespace BB
 		void ImguiCreateSceneObject(SceneHierarchy& a_hierarchy, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
 		void ImGuiDisplayShaderEffect(const CachedShaderInfo& a_shader_info) const;
 		void ImGuiDisplayShaderEffects();
-		void ImGuiDisplayMaterial(const MaterialInstance& a_material) const;
+		void ImGuiDisplayMaterial(const MasterMaterial& a_material) const;
 		void ImGuiDisplayMaterials();
 
 		struct LoadAssetsAsync_params
@@ -77,7 +77,7 @@ namespace BB
 		uint2 m_app_window_extent;
 		StaticArray<ViewportAndScene> m_viewport_and_scenes;
 
-		MaterialHandle m_imgui_material;
+		MasterMaterialHandle m_imgui_material;
 
 		ViewportAndScene* m_active_viewport = nullptr;
 		float2 m_previous_mouse_pos{};

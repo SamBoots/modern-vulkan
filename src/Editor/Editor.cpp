@@ -337,7 +337,7 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 
 	Material::InitMaterialSystem(a_arena, material_system_init);
 
-	m_imgui_material = Material::GetDefaultMaterial(PASS_TYPE::GLOBAL, MATERIAL_TYPE::MATERIAL_2D);
+	m_imgui_material = Material::GetDefaultMasterMaterial(PASS_TYPE::GLOBAL, MATERIAL_TYPE::MATERIAL_2D);
 }
 
 void Editor::Destroy()
@@ -686,19 +686,20 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 				if (ImGui::TreeNodeEx("material"))
 				{
 					ImGui::Indent();
-					Material::GetMaterialInstance(scene_object.mesh_info.material);
 
 					if (ImGui::TreeNodeEx("switch material"))
 					{
 						ImGui::Indent();
 
-						Slice materials = Material::GetAllMaterials();
+						Slice materials = Material::GetAllMasterMaterials();
 						for (size_t i = 0; i < materials.size(); i++)
 						{
-							const MaterialInstance& new_mat = materials[i];
+							const MasterMaterial& new_mat = materials[i];
 							if (ImGui::Button(new_mat.name.c_str()))
 							{
-								scene_object.mesh_info.material = new_mat.handle;
+								Material::FreeMaterialInstance(scene_object.mesh_info.material);
+								scene_object.mesh_info.master_material = new_mat.handle;
+								scene_object.mesh_info.material = Material::CreateMaterialInstance(scene_object.mesh_info.master_material);
 							}
 						}
 
@@ -869,21 +870,20 @@ void Editor::ImGuiDisplayShaderEffects()
 	}
 }
 
-void Editor::ImGuiDisplayMaterial(const MaterialInstance& a_material) const
+void Editor::ImGuiDisplayMaterial(const MasterMaterial& a_material) const
 {
 	if (ImGui::CollapsingHeader(a_material.name.c_str()))
 	{
-		ImGui::PushID(static_cast<int>(a_material.handle.index));
 		ImGui::Indent();
 
 		for (size_t eff_index = 0; eff_index < a_material.shader_effect_count; eff_index++)
 		{
 			ImGui::PushID(static_cast<int>(eff_index));
+			BB_UNIMPLEMENTED();
 			//ImGuiDisplayShaderEffect();
 			ImGui::PopID();
 		}
 
-		ImGui::PopID();
 		ImGui::Unindent();
 	}
 }
@@ -893,10 +893,12 @@ void Editor::ImGuiDisplayMaterials()
 	if (ImGui::CollapsingHeader("materials"))
 	{
 		ImGui::Indent();
-		const Slice materials = Material::GetAllMaterials();
+		const Slice materials = Material::GetAllMasterMaterials();
 		for (uint32_t i = 0; i < materials.size(); i++)
 		{
+			ImGui::PushID(static_cast<int>(i));
 			ImGuiDisplayMaterial(materials[i]);
+			ImGui::PopID();
 		}
 		ImGui::Unindent();
 	}

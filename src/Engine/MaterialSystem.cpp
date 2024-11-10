@@ -41,6 +41,8 @@ struct MaterialSystem_inst
 	FreelistArray<MaterialInstance> material_instances;
 
 	RDescriptorLayout scene_desc_layout;
+	RDescriptorLayout material_desc_layout;
+	DescriptorAllocation material_desc_allocation;
 
 	MasterMaterialHandle default_materials[static_cast<uint32_t>(PASS_TYPE::ENUM_SIZE)][static_cast<uint32_t>(MATERIAL_TYPE::ENUM_SIZE)];
 };
@@ -52,7 +54,7 @@ static inline MasterMaterialHandle& GetDefaultMasterMaterial_impl(const PASS_TYP
 	return s_material_inst->default_materials[static_cast<uint32_t>(a_pass_type)][static_cast<uint32_t>(a_material_type)];
 }
 
-static inline MasterMaterialHandle CreateMaterial_impl(const Slice<ShaderEffectHandle> a_shaders, const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type, const uint32_t a_user_data_size, const StringView name = "default")
+static inline MasterMaterialHandle CreateMaterial_impl(const Slice<ShaderEffectHandle> a_shaders, const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type, const uint32_t a_user_data_size, const bool a_cpu_writeable, const StringView name = "default")
 {
 	const MasterMaterialHandle material = s_material_inst->material_map.emplace();
 	MasterMaterial& inst = s_material_inst->material_map.find(material);
@@ -65,6 +67,8 @@ static inline MasterMaterialHandle CreateMaterial_impl(const Slice<ShaderEffectH
 	inst.pass_type = a_pass_type;
 	inst.material_type = a_material_type;
 	inst.user_data_size = a_user_data_size;
+	inst.handle = material;
+	inst.cpu_writeable = a_cpu_writeable;
 	return material;
 }
 
@@ -176,6 +180,16 @@ void Material::InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCrea
 
 	MemoryArenaScope(a_arena)
 	{
+		{
+			DescriptorBindingInfo desc_binding;
+			desc_binding.type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
+			desc_binding.count = a_create_info.max_material_instances;
+			desc_binding.binding = PER_MATERIAL_BINDING;
+			desc_binding.shader_stage = SHADER_STAGE::ALL;
+			s_material_inst->material_desc_layout = CreateDescriptorLayout(a_arena, Slice(&desc_binding, 1));
+			s_material_inst->material_desc_allocation = AllocateDescriptor(s_material_inst->material_desc_layout);
+		}
+
 		MaterialCreateInfo material_info;
 		material_info.material_type = MATERIAL_TYPE::MATERIAL_2D;
 		MaterialShaderCreateInfo default_2d_shaders[]{ a_create_info.default_2d_vertex, a_create_info.default_2d_fragment };
@@ -240,16 +254,71 @@ MasterMaterialHandle Material::CreateMasterMaterial(MemoryArena& a_temp_arena, c
 
 	const Slice<ShaderEffectHandle> shader_effects = CreateShaderEffects_impl(a_temp_arena, a_create_info.shader_infos, desc_layouts);
 
-	return CreateMaterial_impl(shader_effects, a_create_info.pass_type, a_create_info.material_type, a_create_info.user_data_size, a_name);
+	return CreateMaterial_impl(shader_effects, a_create_info.pass_type, a_create_info.material_type, a_create_info.user_data_size, a_create_info.cpu_writeable, a_name);
 }
 
 MaterialHandle Material::CreateMaterialInstance(const MasterMaterialHandle a_master_material)
 {
 	const MasterMaterial& master = s_material_inst->material_map.find(a_master_material);
-	BB_UNIMPLEMENTED();
+	MaterialInstance mat;
+	mat.master_handle = a_master_material;
+	mat.user_data_size = master.user_data_size;
 
+	GPUBufferCreateInfo create_buffer;
+	create_buffer.name = master.name.c_str();
+	create_buffer.type = BUFFER_TYPE::UNIFORM;
+	create_buffer.size = mat.user_data_size;
+	create_buffer.host_writable = master.cpu_writeable;
+	mat.buffer = CreateGPUBuffer(create_buffer);
+	if (create_buffer.host_writable)
+		mat.mapper_ptr = MapGPUBuffer(mat.buffer);
+	else
+		mat.mapper_ptr = nullptr;
 
-	return;
+	const MaterialHandle material_index = MaterialHandle(s_material_inst->material_instances.emplace(mat));
+
+	DescriptorWriteBufferInfo write_buffer;
+	write_buffer.descriptor_layout = s_material_inst->material_desc_layout;
+	write_buffer.allocation = s_material_inst->material_desc_allocation;
+	write_buffer.binding = PER_MATERIAL_BINDING;
+	write_buffer.descriptor_index = static_cast<uint32_t>(material_index.handle);
+	write_buffer.buffer_view.buffer = mat.buffer;
+	write_buffer.buffer_view.size = mat.user_data_size;
+	write_buffer.buffer_view.offset = 0;
+	DescriptorWriteUniformBuffer(write_buffer);
+
+	return material_index;
+}
+
+void Material::FreeMaterialInstance(const MaterialHandle a_material)
+{
+	MaterialInstance& mat = s_material_inst->material_instances.find(a_material.handle);
+	if (mat.mapper_ptr)
+		UnmapGPUBuffer(mat.buffer);
+	FreeGPUBuffer(mat.buffer);
+	mat = {};
+}
+
+void Material::WriteMaterial(const MaterialHandle a_material, const RCommandList a_list, const GPUBuffer a_src_buffer, const size_t a_src_offset)
+{
+	const MaterialInstance& mat = s_material_inst->material_instances.find(a_material.handle);
+	BB_WARNING(!mat.mapper_ptr, "trying to write to a material that is meant to be CPU writeable", WarningType::OPTIMALIZATION);
+	RenderCopyBufferRegion copy_region;
+	copy_region.size = mat.user_data_size;
+	copy_region.src_offset = a_src_offset;
+	copy_region.dst_offset = 0;
+	RenderCopyBuffer copy_buffer;
+	copy_buffer.src = a_src_buffer;
+	copy_buffer.dst = mat.buffer;
+	copy_buffer.regions = Slice(&copy_region, 1);
+	CopyBuffer(a_list, copy_buffer);
+}
+
+void Material::WriteMaterialCPU(const MaterialHandle a_material, const void* a_memory, const size_t a_memory_size)
+{
+	const MaterialInstance& mat = s_material_inst->material_instances.find(a_material.handle);
+	BB_ASSERT(mat.mapper_ptr, "trying to write to a material that is not CPU writeable");
+	memcpy(mat.mapper_ptr, a_memory, a_memory_size);
 }
 
 MasterMaterialHandle Material::GetDefaultMasterMaterial(const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type)

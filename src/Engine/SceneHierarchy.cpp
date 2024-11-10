@@ -144,7 +144,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 	shadow_map_material.shader_infos = Slice(&vertex_shadow_map, 1);
 	MemoryArenaScope(a_arena)
 	{
-		m_shadowmap_material = Material::CreateMaterial(a_arena, shadow_map_material, "shadow map material");
+		m_shadowmap_material = Material::CreateMasterMaterial(a_arena, shadow_map_material, "shadow map material");
 	}
 
 	// skybox stuff
@@ -164,7 +164,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 	skybox_material.shader_infos = Slice(skybox_shaders, _countof(skybox_shaders));
 	MemoryArenaScope(a_arena)
 	{
-		m_skybox_material = Material::CreateMaterial(a_arena, skybox_material, "skybox material");
+		m_skybox_material = Material::CreateMasterMaterial(a_arena, skybox_material, "skybox material");
 	}
 
 	{
@@ -290,9 +290,9 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 			scene_obj.mesh_info.mesh = mesh.mesh;
 			scene_obj.mesh_info.index_start = mesh.primitives[i].start_index;
 			scene_obj.mesh_info.index_count = mesh.primitives[i].index_count;
-			scene_obj.mesh_info.base_texture = mesh.primitives[i].material_data.base_texture;
-			scene_obj.mesh_info.normal_texture = mesh.primitives[i].material_data.normal_texture;
-			scene_obj.mesh_info.material = mesh.primitives[i].material_data.material;
+			scene_obj.mesh_info.master_material = mesh.primitives[i].material_data.material;
+			scene_obj.mesh_info.material = Material::CreateMaterialInstance(mesh.primitives[i].material_data.material);
+			Material::WriteMaterial(scene_obj.mesh_info.material, 0, 0, 0);
 
 			scene_obj.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 			prim_obj.transform = m_transform_pool.CreateTransform(float3(0, 0, 0));
@@ -337,7 +337,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObject(const float3 a_position, con
 	return scene_object_handle;
 }
 
-SceneObjectHandle SceneHierarchy::CreateSceneObjectMesh(const float3 a_position, const MeshDrawInfo& a_mesh_info, const char* a_name, const SceneObjectHandle a_parent)
+SceneObjectHandle SceneHierarchy::CreateSceneObjectMesh(const float3 a_position, const SceneMeshCreateInfo& a_mesh_info, const char* a_name, const SceneObjectHandle a_parent)
 {
 	SceneObjectHandle scene_object_handle = m_scene_objects.emplace(SceneObject());
 	SceneObject& scene_object = m_scene_objects.find(scene_object_handle);
@@ -355,7 +355,19 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectMesh(const float3 a_position,
 	}
 
 	scene_object.name = a_name;
-	scene_object.mesh_info = a_mesh_info;
+	scene_object.mesh_info.mesh = a_mesh_info.mesh;
+	scene_object.mesh_info.index_start = a_mesh_info.index_start;
+	scene_object.mesh_info.index_count = a_mesh_info.index_count;
+	scene_object.mesh_info.master_material = a_mesh_info.master_material;
+	if (a_mesh_info.material_data.size)
+	{
+		scene_object.mesh_info.material = Material::CreateMaterialInstance(a_mesh_info.master_material);
+		Material::WriteMaterial(scene_object.mesh_info.material, 0, 0, 0);
+	}
+	else
+		scene_object.mesh_info.material = MaterialHandle(BB_INVALID_HANDLE_64);
+
+
 	scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 	scene_object.transform = m_transform_pool.CreateTransform(a_position);
 	scene_object.child_count = 0;
@@ -857,14 +869,13 @@ void SceneHierarchy::RenderPass(const PerFrameData& pfd, const RCommandList a_li
 	{
 		const MeshDrawInfo& mesh_draw_call = m_draw_list.mesh_draw_call[i];
 
-		Slice<const ShaderEffectHandle> shader_effects = Material::GetMaterialShaders(mesh_draw_call.material);
+		Slice<const ShaderEffectHandle> shader_effects = Material::GetMaterialShaders(mesh_draw_call.master_material);
 		const RPipelineLayout pipe_layout = BindShaders(a_list, shader_effects);
 
 		ShaderIndices shader_indices;
 		shader_indices.transform_index = i;
 		shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_buffer_offset);
-		shader_indices.albedo_texture = mesh_draw_call.base_texture;
-		shader_indices.normal_texture = mesh_draw_call.normal_texture;
+		shader_indices.material_index = RDescriptorIndex(mesh_draw_call.material.index);
 		SetPushConstants(a_list, pipe_layout, 0, sizeof(shader_indices), &shader_indices);
 		DrawIndexed(a_list,
 			mesh_draw_call.index_count,
