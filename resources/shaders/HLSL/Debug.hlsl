@@ -51,9 +51,10 @@ float4 FragmentMain(VSOutput a_input) : SV_Target
 {
     const BB::Scene3DInfo scene_info = scene_data;
     
-    const float4 texture_color = textures_data[shader_indices.albedo_texture].Sample(basic_3d_sampler, a_input.uv);
-    const float4 color = float4(texture_color.xyz * a_input.color.xyz, 1.f);
+    const BB::MeshMetallic material = materials_metallic[shader_indices.material_index];
     
+    const float4 texture_color = textures_data[material.albedo_texture].Sample(basic_3d_sampler, a_input.uv);
+    const float4 color = float4(texture_color.xyz * a_input.color.xyz, 1.f);
     
     float3 result_color = 0;
 

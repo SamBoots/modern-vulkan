@@ -459,7 +459,7 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RImageV
 	for (size_t i = 0; i < m_top_level_object_count; i++)
 	{
 		// identity hack to awkwardly get the first matrix. 
-		DrawSceneObject(m_top_level_objects[i], Float4x4Identity());
+		DrawSceneObject(m_top_level_objects[i], Float4x4Identity(), a_list, pfd);
 	}
 
 	m_scene_info.light_count = m_light_container.size();
@@ -514,7 +514,7 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RImageV
 
 void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform, const RCommandList a_list, const PerFrameData& a_pfd)
 {
-	const SceneObject& scene_object = m_scene_objects.find(a_scene_object);
+	SceneObject& scene_object = m_scene_objects.find(a_scene_object);
 
 	const float4x4 local_transform = a_transform * m_transform_pool.GetTransformMatrix(scene_object.transform);
 
@@ -532,7 +532,7 @@ void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, con
 
 	for (size_t i = 0; i < scene_object.child_count; i++)
 	{
-		DrawSceneObject(scene_object.children[i], local_transform);
+		DrawSceneObject(scene_object.children[i], local_transform, a_list, a_pfd);
 	}
 }
 

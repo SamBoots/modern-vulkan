@@ -139,7 +139,7 @@ namespace BB
 
 		void AddToDrawList(const SceneObject& scene_object, const float4x4& a_transform);
 		SceneObjectHandle CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent);
-		void DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform);
+		void DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform, const RCommandList a_list, const PerFrameData& a_pfd);
 
 		LightHandle CreateLight(const LightCreateInfo& a_light_info);
 		float4x4 CalculateLightProjectionView(const float3 a_pos, const float a_near, const float a_far) const;

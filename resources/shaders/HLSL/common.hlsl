@@ -30,6 +30,9 @@ _BBBIND(PER_SCENE_TRANSFORM_DATA_BINDING, SPACE_PER_SCENE)ByteAddressBuffer tran
 _BBBIND(PER_SCENE_LIGHT_DATA_BINDING, SPACE_PER_SCENE)ByteAddressBuffer light_data;
 _BBBIND(PER_SCENE_LIGHT_PROJECTION_VIEW_DATA_BINDING, SPACE_PER_SCENE)ByteAddressBuffer light_view_projection_data;
 
+//PER_MATERIAL BINDINGS
+_BBBIND(PER_MATERIAL_BINDING, SPACE_PER_MATERIAL)ConstantBuffer<BB::MeshMetallic> materials_metallic[];
+
 float4 UnpackR8B8G8A8_UNORMToFloat4(uint a_packed)
 {
     float4 unpacked;
