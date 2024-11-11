@@ -37,8 +37,10 @@ namespace BB
 		Mesh mesh;
 		MasterMaterialHandle master_material;
 		MaterialHandle material;
+		MeshMetallic material_data;
 		uint32_t index_start;
 		uint32_t index_count;
+		bool material_dirty;
 	};
 
 	struct SceneObject
@@ -66,7 +68,7 @@ namespace BB
 		uint32_t index_start;
 		uint32_t index_count;
 		MasterMaterialHandle master_material;
-		Buffer material_data;
+		MeshMetallic material_data;
 	};
 
 	class SceneHierarchy
@@ -159,6 +161,17 @@ namespace BB
 			bool skip_object_rendering;
 		} m_options;
 
+		enum class SCENE_OBJ_DIRTY_TYPE
+		{
+			MATERIAL
+		};
+
+		struct SceneObjDirty
+		{
+			SceneObjectHandle obj;
+			MaterialHandle material;
+		};
+
 		Scene3DInfo m_scene_info;
 		DrawList m_draw_list;
 
@@ -173,6 +186,7 @@ namespace BB
 		//TODO, maybe remember all the transforms from the previous frames?
 		TransformPool m_transform_pool;
 		StaticSlotmap<SceneObject, SceneObjectHandle> m_scene_objects;
+
 
 		StaticSlotmap<Light, LightHandle> m_light_container;
 		StaticSlotmap<float4x4, LightHandle> m_light_projection_view;

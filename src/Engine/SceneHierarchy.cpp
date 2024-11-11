@@ -292,7 +292,8 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 			scene_obj.mesh_info.index_count = mesh.primitives[i].index_count;
 			scene_obj.mesh_info.master_material = mesh.primitives[i].material_data.material;
 			scene_obj.mesh_info.material = Material::CreateMaterialInstance(mesh.primitives[i].material_data.material);
-			Material::WriteMaterial(scene_obj.mesh_info.material, 0, 0, 0);
+			scene_obj.mesh_info.material_data = mesh.primitives[i].material_data.mesh_metallic;
+			scene_obj.mesh_info.material_dirty = true;
 
 			scene_obj.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 			prim_obj.transform = m_transform_pool.CreateTransform(float3(0, 0, 0));
@@ -359,14 +360,17 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectMesh(const float3 a_position,
 	scene_object.mesh_info.index_start = a_mesh_info.index_start;
 	scene_object.mesh_info.index_count = a_mesh_info.index_count;
 	scene_object.mesh_info.master_material = a_mesh_info.master_material;
-	if (a_mesh_info.material_data.size)
+	scene_object.mesh_info.material_data = a_mesh_info.material_data;
+	if (scene_object.mesh_info.master_material.IsValid())
 	{
 		scene_object.mesh_info.material = Material::CreateMaterialInstance(a_mesh_info.master_material);
-		Material::WriteMaterial(scene_object.mesh_info.material, 0, 0, 0);
+		scene_object.mesh_info.material_dirty = true;
 	}
 	else
+	{
 		scene_object.mesh_info.material = MaterialHandle(BB_INVALID_HANDLE_64);
-
+		scene_object.mesh_info.material_dirty = false;
+	}
 
 	scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 	scene_object.transform = m_transform_pool.CreateTransform(a_position);
@@ -508,7 +512,7 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RImageV
 	RenderPass(pfd, a_list, a_render_target_view, a_draw_area_size, a_draw_area_offset);
 }
 
-void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform)
+void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform, const RCommandList a_list, const PerFrameData& a_pfd)
 {
 	const SceneObject& scene_object = m_scene_objects.find(a_scene_object);
 
@@ -516,7 +520,15 @@ void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, con
 
 	// mesh_info should be a pointer in the drawlist. Preferably. 
 	if (scene_object.mesh_info.material.IsValid())
+	{
 		AddToDrawList(scene_object, local_transform);
+		if (scene_object.mesh_info.material_dirty)
+		{
+			const UploadBuffer upload = m_upload_allocator.AllocateUploadMemory(sizeof(scene_object.mesh_info.material_data), a_pfd.fence_value);
+			Material::WriteMaterial(scene_object.mesh_info.material, a_list, upload.buffer, upload.base_offset);
+			scene_object.mesh_info.material_dirty = false;
+		}
+	}
 
 	for (size_t i = 0; i < scene_object.child_count; i++)
 	{
