@@ -9,8 +9,6 @@ using namespace BB;
 BB_STATIC_ASSERT(sizeof(ShaderIndices) == sizeof(ShaderIndices2D), "shaderindices not the same sizeof.");
 
 constexpr size_t PUSH_CONSTANT_SPACE_SIZE = sizeof(ShaderIndices);
-// store this to avoid confusion later when adding more.
-constexpr uint32_t CURRENT_DESC_LAYOUT_COUNT = 3;
 
 static uint64_t ShaderEffectHash(const MaterialShaderCreateInfo& a_create_info)
 {
@@ -72,7 +70,7 @@ static inline MasterMaterialHandle CreateMaterial_impl(const Slice<ShaderEffectH
 	return material;
 }
 
-static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_arena, const Slice<MaterialShaderCreateInfo> a_shader_effects_info, const ShaderDescriptorLayouts& a_desc_layouts)
+static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_arena, const Slice<MaterialShaderCreateInfo> a_shader_effects_info, const ShaderDescriptorLayouts& a_desc_layouts, const uint32_t a_desc_layout_count)
 {
 	ShaderEffectHandle* return_handles = ArenaAllocArr(a_temp_arena, ShaderEffectHandle, a_shader_effects_info.size());
 	CreateShaderEffectInfo* shader_effects = ArenaAllocArr(a_temp_arena, CreateShaderEffectInfo, a_shader_effects_info.size());
@@ -110,7 +108,7 @@ static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_ar
 			shader_info.next_stages = info.next_stages;
 			shader_info.push_constant_space = PUSH_CONSTANT_SPACE_SIZE;
 			shader_info.desc_layouts = a_desc_layouts;
-			shader_info.desc_layout_count = CURRENT_DESC_LAYOUT_COUNT;
+			shader_info.desc_layout_count = a_desc_layout_count;
 		}
 	}
 
@@ -192,6 +190,7 @@ void Material::InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCrea
 
 		MaterialCreateInfo material_info;
 		material_info.material_type = MATERIAL_TYPE::MATERIAL_2D;
+		material_info.cpu_writeable = false;
 		MaterialShaderCreateInfo default_2d_shaders[]{ a_create_info.default_2d_vertex, a_create_info.default_2d_fragment };
 		material_info.shader_infos = Slice(default_2d_shaders, _countof(default_2d_shaders));
 		material_info.user_data_size = 0;
@@ -236,13 +235,16 @@ MasterMaterialHandle Material::CreateMasterMaterial(MemoryArena& a_temp_arena, c
 		break;
 	}
 
+	uint32_t layouts = 3;
+
 	switch (a_create_info.material_type)
 	{
 	case MATERIAL_TYPE::MATERIAL_2D:
 		BB_LOG("SCENE_2D material unimplemented");
 		break;
 	case MATERIAL_TYPE::MATERIAL_3D:
-		BB_LOG("SCENE_3D material unimplemented");
+		desc_layouts[SPACE_PER_MATERIAL] = s_material_inst->material_desc_layout;
+		++layouts;
 		break;
 	case MATERIAL_TYPE::NONE:
 
@@ -252,7 +254,7 @@ MasterMaterialHandle Material::CreateMasterMaterial(MemoryArena& a_temp_arena, c
 		break;
 	}
 
-	const Slice<ShaderEffectHandle> shader_effects = CreateShaderEffects_impl(a_temp_arena, a_create_info.shader_infos, desc_layouts);
+	const Slice<ShaderEffectHandle> shader_effects = CreateShaderEffects_impl(a_temp_arena, a_create_info.shader_infos, desc_layouts, layouts);
 
 	return CreateMaterial_impl(shader_effects, a_create_info.pass_type, a_create_info.material_type, a_create_info.user_data_size, a_create_info.cpu_writeable, a_name);
 }
@@ -319,6 +321,11 @@ void Material::WriteMaterialCPU(const MaterialHandle a_material, const void* a_m
 	const MaterialInstance& mat = s_material_inst->material_instances.find(a_material.handle);
 	BB_ASSERT(mat.mapper_ptr, "trying to write to a material that is not CPU writeable");
 	memcpy(mat.mapper_ptr, a_memory, a_memory_size);
+}
+
+const DescriptorAllocation& Material::GetMaterialDescAllocation()
+{
+	return s_material_inst->material_desc_allocation;
 }
 
 MasterMaterialHandle Material::GetDefaultMasterMaterial(const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type)

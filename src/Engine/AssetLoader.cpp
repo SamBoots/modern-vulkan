@@ -869,16 +869,23 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
 			const StringView img = Asset::LoadImageDisk(a_temp_arena, full_image_path);
 
-			model_prim.material_data.base_texture = Asset::FindImageByName(img.c_str())->descriptor_index;
+			metallic_info.albedo_texture = Asset::FindImageByName(img.c_str())->descriptor_index;
 		}
+		else
+			metallic_info.albedo_texture = GetWhiteTexture();
+
 		if (prim.material->normal_texture.texture)
 		{
 			const cgltf_image& image = *prim.material->normal_texture.texture->image;
 			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
 			const StringView img = Asset::LoadImageDisk(a_temp_arena, full_image_path);
 			
-			model_prim.material_data.normal_texture = Asset::FindImageByName(img.c_str())->descriptor_index;
+			metallic_info.normal_texture = Asset::FindImageByName(img.c_str())->descriptor_index;
 		}
+		else
+			metallic_info.normal_texture = GetWhiteTexture();
+
+
 		{	// get indices
 			void* index_data = GetAccessorDataPtr(prim.indices);
 			if (prim.indices->component_type == cgltf_component_type_r_32u)
@@ -1116,8 +1123,8 @@ const StringView Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const Mesh
 	model->root_node_indices = ArenaAllocArr(s_asset_manager->asset_arena, uint32_t, 1);
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 	Model::Primitive primitive;
-	primitive.material_data.base_texture = a_mesh_op.base_albedo;
-	primitive.material_data.normal_texture = GetWhiteTexture();
+	primitive.material_data.mesh_metallic.albedo_texture = a_mesh_op.base_albedo;
+	primitive.material_data.mesh_metallic.normal_texture = GetWhiteTexture();
 	primitive.start_index = 0;
 	primitive.index_count = static_cast<uint32_t>(a_mesh_op.indices.size());
 

@@ -525,6 +525,7 @@ void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, con
 		if (scene_object.mesh_info.material_dirty)
 		{
 			const UploadBuffer upload = m_upload_allocator.AllocateUploadMemory(sizeof(scene_object.mesh_info.material_data), a_pfd.fence_value);
+			upload.SafeMemcpy(0, &scene_object.mesh_info.material_data, sizeof(scene_object.mesh_info.material_data));
 			Material::WriteMaterial(scene_object.mesh_info.material, a_list, upload.buffer, upload.base_offset);
 			scene_object.mesh_info.material_dirty = false;
 		}
@@ -883,6 +884,17 @@ void SceneHierarchy::RenderPass(const PerFrameData& pfd, const RCommandList a_li
 
 		Slice<const ShaderEffectHandle> shader_effects = Material::GetMaterialShaders(mesh_draw_call.master_material);
 		const RPipelineLayout pipe_layout = BindShaders(a_list, shader_effects);
+		{
+			const uint32_t buffer_indices[] = { 0 };
+			const size_t buffer_offsets[]{ Material::GetMaterialDescAllocation().offset};
+			//set 3
+			SetDescriptorBufferOffset(a_list,
+				pipe_layout,
+				SPACE_PER_MATERIAL,
+				_countof(buffer_offsets),
+				buffer_indices,
+				buffer_offsets);
+		}
 
 		ShaderIndices shader_indices;
 		shader_indices.transform_index = i;

@@ -28,9 +28,7 @@ namespace BB
 		struct MaterialData
 		{
 			MasterMaterialHandle material;      // 8
-			RDescriptorIndex base_texture;      // 12
-			RDescriptorIndex normal_texture;    // 16
-			MeshMetallic mesh_metallic;
+			MeshMetallic mesh_metallic;			// 40
 		};
 		struct Primitive
 		{

@@ -1823,8 +1823,6 @@ bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderE
 	{
 		const CreateShaderEffectInfo& create_info = a_create_infos[i];
 
-		BB_ASSERT(create_info.desc_layout_count <= 3, "more then three descriptor layouts given, this is not possible.");
-
 		PushConstantRange push_constant_range;
 		push_constant_range.stages = SHADER_STAGE::ALL;
 		push_constant_range.size = create_info.push_constant_space;
@@ -1835,7 +1833,7 @@ bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderE
 			create_info.shader_data,
 			create_info.shader_entry,
 			create_info.stage);
-		Buffer shader_buffer = GetShaderCodeBuffer(shader_codes[i]);
+		const Buffer shader_buffer = GetShaderCodeBuffer(shader_codes[i]);
 
 		shader_object_infos[i].stage = create_info.stage;
 		shader_object_infos[i].next_stages = create_info.next_stages;
@@ -1843,7 +1841,7 @@ bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderE
 		shader_object_infos[i].shader_code = shader_buffer.data;
 		shader_object_infos[i].shader_entry = create_info.shader_entry;
 
-		shader_object_infos[i].descriptor_layout_count = 3;
+		shader_object_infos[i].descriptor_layout_count = create_info.desc_layout_count;
 		shader_object_infos[i].descriptor_layouts = create_info.desc_layouts;
 		shader_object_infos[i].push_constant_range = push_constant_range;
 	}
