@@ -132,7 +132,12 @@ static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_ar
 		{
 			for (size_t i = 0; i < created_shader_effect_count; i++)
 			{
-				const CachedShaderInfo shader_info = { created_handles[i], shader_effects[i] };
+				CachedShaderInfo shader_info{};
+				shader_info.handle = created_handles[i];
+				shader_info.path.append(a_shader_effects_info[i].path);
+				shader_info.entry.append(a_shader_effects_info[i].entry);
+				shader_info.stage = a_shader_effects_info[i].stage;
+				shader_info.next_stages = a_shader_effects_info[i].next_stages;
 				s_material_inst->shader_effects.emplace_back(shader_info);
 				s_material_inst->shader_effect_cache.insert(ShaderEffectHash(a_shader_effects_info[i]), shader_info.handle);
 			}
@@ -143,14 +148,14 @@ static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_ar
 		int created_shader_i = 0;
 		for (size_t i = 0; i < a_shader_effects_info.size(); i++)
 		{
-			if (return_handles[i].IsValid())
+			if (!return_handles[i].IsValid())
 			{
-				const CachedShaderInfo shader_info = { return_handles[i], shader_effects[i] };
-				s_material_inst->shader_effects.emplace_back(shader_info);
-			}
-			else
-			{
-				const CachedShaderInfo shader_info = { created_handles[created_shader_i++], shader_effects[i] };
+				CachedShaderInfo shader_info{};
+				shader_info.handle = created_handles[created_shader_i++];
+				shader_info.path.append(a_shader_effects_info[i].path);
+				shader_info.entry.append(a_shader_effects_info[i].entry);
+				shader_info.stage = a_shader_effects_info[i].stage;
+				shader_info.next_stages = a_shader_effects_info[i].next_stages;
 				s_material_inst->shader_effects.emplace_back(shader_info);
 				s_material_inst->shader_effect_cache.insert(ShaderEffectHash(a_shader_effects_info[i]), shader_info.handle);
 				return_handles[i] = shader_info.handle;

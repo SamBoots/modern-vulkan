@@ -69,6 +69,8 @@ namespace BB
 
 	constexpr const uint64_t BB_INVALID_HANDLE_64 = UINT64_MAX;
 
+	constexpr const uint32_t MAX_PATH_SIZE = 260;
+
 	template<typename Tag>
 	union FrameworkHandle
 	{

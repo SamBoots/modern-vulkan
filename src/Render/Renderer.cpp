@@ -1881,7 +1881,6 @@ bool BB::ReloadShaderEffect(const ShaderEffectHandle a_shader_effect, const Buff
 #ifdef _ENABLE_REBUILD_SHADERS
 	GPUWaitIdle();
 	ShaderEffect& old_effect = s_render_inst->shader_effects[a_shader_effect];
-	Vulkan::DestroyShaderObject(old_effect.shader_object);
 
 	const ShaderCode shader_code = CompileShader(s_render_inst->shader_compiler,
 		a_shader,
@@ -1894,11 +1893,16 @@ bool BB::ReloadShaderEffect(const ShaderEffectHandle a_shader_effect, const Buff
 	old_effect.create_info.shader_entry = old_effect.shader_entry;
 
 	const ShaderObject new_object = Vulkan::CreateShaderObject(old_effect.create_info);
-	old_effect.shader_object = new_object;
-
 	ReleaseShaderCode(shader_code);
+	if (new_object.IsValid())
+	{
+		Vulkan::DestroyShaderObject(old_effect.shader_object);
+		old_effect.shader_object = new_object;
+		return true;
+	}
+	else
+		return false;
 
-	return new_object.IsValid();
 #endif // _ENABLE_REBUILD_SHADERS
 	BB_WARNING(false, "trying to reload a shader but _ENABLE_REBUILD_SHADERS is not defined", WarningType::MEDIUM);
 	return true;

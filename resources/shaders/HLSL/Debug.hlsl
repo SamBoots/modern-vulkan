@@ -67,7 +67,7 @@ float4 FragmentMain(VSOutput a_input) : SV_Target
         result_color += (1.0 - shadow) * (diffuse);
     }
     
-    float4 result = float4(scene_info.ambient_light.xyz + result_color, 1.0) * color;
+    float4 result = float4(scene_info.ambient_light.xyz + result_color, 1.0) * color * material.base_color_factor;
     
     return result;
 }

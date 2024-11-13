@@ -361,6 +361,14 @@ namespace BB
 		{
 			append(a_string.c_str() + a_sub_pos, a_sub_length);
 		}
+		void append(const String_View<CharT>& a_string_view)
+		{
+			append(a_string_view.c_str(), a_string_view.size());
+		}
+		void append(const String_View<CharT>& a_string_view, size_t a_sub_pos, size_t a_sub_length)
+		{
+			append(a_string_view.c_str() + a_sub_pos, a_sub_length);
+		}
 		void append(const CharT* a_string)
 		{
 			append(a_string, Memory::StrLength(a_string));

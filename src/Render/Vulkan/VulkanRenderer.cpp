@@ -1887,8 +1887,10 @@ void Vulkan::CreateShaderObjects(MemoryArena& a_temp_arena, Slice<ShaderObjectCr
 			create_inf.pushConstantRangeCount = 1;
 		}
 		else
+		{
 			create_inf.pPushConstantRanges = nullptr;
-		create_inf.pushConstantRangeCount = 0;
+			create_inf.pushConstantRangeCount = 0;
+		}
 		create_inf.pSpecializationInfo = nullptr;
 	}
 

@@ -34,7 +34,6 @@ BB_WARNINGS_ON
 
 using namespace BB;
 
-constexpr size_t MAX_PATH_SIZE = 512;
 constexpr size_t MAX_ASSET_NAME_SIZE = 64;
 
 constexpr size_t GPU_TASK_QUEUE_SIZE = 64;

@@ -540,7 +540,7 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time, const Slice<
 
 		if (ImGui::Begin("Editor - Renderer"))
 		{
-			ImGuiDisplayShaderEffects();
+			ImGuiDisplayShaderEffects(a_arena);
 			ImGuiDisplayMaterials();
 		}
 		ImGui::End();
@@ -659,6 +659,19 @@ void Editor::ImguiDisplaySceneHierarchy(SceneHierarchy& a_hierarchy)
 	ImGui::End();
 }
 
+static void ImGuiShowTexturePossibleChange(const RDescriptorIndex a_texture, const float2 a_size, const char* a_name)
+{
+	if (ImGui::TreeNodeEx(a_name))
+	{
+		ImGui::Indent();
+
+		ImGui::Image(a_texture.handle, ImVec2(a_size.x, a_size.y));
+
+		ImGui::Unindent();
+		ImGui::TreePop();
+	}
+}
+
 void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObjectHandle a_object)
 {
 	SceneObject& scene_object = a_hierarchy.m_scene_objects.find(a_object);
@@ -687,6 +700,22 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 				{
 					ImGui::Indent();
 
+					const MasterMaterial& master = Material::GetMasterMaterial(scene_object.mesh_info.master_material);
+					MeshMetallic& metallic = scene_object.mesh_info.material_data;
+
+					ImGui::Text("master Material: %s", master.name.c_str());
+					if (ImGui::SliderFloat4("base color factor", metallic.base_color_factor.e, 0.f, 1.f))
+						scene_object.mesh_info.material_dirty = true;
+
+					if (ImGui::InputFloat("metallic factor", &metallic.metallic_factor))
+						scene_object.mesh_info.material_dirty = true;
+
+					if (ImGui::InputFloat("roughness factor", &metallic.roughness_factor))
+						scene_object.mesh_info.material_dirty = true;
+
+					ImGuiShowTexturePossibleChange(metallic.albedo_texture, float2(128, 128), "albedo");
+					ImGuiShowTexturePossibleChange(metallic.normal_texture, float2(128, 128), "normal");
+
 					if (ImGui::TreeNodeEx("switch material"))
 					{
 						ImGui::Indent();
@@ -703,12 +732,12 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 							}
 						}
 
-						ImGui::TreePop();
 						ImGui::Unindent();
+						ImGui::TreePop();
 					}
 
-					ImGui::TreePop();
 					ImGui::Unindent();
+					ImGui::TreePop();
 				}
 
 				ImGui::Unindent();
@@ -833,27 +862,30 @@ void Editor::ImguiCreateSceneObject(SceneHierarchy& a_hierarchy, const SceneObje
 	}
 }
 
-void Editor::ImGuiDisplayShaderEffect(const CachedShaderInfo& a_shader_info) const
+void Editor::ImGuiDisplayShaderEffect(MemoryArena& a_temp_arena, const CachedShaderInfo& a_shader_info) const
 {
-	if (ImGui::CollapsingHeader(a_shader_info.create_info.name))
+	if (ImGui::CollapsingHeader(a_shader_info.path.c_str()))
 	{
 		ImGui::Indent();
 		ImGui::Text("HANDLE: %u | GENERATION: %u", a_shader_info.handle.index, a_shader_info.handle.extra_index);
-		ImGui::Text("ENTRY POINT: %s", a_shader_info.create_info.shader_entry);
-		ImGui::Text("SHADER STAGE: %s", ShaderStageToCChar(a_shader_info.create_info.stage));
-		const StackString<256> next_stages = ShaderStagesToCChar(a_shader_info.create_info.next_stages);
+		ImGui::Text("ENTRY POINT: %s", a_shader_info.entry.c_str());
+		ImGui::Text("SHADER STAGE: %s", ShaderStageToCChar(a_shader_info.stage));
+		const StackString<256> next_stages = ShaderStagesToCChar(a_shader_info.next_stages);
 		ImGui::Text("NEXT EXPECTED STAGES: %s", next_stages.c_str());
 
 		if (ImGui::Button("Reload Shader"))
 		{
-			BB_UNIMPLEMENTED();
-			//BB_ASSERT(ReloadShaderEffect(effect.handle, effect.shader_data), "something went wrong with reloading a shader");
+			MemoryArenaScope(a_temp_arena)
+			{
+				const Buffer shader = ReadOSFile(a_temp_arena, a_shader_info.path.c_str());
+				BB_ASSERT(ReloadShaderEffect(a_shader_info.handle, shader), "something went wrong with reloading a shader");
+			}
 		}
 		ImGui::Unindent();
 	}
 }
 
-void Editor::ImGuiDisplayShaderEffects()
+void Editor::ImGuiDisplayShaderEffects(MemoryArena& a_temp_arena)
 {
 	if (ImGui::CollapsingHeader("shader effects"))
 	{
@@ -863,7 +895,7 @@ void Editor::ImGuiDisplayShaderEffects()
 		{
 			ImGui::PushID(static_cast<int>(i));
 			// rework this?
-			ImGuiDisplayShaderEffect(shaders[i]);
+			ImGuiDisplayShaderEffect(a_temp_arena, shaders[i]);
 			ImGui::PopID();
 		}
 		ImGui::Unindent();
@@ -879,10 +911,16 @@ void Editor::ImGuiDisplayMaterial(const MasterMaterial& a_material) const
 		for (size_t eff_index = 0; eff_index < a_material.shader_effect_count; eff_index++)
 		{
 			ImGui::PushID(static_cast<int>(eff_index));
-			BB_UNIMPLEMENTED();
-			//ImGuiDisplayShaderEffect();
+
 			ImGui::PopID();
 		}
+
+		ImGui::Text("Material CPU writeable: %d", a_material.cpu_writeable);
+		ImGui::Separator();
+
+		ImGui::Text("Descriptor Layout 2 (scene): %s", Material::PASS_TYPE_STR(a_material.pass_type));
+		ImGui::Text("Descriptor Layout 3 (material): %s", Material::MATERIAL_TYPE_STR(a_material.material_type));
+		ImGui::Text("Descriptor Layout 4 (mesh): %s", "not implemented yet");
 
 		ImGui::Unindent();
 	}
