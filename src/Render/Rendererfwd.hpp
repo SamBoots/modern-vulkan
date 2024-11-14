@@ -38,7 +38,7 @@ namespace BB
 
 	using LightHandle = FrameworkHandle<struct LightHandleTag>;
 	
-	using ShaderCode = FrameworkHandle<struct ShdaerCodeTag>;
+	using ShaderCode = FrameworkHandle<struct ShaderCodeTag>;
 	using ShaderEffectHandle = FrameworkHandle<struct ShaderEffectHandleTag>;
 
 	constexpr uint32_t UNIQUE_SHADER_STAGE_COUNT = 2;

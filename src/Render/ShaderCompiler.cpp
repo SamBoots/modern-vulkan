@@ -121,14 +121,16 @@ const ShaderCode BB::CompileShader(const ShaderCompiler a_shader_compiler, const
 	result->GetStatus(&hresult);
 	if (FAILED(hresult))
 	{
-		BB_ASSERT(false, "Failed to load shader");
+		BB_WARNING(false, "Failed to load shader", WarningType::HIGH);
+		return ShaderCode(BB_INVALID_HANDLE_64);
 	}
 
 	IDxcBlob* shader_code;
 	result->GetOutput(DXC_OUT_OBJECT, IID_PPV_ARGS(&shader_code), nullptr);
 	if (shader_code->GetBufferPointer() == nullptr)
 	{
-		BB_ASSERT(false, "Something went wrong with DXC shader compiling");
+		BB_WARNING(false, "Something went wrong with DXC shader compiling", WarningType::HIGH);
+		return ShaderCode(BB_INVALID_HANDLE_64);
 	}
 
 	result->Release();
