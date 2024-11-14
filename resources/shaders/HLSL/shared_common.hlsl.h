@@ -41,8 +41,7 @@ namespace BB
         float3 normal;              // 24
         float2 uv;                  // 32
         float4 color;               // 48
-        float3 tangent;             // 60
-        float pad;                  // 64
+        float4 tangent;             // 64
     };
 
     struct VertexPos

@@ -29,7 +29,7 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
     cur_vertex.normal = asfloat(vertex_data.Load3(vertex_offset + 12));
     cur_vertex.uv = asfloat(vertex_data.Load2(vertex_offset + 24));
     cur_vertex.color = asfloat(vertex_data.Load4(vertex_offset + 32));
-    cur_vertex.tangent = asfloat(vertex_data.Load3(vertex_offset + 48));
+    cur_vertex.tangent = asfloat(vertex_data.Load4(vertex_offset + 48));
    
     BB::ShaderTransform transform = transform_data.Load < BB::ShaderTransform > (
         sizeof(BB::ShaderTransform) * shader_indices.transform_index);

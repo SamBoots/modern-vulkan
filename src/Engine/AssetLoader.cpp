@@ -796,52 +796,97 @@ static void LoadglTFNode(const cgltf_data& a_cgltf_data, Model& a_model, uint32_
 	}
 }
 
-static inline bool GenerateTangents(Slice<Vertex> a_vertices)
+static inline bool GenerateTangents(Slice<Vertex> a_vertices, const Slice<uint32_t> a_indices)
 {
+#if 1 // MIKKT
 	if (a_vertices.size() == 0)
 		return false;
 
-	using Vertices = Slice<Vertex>;
+	struct MikktUserData
+	{
+		Slice<Vertex> vertices;
+		const Slice<uint32_t> indices;
+	};
 
-	SMikkTSpaceInterface mikkt_interface;
+	SMikkTSpaceInterface mikkt_interface = {};
 	mikkt_interface.m_getNumFaces = [](const SMikkTSpaceContext* pContext) -> int
 		{
-			Vertices* verts = reinterpret_cast<Vertices*>(pContext->m_pUserData);
-			return static_cast<int>(verts->size());
+			MikktUserData* user_data = reinterpret_cast<MikktUserData*>(pContext->m_pUserData);
+			return static_cast<int>(user_data->indices.size() / 3);
 		};
 
-	mikkt_interface.m_getNumVerticesOfFace = [](const SMikkTSpaceContext* pContext, const int iFace) -> int
+	mikkt_interface.m_getNumVerticesOfFace = [](const SMikkTSpaceContext*, const int) -> int
 		{
-			return 0;
+			return 3;
 		};
 
 	mikkt_interface.m_getPosition = [](const SMikkTSpaceContext* pContext, float fvPosOut[], const int iFace, const int iVert)
 		{
-
+			MikktUserData* user_data = reinterpret_cast<MikktUserData*>(pContext->m_pUserData);
+			const size_t index = user_data->indices[static_cast<size_t>(iFace * pContext->m_pInterface->m_getNumVerticesOfFace(pContext, iFace) + iVert)];
+			const Vertex& vertices = user_data->vertices[index];
+			fvPosOut[0] = vertices.position.x;
+			fvPosOut[1] = vertices.position.y;
+			fvPosOut[2] = vertices.position.z;
 		};
 
 	mikkt_interface.m_getNormal = [](const SMikkTSpaceContext* pContext, float fvNormOut[], const int iFace, const int iVert)
 		{
-
+			MikktUserData* user_data = reinterpret_cast<MikktUserData*>(pContext->m_pUserData);
+			const size_t index = user_data->indices[static_cast<size_t>(iFace * pContext->m_pInterface->m_getNumVerticesOfFace(pContext, iFace) + iVert)];
+			const Vertex& vertices = user_data->vertices[index];
+			fvNormOut[0] = vertices.normal.x;
+			fvNormOut[1] = vertices.normal.y;
+			fvNormOut[2] = vertices.normal.z;
 		};
 
 	mikkt_interface.m_getTexCoord = [](const SMikkTSpaceContext* pContext, float fvTexcOut[], const int iFace, const int iVert)
 		{
-
+			MikktUserData* user_data = reinterpret_cast<MikktUserData*>(pContext->m_pUserData);
+			const size_t index = user_data->indices[static_cast<size_t>(iFace * pContext->m_pInterface->m_getNumVerticesOfFace(pContext, iFace) + iVert)];
+			const Vertex& vertices = user_data->vertices[index];
+			fvTexcOut[0] = vertices.uv.x;
+			fvTexcOut[1] = vertices.uv.y;
 		};
 
 	mikkt_interface.m_setTSpaceBasic = [](const SMikkTSpaceContext * pContext, const float fvTangent[], const float fSign, const int iFace, const int iVert)
 		{
+			MikktUserData* user_data = reinterpret_cast<MikktUserData*>(pContext->m_pUserData);
+			const size_t index = user_data->indices[static_cast<size_t>(iFace * pContext->m_pInterface->m_getNumVerticesOfFace(pContext, iFace) + iVert)];
+			Vertex& vertices = user_data->vertices[index];
 
+			vertices.tangent.x = fvTangent[0];
+			vertices.tangent.y = fvTangent[1];
+			vertices.tangent.z = fvTangent[2];
+			vertices.tangent.w = fSign;
 		};
 
-	mikkt_interface.m_setTSpace = [](const SMikkTSpaceContext* pContext, const float fvTangent[], const float fvBiTangent[], const float fMagS, const float fMagT,
-		const tbool bIsOrientationPreserving, const int iFace, const int iVert)
-		{
+	MikktUserData user_data{ a_vertices , a_indices };
 
-		};
+	SMikkTSpaceContext mikkt_context = {};
+	mikkt_context.m_pInterface = &mikkt_interface;
+	mikkt_context.m_pUserData = &user_data;
 
+	return genTangSpaceDefault(&mikkt_context);
+
+#else // custom
+	// Jan's bootleg tangets that is quite fast
+	for (size_t i = 0; i < a_indices.size(); i += 3)
+	{
+		Vertex& v0 = a_vertices[a_indices[i]];
+		Vertex& v1 = a_vertices[a_indices[i + 1]];
+		Vertex& v2 = a_vertices[a_indices[i + 2]];
+
+		const float3 tangent0 = Float3Cross(v0.normal, float3(0.0f, -1.0f, 0.1f));
+		const float3 tangent1 = Float3Cross(v1.normal, float3(0.0f, -1.0f, 0.1f));
+		const float3 tangent2 = Float3Cross(v2.normal, float3(0.0f, -1.0f, 0.1f));
+
+		v0.tangent = float4(tangent0, 0.f);
+		v1.tangent = float4(tangent1, 0.f);
+		v2.tangent = float4(tangent2, 0.f);
+	}
 	return true;
+#endif 
 }
 
 static inline void* GetAccessorDataPtr(const cgltf_accessor* a_accessor)
@@ -1019,43 +1064,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 			// tangents not calculated, do it yourself
 			if (vertex_tangent_offset == 0)
 			{
-				for (size_t i = 0; i < index_count; i += 3)
-				{
-					Vertex& v0 = vertices[indices[i]];
-					Vertex& v1 = vertices[indices[i + 1]];
-					Vertex& v2 = vertices[indices[i + 2]];
-
-					const float3 edge1 = v1.position - v0.position;
-					const float3 edge2 = v2.position - v0.position;
-
-					const float delta_u1 = v1.uv.x - v0.uv.x;
-					const float delta_v1 = v1.uv.y - v0.uv.y;
-					const float delta_u2 = v2.uv.x - v0.uv.x;
-					const float delta_v2 = v2.uv.y - v0.uv.y;
-
-					const float factor = 1.0f / (delta_u1 * delta_v2 - delta_u2 * delta_v1);
-
-					float3 tangent;
-					float3 bitangent;
-
-					tangent.x = factor * (delta_v2 * edge1.x - delta_v1 * edge2.x);
-					tangent.y = factor * (delta_v2 * edge1.y - delta_v1 * edge2.y);
-					tangent.z = factor * (delta_v2 * edge1.z - delta_v1 * edge2.z);
-
-					bitangent.x = factor * (-delta_u2 * edge1.x + delta_u1 * edge2.x);
-					bitangent.y = factor * (-delta_u2 * edge1.y + delta_u1 * edge2.y);
-					bitangent.z = factor * (-delta_u2 * edge1.z + delta_u1 * edge2.z);
-
-					v0.tangent = v0.tangent + tangent;
-					v1.tangent = v1.tangent + tangent;
-					v2.tangent = v2.tangent + tangent;
-					// not using bitangent
-				}
-
-				for (size_t i = 0; i < vertex_count; i++)
-				{
-					vertices[i].tangent = Float3Normalize(vertices[i].tangent);
-				}
+				GenerateTangents(Slice(vertices, vertex_count), Slice(indices, index_count));
 			}
 		}
 	}

@@ -21,6 +21,10 @@
  *  3. This notice may not be removed or altered from any source distribution.
  */
 
+#if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
 #include <assert.h>
 #include <stdio.h>
 #include <math.h>

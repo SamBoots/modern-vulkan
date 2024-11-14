@@ -23,8 +23,8 @@ add_library(stb_image INTERFACE
 "stb/stb_image_resize2.h")
 target_include_directories(stb_image INTERFACE stb)
 
-add_library(mikktspace INTERFACE
+add_library(mikktspace STATIC
 "mikktspace/mikktspace.c")
-target_include_directories(mikktspace INTERFACE mikktspace)
+target_include_directories(mikktspace SYSTEM PUBLIC mikktspace)
 
 add_subdirectory("imgui")
