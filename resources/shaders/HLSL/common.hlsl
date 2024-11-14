@@ -46,7 +46,7 @@ float4 UnpackR8B8G8A8_UNORMToFloat4(uint a_packed)
     return unpacked * sc;
 }
 
-float CalculateShadowPCF(const float4 a_frag_pos_light, const float2 a_texture_xy, const RDescriptorIndex a_shadow_map_texture, const uint a_shadow_map_base_layer)
+float CalculateShadowPCF_impl(const float4 a_frag_pos_light, const float2 a_texture_xy, const RDescriptorIndex a_shadow_map_texture, const uint a_shadow_map_base_layer)
 {
     const float4 proj_coords = a_frag_pos_light / a_frag_pos_light.w;
     const float2 texture_size = 1.0 / a_texture_xy;
@@ -80,9 +80,14 @@ float CalculateShadow_impl(const float4 a_frag_pos_light, const RDescriptorIndex
     return shadow;
 }
 
+float CalculateShadowPCF(const float4 a_frag_pos_light, const float2 a_texture_xy, const RDescriptorIndex a_shadow_map_texture, const uint a_shadow_map_base_layer)
+{
+    return CalculateShadowPCF_impl(a_frag_pos_light, a_texture_xy, a_shadow_map_texture, a_shadow_map_base_layer);
+}
+
 float CalculateShadow(const float4 a_frag_pos_light, const float2 a_texture_xy, const RDescriptorIndex a_shadow_map_texture, const uint a_shadow_map_base_layer)
 {
-    return CalculateShadowPCF(a_frag_pos_light, a_texture_xy, a_shadow_map_texture, a_shadow_map_base_layer);
+    return CalculateShadow_impl(a_frag_pos_light, a_shadow_map_texture, a_shadow_map_base_layer);
 }
 
 float3 CalculateDiffuse_impl(const float3 a_light_dir, const float3 a_color, const float3 a_normal, const float3 a_frag_pos)

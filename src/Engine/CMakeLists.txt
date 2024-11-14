@@ -14,6 +14,7 @@ target_include_directories(Engine PUBLIC
 	"")	# this gets the current directory
 
 target_link_libraries(Engine 
+	mikktspace
 	cgltf
 	stb_image
 	Renderer)

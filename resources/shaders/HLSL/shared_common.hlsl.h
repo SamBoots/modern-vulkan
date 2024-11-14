@@ -35,12 +35,14 @@ namespace BB
 #define CUBEMAP_TOP     5
 
 
-    struct Vertex
+    struct ALIGN_STRUCT(16) Vertex
     {
         float3 position;            // 12
         float3 normal;              // 24
         float2 uv;                  // 32
-        float3 color;               // 44
+        float4 color;               // 48
+        float3 tangent;             // 60
+        float pad;                  // 64
     };
 
     struct VertexPos

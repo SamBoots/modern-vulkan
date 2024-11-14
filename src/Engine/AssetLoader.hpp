@@ -96,6 +96,7 @@ namespace BB
 		struct TextureLoadFromDisk
 		{
 			const char* path;
+			IMAGE_FORMAT format;
 		};
 
 		struct MeshLoadFromMemory
@@ -140,7 +141,7 @@ namespace BB
 		};
 		Slice<LoadedAssetInfo> LoadAssets(MemoryArena& a_temp_arena, const Slice<AsyncAsset> a_asyn_assets);
 
-		const StringView LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path);
+		const StringView LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path, const IMAGE_FORMAT a_format);
 		const StringView LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const char* a_name);
 		const StringView LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op);
 		const StringView LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoadFromMemory& a_mesh_op);

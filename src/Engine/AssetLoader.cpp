@@ -18,6 +18,8 @@
 
 #include "MaterialSystem.hpp"
 
+#include "mikktspace.h"
+
 BB_WARNINGS_OFF
 #define CGLTF_IMPLEMENTATION
 #include "cgltf.h"
@@ -47,22 +49,6 @@ constexpr const IMAGE_FORMAT ICON_IMAGE_FORMAT = IMAGE_FORMAT::RGBA8_SRGB;
 
 using PathString = StackString<MAX_PATH_SIZE>;
 using AssetString = StackString<MAX_ASSET_NAME_SIZE>;
-
-static inline IMAGE_FORMAT ImageFormatFromChannels(const int a_channels)
-{
-	switch (a_channels)
-	{
-	case 4:
-		return IMAGE_FORMAT::RGBA8_SRGB;
-	case 3:
-		return IMAGE_FORMAT::RGB8_SRGB;
-	case 1:
-		return IMAGE_FORMAT::A8_UNORM;
-	default:
-		BB_ASSERT(false, "unsupported channel count");
-		return IMAGE_FORMAT::RGB8_SRGB;	
-	}
-}
 
 static bool IsPathImage(const StringView a_view)
 {
@@ -526,7 +512,7 @@ Slice<Asset::LoadedAssetInfo> Asset::LoadAssets(MemoryArena& a_temp_arena, const
 			switch (task.load_type)
 			{
 			case ASYNC_LOAD_TYPE::DISK:
-				loaded_assets[i].name = LoadImageDisk(a_temp_arena, task.texture_disk.path);
+				loaded_assets[i].name = LoadImageDisk(a_temp_arena, task.texture_disk.path, task.texture_disk.format);
 				break;
 			case ASYNC_LOAD_TYPE::MEMORY:
 				loaded_assets[i].name = LoadImageMemory(a_temp_arena, *task.texture_memory.image, task.texture_memory.name);
@@ -586,7 +572,7 @@ static inline void CreateImage_func(const StringView& a_name, const uint32_t a_w
 	a_out_index = CreateImageView(create_view_info);
 }
 
-const StringView Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path)
+const StringView Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path, const IMAGE_FORMAT a_format)
 {
 	AssetString asset_name;
 	GetAssetNameFromPath(a_path, asset_name);
@@ -597,7 +583,7 @@ const StringView Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_p
 
 	RImage gpu_image;
 	RDescriptorIndex descriptor_index;
-	const IMAGE_FORMAT format = ImageFormatFromChannels(4);
+	const IMAGE_FORMAT format = a_format;
 	const uint32_t uwidth = static_cast<uint32_t>(width);
 	const uint32_t uheight = static_cast<uint32_t>(height);
 	CreateImage_func(image_name, uwidth, uheight, format, gpu_image, descriptor_index);
@@ -810,6 +796,54 @@ static void LoadglTFNode(const cgltf_data& a_cgltf_data, Model& a_model, uint32_
 	}
 }
 
+static inline bool GenerateTangents(Slice<Vertex> a_vertices)
+{
+	if (a_vertices.size() == 0)
+		return false;
+
+	using Vertices = Slice<Vertex>;
+
+	SMikkTSpaceInterface mikkt_interface;
+	mikkt_interface.m_getNumFaces = [](const SMikkTSpaceContext* pContext) -> int
+		{
+			Vertices* verts = reinterpret_cast<Vertices*>(pContext->m_pUserData);
+			return static_cast<int>(verts->size());
+		};
+
+	mikkt_interface.m_getNumVerticesOfFace = [](const SMikkTSpaceContext* pContext, const int iFace) -> int
+		{
+			return 0;
+		};
+
+	mikkt_interface.m_getPosition = [](const SMikkTSpaceContext* pContext, float fvPosOut[], const int iFace, const int iVert)
+		{
+
+		};
+
+	mikkt_interface.m_getNormal = [](const SMikkTSpaceContext* pContext, float fvNormOut[], const int iFace, const int iVert)
+		{
+
+		};
+
+	mikkt_interface.m_getTexCoord = [](const SMikkTSpaceContext* pContext, float fvTexcOut[], const int iFace, const int iVert)
+		{
+
+		};
+
+	mikkt_interface.m_setTSpaceBasic = [](const SMikkTSpaceContext * pContext, const float fvTangent[], const float fSign, const int iFace, const int iVert)
+		{
+
+		};
+
+	mikkt_interface.m_setTSpace = [](const SMikkTSpaceContext* pContext, const float fvTangent[], const float fvBiTangent[], const float fMagS, const float fMagT,
+		const tbool bIsOrientationPreserving, const int iFace, const int iVert)
+		{
+
+		};
+
+	return true;
+}
+
 static inline void* GetAccessorDataPtr(const cgltf_accessor* a_accessor)
 {
 	const size_t accessor_offset = a_accessor->buffer_view->offset + a_accessor->offset;
@@ -844,6 +878,13 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 	uint32_t vertex_pos_offset = 0;
 	uint32_t vertex_normal_offset = 0;
 	uint32_t vertex_uv_offset = 0;
+	uint32_t vertex_color_offset = 0;
+	uint32_t vertex_tangent_offset = 0;
+
+	for (size_t i = 0; i < vertex_count; i++)
+	{
+		vertices[i].color = { 1.f, 1.f, 1.f, 1.f};
+	}
 
 	for (size_t prim_index = 0; prim_index < mesh.primitives_count; prim_index++)
 	{
@@ -866,8 +907,8 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 		{
 			const cgltf_image& image = *prim.material->pbr_metallic_roughness.base_color_texture.texture->image;
 			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
-			const StringView img = Asset::LoadImageDisk(a_temp_arena, full_image_path);
-
+			const StringView img = Asset::LoadImageDisk(a_temp_arena, full_image_path, IMAGE_FORMAT::RGBA8_SRGB);
+			
 			metallic_info.albedo_texture = Asset::FindImageByName(img.c_str())->descriptor_index;
 		}
 		else
@@ -877,7 +918,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 		{
 			const cgltf_image& image = *prim.material->normal_texture.texture->image;
 			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
-			const StringView img = Asset::LoadImageDisk(a_temp_arena, full_image_path);
+			const StringView img = Asset::LoadImageDisk(a_temp_arena, full_image_path, IMAGE_FORMAT::RGBA8_UNORM);
 			
 			metallic_info.normal_texture = Asset::FindImageByName(img.c_str())->descriptor_index;
 		}
@@ -906,7 +947,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 		{
 			const cgltf_attribute& attrib = prim.attributes[attrib_index];
 			const float* data_pos = reinterpret_cast<float*>(GetAccessorDataPtr(attrib.data));
-
+			
 			switch (attrib.type)
 			{
 			case cgltf_attribute_type_position:
@@ -941,6 +982,30 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 					++vertex_uv_offset;
 				}
 				break;
+			case cgltf_attribute_type_color:
+				for (size_t i = 0; i < attrib.data->count; i++)
+				{
+					vertices[vertex_color_offset].color.x = data_pos[0];
+					vertices[vertex_color_offset].color.y = data_pos[1];
+					vertices[vertex_color_offset].color.z = data_pos[2];
+					vertices[vertex_color_offset].color.w = data_pos[3];
+
+					data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride + attrib.data->buffer_view->stride));
+					++vertex_color_offset;
+				}
+				break;
+			case cgltf_attribute_type_tangent:
+				for (size_t i = 0; i < attrib.data->count; i++)
+				{
+					vertices[vertex_tangent_offset].tangent.x = data_pos[0];
+					vertices[vertex_tangent_offset].tangent.y = data_pos[1];
+					vertices[vertex_tangent_offset].tangent.z = data_pos[2];
+					//vertices[vertex_tangent_offset].tangent.w = data_pos[3];
+
+					data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride + attrib.data->buffer_view->stride));
+					++vertex_tangent_offset;
+				}
+				break;
 			default:
 				break;
 			}
@@ -948,12 +1013,51 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 			BB_ASSERT(vertex_count + 1 > vertex_pos_offset, "overwriting gltf Vertex Memory!");
 			BB_ASSERT(vertex_count + 1 > vertex_normal_offset, "overwriting gltf Vertex Memory!");
 			BB_ASSERT(vertex_count + 1 > vertex_uv_offset, "overwriting gltf Vertex Memory!");
-		}
-	}
+			BB_ASSERT(vertex_count + 1 > vertex_color_offset, "overwriting gltf Vertex Memory!");
+			BB_ASSERT(vertex_count + 1 > vertex_tangent_offset, "overwriting gltf Vertex Memory!");
 
-	for (size_t i = 0; i < vertex_count; i++)
-	{
-		vertices[i].color = { 1.f, 1.f, 1.f };
+			// tangents not calculated, do it yourself
+			if (vertex_tangent_offset == 0)
+			{
+				for (size_t i = 0; i < index_count; i += 3)
+				{
+					Vertex& v0 = vertices[indices[i]];
+					Vertex& v1 = vertices[indices[i + 1]];
+					Vertex& v2 = vertices[indices[i + 2]];
+
+					const float3 edge1 = v1.position - v0.position;
+					const float3 edge2 = v2.position - v0.position;
+
+					const float delta_u1 = v1.uv.x - v0.uv.x;
+					const float delta_v1 = v1.uv.y - v0.uv.y;
+					const float delta_u2 = v2.uv.x - v0.uv.x;
+					const float delta_v2 = v2.uv.y - v0.uv.y;
+
+					const float factor = 1.0f / (delta_u1 * delta_v2 - delta_u2 * delta_v1);
+
+					float3 tangent;
+					float3 bitangent;
+
+					tangent.x = factor * (delta_v2 * edge1.x - delta_v1 * edge2.x);
+					tangent.y = factor * (delta_v2 * edge1.y - delta_v1 * edge2.y);
+					tangent.z = factor * (delta_v2 * edge1.z - delta_v1 * edge2.z);
+
+					bitangent.x = factor * (-delta_u2 * edge1.x + delta_u1 * edge2.x);
+					bitangent.y = factor * (-delta_u2 * edge1.y + delta_u1 * edge2.y);
+					bitangent.z = factor * (-delta_u2 * edge1.z + delta_u1 * edge2.z);
+
+					v0.tangent = v0.tangent + tangent;
+					v1.tangent = v1.tangent + tangent;
+					v2.tangent = v2.tangent + tangent;
+					// not using bitangent
+				}
+
+				for (size_t i = 0; i < vertex_count; i++)
+				{
+					vertices[i].tangent = Float3Normalize(vertices[i].tangent);
+				}
+			}
+		}
 	}
 
 	CreateMeshInfo create_mesh;

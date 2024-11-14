@@ -204,6 +204,7 @@ namespace BB
 	{
 		float4() { vec = LoadFloat4Zero(); }
 		float4(const float a_value) { vec = LoadFloat4(a_value); }
+		float4(const float3 a_xyz, const float a_w) : float4(a_xyz.x, a_xyz.y, a_xyz.z, a_w) {};
 		float4(const float a_x, const float a_y, const float a_z, const float a_w) { vec = LoadFloat4(a_x, a_y, a_z, a_w); }
 		float4(const VecFloat4 a_vec) { vec = a_vec; }
 		float e[4];

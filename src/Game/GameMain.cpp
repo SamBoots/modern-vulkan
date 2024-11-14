@@ -121,22 +121,22 @@ SceneObjectHandle DungeonMap::CreateRenderObject(MemoryArena& a_temp_arena, Scen
 		Vertex bot_left;
 		bot_left.normal = float3(0.f, 1.f, 0.1f);
 		bot_left.uv = float2(0.f, 0.f);
-		bot_left.color = float3(1.f, 1.f, 1.f);
+		bot_left.color = float4(1.f, 1.f, 1.f, 1.f);
 
 		Vertex bot_right;
 		bot_right.normal = float3(0.f, 1.f, 0.1f);
 		bot_right.uv = float2(1.f, 0.f);
-		bot_right.color = float3(1.f, 1.f, 1.f);
+		bot_right.color = float4(1.f, 1.f, 1.f, 1.f);
 
 		Vertex top_left;
 		top_left.normal = float3(0.f, 1.f, 0.1f);
 		top_left.uv = float2(0.f, 1.f);
-		top_left.color = float3(1.f, 1.f, 1.f);
+		top_left.color = float4(1.f, 1.f, 1.f, 1.f);
 
 		Vertex top_right;
 		top_right.normal = float3(0.f, 1.f, 0.1f);
 		top_right.uv = float2(1.f, 1.f);
-		top_right.color = float3(1.f, 1.f, 1.f);
+		top_right.color = float4(1.f, 1.f, 1.f, 1.f);
 
 		StaticArray<Vertex> vertices;
 		vertices.Init(a_temp_arena, m_map.size() * 4);
