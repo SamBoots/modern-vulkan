@@ -113,21 +113,11 @@ void DungeonMap::DestroyMap()
 	m_map_size_y = 0;
 }
 
-SceneObjectHandle DungeonMap::CreateRenderObject(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy)
+SceneObjectHandle DungeonMap::CreateRenderObject(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy, const float3 a_pos)
 {
 	SceneObjectHandle map_obj{};
 	MemoryArenaScope(a_temp_arena)
 	{
-		Vertex bot_left;
-		bot_left.normal = float3(0.f, 1.f, 0.1f);
-		bot_left.uv = float2(0.f, 0.f);
-		bot_left.color = float4(1.f, 1.f, 1.f, 1.f);
-
-		Vertex bot_right;
-		bot_right.normal = float3(0.f, 1.f, 0.1f);
-		bot_right.uv = float2(1.f, 0.f);
-		bot_right.color = float4(1.f, 1.f, 1.f, 1.f);
-
 		Vertex top_left;
 		top_left.normal = float3(0.f, 1.f, 0.1f);
 		top_left.uv = float2(0.f, 1.f);
@@ -137,6 +127,16 @@ SceneObjectHandle DungeonMap::CreateRenderObject(MemoryArena& a_temp_arena, Scen
 		top_right.normal = float3(0.f, 1.f, 0.1f);
 		top_right.uv = float2(1.f, 1.f);
 		top_right.color = float4(1.f, 1.f, 1.f, 1.f);
+
+		Vertex bot_right;
+		bot_right.normal = float3(0.f, 1.f, 0.1f);
+		bot_right.uv = float2(1.f, 0.f);
+		bot_right.color = float4(1.f, 1.f, 1.f, 1.f);
+
+		Vertex bot_left;
+		bot_left.normal = float3(0.f, 1.f, 0.1f);
+		bot_left.uv = float2(0.f, 0.f);
+		bot_left.color = float4(1.f, 1.f, 1.f, 1.f);
 
 		StaticArray<Vertex> vertices;
 		vertices.Init(a_temp_arena, m_map.size() * 4);
@@ -150,30 +150,33 @@ SceneObjectHandle DungeonMap::CreateRenderObject(MemoryArena& a_temp_arena, Scen
 				const DungeonTile& tile = GetTile(x, y);
 				if (tile.walkable)
 				{
-					const float3 pos_bot_left = float3(static_cast<float>(x), static_cast<float>(y), 0.f);
-					const float3 pos_bot_right = float3(static_cast<float>(x + 1), static_cast<float>(y), 0.f);
-					const float3 pos_top_left = float3(static_cast<float>(x), static_cast<float>(y + 1), 0.f);
-					const float3 pos_top_right = float3(static_cast<float>(x + 1), static_cast<float>(y + 1), 0.f);
+					const float fx = static_cast<float>(x);
+					const float fy = static_cast<float>(y);
+					const float3 pos_top_left = float3(fx, 0.f, fy + 1.f);
+					const float3 pos_top_right = float3(fx + 1.f, 0.f, fy + 1.f);
+					const float3 pos_bot_right = float3(fx + 1.f, 0.f, fy);
+					const float3 pos_bot_left = float3(fx, 0.f, fy);
 
-					bot_left.position = pos_bot_left;
-					bot_right.position = pos_bot_right;
 					top_left.position = pos_top_left;
 					top_right.position = pos_top_right;
+					bot_right.position = pos_bot_right;
+					bot_left.position = pos_bot_left;
 
-					const uint32_t current_index = indices.size();
+					const uint32_t current_index = vertices.size();
 					const uint32_t quad_indices[] = {
 						current_index,
 						current_index + 1,
 						current_index + 2,
 						current_index + 2,
 						current_index + 3,
-						current_index + 0
+						current_index 
 					};
 
-					vertices.push_back(bot_left);
-					vertices.push_back(bot_right);
 					vertices.push_back(top_left);
 					vertices.push_back(top_right);
+					vertices.push_back(bot_right);
+					vertices.push_back(bot_left);
+
 					indices.push_back(quad_indices, _countof(quad_indices));
 				}
 			}
@@ -195,7 +198,7 @@ SceneObjectHandle DungeonMap::CreateRenderObject(MemoryArena& a_temp_arena, Scen
 		mesh_info.index_count = indices.size();
 		mesh_info.master_material = Material::GetDefaultMasterMaterial(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D);
 		mesh_info.material_data = material_info;
-		map_obj = a_scene_hierarchy.CreateSceneObjectMesh(float3(3.f, 0.f, 0.f), mesh_info, "dungeon map");
+		map_obj = a_scene_hierarchy.CreateSceneObjectMesh(a_pos, mesh_info, "dungeon map");
 	}
 	return map_obj;
 }
@@ -212,7 +215,7 @@ bool DungeonGame::InitGame()
 	m_dungeon_map.CreateMap(m_game_memory, 30, 30, Slice(&roomptr, 1));
 	MemoryArenaScope(m_game_memory)
 	{
-		m_dungeon_map.CreateRenderObject(m_game_memory, m_scene_hierarchy);
+		m_dungeon_map.CreateRenderObject(m_game_memory, m_scene_hierarchy, float3(0.f, -1.f, -10.f));
 	}
 	return true;
 }

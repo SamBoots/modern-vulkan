@@ -36,7 +36,7 @@ namespace BB
 		MemoryArenaMarker CreateMap(MemoryArena& a_game_memory, const uint32_t a_map_size_x, const uint32_t a_map_size_y, const Slice<DungeonRoom*> a_rooms);
 		void DestroyMap();
 
-		SceneObjectHandle CreateRenderObject(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy);
+		SceneObjectHandle CreateRenderObject(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy, const float3 a_pos);
 
 		struct DungeonTile
 		{
