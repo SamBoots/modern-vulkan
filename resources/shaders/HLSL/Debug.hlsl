@@ -6,9 +6,8 @@ struct VSOutput
     _BBEXT(0)float3 frag_pos : POSITION0;
     _BBEXT(1)float4 color : COLOR0;
     _BBEXT(2)float2 uv : UV0;
-    _BBEXT(3)float3 normal : NORMAL0;
-    _BBEXT(4)float3x3 TBN : POSITION1;
-    _BBEXT(7)float4 frag_pos_light[8] : POSITION2;
+    _BBEXT(3)float3x3 TBN : POSITION1;
+    _BBEXT(6)float4 frag_pos_light[8] : POSITION2;
 };
 
 _BBCONSTANT(BB::ShaderIndices) shader_indices;
@@ -45,7 +44,6 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
     output.pos = mul(scene_info.proj, mul(scene_info.view, float4(output.frag_pos, 1.0)));
     output.uv = cur_vertex.uv;
     output.color = cur_vertex.color;
-    output.normal = normalize(mul(transform.inverse, float4(cur_vertex.normal.xyz, 1.0f)).xyz);
     output.TBN = TBN;
     
     for (uint i = 0; i < scene_info.light_count; i++)
