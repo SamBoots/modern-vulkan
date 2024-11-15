@@ -36,7 +36,8 @@ namespace BB
 		MemoryArenaMarker CreateMap(MemoryArena& a_game_memory, const uint32_t a_map_size_x, const uint32_t a_map_size_y, const Slice<DungeonRoom*> a_rooms);
 		void DestroyMap();
 
-		SceneObjectHandle CreateRenderObject(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy, const float3 a_pos);
+		SceneObjectHandle CreateSceneObjectFloor(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy, const float3 a_pos);
+		SceneObjectHandle CreateSceneObjectWalls(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy, const float3 a_pos);
 
 		struct DungeonTile
 		{
@@ -45,6 +46,15 @@ namespace BB
 		inline DungeonTile GetTile(const uint32_t a_x, const uint32_t a_y) const
 		{
 			return m_map[GetMapIndexFromXY(a_x, a_y)];
+		}
+
+		float3 GetSpawnPoint() const 
+		{ 
+			float3 spawn;
+			spawn.x = static_cast<float>(m_spawn_point.x);
+			spawn.y = 0;
+			spawn.z = static_cast<float>(m_spawn_point.y);
+			return spawn;
 		}
 
 	private:
@@ -64,6 +74,28 @@ namespace BB
 		uint32_t m_map_size_x;
 		uint32_t m_map_size_y;
  		StaticArray<DungeonTile> m_map;
+		uint2 m_spawn_point;
+	};
+
+	class Player
+	{
+	public:
+		Player() = default;
+
+		float3 Move(const float3 a_translation);
+		void SetPosition(const float3 a_position);
+
+		float4x4 CalculateView() const;
+
+
+		float3 GetPosition() const
+		{
+			return m_position;
+		}
+	private:
+		float3 m_position;
+		float3 m_up{ 0.0f, 1.0f, 0.0f };
+		float3 m_forward{ 0.0f, 0.0f, 1.0f };
 	};
 
 	class DungeonGame
@@ -80,8 +112,8 @@ namespace BB
 	private:
 		MemoryArena m_game_memory;
 
+		Player m_player;
 		SceneHierarchy m_scene_hierarchy;
-		StaticArray<DungeonRoom> m_dungeon_rooms;
 		DungeonMap m_dungeon_map;
 	};
 }

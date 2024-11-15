@@ -388,7 +388,7 @@ namespace BB
 		{
 			BB_ASSERT(m_size + a_count < m_capacity, "StaticArray is full");
 
-			Memory::Copy<T>(m_arr, a_elements, a_count);
+			Memory::Copy<T>(m_arr + m_size, a_elements, a_count);
 
 			m_size += a_count;
 		}

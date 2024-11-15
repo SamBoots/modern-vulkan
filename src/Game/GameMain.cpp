@@ -2,19 +2,23 @@
 #include "BBImage.hpp"
 #include "MaterialSystem.hpp"
 
+#include "Math.inl"
+
 using namespace BB;
 
 enum class BB::DUNGEON_TILE : uint32_t
 {
 	INACCESSABLE = 0,
 	WALKABLE = 1,
-	ENUM_SIZE = 2
+	SPAWN_POINT = 2,
+	ENUM_SIZE = 3
 };
 
 constexpr Color dungeon_room_tile_colors[static_cast<uint32_t>(DUNGEON_TILE::ENUM_SIZE)]
 {
-	Color{0, 0, 0, 255},		// INACCESSABLE
-	Color{255, 255, 255, 255 }	// WALKABLE
+	Color{ 0, 0, 0, 255 },		    // INACCESSABLE
+	Color{ 255, 255, 255, 255 },    // WALKABLE
+	Color{ 255, 0, 0, 255 }	        // SPAWN_POINT
 };
 
 void DungeonRoom::CreateRoom(MemoryArena& a_arena, const char* a_image_path)
@@ -45,6 +49,10 @@ void DungeonRoom::CreateRoom(MemoryArena& a_arena, const char* a_image_path)
 			else if (*pixels == dungeon_room_tile_colors[static_cast<uint32_t>(DUNGEON_TILE::WALKABLE)])
 			{
 				m_room_tiles.emplace_back(DUNGEON_TILE::WALKABLE);
+			}
+			else if (*pixels == dungeon_room_tile_colors[static_cast<uint32_t>(DUNGEON_TILE::SPAWN_POINT)])
+			{
+				m_room_tiles.emplace_back(DUNGEON_TILE::SPAWN_POINT);
 			}
 			else
 			{
@@ -93,6 +101,10 @@ MemoryArenaMarker DungeonMap::CreateMap(MemoryArena& a_game_memory, const uint32
 				case DUNGEON_TILE::WALKABLE:
 					m_map[index].walkable = true;
 					break;
+				case DUNGEON_TILE::SPAWN_POINT:
+					m_map[index].walkable = true;
+					m_spawn_point = { x, y };
+					break;
 				default:
 					BB_ASSERT(false, "should not hit this DUNGEON_TILE enum");
 					break;
@@ -113,7 +125,7 @@ void DungeonMap::DestroyMap()
 	m_map_size_y = 0;
 }
 
-SceneObjectHandle DungeonMap::CreateRenderObject(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy, const float3 a_pos)
+SceneObjectHandle DungeonMap::CreateSceneObjectFloor(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy, const float3 a_pos)
 {
 	SceneObjectHandle map_obj{};
 	MemoryArenaScope(a_temp_arena)
@@ -203,20 +215,47 @@ SceneObjectHandle DungeonMap::CreateRenderObject(MemoryArena& a_temp_arena, Scen
 	return map_obj;
 }
 
+SceneObjectHandle DungeonMap::CreateSceneObjectWalls(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy, const float3 a_pos)
+{
+	SceneObjectHandle map_obj{};
+
+	return map_obj;
+}
+
+float3 Player::Move(const float3 a_translation)
+{
+	return m_position = m_position + a_translation;
+}
+
+void Player::SetPosition(const float3 a_position)
+{
+	m_position = a_position;
+}
+
+float4x4 Player::CalculateView() const
+{
+	return Float4x4Lookat(m_position, m_position + m_forward, m_up);
+}
+
 bool DungeonGame::InitGame()
 {
 	m_game_memory = MemoryArenaCreate();
 	const uint32_t back_buffer_count = GetRenderIO().frame_count;
 	m_scene_hierarchy.Init(m_game_memory, back_buffer_count, Asset::FindOrCreateString("game hierarchy"));
 	m_scene_hierarchy.SetClearColor(float3(0.3f, 0.3f, 0.3f));
+
 	DungeonRoom room;
 	room.CreateRoom(m_game_memory, "../../resources/game/dungeon_rooms/map1.bmp");
 	DungeonRoom* roomptr = &room;
 	m_dungeon_map.CreateMap(m_game_memory, 30, 30, Slice(&roomptr, 1));
+	const float3 map_start_pos = float3(0.f, -1.f, -10.f);
 	MemoryArenaScope(m_game_memory)
 	{
-		m_dungeon_map.CreateRenderObject(m_game_memory, m_scene_hierarchy, float3(0.f, -1.f, -10.f));
+		m_dungeon_map.CreateSceneObjectFloor(m_game_memory, m_scene_hierarchy, map_start_pos);
+		m_dungeon_map.CreateSceneObjectWalls(m_game_memory, m_scene_hierarchy, map_start_pos);
 	}
+	m_player.SetPosition(m_dungeon_map.GetSpawnPoint() + map_start_pos);
+
 	return true;
 }
 
@@ -225,14 +264,41 @@ bool DungeonGame::Update(const Slice<InputEvent> a_input_events, const float4x4*
 	for (size_t i = 0; i < a_input_events.size(); i++)
 	{
 		const InputEvent& ip = a_input_events[i];
-		(void)ip;
+		if (ip.input_type == INPUT_TYPE::KEYBOARD)
+		{
+			const KeyInfo& ki = ip.key_info;
+			float3 player_move{};
+			if (ki.key_pressed)
+			{
+				switch (ki.scan_code)
+				{
+				case KEYBOARD_KEY::W:
+					player_move.z = 1;
+					break;
+				case KEYBOARD_KEY::S:
+					player_move.z = -1;
+					break;
+				case KEYBOARD_KEY::A:
+					player_move.x = 1;
+					break;
+				case KEYBOARD_KEY::D:
+					player_move.x = -1;
+					break;
+				default:
+					break;
+				}
+			}
+			m_player.Move(player_move);
+		}
 	}
 
 	if (a_overwrite_view_matrix && a_overwrite_view_pos)
+	{
 		m_scene_hierarchy.SetView(*a_overwrite_view_matrix, *a_overwrite_view_pos);
+	}
 	else
 	{
-		// normal cam stuff
+		m_scene_hierarchy.SetView(m_player.CalculateView(), m_player.GetPosition());
 	}
 
 	return true;
