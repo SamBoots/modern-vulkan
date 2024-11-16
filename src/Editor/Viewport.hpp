@@ -26,6 +26,7 @@ namespace BB
 		const int2 GetOffset() const { return m_offset; }
 
 	private:
+		void Screenshot(const uint32_t a_back_buffer_index, const char* a_name) const;
 		void CreateTextures();
 
 		uint2 m_extent;

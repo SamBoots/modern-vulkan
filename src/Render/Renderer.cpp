@@ -194,6 +194,7 @@ public:
 	{
 		OSAcquireSRWLockWrite(&m_lock);
 		Vulkan::FreeViewImage(m_views[a_descriptor_index.handle]);
+		m_views[a_descriptor_index.handle].index = m_next_free;
 		m_next_free = m_views[a_descriptor_index.handle].index;
 		OSReleaseSRWLockWrite(&m_lock);
 
