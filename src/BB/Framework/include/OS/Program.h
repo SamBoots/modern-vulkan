@@ -89,12 +89,12 @@ namespace BB
 	OSFileHandle OSLoadFile(const char* a_file_name);
 	OSFileHandle OSLoadFile(const wchar* a_file_name);
 
-	bool WriteToOSFile(const OSFileHandle a_file_handle, const void* a_data, const size_t a_size);
+	bool OSWriteFile(const OSFileHandle a_file_handle, const void* a_data, const size_t a_size);
 
-	void ReadOSFile(const OSFileHandle a_file_handle, void* a_memory, const size_t a_memory_size);
-	Buffer ReadOSFile(MemoryArena& a_arena, const OSFileHandle a_file_handle);
-	Buffer ReadOSFile(MemoryArena& a_arena, const char* a_path);
-	Buffer ReadOSFile(MemoryArena& a_arena, const wchar* a_path);
+	void OSReadFile(const OSFileHandle a_file_handle, void* a_memory, const size_t a_memory_size);
+	Buffer OSReadFile(MemoryArena& a_arena, const OSFileHandle a_file_handle);
+	Buffer OSReadFile(MemoryArena& a_arena, const char* a_path);
+	Buffer OSReadFile(MemoryArena& a_arena, const wchar* a_path);
 
 	uint64_t GetOSFileSize(const OSFileHandle a_file_handle);
 	//Set the file position, a_offset can be 0 if you just want to move it to BEGIN or END.
@@ -132,7 +132,8 @@ namespace BB
 	WindowHandle CreateOSWindow(const OS_WINDOW_STYLE a_style, const int a_X, const int a_Y, const int a_width, const int a_height, const wchar* a_window_name);
 	//Get the OS window handle (hwnd for windows as en example. Reinterpret_cast the void* to the hwnd).
 	void* GetOSWindowHandle(const WindowHandle a_handle);
-	bool GetWindowSize(const WindowHandle a_handle, int& a_X, int& a_Y);
+	bool OSGetWindowSize(const WindowHandle a_handle, int& a_X, int& a_Y);
+	bool OSGetWindowOffset(const WindowHandle a_handle, int& a_x, int& a_y);
 	bool DirectDestroyOSWindow(const WindowHandle a_handle);
 	bool FreezeMouseOnWindow(const WindowHandle a_handle);
 	bool UnfreezeMouseOnWindow();

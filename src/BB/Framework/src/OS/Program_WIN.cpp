@@ -394,7 +394,7 @@ OSFileHandle BB::OSLoadFile(const wchar* a_file_name)
 	return OSFileHandle(reinterpret_cast<uintptr_t>(load_file));
 }
 
-void BB::ReadOSFile(const OSFileHandle a_file_handle, void* a_memory, const size_t a_memory_size)
+void BB::OSReadFile(const OSFileHandle a_file_handle, void* a_memory, const size_t a_memory_size)
 {
 	DWORD bytes_read = 0;
 	if (FALSE == ReadFile(reinterpret_cast<HANDLE>(a_file_handle.handle),
@@ -410,18 +410,18 @@ void BB::ReadOSFile(const OSFileHandle a_file_handle, void* a_memory, const size
 	}
 }
 
-Buffer BB::ReadOSFile(MemoryArena& a_arena, const OSFileHandle a_file_handle)
+Buffer BB::OSReadFile(MemoryArena& a_arena, const OSFileHandle a_file_handle)
 {
 	Buffer file_buffer{};
 	file_buffer.size = GetOSFileSize(a_file_handle);
 	file_buffer.data = reinterpret_cast<char*>(ArenaAlloc(a_arena, file_buffer.size, alignof(size_t)));
 
-	ReadOSFile(a_file_handle, file_buffer.data, file_buffer.size);
+	OSReadFile(a_file_handle, file_buffer.data, file_buffer.size);
 
 	return file_buffer;
 }
 
-Buffer BB::ReadOSFile(MemoryArena& a_arena, const char* a_path)
+Buffer BB::OSReadFile(MemoryArena& a_arena, const char* a_path)
 {
 	OSFileHandle read_file = OSLoadFile(a_path);
 	BB_ASSERT(OSFileIsValid(read_file), "OS file invalid, will cause errors");
@@ -430,14 +430,14 @@ Buffer BB::ReadOSFile(MemoryArena& a_arena, const char* a_path)
 	file_buffer.size = GetOSFileSize(read_file);
 	file_buffer.data = reinterpret_cast<char*>(ArenaAlloc(a_arena, file_buffer.size, alignof(size_t)));
 
-	ReadOSFile(read_file, file_buffer.data, file_buffer.size);
+	OSReadFile(read_file, file_buffer.data, file_buffer.size);
 
 	CloseOSFile(read_file);
 
 	return file_buffer;
 }
 
-Buffer BB::ReadOSFile(MemoryArena& a_arena, const wchar* a_path)
+Buffer BB::OSReadFile(MemoryArena& a_arena, const wchar* a_path)
 {
 	OSFileHandle read_file = OSLoadFile(a_path);
 	BB_ASSERT(OSFileIsValid(read_file), "OS file invalid, will cause errors");
@@ -446,7 +446,7 @@ Buffer BB::ReadOSFile(MemoryArena& a_arena, const wchar* a_path)
 	file_buffer.size = GetOSFileSize(read_file);
 	file_buffer.data = reinterpret_cast<char*>(ArenaAlloc(a_arena, file_buffer.size, alignof(size_t)));
 
-	ReadOSFile(read_file, file_buffer.data, file_buffer.size);
+	OSReadFile(read_file, file_buffer.data, file_buffer.size);
 
 	CloseOSFile(read_file);
 
@@ -454,7 +454,7 @@ Buffer BB::ReadOSFile(MemoryArena& a_arena, const wchar* a_path)
 }
 
 //char replaced with string view later on.
-bool BB::WriteToOSFile(const OSFileHandle a_file_handle, const void* a_data, const size_t a_size)
+bool BB::OSWriteFile(const OSFileHandle a_file_handle, const void* a_data, const size_t a_size)
 {
 	DWORD bytes_written = 0;
 	return WriteFile(reinterpret_cast<HANDLE>(a_file_handle.handle), a_data, static_cast<const DWORD>(a_size), &bytes_written, nullptr);
@@ -737,13 +737,23 @@ void* BB::GetOSWindowHandle(const WindowHandle a_handle)
 	return reinterpret_cast<HWND>(a_handle.handle);
 }
 
-bool BB::GetWindowSize(const WindowHandle a_handle, int& a_x, int& a_y)
+bool BB::OSGetWindowSize(const WindowHandle a_handle, int& a_x, int& a_y)
 {
 	RECT rect;
 	bool ret_val = GetClientRect(reinterpret_cast<HWND>(a_handle.handle), &rect);
 
 	a_x = rect.right;
 	a_y = rect.bottom;
+	return ret_val;
+}
+
+bool BB::OSGetWindowOffset(const WindowHandle a_handle, int& a_x, int& a_y)
+{
+	RECT rect;
+	bool ret_val = GetWindowRect(reinterpret_cast<HWND>(a_handle.handle), &rect);
+
+	a_x = rect.left;
+	a_y = rect.top;
 	return ret_val;
 }
 

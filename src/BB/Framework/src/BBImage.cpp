@@ -317,10 +317,10 @@ void BBImage::WriteAsBMP(const char* a_file_path)
 	color_header.alpha_mask = 0xff000000;
 	color_header.color_space_type = BMP::BMP_RGBA_COLOR_SPACE;
 
-	WriteToOSFile(write_bmp, &file, sizeof(BMP::File));
-	WriteToOSFile(write_bmp, &file_header, sizeof(BMP::Header));
-	WriteToOSFile(write_bmp, &color_header, sizeof(BMP::ColorHeader));
-	WriteToOSFile(write_bmp, m_pixels, data_size);
+	OSWriteFile(write_bmp, &file, sizeof(BMP::File));
+	OSWriteFile(write_bmp, &file_header, sizeof(BMP::Header));
+	OSWriteFile(write_bmp, &color_header, sizeof(BMP::ColorHeader));
+	OSWriteFile(write_bmp, m_pixels, data_size);
 
 	CloseOSFile(write_bmp);
 }
@@ -341,8 +341,8 @@ void BBImage::WriteAsTARGA(const char* a_file_path)
 	file.image.bits_per_pixel = static_cast<int8_t>(m_bytes_per_pixel * 8);
 	file.image.image_descriptor = 0;
 
-	WriteToOSFile(write_targa, &file, sizeof(TARGA::File));
-	WriteToOSFile(write_targa, m_pixels, data_size);
+	OSWriteFile(write_targa, &file, sizeof(TARGA::File));
+	OSWriteFile(write_targa, m_pixels, data_size);
 
 	CloseOSFile(write_targa);
 }
@@ -355,12 +355,12 @@ void BBImage::LoadBMP(MemoryArena& a_arena, const char* a_file_path, const uint3
 	BB_ASSERT(image_file.IsValid(), "failed to load image");
 
 	BMP::File file;
-	ReadOSFile(image_file, &file, sizeof(file));
+	OSReadFile(image_file, &file, sizeof(file));
 
 	BB_ASSERT(file.file_type == 0x4D42, "tried to load a file that is not a BMP image!");
 
 	BMP::Header file_header;
-	ReadOSFile(image_file, &file_header, sizeof(file_header));
+	OSReadFile(image_file, &file_header, sizeof(file_header));
 
 	BB_ASSERT(file_header.height > 0, "currently not supporting negative height BMP's.");
 	BB_ASSERT(file_header.bit_count == 24 || file_header.bit_count == 32 || file_header.bit_count == 64, "unsupported bit_count");
@@ -381,7 +381,7 @@ void BBImage::LoadBMP(MemoryArena& a_arena, const char* a_file_path, const uint3
 	if (has_color_header)
 	{
 		BMP::ColorHeader color_header;
-		ReadOSFile(image_file, &color_header, sizeof(color_header));
+		OSReadFile(image_file, &color_header, sizeof(color_header));
 		BB_WARNING(is_rgba = BMP::isRGBA(color_header), "non-RGBA bitmaps, still in testing", WarningType::MEDIUM);
 
 		//red_mask = color_header.red_mask;
@@ -393,7 +393,7 @@ void BBImage::LoadBMP(MemoryArena& a_arena, const char* a_file_path, const uint3
 	MemoryArenaScope(a_arena)
 	{
 		void* file_pixels = ArenaAlloc(a_arena, image_size, alignof(size_t));
-		ReadOSFile(image_file, file_pixels, image_size);
+		OSReadFile(image_file, file_pixels, image_size);
 
 		//check to account for padding when not doing 32 or 64
 		if (file_header.bit_count != 24)

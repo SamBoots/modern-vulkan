@@ -1359,7 +1359,7 @@ void BB::StartFrame(const RCommandList a_list, const StartFrameInfo& a_info, uin
 	if (s_render_inst->render_io.resizing_request)
 	{
 		int x, y;
-		GetWindowSize(s_render_inst->render_io.window_handle, x, y);
+		OSGetWindowSize(s_render_inst->render_io.window_handle, x, y);
 		ResizeRendererSwapchain(static_cast<uint32_t>(x), static_cast<uint32_t>(y));
 	}
 

@@ -200,7 +200,7 @@ void BB::JsonNodeToString(const JsonNode* a_Node, String& a_string)
 JsonParser::JsonParser(const char* a_path)
 {
 	m_arena = MemoryArenaCreate();
-	Buffer buffer = ReadOSFile(m_arena, a_path);
+	Buffer buffer = OSReadFile(m_arena, a_path);
 	m_json_file.data = reinterpret_cast<char*>(buffer.data);
 	m_json_file.size = static_cast<uint32_t>(buffer.size);
 }

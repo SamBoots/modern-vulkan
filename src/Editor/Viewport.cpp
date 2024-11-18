@@ -59,8 +59,8 @@ void Viewport::DrawImgui(bool& a_resized, const uint32_t a_back_buffer_index, co
 		const ImVec2 window_offset = ImGui::GetWindowPos();
 		m_offset = int2(static_cast<int>(window_offset.x), static_cast<int>(window_offset.y));
 
-		if (static_cast<unsigned int>(ImGui::GetWindowSize().x) < a_minimum_size.x ||
-			static_cast<unsigned int>(ImGui::GetWindowSize().y) < a_minimum_size.y)
+		if (static_cast<unsigned int>(ImGui::OSGetWindowSize().x) < a_minimum_size.x ||
+			static_cast<unsigned int>(ImGui::OSGetWindowSize().y) < a_minimum_size.y)
 		{
 			ImGui::SetWindowSize(ImVec2(static_cast<float>(a_minimum_size.x), static_cast<float>(a_minimum_size.y)));
 			ImGui::End();

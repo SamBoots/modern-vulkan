@@ -14,12 +14,18 @@
 #include "Editor.hpp"
 #include "GameMain.hpp"
 
+#include "EngineConfig.hpp"
+
 using namespace BB;
+
+static Editor editor{};
+static EngineConfig engine_config;
 
 static void CustomCloseWindow(const BB::WindowHandle a_window_handle)
 {
 	(void)a_window_handle;
-	BB_ASSERT(false, "unimplemented");
+	editor.Destroy();
+	
 }
 
 static void CustomResizeWindow(const BB::WindowHandle a_window_handle, const uint32_t a_x, const uint32_t a_y)
@@ -28,6 +34,7 @@ static void CustomResizeWindow(const BB::WindowHandle a_window_handle, const uin
 	(void)a_y;
 	(void)a_window_handle;
 	BB::RequestResize();
+	engine_config.window_size = uint2(a_x, a_y);
 }
 
 int main(int argc, char** argv)
@@ -54,12 +61,19 @@ int main(int argc, char** argv)
 
 	MemoryArena main_arena = MemoryArenaCreate();
 
-	const uint2 window_extent = uint2(1280, 720);
+
+	MemoryArenaScope(main_arena)
+	{
+		GetEngineConfigData(main_arena, engine_config);
+	}
+
+	const uint2 window_extent = engine_config.window_size;
+	const uint2 window_offest = engine_config.window_offset;
 
 	const WindowHandle window_handle = CreateOSWindow(
 		BB::OS_WINDOW_STYLE::MAIN,
-		static_cast<int>(window_extent.x) / 4,
-		static_cast<int>(window_extent.y) / 4,
+		static_cast<int>(window_offest.x),
+		static_cast<int>(window_offest.y),
 		static_cast<int>(window_extent.x),
 		static_cast<int>(window_extent.y),
 		L"Modern Vulkan - editor");
@@ -80,8 +94,7 @@ int main(int argc, char** argv)
 		Asset::InitializeAssetManager(asset_manager_info);
 	}
 
-	Editor editor{};
-	editor.Init(main_arena, window_handle, window_extent);
+	editor.Init(main_arena, window_handle, engine_config);
 
 	SetWindowCloseEvent(CustomCloseWindow);
 	SetWindowResizeEvent(CustomResizeWindow);
@@ -123,10 +136,10 @@ int main(int argc, char** argv)
 		PollInputEvents(input_events, input_event_count);
 		
 		editor.Update(main_arena, delta_time, def_game, Slice(input_events, input_event_count));
-		auto currentnew = std::chrono::high_resolution_clock::now();
-		delta_time = std::chrono::duration<float, std::chrono::seconds::period>(currentnew - current_time).count();
+		auto current_new = std::chrono::high_resolution_clock::now();
+		delta_time = std::chrono::duration<float, std::chrono::seconds::period>(current_new - current_time).count();
 
-		current_time = currentnew;
+		current_time = current_new;
 	}
 
 	editor.Destroy();

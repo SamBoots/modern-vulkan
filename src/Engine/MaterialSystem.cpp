@@ -94,7 +94,7 @@ static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_ar
 			if (previous_shader_path != info.path)
 			{
 				MemoryArenaSetMemoryMarker(a_temp_arena, memory_pos_before_shader_read);
-				shader_buffer = ReadOSFile(a_temp_arena, info.path.c_str());
+				shader_buffer = OSReadFile(a_temp_arena, info.path.c_str());
 				previous_shader_path = info.path;
 			}
 

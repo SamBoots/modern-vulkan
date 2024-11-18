@@ -8160,7 +8160,7 @@ void ImGui::SetWindowPos(const char* name, const ImVec2& pos, ImGuiCond cond)
         SetWindowPos(window, pos, cond);
 }
 
-ImVec2 ImGui::GetWindowSize()
+ImVec2 ImGui::OSGetWindowSize()
 {
     ImGuiWindow* window = GetCurrentWindowRead();
     return window->Size;

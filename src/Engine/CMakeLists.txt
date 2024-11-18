@@ -8,6 +8,7 @@ add_library(Engine
 	"AssetLoader.cpp"
 	"SceneHierarchy.cpp" 
 	"MaterialSystem.cpp" 
+	"EngineConfig.cpp"
 	)
 	
 target_include_directories(Engine PUBLIC
