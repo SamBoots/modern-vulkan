@@ -3,27 +3,47 @@
 
 using namespace BB;
 
+// increment 
+constexpr uint32_t CONFIG_IDENTITY = 0xBBCBBCBB;
+constexpr uint32_t CONFIG_NUMBER = 2;
+constexpr uint2 CONFIG_DEFAULT_WINDOW_SIZE = uint2(1280, 720);
+constexpr uint2 CONFIG_DEFAULT_WINDOW_OFFSET = uint2(1280 / 4, 720 / 4);
+constexpr const char* CONFIG_FILE_NAME = "config.bbc";
+
+constexpr EngineConfig DEFAULT_CONFIG_FILE
+{
+	CONFIG_IDENTITY,
+	CONFIG_NUMBER,
+	CONFIG_DEFAULT_WINDOW_SIZE,
+	CONFIG_DEFAULT_WINDOW_OFFSET,
+	false
+};
+
+
 ENGINE_CONFIG_LOAD_STATUS BB::GetEngineConfigData(MemoryArena& a_temp_arena, EngineConfig& a_out_config)
 {
-	a_out_config = DEFAULT_CONFIG_FILE;
 	if (!OSFileExist(CONFIG_FILE_NAME))
 	{
+		a_out_config = DEFAULT_CONFIG_FILE;
 		return ENGINE_CONFIG_LOAD_STATUS::NO_FOUND;
 	}
 
 	const Buffer file_buffer = OSReadFile(a_temp_arena, CONFIG_FILE_NAME);
 	if (file_buffer.data == nullptr || file_buffer.size > sizeof(EngineConfig))
 	{
+		a_out_config = DEFAULT_CONFIG_FILE;
 		return ENGINE_CONFIG_LOAD_STATUS::FILE_READ_FAILED;
 	}
 
 	if (reinterpret_cast<const uint32_t*>(file_buffer.data)[0] != CONFIG_IDENTITY)
 	{
+		a_out_config = DEFAULT_CONFIG_FILE;
 		return ENGINE_CONFIG_LOAD_STATUS::WRONG_FILE_IDENTIFIER;
 	}
 
 	if (reinterpret_cast<const uint32_t*>(file_buffer.data)[1] != CONFIG_NUMBER)
 	{
+		a_out_config = DEFAULT_CONFIG_FILE;
 		return ENGINE_CONFIG_LOAD_STATUS::OUT_OF_DATE;
 	}
 

@@ -17,8 +17,9 @@
 namespace BB
 {
 	using LibFuncPtr = void*;
-	typedef void (*PFN_WindowResizeEvent)(const WindowHandle a_window_handle, const uint32_t a_X, const uint32_t a_Y);
 	typedef void (*PFN_WindowCloseEvent)(const WindowHandle a_window_handle);
+	typedef void (*PFN_WindowResizeEvent)(const WindowHandle a_window_handle, const uint32_t a_X, const uint32_t a_Y);
+	typedef void (*PFN_WindowMoveEvent)(const WindowHandle a_window_handle, const uint32_t a_X, const uint32_t a_Y);
 
 	using OSThreadHandle = FrameworkHandle<struct ThreadHandletag>;
 
@@ -144,6 +145,8 @@ namespace BB
 	void SetWindowCloseEvent(PFN_WindowCloseEvent a_func);
 	//The function that will be called when a window is resized.
 	void SetWindowResizeEvent(PFN_WindowResizeEvent a_func);
+	//The function that will be called when a window is moved.
+	void SetWindowMoveEvent(PFN_WindowMoveEvent a_func);
 
 	//Exits the application.
 	BB_NO_RETURN void ExitApp();

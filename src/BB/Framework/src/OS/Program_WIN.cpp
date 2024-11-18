@@ -21,9 +21,11 @@ using namespace BB;
 
 static void DefaultClose(WindowHandle) {}
 static void DefaultResize(WindowHandle, uint32_t, uint32_t) {}
+static void DefaultMove(WindowHandle, uint32_t, uint32_t) {}
 
 static PFN_WindowCloseEvent s_pfn_close_event = DefaultClose;
 static PFN_WindowResizeEvent s_pfn_resize_event = DefaultResize;
+static PFN_WindowMoveEvent s_pfn_move_event = DefaultMove;
 
 struct InputBuffer
 {
@@ -199,9 +201,16 @@ static LRESULT CALLBACK WindowProc(HWND a_hwnd, UINT a_msg, WPARAM a_wparam, LPA
 		break;
 	case WM_SIZE:
 	{
-		uint32_t x = static_cast<uint32_t>(LOWORD(a_lparam));
-		uint32_t y = static_cast<uint32_t>(HIWORD(a_lparam));
+		const uint32_t x = static_cast<uint32_t>(LOWORD(a_lparam));
+		const uint32_t y = static_cast<uint32_t>(HIWORD(a_lparam));
 		s_pfn_resize_event(WindowHandle(reinterpret_cast<uint64_t>(a_hwnd)), x, y);
+		break;
+	}
+	case WM_MOVE:
+	{
+		const uint32_t x = static_cast<uint32_t>(LOWORD(a_lparam));
+		const uint32_t y = static_cast<uint32_t>(HIWORD(a_lparam));
+		s_pfn_move_event(WindowHandle(reinterpret_cast<uint64_t>(a_hwnd)), x, y);
 		break;
 	}
 	case WM_MOUSELEAVE:
@@ -804,6 +813,11 @@ void BB::SetWindowCloseEvent(PFN_WindowCloseEvent a_func)
 void BB::SetWindowResizeEvent(PFN_WindowResizeEvent a_func)
 {
 	s_pfn_resize_event = a_func;
+}
+
+void BB::SetWindowMoveEvent(PFN_WindowMoveEvent a_func)
+{
+	s_pfn_move_event = a_func;
 }
 
 BB_NO_RETURN void BB::ExitApp()

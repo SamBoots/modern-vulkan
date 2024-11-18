@@ -21,9 +21,13 @@ namespace BB
 #endif // _DEBUG
 		}
 
-		void EnQueue(T& a_element)
+		bool EnQueue(T& a_element)
 		{
-			BB_ASSERT(!IsFull(), "trying to add a queue element while the queue is full");
+			if (IsFull())
+			{
+				BB_WARNING(false, "trying to add a queue element while the queue is full", WarningType::HIGH);
+				return false;
+			}
 
 			// if we are empty then set all elements back to the beginning of the memory
 			if (IsEmpty())
@@ -36,7 +40,7 @@ namespace BB
 
 			if (&m_begin[++m_back_queue] == m_end)
 				m_back_queue = 0;
-
+			return true;
 #ifdef _DEBUG
 			++m_size;
 #endif // _DEBUG

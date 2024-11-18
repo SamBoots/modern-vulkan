@@ -199,8 +199,10 @@ struct AssetManager
 static AssetManager* s_asset_manager;
 
 template<typename T>
-static void AddGPUTask(const PFN_GPUTaskCallback a_callback, const T& a_params, const GPUFenceValue a_fence_value)
+static bool AddGPUTask(const PFN_GPUTaskCallback a_callback, const T& a_params, const GPUFenceValue a_fence_value)
 {
+	if (s_asset_manager->gpu_tasks_queue.IsFull())
+		return false;
 	OSAcquireSRWLockWrite(&s_asset_manager->gpu_task_lock);
 	GPUTask task;
 	task.transfer_value = a_fence_value;
@@ -209,6 +211,7 @@ static void AddGPUTask(const PFN_GPUTaskCallback a_callback, const T& a_params, 
 	*reinterpret_cast<T*>(task.params) = a_params;
 	s_asset_manager->gpu_tasks_queue.EnQueue(task);
 	OSReleaseSRWLockWrite(&s_asset_manager->gpu_task_lock);
+	return true;
 }
 
 static void ExecuteGPUTasks()
@@ -313,9 +316,8 @@ static inline bool IconWriteToDisk(const IconSlot a_slot, const PathString& a_wr
 	params.readback = readback;
 	params.image_extent = ICON_EXTENT;
 	params.write_path = a_write_path;
-
-	AddGPUTask(IconWriteToDisk_impl, params, fence_value);
-	return true;
+	
+	return AddGPUTask(IconWriteToDisk_impl, params, fence_value);;
 }
 
 static inline IconSlot LoadIconFromPath(MemoryArena& a_temp_arena, const StringView a_icon_path, const bool a_set_icons_shader_visible)

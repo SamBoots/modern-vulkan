@@ -18,23 +18,28 @@
 
 using namespace BB;
 
-static Editor editor{};
+static Editor editor;
 static EngineConfig engine_config;
 
 static void CustomCloseWindow(const BB::WindowHandle a_window_handle)
 {
 	(void)a_window_handle;
+	WriteEngineConfigData(engine_config);
 	editor.Destroy();
 	
 }
 
 static void CustomResizeWindow(const BB::WindowHandle a_window_handle, const uint32_t a_x, const uint32_t a_y)
 {
-	(void)a_x;
-	(void)a_y;
 	(void)a_window_handle;
 	BB::RequestResize();
 	engine_config.window_size = uint2(a_x, a_y);
+}
+
+static void CustomMoveWindow(const BB::WindowHandle a_window_handle, const uint32_t a_x, const uint32_t a_y)
+{
+	(void)a_window_handle;
+	engine_config.window_offset = uint2(a_x, a_y);
 }
 
 int main(int argc, char** argv)
@@ -94,10 +99,11 @@ int main(int argc, char** argv)
 		Asset::InitializeAssetManager(asset_manager_info);
 	}
 
-	editor.Init(main_arena, window_handle, engine_config);
+	editor.Init(main_arena, window_handle, engine_config.window_size);
 
 	SetWindowCloseEvent(CustomCloseWindow);
 	SetWindowResizeEvent(CustomResizeWindow);
+	SetWindowMoveEvent(CustomMoveWindow);
 
 	auto current_time = std::chrono::high_resolution_clock::now();
 

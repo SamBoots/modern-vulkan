@@ -175,7 +175,6 @@ static inline void DestroyImGuiInput()
 
 	io.BackendPlatformName = nullptr;
 	io.BackendPlatformUserData = nullptr;
-	IM_DELETE(pd);
 }
 
 static inline const char* ShaderStageToCChar(const SHADER_STAGE a_stage)
@@ -877,7 +876,7 @@ void Editor::ImGuiDisplayShaderEffect(MemoryArena& a_temp_arena, const CachedSha
 		{
 			MemoryArenaScope(a_temp_arena)
 			{
-				const Buffer shader = ReadOSFile(a_temp_arena, a_shader_info.path.c_str());
+				const Buffer shader = OSReadFile(a_temp_arena, a_shader_info.path.c_str());
 				BB_ASSERT(ReloadShaderEffect(a_shader_info.handle, shader), "something went wrong with reloading a shader");
 			}
 		}
