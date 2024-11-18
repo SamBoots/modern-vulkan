@@ -17,6 +17,7 @@ namespace BB
 		constexpr const size_t UM_EMPTYNODE = 0xAABBCCDD;
 
 		constexpr const float OL_LoadFactor = 1.3f;
+		constexpr const float OL_UnLoadFactor = 0.7f;
 		constexpr const size_t OL_TOMBSTONE = 0xDEADBEEFDEADBEEF;
 		constexpr const size_t OL_EMPTY = 0xAABBCCDD;
 	};
@@ -24,7 +25,7 @@ namespace BB
 	//Calculate the load factor.
 	static size_t LFCalculation(size_t a_size, float a_load_factor)
 	{
-		return static_cast<size_t>(static_cast<float>(a_size) * (1.f / a_load_factor + 1.f));
+		return static_cast<size_t>(static_cast<float>(a_size) * a_load_factor);
 	}
 
 	struct String_KeyComp
@@ -846,8 +847,10 @@ namespace BB
 		void emplace(const Key& a_key, Args&&... a_value_args)
 		{
 			m_size++;
+			BB_WARNING(m_size < LFCalculation(m_capacity, Hashmap_Specs::OL_UnLoadFactor), "hashmap over loadfactor, collision slowdown will happen", WarningType::OPTIMALIZATION);
+			BB_ASSERT(m_size < m_capacity, "OL_Hashmap out of capacity!");
 			const Hash hash = Hash::MakeHash(a_key) % m_capacity;
-
+			
 
 			for (size_t i = hash; i < m_capacity; i++)
 			{

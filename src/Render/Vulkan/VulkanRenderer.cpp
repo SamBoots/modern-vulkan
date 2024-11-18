@@ -1146,7 +1146,7 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, cons
 		}
 	}
 
-	s_vulkan_inst->allocation_map.Init(a_arena, 256);
+	s_vulkan_inst->allocation_map.Init(a_arena, 1024);
 	s_vulkan_inst->pdescriptor_buffer = ArenaAllocType(a_arena, VulkanDescriptorLinearBuffer)(
 		mbSize * 4,
 		VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);

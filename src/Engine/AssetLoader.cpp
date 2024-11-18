@@ -1000,56 +1000,61 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 			case cgltf_attribute_type_position:
 				for (size_t i = 0; i < attrib.data->count; i++)
 				{
+					BB_ASSERT(attrib.data->type == cgltf_type_vec3, "position is not vec3");
 					vertices[vertex_pos_offset].position.x = data_pos[0];
 					vertices[vertex_pos_offset].position.y = data_pos[1];
 					vertices[vertex_pos_offset].position.z = data_pos[2];
 
-					data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride + attrib.data->buffer_view->stride));
+					data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride));
 					++vertex_pos_offset;
 				}
 				break;
 			case cgltf_attribute_type_normal:
 				for (size_t i = 0; i < attrib.data->count; i++)
 				{
+					BB_ASSERT(attrib.data->type == cgltf_type_vec3, "normal is not vec3");
 					vertices[vertex_normal_offset].normal.x = data_pos[0];
 					vertices[vertex_normal_offset].normal.y = data_pos[1];
 					vertices[vertex_normal_offset].normal.z = data_pos[2];
 
-					data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride + attrib.data->buffer_view->stride));
+					data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride));
 					++vertex_normal_offset;
 				}
 				break;
 			case cgltf_attribute_type_texcoord:
 				for (size_t i = 0; i < attrib.data->count; i++)
 				{
+					BB_ASSERT(attrib.data->type == cgltf_type_vec2, "uv is not vec2");
 					vertices[vertex_uv_offset].uv.x = data_pos[0];
 					vertices[vertex_uv_offset].uv.y = data_pos[1];
 
-					data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride + attrib.data->buffer_view->stride));
+					data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride));
 					++vertex_uv_offset;
 				}
 				break;
 			case cgltf_attribute_type_color:
 				for (size_t i = 0; i < attrib.data->count; i++)
 				{
+					BB_ASSERT(attrib.data->type == cgltf_type_vec4, "color is not vec4");
 					vertices[vertex_color_offset].color.x = data_pos[0];
 					vertices[vertex_color_offset].color.y = data_pos[1];
 					vertices[vertex_color_offset].color.z = data_pos[2];
 					vertices[vertex_color_offset].color.w = data_pos[3];
 
-					data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride + attrib.data->buffer_view->stride));
+					data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride));
 					++vertex_color_offset;
 				}
 				break;
 			case cgltf_attribute_type_tangent:
 				for (size_t i = 0; i < attrib.data->count; i++)
 				{
-					vertices[vertex_tangent_offset].tangent.x = data_pos[0];
+					BB_ASSERT(attrib.data->type == cgltf_type_vec4, "tangent is not vec4");
+;					vertices[vertex_tangent_offset].tangent.x = data_pos[0];
 					vertices[vertex_tangent_offset].tangent.y = data_pos[1];
 					vertices[vertex_tangent_offset].tangent.z = data_pos[2];
-					//vertices[vertex_tangent_offset].tangent.w = data_pos[3];
+					vertices[vertex_tangent_offset].tangent.w = data_pos[3];
 
-					data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride + attrib.data->buffer_view->stride));
+					data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride));
 					++vertex_tangent_offset;
 				}
 				break;
