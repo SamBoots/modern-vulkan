@@ -342,6 +342,7 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 void Editor::Destroy()
 {
 	DestroyImGuiInput();
+	DestroyRenderer();
 	DirectDestroyOSWindow(m_main_window);
 }
 

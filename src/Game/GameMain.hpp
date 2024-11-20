@@ -1,5 +1,5 @@
 #pragma once
-#include "GameInterface.hpp"
+#include "ViewportInterface.hpp"
 
 namespace BB
 {

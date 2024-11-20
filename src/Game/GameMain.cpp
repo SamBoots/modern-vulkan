@@ -217,6 +217,11 @@ SceneObjectHandle DungeonMap::CreateSceneObjectFloor(MemoryArena& a_temp_arena, 
 
 SceneObjectHandle DungeonMap::CreateSceneObjectWalls(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy, const float3 a_pos)
 {
+	(void)a_temp_arena;
+	(void)a_scene_hierarchy;
+	(void)a_pos;
+	BB_UNIMPLEMENTED();
+
 	SceneObjectHandle map_obj{};
 
 	return map_obj;
@@ -252,7 +257,7 @@ bool DungeonGame::InitGame()
 	MemoryArenaScope(m_game_memory)
 	{
 		m_dungeon_map.CreateSceneObjectFloor(m_game_memory, m_scene_hierarchy, map_start_pos);
-		m_dungeon_map.CreateSceneObjectWalls(m_game_memory, m_scene_hierarchy, map_start_pos);
+		//m_dungeon_map.CreateSceneObjectWalls(m_game_memory, m_scene_hierarchy, map_start_pos);
 	}
 	m_player.SetPosition(m_dungeon_map.GetSpawnPoint() + map_start_pos);
 

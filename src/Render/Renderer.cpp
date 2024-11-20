@@ -1283,6 +1283,13 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	return true;
 }
 
+bool BB::DestroyRenderer()
+{
+	IMGUI_IMPL::ImShutdown();
+	BB_UNIMPLEMENTED();
+	// delete all vulkan objects
+	return true;
+}
 
 void BB::RequestResize()
 {
@@ -1799,7 +1806,9 @@ const Mesh BB::CreateMesh(const CreateMeshInfo& a_create_info)
 
 void BB::FreeMesh(const Mesh a_mesh)
 {
+	(void)a_mesh;
 	// free the vertex memory
+	BB_UNIMPLEMENTED();
 }
 
 RDescriptorLayout BB::CreateDescriptorLayout(MemoryArena& a_temp_arena, Slice<DescriptorBindingInfo> a_bindings)

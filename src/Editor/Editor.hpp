@@ -3,7 +3,7 @@
 #include "SceneHierarchy.hpp"
 #include "Camera.hpp"
 #include "AssetLoader.hpp"
-#include "GameInterface.hpp"
+#include "ViewportInterface.hpp"
 #include "Viewport.hpp"
 #include "MaterialSystem.hpp"
 
@@ -23,9 +23,9 @@ namespace BB
 		void CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint32_t a_back_buffer_count, const JsonParser& a_parsed_file);
 		void RegisterSceneHierarchy(SceneHierarchy& a_hierarchy, const uint2 a_window_extent, const uint32_t a_back_buffer_count);
 
-		template<typename game_interface>
-		requires is_game_interface<game_interface>
-		void Update(MemoryArena& a_arena, const float a_delta_time, game_interface& a_game_interface, const Slice<InputEvent> a_input_events)
+		template<typename viewport_interface>
+		requires is_viewport_interface<viewport_interface>
+		void Update(MemoryArena& a_arena, const float a_delta_time, viewport_interface& a_game_interface, const Slice<InputEvent> a_input_events)
 		{
 			a_game_interface.Update(a_input_events);
 			SceneHierarchy& hierarchy = a_game_interface.GetSceneHierarchy();

@@ -72,6 +72,7 @@ namespace BB
 	const RenderIO& GetRenderIO();
 
 	bool InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_render_create_info);
+	bool DestroyRenderer();
 	void RequestResize();
 
 	void GPUWaitIdle();
