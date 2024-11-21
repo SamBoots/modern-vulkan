@@ -125,10 +125,7 @@ int main(int argc, char** argv)
 	}
 
 	DungeonGame def_game{};
-	def_game.InitGame();
-
-	editor.RegisterSceneHierarchy(def_game.GetSceneHierarchy(), window_extent, back_buffer_count);
-	editor.RegisterSceneHierarchy(object_viewer, window_extent / uint2(2), back_buffer_count);
+	def_game.Init(window_extent / 2, back_buffer_count);
 
 	while (!quit_app)
 	{
@@ -139,8 +136,11 @@ int main(int argc, char** argv)
 
 		ProcessMessages(window_handle);
 		PollInputEvents(input_events, input_event_count);
-		
-		editor.Update(main_arena, delta_time, def_game, Slice(input_events, input_event_count));
+		editor.StartFrame(Slice(input_events, input_event_count), delta_time);
+		const ThreadTask game_task = editor.UpdateViewport(main_arena, delta_time, def_game, Slice(input_events, input_event_count));
+
+		Threads::WaitForTask(game_task);
+		editor.EndFrame(main_arena);
 		auto current_new = std::chrono::high_resolution_clock::now();
 		delta_time = std::chrono::duration<float, std::chrono::seconds::period>(current_new - current_time).count();
 

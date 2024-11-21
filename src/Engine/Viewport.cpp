@@ -1,4 +1,4 @@
-#include "Viewport.hpp"
+#include "ViewportInterface.hpp"
 #include "SceneHierarchy.hpp"
 #include "Renderer.hpp"
 #include "Program.h"

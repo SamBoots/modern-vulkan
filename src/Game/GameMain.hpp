@@ -1,5 +1,6 @@
 #pragma once
 #include "ViewportInterface.hpp"
+#include "Camera.hpp"
 
 namespace BB
 {
@@ -101,19 +102,37 @@ namespace BB
 	class DungeonGame
 	{
 	public:
-		bool InitGame();
-		bool Update(const Slice<InputEvent> a_input_events, const float4x4* a_overwrite_view_matrix = nullptr, const float3* a_overwrite_view_pos = nullptr);
+		bool Init(const uint2 a_game_viewport_size, const uint32_t a_back_buffer_count);
+		bool Update(const float a_delta_time);
+		bool HandleInput(const float a_delta_time, const Slice<InputEvent> a_input_events);
 		// maybe ifdef this for editor
 		void DisplayImGuiInfo();
 		void Destroy();
 
+		Viewport& GetViewport() { return m_viewport; }
 		SceneHierarchy& GetSceneHierarchy() { return m_scene_hierarchy; }
 
 	private:
+		void ToggleFreeCam();
 		MemoryArena m_game_memory;
 
 		Player m_player;
+		Viewport m_viewport;
 		SceneHierarchy m_scene_hierarchy;
 		DungeonMap m_dungeon_map;
+
+		// debug
+		struct FreeCameraOption
+		{
+			bool freeze_free_cam;
+			bool use_free_cam;
+			FreeCamera camera{};
+			float speed = 0.25f;
+			float min_speed = 0.1f;
+			float max_speed = 1.0f;
+		};
+		FreeCameraOption m_free_cam;
 	};
+
+	static_assert(is_interactable_viewport_interface<DungeonGame>);
 }

@@ -1360,7 +1360,7 @@ GPUDeviceInfo BB::GetGPUInfo(MemoryArena& a_arena)
 	return Vulkan::GetGPUDeviceInfo(a_arena);
 }
 
-void BB::StartFrame(const RCommandList a_list, const StartFrameInfo& a_info, uint32_t& a_out_back_buffer_index)
+void BB::RenderStartFrame(const RCommandList a_list, const RenderStartFrameInfo& a_info, uint32_t& a_out_back_buffer_index)
 {
 	// check if we need to resize
 	if (s_render_inst->render_io.resizing_request)
@@ -1370,7 +1370,7 @@ void BB::StartFrame(const RCommandList a_list, const StartFrameInfo& a_info, uin
 		ResizeRendererSwapchain(static_cast<uint32_t>(x), static_cast<uint32_t>(y));
 	}
 
-	BB_ASSERT(s_render_inst->render_io.frame_started == false, "did not call EndFrame before a new StartFrame");
+	BB_ASSERT(s_render_inst->render_io.frame_started == false, "did not call RenderEndFrame before a new RenderStartFrame");
 	s_render_inst->render_io.frame_started = true;
 
 	const uint32_t frame_index = s_render_inst->render_io.frame_index;
@@ -1564,9 +1564,9 @@ static void UploadAssets(MemoryArena& a_thread_arena, void*)
 	uploading_assets = false;
 }
 
-void BB::EndFrame(const RCommandList a_list, const ShaderEffectHandle a_imgui_vertex, const ShaderEffectHandle a_imgui_fragment, const uint32_t a_back_buffer_index, bool a_skip)
+void BB::RenderEndFrame(const RCommandList a_list, const ShaderEffectHandle a_imgui_vertex, const ShaderEffectHandle a_imgui_fragment, const uint32_t a_back_buffer_index, bool a_skip)
 {
-	BB_ASSERT(s_render_inst->render_io.frame_started == true, "did not call StartFrame before a EndFrame");
+	BB_ASSERT(s_render_inst->render_io.frame_started == true, "did not call RenderStartFrame before a RenderEndFrame");
 
 	if ((!s_render_inst->asset_uploader.upload_meshes.IsEmpty() || !s_render_inst->asset_uploader.upload_textures.IsEmpty()) &&
 		!uploading_assets)
@@ -1717,8 +1717,8 @@ bool BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_
 		return false;
 	}
 
-	BB_ASSERT(s_render_inst->render_io.frame_started == true, "did not call StartFrame before a presenting");
-	BB_ASSERT(s_render_inst->render_io.frame_ended == true, "did not call EndFrame before a presenting");
+	BB_ASSERT(s_render_inst->render_io.frame_started == true, "did not call RenderStartFrame before a presenting");
+	BB_ASSERT(s_render_inst->render_io.frame_ended == true, "did not call RenderEndFrame before a presenting");
 
 	s_render_inst->render_io.frame_started = true;
 

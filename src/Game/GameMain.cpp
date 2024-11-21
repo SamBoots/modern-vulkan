@@ -1,6 +1,7 @@
 #include "GameMain.hpp"
 #include "BBImage.hpp"
 #include "MaterialSystem.hpp"
+#include "imgui.h"
 
 #include "Math.inl"
 
@@ -242,12 +243,14 @@ float4x4 Player::CalculateView() const
 	return Float4x4Lookat(m_position, m_position + m_forward, m_up);
 }
 
-bool DungeonGame::InitGame()
+bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_buffer_count)
 {
 	m_game_memory = MemoryArenaCreate();
 	const uint32_t back_buffer_count = GetRenderIO().frame_count;
 	m_scene_hierarchy.Init(m_game_memory, back_buffer_count, Asset::FindOrCreateString("game hierarchy"));
 	m_scene_hierarchy.SetClearColor(float3(0.3f, 0.3f, 0.3f));
+
+	m_viewport.Init(a_game_viewport_size, int2(0, 0), a_back_buffer_count, "game screen");
 
 	DungeonRoom room;
 	room.CreateRoom(m_game_memory, "../../resources/game/dungeon_rooms/map1.bmp");
@@ -259,13 +262,32 @@ bool DungeonGame::InitGame()
 		m_dungeon_map.CreateSceneObjectFloor(m_game_memory, m_scene_hierarchy, map_start_pos);
 		//m_dungeon_map.CreateSceneObjectWalls(m_game_memory, m_scene_hierarchy, map_start_pos);
 	}
-	m_player.SetPosition(m_dungeon_map.GetSpawnPoint() + map_start_pos);
+	m_player.SetPosition(float3(0.f, 0.f, 0.f));
 
 	return true;
 }
 
-bool DungeonGame::Update(const Slice<InputEvent> a_input_events, const float4x4* a_overwrite_view_matrix, const float3* a_overwrite_view_pos)
+bool DungeonGame::Update(const float a_delta_time)
 {
+	(void)a_delta_time;
+
+	if (m_free_cam.use_free_cam)
+	{
+		m_scene_hierarchy.SetView(m_free_cam.camera.CalculateView(), m_free_cam.camera.GetPosition());
+	}
+	else
+	{
+		m_scene_hierarchy.SetView(m_player.CalculateView(), m_player.GetPosition());
+	}
+
+	DisplayImGuiInfo();
+
+	return true;
+}
+
+bool DungeonGame::HandleInput(const float a_delta_time, const Slice<InputEvent> a_input_events)
+{
+	(void)a_delta_time;
 	for (size_t i = 0; i < a_input_events.size(); i++)
 	{
 		const InputEvent& ip = a_input_events[i];
@@ -289,21 +311,54 @@ bool DungeonGame::Update(const Slice<InputEvent> a_input_events, const float4x4*
 				case KEYBOARD_KEY::D:
 					player_move.x = -1;
 					break;
+				case KEYBOARD_KEY::X:
+					player_move.y = 1;
+					break;
+				case KEYBOARD_KEY::Z:
+					player_move.y = -1;
+					break;
+				case KEYBOARD_KEY::F:
+					m_free_cam.freeze_free_cam = !m_free_cam.freeze_free_cam;
+					break;
+				case KEYBOARD_KEY::Q:
+					ToggleFreeCam();
+					break;
 				default:
 					break;
 				}
 			}
-			m_player.Move(player_move);
+			if (m_free_cam.use_free_cam && !m_free_cam.freeze_free_cam)
+			{
+				const float swap_y = player_move.y;
+				player_move.y = player_move.z;
+				player_move.z = swap_y;
+				m_free_cam.camera.Move(player_move);
+			}
+			else
+			{
+				player_move.y = 0;
+				m_player.Move(player_move);
+			}
 		}
-	}
+		else if (ip.input_type == INPUT_TYPE::MOUSE)
+		{
+			const MouseInfo& mi = ip.mouse_info;
+			const float2 mouse_move = (mi.move_offset * a_delta_time) * 10.f;
 
-	if (a_overwrite_view_matrix && a_overwrite_view_pos)
-	{
-		m_scene_hierarchy.SetView(*a_overwrite_view_matrix, *a_overwrite_view_pos);
-	}
-	else
-	{
-		m_scene_hierarchy.SetView(m_player.CalculateView(), m_player.GetPosition());
+			if (mi.wheel_move)
+			{
+				m_free_cam.speed = Clampf(
+					m_free_cam.speed + static_cast<float>(mi.wheel_move) * 0.1f,
+					m_free_cam.min_speed,
+					m_free_cam.max_speed);
+				m_free_cam.camera.SetSpeed(m_free_cam.speed);
+			}
+
+			if (m_free_cam.use_free_cam && !m_free_cam.freeze_free_cam)
+			{
+				m_free_cam.camera.Rotate(mouse_move.x, mouse_move.y);
+			}
+		}
 	}
 
 	return true;
@@ -312,10 +367,34 @@ bool DungeonGame::Update(const Slice<InputEvent> a_input_events, const float4x4*
 // maybe ifdef this for editor
 void DungeonGame::DisplayImGuiInfo()
 {
+	if (ImGui::Begin("game info"))
+	{
+		ImGui::Text("Use freecam: %s", m_free_cam.use_free_cam ? "true" : "false");
+		if (ImGui::Button("Toggle freecam"))
+		{
+			ToggleFreeCam();
+		}
 
+		ImGui::Text("Freeze freecam: %s", m_free_cam.freeze_free_cam ? "true" : "false");
+		if (ImGui::Button("Toggle freecam freeze"))
+		{
+			m_free_cam.freeze_free_cam = !m_free_cam.freeze_free_cam;
+		}
+
+		ImGui::SliderFloat("Freecam speed", &m_free_cam.speed, m_free_cam.min_speed, m_free_cam.max_speed);
+	}
+	ImGui::End();
 }
 
 void DungeonGame::Destroy()
 {
 	MemoryArenaFree(m_game_memory);
+}
+
+void DungeonGame::ToggleFreeCam()
+{
+	m_free_cam.use_free_cam = !m_free_cam.use_free_cam;
+	m_free_cam.camera.SetPosition(m_player.GetPosition());
+	m_free_cam.camera.SetUp(float3(0.f, 1.f, 0.f));
+	m_free_cam.camera.SetSpeed(m_free_cam.speed);
 }

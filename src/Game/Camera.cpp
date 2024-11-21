@@ -8,17 +8,9 @@ using namespace BB;
 constexpr float3 UP_VECTOR { 0, 1.f, 0 };
 constexpr float3 STANDARD_CAM_FRONT { 0, 0, -1 };
 
-FreeCamera::FreeCamera(const float3 a_Pos, const float a_cam_speed)
+FreeCamera::FreeCamera()
 {
-	m_pos = a_Pos;
-	m_speed = a_cam_speed;
-
-	float3 direction = Float3Normalize(m_pos);
-
-	m_Right = Float3Normalize(Float3Cross(UP_VECTOR, direction));
-	m_up = Float3Cross(direction, m_Right);
 	m_forward = STANDARD_CAM_FRONT;
-
 	m_yaw = 90.f;
 	m_pitch = 0;
 }
@@ -47,11 +39,22 @@ void FreeCamera::Rotate(const float a_yaw, const float a_pitch)
 	direction.z = sinf(m_yaw) * cosf(m_pitch);//sin(glm::radians(m_Yaw)) * cos(glm::radians(m_Pitch));
 
 	m_forward = Float3Normalize(direction); //glm::normalize(t_Direction);
+	m_Right = Float3Normalize(Float3Cross(UP_VECTOR, m_forward));
 }
 
 void FreeCamera::SetSpeed(const float a_speed_mod)
 {
 	m_speed = a_speed_mod;
+}
+
+void FreeCamera::SetPosition(const float3 a_pos)
+{
+	m_pos = a_pos;
+}
+
+void FreeCamera::SetUp(const float3 a_up)
+{
+	m_up = a_up;
 }
 
 const float4x4 FreeCamera::CalculateView() const

@@ -6,11 +6,13 @@ namespace BB
 	class FreeCamera
 	{
 	public:
-		FreeCamera(const float3 a_pos, const float a_cam_speed = 0.15f);
+		FreeCamera();
 
 		void Move(const float3 a_movement);
 		void Rotate(const float a_yaw, const float a_pitch);
 		void SetSpeed(const float a_speed_mod);
+		void SetPosition(const float3 a_pos);
+		void SetUp(const float3 a_up);
 
 		const float4x4 CalculateView() const;
 		const float3 GetPosition() const;

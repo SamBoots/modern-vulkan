@@ -4,7 +4,6 @@
 #include "Camera.hpp"
 #include "AssetLoader.hpp"
 #include "ViewportInterface.hpp"
-#include "Viewport.hpp"
 #include "MaterialSystem.hpp"
 
 #include <tuple>
@@ -21,23 +20,57 @@ namespace BB
 		void Destroy();
 		void CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint32_t a_back_buffer_count, const char* a_json_path);
 		void CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint32_t a_back_buffer_count, const JsonParser& a_parsed_file);
-		void RegisterSceneHierarchy(SceneHierarchy& a_hierarchy, const uint2 a_window_extent, const uint32_t a_back_buffer_count);
+
+		void StartFrame(const Slice<InputEvent> a_input_events, const float a_delta_time);
 
 		template<typename viewport_interface>
-		requires is_viewport_interface<viewport_interface>
-		void Update(MemoryArena& a_arena, const float a_delta_time, viewport_interface& a_game_interface, const Slice<InputEvent> a_input_events)
+		requires is_interactable_viewport_interface<viewport_interface>
+		ThreadTask UpdateViewport(MemoryArena& a_arena, const float a_delta_time, viewport_interface& a_game_interface, const Slice<InputEvent> a_input_events)
 		{
-			a_game_interface.Update(a_input_events);
+			(void)a_arena;
+			Viewport& viewport = a_game_interface.GetViewport();
 			SceneHierarchy& hierarchy = a_game_interface.GetSceneHierarchy();
-			(void)hierarchy;
 
-			Update(a_arena, a_delta_time, a_input_events);
+			if (!m_swallow_input && viewport.PositionWithinViewport(uint2(static_cast<unsigned int>(m_previous_mouse_pos.x), static_cast<unsigned int>(m_previous_mouse_pos.y))))
+			{
+				a_game_interface.HandleInput(a_delta_time, a_input_events);
+			}
+
+			a_game_interface.Update(a_delta_time);
+
+			ImguiDisplaySceneHierarchy(hierarchy);
+
+			bool resized = false;
+			viewport.DrawImgui(resized, m_per_frame.back_buffer_index);
+			if (resized)
+			{
+				hierarchy.SetProjection(viewport.CreateProjection(90.f, 0.001f, 10000.0f));
+			}
+
+			const uint32_t render_pool_index = m_per_frame.current_count.fetch_add(1, std::memory_order_seq_cst);
+			ThreadFuncForDrawing_Params& params = m_per_frame.params[render_pool_index];
+			CommandPool& pool = m_per_frame.pools[render_pool_index];
+			RCommandList& list = m_per_frame.lists[render_pool_index];
+			hierarchy.IncrementNextFenceValue(&m_per_frame.fences[render_pool_index], &m_per_frame.fence_values[render_pool_index]);
+			// render_pool 0 is already set.
+			if (render_pool_index != 0)
+			{
+				pool = GetGraphicsCommandPool();
+				list = pool.StartCommandList();
+			}
+
+			params.back_buffer_index = m_per_frame.back_buffer_index;
+			params.viewport = &viewport;
+			params.scene_hierarchy = &hierarchy;
+			params.command_list = list;
+
+			return Threads::StartTaskThread(ThreadFuncForDrawing, &params, L"scene draw task");
 		}
+		void EndFrame(MemoryArena& a_arena);
 
 		static ThreadTask LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets, Editor* a_editor);
 
 	private:
-		void Update(MemoryArena& a_arena, const float a_delta_time, const Slice<InputEvent> a_input_events);
 		FreelistInterface m_editor_allocator;
 
 		void ImguiDisplaySceneHierarchy(SceneHierarchy& a_hierarchy);
@@ -60,35 +93,37 @@ namespace BB
 		struct ThreadFuncForDrawing_Params
 		{
 			uint32_t back_buffer_index;
-			Viewport& viewport;
-			SceneHierarchy& scene_hierarchy;
+			Viewport* viewport;
+			SceneHierarchy* scene_hierarchy;
 			RCommandList command_list;
 		};
 		static void ThreadFuncForDrawing(MemoryArena& a_thread_arena, void* a_param);
 
 		StaticArray<StringView> m_loaded_models_names;
 
-		struct ViewportAndScene
-		{
-			SceneHierarchy& scene;
-			Viewport viewport{};
-			FreeCamera camera{ float3{0.0f, 0.0f, 1.0f}, 0.35f };
-		};
 		uint2 m_app_window_extent;
-		StaticArray<ViewportAndScene> m_viewport_and_scenes;
+
+		struct PerFrameInfo
+		{
+			uint32_t back_buffer_index;
+			FixedArray<ThreadFuncForDrawing_Params, 8> params;
+			FixedArray<CommandPool, 8> pools;
+			FixedArray<RCommandList, 8> lists;
+			FixedArray<RFence, 8> fences;
+			FixedArray<uint64_t, 8> fence_values;
+
+			std::atomic<uint32_t> current_count = 0;
+		};
+		PerFrameInfo m_per_frame;
 
 		MasterMaterialHandle m_imgui_material;
 
-		ViewportAndScene* m_active_viewport = nullptr;
-		float2 m_previous_mouse_pos{};
+		// input info
+		bool m_swallow_input;
+		float2 m_previous_mouse_pos;
 
 		GPUDeviceInfo m_gpu_info;
 
 		WindowHandle m_main_window;
-
-		bool m_freeze_cam = false;
-		float m_cam_speed = 1.f;
-		const float m_cam_speed_min = 0.1f;
-		const float m_cam_speed_max = 3.f;
 	};
 }
