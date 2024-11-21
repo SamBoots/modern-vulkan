@@ -46,8 +46,6 @@ namespace BB
 	{
 		{ v.Update(a_delta_time) } -> std::same_as<bool>;
 		{ v.HandleInput(a_delta_time, a_input_events) } -> std::same_as<bool>;
-		// maybe ifdef this for editor
-		v.DisplayImGuiInfo();
 
 		{ v.GetViewport() } -> std::same_as<BB::Viewport&>;
 		{ v.GetSceneHierarchy() } -> std::same_as<BB::SceneHierarchy&>;
