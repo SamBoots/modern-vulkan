@@ -384,7 +384,18 @@ namespace BB
 		{
 			emplace_back(a_element);
 		}
-		void push_back(const T* a_elements, uint32_t a_count)
+
+		void push_back(ConstSlice<T> a_slice)
+		{
+			push_back(a_slice.data(), a_slice.size());
+		}
+
+		void push_back(Slice<T> a_slice)
+		{
+			push_back(a_slice.data(), a_slice.size());
+		}
+
+		void push_back(const T* a_elements, size_t a_count)
 		{
 			BB_ASSERT(m_size + a_count < m_capacity, "StaticArray is full");
 

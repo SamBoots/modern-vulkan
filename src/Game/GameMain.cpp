@@ -7,6 +7,8 @@
 
 using namespace BB;
 
+using QuadVertices = FixedArray<Vertex, 4>;
+
 enum class BB::DUNGEON_TILE : uint32_t
 {
 	INACCESSABLE = 0,
@@ -28,12 +30,12 @@ void DungeonRoom::CreateRoom(MemoryArena& a_arena, const char* a_image_path)
 	MemoryArenaScope(a_arena)
 	{
 		image.Init(a_arena, a_image_path);
-		m_room_size_x = image.GetWidth();
-		m_room_size_y = image.GetHeight();
+		m_room_size_x = static_cast<int>(image.GetWidth());
+		m_room_size_y = static_cast<int>(image.GetHeight());
 	}
 
 	// we share the same memory space......
-	m_room_tiles.Init(a_arena, m_room_size_x * m_room_size_y);
+	m_room_tiles.Init(a_arena, static_cast<uint32_t>(m_room_size_x * m_room_size_y));
 
 	image = {};
 	MemoryArenaScope(a_arena)
@@ -66,33 +68,33 @@ void DungeonRoom::CreateRoom(MemoryArena& a_arena, const char* a_image_path)
 	BB_ASSERT(m_room_tiles.size() == m_room_tiles.capacity(), "room tiles are not all filled in");
 }
 
-MemoryArenaMarker DungeonMap::CreateMap(MemoryArena& a_game_memory, const uint32_t a_map_size_x, const uint32_t a_map_size_y, const Slice<DungeonRoom*> a_rooms)
+MemoryArenaMarker DungeonMap::CreateMap(MemoryArena& a_game_memory, const int a_map_size_x, const int a_map_size_y, const Slice<DungeonRoom*> a_rooms)
 {
 	m_map_size_x = a_map_size_x;
 	m_map_size_y = a_map_size_y;
-	m_map.Init(a_game_memory, m_map_size_x * m_map_size_y);
+	m_map.Init(a_game_memory, static_cast<uint32_t>(m_map_size_x * m_map_size_y));
 	m_map.fill(DungeonTile{});
 
 	for (size_t i = 0; i < a_rooms.size(); i++)
 	{
 		const DungeonRoom& room = *a_rooms[i];
-		const uint32_t max_x = m_map_size_x - room.GetSizeX();
-		const uint32_t max_y = m_map_size_y - room.GetSizeY();
+		const int max_x = m_map_size_x - room.GetSizeX();
+		const int max_y = m_map_size_y - room.GetSizeY();
 
-		const uint32_t start_pos_x = Random::Random(1, max_x);
-		const uint32_t start_pos_y = Random::Random(1, max_y);
+		const int start_pos_x = static_cast<int>(Random::Random(1, static_cast<uint32_t>(max_x)));
+		const int start_pos_y = static_cast<int>(Random::Random(1, static_cast<uint32_t>(max_y)));
 
-		const uint32_t end_pos_x = start_pos_x + room.GetSizeX();
-		const uint32_t end_pos_y = start_pos_y + room.GetSizeY();
+		const int end_pos_x = start_pos_x + room.GetSizeX();
+		const int end_pos_y = start_pos_y + room.GetSizeY();
 
 		// try to load the map reverse so you don't need to track these two variables
-		uint32_t room_x = 0;
-		uint32_t room_y = 0;
-		for (uint32_t y = start_pos_y; y < end_pos_y; y++)
+		int room_x = 0;
+		int room_y = 0;
+		for (int y = start_pos_y; y < end_pos_y; y++)
 		{
-			for (uint32_t x = start_pos_x; x < end_pos_x; x++)
+			for (int x = start_pos_x; x < end_pos_x; x++)
 			{
-				const uint32_t index = GetMapIndexFromXY(x, y);
+				const size_t index = GetMapIndexFromXY(x, y);
 
 				switch (room.GetTile(room_x++, room_y))
 				{
@@ -128,52 +130,51 @@ void DungeonMap::DestroyMap()
 
 SceneObjectHandle DungeonMap::CreateSceneObjectFloor(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy, const float3 a_pos)
 {
+	const float3 floor_pos = a_pos + float3(0.f, -1.f, 0.f);
+
 	SceneObjectHandle map_obj{};
 	MemoryArenaScope(a_temp_arena)
 	{
-		Vertex top_left;
-		top_left.normal = float3(0.f, 1.f, 0.1f);
-		top_left.uv = float2(0.f, 1.f);
-		top_left.color = float4(1.f, 1.f, 1.f, 1.f);
+		QuadVertices quad_vertices;
+		quad_vertices[0].normal = float3(0.f, 1.f, 0.1f);
+		quad_vertices[0].uv = float2(0.f, 1.f);
+		quad_vertices[0].color = float4(1.f, 1.f, 1.f, 1.f);
 
-		Vertex top_right;
-		top_right.normal = float3(0.f, 1.f, 0.1f);
-		top_right.uv = float2(1.f, 1.f);
-		top_right.color = float4(1.f, 1.f, 1.f, 1.f);
+		quad_vertices[1].normal = float3(0.f, 1.f, 0.1f);
+		quad_vertices[1].uv = float2(1.f, 1.f);
+		quad_vertices[1].color = float4(1.f, 1.f, 1.f, 1.f);
 
-		Vertex bot_right;
-		bot_right.normal = float3(0.f, 1.f, 0.1f);
-		bot_right.uv = float2(1.f, 0.f);
-		bot_right.color = float4(1.f, 1.f, 1.f, 1.f);
+		quad_vertices[2].normal = float3(0.f, 1.f, 0.1f);
+		quad_vertices[2].uv = float2(1.f, 0.f);
+		quad_vertices[2].color = float4(1.f, 1.f, 1.f, 1.f);
 
-		Vertex bot_left;
-		bot_left.normal = float3(0.f, 1.f, 0.1f);
-		bot_left.uv = float2(0.f, 0.f);
-		bot_left.color = float4(1.f, 1.f, 1.f, 1.f);
+		quad_vertices[3].normal = float3(0.f, 1.f, 0.1f);
+		quad_vertices[3].uv = float2(0.f, 0.f);
+		quad_vertices[3].color = float4(1.f, 1.f, 1.f, 1.f);
 
 		StaticArray<Vertex> vertices;
 		vertices.Init(a_temp_arena, m_map.size() * 4);
 		StaticArray<uint32_t> indices;
 		indices.Init(a_temp_arena, m_map.size() * 6);
 		// optimize this
-		for (uint32_t y = 0; y < m_map_size_y; y++)
+		for (int y = 0; y < m_map_size_y; y++)
 		{
-			for (uint32_t x = 0; x < m_map_size_x; x++)
+			for (int x = 0; x < m_map_size_x; x++)
 			{
 				const DungeonTile& tile = GetTile(x, y);
 				if (tile.walkable)
 				{
 					const float fx = static_cast<float>(x);
 					const float fy = static_cast<float>(y);
-					const float3 pos_top_left = float3(fx, 0.f, fy + 1.f);
-					const float3 pos_top_right = float3(fx + 1.f, 0.f, fy + 1.f);
-					const float3 pos_bot_right = float3(fx + 1.f, 0.f, fy);
-					const float3 pos_bot_left = float3(fx, 0.f, fy);
+					const float3 pos_top_left = float3(fx - .5f, 0.f, fy + .5f);
+					const float3 pos_top_right = float3(fx + .5f, 0.f, fy + .5f);
+					const float3 pos_bot_right = float3(fx + .5f, 0.f, fy - .5f);
+					const float3 pos_bot_left = float3(fx - .5f, 0.f, fy - .5f);
 
-					top_left.position = pos_top_left;
-					top_right.position = pos_top_right;
-					bot_right.position = pos_bot_right;
-					bot_left.position = pos_bot_left;
+					quad_vertices[0].position = pos_top_left;
+					quad_vertices[1].position = pos_top_right;
+					quad_vertices[2].position = pos_bot_right;
+					quad_vertices[3].position = pos_bot_left;
 
 					const uint32_t current_index = vertices.size();
 					const uint32_t quad_indices[] = {
@@ -184,12 +185,7 @@ SceneObjectHandle DungeonMap::CreateSceneObjectFloor(MemoryArena& a_temp_arena, 
 						current_index + 3,
 						current_index 
 					};
-
-					vertices.push_back(top_left);
-					vertices.push_back(top_right);
-					vertices.push_back(bot_right);
-					vertices.push_back(bot_left);
-
+					vertices.push_back(quad_vertices.const_slice());
 					indices.push_back(quad_indices, _countof(quad_indices));
 				}
 			}
@@ -211,19 +207,113 @@ SceneObjectHandle DungeonMap::CreateSceneObjectFloor(MemoryArena& a_temp_arena, 
 		mesh_info.index_count = indices.size();
 		mesh_info.master_material = Material::GetDefaultMasterMaterial(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D);
 		mesh_info.material_data = material_info;
-		map_obj = a_scene_hierarchy.CreateSceneObjectMesh(a_pos, mesh_info, "dungeon map");
+		map_obj = a_scene_hierarchy.CreateSceneObjectMesh(floor_pos, mesh_info, "dungeon map floor");
 	}
 	return map_obj;
 }
 
+static void MakeWallSegment(StaticArray<Vertex>& a_vertices, StaticArray<uint32_t>& a_indices, QuadVertices& a_quad_vertices, const int a_x, const int a_y, const float3 a_offset, const float3 a_rotation)
+{
+	const float fx = static_cast<float>(a_x);
+	const float fy = static_cast<float>(a_y);
+	// rotate these
+	const float3 pos_top_left = float3(fx - 0.5f, 0.5f, fy + 0.5f);
+	const float3 pos_top_right = float3(fx + 0.5f, 0.5f, fy + 0.5f);
+	const float3 pos_bot_right = float3(fx + 0.5f, 0.5f, fy - 0.5f);
+	const float3 pos_bot_left = float3(fx - 0.5f, 0.5f, fy - 0.5f);
+
+	a_quad_vertices[0].position = pos_top_left + a_offset;
+	a_quad_vertices[1].position = pos_top_right + a_offset;
+	a_quad_vertices[2].position = pos_bot_right + a_offset;
+	a_quad_vertices[3].position = pos_bot_left + a_offset;
+
+	const uint32_t current_index = a_vertices.size();
+	const uint32_t quad_indices[] = {
+		current_index,
+		current_index + 1,
+		current_index + 2,
+		current_index + 2,
+		current_index + 3,
+		current_index
+	};
+
+	a_vertices.push_back(a_quad_vertices.const_slice());
+	a_indices.push_back(quad_indices, _countof(quad_indices));
+}
+
 SceneObjectHandle DungeonMap::CreateSceneObjectWalls(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy, const float3 a_pos)
 {
-	(void)a_temp_arena;
-	(void)a_scene_hierarchy;
-	(void)a_pos;
-	BB_UNIMPLEMENTED();
+	QuadVertices quad_vertices;
+	quad_vertices[0].normal = float3(0.f, 1.f, 0.1f);
+	quad_vertices[0].uv = float2(0.f, 1.f);
+	quad_vertices[0].color = float4(1.f, 1.f, 1.f, 1.f);
+
+	quad_vertices[1].normal = float3(0.f, 1.f, 0.1f);
+	quad_vertices[1].uv = float2(1.f, 1.f);
+	quad_vertices[1].color = float4(1.f, 1.f, 1.f, 1.f);
+
+	quad_vertices[2].normal = float3(0.f, 1.f, 0.1f);
+	quad_vertices[2].uv = float2(1.f, 0.f);
+	quad_vertices[2].color = float4(1.f, 1.f, 1.f, 1.f);
+
+	quad_vertices[3].normal = float3(0.f, 1.f, 0.1f);
+	quad_vertices[3].uv = float2(0.f, 0.f);
+	quad_vertices[3].color = float4(1.f, 1.f, 1.f, 1.f);
 
 	SceneObjectHandle map_obj{};
+	MemoryArenaScope(a_temp_arena)
+	{
+		StaticArray<Vertex> vertices;
+		vertices.Init(a_temp_arena, m_map.size() * 4);
+		StaticArray<uint32_t> indices;
+		indices.Init(a_temp_arena, m_map.size() * 6);
+
+		for (int y = 0; y < m_map_size_y; y++)
+		{
+			for (int x = 0; x < m_map_size_x; x++)
+			{
+				const DungeonTile& tile = GetTile(x, y);
+				if (tile.walkable)
+				{
+					if (!IsTileWalkable(x + 1, y))
+					{
+						MakeWallSegment(vertices, indices, quad_vertices, x, y, float3(0.5f, 0.f, 0.f), float3(0.f, 90.f, 0.f));
+					}
+					if (!IsTileWalkable(x - 1, y))
+					{
+						MakeWallSegment(vertices, indices, quad_vertices, x, y, float3(-0.5f, 0.f, 0.f), float3(0.f, 90.f, 0.f));
+					}
+					if (!IsTileWalkable(x, y + 1))
+					{
+						MakeWallSegment(vertices, indices, quad_vertices, x, y, float3(0.f, 0.f, 0.5f), float3(0.f, 90.f, 0.f));
+					}
+					if (!IsTileWalkable(x, y - 1))
+					{
+						MakeWallSegment(vertices, indices, quad_vertices, x, y, float3(0.f, 0.f, -0.5f), float3(0.f, 90.f, 0.f));
+					}
+				}
+			}
+		}
+
+		CreateMeshInfo create_mesh_info;
+		create_mesh_info.vertices = Slice(vertices.data(), vertices.size());
+		create_mesh_info.indices = Slice(indices.data(), indices.size());
+		Mesh mesh = CreateMesh(create_mesh_info);
+		MeshMetallic material_info;
+		material_info.metallic_factor = 1.0f;
+		material_info.roughness_factor = 0.0f;
+		material_info.base_color_factor = float4(1.f);
+		material_info.albedo_texture = GetDebugTexture();
+		material_info.normal_texture = GetWhiteTexture();
+
+		SceneMeshCreateInfo mesh_info;
+		mesh_info.mesh = mesh;
+		mesh_info.index_start = 0;
+		mesh_info.index_count = indices.size();
+		mesh_info.master_material = Material::GetDefaultMasterMaterial(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D);
+		mesh_info.material_data = material_info;
+		map_obj = a_scene_hierarchy.CreateSceneObjectMesh(a_pos, mesh_info, "dungeon map floor");
+	}
 
 	return map_obj;
 }
@@ -269,13 +359,13 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
 	room.CreateRoom(m_game_memory, "../../resources/game/dungeon_rooms/map1.bmp");
 	DungeonRoom* roomptr = &room;
 	m_dungeon_map.CreateMap(m_game_memory, 30, 30, Slice(&roomptr, 1));
-	const float3 map_start_pos = float3(0.f, -1.f, -10.f);
+	const float3 map_start_pos = float3(0.f, 0.f, -10.f);
 	MemoryArenaScope(m_game_memory)
 	{
 		m_dungeon_map.CreateSceneObjectFloor(m_game_memory, m_scene_hierarchy, map_start_pos);
-		//m_dungeon_map.CreateSceneObjectWalls(m_game_memory, m_scene_hierarchy, map_start_pos);
+		m_dungeon_map.CreateSceneObjectWalls(m_game_memory, m_scene_hierarchy, map_start_pos);
 	}
-	m_player.SetPosition(float3(0.f, 0.f, 0.f));
+	m_player.SetPosition(m_dungeon_map.GetSpawnPoint() + map_start_pos);
 	m_player.SetVelocitySpeed(25.f);
 	return true;
 }
