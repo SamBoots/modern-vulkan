@@ -230,12 +230,25 @@ SceneObjectHandle DungeonMap::CreateSceneObjectWalls(MemoryArena& a_temp_arena, 
 
 float3 Player::Move(const float3 a_translation)
 {
-	return m_position = m_position + a_translation;
+	return m_velocity = m_velocity + a_translation;
 }
 
 void Player::SetPosition(const float3 a_position)
 {
 	m_position = a_position;
+}
+
+void Player::SetVelocitySpeed(const float a_velocity_speed)
+{
+	m_velocity_speed = a_velocity_speed;
+}
+
+bool Player::Update(const float a_delta_time)
+{
+	const float3 velocity = m_velocity * m_velocity_speed * a_delta_time;
+	m_velocity = m_velocity - velocity;
+	m_position = m_position + velocity;
+	return true;
 }
 
 float4x4 Player::CalculateView() const
@@ -263,16 +276,17 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
 		//m_dungeon_map.CreateSceneObjectWalls(m_game_memory, m_scene_hierarchy, map_start_pos);
 	}
 	m_player.SetPosition(float3(0.f, 0.f, 0.f));
-
+	m_player.SetVelocitySpeed(25.f);
 	return true;
 }
 
 bool DungeonGame::Update(const float a_delta_time)
 {
-	(void)a_delta_time;
+	m_player.Update(a_delta_time);
 
 	if (m_free_cam.use_free_cam)
 	{
+		m_free_cam.camera.Update(a_delta_time);
 		m_scene_hierarchy.SetView(m_free_cam.camera.CalculateView(), m_free_cam.camera.GetPosition());
 	}
 	else
@@ -287,7 +301,6 @@ bool DungeonGame::Update(const float a_delta_time)
 
 bool DungeonGame::HandleInput(const float a_delta_time, const Slice<InputEvent> a_input_events)
 {
-	(void)a_delta_time;
 	for (size_t i = 0; i < a_input_events.size(); i++)
 	{
 		const InputEvent& ip = a_input_events[i];
@@ -295,6 +308,7 @@ bool DungeonGame::HandleInput(const float a_delta_time, const Slice<InputEvent> 
 		{
 			const KeyInfo& ki = ip.key_info;
 			float3 player_move{};
+			float player_rotate_y;
 			if (ki.key_pressed)
 			{
 				switch (ki.scan_code)
@@ -317,10 +331,17 @@ bool DungeonGame::HandleInput(const float a_delta_time, const Slice<InputEvent> 
 				case KEYBOARD_KEY::Z:
 					player_move.y = -1;
 					break;
+				case KEYBOARD_KEY::Q:
+					player_rotate_y = 1;
+					break;
+				case KEYBOARD_KEY::E:
+					player_rotate_y = -1;
+					break;
 				case KEYBOARD_KEY::F:
 					m_free_cam.freeze_free_cam = !m_free_cam.freeze_free_cam;
+					m_free_cam.camera.SetVelocity();
 					break;
-				case KEYBOARD_KEY::Q:
+				case KEYBOARD_KEY::G:
 					ToggleFreeCam();
 					break;
 				default:
@@ -332,6 +353,7 @@ bool DungeonGame::HandleInput(const float a_delta_time, const Slice<InputEvent> 
 				const float swap_y = player_move.y;
 				player_move.y = player_move.z;
 				player_move.z = swap_y;
+				player_move = player_move * a_delta_time;
 				m_free_cam.camera.Move(player_move);
 			}
 			else
@@ -343,12 +365,12 @@ bool DungeonGame::HandleInput(const float a_delta_time, const Slice<InputEvent> 
 		else if (ip.input_type == INPUT_TYPE::MOUSE)
 		{
 			const MouseInfo& mi = ip.mouse_info;
-			const float2 mouse_move = (mi.move_offset * a_delta_time) * 10.f;
+			const float2 mouse_move = (mi.move_offset * a_delta_time);
 
 			if (mi.wheel_move)
 			{
 				m_free_cam.speed = Clampf(
-					m_free_cam.speed + static_cast<float>(mi.wheel_move) * 0.1f,
+					m_free_cam.speed + static_cast<float>(mi.wheel_move) * (m_free_cam.speed * 0.02f),
 					m_free_cam.min_speed,
 					m_free_cam.max_speed);
 				m_free_cam.camera.SetSpeed(m_free_cam.speed);
@@ -381,7 +403,19 @@ void DungeonGame::DisplayImGuiInfo()
 			m_free_cam.freeze_free_cam = !m_free_cam.freeze_free_cam;
 		}
 
-		ImGui::SliderFloat("Freecam speed", &m_free_cam.speed, m_free_cam.min_speed, m_free_cam.max_speed);
+		if (ImGui::SliderFloat("Freecam speed", &m_free_cam.speed, m_free_cam.min_speed, m_free_cam.max_speed))
+		{
+			 m_free_cam.camera.SetSpeed(m_free_cam.speed);
+		}
+		
+		if (ImGui::CollapsingHeader("player"))
+		{
+			float velocity_speed = m_player.GetVelocitySpeed();
+			if (ImGui::SliderFloat("velocity speed", &velocity_speed, 1.f, 100.f))
+			{
+				m_player.SetVelocitySpeed(velocity_speed);
+			}
+		}
 	}
 	ImGui::End();
 }

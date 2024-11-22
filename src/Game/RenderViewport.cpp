@@ -112,8 +112,7 @@ bool RenderViewport::Init(const uint2 a_game_viewport_size, const uint32_t a_bac
 
 bool RenderViewport::Update(const float a_delta_time)
 {
-	(void)a_delta_time;
-
+	m_camera.Update(a_delta_time);
 	if (!m_freeze_cam)
 	{
 		m_scene_hierarchy.SetView(m_camera.CalculateView(), m_camera.GetPosition());
@@ -124,7 +123,6 @@ bool RenderViewport::Update(const float a_delta_time)
 
 bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEvent> a_input_events)
 {
-	(void)a_delta_time;
 	for (size_t i = 0; i < a_input_events.size(); i++)
 	{
 		const InputEvent& ip = a_input_events[i];
@@ -156,10 +154,12 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
 					break;
 				case KEYBOARD_KEY::F:
 					m_freeze_cam = !m_freeze_cam;
+					m_camera.SetVelocity();
 					break;
 				default:
 					break;
 				}
+				player_move = player_move * a_delta_time;
 			}
 			if (!m_freeze_cam)
 			{
@@ -169,12 +169,12 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
 		else if (ip.input_type == INPUT_TYPE::MOUSE)
 		{
 			const MouseInfo& mi = ip.mouse_info;
-			const float2 mouse_move = (mi.move_offset * a_delta_time) * 10.f;
+			const float2 mouse_move = (mi.move_offset * a_delta_time);
 
 			if (mi.wheel_move)
 			{
 				m_speed = Clampf(
-					m_speed + static_cast<float>(mi.wheel_move) * 0.1f,
+					m_speed + static_cast<float>(mi.wheel_move) * (m_speed * 0.02f),
 					m_min_speed,
 					m_max_speed);
 				m_camera.SetSpeed(m_speed);
@@ -194,7 +194,7 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
 
 void RenderViewport::DisplayImGuiInfo()
 {
-	if (ImGui::Begin("game info"))
+	if (ImGui::Begin("render viewport info"))
 	{
 		ImGui::Text("Freeze freecam: %s", m_freeze_cam ? "true" : "false");
 		if (ImGui::Button("Toggle freecam freeze"))
@@ -202,7 +202,10 @@ void RenderViewport::DisplayImGuiInfo()
 			m_freeze_cam = !m_freeze_cam;
 		}
 
-		ImGui::SliderFloat("Freecam speed", &m_speed, m_min_speed, m_max_speed);
+		if (ImGui::SliderFloat("Freecam speed", &m_speed, m_min_speed, m_max_speed))
+		{
+			m_camera.SetSpeed(m_max_speed);
+		}
 	}
 	ImGui::End();
 }

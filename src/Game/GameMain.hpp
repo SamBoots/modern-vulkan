@@ -84,16 +84,26 @@ namespace BB
 		Player() = default;
 
 		float3 Move(const float3 a_translation);
+		float3 Rotate(const float3 a_rotate);
 		void SetPosition(const float3 a_position);
+		void SetVelocitySpeed(const float a_velocity_speed);
+
+		bool Update(const float a_delta_time);
 
 		float4x4 CalculateView() const;
 
 
+		float GetVelocitySpeed() const
+		{
+			return m_velocity_speed;
+		}
 		float3 GetPosition() const
 		{
 			return m_position;
 		}
 	private:
+		float m_velocity_speed;
+		float3 m_velocity;
 		float3 m_position;
 		float3 m_up{ 0.0f, 1.0f, 0.0f };
 		float3 m_forward{ 0.0f, 0.0f, 1.0f };
@@ -127,9 +137,9 @@ namespace BB
 			bool freeze_free_cam;
 			bool use_free_cam;
 			FreeCamera camera{};
-			float speed = 0.25f;
-			float min_speed = 0.1f;
-			float max_speed = 1.0f;
+			float speed = 200.f;
+			float min_speed = 100.f;
+			float max_speed = 1000.0f;
 		};
 		FreeCameraOption m_free_cam;
 	};

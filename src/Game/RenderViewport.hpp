@@ -23,9 +23,9 @@ namespace BB
 		SceneHierarchy m_scene_hierarchy;
 
 		FreeCamera m_camera{};
-		float m_speed = 0.25f;
-		float m_min_speed = 0.1f;
-		float m_max_speed = 1.0f;
+		float m_speed = 200.f;
+		float m_min_speed = 100.f;
+		float m_max_speed = 1000.0f;
 		bool m_freeze_cam = false;
 	};
 	static_assert(is_interactable_viewport_interface<RenderViewport>);
