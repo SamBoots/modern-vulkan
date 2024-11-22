@@ -4,12 +4,10 @@
 
 namespace BB
 {
-
-	static_assert(is_interactable_viewport_interface<RenderViewport>);
 	class RenderViewport
 	{
 	public:
-		bool Init(const uint2 a_game_viewport_size, const uint32_t a_back_buffer_count);
+		bool Init(const uint2 a_game_viewport_size, const uint32_t a_back_buffer_count, const StringView a_json_path);
 		bool Update(const float a_delta_time);
 		bool HandleInput(const float a_delta_time, const Slice<InputEvent> a_input_events);
 		// maybe ifdef this for editor
@@ -20,13 +18,15 @@ namespace BB
 		SceneHierarchy& GetSceneHierarchy() { return m_scene_hierarchy; }
 
 	private:
+		MemoryArena m_memory;
 		Viewport m_viewport;
 		SceneHierarchy m_scene_hierarchy;
 
-		FreeCamera camera{};
-		float speed = 0.25f;
-		float min_speed = 0.1f;
-		float max_speed = 1.0f;
-		FreeCameraOption m_free_cam;
+		FreeCamera m_camera{};
+		float m_speed = 0.25f;
+		float m_min_speed = 0.1f;
+		float m_max_speed = 1.0f;
+		bool m_freeze_cam = false;
 	};
+	static_assert(is_interactable_viewport_interface<RenderViewport>);
 }

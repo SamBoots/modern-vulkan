@@ -18,8 +18,6 @@ namespace BB
 	public:
 		void Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent, const size_t a_editor_memory = EDITOR_DEFAULT_MEMORY);
 		void Destroy();
-		void CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint32_t a_back_buffer_count, const char* a_json_path);
-		void CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint32_t a_back_buffer_count, const JsonParser& a_parsed_file);
 
 		void StartFrame(const Slice<InputEvent> a_input_events, const float a_delta_time);
 
@@ -81,14 +79,6 @@ namespace BB
 		void ImGuiDisplayMaterial(const MasterMaterial& a_material) const;
 		void ImGuiDisplayMaterials();
 
-		struct LoadAssetsAsync_params
-		{
-			Editor* editor;
-			MemoryArena arena;
-			Asset::AsyncAsset* assets;
-			size_t asset_count;
-		};
-		static void LoadAssetsAsync(MemoryArena& a_thread_arena, void* a_params);
 		void MainEditorImGuiInfo(const MemoryArena& a_arena);
 		struct ThreadFuncForDrawing_Params
 		{

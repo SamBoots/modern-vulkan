@@ -99,7 +99,6 @@ namespace BB
 		float3 m_forward{ 0.0f, 0.0f, 1.0f };
 	};
 
-	static_assert(is_interactable_viewport_interface<DungeonGame>);
 	class DungeonGame
 	{
 	public:
@@ -134,4 +133,5 @@ namespace BB
 		};
 		FreeCameraOption m_free_cam;
 	};
+	static_assert(is_interactable_viewport_interface<DungeonGame>);
 }
