@@ -9,8 +9,6 @@
 
 using namespace BB;
 
-constexpr size_t EDITOR_MODEL_NAME_ARRAY_SIZE = 256;
-
 struct ImInputData
 {
 	BB::WindowHandle            window;
@@ -295,9 +293,6 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 	m_gpu_info = GetGPUInfo(a_arena);
 
 	m_editor_allocator.Initialize(a_arena, a_editor_memory);
-	void* loaded_model_names = m_editor_allocator.Alloc(EDITOR_MODEL_NAME_ARRAY_SIZE * sizeof(decltype(m_loaded_models_names)::TYPE), 16);
-
-	m_loaded_models_names.Init(loaded_model_names, EDITOR_MODEL_NAME_ARRAY_SIZE);
 
 	MaterialSystemCreateInfo material_system_init;
 	material_system_init.max_materials = 128;
@@ -440,21 +435,6 @@ void Editor::EndFrame(MemoryArena& a_arena)
 			m_per_frame.current_count,
 			present_queue_value);
 	}
-}
-
-ThreadTask Editor::LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets, Editor* a_editor)
-{
-	// maybe have each thread have it's own memory arena
-	MemoryArena load_arena = MemoryArenaCreate();
-
-	LoadAssetsAsync_params* params = ArenaAllocType(load_arena, LoadAssetsAsync_params);
-	params->assets = ArenaAllocArr(load_arena, Asset::AsyncAsset, a_asyn_assets.size());
-	memcpy(params->assets, a_asyn_assets.data(), a_asyn_assets.sizeInBytes());
-	params->asset_count = a_asyn_assets.size();
-	params->arena = load_arena;
-	params->editor = a_editor;
-
-	return Threads::StartTaskThread(Editor::LoadAssetsAsync, params);
 }
 
 void Editor::ImguiDisplaySceneHierarchy(SceneHierarchy& a_hierarchy)
@@ -667,13 +647,6 @@ void Editor::ImguiCreateSceneObject(SceneHierarchy& a_hierarchy, const SceneObje
 			if (ImGui::Button("set empty"))
 			{
 				mesh_name = StringView();
-			}
-			for (size_t i = 0; i < m_loaded_models_names.size(); i++)
-			{
-				if (ImGui::Button(m_loaded_models_names[i].c_str()))
-				{
-					mesh_name = m_loaded_models_names[i];
-				}
 			}
 
 			ImGui::Unindent();

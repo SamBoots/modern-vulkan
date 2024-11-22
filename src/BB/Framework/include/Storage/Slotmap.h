@@ -462,14 +462,23 @@ namespace BB
 			}
 		}
 
-		Slice<const T> slice()
+		ConstSlice<T> const_slice()
+		{
+			return const_slice(m_size);
+		}
+		ConstSlice<T> const_slice(const size_t a_size, const size_t a_begin = 0)
+		{
+			BB_ASSERT(a_begin + a_size <= m_size, "requesting an out of bounds slice");
+			return ConstSlice<T>(&m_obj_arr[a_begin], a_size);
+		}
+		Slice<T> slice()
 		{
 			return slice(m_size);
 		}
-		Slice<const T> slice(const size_t a_size, const size_t a_begin = 0)
+		Slice<T> slice(const size_t a_size, const size_t a_begin = 0)
 		{
 			BB_ASSERT(a_begin + a_size <= m_size, "requesting an out of bounds slice");
-			return Slice<const T>(&m_obj_arr[a_begin], a_size);
+			return Slice<T>(&m_obj_arr[a_begin], a_size);
 		}
 
 		uint32_t size() const { return m_size; }

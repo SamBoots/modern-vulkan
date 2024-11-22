@@ -66,8 +66,6 @@ namespace BB
 		}
 		void EndFrame(MemoryArena& a_arena);
 
-		static ThreadTask LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets, Editor* a_editor);
-
 	private:
 		FreelistInterface m_editor_allocator;
 
@@ -88,8 +86,6 @@ namespace BB
 			RCommandList command_list;
 		};
 		static void ThreadFuncForDrawing(MemoryArena& a_thread_arena, void* a_param);
-
-		StaticArray<StringView> m_loaded_models_names;
 
 		uint2 m_app_window_extent;
 

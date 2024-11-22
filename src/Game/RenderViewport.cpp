@@ -1,31 +1,16 @@
 #include "RenderViewport.hpp"
 #include "BBjson.hpp"
 #include "BBThreadScheduler.hpp"
+#include "Math.inl"
 
 using namespace BB;
 
 struct LoadAssetsAsync_params
 {
-	Editor* editor;
 	MemoryArena arena;
 	Asset::AsyncAsset* assets;
 	size_t asset_count;
 };
-static void LoadAssetsAsync(MemoryArena& a_thread_arena, void* a_params)
-{
-	LoadAssetsAsync_params* params = reinterpret_cast<LoadAssetsAsync_params*>(a_params);
-	MemoryArena load_arena = MemoryArenaCreate();
-
-	Slice loaded_assets = Asset::LoadAssets(load_arena, Slice(params->assets, params->asset_count));
-
-	for (size_t i = 0; i < loaded_assets.size(); i++)
-	{
-		if (loaded_assets[i].type == Asset::ASYNC_ASSET_TYPE::MODEL)
-			params->editor->m_loaded_models_names.push_back(loaded_assets[i].name);
-	}
-
-	MemoryArenaFree(load_arena);
-}
 
 static void CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint32_t a_back_buffer_count, const JsonParser& a_parsed_file)
 {
@@ -106,33 +91,34 @@ bool RenderViewport::Init(const uint2 a_game_viewport_size, const uint32_t a_bac
 {
 	m_memory = MemoryArenaCreate();
 
-	JsonParser json_file(a_json_path);
+	JsonParser json_file(a_json_path.c_str());
 	json_file.Parse();
 	MemoryArenaScope(m_memory)
 	{
 		auto viewer_list = SceneHierarchy::PreloadAssetsFromJson(m_memory, json_file);
-		const ThreadTask view_upload = LoadAssets(Slice(viewer_list.data(), viewer_list.size()));
 
-		Threads::WaitForTask(view_upload);
+		Asset::LoadAssets(m_memory, viewer_list.slice());
 	}
-
-	const uint32_t back_buffer_count = GetRenderIO().frame_count;
 
 	CreateSceneHierarchyViaJson(m_memory, m_scene_hierarchy, a_back_buffer_count, json_file);
 	m_scene_hierarchy.SetClearColor(float3(0.3f, 0.3f, 0.3f));
 
 	m_viewport.Init(a_game_viewport_size, int2(0, 0), a_back_buffer_count, "rendering showcase screen");
+	m_camera.SetPosition(float3(0.f, 1.f, -1.f));
+	m_camera.SetUp(float3(0.f, 1.f, 0.f));
+	m_camera.SetSpeed(m_speed);
+	return true;
 }
 
 bool RenderViewport::Update(const float a_delta_time)
 {
 	(void)a_delta_time;
 
-	if (m_freeze_cam)
+	if (!m_freeze_cam)
 	{
 		m_scene_hierarchy.SetView(m_camera.CalculateView(), m_camera.GetPosition());
 	}
-
+	DisplayImGuiInfo();
 	return true;
 }
 
@@ -175,7 +161,7 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
 					break;
 				}
 			}
-			if (m_freeze_cam)
+			if (!m_freeze_cam)
 			{
 				m_camera.Move(player_move);
 			}
@@ -194,9 +180,9 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
 				m_camera.SetSpeed(m_speed);
 			}
 
-			if (m_freeze_cam)
+			if (!m_freeze_cam)
 			{
-				m_free_cam.camera.Rotate(mouse_move.x, mouse_move.y);
+				m_camera.Rotate(mouse_move.x, mouse_move.y);
 			}
 		}
 	}
@@ -204,9 +190,21 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
 	return true;
 }
 
+#include "imgui.h"
+
 void RenderViewport::DisplayImGuiInfo()
 {
+	if (ImGui::Begin("game info"))
+	{
+		ImGui::Text("Freeze freecam: %s", m_freeze_cam ? "true" : "false");
+		if (ImGui::Button("Toggle freecam freeze"))
+		{
+			m_freeze_cam = !m_freeze_cam;
+		}
 
+		ImGui::SliderFloat("Freecam speed", &m_speed, m_min_speed, m_max_speed);
+	}
+	ImGui::End();
 }
 
 void RenderViewport::Destroy()

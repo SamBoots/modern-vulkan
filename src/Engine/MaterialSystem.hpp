@@ -128,8 +128,8 @@ namespace BB
 		const DescriptorAllocation& GetMaterialDescAllocation();
 		MasterMaterialHandle GetDefaultMasterMaterial(const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type);
 		const MasterMaterial& GetMasterMaterial(const MasterMaterialHandle a_master_material);
- 		Slice<const ShaderEffectHandle> GetMaterialShaders(const MasterMaterialHandle a_master_material);
-		Slice<const CachedShaderInfo> GetAllCachedShaders();
-		Slice<const MasterMaterial> GetAllMasterMaterials();
+ 		ConstSlice<ShaderEffectHandle> GetMaterialShaders(const MasterMaterialHandle a_master_material);
+		ConstSlice<CachedShaderInfo> GetAllCachedShaders();
+		ConstSlice<MasterMaterial> GetAllMasterMaterials();
 	};
 }

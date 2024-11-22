@@ -90,7 +90,7 @@ namespace BB
 
 	void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info);
 	void EndRenderPass(const RCommandList a_list);
-	RPipelineLayout BindShaders(const RCommandList a_list, const Slice<const ShaderEffectHandle> a_shader_effects);
+	RPipelineLayout BindShaders(const RCommandList a_list, const ConstSlice<ShaderEffectHandle> a_shader_effects);
 	void SetFrontFace(const RCommandList a_list, const bool a_is_clockwise);
 	void SetCullMode(const RCommandList a_list, const CULL_MODE a_cull_mode);
 	void SetDepthBias(const RCommandList a_list, const float a_bias_constant_factor, const float a_bias_clamp, const float a_bias_slope_factor);
@@ -117,7 +117,7 @@ namespace BB
 	const Mesh CreateMesh(const CreateMeshInfo& a_create_info);
 	void FreeMesh(const Mesh a_mesh);
 
-	RDescriptorLayout CreateDescriptorLayout(MemoryArena& a_temp_arena, Slice<DescriptorBindingInfo> a_bindings);
+	RDescriptorLayout CreateDescriptorLayout(MemoryArena& a_temp_arena, const ConstSlice<DescriptorBindingInfo> a_bindings);
 	DescriptorAllocation AllocateDescriptor(const RDescriptorLayout a_descriptor);
 
 	bool CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles, bool a_link_shaders);

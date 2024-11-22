@@ -1116,7 +1116,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 			descriptor_bindings[3].shader_stage = SHADER_STAGE::FRAGMENT_PIXEL;
 			descriptor_bindings[3].type = DESCRIPTOR_TYPE::IMAGE;
 
-			s_render_inst->global_descriptor_set = Vulkan::CreateDescriptorLayout(a_arena, descriptor_bindings.slice());
+			s_render_inst->global_descriptor_set = Vulkan::CreateDescriptorLayout(a_arena, descriptor_bindings.const_slice());
 			s_render_inst->global_descriptor_allocation = Vulkan::AllocateDescriptor(s_render_inst->global_descriptor_set);
 		}
 	}
@@ -1627,7 +1627,7 @@ void BB::EndRenderPass(const RCommandList a_list)
 	Vulkan::EndRenderPass(a_list);
 }
 
-RPipelineLayout BB::BindShaders(const RCommandList a_list, const Slice<const ShaderEffectHandle> a_shader_effects)
+RPipelineLayout BB::BindShaders(const RCommandList a_list, const ConstSlice<ShaderEffectHandle> a_shader_effects)
 {
 	constexpr size_t SHADERS_MAX = 5;
 	BB_ASSERT(SHADERS_MAX >= a_shader_effects.size(), "binding more then 5 shaders at a time, this is wrong or increase SHADERS_MAX");
@@ -1811,7 +1811,7 @@ void BB::FreeMesh(const Mesh a_mesh)
 	BB_UNIMPLEMENTED();
 }
 
-RDescriptorLayout BB::CreateDescriptorLayout(MemoryArena& a_temp_arena, Slice<DescriptorBindingInfo> a_bindings)
+RDescriptorLayout BB::CreateDescriptorLayout(MemoryArena& a_temp_arena, const ConstSlice<DescriptorBindingInfo> a_bindings)
 {
 	return Vulkan::CreateDescriptorLayout(a_temp_arena, a_bindings);
 }
