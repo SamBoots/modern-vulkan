@@ -29,10 +29,22 @@ namespace BB
 			return m_arr[a_index];
 		}
 
+		const ConstSlice<T> const_slice() const
+		{
+			return const_slice(arr_size);
+		}
+
+		const ConstSlice<T> const_slice(const size_t a_size, const size_t a_begin = 0) const
+		{
+			BB_ASSERT(a_begin + a_size <= arr_size, "requesting an out of bounds slice");
+			return ConstSlice<T>(&m_arr[a_begin], a_size);
+		}
+
 		const Slice<T> slice()
 		{
 			return slice(arr_size);
 		}
+
 		const Slice<T> slice(const size_t a_size, const size_t a_begin = 0)
 		{
 			BB_ASSERT(a_begin + a_size <= arr_size, "requesting an out of bounds slice");

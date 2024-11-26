@@ -1,12 +1,17 @@
 #pragma once
-#include "MemoryArena.hpp"
-#include "Common.h"
-#include "Rendererfwd.hpp"
-#include "Camera.hpp"
-#include "Storage/BBString.h"
+
+#include <concepts>
+#include "SceneHierarchy.hpp"
+#include "HID.h"
 
 namespace BB
 {
+	struct ViewportRect
+	{
+		uint2 size;
+		uint2 offset;
+	};
+
 	class Viewport
 	{
 	public:
@@ -21,7 +26,6 @@ namespace BB
 
 		float4x4 CreateProjection(const float a_fov, const float a_near_field, const float a_far_field) const;
 
-		const StringView GetName() const { return m_name; }
 		const uint2 GetExtent() const { return m_extent; }
 		const int2 GetOffset() const { return m_offset; }
 
@@ -29,11 +33,21 @@ namespace BB
 		void Screenshot(const uint32_t a_back_buffer_index, const char* a_name) const;
 		void CreateTextures();
 
+		StringView m_name;
 		uint2 m_extent;
 		int2 m_offset;
 		uint32_t m_render_target_count;
 		RImage m_image;
 		RDescriptorIndex m_image_indices[3];
-		StringView m_name;
+	};
+
+	template <typename T>
+	concept is_interactable_viewport_interface = requires(T v, const float a_delta_time, Slice<InputEvent> a_input_events)
+	{
+		{ v.Update(a_delta_time) } -> std::same_as<bool>;
+		{ v.HandleInput(a_delta_time, a_input_events) } -> std::same_as<bool>;
+
+		{ v.GetViewport() } -> std::same_as<BB::Viewport&>;
+		{ v.GetSceneHierarchy() } -> std::same_as<BB::SceneHierarchy&>;
 	};
 }

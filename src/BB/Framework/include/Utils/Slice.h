@@ -78,4 +78,7 @@ namespace BB
 		DataType* m_ptr;
 		size_t m_size;
 	};
+
+	template<typename T>
+	using ConstSlice = Slice<const T>;
 }

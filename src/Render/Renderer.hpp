@@ -72,25 +72,28 @@ namespace BB
 	const RenderIO& GetRenderIO();
 
 	bool InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_render_create_info);
+	bool DestroyRenderer();
 	void RequestResize();
 
 	void GPUWaitIdle();
 
 	GPUDeviceInfo GetGPUInfo(MemoryArena& a_arena);
 
-	struct StartFrameInfo
+	struct RenderStartFrameInfo
 	{
 		float2 mouse_pos;
 		float delta_time;
 	};
 
-	void StartFrame(const RCommandList a_list, const StartFrameInfo& a_info, uint32_t& a_out_back_buffer_index);
-	void EndFrame(const RCommandList a_list, const ShaderEffectHandle a_imgui_vertex, const ShaderEffectHandle a_imgui_fragment, const uint32_t a_back_buffer_index, bool a_skip = false);
+	void RenderStartFrame(const RCommandList a_list, const RenderStartFrameInfo& a_info, uint32_t& a_out_back_buffer_index);
+	void RenderEndFrame(const RCommandList a_list, const ShaderEffectHandle a_imgui_vertex, const ShaderEffectHandle a_imgui_fragment, const uint32_t a_back_buffer_index, bool a_skip = false);
 
 	void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info);
 	void EndRenderPass(const RCommandList a_list);
-	RPipelineLayout BindShaders(const RCommandList a_list, const Slice<const ShaderEffectHandle> a_shader_effects);
+
+	RPipelineLayout BindShaders(const RCommandList a_list, const ConstSlice<ShaderEffectHandle> a_shader_effects);
 	void SetBlendMode(const RCommandList a_list, const uint32_t a_first_attachment, const Slice<ColorBlendState> a_blend_states);
+
 	void SetFrontFace(const RCommandList a_list, const bool a_is_clockwise);
 	void SetCullMode(const RCommandList a_list, const CULL_MODE a_cull_mode);
 	void SetDepthBias(const RCommandList a_list, const float a_bias_constant_factor, const float a_bias_clamp, const float a_bias_slope_factor);
@@ -117,7 +120,7 @@ namespace BB
 	const Mesh CreateMesh(const CreateMeshInfo& a_create_info);
 	void FreeMesh(const Mesh a_mesh);
 
-	RDescriptorLayout CreateDescriptorLayout(MemoryArena& a_temp_arena, Slice<DescriptorBindingInfo> a_bindings);
+	RDescriptorLayout CreateDescriptorLayout(MemoryArena& a_temp_arena, const ConstSlice<DescriptorBindingInfo> a_bindings);
 	DescriptorAllocation AllocateDescriptor(const RDescriptorLayout a_descriptor);
 
 	bool CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles, bool a_link_shaders);

@@ -29,7 +29,7 @@ namespace BB
 		const RImageView CreateImageView(const ImageViewCreateInfo& a_create_info);
 		void FreeViewImage(const RImageView a_image_view);
 
-		RDescriptorLayout CreateDescriptorLayout(MemoryArena& a_temp_arena, Slice<DescriptorBindingInfo> a_bindings);
+		RDescriptorLayout CreateDescriptorLayout(MemoryArena& a_temp_arena, const ConstSlice<DescriptorBindingInfo> a_bindings);
 		RDescriptorLayout CreateDescriptorSamplerLayout(const Slice<SamplerCreateInfo> a_static_samplers);
 		DescriptorAllocation AllocateDescriptor(const RDescriptorLayout a_descriptor);
 		void DescriptorWriteUniformBuffer(const DescriptorWriteBufferInfo& a_write_info);

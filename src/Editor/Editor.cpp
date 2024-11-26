@@ -7,12 +7,7 @@
 
 #include "imgui.h"
 
-#include "BBjson.hpp"
-
 using namespace BB;
-
-constexpr size_t EDITOR_VIEWPORT_ARRAY_SIZE = 16;
-constexpr size_t EDITOR_MODEL_NAME_ARRAY_SIZE = 256;
 
 struct ImInputData
 {
@@ -244,13 +239,6 @@ void Editor::MainEditorImGuiInfo(const MemoryArena& a_arena)
 {
 	if (ImGui::Begin("general engine info"))
 	{
-		if (m_active_viewport == nullptr)
-			ImGui::Text("current viewport: None");
-		else
-			ImGui::Text("current viewport: %s", m_active_viewport->viewport.GetName().c_str());
-
-		ImGui::SliderFloat("camera speed", &m_cam_speed, m_cam_speed_min, m_cam_speed_max);
-
 		DisplayGPUInfo(m_gpu_info);
 
 		if (ImGui::CollapsingHeader("main allocator"))
@@ -286,8 +274,8 @@ void Editor::ThreadFuncForDrawing(MemoryArena&, void* a_param)
 	ThreadFuncForDrawing_Params* param_in = reinterpret_cast<ThreadFuncForDrawing_Params*>(a_param);
 
 	uint32_t back_buffer_index = param_in->back_buffer_index;
-	Viewport& viewport = param_in->viewport;
-	SceneHierarchy& scene_hierarchy = param_in->scene_hierarchy;
+	Viewport& viewport = *param_in->viewport;
+	SceneHierarchy& scene_hierarchy = *param_in->scene_hierarchy;
 	RCommandList list = param_in->command_list;
 
 	const RImageView render_target = viewport.StartRenderTarget(list, back_buffer_index);
@@ -305,11 +293,6 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 	m_gpu_info = GetGPUInfo(a_arena);
 
 	m_editor_allocator.Initialize(a_arena, a_editor_memory);
-	void* viewports_mem = m_editor_allocator.Alloc(EDITOR_VIEWPORT_ARRAY_SIZE * sizeof(decltype(m_viewport_and_scenes)::TYPE), 16);
-	void* loaded_model_names = m_editor_allocator.Alloc(EDITOR_MODEL_NAME_ARRAY_SIZE * sizeof(decltype(m_loaded_models_names)::TYPE), 16);
-
-	m_viewport_and_scenes.Init(viewports_mem, EDITOR_VIEWPORT_ARRAY_SIZE);
-	m_loaded_models_names.Init(loaded_model_names, EDITOR_MODEL_NAME_ARRAY_SIZE);
 
 	MaterialSystemCreateInfo material_system_init;
 	material_system_init.max_materials = 128;
@@ -342,108 +325,23 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 void Editor::Destroy()
 {
 	DestroyImGuiInput();
+	DestroyRenderer();
 	DirectDestroyOSWindow(m_main_window);
 }
 
-void Editor::CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint32_t a_back_buffer_count, const char* a_json_path)
+void Editor::StartFrame(const Slice<InputEvent> a_input_events, const float a_delta_time)
 {
-	JsonParser json_file(a_json_path);
-	CreateSceneHierarchyViaJson(a_arena, a_hierarchy, a_back_buffer_count, json_file);
-}
-
-void Editor::CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint32_t a_back_buffer_count, const JsonParser& a_parsed_file)
-{
-	const JsonObject& scene_obj = a_parsed_file.GetRootNode()->GetObject().Find("scene")->GetObject();
-	{
-		a_hierarchy.Init(a_arena, a_back_buffer_count, Asset::FindOrCreateString(scene_obj.Find("name")->GetString()));
-	}
-
-	const JsonList& scene_objects = scene_obj.Find("scene_objects")->GetList();
-
-	for (size_t i = 0; i < scene_objects.node_count; i++)
-	{
-		const JsonObject& sce_obj = scene_objects.nodes[i]->GetObject();
-		const char* model_name = scene_objects.nodes[i]->GetObject().Find("file_name")->GetString();
-		const char* obj_name = scene_objects.nodes[i]->GetObject().Find("file_name")->GetString();
-		const Model* model = Asset::FindModelByName(model_name);
-		BB_ASSERT(model != nullptr, "model failed to be found");
-		const JsonList& position_list = sce_obj.Find("position")->GetList();
-		BB_ASSERT(position_list.node_count == 3, "scene_object position in scene json is not 3 elements");
-		float3 position;
-		position.x = position_list.nodes[0]->GetNumber();
-		position.y = position_list.nodes[1]->GetNumber();
-		position.z = position_list.nodes[2]->GetNumber();
-
-		a_hierarchy.CreateSceneObjectViaModel(*model, position, obj_name);
-	}
-
-	const JsonList& lights = scene_obj.Find("lights")->GetList();
-	for (size_t i = 0; i < lights.node_count; i++)
-	{
-		const JsonObject& light_obj = lights.nodes[i]->GetObject();
-		LightCreateInfo light_info;
-
-		const char* light_type = light_obj.Find("light_type")->GetString();
-		if (strcmp(light_type, "spotlight") == 0)
-			light_info.light_type = LIGHT_TYPE::SPOT_LIGHT;
-		else if (strcmp(light_type, "pointlight") == 0)
-			light_info.light_type = LIGHT_TYPE::POINT_LIGHT;
-		else if (strcmp(light_type, "directional") == 0)
-			light_info.light_type = LIGHT_TYPE::DIRECTIONAL_LIGHT;
-		else
-			BB_ASSERT(false, "invalid light type in json");
-
-		const JsonList& position = light_obj.Find("position")->GetList();
-		BB_ASSERT(position.node_count == 3, "light position in scene json is not 3 elements");
-		light_info.pos.x = position.nodes[0]->GetNumber();
-		light_info.pos.y = position.nodes[1]->GetNumber();
-		light_info.pos.z = position.nodes[2]->GetNumber();
-
-		const JsonList& color = light_obj.Find("color")->GetList();
-		BB_ASSERT(color.node_count == 3, "light color in scene json is not 3 elements");
-		light_info.color.x = color.nodes[0]->GetNumber();
-		light_info.color.y = color.nodes[1]->GetNumber();
-		light_info.color.z = color.nodes[2]->GetNumber();
-
-		light_info.specular_strength = light_obj.Find("specular_strength")->GetNumber();
-		light_info.radius_constant = light_obj.Find("constant")->GetNumber();
-		light_info.radius_linear = light_obj.Find("linear")->GetNumber();
-		light_info.radius_quadratic = light_obj.Find("quadratic")->GetNumber();
-
-		if (light_info.light_type == LIGHT_TYPE::SPOT_LIGHT || light_info.light_type == LIGHT_TYPE::DIRECTIONAL_LIGHT)
-		{
-			const JsonList& spot_dir = light_obj.Find("direction")->GetList();
-			BB_ASSERT(color.node_count == 3, "light direction in scene json is not 3 elements");
-			light_info.direction.x = spot_dir.nodes[0]->GetNumber();
-			light_info.direction.y = spot_dir.nodes[1]->GetNumber();
-			light_info.direction.z = spot_dir.nodes[2]->GetNumber();
-
-			light_info.cutoff_radius = light_obj.Find("cutoff_radius")->GetNumber();
-		}
-
-		const StringView light_name = Asset::FindOrCreateString(light_obj.Find("name")->GetString());
-		a_hierarchy.CreateSceneObjectAsLight(light_info, light_name.c_str());
-	}
-}
-
-void Editor::RegisterSceneHierarchy(SceneHierarchy& a_hierarchy, const uint2 a_window_extent, const uint32_t a_back_buffer_count)
-{
-	ViewportAndScene viewport_scene{ a_hierarchy };
-	StackString<256> viewport_name{ a_hierarchy.m_scene_name.c_str(),  a_hierarchy.m_scene_name.size() };
-	viewport_name.append(" viewport");
-	viewport_scene.viewport.Init(a_window_extent, int2(), a_back_buffer_count, Asset::FindOrCreateString(viewport_name.GetView()));
-
-	m_viewport_and_scenes.push_back(viewport_scene);
-}
-
-void Editor::Update(MemoryArena& a_arena, const float a_delta_time, const Slice<InputEvent> a_input_events)
-{
+	m_per_frame.current_count = 0;
+	m_swallow_input = false;
 	for (size_t i = 0; i < a_input_events.size(); i++)
 	{
 		const InputEvent& ip = a_input_events[i];
 		//imgui can deny our normal input
 		if (ImProcessInput(ip))
+		{
+			m_swallow_input = true;
 			continue;
+		}
 
 		if (ip.input_type == INPUT_TYPE::KEYBOARD)
 		{
@@ -452,9 +350,6 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time, const Slice<
 			if (ki.key_pressed)
 				switch (ki.scan_code)
 				{
-				case KEYBOARD_KEY::F:
-					m_freeze_cam = !m_freeze_cam;
-					break;
 				case KEYBOARD_KEY::W:
 					cam_move.y = 1;
 					break;
@@ -476,16 +371,11 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time, const Slice<
 				default:
 					break;
 				}
-			if (!m_freeze_cam && m_active_viewport)
-			{
-				m_active_viewport->camera.Move(cam_move * m_cam_speed);
-			}
 
 		}
 		else if (ip.input_type == INPUT_TYPE::MOUSE)
 		{
 			const MouseInfo& mi = ip.mouse_info;
-			const float2 mouse_move = (mi.move_offset * a_delta_time) * 10.f;
 			m_previous_mouse_pos = mi.mouse_pos;
 
 			if (mi.right_released)
@@ -493,50 +383,31 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time, const Slice<
 			if (mi.left_released)
 				UnfreezeMouseOnWindow();
 
-			if (mi.wheel_move)
-			{
-				m_cam_speed = Clampf(m_cam_speed + static_cast<float>(mi.wheel_move) * 0.1f,
-					m_cam_speed_min,
-					m_cam_speed_max);
-			}
-
-			for (size_t view_i = 0; view_i < m_viewport_and_scenes.size(); view_i++)
-			{
-				ViewportAndScene& vs = m_viewport_and_scenes[view_i];
-				if (vs.viewport.PositionWithinViewport(uint2(static_cast<unsigned int>(mi.mouse_pos.x), static_cast<unsigned int>(mi.mouse_pos.y))))
-				{
-					m_active_viewport = &vs;
-					break;
-				}
-			}
-
-			if (!m_freeze_cam && m_active_viewport)
-			{
-				m_active_viewport->camera.Rotate(mouse_move.x, mouse_move.y);
-			}
+			//if (mi.wheel_move)
+			//{
+			//	m_cam_speed = Clampf(m_cam_speed + static_cast<float>(mi.wheel_move) * 0.1f,
+			//		m_cam_speed_min,
+			//		m_cam_speed_max);
+			//}
 		}
 	}
+
+	CommandPool& pool = m_per_frame.pools[0];
+	RCommandList& list = m_per_frame.lists[0];
+	pool = GetGraphicsCommandPool();
+	list = pool.StartCommandList();
+
+	RenderStartFrameInfo start_info;
+	start_info.delta_time = a_delta_time;
+	start_info.mouse_pos = m_previous_mouse_pos;
+
+	RenderStartFrame(list, start_info, m_per_frame.back_buffer_index);
+}
+
+void Editor::EndFrame(MemoryArena& a_arena)
+{
 	MemoryArenaScope(a_arena)
 	{
-		//HACKY, but for now ok.
-		const uint32_t command_list_count = Max(m_viewport_and_scenes.size(), 1u);
-		CommandPool* pools = ArenaAllocArr(a_arena, CommandPool, command_list_count);
-		RCommandList* lists = ArenaAllocArr(a_arena, RCommandList, command_list_count);
-		pools[0] = GetGraphicsCommandPool();
-		lists[0] = pools[0].StartCommandList();
-		for (uint32_t i = 1; i < command_list_count; i++)
-		{
-			pools[i] = GetGraphicsCommandPool();
-			lists[i] = pools[i].StartCommandList();
-		}
-
-		StartFrameInfo start_info;
-		start_info.delta_time = a_delta_time;
-		start_info.mouse_pos = m_previous_mouse_pos;
-
-		uint32_t back_buffer_index;
-		StartFrame(lists[0], start_info, back_buffer_index);
-
 		if (ImGui::Begin("Editor - Renderer"))
 		{
 			ImGuiDisplayShaderEffects(a_arena);
@@ -544,80 +415,26 @@ void Editor::Update(MemoryArena& a_arena, const float a_delta_time, const Slice<
 		}
 		ImGui::End();
 
-
-
 		Asset::ShowAssetMenu(a_arena);
 		MainEditorImGuiInfo(a_arena);
 
-		ThreadTask* thread_tasks = ArenaAllocArr(a_arena, ThreadTask, m_viewport_and_scenes.size());
-
-		for (size_t i = 0; i < m_viewport_and_scenes.size(); i++)
-		{
-			ViewportAndScene& vs = m_viewport_and_scenes[i];
-			vs.scene.SetView(vs.camera.CalculateView(), vs.camera.GetPosition());
-
-			ImguiDisplaySceneHierarchy(vs.scene);
-
-			bool resized = false;
-			vs.viewport.DrawImgui(resized, back_buffer_index);
-			if (resized)
-			{
-				vs.scene.SetProjection(vs.viewport.CreateProjection(60.f, 0.001f, 10000.0f));
-			}
-			ThreadFuncForDrawing_Params* draw_params = ArenaAllocType(a_arena, ThreadFuncForDrawing_Params) {
-				back_buffer_index,
-				vs.viewport,
-				vs.scene,
-				lists[i]
-			};
-
-			thread_tasks[i] = Threads::StartTaskThread(ThreadFuncForDrawing, draw_params, L"scene draw task");
-		}
-
-		for (size_t i = 0; i < m_viewport_and_scenes.size(); i++)
-		{
-			Threads::WaitForTask(thread_tasks[i]);
-		}
-
-		// TODO, async this
-		for (size_t i = 1; i < command_list_count; i++)
-		{
-			pools[i].EndCommandList(lists[i]);
-		}
-
-
 		Slice imgui_shaders = Material::GetMaterialShaders(m_imgui_material);
-		EndFrame(lists[0], imgui_shaders[0], imgui_shaders[1], back_buffer_index);
+		RenderEndFrame(m_per_frame.lists[0], imgui_shaders[0], imgui_shaders[1], m_per_frame.back_buffer_index);
 
-		pools[0].EndCommandList(lists[0]);
-
-		const uint32_t scene_fence_count = m_viewport_and_scenes.size();
-		RFence* scene_fences = ArenaAllocArr(a_arena, RFence, scene_fence_count);
-		uint64_t* scene_fence_values = ArenaAllocArr(a_arena, uint64_t, scene_fence_count);
-
-		for (uint32_t i = 0; i < scene_fence_count; i++)
+		for (size_t i = 0; i < m_per_frame.current_count; i++)
 		{
-			m_viewport_and_scenes[i].scene.IncrementNextFenceValue(&scene_fences[i], &scene_fence_values[i]);
+			m_per_frame.pools[i].EndCommandList(m_per_frame.lists[i]);
 		}
-		
+
+		const uint32_t command_list_count = Max(m_per_frame.current_count.load(), 1u);
 		uint64_t present_queue_value;
-		PresentFrame(Slice(pools, command_list_count), scene_fences, scene_fence_values, scene_fence_count, present_queue_value);
+		// TODO: fence values could bug if no scenes are being rendered.
+		PresentFrame(m_per_frame.pools.slice(command_list_count),
+			m_per_frame.fences.data(), 
+			m_per_frame.fence_values.data(), 
+			m_per_frame.current_count,
+			present_queue_value);
 	}
-}
-
-ThreadTask Editor::LoadAssets(const Slice<Asset::AsyncAsset> a_asyn_assets, Editor* a_editor)
-{
-	// maybe have each thread have it's own memory arena
-	MemoryArena load_arena = MemoryArenaCreate();
-
-	LoadAssetsAsync_params* params = ArenaAllocType(load_arena, LoadAssetsAsync_params);
-	params->assets = ArenaAllocArr(load_arena, Asset::AsyncAsset, a_asyn_assets.size());
-	memcpy(params->assets, a_asyn_assets.data(), a_asyn_assets.sizeInBytes());
-	params->asset_count = a_asyn_assets.size();
-	params->arena = load_arena;
-	params->editor = a_editor;
-
-	return Threads::StartTaskThread(Editor::LoadAssetsAsync, params);
 }
 
 void Editor::ImguiDisplaySceneHierarchy(SceneHierarchy& a_hierarchy)
@@ -849,13 +666,6 @@ void Editor::ImguiCreateSceneObject(SceneHierarchy& a_hierarchy, const SceneObje
 			{
 				mesh_name = StringView();
 			}
-			for (size_t i = 0; i < m_loaded_models_names.size(); i++)
-			{
-				if (ImGui::Button(m_loaded_models_names[i].c_str()))
-				{
-					mesh_name = m_loaded_models_names[i];
-				}
-			}
 
 			ImGui::Unindent();
 			ImGui::TreePop();
@@ -957,21 +767,4 @@ void Editor::ImGuiDisplayMaterials()
 		}
 		ImGui::Unindent();
 	}
-}
-
-void Editor::LoadAssetsAsync(MemoryArena&, void* a_params)
-{
-	LoadAssetsAsync_params* params = reinterpret_cast<LoadAssetsAsync_params*>(a_params);
-	MemoryArena load_arena = MemoryArenaCreate();
-	//Editor& editor = *params->editor;
-
-	Slice loaded_assets = Asset::LoadAssets(load_arena, Slice(params->assets, params->asset_count));
-
-	for (size_t i = 0; i < loaded_assets.size(); i++)
-	{
-		if (loaded_assets[i].type == Asset::ASYNC_ASSET_TYPE::MODEL)
-			params->editor->m_loaded_models_names.push_back(loaded_assets[i].name);
-	}
-
-	MemoryArenaFree(load_arena);
 }

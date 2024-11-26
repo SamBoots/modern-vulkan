@@ -168,8 +168,7 @@ namespace BB
 
 	inline static float Clampf(const float a_value, const float a_min, const float a_max)
 	{
-		const float f = a_value < a_min ? a_max : a_value;
-		return f > a_max ? a_max : f;
+		return Max(a_min, Min(a_value, a_max));
 	}
 
 	namespace Random

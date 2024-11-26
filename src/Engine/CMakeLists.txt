@@ -9,6 +9,7 @@ add_library(Engine
 	"SceneHierarchy.cpp" 
 	"MaterialSystem.cpp" 
 	"EngineConfig.cpp"
+	"Viewport.cpp"
 	)
 	
 target_include_directories(Engine PUBLIC

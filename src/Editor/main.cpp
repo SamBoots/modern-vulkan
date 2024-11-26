@@ -13,6 +13,7 @@
 #include "BBjson.hpp"
 #include "Editor.hpp"
 #include "GameMain.hpp"
+#include "RenderViewport.hpp"
 
 #include "EngineConfig.hpp"
 
@@ -109,26 +110,11 @@ int main(int argc, char** argv)
 	bool quit_app = false;
 	float delta_time = 0;
 
-	SceneHierarchy object_viewer;
-	object_viewer.SetClearColor(float3(0.1f, 0.7f, 0.0f));
-	{
-		JsonParser json_file("../../resources/scenes/standard_scene.json");
-		json_file.Parse();
-		MemoryArenaScope(main_arena)
-		{
-			auto viewer_list = SceneHierarchy::PreloadAssetsFromJson(main_arena, json_file);
-			const ThreadTask view_upload = Editor::LoadAssets(Slice(viewer_list.data(), viewer_list.size()), &editor);
-
-			Threads::WaitForTask(view_upload);
-		}
-		editor.CreateSceneHierarchyViaJson(main_arena, object_viewer, back_buffer_count, json_file);
-	}
-
 	DungeonGame def_game{};
-	def_game.InitGame();
+	def_game.Init(window_extent / 2, back_buffer_count);
 
-	editor.RegisterSceneHierarchy(def_game.GetSceneHierarchy(), window_extent, back_buffer_count);
-	editor.RegisterSceneHierarchy(object_viewer, window_extent / uint2(2), back_buffer_count);
+	RenderViewport render_viewport;
+	render_viewport.Init(window_extent / 2, back_buffer_count, "../../resources/scenes/standard_scene.json");
 
 	while (!quit_app)
 	{
@@ -139,8 +125,19 @@ int main(int argc, char** argv)
 
 		ProcessMessages(window_handle);
 		PollInputEvents(input_events, input_event_count);
-		
-		editor.Update(main_arena, delta_time, def_game, Slice(input_events, input_event_count));
+		editor.StartFrame(Slice(input_events, input_event_count), delta_time);
+		const ThreadTask tasks[2]
+		{
+			editor.UpdateViewport(main_arena, delta_time, render_viewport, Slice(input_events, input_event_count)),
+			editor.UpdateViewport(main_arena, delta_time, def_game, Slice(input_events, input_event_count))
+		};
+
+		for (size_t i = 0; i < _countof(tasks); i++)
+		{
+			Threads::WaitForTask(tasks[i]);
+		}
+
+		editor.EndFrame(main_arena);
 		auto current_new = std::chrono::high_resolution_clock::now();
 		delta_time = std::chrono::duration<float, std::chrono::seconds::period>(current_new - current_time).count();
 

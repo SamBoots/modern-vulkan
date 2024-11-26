@@ -1049,7 +1049,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 				for (size_t i = 0; i < attrib.data->count; i++)
 				{
 					BB_ASSERT(attrib.data->type == cgltf_type_vec4, "tangent is not vec4");
-;					vertices[vertex_tangent_offset].tangent.x = data_pos[0];
+					vertices[vertex_tangent_offset].tangent.x = data_pos[0];
 					vertices[vertex_tangent_offset].tangent.y = data_pos[1];
 					vertices[vertex_tangent_offset].tangent.z = data_pos[2];
 					vertices[vertex_tangent_offset].tangent.w = data_pos[3];

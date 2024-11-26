@@ -560,7 +560,7 @@ RDescriptorLayout SceneHierarchy::GetSceneDescriptorLayout()
 	descriptor_bindings[3].count = 1;
 	descriptor_bindings[3].shader_stage = SHADER_STAGE::VERTEX;
 	descriptor_bindings[3].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-	s_scene_descriptor_layout = CreateDescriptorLayout(temp_arena, descriptor_bindings.slice());
+	s_scene_descriptor_layout = CreateDescriptorLayout(temp_arena, descriptor_bindings.const_slice());
 
 	MemoryArenaFree(temp_arena);
 	return s_scene_descriptor_layout;
@@ -1034,7 +1034,7 @@ void SceneHierarchy::GeometryPass(const PerFrameData& a_pfd, const RCommandList 
 	{
 		const MeshDrawInfo& mesh_draw_call = m_draw_list.mesh_draw_call[i];
 
-		Slice<const ShaderEffectHandle> shader_effects = Material::GetMaterialShaders(mesh_draw_call.master_material);
+		const ConstSlice<ShaderEffectHandle> shader_effects = Material::GetMaterialShaders(mesh_draw_call.master_material);
 		const RPipelineLayout pipe_layout = BindShaders(a_list, shader_effects);
 		{
 			const uint32_t buffer_indices[] = { 0 };

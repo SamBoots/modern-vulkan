@@ -1625,7 +1625,7 @@ void Vulkan::FreeViewImage(const RImageView a_image_view)
 			nullptr);
 }
 
-RDescriptorLayout Vulkan::CreateDescriptorLayout(MemoryArena& a_temp_arena, Slice<DescriptorBindingInfo> a_bindings)
+RDescriptorLayout Vulkan::CreateDescriptorLayout(MemoryArena& a_temp_arena, const ConstSlice<DescriptorBindingInfo> a_bindings)
 {
 	VkDescriptorSetLayoutBinding* layout_binds = ArenaAllocArr(a_temp_arena, VkDescriptorSetLayoutBinding, a_bindings.size());
 

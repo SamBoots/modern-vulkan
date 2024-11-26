@@ -1126,7 +1126,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 			descriptor_bindings[3].shader_stage = SHADER_STAGE::FRAGMENT_PIXEL;
 			descriptor_bindings[3].type = DESCRIPTOR_TYPE::IMAGE;
 
-			s_render_inst->global_descriptor_set = Vulkan::CreateDescriptorLayout(a_arena, descriptor_bindings.slice());
+			s_render_inst->global_descriptor_set = Vulkan::CreateDescriptorLayout(a_arena, descriptor_bindings.const_slice());
 			s_render_inst->global_descriptor_allocation = Vulkan::AllocateDescriptor(s_render_inst->global_descriptor_set);
 		}
 	}
@@ -1293,6 +1293,13 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	return true;
 }
 
+bool BB::DestroyRenderer()
+{
+	IMGUI_IMPL::ImShutdown();
+	BB_UNIMPLEMENTED();
+	// delete all vulkan objects
+	return true;
+}
 
 void BB::RequestResize()
 {
@@ -1363,7 +1370,7 @@ GPUDeviceInfo BB::GetGPUInfo(MemoryArena& a_arena)
 	return Vulkan::GetGPUDeviceInfo(a_arena);
 }
 
-void BB::StartFrame(const RCommandList a_list, const StartFrameInfo& a_info, uint32_t& a_out_back_buffer_index)
+void BB::RenderStartFrame(const RCommandList a_list, const RenderStartFrameInfo& a_info, uint32_t& a_out_back_buffer_index)
 {
 	// check if we need to resize
 	if (s_render_inst->render_io.resizing_request)
@@ -1373,7 +1380,7 @@ void BB::StartFrame(const RCommandList a_list, const StartFrameInfo& a_info, uin
 		ResizeRendererSwapchain(static_cast<uint32_t>(x), static_cast<uint32_t>(y));
 	}
 
-	BB_ASSERT(s_render_inst->render_io.frame_started == false, "did not call EndFrame before a new StartFrame");
+	BB_ASSERT(s_render_inst->render_io.frame_started == false, "did not call RenderEndFrame before a new RenderStartFrame");
 	s_render_inst->render_io.frame_started = true;
 
 	const uint32_t frame_index = s_render_inst->render_io.frame_index;
@@ -1567,9 +1574,9 @@ static void UploadAssets(MemoryArena& a_thread_arena, void*)
 	uploading_assets = false;
 }
 
-void BB::EndFrame(const RCommandList a_list, const ShaderEffectHandle a_imgui_vertex, const ShaderEffectHandle a_imgui_fragment, const uint32_t a_back_buffer_index, bool a_skip)
+void BB::RenderEndFrame(const RCommandList a_list, const ShaderEffectHandle a_imgui_vertex, const ShaderEffectHandle a_imgui_fragment, const uint32_t a_back_buffer_index, bool a_skip)
 {
-	BB_ASSERT(s_render_inst->render_io.frame_started == true, "did not call StartFrame before a EndFrame");
+	BB_ASSERT(s_render_inst->render_io.frame_started == true, "did not call RenderStartFrame before a RenderEndFrame");
 
 	if ((!s_render_inst->asset_uploader.upload_meshes.IsEmpty() || !s_render_inst->asset_uploader.upload_textures.IsEmpty()) &&
 		!uploading_assets)
@@ -1630,7 +1637,7 @@ void BB::EndRenderPass(const RCommandList a_list)
 	Vulkan::EndRenderPass(a_list);
 }
 
-RPipelineLayout BB::BindShaders(const RCommandList a_list, const Slice<const ShaderEffectHandle> a_shader_effects)
+RPipelineLayout BB::BindShaders(const RCommandList a_list, const ConstSlice<ShaderEffectHandle> a_shader_effects)
 {
 	constexpr size_t SHADERS_MAX = 5;
 	BB_ASSERT(SHADERS_MAX >= a_shader_effects.size(), "binding more then 5 shaders at a time, this is wrong or increase SHADERS_MAX");
@@ -1725,8 +1732,8 @@ bool BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_
 		return false;
 	}
 
-	BB_ASSERT(s_render_inst->render_io.frame_started == true, "did not call StartFrame before a presenting");
-	BB_ASSERT(s_render_inst->render_io.frame_ended == true, "did not call EndFrame before a presenting");
+	BB_ASSERT(s_render_inst->render_io.frame_started == true, "did not call RenderStartFrame before a presenting");
+	BB_ASSERT(s_render_inst->render_io.frame_ended == true, "did not call RenderEndFrame before a presenting");
 
 	s_render_inst->render_io.frame_started = true;
 
@@ -1814,10 +1821,12 @@ const Mesh BB::CreateMesh(const CreateMeshInfo& a_create_info)
 
 void BB::FreeMesh(const Mesh a_mesh)
 {
+	(void)a_mesh;
 	// free the vertex memory
+	BB_UNIMPLEMENTED();
 }
 
-RDescriptorLayout BB::CreateDescriptorLayout(MemoryArena& a_temp_arena, Slice<DescriptorBindingInfo> a_bindings)
+RDescriptorLayout BB::CreateDescriptorLayout(MemoryArena& a_temp_arena, const ConstSlice<DescriptorBindingInfo> a_bindings)
 {
 	return Vulkan::CreateDescriptorLayout(a_temp_arena, a_bindings);
 }

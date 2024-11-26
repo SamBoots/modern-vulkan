@@ -189,7 +189,7 @@ void Material::InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCrea
 			desc_binding.count = a_create_info.max_material_instances;
 			desc_binding.binding = PER_MATERIAL_BINDING;
 			desc_binding.shader_stage = SHADER_STAGE::ALL;
-			s_material_inst->material_desc_layout = CreateDescriptorLayout(a_arena, Slice(&desc_binding, 1));
+			s_material_inst->material_desc_layout = CreateDescriptorLayout(a_arena, ConstSlice<DescriptorBindingInfo>(&desc_binding, 1));
 			s_material_inst->material_desc_allocation = AllocateDescriptor(s_material_inst->material_desc_layout);
 		}
 
@@ -343,19 +343,19 @@ const MasterMaterial& Material::GetMasterMaterial(const MasterMaterialHandle a_m
 	return s_material_inst->material_map.find(a_master_material);
 }
 
-Slice<const ShaderEffectHandle> Material::GetMaterialShaders(const MasterMaterialHandle a_master_material)
+ConstSlice<ShaderEffectHandle> Material::GetMaterialShaders(const MasterMaterialHandle a_master_material)
 {
 	BB_ASSERT(a_master_material.IsValid(), "invalid material send!");
 	const MasterMaterial& mat = s_material_inst->material_map.find(a_master_material);
-	return Slice(mat.shader_effects.data(), mat.shader_effect_count);
+	return mat.shader_effects.const_slice(mat.shader_effect_count);
 }
 
-Slice<const CachedShaderInfo> Material::GetAllCachedShaders()
+ConstSlice<CachedShaderInfo> Material::GetAllCachedShaders()
 {
-	return s_material_inst->shader_effects.slice();
+	return s_material_inst->shader_effects.const_slice();
 }
 
-Slice<const MasterMaterial> Material::GetAllMasterMaterials()
+ConstSlice<MasterMaterial> Material::GetAllMasterMaterials()
 {
-	return s_material_inst->material_map.slice();
+	return s_material_inst->material_map.const_slice();
 }

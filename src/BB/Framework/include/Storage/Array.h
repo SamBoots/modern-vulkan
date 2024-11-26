@@ -384,7 +384,18 @@ namespace BB
 		{
 			emplace_back(a_element);
 		}
-		void push_back(const T* a_elements, uint32_t a_count)
+
+		void push_back(ConstSlice<T> a_slice)
+		{
+			push_back(a_slice.data(), a_slice.size());
+		}
+
+		void push_back(Slice<T> a_slice)
+		{
+			push_back(a_slice.data(), a_slice.size());
+		}
+
+		void push_back(const T* a_elements, size_t a_count)
 		{
 			BB_ASSERT(m_size + a_count < m_capacity, "StaticArray is full");
 
@@ -476,14 +487,24 @@ namespace BB
 
 		Iterator begin() { return Iterator(m_arr); }
 		Iterator end() { return Iterator(&m_arr[m_size + 1]); } //Get an out of bounds Iterator.
-		Slice<const T> slice()
+
+		ConstSlice<T> const_slice()
+		{
+			return const_slice(m_size);
+		}
+		ConstSlice<T> const_slice(const size_t a_size, const size_t a_begin = 0)
+		{
+			BB_ASSERT(a_begin + a_size <= m_size, "requesting an out of bounds slice");
+			return ConstSlice<T>(&m_arr[a_begin], a_size);
+		}
+		Slice<T> slice()
 		{
 			return slice(m_size);
 		}
-		Slice<const T> slice(const size_t a_size, const size_t a_begin = 0)
+		Slice<T> slice(const size_t a_size, const size_t a_begin = 0)
 		{
 			BB_ASSERT(a_begin + a_size <= m_size, "requesting an out of bounds slice");
-			return Slice<const T>(&m_arr[a_begin], a_size);
+			return Slice<T>(&m_arr[a_begin], a_size);
 		}
 
 	private:

@@ -47,11 +47,11 @@ void Transform::SetScale(const float3 a_scale)
 
 const float4x4 Transform::CreateMatrix()
 {
-	float4x4 t_Matrix = Float4x4Identity();
-	t_Matrix = t_Matrix * Float4x4FromTranslation(m_pos);
-	t_Matrix = t_Matrix * Float4x4FromQuat(m_rot);
-	t_Matrix = Float4x4Scale(t_Matrix, m_scale);
-	return t_Matrix;
+	float4x4 matrix = Float4x4Identity();
+	matrix = matrix * Float4x4FromTranslation(m_pos);
+	matrix = matrix * Float4x4FromQuat(m_rot);
+	matrix = Float4x4Scale(matrix, m_scale);
+	return matrix;
 }
 
 //slotmap type of data structure.

@@ -1,5 +1,6 @@
 #pragma once
-#include "GameInterface.hpp"
+#include "ViewportInterface.hpp"
+#include "Camera.hpp"
 
 namespace BB
 {
@@ -10,30 +11,30 @@ namespace BB
 	public:
 		void CreateRoom(MemoryArena& a_arena, const char* a_image_path);
 
-		uint32_t GetSizeX() const { return m_room_size_x; }
-		uint32_t GetSizeY() const { return m_room_size_y; }
-		inline DUNGEON_TILE GetTile(const uint32_t a_x, const uint32_t a_y) const
+		int GetSizeX() const { return m_room_size_x; }
+		int GetSizeY() const { return m_room_size_y; }
+		inline DUNGEON_TILE GetTile(const int a_x, const int a_y) const
 		{
 			return m_room_tiles[GetRoomIndexFromXY(a_x, a_y)];
 		}
 
 	private:
-		inline uint32_t GetRoomIndexFromXY(const uint32_t a_x, const uint32_t a_y) const
+		inline size_t GetRoomIndexFromXY(const int a_x, const int a_y) const
 		{
 			BB_ASSERT(a_x < m_room_size_x, "a_x is higher then m_room_size_x");
 			BB_ASSERT(a_y < m_room_size_y, "a_y is higher then m_room_size_y");
-			return a_x + a_y * m_room_size_x;
+			return static_cast<size_t>(a_x + a_y * m_room_size_x);
 		}
 
-		uint32_t m_room_size_x;
-		uint32_t m_room_size_y;
+		int m_room_size_x;
+		int m_room_size_y;
 		StaticArray<DUNGEON_TILE> m_room_tiles;
 	};
 
 	class DungeonMap
 	{
 	public:
-		MemoryArenaMarker CreateMap(MemoryArena& a_game_memory, const uint32_t a_map_size_x, const uint32_t a_map_size_y, const Slice<DungeonRoom*> a_rooms);
+		MemoryArenaMarker CreateMap(MemoryArena& a_game_memory, const int a_map_size_x, const int a_map_size_y, const Slice<DungeonRoom*> a_rooms);
 		void DestroyMap();
 
 		SceneObjectHandle CreateSceneObjectFloor(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy, const float3 a_pos);
@@ -43,9 +44,16 @@ namespace BB
 		{
 			bool walkable;
 		};
-		inline DungeonTile GetTile(const uint32_t a_x, const uint32_t a_y) const
+		inline DungeonTile GetTile(const int a_x, const int a_y) const
 		{
-			return m_map[GetMapIndexFromXY(a_x, a_y)];
+			return m_map[static_cast<size_t>(GetMapIndexFromXY(a_x, a_y))];
+		}
+		inline bool IsTileWalkable(const int a_x, const int a_y)
+		{
+			if (a_x >= m_map_size_x || a_y >= m_map_size_y || 0 > a_x || 0 > a_y)
+				return false;
+
+			return GetTile(a_x, a_y).walkable;
 		}
 
 		float3 GetSpawnPoint() const 
@@ -58,23 +66,23 @@ namespace BB
 		}
 
 	private:
-		inline uint32_t GetMapIndexFromXY(const uint32_t a_x, const uint32_t a_y) const
+		inline int GetMapIndexFromXY(const int a_x, const int a_y) const
 		{
 			BB_ASSERT(a_x < m_map_size_x, "a_x is higher then m_map_size_x");
 			BB_ASSERT(a_y < m_map_size_y, "a_y is higher then m_map_size_y");
 			return a_x + a_y * m_map_size_x;
 		}
-		inline void GetMapXYFromIndex(const uint32_t a_index, uint32_t& a_x, uint32_t& a_y)
+		inline void GetMapXYFromIndex(const int a_index, int& a_x, int& a_y)
 		{
-			BB_ASSERT(m_map.size() < a_index, "a_index is higher then the size of the map");
+			BB_ASSERT(static_cast<int>(m_map.size()) < a_index, "a_index is higher then the size of the map");
 			a_x = a_index % m_map_size_x;
 			a_y = a_index / m_map_size_y;
 		}
 
-		uint32_t m_map_size_x;
-		uint32_t m_map_size_y;
+		int m_map_size_x;
+		int m_map_size_y;
  		StaticArray<DungeonTile> m_map;
-		uint2 m_spawn_point;
+		int2 m_spawn_point;
 	};
 
 	class Player
@@ -83,16 +91,26 @@ namespace BB
 		Player() = default;
 
 		float3 Move(const float3 a_translation);
+		float3 Rotate(const float3 a_rotate);
 		void SetPosition(const float3 a_position);
+		void SetVelocitySpeed(const float a_velocity_speed);
+
+		bool Update(const float a_delta_time);
 
 		float4x4 CalculateView() const;
 
 
+		float GetVelocitySpeed() const
+		{
+			return m_velocity_speed;
+		}
 		float3 GetPosition() const
 		{
 			return m_position;
 		}
 	private:
+		float m_velocity_speed;
+		float3 m_velocity;
 		float3 m_position;
 		float3 m_up{ 0.0f, 1.0f, 0.0f };
 		float3 m_forward{ 0.0f, 0.0f, 1.0f };
@@ -101,19 +119,36 @@ namespace BB
 	class DungeonGame
 	{
 	public:
-		bool InitGame();
-		bool Update(const Slice<InputEvent> a_input_events, const float4x4* a_overwrite_view_matrix = nullptr, const float3* a_overwrite_view_pos = nullptr);
+		bool Init(const uint2 a_game_viewport_size, const uint32_t a_back_buffer_count);
+		bool Update(const float a_delta_time);
+		bool HandleInput(const float a_delta_time, const Slice<InputEvent> a_input_events);
 		// maybe ifdef this for editor
 		void DisplayImGuiInfo();
 		void Destroy();
 
+		Viewport& GetViewport() { return m_viewport; }
 		SceneHierarchy& GetSceneHierarchy() { return m_scene_hierarchy; }
 
 	private:
+		void ToggleFreeCam();
 		MemoryArena m_game_memory;
 
 		Player m_player;
+		Viewport m_viewport;
 		SceneHierarchy m_scene_hierarchy;
 		DungeonMap m_dungeon_map;
+
+		// debug
+		struct FreeCameraOption
+		{
+			bool freeze_free_cam;
+			bool use_free_cam;
+			FreeCamera camera{};
+			float speed = 200.f;
+			float min_speed = 100.f;
+			float max_speed = 1000.0f;
+		};
+		FreeCameraOption m_free_cam;
 	};
+	static_assert(is_interactable_viewport_interface<DungeonGame>);
 }
