@@ -1657,6 +1657,11 @@ RPipelineLayout BB::BindShaders(const RCommandList a_list, const Slice<const Sha
 	return layout;
 }
 
+void BB::SetBlendMode(const RCommandList a_list, const uint32_t a_first_attachment, const Slice<ColorBlendState> a_blend_states)
+{
+	Vulkan::SetBlendMode(a_list, a_first_attachment, a_blend_states);
+}
+
 void BB::SetFrontFace(const RCommandList a_list, const bool a_is_clockwise)
 {
 	Vulkan::SetFrontFace(a_list, a_is_clockwise);

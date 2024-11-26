@@ -121,9 +121,13 @@ namespace BB
 			GPUStaticCPUWriteableBuffer scene_buffer;
 			// I want this to be uniform but hlsl is giga cringe
 			GPULinearBuffer storage_buffer;
+
+			// bloom
+			RImage bloom_image;
+			RDescriptorIndex bloom_view_descriptor_index;
 			
 			RImage depth_image;
-			RDescriptorIndex depth_image_descriptor_index;
+			RImageView depth_image_view;
 			struct ShadowMap
 			{
 				RImage image;

@@ -2260,7 +2260,7 @@ void Vulkan::StartRenderPass(const RCommandList a_list, const StartRenderingInfo
 		vkCmdSetDepthWriteEnable(cmd_buffer, VK_FALSE);
 	}
 
-	VkRenderingAttachmentInfo color_attachments[MAX_COLOR_ATTACHMENTS]{};
+	FixedArray<VkRenderingAttachmentInfo, MAX_COLOR_ATTACHMENTS> color_attachments{};
 	if (a_render_info.color_attachments.size())
 	{
 		for (size_t i = 0; i < a_render_info.color_attachments.size(); i++)
@@ -2287,7 +2287,7 @@ void Vulkan::StartRenderPass(const RCommandList a_list, const StartRenderingInfo
 
 	rendering_info.renderArea = scissor;
 	rendering_info.layerCount = 1;
-	rendering_info.pColorAttachments = color_attachments;
+	rendering_info.pColorAttachments = color_attachments.data();
 	rendering_info.colorAttachmentCount = static_cast<uint32_t>(a_render_info.color_attachments.size());
 	vkCmdBeginRendering(cmd_buffer, &rendering_info);
 
@@ -2349,12 +2349,33 @@ void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stag
 	const uint32_t mask = UINT32_MAX;
 	s_vulkan_inst->pfn.CmdSetSampleMaskEXT(cmd_buffer, VK_SAMPLE_COUNT_1_BIT, &mask);
 
-	{
-		VkBool32 color_enable = VK_TRUE;
-		s_vulkan_inst->pfn.CmdSetColorBlendEnableEXT(cmd_buffer, 0, 1, &color_enable);
-		const VkColorComponentFlags color_flags = 0xf;
-		s_vulkan_inst->pfn.CmdSetColorWriteMaskEXT(cmd_buffer, 0, 1, &color_flags);
+	s_vulkan_inst->pfn.CmdSetAlphaToCoverageEnableEXT(cmd_buffer, VK_FALSE);
+	//FOR imgui maybe not, but that is because I'm dumb asf
+	s_vulkan_inst->pfn.CmdSetVertexInputEXT(cmd_buffer, 0, nullptr, 0, nullptr); 
+	vkCmdSetPrimitiveRestartEnable(cmd_buffer, VK_FALSE);
+}
 
+void Vulkan::SetBlendMode(const RCommandList a_list, const uint32_t a_first_attachment, const Slice<ColorBlendState> a_blend_states)
+{
+	BB_ASSERT(a_blend_states.size() < MAX_COLOR_ATTACHMENTS, "more then MAX_COLOR_ATTACHMENTS of blend states");
+	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+	const uint32_t blend_state_count = static_cast<uint32_t>(a_blend_states.size());
+
+	FixedArray<VkBool32, MAX_COLOR_ATTACHMENTS> color_enables;
+	FixedArray<VkColorComponentFlags, MAX_COLOR_ATTACHMENTS> color_flags;
+
+	for (size_t i = 0; i < a_blend_states.size(); i++)
+	{
+		color_enables[i] = a_blend_states[i].blend_enable;
+		color_flags[i] = a_blend_states[i].color_flags;
+	}
+
+	s_vulkan_inst->pfn.CmdSetColorBlendEnableEXT(cmd_buffer, a_first_attachment, blend_state_count, color_enables.data());
+	s_vulkan_inst->pfn.CmdSetColorWriteMaskEXT(cmd_buffer, a_first_attachment, blend_state_count, color_flags.data());
+
+	// TODO, proper blending choices
+	for (uint32_t i = 0; i < blend_state_count; i++)
+	{
 		VkColorBlendEquationEXT color_blend_equation{};
 		color_blend_equation.colorBlendOp = VK_BLEND_OP_ADD;
 		color_blend_equation.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
@@ -2362,14 +2383,8 @@ void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stag
 		color_blend_equation.alphaBlendOp = VK_BLEND_OP_ADD;
 		color_blend_equation.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
 		color_blend_equation.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-		//color thing.
-		s_vulkan_inst->pfn.CmdSetColorBlendEquationEXT(cmd_buffer, 0, 1, &color_blend_equation);
+		s_vulkan_inst->pfn.CmdSetColorBlendEquationEXT(cmd_buffer, a_first_attachment + i, 1, &color_blend_equation);
 	}
-
-	s_vulkan_inst->pfn.CmdSetAlphaToCoverageEnableEXT(cmd_buffer, VK_FALSE);
-	//FOR imgui maybe not, but that is because I'm dumb asf
-	s_vulkan_inst->pfn.CmdSetVertexInputEXT(cmd_buffer, 0, nullptr, 0, nullptr); 
-	vkCmdSetPrimitiveRestartEnable(cmd_buffer, VK_FALSE);
 }
 
 void Vulkan::SetFrontFace(const RCommandList a_list, const bool a_is_clockwise)

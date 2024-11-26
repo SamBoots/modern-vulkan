@@ -494,4 +494,10 @@ namespace BB
 		uint32_t level_count;
 		uint32_t base_mip_level;
 	};
+
+	struct ColorBlendState
+	{
+		bool blend_enable;
+		uint32_t color_flags;
+	};
 }

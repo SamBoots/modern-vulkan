@@ -54,7 +54,13 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
     return output;
 }
 
-float4 FragmentMain(VSOutput a_input) : SV_Target
+struct PixelOutput
+{
+    float4 color : SV_Target0;
+    float4 bloom : SV_Target1;
+};
+
+PixelOutput FragmentMain(VSOutput a_input)
 {
     const BB::Scene3DInfo scene_info = scene_data;
     
@@ -77,7 +83,15 @@ float4 FragmentMain(VSOutput a_input) : SV_Target
         result_color += (1.0 - shadow) * (diffuse);
     }
     
-    float4 result = float4(scene_info.ambient_light.xyz + result_color, 1.0) * color * material.base_color_factor;
+    PixelOutput output;
+    output.color = float4(scene_info.ambient_light.xyz + result_color, 1.0) * color * material.base_color_factor;;
     
-    return result;
+    // bloom
+    const float brightness = dot(output.color.rgb, float3(0.2126, 0.7152, 0.0722));
+    if (brightness > 1.0)
+        output.bloom = float4(output.color.rgb, 1.0);
+    else
+        output.bloom = float4(0.0, 0.0, 0.0, 1.0);
+    
+    return output;
 }
