@@ -745,6 +745,16 @@ namespace IMGUI_IMPL
 		imgui_pass_start.color_attachments = Slice(&color_attach, 1);
 		imgui_pass_start.depth_attachment = nullptr;
 		Vulkan::StartRenderPass(a_cmd_list, imgui_pass_start);
+		FixedArray<ColorBlendState, 1> blend_state;
+		blend_state[0].blend_enable = true;
+		blend_state[0].color_flags = 0xF;
+		blend_state[0].color_blend_op = BLEND_OP::ADD;
+		blend_state[0].src_blend = BLEND_MODE::FACTOR_SRC_ALPHA;
+		blend_state[0].dst_blend = BLEND_MODE::FACTOR_ONE_MINUS_SRC_ALPHA;
+		blend_state[0].alpha_blend_op = BLEND_OP::ADD;
+		blend_state[0].src_alpha_blend = BLEND_MODE::FACTOR_ONE;
+		blend_state[0].dst_alpha_blend = BLEND_MODE::FACTOR_ZERO;
+		Vulkan::SetBlendMode(a_cmd_list, 0, blend_state.slice());
 
 		// Setup desired CrossRenderer state
 		ImSetRenderState(draw_data, a_cmd_list, 0, shader_objects, pipeline_layout);

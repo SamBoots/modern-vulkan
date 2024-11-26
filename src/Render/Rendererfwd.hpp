@@ -495,9 +495,34 @@ namespace BB
 		uint32_t base_mip_level;
 	};
 
+	enum class BLEND_OP
+	{
+		ADD,
+		SUBTRACT,
+
+		ENUM_SIZE
+	};
+
+	enum class BLEND_MODE
+	{
+		FACTOR_ZERO,
+		FACTOR_ONE,
+		FACTOR_SRC_ALPHA,
+		FACTOR_ONE_MINUS_SRC_ALPHA,
+		FACTOR_DST_ALPHA,
+
+		ENUM_SIZE
+	};
+
 	struct ColorBlendState
 	{
 		bool blend_enable;
 		uint32_t color_flags;
+		BLEND_OP color_blend_op;
+		BLEND_MODE src_blend;
+		BLEND_MODE dst_blend;
+		BLEND_OP alpha_blend_op;
+		BLEND_MODE src_alpha_blend;
+		BLEND_MODE dst_alpha_blend;
 	};
 }

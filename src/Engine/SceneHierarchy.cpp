@@ -247,6 +247,10 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 			Asset::FreeImageCPU(pixels);
 		}
 	}
+
+	// postfx
+	m_postfx.bloom_scale = 1.0f;
+	m_postfx.bloom_strength = 1.5f;
 }
 
 static bool NameIsWithinCharArray(const char** a_arr, const size_t a_arr_size, const char* a_str)
@@ -593,6 +597,12 @@ void SceneHierarchy::SkyboxPass(const PerFrameData& a_pfd, const RCommandList a_
 	FixedArray<ColorBlendState, 1> blend_state;
 	blend_state[0].blend_enable = true;
 	blend_state[0].color_flags = 0xF;
+	blend_state[0].color_blend_op = BLEND_OP::ADD;
+	blend_state[0].src_blend = BLEND_MODE::FACTOR_SRC_ALPHA;
+	blend_state[0].dst_blend = BLEND_MODE::FACTOR_ONE_MINUS_SRC_ALPHA;
+	blend_state[0].alpha_blend_op = BLEND_OP::ADD;
+	blend_state[0].src_alpha_blend = BLEND_MODE::FACTOR_ONE;
+	blend_state[0].dst_alpha_blend = BLEND_MODE::FACTOR_ZERO;
 	SetBlendMode(a_list, 0, blend_state.slice());
 	StartRenderPass(a_list, start_rendering_info);
 	if (m_options.skip_skybox)
@@ -616,8 +626,6 @@ void SceneHierarchy::UpdateConstantBuffer(PerFrameData& a_pfd, const RCommandLis
 	m_scene_info.shadow_map_count = a_pfd.shadow_map.render_pass_views.size();
 	m_scene_info.shadow_map_array_descriptor = a_pfd.shadow_map.descriptor_index;
 	m_scene_info.skybox_texture = m_skybox_descriptor_index;
-	m_scene_info.bloom_scale = 1.0f;
-	m_scene_info.bloom_strength = 1.5f;
 
 	if (a_pfd.previous_draw_area != a_draw_area_size)
 	{
@@ -667,12 +675,12 @@ void SceneHierarchy::UpdateConstantBuffer(PerFrameData& a_pfd, const RCommandLis
 				static_cast<float>(a_draw_area_size.y) * BLOOM_IMAGE_DOWNSCALE_FACTOR
 			};
 
-			m_scene_info.bloom_resolution = uint2(static_cast<uint32_t>(downscaled_bloom_image.x), static_cast<uint32_t>(downscaled_bloom_image.y));
+			a_pfd.bloom.resolution = uint2(static_cast<uint32_t>(downscaled_bloom_image.x), static_cast<uint32_t>(downscaled_bloom_image.y));
 
 			ImageCreateInfo bloom_img_info;
 			bloom_img_info.name = "bloom image";
-			bloom_img_info.width = m_scene_info.bloom_resolution.x;
-			bloom_img_info.height = m_scene_info.bloom_resolution.y;
+			bloom_img_info.width = a_pfd.bloom.resolution.x;
+			bloom_img_info.height = a_pfd.bloom.resolution.y;
 			bloom_img_info.depth = 1;
 			bloom_img_info.mip_levels = 1;
 			bloom_img_info.array_layers = 2;			// 0 == bloom image, 1 = bloom vertical blur
@@ -880,6 +888,12 @@ void SceneHierarchy::ShadowMapPass(const PerFrameData& a_pfd, const RCommandList
 	FixedArray<ColorBlendState, 1> blend_state;
 	blend_state[0].blend_enable = true;
 	blend_state[0].color_flags = 0xF;
+	blend_state[0].color_blend_op = BLEND_OP::ADD;
+	blend_state[0].src_blend = BLEND_MODE::FACTOR_SRC_ALPHA;
+	blend_state[0].dst_blend = BLEND_MODE::FACTOR_ONE_MINUS_SRC_ALPHA;
+	blend_state[0].alpha_blend_op = BLEND_OP::ADD;
+	blend_state[0].src_alpha_blend = BLEND_MODE::FACTOR_ONE;
+	blend_state[0].dst_alpha_blend = BLEND_MODE::FACTOR_ZERO;
 	SetBlendMode(a_list, 0, blend_state.slice());
 
 	if (m_options.skip_shadow_mapping)
@@ -999,8 +1013,13 @@ void SceneHierarchy::GeometryPass(const PerFrameData& a_pfd, const RCommandList 
 	FixedArray<ColorBlendState, 2> blend_state;
 	blend_state[0].blend_enable = true;
 	blend_state[0].color_flags = 0xF;
-	blend_state[1].blend_enable = true;
-	blend_state[1].color_flags = 0xF;
+	blend_state[0].color_blend_op = BLEND_OP::ADD;
+	blend_state[0].src_blend = BLEND_MODE::FACTOR_SRC_ALPHA;
+	blend_state[0].dst_blend = BLEND_MODE::FACTOR_ONE_MINUS_SRC_ALPHA;
+	blend_state[0].alpha_blend_op = BLEND_OP::ADD;
+	blend_state[0].src_alpha_blend = BLEND_MODE::FACTOR_ONE;
+	blend_state[0].dst_alpha_blend = BLEND_MODE::FACTOR_ZERO;
+	blend_state[1] = blend_state[0];
 	SetBlendMode(a_list, 0, blend_state.slice(color_attach_count));
 
 	if (m_options.skip_object_rendering)
@@ -1047,6 +1066,9 @@ void SceneHierarchy::GeometryPass(const PerFrameData& a_pfd, const RCommandList 
 
 void SceneHierarchy::BloomPass(const PerFrameData& a_pfd, const RCommandList a_list, const RImageView a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset)
 {
+	if (m_options.skip_bloom)
+		return;
+
 	Slice<const ShaderEffectHandle> shader_effects = Material::GetMaterialShaders(m_gaussian_material);
 	const RPipelineLayout pipe_layout = BindShaders(a_list, shader_effects);
 
@@ -1097,12 +1119,16 @@ void SceneHierarchy::BloomPass(const PerFrameData& a_pfd, const RCommandList a_l
 		StartRenderingInfo rendering_info;
 		rendering_info.color_attachments = Slice(&color_attach, 1);
 		rendering_info.depth_attachment = nullptr;
-		rendering_info.render_area_extent = m_scene_info.bloom_resolution;
+		rendering_info.render_area_extent = a_pfd.bloom.resolution;
 		rendering_info.render_area_offset = int2();
 
 		ShaderGaussianBlur push_constant;
-		push_constant.horizontal_enable = true;
+		push_constant.horizontal_enable = false;
 		push_constant.src_texture = a_pfd.bloom.descriptor_index_0;
+		push_constant.src_resolution = a_pfd.bloom.resolution;
+		push_constant.blur_strength = m_postfx.bloom_strength;
+		push_constant.blur_scale = m_postfx.bloom_scale;
+
 		SetPushConstants(a_list, pipe_layout, 0, sizeof(push_constant), &push_constant);
 
 		StartRenderPass(a_list, rendering_info);
@@ -1114,14 +1140,25 @@ void SceneHierarchy::BloomPass(const PerFrameData& a_pfd, const RCommandList a_l
 		to_shader_read.base_array_layer = 1;
 		PipelineBarriers(a_list, barrier_info);
 	}
-	
+
 	// vertical slice
 	{
+		FixedArray<ColorBlendState, 1> blend_state;
+		blend_state[0].blend_enable = true;
+		blend_state[0].color_flags = 0xF;
+		blend_state[0].color_blend_op = BLEND_OP::ADD;
+		blend_state[0].src_blend = BLEND_MODE::FACTOR_ONE;
+		blend_state[0].dst_blend = BLEND_MODE::FACTOR_ONE;
+		blend_state[0].alpha_blend_op = BLEND_OP::ADD;
+		blend_state[0].src_alpha_blend = BLEND_MODE::FACTOR_SRC_ALPHA;
+		blend_state[0].dst_alpha_blend = BLEND_MODE::FACTOR_DST_ALPHA;
+		SetBlendMode(a_list, 0, blend_state.slice());
+
 		RenderingAttachmentColor color_attach;
 		color_attach.load_color = true;
 		color_attach.store_color = true;
 		color_attach.image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-		color_attach.image_view = GetImageView(a_pfd.bloom.descriptor_index_0);
+		color_attach.image_view = a_render_target;
 		StartRenderingInfo rendering_info;
 		rendering_info.color_attachments = Slice(&color_attach, 1);
 		rendering_info.depth_attachment = nullptr;
@@ -1129,8 +1166,11 @@ void SceneHierarchy::BloomPass(const PerFrameData& a_pfd, const RCommandList a_l
 		rendering_info.render_area_offset = a_draw_area_offset;
 
 		ShaderGaussianBlur push_constant;
-		push_constant.horizontal_enable = false;
+		push_constant.horizontal_enable = true;
 		push_constant.src_texture = a_pfd.bloom.descriptor_index_1;
+		push_constant.src_resolution = a_pfd.bloom.resolution;
+		push_constant.blur_strength = m_postfx.bloom_strength;
+		push_constant.blur_scale = m_postfx.bloom_scale;
 		SetPushConstants(a_list, pipe_layout, 0, sizeof(push_constant), &push_constant);
 
 		StartRenderPass(a_list, rendering_info);

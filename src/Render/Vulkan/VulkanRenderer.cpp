@@ -546,6 +546,15 @@ struct Vulkan_inst
 		enum_conv.cull_modes[static_cast<uint32_t>(CULL_MODE::FRONT)] = VK_CULL_MODE_FRONT_BIT;
 		enum_conv.cull_modes[static_cast<uint32_t>(CULL_MODE::BACK)] = VK_CULL_MODE_BACK_BIT;
 		enum_conv.cull_modes[static_cast<uint32_t>(CULL_MODE::FRONT_AND_BACK)] = VK_CULL_MODE_FRONT_AND_BACK;
+
+		enum_conv.blend_op[static_cast<uint32_t>(BLEND_OP::ADD)] = VK_BLEND_OP_ADD;
+		enum_conv.blend_op[static_cast<uint32_t>(BLEND_OP::SUBTRACT)] = VK_BLEND_OP_SUBTRACT;
+
+		enum_conv.blend_factor[static_cast<uint32_t>(BLEND_MODE::FACTOR_ZERO)] = VK_BLEND_FACTOR_ZERO;
+		enum_conv.blend_factor[static_cast<uint32_t>(BLEND_MODE::FACTOR_ONE)] = VK_BLEND_FACTOR_ONE;
+		enum_conv.blend_factor[static_cast<uint32_t>(BLEND_MODE::FACTOR_SRC_ALPHA)] = VK_BLEND_FACTOR_SRC_ALPHA;
+		enum_conv.blend_factor[static_cast<uint32_t>(BLEND_MODE::FACTOR_ONE_MINUS_SRC_ALPHA)] = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+		enum_conv.blend_factor[static_cast<uint32_t>(BLEND_MODE::FACTOR_DST_ALPHA)] = VK_BLEND_FACTOR_DST_ALPHA;
 #endif //ENUM_CONVERSATION_BY_ARRAY
 	}
 
@@ -592,6 +601,8 @@ struct Vulkan_inst
 		VkAccessFlags2 access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::ENUM_SIZE)];
 		VkImageUsageFlags image_usages[static_cast<uint32_t>(IMAGE_USAGE::ENUM_SIZE)];
 		VkCullModeFlags cull_modes[static_cast<uint32_t>(CULL_MODE::ENUM_SIZE)];
+		VkBlendOp blend_op[static_cast<uint32_t>(BLEND_OP::ENUM_SIZE)];
+		VkBlendFactor blend_factor[static_cast<uint32_t>(BLEND_MODE::ENUM_SIZE)];
 	} enum_conv;
 #endif //ENUM_CONVERSATION_BY_ARRAY
 
@@ -917,6 +928,24 @@ static inline VkImageUsageFlags ImageUsage(const IMAGE_USAGE a_usage)
 		return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
 		break;
 	}
+#endif //ENUM_CONVERSATION_BY_ARRAY
+}
+
+static inline VkBlendOp BlendOp(const BLEND_OP a_blend_op)
+{
+#ifdef ENUM_CONVERSATION_BY_ARRAY
+	return s_vulkan_inst->enum_conv.blend_op[static_cast<uint32_t>(a_blend_op)];
+#else
+	BB_UNIMPLEMENTED();
+#endif //ENUM_CONVERSATION_BY_ARRAY
+}
+
+static inline VkBlendFactor BlendFactor(const BLEND_MODE a_blend_mode)
+{
+#ifdef ENUM_CONVERSATION_BY_ARRAY
+	return s_vulkan_inst->enum_conv.blend_factor[static_cast<uint32_t>(a_blend_mode)];
+#else
+	BB_UNIMPLEMENTED();
 #endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
@@ -2363,28 +2392,25 @@ void Vulkan::SetBlendMode(const RCommandList a_list, const uint32_t a_first_atta
 
 	FixedArray<VkBool32, MAX_COLOR_ATTACHMENTS> color_enables;
 	FixedArray<VkColorComponentFlags, MAX_COLOR_ATTACHMENTS> color_flags;
+	FixedArray<VkColorBlendEquationEXT, MAX_COLOR_ATTACHMENTS> blend_eq;
 
 	for (size_t i = 0; i < a_blend_states.size(); i++)
 	{
-		color_enables[i] = a_blend_states[i].blend_enable;
-		color_flags[i] = a_blend_states[i].color_flags;
+		const ColorBlendState& cbs = a_blend_states[i];
+		color_enables[i] = cbs.blend_enable;
+		color_flags[i] = cbs.color_flags;
+
+		blend_eq[i].colorBlendOp = BlendOp(cbs.color_blend_op);
+		blend_eq[i].srcColorBlendFactor = BlendFactor(cbs.src_blend);
+		blend_eq[i].dstColorBlendFactor = BlendFactor(cbs.dst_blend);
+		blend_eq[i].alphaBlendOp = BlendOp(cbs.alpha_blend_op);
+		blend_eq[i].srcAlphaBlendFactor = BlendFactor(cbs.src_alpha_blend);
+		blend_eq[i].dstAlphaBlendFactor = BlendFactor(cbs.dst_alpha_blend);
 	}
 
 	s_vulkan_inst->pfn.CmdSetColorBlendEnableEXT(cmd_buffer, a_first_attachment, blend_state_count, color_enables.data());
 	s_vulkan_inst->pfn.CmdSetColorWriteMaskEXT(cmd_buffer, a_first_attachment, blend_state_count, color_flags.data());
-
-	// TODO, proper blending choices
-	for (uint32_t i = 0; i < blend_state_count; i++)
-	{
-		VkColorBlendEquationEXT color_blend_equation{};
-		color_blend_equation.colorBlendOp = VK_BLEND_OP_ADD;
-		color_blend_equation.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-		color_blend_equation.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-		color_blend_equation.alphaBlendOp = VK_BLEND_OP_ADD;
-		color_blend_equation.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-		color_blend_equation.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-		s_vulkan_inst->pfn.CmdSetColorBlendEquationEXT(cmd_buffer, a_first_attachment + i, 1, &color_blend_equation);
-	}
+	s_vulkan_inst->pfn.CmdSetColorBlendEquationEXT(cmd_buffer, a_first_attachment, blend_state_count, blend_eq.data());
 }
 
 void Vulkan::SetFrontFace(const RCommandList a_list, const bool a_is_clockwise)

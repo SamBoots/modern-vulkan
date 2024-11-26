@@ -102,6 +102,11 @@ namespace BB
 			return m_options.skip_object_rendering = !m_options.skip_object_rendering;
 		}
 
+		bool ToggleSkipBloomPass()
+		{
+			return m_options.skip_bloom = !m_options.skip_bloom;
+		}
+
 		void SetClearColor(const float3 a_clear_color) { m_clear_color = a_clear_color; }
 		void IncrementNextFenceValue(RFence* a_out_fence, uint64_t* a_out_value) 
 		{ 
@@ -127,6 +132,7 @@ namespace BB
 				RImage image;
 				RDescriptorIndex descriptor_index_0;
 				RDescriptorIndex descriptor_index_1;
+				uint2 resolution;
 			};
 			Bloom bloom;
 			
@@ -139,6 +145,15 @@ namespace BB
 				StaticArray<RImageView> render_pass_views;
 			} shadow_map;
 		};
+
+		struct PostFXOptions
+		{
+			float bloom_strength;
+			float bloom_scale;
+		};
+		PostFXOptions m_postfx;
+
+		PostFXOptions& GetPostFXOptions() { return m_postfx; }
 
 		void UpdateConstantBuffer(PerFrameData& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size);
 		void SkyboxPass(const PerFrameData& a_pfd, const RCommandList a_list, const RImageView a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
@@ -169,6 +184,7 @@ namespace BB
 			bool skip_skybox;
 			bool skip_shadow_mapping;
 			bool skip_object_rendering;
+			bool skip_bloom;
 		} m_options;
 
 		enum class SCENE_OBJ_DIRTY_TYPE

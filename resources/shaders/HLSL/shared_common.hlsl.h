@@ -84,11 +84,6 @@ namespace BB
         RDescriptorIndex shadow_map_array_descriptor; // 184
         uint light_count;                // 188
         RDescriptorIndex skybox_texture; // 192
-
-        // bloom info
-        uint2 bloom_resolution;          // 200
-        float bloom_strength;            // 204
-        float bloom_scale;               // 208
     };
 
     struct ALIGN_STRUCT(16) MeshMetallic
@@ -160,10 +155,11 @@ namespace BB
 
     struct ShaderGaussianBlur
     {
-        RDescriptorIndex src_texture; // 4
+        RDescriptorIndex src_texture;
         uint horizontal_enable;
-        uint2 pad_1;
-        uint2 pad_2;
+        uint2 src_resolution;
+        float blur_strength;
+        float blur_scale;
     };
 
 #ifndef __HLSL_VERSION // C++ version

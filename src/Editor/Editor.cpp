@@ -628,7 +628,21 @@ void Editor::ImguiDisplaySceneHierarchy(SceneHierarchy& a_hierarchy)
 
 		ImguiCreateSceneObject(a_hierarchy);
 
-		if (ImGui::CollapsingHeader("Skip render pass option"))
+		if (ImGui::Button("GAMER MODE"))
+		{
+			auto& postfx_options = a_hierarchy.GetPostFXOptions();
+			postfx_options.bloom_strength = 5.f;
+			postfx_options.bloom_scale = 10.5f;
+		}
+
+		if (ImGui::CollapsingHeader("post fx option"))
+		{
+			auto& postfx_options = a_hierarchy.GetPostFXOptions();
+			ImGui::InputFloat("bloom strength", &postfx_options.bloom_strength);
+			ImGui::InputFloat("bloom scale", &postfx_options.bloom_scale);
+		}
+
+		if (ImGui::CollapsingHeader("skip render pass option"))
 		{
 			if (ImGui::Button("toggle skipping skybox pass"))
 			{
@@ -641,6 +655,10 @@ void Editor::ImguiDisplaySceneHierarchy(SceneHierarchy& a_hierarchy)
 			if (ImGui::Button("toggle skipping object rendering pass"))
 			{
 				a_hierarchy.ToggleSkipObjectRenderingPass();
+			}
+			if (ImGui::Button("toggle skipping bloom pass"))
+			{
+				a_hierarchy.ToggleSkipBloomPass();
 			}
 		}
 

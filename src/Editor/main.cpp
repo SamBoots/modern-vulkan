@@ -26,7 +26,6 @@ static void CustomCloseWindow(const BB::WindowHandle a_window_handle)
 	(void)a_window_handle;
 	WriteEngineConfigData(engine_config);
 	editor.Destroy();
-	
 }
 
 static void CustomResizeWindow(const BB::WindowHandle a_window_handle, const uint32_t a_x, const uint32_t a_y)
