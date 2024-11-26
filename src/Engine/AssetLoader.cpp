@@ -317,7 +317,7 @@ static inline bool IconWriteToDisk(const IconSlot a_slot, const PathString& a_wr
 	params.image_extent = ICON_EXTENT;
 	params.write_path = a_write_path;
 	
-	return AddGPUTask(IconWriteToDisk_impl, params, fence_value);;
+	return AddGPUTask(IconWriteToDisk_impl, params, fence_value);
 }
 
 static inline IconSlot LoadIconFromPath(MemoryArena& a_temp_arena, const StringView a_icon_path, const bool a_set_icons_shader_visible)

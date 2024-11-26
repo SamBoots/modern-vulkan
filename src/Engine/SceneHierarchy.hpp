@@ -122,9 +122,13 @@ namespace BB
 			// I want this to be uniform but hlsl is giga cringe
 			GPULinearBuffer storage_buffer;
 
-			// bloom
-			RImage bloom_image;
-			RDescriptorIndex bloom_view_descriptor_index;
+			struct Bloom
+			{
+				RImage image;
+				RDescriptorIndex descriptor_index_0;
+				RDescriptorIndex descriptor_index_1;
+			};
+			Bloom bloom;
 			
 			RImage depth_image;
 			RImageView depth_image_view;
@@ -136,10 +140,12 @@ namespace BB
 			} shadow_map;
 		};
 
-		void SkyboxPass(const PerFrameData& pfd, const RCommandList a_list, const RImageView a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
-		void ResourceUploadPass(PerFrameData& pfd, const RCommandList a_list);
-		void ShadowMapPass(const PerFrameData& pfd, const RCommandList a_list, const uint2 a_shadow_map_resolution);
-		void RenderPass(const PerFrameData& pfd, const RCommandList a_list, const RImageView a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
+		void UpdateConstantBuffer(PerFrameData& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size);
+		void SkyboxPass(const PerFrameData& a_pfd, const RCommandList a_list, const RImageView a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
+		void ResourceUploadPass(PerFrameData& a_pfd, const RCommandList a_list);
+		void ShadowMapPass(const PerFrameData& a_pfd, const RCommandList a_list, const uint2 a_shadow_map_resolution);
+		void GeometryPass(const PerFrameData& a_pfd, const RCommandList a_list, const RImageView a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
+		void BloomPass(const PerFrameData& a_pfd, const RCommandList a_list, const RImageView a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
 
 		void AddToDrawList(const SceneObject& scene_object, const float4x4& a_transform);
 		SceneObjectHandle CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent);
@@ -203,5 +209,6 @@ namespace BB
 		RDescriptorIndex m_skybox_descriptor_index;
 		MasterMaterialHandle m_skybox_material;
 		MasterMaterialHandle m_shadowmap_material;
+		MasterMaterialHandle m_gaussian_material;
 	};
 }

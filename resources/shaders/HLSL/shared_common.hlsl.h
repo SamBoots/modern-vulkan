@@ -51,9 +51,9 @@ namespace BB
 
     struct Vertex2D
     {
-        float2 position;    
-        float2 uv;          
-        uint color;         
+        float2 position;
+        float2 uv;
+        uint color;
     };
 
     struct ALIGN_STRUCT(16) GlobalRenderData
@@ -84,6 +84,11 @@ namespace BB
         RDescriptorIndex shadow_map_array_descriptor; // 184
         uint light_count;                // 188
         RDescriptorIndex skybox_texture; // 192
+
+        // bloom info
+        uint2 bloom_resolution;          // 200
+        float bloom_strength;            // 204
+        float bloom_scale;               // 208
     };
 
     struct ALIGN_STRUCT(16) MeshMetallic
@@ -152,4 +157,19 @@ namespace BB
         uint pad1;
         uint2 pad2;                    // 24
     };
+
+    struct ShaderGaussianBlur
+    {
+        RDescriptorIndex src_texture; // 4
+        uint horizontal_enable;
+        uint2 pad_1;
+        uint2 pad_2;
+    };
+
+#ifndef __HLSL_VERSION // C++ version
+    static_assert(
+        sizeof(ShaderIndices) == sizeof(ShaderIndices2D) &&
+        sizeof(ShaderIndices) == sizeof(ShaderIndicesShadowMapping) &&
+        sizeof(ShaderIndices) == sizeof(ShaderGaussianBlur));
+#endif // __HLSL_VERSION
 }

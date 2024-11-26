@@ -82,7 +82,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 		pfd.fence_value = 0;
 
 		pfd.depth_image = RImage();
-		pfd.bloom_image = RImage();
+		pfd.bloom.image = RImage();
 
 		pfd.shadow_map.render_pass_views.Init(a_arena, INITIAL_DEPTH_ARRAY_COUNT);
 		pfd.shadow_map.render_pass_views.resize(INITIAL_DEPTH_ARRAY_COUNT);
@@ -150,12 +150,33 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 		m_shadowmap_material = Material::CreateMasterMaterial(a_arena, shadow_map_material, "shadow map material");
 	}
 
+	// bloom stuff
+
+	MaterialCreateInfo gaussian_material;
+	gaussian_material.pass_type = PASS_TYPE::SCENE;
+	gaussian_material.material_type = MATERIAL_TYPE::NONE;
+	FixedArray<MaterialShaderCreateInfo, 2> gaussian_shaders;
+	gaussian_shaders[0].path = "../../resources/shaders/hlsl/GaussianBlur.hlsl";
+	gaussian_shaders[0].entry = "VertexMain";
+	gaussian_shaders[0].stage = SHADER_STAGE::VERTEX;
+	gaussian_shaders[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
+	gaussian_shaders[1].path = "../../resources/shaders/hlsl/GaussianBlur.hlsl";
+	gaussian_shaders[1].entry = "FragmentMain";
+	gaussian_shaders[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
+	gaussian_shaders[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
+	gaussian_material.shader_infos = Slice(gaussian_shaders.slice());
+
+	MemoryArenaScope(a_arena)
+	{
+		m_gaussian_material = Material::CreateMasterMaterial(a_arena, gaussian_material, "shadow map material");
+	}
+
 	// skybox stuff
 	
 	MaterialCreateInfo skybox_material;
 	skybox_material.pass_type = PASS_TYPE::SCENE;
 	skybox_material.material_type = MATERIAL_TYPE::NONE;
-	MaterialShaderCreateInfo skybox_shaders[2];
+	FixedArray<MaterialShaderCreateInfo, 2> skybox_shaders;
 	skybox_shaders[0].path = "../../resources/shaders/hlsl/skybox.hlsl";
 	skybox_shaders[0].entry = "VertexMain";
 	skybox_shaders[0].stage = SHADER_STAGE::VERTEX;
@@ -164,7 +185,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 	skybox_shaders[1].entry = "FragmentMain";
 	skybox_shaders[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
 	skybox_shaders[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
-	skybox_material.shader_infos = Slice(skybox_shaders, _countof(skybox_shaders));
+	skybox_material.shader_infos = Slice(skybox_shaders.slice());
 	MemoryArenaScope(a_arena)
 	{
 		m_skybox_material = Material::CreateMasterMaterial(a_arena, skybox_material, "skybox material");
@@ -465,95 +486,17 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RImageV
 		DrawSceneObject(m_top_level_objects[i], Float4x4Identity(), a_list, pfd);
 	}
 
-	m_scene_info.light_count = m_light_container.size();
-	m_scene_info.scene_resolution = a_draw_area_size;
-	m_scene_info.shadow_map_count = pfd.shadow_map.render_pass_views.size();
-	m_scene_info.shadow_map_array_descriptor = pfd.shadow_map.descriptor_index;
-	m_scene_info.skybox_texture = m_skybox_descriptor_index;
+	UpdateConstantBuffer(pfd, a_list, a_draw_area_size);
+
 	SkyboxPass(pfd, a_list, a_render_target_view, a_draw_area_size, a_draw_area_offset);
 
 	ResourceUploadPass(pfd, a_list);
 
 	ShadowMapPass(pfd, a_list, uint2(DEPTH_IMAGE_SIZE_W_H, DEPTH_IMAGE_SIZE_W_H));
 
-	if (pfd.previous_draw_area != a_draw_area_size)
-	{
-		if (pfd.depth_image.IsValid())
-		{
-			FreeImage(pfd.depth_image);
-			FreeImageViewShaderInaccessible(pfd.depth_image_view);
-		}
-		{
-			ImageCreateInfo depth_img_info;
-			depth_img_info.name = "scene depth buffer";
-			depth_img_info.width = a_draw_area_size.x;
-			depth_img_info.height = a_draw_area_size.y;
-			depth_img_info.depth = 1;
-			depth_img_info.mip_levels = 1;
-			depth_img_info.array_layers = 1;
-			depth_img_info.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
-			depth_img_info.usage = IMAGE_USAGE::DEPTH;
-			depth_img_info.type = IMAGE_TYPE::TYPE_2D;
-			depth_img_info.use_optimal_tiling = true;
-			depth_img_info.is_cube_map = false;
-			pfd.depth_image = CreateImage(depth_img_info);
+	GeometryPass(pfd, a_list, a_render_target_view, a_draw_area_size, a_draw_area_offset);
 
-			ImageViewCreateInfo depth_img_view_info;
-			depth_img_view_info.name = "scene depth view";
-			depth_img_view_info.image = pfd.depth_image;
-			depth_img_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
-			depth_img_view_info.base_array_layer = 0;
-			depth_img_view_info.array_layers = 1;
-			depth_img_view_info.mip_levels = 1;
-			depth_img_view_info.base_mip_level = 0;
-			depth_img_view_info.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
-			depth_img_view_info.aspects = IMAGE_ASPECT::DEPTH_STENCIL;
-			pfd.depth_image_view = CreateImageViewShaderInaccessible(depth_img_view_info);
-		}
-
-		if (pfd.bloom_image.IsValid())
-		{
-			FreeImage(pfd.bloom_image);
-			FreeImageView(pfd.bloom_view_descriptor_index);
-		}
-
-		{
-			const float2 downscaled_bloom_image = {
-				static_cast<float>(a_draw_area_size.x) * BLOOM_IMAGE_DOWNSCALE_FACTOR,
-				static_cast<float>(a_draw_area_size.y) * BLOOM_IMAGE_DOWNSCALE_FACTOR
-			};
-
-			ImageCreateInfo bloom_img_info;
-			bloom_img_info.name = "bloom image";
-			bloom_img_info.width = static_cast<uint32_t>(downscaled_bloom_image.x);
-			bloom_img_info.height = static_cast<uint32_t>(downscaled_bloom_image.y);
-			bloom_img_info.depth = 1;
-			bloom_img_info.mip_levels = 1;
-			bloom_img_info.array_layers = 1;
-			bloom_img_info.format = RENDER_TARGET_IMAGE_FORMAT;
-			bloom_img_info.usage = IMAGE_USAGE::RENDER_TARGET;
-			bloom_img_info.type = IMAGE_TYPE::TYPE_2D;
-			bloom_img_info.use_optimal_tiling = true;
-			bloom_img_info.is_cube_map = false;
-			pfd.bloom_image = CreateImage(bloom_img_info);
-
-			ImageViewCreateInfo bloom_img_view_info;
-			bloom_img_view_info.name = "bloom image view";
-			bloom_img_view_info.image = pfd.bloom_image;
-			bloom_img_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
-			bloom_img_view_info.base_array_layer = 0;
-			bloom_img_view_info.array_layers = 1;
-			bloom_img_view_info.mip_levels = 1;
-			bloom_img_view_info.base_mip_level = 0;
-			bloom_img_view_info.format = RENDER_TARGET_IMAGE_FORMAT;
-			bloom_img_view_info.aspects = IMAGE_ASPECT::COLOR;
-			pfd.bloom_view_descriptor_index = CreateImageView(bloom_img_view_info);
-		}
-
-		pfd.previous_draw_area = a_draw_area_size;
-	}
-
-	RenderPass(pfd, a_list, a_render_target_view, a_draw_area_size, a_draw_area_offset);
+	BloomPass(pfd, a_list, a_render_target_view, a_draw_area_size, a_draw_area_offset);
 }
 
 void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform, const RCommandList a_list, const PerFrameData& a_pfd)
@@ -619,13 +562,13 @@ RDescriptorLayout SceneHierarchy::GetSceneDescriptorLayout()
 	return s_scene_descriptor_layout;
 }
 
-void SceneHierarchy::SkyboxPass(const PerFrameData& pfd, const RCommandList a_list, const RImageView a_render_target_view, const uint2 a_draw_area_size, const int2 a_draw_area_offset)
+void SceneHierarchy::SkyboxPass(const PerFrameData& a_pfd, const RCommandList a_list, const RImageView a_render_target_view, const uint2 a_draw_area_size, const int2 a_draw_area_offset)
 {
 	const RPipelineLayout pipe_layout = BindShaders(a_list, Material::GetMaterialShaders(m_skybox_material));
 	{
 		const uint32_t buffer_indices[] = { 0, 0 };
 		const DescriptorAllocation& global_desc_alloc = GetGlobalDescriptorAllocation();
-		const size_t buffer_offsets[]{ global_desc_alloc.offset, pfd.scene_descriptor.offset };
+		const size_t buffer_offsets[]{ global_desc_alloc.offset, a_pfd.scene_descriptor.offset };
 		//set 1-2
 		SetDescriptorBufferOffset(a_list,
 			pipe_layout,
@@ -666,13 +609,139 @@ void SceneHierarchy::SkyboxPass(const PerFrameData& pfd, const RCommandList a_li
 	EndRenderPass(a_list);
 }
 
-void SceneHierarchy::ResourceUploadPass(PerFrameData& pfd, const RCommandList a_list)
+void SceneHierarchy::UpdateConstantBuffer(PerFrameData& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size)
 {
-	GPULinearBuffer& cur_scene_buffer = pfd.storage_buffer;
+	m_scene_info.light_count = m_light_container.size();
+	m_scene_info.scene_resolution = a_draw_area_size;
+	m_scene_info.shadow_map_count = a_pfd.shadow_map.render_pass_views.size();
+	m_scene_info.shadow_map_array_descriptor = a_pfd.shadow_map.descriptor_index;
+	m_scene_info.skybox_texture = m_skybox_descriptor_index;
+	m_scene_info.bloom_scale = 1.0f;
+	m_scene_info.bloom_strength = 1.5f;
+
+	if (a_pfd.previous_draw_area != a_draw_area_size)
+	{
+		if (a_pfd.depth_image.IsValid())
+		{
+			FreeImage(a_pfd.depth_image);
+			FreeImageViewShaderInaccessible(a_pfd.depth_image_view);
+		}
+		{
+			ImageCreateInfo depth_img_info;
+			depth_img_info.name = "scene depth buffer";
+			depth_img_info.width = a_draw_area_size.x;
+			depth_img_info.height = a_draw_area_size.y;
+			depth_img_info.depth = 1;
+			depth_img_info.mip_levels = 1;
+			depth_img_info.array_layers = 1;
+			depth_img_info.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
+			depth_img_info.usage = IMAGE_USAGE::DEPTH;
+			depth_img_info.type = IMAGE_TYPE::TYPE_2D;
+			depth_img_info.use_optimal_tiling = true;
+			depth_img_info.is_cube_map = false;
+			a_pfd.depth_image = CreateImage(depth_img_info);
+
+			ImageViewCreateInfo depth_img_view_info;
+			depth_img_view_info.name = "scene depth view";
+			depth_img_view_info.image = a_pfd.depth_image;
+			depth_img_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
+			depth_img_view_info.base_array_layer = 0;
+			depth_img_view_info.array_layers = 1;
+			depth_img_view_info.mip_levels = 1;
+			depth_img_view_info.base_mip_level = 0;
+			depth_img_view_info.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
+			depth_img_view_info.aspects = IMAGE_ASPECT::DEPTH_STENCIL;
+			a_pfd.depth_image_view = CreateImageViewShaderInaccessible(depth_img_view_info);
+		}
+
+		if (a_pfd.bloom.image.IsValid())
+		{
+			FreeImage(a_pfd.bloom.image);
+			FreeImageView(a_pfd.bloom.descriptor_index_0);
+			FreeImageView(a_pfd.bloom.descriptor_index_1);
+		}
+
+		{
+			const float2 downscaled_bloom_image = {
+				static_cast<float>(a_draw_area_size.x) * BLOOM_IMAGE_DOWNSCALE_FACTOR,
+				static_cast<float>(a_draw_area_size.y) * BLOOM_IMAGE_DOWNSCALE_FACTOR
+			};
+
+			m_scene_info.bloom_resolution = uint2(static_cast<uint32_t>(downscaled_bloom_image.x), static_cast<uint32_t>(downscaled_bloom_image.y));
+
+			ImageCreateInfo bloom_img_info;
+			bloom_img_info.name = "bloom image";
+			bloom_img_info.width = m_scene_info.bloom_resolution.x;
+			bloom_img_info.height = m_scene_info.bloom_resolution.y;
+			bloom_img_info.depth = 1;
+			bloom_img_info.mip_levels = 1;
+			bloom_img_info.array_layers = 2;			// 0 == bloom image, 1 = bloom vertical blur
+			bloom_img_info.format = RENDER_TARGET_IMAGE_FORMAT;
+			bloom_img_info.usage = IMAGE_USAGE::RENDER_TARGET;
+			bloom_img_info.type = IMAGE_TYPE::TYPE_2D;
+			bloom_img_info.use_optimal_tiling = true;
+			bloom_img_info.is_cube_map = false;
+			a_pfd.bloom.image = CreateImage(bloom_img_info);
+
+			ImageViewCreateInfo bloom_img_view_info;
+			bloom_img_view_info.name = "bloom image view";
+			bloom_img_view_info.image = a_pfd.bloom.image;
+			bloom_img_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
+			bloom_img_view_info.base_array_layer = 0;
+			bloom_img_view_info.array_layers = 1;
+			bloom_img_view_info.mip_levels = 1;
+			bloom_img_view_info.base_mip_level = 0;
+			bloom_img_view_info.format = RENDER_TARGET_IMAGE_FORMAT;
+			bloom_img_view_info.aspects = IMAGE_ASPECT::COLOR;
+			a_pfd.bloom.descriptor_index_0 = CreateImageView(bloom_img_view_info);
+
+			bloom_img_view_info.base_array_layer = 1;
+			a_pfd.bloom.descriptor_index_1 = CreateImageView(bloom_img_view_info);
+
+			FixedArray<PipelineBarrierImageInfo, 2> bloom_initial_stages;
+			bloom_initial_stages[0].src_mask = BARRIER_ACCESS_MASK::NONE;
+			bloom_initial_stages[0].dst_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
+			bloom_initial_stages[0].image = a_pfd.bloom.image;
+			bloom_initial_stages[0].old_layout = IMAGE_LAYOUT::UNDEFINED;
+			bloom_initial_stages[0].new_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+			bloom_initial_stages[0].layer_count = 1;
+			bloom_initial_stages[0].level_count = 1;
+			bloom_initial_stages[0].base_array_layer = 0;
+			bloom_initial_stages[0].base_mip_level = 0;
+			bloom_initial_stages[0].src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
+			bloom_initial_stages[0].dst_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
+			bloom_initial_stages[0].aspects = IMAGE_ASPECT::COLOR;
+
+			bloom_initial_stages[1].src_mask = BARRIER_ACCESS_MASK::NONE;
+			bloom_initial_stages[1].dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
+			bloom_initial_stages[1].image = a_pfd.bloom.image;
+			bloom_initial_stages[1].old_layout = IMAGE_LAYOUT::UNDEFINED;
+			bloom_initial_stages[1].new_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+			bloom_initial_stages[1].layer_count = 1;
+			bloom_initial_stages[1].level_count = 1;
+			bloom_initial_stages[1].base_array_layer = 1;
+			bloom_initial_stages[1].base_mip_level = 0;
+			bloom_initial_stages[1].src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
+			bloom_initial_stages[1].dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
+			bloom_initial_stages[1].aspects = IMAGE_ASPECT::COLOR;
+
+			PipelineBarrierInfo barriers{};
+			barriers.image_infos = bloom_initial_stages.data();
+			barriers.image_info_count = bloom_initial_stages.size();
+			PipelineBarriers(a_list, barriers);
+		}
+
+		a_pfd.previous_draw_area = a_draw_area_size;
+	}
+}
+
+void SceneHierarchy::ResourceUploadPass(PerFrameData& a_pfd, const RCommandList a_list)
+{
+	GPULinearBuffer& cur_scene_buffer = a_pfd.storage_buffer;
 	cur_scene_buffer.Clear();
 
 	{	// write scene info
-		pfd.scene_buffer.WriteTo(&m_scene_info, sizeof(m_scene_info), 0);
+		a_pfd.scene_buffer.WriteTo(&m_scene_info, sizeof(m_scene_info), 0);
 	}
 
 	const size_t matrices_upload_size = sizeof(ShaderTransform) * m_draw_list.size;
@@ -681,7 +750,7 @@ void SceneHierarchy::ResourceUploadPass(PerFrameData& pfd, const RCommandList a_
 	// optimize this
 	const size_t total_size = matrices_upload_size + light_upload_size + light_projection_view_size;
 
-	const UploadBuffer upload_buffer = m_upload_allocator.AllocateUploadMemory(total_size, pfd.fence_value);
+	const UploadBuffer upload_buffer = m_upload_allocator.AllocateUploadMemory(total_size, a_pfd.fence_value);
 
 	size_t bytes_uploaded = 0;
 
@@ -742,7 +811,7 @@ void SceneHierarchy::ResourceUploadPass(PerFrameData& pfd, const RCommandList a_
 		// WRITE DESCRIPTORS HERE
 		DescriptorWriteBufferInfo desc_write;
 		desc_write.descriptor_layout = GetSceneDescriptorLayout();
-		desc_write.allocation = pfd.scene_descriptor;
+		desc_write.allocation = a_pfd.scene_descriptor;
 		desc_write.descriptor_index = 0;
 
 		if (matrices_upload_size)
@@ -764,21 +833,21 @@ void SceneHierarchy::ResourceUploadPass(PerFrameData& pfd, const RCommandList a_
 	}
 }
 
-void SceneHierarchy::ShadowMapPass(const PerFrameData& pfd, const RCommandList a_list, const uint2 a_shadow_map_resolution)
+void SceneHierarchy::ShadowMapPass(const PerFrameData& a_pfd, const RCommandList a_list, const uint2 a_shadow_map_resolution)
 {
 	const uint32_t shadow_map_count = m_light_projection_view.size();
 	if (shadow_map_count == 0)
 	{
 		return;
 	}
-	BB_ASSERT(shadow_map_count <= pfd.shadow_map.render_pass_views.size(), "too many lights! Make a dynamic shadow mapping array");
+	BB_ASSERT(shadow_map_count <= a_pfd.shadow_map.render_pass_views.size(), "too many lights! Make a dynamic shadow mapping array");
 
 	const RPipelineLayout pipe_layout = BindShaders(a_list, Material::GetMaterialShaders(m_shadowmap_material));
 
 	PipelineBarrierImageInfo shadow_map_write_transition = {};
 	shadow_map_write_transition.src_mask = BARRIER_ACCESS_MASK::NONE;
 	shadow_map_write_transition.dst_mask = BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE;
-	shadow_map_write_transition.image = pfd.shadow_map.image;
+	shadow_map_write_transition.image = a_pfd.shadow_map.image;
 	shadow_map_write_transition.old_layout = IMAGE_LAYOUT::UNDEFINED;
 	shadow_map_write_transition.new_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
 	shadow_map_write_transition.layer_count = shadow_map_count;
@@ -817,7 +886,7 @@ void SceneHierarchy::ShadowMapPass(const PerFrameData& pfd, const RCommandList a
 	{
 		// validation issues, not nice to use but works for now.
 		ClearDepthImageInfo depth_clear;
-		depth_clear.image = pfd.shadow_map.image;
+		depth_clear.image = a_pfd.shadow_map.image;
 		depth_clear.clear_depth = 1;
 		depth_clear.layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
 		depth_clear.depth_aspects = IMAGE_ASPECT::DEPTH;
@@ -832,7 +901,7 @@ void SceneHierarchy::ShadowMapPass(const PerFrameData& pfd, const RCommandList a
 	{
 		for (uint32_t shadow_map_index = 0; shadow_map_index < shadow_map_count; shadow_map_index++)
 		{
-			depth_attach.image_view = pfd.shadow_map.render_pass_views[shadow_map_index];
+			depth_attach.image_view = a_pfd.shadow_map.render_pass_views[shadow_map_index];
 
 			StartRenderPass(a_list, rendering_info);
 
@@ -863,7 +932,7 @@ void SceneHierarchy::ShadowMapPass(const PerFrameData& pfd, const RCommandList a
 	PipelineBarrierImageInfo shadow_map_read_transition = {};
 	shadow_map_read_transition.src_mask = BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE;
 	shadow_map_read_transition.dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
-	shadow_map_read_transition.image = pfd.shadow_map.image;
+	shadow_map_read_transition.image = a_pfd.shadow_map.image;
 	shadow_map_read_transition.old_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
 	shadow_map_read_transition.new_layout = IMAGE_LAYOUT::DEPTH_STENCIL_READ_ONLY;
 	shadow_map_read_transition.layer_count = shadow_map_count;
@@ -880,12 +949,12 @@ void SceneHierarchy::ShadowMapPass(const PerFrameData& pfd, const RCommandList a
 	PipelineBarriers(a_list, pipeline_info);
 }
 
-void SceneHierarchy::RenderPass(const PerFrameData& pfd, const RCommandList a_list, const RImageView a_render_target_view, const uint2 a_draw_area_size, const int2 a_draw_area_offset)
+void SceneHierarchy::GeometryPass(const PerFrameData& a_pfd, const RCommandList a_list, const RImageView a_render_target_view, const uint2 a_draw_area_size, const int2 a_draw_area_offset)
 {
 	PipelineBarrierImageInfo image_transitions[1]{};
 	image_transitions[0].src_mask = BARRIER_ACCESS_MASK::NONE;
 	image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE;
-	image_transitions[0].image = pfd.depth_image;
+	image_transitions[0].image = a_pfd.depth_image;
 	image_transitions[0].old_layout = IMAGE_LAYOUT::UNDEFINED;
 	image_transitions[0].new_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
 	image_transitions[0].layer_count = 1;
@@ -910,14 +979,14 @@ void SceneHierarchy::RenderPass(const PerFrameData& pfd, const RCommandList a_li
 	color_attachs[1].load_color = false;
 	color_attachs[1].store_color = true;
 	color_attachs[1].image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-	color_attachs[1].image_view = GetImageView(pfd.bloom_view_descriptor_index);
+	color_attachs[1].image_view = GetImageView(a_pfd.bloom.descriptor_index_0);
 	const uint32_t color_attach_count = 2;
 
 	RenderingAttachmentDepth depth_attach{};
 	depth_attach.load_depth = false;
 	depth_attach.store_depth = true;
 	depth_attach.image_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
-	depth_attach.image_view = pfd.depth_image_view;
+	depth_attach.image_view = a_pfd.depth_image_view;
 
 	StartRenderingInfo rendering_info;
 	rendering_info.color_attachments = color_attachs.slice(color_attach_count);
@@ -974,6 +1043,100 @@ void SceneHierarchy::RenderPass(const PerFrameData& pfd, const RCommandList a_li
 	}
 
 	EndRenderPass(a_list);
+}
+
+void SceneHierarchy::BloomPass(const PerFrameData& a_pfd, const RCommandList a_list, const RImageView a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset)
+{
+	Slice<const ShaderEffectHandle> shader_effects = Material::GetMaterialShaders(m_gaussian_material);
+	const RPipelineLayout pipe_layout = BindShaders(a_list, shader_effects);
+
+	FixedArray<PipelineBarrierImageInfo, 2> transitions{};
+	PipelineBarrierImageInfo& to_shader_read = transitions[0];
+	to_shader_read.src_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
+	to_shader_read.dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
+	to_shader_read.image = a_pfd.bloom.image;
+	to_shader_read.old_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+	to_shader_read.new_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+	to_shader_read.layer_count = 1;
+	to_shader_read.level_count = 1;
+	to_shader_read.base_array_layer = 0;
+	to_shader_read.base_mip_level = 0;
+	to_shader_read.src_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
+	to_shader_read.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
+	to_shader_read.aspects = IMAGE_ASPECT::COLOR;
+
+	PipelineBarrierImageInfo& to_render_target = transitions[1];
+	to_render_target.src_mask = BARRIER_ACCESS_MASK::SHADER_READ;
+	to_render_target.dst_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
+	to_render_target.image = a_pfd.bloom.image;
+	to_render_target.old_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+	to_render_target.new_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+	to_render_target.layer_count = 1;
+	to_render_target.level_count = 1;
+	to_render_target.base_array_layer = 1;
+	to_render_target.base_mip_level = 0;
+	to_render_target.src_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
+	to_render_target.dst_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
+	to_render_target.aspects = IMAGE_ASPECT::COLOR;
+
+	PipelineBarrierInfo barrier_info{};
+	barrier_info.image_infos = transitions.data();
+	barrier_info.image_info_count = transitions.size();
+
+	SetFrontFace(a_list, false);
+	SetCullMode(a_list, CULL_MODE::NONE);
+	// horizontal bloom slice
+	{
+		PipelineBarriers(a_list, barrier_info);
+
+		RenderingAttachmentColor color_attach;
+		color_attach.load_color = false;
+		color_attach.store_color = true;
+		color_attach.image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+		color_attach.image_view = GetImageView(a_pfd.bloom.descriptor_index_1);
+		StartRenderingInfo rendering_info;
+		rendering_info.color_attachments = Slice(&color_attach, 1);
+		rendering_info.depth_attachment = nullptr;
+		rendering_info.render_area_extent = m_scene_info.bloom_resolution;
+		rendering_info.render_area_offset = int2();
+
+		ShaderGaussianBlur push_constant;
+		push_constant.horizontal_enable = true;
+		push_constant.src_texture = a_pfd.bloom.descriptor_index_0;
+		SetPushConstants(a_list, pipe_layout, 0, sizeof(push_constant), &push_constant);
+
+		StartRenderPass(a_list, rendering_info);
+		DrawVertices(a_list, 3, 1, 0, 0);
+		EndRenderPass(a_list);
+
+		// ping pong
+		to_render_target.base_array_layer = 0;
+		to_shader_read.base_array_layer = 1;
+		PipelineBarriers(a_list, barrier_info);
+	}
+	
+	// vertical slice
+	{
+		RenderingAttachmentColor color_attach;
+		color_attach.load_color = true;
+		color_attach.store_color = true;
+		color_attach.image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+		color_attach.image_view = GetImageView(a_pfd.bloom.descriptor_index_0);
+		StartRenderingInfo rendering_info;
+		rendering_info.color_attachments = Slice(&color_attach, 1);
+		rendering_info.depth_attachment = nullptr;
+		rendering_info.render_area_extent = a_draw_area_size;
+		rendering_info.render_area_offset = a_draw_area_offset;
+
+		ShaderGaussianBlur push_constant;
+		push_constant.horizontal_enable = false;
+		push_constant.src_texture = a_pfd.bloom.descriptor_index_1;
+		SetPushConstants(a_list, pipe_layout, 0, sizeof(push_constant), &push_constant);
+
+		StartRenderPass(a_list, rendering_info);
+		DrawVertices(a_list, 3, 1, 0, 0);
+		EndRenderPass(a_list);
+	}
 }
 
 void SceneHierarchy::AddToDrawList(const SceneObject& a_scene_object, const float4x4& a_transform)
