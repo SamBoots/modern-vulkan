@@ -84,6 +84,12 @@ namespace BB
         RDescriptorIndex shadow_map_array_descriptor; // 184
         uint light_count;                // 188
         RDescriptorIndex skybox_texture; // 192
+
+        // deferred information
+        RDescriptorIndex g_buffer_positions; // 196
+        RDescriptorIndex g_buffer_normals; // 200
+        RDescriptorIndex g_buffer_colors; // 204
+        uint pad0;                        // 208
     };
 
     struct ALIGN_STRUCT(16) MeshMetallic

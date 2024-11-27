@@ -7,16 +7,9 @@ struct VSOutput
     _BBEXT(1)float4 color : COLOR0;
     _BBEXT(2)float2 uv : UV0;
     _BBEXT(3)float3x3 TBN : POSITION1;
-    _BBEXT(6)float4 frag_pos_light[8] : POSITION2;
 };
 
 _BBCONSTANT(BB::ShaderIndices) shader_indices;
-
-static const float4x4 biasMat = float4x4(
-	0.5, 0.0, 0.0, 0.5,
-	0.0, 0.5, 0.0, 0.5,
-	0.0, 0.0, 1.0, 0.0,
-	0.0, 0.0, 0.0, 1.0);
 
 VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 {
@@ -43,50 +36,27 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
     output.color = cur_vertex.color;
     output.TBN = TBN;
     
-    for (uint i = 0; i < scene_data.light_count; i++)
-    {
-        const float4x4 projview = light_view_projection_data.Load<float4x4>(sizeof(float4x4) * i);
-        output.frag_pos_light[i] = mul(biasMat, mul(projview, mul(transform.transform, float4(cur_vertex.position, 1.0))));
-    }
     return output;
 }
 
 struct PixelOutput
 {
-    float4 color : SV_Target0;
-    float4 bloom : SV_Target1;
+    float3 position : SV_Target0;
+    float3 normal : SV_Target1;
+    float3 albedo : SV_Target2;
 };
+
 
 PixelOutput FragmentMain(VSOutput a_input)
 {
     const BB::MeshMetallic material = materials_metallic[shader_indices.material_index];
-    
+
+    const float3 normal = textures_data[material.normal_texture].Sample(basic_3d_sampler, a_input.uv).xyz * 2.0 - 1.0;
     const float4 texture_color = textures_data[material.albedo_texture].Sample(basic_3d_sampler, a_input.uv);
-    const float4 color = texture_color * a_input.color;
-    
-    float3 normal = textures_data[material.normal_texture].Sample(basic_3d_sampler, a_input.uv).xyz * 2.0 - 1.0;
-    normal = normalize(mul(a_input.TBN, normal));
 
-    float3 result_color = 0;
-
-    for (uint i = 0; i < scene_data.light_count; i++)
-    {
-        const BB::Light light = light_data.Load<BB::Light>(sizeof(BB::Light) * i);
-        float3 diffuse = CalculateLight(light, normal, a_input.frag_pos, scene_data.view_pos.xyz, material.metallic_factor).xyz;
-        float shadow = CalculateShadowPCF(a_input.frag_pos_light[i], scene_data.shadow_map_resolution, scene_info.shadow_map_array_descriptor, i);
-        
-        result_color += (1.0 - shadow) * (diffuse);
-    }
-    
     PixelOutput output;
-    output.color = float4(scene_data.ambient_light.xyz + result_color, 1.0) * color * material.base_color_factor;
-    
-    // bloom
-    const float brightness = dot(output.color.rgb, float3(0.2126, 0.7152, 0.0722));
-    if (brightness > 1.0)
-        output.bloom = float4(output.color.rgb, 1.0);
-    else
-        output.bloom = float4(0.0, 0.0, 0.0, 1.0);
-    
+    output.position = output.frag_pos;
+    output.normal = normalize(mul(a_input.TBN, normal));
+    output.albedo = output.color.rgb * texture_color.rgb * material.base_color_factor.rgb;
     return output;
 }
