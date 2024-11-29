@@ -212,15 +212,25 @@ SceneObjectHandle DungeonMap::CreateSceneObjectFloor(MemoryArena& a_temp_arena, 
 	return map_obj;
 }
 
+static float3 RotatePointOnPoint(const float4x4& a_rotation_matrix, const float4x4& a_translate_matrix, const float3 a_point)
+{
+	const float4 res = a_rotation_matrix * float4(a_point, 1.f);
+	const float4 res2 = a_translate_matrix * res;
+	return float3(res2.x, res2.y, res2.z);
+}
+
 static void MakeWallSegment(StaticArray<Vertex>& a_vertices, StaticArray<uint32_t>& a_indices, QuadVertices& a_quad_vertices, const int a_x, const int a_y, const float3 a_offset, const float3 a_rotation)
 {
+	const float4x4 rotation_matrix = Float4x4FromRotation(Float3ToRadians(a_rotation));
+	const float4x4 translate_matrix = Float4x4FromTranslation(float3(a_x, 0.5f, a_y));
+
 	const float fx = static_cast<float>(a_x);
 	const float fy = static_cast<float>(a_y);
 	// rotate these
-	const float3 pos_top_left = float3(fx - 0.5f, 0.5f, fy + 0.5f);
-	const float3 pos_top_right = float3(fx + 0.5f, 0.5f, fy + 0.5f);
-	const float3 pos_bot_right = float3(fx + 0.5f, 0.5f, fy - 0.5f);
-	const float3 pos_bot_left = float3(fx - 0.5f, 0.5f, fy - 0.5f);
+	const float3 pos_top_left = RotatePointOnPoint(rotation_matrix, translate_matrix, float3(fx - 0.5f, 0.5f, fy + 0.5f));
+	const float3 pos_top_right = RotatePointOnPoint(rotation_matrix, translate_matrix, float3(fx + 0.5f, 0.5f, fy + 0.5f));
+	const float3 pos_bot_right = RotatePointOnPoint(rotation_matrix, translate_matrix, float3(fx + 0.5f, 0.5f, fy - 0.5f));
+	const float3 pos_bot_left = RotatePointOnPoint(rotation_matrix, translate_matrix, float3(fx - 0.5f, 0.5f, fy - 0.5f));
 
 	a_quad_vertices[0].position = pos_top_left + a_offset;
 	a_quad_vertices[1].position = pos_top_right + a_offset;
@@ -277,19 +287,19 @@ SceneObjectHandle DungeonMap::CreateSceneObjectWalls(MemoryArena& a_temp_arena, 
 				{
 					if (!IsTileWalkable(x + 1, y))
 					{
-						MakeWallSegment(vertices, indices, quad_vertices, x, y, float3(0.5f, 0.f, 0.f), float3(0.f, 90.f, 0.f));
+						MakeWallSegment(vertices, indices, quad_vertices, x, y, float3(0.5f, 0.f, 0.f), float3(0.f, 45.f, 0.f));
 					}
 					if (!IsTileWalkable(x - 1, y))
 					{
-						MakeWallSegment(vertices, indices, quad_vertices, x, y, float3(-0.5f, 0.f, 0.f), float3(0.f, 90.f, 0.f));
+						MakeWallSegment(vertices, indices, quad_vertices, x, y, float3(-0.5f, 0.f, 0.f), float3(45.f, 0.f, 0.f));
 					}
 					if (!IsTileWalkable(x, y + 1))
 					{
-						MakeWallSegment(vertices, indices, quad_vertices, x, y, float3(0.f, 0.f, 0.5f), float3(0.f, 90.f, 0.f));
+						MakeWallSegment(vertices, indices, quad_vertices, x, y, float3(0.f, 0.f, 0.5f), float3(0.f, 0.f, 45.f));
 					}
 					if (!IsTileWalkable(x, y - 1))
 					{
-						MakeWallSegment(vertices, indices, quad_vertices, x, y, float3(0.f, 0.f, -0.5f), float3(0.f, 90.f, 0.f));
+						MakeWallSegment(vertices, indices, quad_vertices, x, y, float3(0.f, 0.f, -0.5f), float3(0.f, 0.f, 0.f));
 					}
 				}
 			}

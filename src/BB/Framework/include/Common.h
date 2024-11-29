@@ -335,6 +335,12 @@ namespace BB
 
 	union float3x3
 	{
+		float3x3()
+		{
+			r0 = {};
+			r1 = {};
+			r2 = {};
+		}
 		float e[3][3];
 		struct
 		{
