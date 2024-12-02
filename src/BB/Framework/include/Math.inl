@@ -290,11 +290,6 @@ namespace BB
 		mat.e[2][2] = 1.f;
 		return mat;
 	}
-
-	static float3x3 Float3x3RotateX(const float3 a_rotation)
-	{
-
-	}
 	
 	static inline float3x3 Float3x3FromRotation(const float3 a_rotation)
 	{
