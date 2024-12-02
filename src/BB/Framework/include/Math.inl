@@ -1,15 +1,22 @@
 #pragma once
 #include "Common.h"
 #include <cmath>
+#include <limits>
 
 namespace BB
 {
 	constexpr float PI_F = 3.14159265358979323846f;
 	constexpr double PI_D = 3.14159265358979323846;
+	constexpr float F_EPSILON = 0.000000001f;
 
-	static inline float ToRadians(const float degrees)
+	constexpr static inline float ToRadians(const float degrees)
 	{
 		return degrees * 0.01745329252f;
+	}
+
+	constexpr static inline bool FloatEqual(const float a_a, const float a_b, const float a_epsilon = std::numeric_limits<float>::epsilon())
+	{
+		return fabs(a_a - a_b) < a_epsilon;
 	}
 
 	// UTILITY
@@ -84,6 +91,26 @@ namespace BB
 	//--------------------------------------------------------
 	// FLOAT3
 
+	static inline bool operator==(const float3 a_lhs, const float3 a_rhs)
+	{
+		return FloatEqual(a_lhs.x, a_rhs.x) && FloatEqual(a_lhs.y, a_rhs.y) && FloatEqual(a_lhs.z, a_rhs.z);
+	}
+
+	static inline bool operator!=(const float3 a_lhs, const float3 a_rhs)
+	{
+		return !FloatEqual(a_lhs.x, a_rhs.x) || !FloatEqual(a_lhs.y, a_rhs.y) || !FloatEqual(a_lhs.z, a_rhs.z);
+	}
+
+	static inline bool operator<(const float3 a_lhs, const float3 a_rhs)
+	{
+		return a_lhs.x < a_rhs.x && a_lhs.y < a_rhs.y && a_lhs.z < a_rhs.z;
+	}
+
+	static inline bool operator>(const float3 a_lhs, const float3 a_rhs)
+	{
+		return a_lhs.x > a_rhs.x && a_lhs.y > a_rhs.y && a_lhs.z > a_rhs.z;
+	}
+
 	static inline float3 operator+(const float3 a_lhs, const float3 a_rhs)
 	{
 		return float3{ a_lhs.x + a_rhs.x, a_lhs.y + a_rhs.y, a_lhs.z + a_rhs.z };
@@ -104,9 +131,28 @@ namespace BB
 		return float3{ a_lhs.x * a_rhs.x, a_lhs.y * a_rhs.y, a_lhs.z * a_rhs.z };
 	}
 
+	static inline float3 operator*(const float3x3 a_mat, const float3 a_vec)
+	{
+		float3 vec;
+		vec.x = a_vec.x * a_mat.r0.x + a_vec.y * a_mat.r1.x + a_vec.z * a_mat.r2.x;
+		vec.y = a_vec.x * a_mat.r0.y + a_vec.y * a_mat.r1.y + a_vec.z * a_mat.r2.y;
+		vec.z = a_vec.x * a_mat.r0.z + a_vec.y * a_mat.r1.z + a_vec.z * a_mat.r2.z;
+		return vec;
+	}
+
 	static inline float3 operator/(const float3 a_lhs, const float3 a_rhs)
 	{
 		return float3{ a_lhs.x / a_rhs.x, a_lhs.y / a_rhs.y, a_lhs.z / a_rhs.z };
+	}
+
+	static inline float3 Float3Abs(const float3 a_v)
+	{
+		return float3(fabs(a_v.x), fabs(a_v.y), fabs(a_v.z));
+	}
+
+	static inline float3 Float3Distance(const float3 a_p0, const float3 a_p1)
+	{
+		return Float3Abs(a_p0 - a_p1);
 	}
 
 	static inline float3 Float3Cross(const float3 a, const float3 b)
@@ -138,6 +184,11 @@ namespace BB
 		const float length = Float3Length(a);
 		const float rcp_length = 1.0f / length;
 		return a * rcp_length;
+	}
+
+	inline static float3 Float3Lerp(const float3 a_p0, const float3 a_p1, const float a_t)
+	{
+		return a_p0 + (a_p1 - a_p0) * a_t;
 	}
 
 	static inline float3 Float3ToRadians(const float3 a)
@@ -293,7 +344,7 @@ namespace BB
 	
 	static inline float3x3 Float3x3FromRotation(const float3 a_rotation)
 	{
-		float3x3 mat;
+		float3x3 mat = Float3x3Identity();
 
 		mat.e[0][0] = cosf(a_rotation.y) * cosf(a_rotation.z);
 		mat.e[0][1] = cosf(a_rotation.y) * sinf(a_rotation.z);
@@ -306,6 +357,25 @@ namespace BB
 		mat.e[2][0] = cosf(a_rotation.x) * sinf(a_rotation.y) * cosf(a_rotation.z) + sinf(a_rotation.x) * sinf(a_rotation.z);
 		mat.e[2][1] = cosf(a_rotation.x) * sinf(a_rotation.y) * sinf(a_rotation.z) - sinf(a_rotation.x) * cosf(a_rotation.z);
 		mat.e[2][2] = cosf(a_rotation.x) * cosf(a_rotation.y);
+
+		return mat;
+	}
+
+	static inline float3x3 Float3x3FromRotationY(const float a_rotation_y)
+	{
+		float3x3 mat = Float3x3Identity();
+
+		mat.e[0][0] = cosf(a_rotation_y);
+		mat.e[0][1] = 0.f;
+		mat.e[0][2] = -sinf(a_rotation_y);
+
+		mat.e[1][0] = 0.f;
+		mat.e[1][1] = 1.f;
+		mat.e[1][2] = 0.f;
+
+		mat.e[2][0] = sinf(a_rotation_y);
+		mat.e[2][1] = 0.f;
+		mat.e[2][2] = cosf(a_rotation_y);
 
 		return mat;
 	}

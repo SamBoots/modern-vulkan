@@ -151,7 +151,7 @@ namespace BB
 
 	inline static float Lerp(const float a_a, const float a_b, const float a_t)
 	{
-		return a_a + a_t * (a_b - a_a);
+		return a_a + (a_b - a_a) * a_t;
 	}
 
 	inline static int Clamp(const int a_value, const int a_min, const int a_max)

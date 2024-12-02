@@ -91,29 +91,35 @@ namespace BB
 		Player() = default;
 
 		float3 Move(const float3 a_translation);
-		float3 Rotate(const float3 a_rotate);
+		float3 Rotate(const float3 a_rotation);
 		void SetPosition(const float3 a_position);
-		void SetVelocitySpeed(const float a_velocity_speed);
+		void SetLerpSpeed(const float a_lerp_speed);
 
 		bool Update(const float a_delta_time);
 
 		float4x4 CalculateView() const;
 
-
-		float GetVelocitySpeed() const
+		bool IsMoving() const;
+		float GetLerpSpeed() const
 		{
-			return m_velocity_speed;
+			return m_lerp_speed;
 		}
 		float3 GetPosition() const
 		{
 			return m_position;
 		}
 	private:
-		float m_velocity_speed;
-		float3 m_velocity;
+		float m_lerp_speed;
 		float3 m_position;
+		float3 m_position_dest;
+		float3 m_position_src;
+		float m_position_lerp_t;
+
 		float3 m_up{ 0.0f, 1.0f, 0.0f };
 		float3 m_forward{ 0.0f, 0.0f, 1.0f };
+		float3 m_forward_dest = m_forward;
+		float3 m_forward_src;
+		float m_forward_lerp_t;
 	};
 
 	class DungeonGame

@@ -212,26 +212,24 @@ SceneObjectHandle DungeonMap::CreateSceneObjectFloor(MemoryArena& a_temp_arena, 
 	return map_obj;
 }
 
-static float3 RotatePointOnPoint(const float4x4& a_rotation_matrix, const float4x4& a_translate_matrix, const float3 a_point, const float3 a_middle)
+static float3 RotatePointOnPoint(const float3x3& a_rotation_matrix, const float3 a_point, const float3 a_middle)
 {
-	const float4 res = a_rotation_matrix * float4(a_point - a_middle, 1.f);
-	const float4 res2 = a_translate_matrix * res;
-	return float3(res2.x, res2.y, res2.z);
+	const float3 res = a_rotation_matrix * (a_point - a_middle);
+	return a_middle + res;
 }
 
 static void MakeWallSegment(StaticArray<Vertex>& a_vertices, StaticArray<uint32_t>& a_indices, QuadVertices& a_quad_vertices, const int a_x, const int a_y, const float3 a_offset, const float3 a_rotation)
 {
 	const float fx = static_cast<float>(a_x);
-	const float fy = static_cast<float>(a_y);
-	const float3 middle = float3(fx, 0.0f, fy);
+	const float fz = static_cast<float>(a_y);
+	const float3 middle = float3(fx, 0.5f, fz);
+	const float3x3 rotation_matrix = Float3x3FromRotation(Float3ToRadians(a_rotation));
 
-	const float4x4 rotation_matrix = Float4x4FromRotation(Float3ToRadians(a_rotation));
-	const float4x4 translate_matrix = Float4x4FromTranslation(middle);
 	// rotate these
-	const float3 pos_top_left = RotatePointOnPoint(rotation_matrix, translate_matrix, float3(fx - 0.5f, 0.0f, fy + 0.5f), middle);
-	const float3 pos_top_right = RotatePointOnPoint(rotation_matrix, translate_matrix, float3(fx + 0.5f, 0.0f, fy + 0.5f), middle);
-	const float3 pos_bot_right = RotatePointOnPoint(rotation_matrix, translate_matrix, float3(fx + 0.5f, 0.0f, fy - 0.5f), middle);
-	const float3 pos_bot_left = RotatePointOnPoint(rotation_matrix, translate_matrix, float3(fx - 0.5f, 0.0f, fy - 0.5f), middle);
+	const float3 pos_top_left = RotatePointOnPoint(rotation_matrix, float3(fx - 0.5f, 0.5f, fz + 0.5f), middle);
+	const float3 pos_top_right = RotatePointOnPoint(rotation_matrix, float3(fx + 0.5f, 0.5f, fz + 0.5f), middle);
+	const float3 pos_bot_right = RotatePointOnPoint(rotation_matrix, float3(fx + 0.5f, 0.5f, fz - 0.5f), middle);
+	const float3 pos_bot_left = RotatePointOnPoint(rotation_matrix, float3(fx - 0.5f, 0.5f, fz - 0.5f), middle);
 
 	a_quad_vertices[0].position = pos_top_left + a_offset;
 	a_quad_vertices[1].position = pos_top_right + a_offset;
@@ -333,30 +331,60 @@ SceneObjectHandle DungeonMap::CreateSceneObjectWalls(MemoryArena& a_temp_arena, 
 
 float3 Player::Move(const float3 a_translation)
 {
-	return m_velocity = m_velocity + a_translation;
+	m_position_src = m_position;
+	m_position_dest = m_position_dest + a_translation;
+	m_position_lerp_t = 0;
+	return m_position_dest;
+}
+
+float3 Player::Rotate(const float3 a_rotation)
+{
+	m_forward_src = m_forward;
+	m_forward_dest = Float3x3FromRotation(a_rotation) * m_forward_dest;
+	m_forward_lerp_t = 0;
+	return m_forward_dest;
 }
 
 void Player::SetPosition(const float3 a_position)
 {
 	m_position = a_position;
+	m_position_src = a_position;
+	m_position_dest = a_position;
 }
 
-void Player::SetVelocitySpeed(const float a_velocity_speed)
+void Player::SetLerpSpeed(const float a_lerp_speed)
 {
-	m_velocity_speed = a_velocity_speed;
+	m_lerp_speed = a_lerp_speed;
 }
 
 bool Player::Update(const float a_delta_time)
 {
-	const float3 velocity = m_velocity * m_velocity_speed * a_delta_time;
-	m_velocity = m_velocity - velocity;
-	m_position = m_position + velocity;
+	const float lerp_speed = m_lerp_speed * a_delta_time;
+
+
+	m_position_lerp_t = m_position_lerp_t + lerp_speed;
+	if (m_position_lerp_t >= 1.f)
+		m_position = m_position_dest;
+	else
+		m_position = Float3Lerp(m_position_src, m_position_dest, m_position_lerp_t);
+
+	m_forward_lerp_t = m_forward_lerp_t + lerp_speed;
+	if (m_forward_lerp_t >= 1.f)
+		m_forward = m_forward_dest;
+	else
+		m_forward = Float3Lerp(m_forward_src, m_forward_dest, m_forward_lerp_t);
+
 	return true;
 }
 
 float4x4 Player::CalculateView() const
 {
 	return Float4x4Lookat(m_position, m_position + m_forward, m_up);
+}
+
+bool Player::IsMoving() const
+{
+	return m_position != m_position_dest || m_forward != m_forward_dest;
 }
 
 bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_buffer_count)
@@ -379,7 +407,7 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
 		m_dungeon_map.CreateSceneObjectWalls(m_game_memory, m_scene_hierarchy, map_start_pos);
 	}
 	m_player.SetPosition(m_dungeon_map.GetSpawnPoint() + map_start_pos);
-	m_player.SetVelocitySpeed(25.f);
+	m_player.SetLerpSpeed(5.f);
 	return true;
 }
 
@@ -411,34 +439,34 @@ bool DungeonGame::HandleInput(const float a_delta_time, const Slice<InputEvent> 
 		{
 			const KeyInfo& ki = ip.key_info;
 			float3 player_move{};
-			float player_rotate_y;
+			float player_rotate_y = 0;
 			if (ki.key_pressed)
 			{
 				switch (ki.scan_code)
 				{
 				case KEYBOARD_KEY::W:
-					player_move.z = 1;
+					player_move.z = 1.f;
 					break;
 				case KEYBOARD_KEY::S:
-					player_move.z = -1;
+					player_move.z = -1.f;
 					break;
 				case KEYBOARD_KEY::A:
-					player_move.x = 1;
+					player_move.x = 1.f;
 					break;
 				case KEYBOARD_KEY::D:
-					player_move.x = -1;
+					player_move.x = -1.f;
 					break;
 				case KEYBOARD_KEY::X:
-					player_move.y = 1;
+					player_move.y = 1.f;
 					break;
 				case KEYBOARD_KEY::Z:
-					player_move.y = -1;
+					player_move.y = -1.f;
 					break;
 				case KEYBOARD_KEY::Q:
-					player_rotate_y = 1;
+					player_rotate_y = ToRadians(90.f);
 					break;
 				case KEYBOARD_KEY::E:
-					player_rotate_y = -1;
+					player_rotate_y = ToRadians(-90.f);
 					break;
 				case KEYBOARD_KEY::F:
 					m_free_cam.freeze_free_cam = !m_free_cam.freeze_free_cam;
@@ -461,8 +489,12 @@ bool DungeonGame::HandleInput(const float a_delta_time, const Slice<InputEvent> 
 			}
 			else
 			{
-				player_move.y = 0;
-				m_player.Move(player_move);
+				if (!m_player.IsMoving())
+				{
+					player_move.y = 0;
+					m_player.Move(player_move);
+					m_player.Rotate(float3(0.f, player_rotate_y, 0.f));
+				}
 			}
 		}
 		else if (ip.input_type == INPUT_TYPE::MOUSE)
@@ -513,10 +545,10 @@ void DungeonGame::DisplayImGuiInfo()
 		
 		if (ImGui::CollapsingHeader("player"))
 		{
-			float velocity_speed = m_player.GetVelocitySpeed();
+			float velocity_speed = m_player.GetLerpSpeed();
 			if (ImGui::SliderFloat("velocity speed", &velocity_speed, 1.f, 100.f))
 			{
-				m_player.SetVelocitySpeed(velocity_speed);
+				m_player.SetLerpSpeed(velocity_speed);
 			}
 		}
 	}
