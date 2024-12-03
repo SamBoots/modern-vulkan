@@ -1,6 +1,6 @@
 #pragma once
 #include "BBMemory.h"
-#include "Common.h"
+#include "ECSBase.hpp"
 
 namespace BB
 {
@@ -55,4 +55,5 @@ namespace BB
 
 		struct TransformNode* m_transforms;
 	};
+	static_assert(is_ecs_component_map<TransformPool>);
 }
