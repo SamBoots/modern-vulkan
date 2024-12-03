@@ -37,8 +37,8 @@ namespace BB
 		MemoryArenaMarker CreateMap(MemoryArena& a_game_memory, const int a_map_size_x, const int a_map_size_y, const Slice<DungeonRoom*> a_rooms);
 		void DestroyMap();
 
-		SceneObjectHandle CreateSceneObjectFloor(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy, const float3 a_pos);
-		SceneObjectHandle CreateSceneObjectWalls(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy, const float3 a_pos);
+		SceneObjectHandle CreateSceneObjectFloor(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy, const SceneObjectHandle a_parent);
+		SceneObjectHandle CreateSceneObjectWalls(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy, const SceneObjectHandle a_parent);
 
 		struct DungeonTile
 		{
@@ -143,6 +143,7 @@ namespace BB
 		Viewport m_viewport;
 		SceneHierarchy m_scene_hierarchy;
 		DungeonMap m_dungeon_map;
+		SceneObjectHandle m_dungeon_obj;
 
 		// debug
 		struct FreeCameraOption
