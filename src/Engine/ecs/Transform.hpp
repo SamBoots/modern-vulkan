@@ -39,6 +39,16 @@ namespace BB
 		/// <param name="a_MatrixSize">The amount of matrices you want to allocate. The a_GPUMemoryRegion needs to have enough space to hold them all.</param>
 		void Init(struct MemoryArena& a_arena, const uint32_t a_transform_count);
 
+		bool CreateComponent(const ECSEntity a_entity);
+		bool CreateComponent(const ECSEntity a_entity, const Transform& a_component);
+		bool FreeComponent(const ECSEntity a_entity);
+		bool GetComponent(const ECSEntity a_entity, Transform& a_out_component);
+
+		inline ECSSignatureIndex GetSignatureIndex() const
+		{
+			return TRANSFORM_ECS_SIGNATURE;
+		}
+
 		TransformHandle CreateTransform(const float3 a_position);
 		TransformHandle CreateTransform(const float3 a_position, const float3 a_axis, const float a_radians);
 		TransformHandle CreateTransform(const float3 a_position, const Quat a_rotation, const float3 a_scale);
@@ -53,7 +63,8 @@ namespace BB
 		uint32_t m_transform_count;
 		uint32_t m_next_free_transform;
 
-		struct TransformNode* m_transforms;
+		StaticArray<uint32_t> m_component_indices;
+		StaticArray<Transform> m_components;
 	};
-	static_assert(is_ecs_component_map<TransformPool>);
+	static_assert(is_ecs_component_map<TransformPool, Transform>);
 }

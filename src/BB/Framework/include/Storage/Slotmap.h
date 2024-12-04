@@ -31,6 +31,10 @@ namespace BB
 		};
 	};
 
+	//--------------------------------------------------------
+	// A slotmap is a container that has element T contigious in memory while providing stable keys to access these elements.
+	// It does so by having a indirection array of indices so that the keys are unique and don't get invalidated on element removal.
+	//--------------------------------------------------------
 	template <typename T, typename HandleType = SlotmapHandle>
 	class Slotmap
 	{
@@ -313,7 +317,10 @@ namespace BB
 		uint32_t m_next_free;
 	};
 
-
+	//--------------------------------------------------------
+	// A slotmap is a container that has element T contigious in memory while providing stable keys to access these elements.
+	// It does so by having a indirection array of indices so that the keys are unique and don't get invalidated on element removal.
+	//--------------------------------------------------------
 	template <typename T, typename HandleType = SlotmapHandle>
 	class StaticSlotmap
 	{
@@ -331,11 +338,11 @@ namespace BB
 			//index to m_id_arr
 			m_next_free = 0;
 		}
-		StaticSlotmap(const Slotmap<T>& a_map) = delete;
-		StaticSlotmap(Slotmap<T>&& a_map) = delete;
+		StaticSlotmap(const StaticSlotmap<T>& a_map) = delete;
+		StaticSlotmap(StaticSlotmap<T>&& a_map) = delete;
 
-		Slotmap<T>& operator=(const Slotmap<T>& a_rhs) = delete;
-		Slotmap<T>& operator=(Slotmap<T>&& a_rhs) = delete;
+		StaticSlotmap<T>& operator=(const StaticSlotmap<T>& a_rhs) = delete;
+		StaticSlotmap<T>& operator=(StaticSlotmap<T>&& a_rhs) = delete;
 
 		void Init(MemoryArena& a_arena, const uint32_t a_size)
 		{

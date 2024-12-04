@@ -52,18 +52,6 @@ const float4x4 Transform::CreateMatrix()
 	return matrix;
 }
 
-//slotmap type of data structure.
-struct BB::TransformNode
-{
-	union
-	{
-		Transform transform; 
-		uint32_t next;
-	};
-	
-	uint32_t generation;
-};
-
 void TransformPool::Init(struct MemoryArena& a_arena, const uint32_t a_transform_count)
 {
 	m_transform_count = a_transform_count;
@@ -77,6 +65,34 @@ void TransformPool::Init(struct MemoryArena& a_arena, const uint32_t a_transform
 
 	m_transforms[m_transform_count - 1].next = UINT32_MAX;
 	m_transforms[m_transform_count - 1].generation = 1;
+}
+
+bool TransformPool::CreateComponent(const ECSEntity a_entity)
+{
+
+
+	return true;
+}
+
+bool TransformPool::CreateComponent(const ECSEntity a_entity, const Transform& a_component)
+{
+
+
+	return true;
+}
+
+bool TransformPool::FreeComponent(const ECSEntity a_entity)
+{
+
+
+	return true;
+}
+
+bool TransformPool::GetComponent(const ECSEntity a_entity, Transform& a_out_component)
+{
+
+
+	return true;
 }
 
 TransformHandle TransformPool::CreateTransform(const float3 a_position)
