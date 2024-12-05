@@ -1,12 +1,12 @@
 #pragma once
-#include "Common.h"
 #include "Storage/Slotmap.h"
-#include "Transform.hpp"
 #include "Renderer.hpp"
-#include "Storage/Array.h"
 #include "Storage/BBString.h"
 #include "AssetLoader.hpp"
 #include "GPUBuffers.hpp"
+
+#include "ecs/EntityMap.hpp"
+#include "ecs/Transform.hpp"
 
 namespace BB
 {
@@ -48,9 +48,9 @@ namespace BB
 		const char* name;
 		MeshDrawInfo mesh_info;
 
-		LightHandle light_handle;
+		ECSEntity entity;
 
-		TransformHandle transform;
+		LightHandle light_handle;
 
 		SceneObjectHandle parent;
 		void AddChild(const SceneObjectHandle a_child)
@@ -210,6 +210,7 @@ namespace BB
 		StringView m_scene_name;
 
 		//TODO, maybe remember all the transforms from the previous frames?
+		EntityMap m_ecs_entities;
 		TransformPool m_transform_pool;
 		StaticSlotmap<SceneObject, SceneObjectHandle> m_scene_objects;
 

@@ -31,11 +31,8 @@ bool EntityMap::CreateEntity(ECSEntity& a_out_entity)
 
 bool EntityMap::FreeEntity(const ECSEntity a_entitiy)
 {
-	if (m_entity_count == 0)
-		return false;
-	--m_entity_count;
-
-	return true;
+	(void)a_entitiy;
+	BB_UNIMPLEMENTED();
 }
 
 // retursn false if the signature is already set.

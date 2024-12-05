@@ -23,7 +23,11 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 {
 	m_scene_name = a_name;
 
-	m_transform_pool.Init(a_arena, a_scene_obj_max);
+	{	// ECS systems
+		m_ecs_entities.Init(a_arena, a_scene_obj_max);
+		m_transform_pool.Init(a_arena, a_scene_obj_max);
+	}
+
 	m_scene_objects.Init(a_arena, a_scene_obj_max);
 	m_top_level_objects = ArenaAllocArr(a_arena, SceneObjectHandle, a_scene_obj_max);
 
@@ -303,7 +307,8 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 	scene_obj.name = a_node.name;
 	scene_obj.mesh_info = {};
 	scene_obj.light_handle = LightHandle(BB_INVALID_HANDLE_64);
-	scene_obj.transform = m_transform_pool.CreateTransform(a_node.translation, a_node.rotation, a_node.scale);
+	BB_ASSERT(m_ecs_entities.CreateEntity(scene_obj.entity), "failed to create entity");
+	BB_ASSERT(m_transform_pool.CreateComponent(scene_obj.entity, Transform(a_node.translation, a_node.rotation, a_node.scale)), "failed to create tranform");
 	scene_obj.parent = a_parent;
 
 	if (a_node.mesh)
@@ -324,8 +329,8 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 			scene_obj.mesh_info.material_dirty = true;
 
 			scene_obj.light_handle = LightHandle(BB_INVALID_HANDLE_64);
-			prim_obj.transform = m_transform_pool.CreateTransform(float3(0, 0, 0));
-
+			BB_ASSERT(m_ecs_entities.CreateEntity(prim_obj.entity), "failed to create entity");
+			BB_ASSERT(m_transform_pool.CreateComponent(prim_obj.entity, Transform()), "failed to create tranform");
 			prim_obj.parent = scene_handle;
 			scene_obj.children[scene_obj.child_count++] = m_scene_objects.emplace(prim_obj);
 		}
@@ -360,7 +365,8 @@ SceneObjectHandle SceneHierarchy::CreateSceneObject(const float3 a_position, con
 	scene_object.name = a_name;
 	scene_object.mesh_info = {};
 	scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
-	scene_object.transform = m_transform_pool.CreateTransform(a_position);
+	BB_ASSERT(m_ecs_entities.CreateEntity(scene_object.entity), "failed to create entity");
+	BB_ASSERT(m_transform_pool.CreateComponent(scene_object.entity, Transform(a_position)), "failed to create transform!");
 	scene_object.child_count = 0;
 
 	return scene_object_handle;
@@ -401,7 +407,8 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectMesh(const float3 a_position,
 	}
 
 	scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
-	scene_object.transform = m_transform_pool.CreateTransform(a_position);
+	BB_ASSERT(m_ecs_entities.CreateEntity(scene_object.entity), "failed to create entity");
+	BB_ASSERT(m_transform_pool.CreateComponent(scene_object.entity, Transform(a_position)), "failed to create transform!");
 	scene_object.child_count = 0;
 
 	return scene_object_handle;
@@ -427,7 +434,8 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModel(const Model& a_model
 	scene_object.name = a_name;
 	scene_object.mesh_info = {};
 	scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
-	scene_object.transform = m_transform_pool.CreateTransform(a_position);
+	BB_ASSERT(m_ecs_entities.CreateEntity(scene_object.entity), "failed to create entity");
+	BB_ASSERT(m_transform_pool.CreateComponent(scene_object.entity, Transform(a_position)), "failed to create transform!");
 	scene_object.child_count = 0;
 
 	for (uint32_t i = 0; i < a_model.root_node_count; i++)
@@ -458,7 +466,8 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectAsLight(const LightCreateInfo
 	scene_object.name = a_name;
 	scene_object.mesh_info = {};
 	
-	scene_object.transform = m_transform_pool.CreateTransform(a_light_create_info.pos);
+	BB_ASSERT(m_ecs_entities.CreateEntity(scene_object.entity), "failed to create entity");
+	BB_ASSERT(m_transform_pool.CreateComponent(scene_object.entity, Transform(a_light_create_info.pos)), "failed to create transform!");
 	scene_object.child_count = 0;
 	scene_object.light_handle = CreateLight(a_light_create_info);
 
@@ -507,7 +516,7 @@ void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, con
 {
 	SceneObject& scene_object = m_scene_objects.find(a_scene_object);
 
-	const float4x4 local_transform = a_transform * m_transform_pool.GetTransformMatrix(scene_object.transform);
+	const float4x4 local_transform = a_transform * m_transform_pool.GetComponent(scene_object.entity).CreateMatrix();
 
 	// mesh_info should be a pointer in the drawlist. Preferably. 
 	if (scene_object.mesh_info.material.IsValid())

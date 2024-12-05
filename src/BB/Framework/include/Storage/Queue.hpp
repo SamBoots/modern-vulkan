@@ -49,7 +49,7 @@ namespace BB
 		T DeQueue()
 		{
 			BB_ASSERT(!IsEmpty(), "trying to remove a queue element while the queue is empty");
-			const uint32_t m_front_queue = m_front_queue;
+			const uint32_t front_queue = m_front_queue;
 			if (&m_begin[++m_front_queue] == m_end)
 				m_front_queue = 0;
 
@@ -62,7 +62,7 @@ namespace BB
 			--m_size;
 #endif // _DEBUG
 
-			return m_begin[m_front_queue];
+			return m_begin[front_queue];
 		}
 
 		inline const T* Peek() const

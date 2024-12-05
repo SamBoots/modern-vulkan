@@ -514,7 +514,7 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 	if (ImGui::CollapsingHeader(scene_object.name))
 	{
 		ImGui::Indent();
-		Transform& transform = a_hierarchy.m_transform_pool.GetTransform(scene_object.transform);
+		Transform& transform = a_hierarchy.m_transform_pool.GetComponent(scene_object.entity);
 		bool position_changed = false;
 		if (ImGui::TreeNodeEx("transform"))
 		{

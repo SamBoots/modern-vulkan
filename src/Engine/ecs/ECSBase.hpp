@@ -8,7 +8,7 @@ namespace BB
 
 
 	template <typename T, typename Component>
-	concept is_ecs_component_map = requires(T v, const Component& a_component, Component& a_out_component, const ECSEntity a_entity)
+	concept is_ecs_component_map = requires(T v, const Component& a_component, const ECSEntity a_entity)
 	{
 		// return false if entity already exists
 		{ v.CreateComponent(a_entity) } -> std::same_as<bool>;
@@ -17,7 +17,7 @@ namespace BB
 		// return false if entity does not exist here
 		{ v.FreeComponent(a_entity) } -> std::same_as<bool>;
 		// return false if entity does not hold this component
-		{ v.GetComponent(a_entity, a_out_component) } -> std::same_as<bool>;
+		{ v.GetComponent(a_entity) } -> std::same_as<Component&>;
 
 		{ v.GetSignatureIndex() } -> std::same_as<ECSSignatureIndex>;
 	};

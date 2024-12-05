@@ -5,8 +5,6 @@
 
 namespace BB
 {
-
-
 	class EntityMap
 	{
 	public:
@@ -28,5 +26,5 @@ namespace BB
 		SPSCQueue<ECSEntity> m_entity_queue;
 		// maybe make it safe with a sentinel value
 		StaticArray<ECSSignature> m_entities;
-	}
+	};
 }

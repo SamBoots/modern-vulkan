@@ -54,118 +54,45 @@ const float4x4 Transform::CreateMatrix()
 
 void TransformPool::Init(struct MemoryArena& a_arena, const uint32_t a_transform_count)
 {
-	m_transform_count = a_transform_count;
-	m_next_free_transform = 0;
-	m_transforms = reinterpret_cast<TransformNode*>(ArenaAlloc(a_arena, a_transform_count * sizeof(TransformNode), __alignof(TransformNode)));
-	for (size_t i = 0; i < static_cast<size_t>(m_transform_count - 1); i++)
-	{
-		m_transforms[i].next = static_cast<uint32_t>(i + 1);
-		m_transforms[i].generation = 1;
-	}
-
-	m_transforms[m_transform_count - 1].next = UINT32_MAX;
-	m_transforms[m_transform_count - 1].generation = 1;
+	m_components.Init(a_arena, a_transform_count);
+	m_components.resize(a_transform_count);
 }
 
 bool TransformPool::CreateComponent(const ECSEntity a_entity)
 {
+	if (EntityInvalid(a_entity))
+		return false;
 
-
+	new (&m_components[a_entity.handle]) Transform(float3(0.f, 0.f, 0.f));
 	return true;
 }
 
 bool TransformPool::CreateComponent(const ECSEntity a_entity, const Transform& a_component)
 {
+	if (EntityInvalid(a_entity))
+		return false;
 
-
+	new (&m_components[a_entity.handle]) Transform(a_component);
 	return true;
 }
 
 bool TransformPool::FreeComponent(const ECSEntity a_entity)
 {
-
-
-	return true;
-}
-
-bool TransformPool::GetComponent(const ECSEntity a_entity, Transform& a_out_component)
-{
-
+	if (EntityInvalid(a_entity))
+		return false;
 
 	return true;
 }
 
-TransformHandle TransformPool::CreateTransform(const float3 a_position)
+Transform& TransformPool::GetComponent(const ECSEntity a_entity)
 {
-	const uint32_t transform_index = m_next_free_transform;
-	TransformNode* node = &m_transforms[transform_index];
-	m_next_free_transform = node->next;
-
-	//WILL OVERWRITE node->next due to it being a union.
-	new (&node->transform) Transform(a_position);
-
-	return TransformHandle(transform_index, node->generation);
+	BB_ASSERT(!EntityInvalid(a_entity), "entity entry is not valid!");
+	return m_components[a_entity.handle];
 }
 
-TransformHandle TransformPool::CreateTransform(const float3 a_position, const float3 a_axis, const float a_radians)
+bool TransformPool::EntityInvalid(const ECSEntity a_entity) const
 {
-	const uint32_t transform_index = m_next_free_transform;
-	TransformNode* node = &m_transforms[transform_index];
-	m_next_free_transform = node->next;
-
-	//WILL OVERWRITE node->next due to it being a union.
-	new (&node->transform) Transform(a_position, a_axis, a_radians);
-
-	return TransformHandle(transform_index, node->generation);
-}
-
-TransformHandle TransformPool::CreateTransform(const float3 a_position, const Quat a_rotation, const float3 a_scale)
-{
-	const uint32_t transform_index = m_next_free_transform;
-	TransformNode* node = &m_transforms[transform_index];
-	m_next_free_transform = node->next;
-
-	//WILL OVERWRITE node->next due to it being a union.
-	new (&node->transform) Transform(a_position, a_rotation, a_scale);
-
-	return TransformHandle(transform_index, node->generation);
-}
-
-TransformHandle TransformPool::CreateTransform(const float3 a_position, const float3 a_axis, const float a_radians, const float3 a_scale)
-{
-	const uint32_t transform_index = m_next_free_transform;
-	TransformNode* node = &m_transforms[transform_index];
-	m_next_free_transform = node->next;
-
-	//WILL OVERWRITE node->next due to it being a union.
-	new (&node->transform) Transform(a_position, a_axis, a_radians, a_scale);
-
-	return TransformHandle(transform_index, node->generation);
-}
-
-void TransformPool::FreeTransform(const TransformHandle a_handle)
-{
-	BB_ASSERT(a_handle.extra_index == m_transforms[a_handle.index].generation, "Transform likely freed twice.");
-
-	//mark transform as free.
-	m_transforms[a_handle.index].next = m_transforms->next;
-	++m_transforms[a_handle.index].generation;
-	m_transforms->next = a_handle.index;
-}
-
-Transform& TransformPool::GetTransform(const TransformHandle a_handle) const
-{
-	BB_ASSERT(a_handle.extra_index == m_transforms[a_handle.index].generation, "Transform likely freed twice.");
-	return m_transforms[a_handle.index].transform;
-}
-
-float4x4 TransformPool::GetTransformMatrix(const TransformHandle a_handle) const
-{
-	BB_ASSERT(a_handle.extra_index == m_transforms[a_handle.index].generation, "Transform likely freed twice.");
-	return m_transforms[a_handle.index].transform.CreateMatrix();
-}
-
-uint32_t TransformPool::PoolSize() const
-{
-	return m_transform_count;
+	if (a_entity.handle >= m_components.size())
+		return true;
+	return false;
 }

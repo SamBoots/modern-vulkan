@@ -72,7 +72,6 @@ namespace BB
 			return true;
 		}
 
-
 	private:
 		uint32_t m_sparse_max;
 		uint32_t m_dense_max;
