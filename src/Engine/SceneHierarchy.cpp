@@ -308,7 +308,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 	scene_obj.mesh_info = {};
 	scene_obj.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 	BB_ASSERT(m_ecs_entities.CreateEntity(scene_obj.entity), "failed to create entity");
-	BB_ASSERT(m_transform_pool.CreateComponent(scene_obj.entity, Transform(a_node.translation, a_node.rotation, a_node.scale)), "failed to create tranform");
+	BB_ASSERT(EntityAssignTransform(scene_obj.entity, a_node.translation, a_node.rotation, a_node.scale), "failed to create tranform");
 	scene_obj.parent = a_parent;
 
 	if (a_node.mesh)
@@ -330,7 +330,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 
 			scene_obj.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 			BB_ASSERT(m_ecs_entities.CreateEntity(prim_obj.entity), "failed to create entity");
-			BB_ASSERT(m_transform_pool.CreateComponent(prim_obj.entity, Transform()), "failed to create tranform");
+			BB_ASSERT(EntityAssignTransform(prim_obj.entity), "failed to create tranform");
 			prim_obj.parent = scene_handle;
 			scene_obj.children[scene_obj.child_count++] = m_scene_objects.emplace(prim_obj);
 		}
@@ -366,7 +366,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObject(const float3 a_position, con
 	scene_object.mesh_info = {};
 	scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 	BB_ASSERT(m_ecs_entities.CreateEntity(scene_object.entity), "failed to create entity");
-	BB_ASSERT(m_transform_pool.CreateComponent(scene_object.entity, Transform(a_position)), "failed to create transform!");
+	BB_ASSERT(EntityAssignTransform(scene_object.entity, a_position), "failed to create transform!");
 	scene_object.child_count = 0;
 
 	return scene_object_handle;
@@ -408,7 +408,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectMesh(const float3 a_position,
 
 	scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 	BB_ASSERT(m_ecs_entities.CreateEntity(scene_object.entity), "failed to create entity");
-	BB_ASSERT(m_transform_pool.CreateComponent(scene_object.entity, Transform(a_position)), "failed to create transform!");
+	BB_ASSERT(EntityAssignTransform(scene_object.entity, a_position), "failed to create transform!");
 	scene_object.child_count = 0;
 
 	return scene_object_handle;
@@ -435,7 +435,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModel(const Model& a_model
 	scene_object.mesh_info = {};
 	scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 	BB_ASSERT(m_ecs_entities.CreateEntity(scene_object.entity), "failed to create entity");
-	BB_ASSERT(m_transform_pool.CreateComponent(scene_object.entity, Transform(a_position)), "failed to create transform!");
+	BB_ASSERT(EntityAssignTransform(scene_object.entity, a_position), "failed to create transform!");
 	scene_object.child_count = 0;
 
 	for (uint32_t i = 0; i < a_model.root_node_count; i++)
@@ -467,11 +467,20 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectAsLight(const LightCreateInfo
 	scene_object.mesh_info = {};
 	
 	BB_ASSERT(m_ecs_entities.CreateEntity(scene_object.entity), "failed to create entity");
-	BB_ASSERT(m_transform_pool.CreateComponent(scene_object.entity, Transform(a_light_create_info.pos)), "failed to create transform!");
+	BB_ASSERT(EntityAssignTransform(scene_object.entity, a_light_create_info.pos), "failed to create transform!");
 	scene_object.child_count = 0;
 	scene_object.light_handle = CreateLight(a_light_create_info);
 
 	return scene_object_handle;
+}
+
+bool SceneHierarchy::EntityAssignTransform(const ECSEntity a_entity, const float3 a_position, const Quat a_rotation, const float3 a_scale)
+{
+	if (!m_transform_pool.CreateComponent(a_entity, Transform(a_position, a_rotation, a_scale)))
+		return false;
+	if (!m_ecs_entities.RegisterSignature(a_entity, m_transform_pool.GetSignatureIndex()))
+		return false;
+	return true;
 }
 
 void SceneHierarchy::SetView(const float4x4& a_view, const float3& a_view_position)

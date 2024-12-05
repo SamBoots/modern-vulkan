@@ -11,11 +11,15 @@ bool EntityMap::Init(MemoryArena& a_arena, const uint32_t a_max_entities)
 	m_entity_count = 0;
 	m_entity_queue.Init(a_arena, a_max_entities);
 	m_entities.Init(a_arena, a_max_entities);
+	m_entities.resize(a_max_entities);
 
 	for (uint32_t i = 0; i < a_max_entities; i++)
 	{
-		ECSEntity entity{ i };
+		ECSEntity entity;
+		entity.index = i;
+		entity.extra_index = 1;
 		m_entity_queue.EnQueue(entity);
+		m_entities[i].sentinel = 1;
 	}
 	return true;
 }
@@ -29,34 +33,66 @@ bool EntityMap::CreateEntity(ECSEntity& a_out_entity)
 	return true;
 }
 
-bool EntityMap::FreeEntity(const ECSEntity a_entitiy)
+bool EntityMap::FreeEntity(const ECSEntity a_entity)
 {
-	(void)a_entitiy;
-	BB_UNIMPLEMENTED();
-}
-
-// retursn false if the signature is already set.
-bool EntityMap::RegisterSignature(const ECSEntity a_entity, const ECSSignatureIndex a_signature_index)
-{
-	if (m_entities[a_entity.handle][a_signature_index.handle] == true)
+	if (m_entity_count == 0)
 		return false;
 
-	m_entities[a_entity.handle][a_signature_index.handle] = true;
+	--m_entity_count;
+
+	// increment sentinel value
+	ECSEntity queue_entity;
+	queue_entity.index = a_entity.index;
+	queue_entity.extra_index = ++m_entities[a_entity.index].sentinel;
+	m_entity_queue.EnQueue(queue_entity);
+
 	return true;
 }
 
-// returns false if the signature was not set.
+bool EntityMap::RegisterSignature(const ECSEntity a_entity, const ECSSignatureIndex a_signature_index)
+{
+	if (!ValidateEntity(a_entity))
+		return false;
+	if (m_entities[a_entity.index].signature[a_signature_index.handle] == true)
+		return false;
+
+	m_entities[a_entity.index].signature[a_signature_index.handle] = true;
+	return true;
+}
+
 bool EntityMap::UnregisterSignature(const ECSEntity a_entity, const ECSSignatureIndex a_signature_index)
 {
-	if (m_entities[a_entity.handle][a_signature_index.handle] == false)
+	if (!ValidateEntity(a_entity))
+		return false;
+	if (m_entities[a_entity.index].signature[a_signature_index.handle] == false)
 	{
 		return false;
 	}
-	m_entities[a_entity.handle][a_signature_index.handle] = false;
+	m_entities[a_entity.index].signature[a_signature_index.handle] = false;
 	return true;
 }
 
-ECSSignature EntityMap::GetSignature(const ECSEntity a_entity) const
+bool EntityMap::GetSignature(const ECSEntity a_entity, ECSSignature& a_out_signature) const
 {
-	return m_entities[a_entity.handle];
+	if (!ValidateEntity(a_entity))
+		return false;
+	a_out_signature = m_entities[a_entity.index].signature;
+	return true;
+}
+
+bool EntityMap::ValidateEntity(const ECSEntity a_entity) const
+{
+	if (!EntityWithinBounds(a_entity))
+		return false;
+	if (m_entities[a_entity.index].sentinel != a_entity.extra_index)
+		return false;
+
+	return true;
+}
+
+bool EntityMap::EntityWithinBounds(const ECSEntity a_entity) const
+{
+	if (a_entity.index >= m_entity_max)
+		return false;
+	return true;
 }

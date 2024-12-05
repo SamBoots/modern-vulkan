@@ -63,7 +63,7 @@ bool TransformPool::CreateComponent(const ECSEntity a_entity)
 	if (EntityInvalid(a_entity))
 		return false;
 
-	new (&m_components[a_entity.handle]) Transform(float3(0.f, 0.f, 0.f));
+	new (&m_components[a_entity.index]) Transform(float3(0.f, 0.f, 0.f));
 	return true;
 }
 
@@ -72,7 +72,7 @@ bool TransformPool::CreateComponent(const ECSEntity a_entity, const Transform& a
 	if (EntityInvalid(a_entity))
 		return false;
 
-	new (&m_components[a_entity.handle]) Transform(a_component);
+	new (&m_components[a_entity.index]) Transform(a_component);
 	return true;
 }
 
@@ -87,12 +87,12 @@ bool TransformPool::FreeComponent(const ECSEntity a_entity)
 Transform& TransformPool::GetComponent(const ECSEntity a_entity)
 {
 	BB_ASSERT(!EntityInvalid(a_entity), "entity entry is not valid!");
-	return m_components[a_entity.handle];
+	return m_components[a_entity.index];
 }
 
 bool TransformPool::EntityInvalid(const ECSEntity a_entity) const
 {
-	if (a_entity.handle >= m_components.size())
+	if (a_entity.index >= m_components.size())
 		return true;
 	return false;
 }

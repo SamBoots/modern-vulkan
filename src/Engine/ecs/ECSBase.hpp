@@ -6,7 +6,6 @@ namespace BB
 {
 	constexpr ECSSignatureIndex TRANSFORM_ECS_SIGNATURE = ECSSignatureIndex(0);
 
-
 	template <typename T, typename Component>
 	concept is_ecs_component_map = requires(T v, const Component& a_component, const ECSEntity a_entity)
 	{
