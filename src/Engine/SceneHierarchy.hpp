@@ -6,8 +6,8 @@
 #include "GPUBuffers.hpp"
 
 #include "ecs/EntityMap.hpp"
-#include "ecs/Transform.hpp"
-#include "ecs/RenderMesh.hpp"
+#include "ecs/TransformComponent.hpp"
+#include "ecs/RenderComponent.hpp"
 
 namespace BB
 {
@@ -39,9 +39,8 @@ namespace BB
 
 		ECSEntity entity;
 
-		LightHandle light_handle;
-
 		SceneObjectHandle parent;
+		LightHandle light_handle;
 		void AddChild(const SceneObjectHandle a_child)
 		{
 			BB_ASSERT(child_count < SCENE_OBJ_CHILD_MAX, "Too many children for a single scene object!");
@@ -75,7 +74,7 @@ namespace BB
 
 		// ECS functions
 		bool EntityAssignTransform(const ECSEntity a_entity, const float3 a_position = float3(0.f), const Quat a_rotation = Quat(0.f, 0.f, 0.f, 0.f), const float3 a_scale = float3(1.f));
-		bool EntityAssignRenderMesh(const ECSEntity a_entity, const RenderMesh& a_draw_info);
+		bool EntityAssignRenderComponent(const ECSEntity a_entity, const RenderComponent& a_draw_info);
 
 		void SetView(const float4x4& a_view, const float3& a_view_position);
 		void SetProjection(const float4x4& a_projection);
@@ -155,7 +154,7 @@ namespace BB
 		void GeometryPass(const PerFrameData& a_pfd, const RCommandList a_list, const RImageView a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
 		void BloomPass(const PerFrameData& a_pfd, const RCommandList a_list, const RImageView a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
 
-		void AddToDrawList(const RenderMesh& a_render_mesh, const float4x4& a_transform);
+		void AddToDrawList(const RenderComponent& a_render_mesh, const float4x4& a_transform);
 		SceneObjectHandle CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent);
 		void DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform, const RCommandList a_list, const PerFrameData& a_pfd);
 
@@ -166,7 +165,7 @@ namespace BB
 
 		struct DrawList
 		{
-			RenderMesh* mesh_draw_call;
+			RenderComponent* mesh_draw_call;
 			ShaderTransform* transform;
 			uint32_t size;
 			uint32_t max_size;
@@ -193,8 +192,8 @@ namespace BB
 
 		//TODO, maybe remember all the transforms from the previous frames?
 		EntityMap m_ecs_entities;
-		TransformPool m_transform_pool;
-		RenderMeshPool m_render_mesh_pool;
+		TransformComponentPool m_transform_pool;
+		RenderComponentPool m_render_mesh_pool;
 		StaticSlotmap<SceneObject, SceneObjectHandle> m_scene_objects;
 
 		StaticSlotmap<Light, LightHandle> m_light_container;

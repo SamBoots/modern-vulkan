@@ -4,13 +4,13 @@
 
 namespace BB
 {
-	class Transform
+	class TransformComponent
 	{
 	public:
-		Transform(const float3 a_position = float3(0.f, 0.f, 0.f));
-		Transform(const float3 a_position, const float3 a_axis, const float a_radians);
-		Transform(const float3 a_position, const Quat a_rotation, const float3 a_scale);
-		Transform(const float3 a_position, const float3 a_axis, const float a_radians, const float3 a_scale);
+		TransformComponent(const float3 a_position = float3(0.f, 0.f, 0.f));
+		TransformComponent(const float3 a_position, const float3 a_axis, const float a_radians);
+		TransformComponent(const float3 a_position, const Quat a_rotation, const float3 a_scale);
+		TransformComponent(const float3 a_position, const float3 a_axis, const float a_radians, const float3 a_scale);
 
 		void Translate(const float3 a_translation);
 		void Rotate(const float3 a_axis, const float a_radians);
@@ -26,15 +26,15 @@ namespace BB
 		float3 m_scale;
 	};
 
-	class TransformPool
+	class TransformComponentPool
 	{
 	public:
 		void Init(struct MemoryArena& a_arena, const uint32_t a_transform_count);
 
 		bool CreateComponent(const ECSEntity a_entity);
-		bool CreateComponent(const ECSEntity a_entity, const Transform& a_component);
+		bool CreateComponent(const ECSEntity a_entity, const TransformComponent& a_component);
 		bool FreeComponent(const ECSEntity a_entity);
-		Transform& GetComponent(const ECSEntity a_entity);
+		TransformComponent& GetComponent(const ECSEntity a_entity);
 
 		inline ECSSignatureIndex GetSignatureIndex() const
 		{
@@ -45,7 +45,7 @@ namespace BB
 		bool EntityInvalid(const ECSEntity a_entity) const;
 
 		// components equal to entities.
-		StaticArray<Transform> m_components;
+		StaticArray<TransformComponent> m_components;
 	};
-	static_assert(is_ecs_component_map<TransformPool, Transform>);
+	static_assert(is_ecs_component_map<TransformComponentPool, TransformComponent>);
 }

@@ -514,7 +514,7 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 	if (ImGui::CollapsingHeader(scene_object.name))
 	{
 		ImGui::Indent();
-		Transform& transform = a_hierarchy.m_transform_pool.GetComponent(scene_object.entity);
+		TransformComponent& transform = a_hierarchy.m_transform_pool.GetComponent(scene_object.entity);
 		bool position_changed = false;
 		if (ImGui::TreeNodeEx("transform"))
 		{
@@ -524,9 +524,9 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 			ImGui::TreePop();
 		}
 
-		if (a_hierarchy.m_ecs_entities.HasSignature(scene_object.entity, RENDERMESH_ECS_SIGNATURE))
+		if (a_hierarchy.m_ecs_entities.HasSignature(scene_object.entity, RENDER_ECS_SIGNATURE))
 		{
-			RenderMesh& rendermesh = a_hierarchy.m_render_mesh_pool.GetComponent(scene_object.entity);
+			RenderComponent& RenderComponent = a_hierarchy.m_render_mesh_pool.GetComponent(scene_object.entity);
 			if (ImGui::TreeNodeEx("rendering"))
 			{
 				ImGui::Indent();
@@ -535,18 +535,18 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 				{
 					ImGui::Indent();
 
-					const MasterMaterial& master = Material::GetMasterMaterial(rendermesh.master_material);
-					MeshMetallic& metallic = rendermesh.material_data;
+					const MasterMaterial& master = Material::GetMasterMaterial(RenderComponent.master_material);
+					MeshMetallic& metallic = RenderComponent.material_data;
 
 					ImGui::Text("master Material: %s", master.name.c_str());
 					if (ImGui::SliderFloat4("base color factor", metallic.base_color_factor.e, 0.f, 1.f))
-						rendermesh.material_dirty = true;
+						RenderComponent.material_dirty = true;
 
 					if (ImGui::InputFloat("metallic factor", &metallic.metallic_factor))
-						rendermesh.material_dirty = true;
+						RenderComponent.material_dirty = true;
 
 					if (ImGui::InputFloat("roughness factor", &metallic.roughness_factor))
-						rendermesh.material_dirty = true;
+						RenderComponent.material_dirty = true;
 
 					ImGuiShowTexturePossibleChange(metallic.albedo_texture, float2(128, 128), "albedo");
 					ImGuiShowTexturePossibleChange(metallic.normal_texture, float2(128, 128), "normal");
@@ -561,9 +561,9 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 							const MasterMaterial& new_mat = materials[i];
 							if (ImGui::Button(new_mat.name.c_str()))
 							{
-								Material::FreeMaterialInstance(rendermesh.material);
-								rendermesh.master_material = new_mat.handle;
-								rendermesh.material = Material::CreateMaterialInstance(rendermesh.master_material);
+								Material::FreeMaterialInstance(RenderComponent.material);
+								RenderComponent.master_material = new_mat.handle;
+								RenderComponent.material = Material::CreateMaterialInstance(RenderComponent.master_material);
 							}
 						}
 

@@ -5,7 +5,7 @@
 
 namespace BB
 {
-	struct RenderMesh
+	struct RenderComponent
 	{
 		Mesh mesh;
 		MasterMaterialHandle master_material;
@@ -16,26 +16,26 @@ namespace BB
 		bool material_dirty;
 	};
 
-	class RenderMeshPool
+	class RenderComponentPool
 	{
 	public:
 		void Init(struct MemoryArena& a_arena, const uint32_t a_render_mesh_count);
 
 		bool CreateComponent(const ECSEntity a_entity);
-		bool CreateComponent(const ECSEntity a_entity, const RenderMesh& a_component);
+		bool CreateComponent(const ECSEntity a_entity, const RenderComponent& a_component);
 		bool FreeComponent(const ECSEntity a_entity);
-		RenderMesh& GetComponent(const ECSEntity a_entity);
+		RenderComponent& GetComponent(const ECSEntity a_entity);
 
 		inline ECSSignatureIndex GetSignatureIndex() const
 		{
-			return RENDERMESH_ECS_SIGNATURE;
+			return LIGHT_ECS_SIGNATURE;
 		}
 
 	private:
 		bool EntityInvalid(const ECSEntity a_entity) const;
 
 		// components equal to entities.
-		StaticArray<RenderMesh> m_components;
+		StaticArray<RenderComponent> m_components;
 	};
-	static_assert(is_ecs_component_map<RenderMeshPool, RenderMesh>);
+	static_assert(is_ecs_component_map<RenderComponentPool, RenderComponent>);
 }

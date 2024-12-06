@@ -9,9 +9,10 @@ add_library(Engine
 	"MaterialSystem.cpp" 
 	"EngineConfig.cpp"
 	"Viewport.cpp"
-	"ecs/Transform.cpp"
 	"ecs/EntityMap.cpp"
-	"ecs/RenderMesh.cpp")
+	"ecs/TransformComponent.cpp"
+	"ecs/RenderComponent.cpp" 
+	"ecs/LightComponent.cpp")
 	
 target_include_directories(Engine PUBLIC
 	"")	# this gets the current directory

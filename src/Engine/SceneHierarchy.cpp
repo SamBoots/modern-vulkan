@@ -43,7 +43,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 	// also rework this to be more static and internal to the drawmesh
 	m_draw_list.max_size = a_scene_obj_max;
 	m_draw_list.size = 0;
-	m_draw_list.mesh_draw_call = ArenaAllocArr(a_arena, RenderMesh, m_draw_list.max_size);
+	m_draw_list.mesh_draw_call = ArenaAllocArr(a_arena, RenderComponent, m_draw_list.max_size);
 	m_draw_list.transform = ArenaAllocArr(a_arena, ShaderTransform, m_draw_list.max_size);
 
 	m_light_container.Init(a_arena, 128); // magic number jank yes shoot me
@@ -320,7 +320,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 			BB_ASSERT(scene_obj.child_count <= SCENE_OBJ_CHILD_MAX, "Too many children for a single scene object!");
 			SceneObject prim_obj{};
 			prim_obj.name = "unimplemented naming";
-			RenderMesh mesh_info;
+			RenderComponent mesh_info;
 			mesh_info.mesh = mesh.mesh;
 			mesh_info.index_start = mesh.primitives[i].start_index;
 			mesh_info.index_count = mesh.primitives[i].index_count;
@@ -332,7 +332,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 			scene_obj.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 			BB_ASSERT(m_ecs_entities.CreateEntity(prim_obj.entity), "failed to create entity");
 			BB_ASSERT(EntityAssignTransform(prim_obj.entity), "failed to create tranform");
-			BB_ASSERT(EntityAssignRenderMesh(prim_obj.entity, mesh_info), "failed to create rendermesh");
+			BB_ASSERT(EntityAssignRenderComponent(prim_obj.entity, mesh_info), "failed to create RenderComponent");
 			prim_obj.parent = scene_handle;
 			scene_obj.children[scene_obj.child_count++] = m_scene_objects.emplace(prim_obj);
 		}
@@ -391,7 +391,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectMesh(const float3 a_position,
 	}
 
 	scene_object.name = a_name;
-	RenderMesh mesh_info;
+	RenderComponent mesh_info;
 	mesh_info.mesh = a_mesh_info.mesh;
 	mesh_info.index_start = a_mesh_info.index_start;
 	mesh_info.index_count = a_mesh_info.index_count;
@@ -411,7 +411,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectMesh(const float3 a_position,
 	scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 	BB_ASSERT(m_ecs_entities.CreateEntity(scene_object.entity), "failed to create entity");
 	BB_ASSERT(EntityAssignTransform(scene_object.entity, a_position), "failed to create transform!");
-	BB_ASSERT(EntityAssignRenderMesh(scene_object.entity, mesh_info), "failed to create rendermesh");
+	BB_ASSERT(EntityAssignRenderComponent(scene_object.entity, mesh_info), "failed to create RenderComponent");
 	scene_object.child_count = 0;
 
 	return scene_object_handle;
@@ -477,14 +477,14 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectAsLight(const LightCreateInfo
 
 bool SceneHierarchy::EntityAssignTransform(const ECSEntity a_entity, const float3 a_position, const Quat a_rotation, const float3 a_scale)
 {
-	if (!m_transform_pool.CreateComponent(a_entity, Transform(a_position, a_rotation, a_scale)))
+	if (!m_transform_pool.CreateComponent(a_entity, TransformComponent(a_position, a_rotation, a_scale)))
 		return false;
 	if (!m_ecs_entities.RegisterSignature(a_entity, m_transform_pool.GetSignatureIndex()))
 		return false;
 	return true;
 }
 
-bool SceneHierarchy::EntityAssignRenderMesh(const ECSEntity a_entity, const RenderMesh& a_draw_info)
+bool SceneHierarchy::EntityAssignRenderComponent(const ECSEntity a_entity, const RenderComponent& a_draw_info)
 {
 	if (!m_render_mesh_pool.CreateComponent(a_entity, a_draw_info))
 		return false;
@@ -537,16 +537,16 @@ void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, con
 	const float4x4 local_transform = a_transform * m_transform_pool.GetComponent(scene_object.entity).CreateMatrix();
 
 	// mesh_info should be a pointer in the drawlist. Preferably. 
-	if (m_ecs_entities.HasSignature(scene_object.entity, RENDERMESH_ECS_SIGNATURE))
+	if (m_ecs_entities.HasSignature(scene_object.entity, RENDER_ECS_SIGNATURE))
 	{
-		RenderMesh& rendermesh = m_render_mesh_pool.GetComponent(scene_object.entity);
-		AddToDrawList(rendermesh, local_transform);
-		if (rendermesh.material_dirty)
+		RenderComponent& RenderComponent = m_render_mesh_pool.GetComponent(scene_object.entity);
+		AddToDrawList(RenderComponent, local_transform);
+		if (RenderComponent.material_dirty)
 		{
-			const UploadBuffer upload = m_upload_allocator.AllocateUploadMemory(sizeof(rendermesh.material_data), a_pfd.fence_value);
-			upload.SafeMemcpy(0, &rendermesh.material_data, sizeof(rendermesh.material_data));
-			Material::WriteMaterial(rendermesh.material, a_list, upload.buffer, upload.base_offset);
-			rendermesh.material_dirty = false;
+			const UploadBuffer upload = m_upload_allocator.AllocateUploadMemory(sizeof(RenderComponent.material_data), a_pfd.fence_value);
+			upload.SafeMemcpy(0, &RenderComponent.material_data, sizeof(RenderComponent.material_data));
+			Material::WriteMaterial(RenderComponent.material, a_list, upload.buffer, upload.base_offset);
+			RenderComponent.material_dirty = false;
 		}
 	}
 
@@ -951,7 +951,7 @@ void SceneHierarchy::ShadowMapPass(const PerFrameData& a_pfd, const RCommandList
 			{
 				for (uint32_t draw_index = 0; draw_index < m_draw_list.size; draw_index++)
 				{
-					const RenderMesh& mesh_draw_call = m_draw_list.mesh_draw_call[draw_index];
+					const RenderComponent& mesh_draw_call = m_draw_list.mesh_draw_call[draw_index];
 
 					ShaderIndicesShadowMapping shader_indices;
 					shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_buffer_offset);
@@ -1060,7 +1060,7 @@ void SceneHierarchy::GeometryPass(const PerFrameData& a_pfd, const RCommandList 
 
 	for (uint32_t i = 0; i < m_draw_list.size; i++)
 	{
-		const RenderMesh& mesh_draw_call = m_draw_list.mesh_draw_call[i];
+		const RenderComponent& mesh_draw_call = m_draw_list.mesh_draw_call[i];
 
 		const ConstSlice<ShaderEffectHandle> shader_effects = Material::GetMaterialShaders(mesh_draw_call.master_material);
 		const RPipelineLayout pipe_layout = BindShaders(a_list, shader_effects);
@@ -1207,7 +1207,7 @@ void SceneHierarchy::BloomPass(const PerFrameData& a_pfd, const RCommandList a_l
 	}
 }
 
-void SceneHierarchy::AddToDrawList(const RenderMesh& a_render_mesh, const float4x4& a_transform)
+void SceneHierarchy::AddToDrawList(const RenderComponent& a_render_mesh, const float4x4& a_transform)
 {
 	BB_ASSERT(m_draw_list.size + 1 < m_draw_list.max_size, "too many drawn elements!");
 	m_draw_list.mesh_draw_call[m_draw_list.size] = a_render_mesh;

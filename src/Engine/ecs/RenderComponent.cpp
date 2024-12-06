@@ -1,17 +1,17 @@
-#include "RenderMesh.hpp"
+#include "RenderComponent.hpp"
 #include "Math.inl"
 
 #include "MemoryArena.hpp"
 
 using namespace BB;
 
-void RenderMeshPool::Init(struct MemoryArena& a_arena, const uint32_t a_render_mesh_count)
+void RenderComponentPool::Init(struct MemoryArena& a_arena, const uint32_t a_render_mesh_count)
 {
 	m_components.Init(a_arena, a_render_mesh_count);
 	m_components.resize(a_render_mesh_count);
 }
 
-bool RenderMeshPool::CreateComponent(const ECSEntity a_entity)
+bool RenderComponentPool::CreateComponent(const ECSEntity a_entity)
 {
 	if (EntityInvalid(a_entity))
 		return false;
@@ -20,7 +20,7 @@ bool RenderMeshPool::CreateComponent(const ECSEntity a_entity)
 	return true;
 }
 
-bool RenderMeshPool::CreateComponent(const ECSEntity a_entity, const RenderMesh& a_component)
+bool RenderComponentPool::CreateComponent(const ECSEntity a_entity, const RenderComponent& a_component)
 {
 	if (EntityInvalid(a_entity))
 		return false;
@@ -29,7 +29,7 @@ bool RenderMeshPool::CreateComponent(const ECSEntity a_entity, const RenderMesh&
 	return true;
 }
 
-bool RenderMeshPool::FreeComponent(const ECSEntity a_entity)
+bool RenderComponentPool::FreeComponent(const ECSEntity a_entity)
 {
 	if (EntityInvalid(a_entity))
 		return false;
@@ -37,13 +37,13 @@ bool RenderMeshPool::FreeComponent(const ECSEntity a_entity)
 	return true;
 }
 
-RenderMesh& RenderMeshPool::GetComponent(const ECSEntity a_entity)
+RenderComponent& RenderComponentPool::GetComponent(const ECSEntity a_entity)
 {
 	BB_ASSERT(!EntityInvalid(a_entity), "entity entry is not valid!");
 	return m_components[a_entity.index];
 }
 
-bool RenderMeshPool::EntityInvalid(const ECSEntity a_entity) const
+bool RenderComponentPool::EntityInvalid(const ECSEntity a_entity) const
 {
 	if (a_entity.index >= m_components.size())
 		return true;

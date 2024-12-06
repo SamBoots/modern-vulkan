@@ -472,6 +472,15 @@ namespace BB
 			m_size = a_new_size;
 		}
 
+		bool IsFull() const
+		{
+			return m_size == m_capacity;
+		}
+		bool IsEmpty() const
+		{
+			return m_size == 0;
+		}
+
 		void fill(const T& a_value)
 		{
 			for (size_t i = 0; i < m_capacity; i++)
