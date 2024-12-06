@@ -80,6 +80,19 @@ bool EntityMap::GetSignature(const ECSEntity a_entity, ECSSignature& a_out_signa
 	return true;
 }
 
+bool EntityMap::HasSignature(const ECSEntity a_entity, const ECSSignatureIndex a_signature_index) const
+{
+	if (!ValidateEntity(a_entity))
+		return false;
+
+	return m_entities[a_entity.index].signature[a_signature_index.handle];
+}
+
+bool EntityMap::HasSignature(const ECSSignature a_signature, const ECSSignatureIndex a_signature_index) const
+{
+	return a_signature[a_signature_index.handle];
+}
+
 bool EntityMap::ValidateEntity(const ECSEntity a_entity) const
 {
 	if (!EntityWithinBounds(a_entity))

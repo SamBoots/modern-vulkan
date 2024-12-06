@@ -113,7 +113,7 @@ int main(int argc, char** argv)
 	DungeonGame def_game{};
 	def_game.Init(window_extent / 2, back_buffer_count);
 
-	RenderViewport render_viewport;
+	RenderViewport render_viewport{};
 	render_viewport.Init(window_extent / 2, back_buffer_count, "../../resources/scenes/standard_scene.json");
 
 	while (!quit_app)

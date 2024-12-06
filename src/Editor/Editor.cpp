@@ -524,8 +524,9 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 			ImGui::TreePop();
 		}
 
-		if (scene_object.mesh_info.index_count > 0)
+		if (a_hierarchy.m_ecs_entities.HasSignature(scene_object.entity, RENDERMESH_ECS_SIGNATURE))
 		{
+			RenderMesh& rendermesh = a_hierarchy.m_render_mesh_pool.GetComponent(scene_object.entity);
 			if (ImGui::TreeNodeEx("rendering"))
 			{
 				ImGui::Indent();
@@ -534,18 +535,18 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 				{
 					ImGui::Indent();
 
-					const MasterMaterial& master = Material::GetMasterMaterial(scene_object.mesh_info.master_material);
-					MeshMetallic& metallic = scene_object.mesh_info.material_data;
+					const MasterMaterial& master = Material::GetMasterMaterial(rendermesh.master_material);
+					MeshMetallic& metallic = rendermesh.material_data;
 
 					ImGui::Text("master Material: %s", master.name.c_str());
 					if (ImGui::SliderFloat4("base color factor", metallic.base_color_factor.e, 0.f, 1.f))
-						scene_object.mesh_info.material_dirty = true;
+						rendermesh.material_dirty = true;
 
 					if (ImGui::InputFloat("metallic factor", &metallic.metallic_factor))
-						scene_object.mesh_info.material_dirty = true;
+						rendermesh.material_dirty = true;
 
 					if (ImGui::InputFloat("roughness factor", &metallic.roughness_factor))
-						scene_object.mesh_info.material_dirty = true;
+						rendermesh.material_dirty = true;
 
 					ImGuiShowTexturePossibleChange(metallic.albedo_texture, float2(128, 128), "albedo");
 					ImGuiShowTexturePossibleChange(metallic.normal_texture, float2(128, 128), "normal");
@@ -560,9 +561,9 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 							const MasterMaterial& new_mat = materials[i];
 							if (ImGui::Button(new_mat.name.c_str()))
 							{
-								Material::FreeMaterialInstance(scene_object.mesh_info.material);
-								scene_object.mesh_info.master_material = new_mat.handle;
-								scene_object.mesh_info.material = Material::CreateMaterialInstance(scene_object.mesh_info.master_material);
+								Material::FreeMaterialInstance(rendermesh.material);
+								rendermesh.master_material = new_mat.handle;
+								rendermesh.material = Material::CreateMaterialInstance(rendermesh.master_material);
 							}
 						}
 

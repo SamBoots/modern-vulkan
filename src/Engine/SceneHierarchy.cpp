@@ -26,6 +26,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 	{	// ECS systems
 		m_ecs_entities.Init(a_arena, a_scene_obj_max);
 		m_transform_pool.Init(a_arena, a_scene_obj_max);
+		m_render_mesh_pool.Init(a_arena, a_scene_obj_max);
 	}
 
 	m_scene_objects.Init(a_arena, a_scene_obj_max);
@@ -36,12 +37,13 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 	m_options.skip_skybox = false;
 	m_options.skip_shadow_mapping = false;
 	m_options.skip_object_rendering = false;
+	m_options.skip_bloom = false;
 
 	// maybe make this part of some data structure
 	// also rework this to be more static and internal to the drawmesh
 	m_draw_list.max_size = a_scene_obj_max;
 	m_draw_list.size = 0;
-	m_draw_list.mesh_draw_call = ArenaAllocArr(a_arena, MeshDrawInfo, m_draw_list.max_size);
+	m_draw_list.mesh_draw_call = ArenaAllocArr(a_arena, RenderMesh, m_draw_list.max_size);
 	m_draw_list.transform = ArenaAllocArr(a_arena, ShaderTransform, m_draw_list.max_size);
 
 	m_light_container.Init(a_arena, 128); // magic number jank yes shoot me
@@ -305,7 +307,6 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 	const SceneObjectHandle scene_handle = m_scene_objects.emplace(SceneObject());
 	SceneObject& scene_obj = m_scene_objects.find(scene_handle);
 	scene_obj.name = a_node.name;
-	scene_obj.mesh_info = {};
 	scene_obj.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 	BB_ASSERT(m_ecs_entities.CreateEntity(scene_obj.entity), "failed to create entity");
 	BB_ASSERT(EntityAssignTransform(scene_obj.entity, a_node.translation, a_node.rotation, a_node.scale), "failed to create tranform");
@@ -319,18 +320,19 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 			BB_ASSERT(scene_obj.child_count <= SCENE_OBJ_CHILD_MAX, "Too many children for a single scene object!");
 			SceneObject prim_obj{};
 			prim_obj.name = "unimplemented naming";
-
-			scene_obj.mesh_info.mesh = mesh.mesh;
-			scene_obj.mesh_info.index_start = mesh.primitives[i].start_index;
-			scene_obj.mesh_info.index_count = mesh.primitives[i].index_count;
-			scene_obj.mesh_info.master_material = mesh.primitives[i].material_data.material;
-			scene_obj.mesh_info.material = Material::CreateMaterialInstance(mesh.primitives[i].material_data.material);
-			scene_obj.mesh_info.material_data = mesh.primitives[i].material_data.mesh_metallic;
-			scene_obj.mesh_info.material_dirty = true;
+			RenderMesh mesh_info;
+			mesh_info.mesh = mesh.mesh;
+			mesh_info.index_start = mesh.primitives[i].start_index;
+			mesh_info.index_count = mesh.primitives[i].index_count;
+			mesh_info.master_material = mesh.primitives[i].material_data.material;
+			mesh_info.material = Material::CreateMaterialInstance(mesh.primitives[i].material_data.material);
+			mesh_info.material_data = mesh.primitives[i].material_data.mesh_metallic;
+			mesh_info.material_dirty = true;
 
 			scene_obj.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 			BB_ASSERT(m_ecs_entities.CreateEntity(prim_obj.entity), "failed to create entity");
 			BB_ASSERT(EntityAssignTransform(prim_obj.entity), "failed to create tranform");
+			BB_ASSERT(EntityAssignRenderMesh(prim_obj.entity, mesh_info), "failed to create rendermesh");
 			prim_obj.parent = scene_handle;
 			scene_obj.children[scene_obj.child_count++] = m_scene_objects.emplace(prim_obj);
 		}
@@ -363,7 +365,6 @@ SceneObjectHandle SceneHierarchy::CreateSceneObject(const float3 a_position, con
 	}
 
 	scene_object.name = a_name;
-	scene_object.mesh_info = {};
 	scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 	BB_ASSERT(m_ecs_entities.CreateEntity(scene_object.entity), "failed to create entity");
 	BB_ASSERT(EntityAssignTransform(scene_object.entity, a_position), "failed to create transform!");
@@ -390,25 +391,27 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectMesh(const float3 a_position,
 	}
 
 	scene_object.name = a_name;
-	scene_object.mesh_info.mesh = a_mesh_info.mesh;
-	scene_object.mesh_info.index_start = a_mesh_info.index_start;
-	scene_object.mesh_info.index_count = a_mesh_info.index_count;
-	scene_object.mesh_info.master_material = a_mesh_info.master_material;
-	scene_object.mesh_info.material_data = a_mesh_info.material_data;
-	if (scene_object.mesh_info.master_material.IsValid())
+	RenderMesh mesh_info;
+	mesh_info.mesh = a_mesh_info.mesh;
+	mesh_info.index_start = a_mesh_info.index_start;
+	mesh_info.index_count = a_mesh_info.index_count;
+	mesh_info.master_material = a_mesh_info.master_material;
+	mesh_info.material_data = a_mesh_info.material_data;
+	if (mesh_info.master_material.IsValid())
 	{
-		scene_object.mesh_info.material = Material::CreateMaterialInstance(a_mesh_info.master_material);
-		scene_object.mesh_info.material_dirty = true;
+		mesh_info.material = Material::CreateMaterialInstance(a_mesh_info.master_material);
+		mesh_info.material_dirty = true;
 	}
 	else
 	{
-		scene_object.mesh_info.material = MaterialHandle(BB_INVALID_HANDLE_64);
-		scene_object.mesh_info.material_dirty = false;
+		mesh_info.material = MaterialHandle(BB_INVALID_HANDLE_64);
+		mesh_info.material_dirty = false;
 	}
 
 	scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 	BB_ASSERT(m_ecs_entities.CreateEntity(scene_object.entity), "failed to create entity");
 	BB_ASSERT(EntityAssignTransform(scene_object.entity, a_position), "failed to create transform!");
+	BB_ASSERT(EntityAssignRenderMesh(scene_object.entity, mesh_info), "failed to create rendermesh");
 	scene_object.child_count = 0;
 
 	return scene_object_handle;
@@ -432,7 +435,6 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModel(const Model& a_model
 	}
 
 	scene_object.name = a_name;
-	scene_object.mesh_info = {};
 	scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 	BB_ASSERT(m_ecs_entities.CreateEntity(scene_object.entity), "failed to create entity");
 	BB_ASSERT(EntityAssignTransform(scene_object.entity, a_position), "failed to create transform!");
@@ -464,7 +466,6 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectAsLight(const LightCreateInfo
 	}
 
 	scene_object.name = a_name;
-	scene_object.mesh_info = {};
 	
 	BB_ASSERT(m_ecs_entities.CreateEntity(scene_object.entity), "failed to create entity");
 	BB_ASSERT(EntityAssignTransform(scene_object.entity, a_light_create_info.pos), "failed to create transform!");
@@ -479,6 +480,15 @@ bool SceneHierarchy::EntityAssignTransform(const ECSEntity a_entity, const float
 	if (!m_transform_pool.CreateComponent(a_entity, Transform(a_position, a_rotation, a_scale)))
 		return false;
 	if (!m_ecs_entities.RegisterSignature(a_entity, m_transform_pool.GetSignatureIndex()))
+		return false;
+	return true;
+}
+
+bool SceneHierarchy::EntityAssignRenderMesh(const ECSEntity a_entity, const RenderMesh& a_draw_info)
+{
+	if (!m_render_mesh_pool.CreateComponent(a_entity, a_draw_info))
+		return false;
+	if (!m_ecs_entities.RegisterSignature(a_entity, m_render_mesh_pool.GetSignatureIndex()))
 		return false;
 	return true;
 }
@@ -524,19 +534,19 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RImageV
 void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform, const RCommandList a_list, const PerFrameData& a_pfd)
 {
 	SceneObject& scene_object = m_scene_objects.find(a_scene_object);
-
 	const float4x4 local_transform = a_transform * m_transform_pool.GetComponent(scene_object.entity).CreateMatrix();
 
 	// mesh_info should be a pointer in the drawlist. Preferably. 
-	if (scene_object.mesh_info.material.IsValid())
+	if (m_ecs_entities.HasSignature(scene_object.entity, RENDERMESH_ECS_SIGNATURE))
 	{
-		AddToDrawList(scene_object, local_transform);
-		if (scene_object.mesh_info.material_dirty)
+		RenderMesh& rendermesh = m_render_mesh_pool.GetComponent(scene_object.entity);
+		AddToDrawList(rendermesh, local_transform);
+		if (rendermesh.material_dirty)
 		{
-			const UploadBuffer upload = m_upload_allocator.AllocateUploadMemory(sizeof(scene_object.mesh_info.material_data), a_pfd.fence_value);
-			upload.SafeMemcpy(0, &scene_object.mesh_info.material_data, sizeof(scene_object.mesh_info.material_data));
-			Material::WriteMaterial(scene_object.mesh_info.material, a_list, upload.buffer, upload.base_offset);
-			scene_object.mesh_info.material_dirty = false;
+			const UploadBuffer upload = m_upload_allocator.AllocateUploadMemory(sizeof(rendermesh.material_data), a_pfd.fence_value);
+			upload.SafeMemcpy(0, &rendermesh.material_data, sizeof(rendermesh.material_data));
+			Material::WriteMaterial(rendermesh.material, a_list, upload.buffer, upload.base_offset);
+			rendermesh.material_dirty = false;
 		}
 	}
 
@@ -941,7 +951,7 @@ void SceneHierarchy::ShadowMapPass(const PerFrameData& a_pfd, const RCommandList
 			{
 				for (uint32_t draw_index = 0; draw_index < m_draw_list.size; draw_index++)
 				{
-					const MeshDrawInfo& mesh_draw_call = m_draw_list.mesh_draw_call[draw_index];
+					const RenderMesh& mesh_draw_call = m_draw_list.mesh_draw_call[draw_index];
 
 					ShaderIndicesShadowMapping shader_indices;
 					shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_buffer_offset);
@@ -1050,7 +1060,7 @@ void SceneHierarchy::GeometryPass(const PerFrameData& a_pfd, const RCommandList 
 
 	for (uint32_t i = 0; i < m_draw_list.size; i++)
 	{
-		const MeshDrawInfo& mesh_draw_call = m_draw_list.mesh_draw_call[i];
+		const RenderMesh& mesh_draw_call = m_draw_list.mesh_draw_call[i];
 
 		const ConstSlice<ShaderEffectHandle> shader_effects = Material::GetMaterialShaders(mesh_draw_call.master_material);
 		const RPipelineLayout pipe_layout = BindShaders(a_list, shader_effects);
@@ -1197,10 +1207,10 @@ void SceneHierarchy::BloomPass(const PerFrameData& a_pfd, const RCommandList a_l
 	}
 }
 
-void SceneHierarchy::AddToDrawList(const SceneObject& a_scene_object, const float4x4& a_transform)
+void SceneHierarchy::AddToDrawList(const RenderMesh& a_render_mesh, const float4x4& a_transform)
 {
 	BB_ASSERT(m_draw_list.size + 1 < m_draw_list.max_size, "too many drawn elements!");
-	m_draw_list.mesh_draw_call[m_draw_list.size] = a_scene_object.mesh_info;
+	m_draw_list.mesh_draw_call[m_draw_list.size] = a_render_mesh;
 	m_draw_list.transform[m_draw_list.size].transform = a_transform;
 	m_draw_list.transform[m_draw_list.size++].inverse = Float4x4Inverse(a_transform);
 }

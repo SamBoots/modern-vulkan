@@ -11,7 +11,7 @@ add_library(Engine
 	"Viewport.cpp"
 	"ecs/Transform.cpp"
 	"ecs/EntityMap.cpp"
-	)
+	"ecs/RenderMesh.cpp")
 	
 target_include_directories(Engine PUBLIC
 	"")	# this gets the current directory

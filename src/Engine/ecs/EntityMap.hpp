@@ -19,6 +19,8 @@ namespace BB
 		bool UnregisterSignature(const ECSEntity a_entity, const ECSSignatureIndex a_signature_index);
 
 		bool GetSignature(const ECSEntity a_entity, ECSSignature& a_out_signature) const;
+		bool HasSignature(const ECSEntity a_entity, const ECSSignatureIndex a_signature_index) const;
+		bool HasSignature(const ECSSignature a_signature, const ECSSignatureIndex a_signature_index) const;
 
 		bool ValidateEntity(const ECSEntity a_entity) const;
 	private:

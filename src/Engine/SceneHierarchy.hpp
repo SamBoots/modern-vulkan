@@ -7,6 +7,7 @@
 
 #include "ecs/EntityMap.hpp"
 #include "ecs/Transform.hpp"
+#include "ecs/RenderMesh.hpp"
 
 namespace BB
 {
@@ -14,7 +15,7 @@ namespace BB
 	constexpr SceneObjectHandle INVALID_SCENE_OBJ = SceneObjectHandle(BB_INVALID_HANDLE_64);
 	class JsonParser;
 
-	constexpr uint32_t DEFAULT_SCENE_OBJ_MAX = 512;
+	constexpr uint32_t DEFAULT_SCENE_OBJ_MAX = 1024;
 	constexpr uint32_t SCENE_OBJ_CHILD_MAX = 256;
 
 	struct LightCreateInfo
@@ -32,21 +33,9 @@ namespace BB
 		float cutoff_radius;        // 60
 	};
 
-	struct MeshDrawInfo
-	{
-		Mesh mesh;
-		MasterMaterialHandle master_material;
-		MaterialHandle material;
-		MeshMetallic material_data;
-		uint32_t index_start;
-		uint32_t index_count;
-		bool material_dirty;
-	};
-
 	struct SceneObject
 	{
 		const char* name;
-		MeshDrawInfo mesh_info;
 
 		ECSEntity entity;
 
@@ -86,6 +75,7 @@ namespace BB
 
 		// ECS functions
 		bool EntityAssignTransform(const ECSEntity a_entity, const float3 a_position = float3(0.f), const Quat a_rotation = Quat(0.f, 0.f, 0.f, 0.f), const float3 a_scale = float3(1.f));
+		bool EntityAssignRenderMesh(const ECSEntity a_entity, const RenderMesh& a_draw_info);
 
 		void SetView(const float4x4& a_view, const float3& a_view_position);
 		void SetProjection(const float4x4& a_projection);
@@ -165,7 +155,7 @@ namespace BB
 		void GeometryPass(const PerFrameData& a_pfd, const RCommandList a_list, const RImageView a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
 		void BloomPass(const PerFrameData& a_pfd, const RCommandList a_list, const RImageView a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
 
-		void AddToDrawList(const SceneObject& scene_object, const float4x4& a_transform);
+		void AddToDrawList(const RenderMesh& a_render_mesh, const float4x4& a_transform);
 		SceneObjectHandle CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent);
 		void DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform, const RCommandList a_list, const PerFrameData& a_pfd);
 
@@ -176,7 +166,7 @@ namespace BB
 
 		struct DrawList
 		{
-			MeshDrawInfo* mesh_draw_call;
+			RenderMesh* mesh_draw_call;
 			ShaderTransform* transform;
 			uint32_t size;
 			uint32_t max_size;
@@ -189,17 +179,6 @@ namespace BB
 			bool skip_object_rendering;
 			bool skip_bloom;
 		} m_options;
-
-		enum class SCENE_OBJ_DIRTY_TYPE
-		{
-			MATERIAL
-		};
-
-		struct SceneObjDirty
-		{
-			SceneObjectHandle obj;
-			MaterialHandle material;
-		};
 
 		Scene3DInfo m_scene_info;
 		DrawList m_draw_list;
@@ -215,8 +194,8 @@ namespace BB
 		//TODO, maybe remember all the transforms from the previous frames?
 		EntityMap m_ecs_entities;
 		TransformPool m_transform_pool;
+		RenderMeshPool m_render_mesh_pool;
 		StaticSlotmap<SceneObject, SceneObjectHandle> m_scene_objects;
-
 
 		StaticSlotmap<Light, LightHandle> m_light_container;
 		StaticSlotmap<float4x4, LightHandle> m_light_projection_view;
