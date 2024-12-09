@@ -73,6 +73,21 @@ namespace BB
 			return true;
 		}
 
+		uint32_t Size() const
+		{
+			return m_dense_count;
+		}
+
+		uint32_t CapacitySparse() const
+		{
+			return m_sparse_max;
+		}
+
+		uint32_t CapacityDense() const
+		{
+			return m_dense_max;
+		}
+
 	private:
 		uint32_t m_sparse_max;
 		uint32_t m_dense_max;

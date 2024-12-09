@@ -47,7 +47,7 @@ bool LightComponentPool::FreeComponent(const ECSEntity a_entity)
 	return m_sparse_set.Erase(a_entity.handle);
 }
 
-LightComponent& LightComponentPool::GetComponent(const ECSEntity a_entity)
+LightComponent& LightComponentPool::GetComponent(const ECSEntity a_entity) const
 {
 	const uint32_t index = m_sparse_set.Find(a_entity.handle);
 	BB_ASSERT(index != SPARSE_SET_INVALID, "invalid sparse set index returned");

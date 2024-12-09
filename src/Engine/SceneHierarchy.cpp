@@ -19,6 +19,8 @@ constexpr uint32_t DEPTH_IMAGE_SIZE_W_H = 4096;
 
 constexpr float BLOOM_IMAGE_DOWNSCALE_FACTOR = 1.f;
 
+constexpr uint32_t LIGHT_COUNT = 128;
+
 void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, const StringView a_name, const uint32_t a_scene_obj_max)
 {
 	m_scene_name = a_name;
@@ -27,6 +29,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 		m_ecs_entities.Init(a_arena, a_scene_obj_max);
 		m_transform_pool.Init(a_arena, a_scene_obj_max);
 		m_render_mesh_pool.Init(a_arena, a_scene_obj_max);
+		m_light_pool.Init(a_arena, LIGHT_COUNT, a_scene_obj_max);
 	}
 
 	m_scene_objects.Init(a_arena, a_scene_obj_max);
@@ -45,9 +48,6 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 	m_draw_list.size = 0;
 	m_draw_list.mesh_draw_call = ArenaAllocArr(a_arena, RenderComponent, m_draw_list.max_size);
 	m_draw_list.transform = ArenaAllocArr(a_arena, ShaderTransform, m_draw_list.max_size);
-
-	m_light_container.Init(a_arena, 128); // magic number jank yes shoot me
-	m_light_projection_view.Init(a_arena, 128);
 
 	m_fence = CreateFence(0, "scene fence");
 	m_last_completed_fence_value = 0;
@@ -307,7 +307,6 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 	const SceneObjectHandle scene_handle = m_scene_objects.emplace(SceneObject());
 	SceneObject& scene_obj = m_scene_objects.find(scene_handle);
 	scene_obj.name = a_node.name;
-	scene_obj.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 	BB_ASSERT(m_ecs_entities.CreateEntity(scene_obj.entity), "failed to create entity");
 	BB_ASSERT(EntityAssignTransform(scene_obj.entity, a_node.translation, a_node.rotation, a_node.scale), "failed to create tranform");
 	scene_obj.parent = a_parent;
@@ -329,7 +328,6 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 			mesh_info.material_data = mesh.primitives[i].material_data.mesh_metallic;
 			mesh_info.material_dirty = true;
 
-			scene_obj.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 			BB_ASSERT(m_ecs_entities.CreateEntity(prim_obj.entity), "failed to create entity");
 			BB_ASSERT(EntityAssignTransform(prim_obj.entity), "failed to create tranform");
 			BB_ASSERT(EntityAssignRenderComponent(prim_obj.entity, mesh_info), "failed to create RenderComponent");
@@ -365,7 +363,6 @@ SceneObjectHandle SceneHierarchy::CreateSceneObject(const float3 a_position, con
 	}
 
 	scene_object.name = a_name;
-	scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 	BB_ASSERT(m_ecs_entities.CreateEntity(scene_object.entity), "failed to create entity");
 	BB_ASSERT(EntityAssignTransform(scene_object.entity, a_position), "failed to create transform!");
 	scene_object.child_count = 0;
@@ -408,7 +405,6 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectMesh(const float3 a_position,
 		mesh_info.material_dirty = false;
 	}
 
-	scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 	BB_ASSERT(m_ecs_entities.CreateEntity(scene_object.entity), "failed to create entity");
 	BB_ASSERT(EntityAssignTransform(scene_object.entity, a_position), "failed to create transform!");
 	BB_ASSERT(EntityAssignRenderComponent(scene_object.entity, mesh_info), "failed to create RenderComponent");
@@ -435,7 +431,6 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModel(const Model& a_model
 	}
 
 	scene_object.name = a_name;
-	scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
 	BB_ASSERT(m_ecs_entities.CreateEntity(scene_object.entity), "failed to create entity");
 	BB_ASSERT(EntityAssignTransform(scene_object.entity, a_position), "failed to create transform!");
 	scene_object.child_count = 0;
@@ -470,7 +465,7 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectAsLight(const LightCreateInfo
 	BB_ASSERT(m_ecs_entities.CreateEntity(scene_object.entity), "failed to create entity");
 	BB_ASSERT(EntityAssignTransform(scene_object.entity, a_light_create_info.pos), "failed to create transform!");
 	scene_object.child_count = 0;
-	scene_object.light_handle = CreateLight(a_light_create_info);
+	BB_ASSERT(CreateLight(scene_object.entity, a_light_create_info), "failed to create light!");
 
 	return scene_object_handle;
 }
@@ -489,6 +484,15 @@ bool SceneHierarchy::EntityAssignRenderComponent(const ECSEntity a_entity, const
 	if (!m_render_mesh_pool.CreateComponent(a_entity, a_draw_info))
 		return false;
 	if (!m_ecs_entities.RegisterSignature(a_entity, m_render_mesh_pool.GetSignatureIndex()))
+		return false;
+	return true;
+}
+
+bool SceneHierarchy::EntityAssignLight(const ECSEntity a_entity, const LightComponent& a_light)
+{
+	if (!m_light_pool.CreateComponent(a_entity, a_light))
+		return false;
+	if (!m_ecs_entities.RegisterSignature(a_entity, m_light_pool.GetSignatureIndex()))
 		return false;
 	return true;
 }
@@ -649,7 +653,7 @@ void SceneHierarchy::SkyboxPass(const PerFrameData& a_pfd, const RCommandList a_
 
 void SceneHierarchy::UpdateConstantBuffer(PerFrameData& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size)
 {
-	m_scene_info.light_count = m_light_container.size();
+	m_scene_info.light_count = m_light_pool.GetSize();
 	m_scene_info.scene_resolution = a_draw_area_size;
 	m_scene_info.shadow_map_count = a_pfd.shadow_map.render_pass_views.size();
 	m_scene_info.shadow_map_array_descriptor = a_pfd.shadow_map.descriptor_index;
@@ -781,8 +785,8 @@ void SceneHierarchy::ResourceUploadPass(PerFrameData& a_pfd, const RCommandList 
 	}
 
 	const size_t matrices_upload_size = sizeof(ShaderTransform) * m_draw_list.size;
-	const size_t light_upload_size = sizeof(Light) * m_light_container.size();
-	const size_t light_projection_view_size = sizeof(float4x4) * m_light_projection_view.size();
+	const size_t light_upload_size = sizeof(Light) * m_light_pool.GetSize();
+	const size_t light_projection_view_size = sizeof(float4x4) * m_light_pool.GetSize();
 	// optimize this
 	const size_t total_size = matrices_upload_size + light_upload_size + light_projection_view_size;
 
@@ -871,7 +875,7 @@ void SceneHierarchy::ResourceUploadPass(PerFrameData& a_pfd, const RCommandList 
 
 void SceneHierarchy::ShadowMapPass(const PerFrameData& a_pfd, const RCommandList a_list, const uint2 a_shadow_map_resolution)
 {
-	const uint32_t shadow_map_count = m_light_projection_view.size();
+	const uint32_t shadow_map_count = m_light_pool.GetSize();
 	if (shadow_map_count == 0)
 	{
 		return;
@@ -1215,7 +1219,7 @@ void SceneHierarchy::AddToDrawList(const RenderComponent& a_render_mesh, const f
 	m_draw_list.transform[m_draw_list.size++].inverse = Float4x4Inverse(a_transform);
 }
 
-LightHandle SceneHierarchy::CreateLight(const LightCreateInfo& a_light_info)
+bool SceneHierarchy::CreateLight(const ECSEntity a_entity, const LightCreateInfo& a_light_info)
 {
 	Light light;
 	light.light_type = static_cast<uint32_t>(a_light_info.light_type);
@@ -1228,15 +1232,13 @@ LightHandle SceneHierarchy::CreateLight(const LightCreateInfo& a_light_info)
 
 	light.direction = float4(a_light_info.direction.x, a_light_info.direction.y, a_light_info.direction.z, a_light_info.cutoff_radius);
 
-	const LightHandle light_handle = m_light_container.insert(light);
-
 	const float near_plane = 1.f, far_plane = 7.5f;
 	const float4x4 vp = CalculateLightProjectionView(a_light_info.pos, near_plane, far_plane);
-	const LightHandle light_handle_view = m_light_projection_view.emplace(vp);
 
-	BB_ASSERT(light_handle == light_handle_view, "Something went wrong trying to create a light");
-
-	return light_handle;
+	LightComponent light_component;
+	light_component.light = light;
+	light_component.projection_view = vp;
+	return m_light_pool.CreateComponent(a_entity, light_component);
 }
 
 float4x4 SceneHierarchy::CalculateLightProjectionView(const float3 a_pos, const float a_near, const float a_far) const
@@ -1246,12 +1248,12 @@ float4x4 SceneHierarchy::CalculateLightProjectionView(const float3 a_pos, const 
 	return projection * view;
 }
 
-Light& SceneHierarchy::GetLight(const LightHandle a_light) const
+Light& SceneHierarchy::GetLight(const ECSEntity a_entity) const
 {
-	return m_light_container.find(a_light);
+	return m_light_pool.GetComponent(a_entity).light;
 }
 
-void SceneHierarchy::FreeLight(const LightHandle a_light)
+bool SceneHierarchy::FreeLight(const ECSEntity a_entity)
 {
-	m_light_container.erase(a_light);
+	return m_light_pool.FreeComponent(a_entity);
 }

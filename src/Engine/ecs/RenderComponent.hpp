@@ -24,16 +24,21 @@ namespace BB
 		bool CreateComponent(const ECSEntity a_entity);
 		bool CreateComponent(const ECSEntity a_entity, const RenderComponent& a_component);
 		bool FreeComponent(const ECSEntity a_entity);
-		RenderComponent& GetComponent(const ECSEntity a_entity);
+		RenderComponent& GetComponent(const ECSEntity a_entity) const;
 
 		inline ECSSignatureIndex GetSignatureIndex() const
 		{
-			return LIGHT_ECS_SIGNATURE;
+			return RENDER_ECS_SIGNATURE;
+		}
+		inline uint32_t GetSize() const
+		{
+			return m_size;
 		}
 
 	private:
 		bool EntityInvalid(const ECSEntity a_entity) const;
 
+		uint32_t m_size;
 		// components equal to entities.
 		StaticArray<RenderComponent> m_components;
 	};

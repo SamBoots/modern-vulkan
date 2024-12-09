@@ -34,17 +34,22 @@ namespace BB
 		bool CreateComponent(const ECSEntity a_entity);
 		bool CreateComponent(const ECSEntity a_entity, const TransformComponent& a_component);
 		bool FreeComponent(const ECSEntity a_entity);
-		TransformComponent& GetComponent(const ECSEntity a_entity);
+		TransformComponent& GetComponent(const ECSEntity a_entity) const;
 
 		inline ECSSignatureIndex GetSignatureIndex() const
 		{
 			return TRANSFORM_ECS_SIGNATURE;
+		}
+		inline uint32_t GetSize() const
+		{
+			return m_size;
 		}
 			
 	private:
 		bool EntityInvalid(const ECSEntity a_entity) const;
 
 		// components equal to entities.
+		uint32_t m_size;
 		StaticArray<TransformComponent> m_components;
 	};
 	static_assert(is_ecs_component_map<TransformComponentPool, TransformComponent>);

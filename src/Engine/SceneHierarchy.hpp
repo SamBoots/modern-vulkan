@@ -8,6 +8,7 @@
 #include "ecs/EntityMap.hpp"
 #include "ecs/TransformComponent.hpp"
 #include "ecs/RenderComponent.hpp"
+#include "ecs/LightComponent.hpp"
 
 namespace BB
 {
@@ -40,7 +41,6 @@ namespace BB
 		ECSEntity entity;
 
 		SceneObjectHandle parent;
-		LightHandle light_handle;
 		void AddChild(const SceneObjectHandle a_child)
 		{
 			BB_ASSERT(child_count < SCENE_OBJ_CHILD_MAX, "Too many children for a single scene object!");
@@ -75,6 +75,7 @@ namespace BB
 		// ECS functions
 		bool EntityAssignTransform(const ECSEntity a_entity, const float3 a_position = float3(0.f), const Quat a_rotation = Quat(0.f, 0.f, 0.f, 0.f), const float3 a_scale = float3(1.f));
 		bool EntityAssignRenderComponent(const ECSEntity a_entity, const RenderComponent& a_draw_info);
+		bool EntityAssignLight(const ECSEntity a_entity, const LightComponent& a_light);
 
 		void SetView(const float4x4& a_view, const float3& a_view_position);
 		void SetProjection(const float4x4& a_projection);
@@ -158,10 +159,10 @@ namespace BB
 		SceneObjectHandle CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent);
 		void DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform, const RCommandList a_list, const PerFrameData& a_pfd);
 
-		LightHandle CreateLight(const LightCreateInfo& a_light_info);
+		bool CreateLight(const ECSEntity a_entity, const LightCreateInfo& a_light_info);
 		float4x4 CalculateLightProjectionView(const float3 a_pos, const float a_near, const float a_far) const;
-		Light& GetLight(const LightHandle a_light) const;
-		void FreeLight(const LightHandle a_light);
+		Light& GetLight(const ECSEntity a_entity) const;
+		bool FreeLight(const ECSEntity a_entity);
 
 		struct DrawList
 		{
@@ -194,10 +195,9 @@ namespace BB
 		EntityMap m_ecs_entities;
 		TransformComponentPool m_transform_pool;
 		RenderComponentPool m_render_mesh_pool;
-		StaticSlotmap<SceneObject, SceneObjectHandle> m_scene_objects;
+		LightComponentPool m_light_pool;
 
-		StaticSlotmap<Light, LightHandle> m_light_container;
-		StaticSlotmap<float4x4, LightHandle> m_light_projection_view;
+		StaticSlotmap<SceneObject, SceneObjectHandle> m_scene_objects;
 
 		uint32_t m_top_level_object_count;
 		SceneObjectHandle* m_top_level_objects;

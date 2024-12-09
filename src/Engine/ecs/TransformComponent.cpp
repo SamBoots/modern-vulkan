@@ -84,7 +84,7 @@ bool TransformComponentPool::FreeComponent(const ECSEntity a_entity)
 	return true;
 }
 
-TransformComponent& TransformComponentPool::GetComponent(const ECSEntity a_entity)
+TransformComponent& TransformComponentPool::GetComponent(const ECSEntity a_entity) const
 {
 	BB_ASSERT(!EntityInvalid(a_entity), "entity entry is not valid!");
 	return m_components[a_entity.index];

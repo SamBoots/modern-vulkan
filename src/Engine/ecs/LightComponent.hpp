@@ -9,6 +9,7 @@ namespace BB
 	struct LightComponent
 	{
 		Light light;
+		float4x4 projection_view;
 	};
 
 	class LightComponentPool
@@ -19,11 +20,15 @@ namespace BB
 		bool CreateComponent(const ECSEntity a_entity);
 		bool CreateComponent(const ECSEntity a_entity, const LightComponent& a_component);
 		bool FreeComponent(const ECSEntity a_entity);
-		LightComponent& GetComponent(const ECSEntity a_entity);
+		LightComponent& GetComponent(const ECSEntity a_entity) const;
 
 		inline ECSSignatureIndex GetSignatureIndex() const
 		{
-			return RENDER_ECS_SIGNATURE;
+			return LIGHT_ECS_SIGNATURE;
+		}
+		inline uint32_t GetSize() const
+		{
+			return m_sparse_set.Size();
 		}
 
 	private:

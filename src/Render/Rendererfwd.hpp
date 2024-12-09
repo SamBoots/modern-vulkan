@@ -35,8 +35,6 @@ namespace BB
 	using RImageView = FrameworkHandle<struct RImageViewTag>;
 
 	using RFence = FrameworkHandle<struct RFenceTag>;
-
-	using LightHandle = FrameworkHandle<struct LightHandleTag>;
 	
 	using ShaderCode = FrameworkHandle<struct ShaderCodeTag>;
 	using ShaderEffectHandle = FrameworkHandle<struct ShaderEffectHandleTag>;
