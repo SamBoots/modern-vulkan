@@ -14,6 +14,7 @@ namespace BB
 	class StaticSparseSet
 	{
 	public:
+		StaticSparseSet() = default;
 		StaticSparseSet(const StaticSparseSet& a_map) = delete;
 		StaticSparseSet(StaticSparseSet&& a_map) = delete;
 
@@ -36,7 +37,7 @@ namespace BB
 		}
 
 		// returns SPARSE_SET_INVALID on failure
-		uint32_t Find(const uint32_t a_sparse_value)
+		uint32_t Find(const uint32_t a_sparse_value) const
 		{
 			if (a_sparse_value > m_sparse_max)
 				return SPARSE_SET_INVALID;

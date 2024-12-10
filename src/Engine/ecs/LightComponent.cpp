@@ -15,10 +15,10 @@ void LightComponentPool::Init(struct MemoryArena& a_arena, const uint32_t a_ligh
 
 bool LightComponentPool::CreateComponent(const ECSEntity a_entity)
 {
-	if (m_components.IsFull())
+	if (m_components.capacity() == m_sparse_set.Size())
 		return false;
 
-	const uint32_t component_index = m_sparse_set.insert(a_entity.handle);
+	const uint32_t component_index = m_sparse_set.insert(a_entity.index);
 	if (component_index == SPARSE_SET_INVALID)
 		return false;
 
@@ -28,10 +28,10 @@ bool LightComponentPool::CreateComponent(const ECSEntity a_entity)
 
 bool LightComponentPool::CreateComponent(const ECSEntity a_entity, const LightComponent& a_component)
 {
-	if (m_components.IsFull())
+	if (m_components.capacity() == m_sparse_set.Size())
 		return false;
 
-	const uint32_t component_index = m_sparse_set.insert(a_entity.handle);
+	const uint32_t component_index = m_sparse_set.insert(a_entity.index);
 	if (component_index == SPARSE_SET_INVALID)
 		return false;
 
@@ -41,15 +41,15 @@ bool LightComponentPool::CreateComponent(const ECSEntity a_entity, const LightCo
 
 bool LightComponentPool::FreeComponent(const ECSEntity a_entity)
 {
-	if (m_components.IsEmpty())
+	if (m_sparse_set.Size() == 0)
 		return false;
 
-	return m_sparse_set.Erase(a_entity.handle);
+	return m_sparse_set.Erase(a_entity.index);
 }
 
 LightComponent& LightComponentPool::GetComponent(const ECSEntity a_entity) const
 {
-	const uint32_t index = m_sparse_set.Find(a_entity.handle);
+	const uint32_t index = m_sparse_set.Find(a_entity.index);
 	BB_ASSERT(index != SPARSE_SET_INVALID, "invalid sparse set index returned");
 	return m_components[index];
 }

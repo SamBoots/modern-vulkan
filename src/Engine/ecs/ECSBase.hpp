@@ -20,7 +20,7 @@ namespace BB
 		// return false if entity does not hold this component
 		{ v.GetComponent(a_entity) } -> std::same_as<Component&>;
 
-		{ v.GetSize() } -> std::same_as<int>;
+		{ v.GetSize() } -> std::same_as<uint32_t>;
 		{ v.GetSignatureIndex() } -> std::same_as<ECSSignatureIndex>;
 	};
 }

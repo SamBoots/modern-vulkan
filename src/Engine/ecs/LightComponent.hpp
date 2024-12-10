@@ -26,6 +26,11 @@ namespace BB
 		{
 			return LIGHT_ECS_SIGNATURE;
 		}
+		// hack or maybe add this to add.
+		inline const LightComponent& GetComponent(const uint32_t a_index) const
+		{
+			return m_components[a_index];
+		}
 		inline uint32_t GetSize() const
 		{
 			return m_sparse_set.Size();

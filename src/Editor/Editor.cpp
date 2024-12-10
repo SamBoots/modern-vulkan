@@ -580,12 +580,12 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 			}
 		}
 
-		if (scene_object.light_handle.IsValid())
+		if (a_hierarchy.m_ecs_entities.HasSignature(scene_object.entity, LIGHT_ECS_SIGNATURE))
 		{
 			if (ImGui::TreeNodeEx("light object"))
 			{
 				ImGui::Indent();
-				Light& light = a_hierarchy.GetLight(scene_object.light_handle);
+				Light& light = a_hierarchy.GetLight(scene_object.entity);
 
 				light.pos.x = transform.m_pos.x;
 				light.pos.y = transform.m_pos.y;
@@ -609,14 +609,11 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 				}
 
 				if (ImGui::Button("remove light"))
-				{
-					a_hierarchy.FreeLight(scene_object.light_handle);
-					scene_object.light_handle = LightHandle(BB_INVALID_HANDLE_64);
-				}
+					a_hierarchy.FreeLight(scene_object.entity);
 
 				if (position_changed)
 				{
-					float4x4& vp = a_hierarchy.m_light_projection_view[scene_object.light_handle];
+					float4x4& vp = a_hierarchy.m_light_pool.GetComponent(scene_object.entity).projection_view;
 					const float near_plane = 1.f, far_plane = 7.5f;
 					vp = a_hierarchy.CalculateLightProjectionView(transform.m_pos, near_plane, far_plane);
 				}

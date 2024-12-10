@@ -798,11 +798,14 @@ void SceneHierarchy::ResourceUploadPass(PerFrameData& a_pfd, const RCommandList 
 	const size_t matrix_offset = bytes_uploaded + upload_buffer.base_offset;
 	bytes_uploaded += matrices_upload_size;
 
-	upload_buffer.SafeMemcpy(bytes_uploaded, m_light_container.data(), light_upload_size);
+	for (size_t i = 0; i < m_light_pool.GetSize(); i++)
+		upload_buffer.SafeMemcpy(bytes_uploaded, &m_light_pool.GetComponent(i).light, sizeof(Light));
+
 	const size_t light_offset = bytes_uploaded + upload_buffer.base_offset;
 	bytes_uploaded += light_upload_size;
-
-	upload_buffer.SafeMemcpy(bytes_uploaded, m_light_projection_view.data(), light_projection_view_size);
+	
+	for (size_t i = 0; i < m_light_pool.GetSize(); i++)
+		upload_buffer.SafeMemcpy(bytes_uploaded, &m_light_pool.GetComponent(i).projection_view, sizeof(float4x4));
 	const size_t light_projection_view_offset = bytes_uploaded + upload_buffer.base_offset;
 	bytes_uploaded += light_projection_view_size;
 
@@ -1238,7 +1241,7 @@ bool SceneHierarchy::CreateLight(const ECSEntity a_entity, const LightCreateInfo
 	LightComponent light_component;
 	light_component.light = light;
 	light_component.projection_view = vp;
-	return m_light_pool.CreateComponent(a_entity, light_component);
+	return EntityAssignLight(a_entity, light_component);
 }
 
 float4x4 SceneHierarchy::CalculateLightProjectionView(const float3 a_pos, const float a_near, const float a_far) const
