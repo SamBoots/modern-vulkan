@@ -21,8 +21,8 @@ static inline void ChangeArenaAt(MemoryArena& a_arena, void* a_at)
 	if (a_at > a_arena.commited)
 	{
 		const size_t commit_range = RoundUp(GetAddressRange(a_arena.commited, a_at), ARENA_DEFAULT_COMMIT);
-		BB_ASSERT(CommitVirtualMemory(a_arena.commited, commit_range), "increase commit range of memory arena failed");
-
+		const bool success = CommitVirtualMemory(a_arena.commited, commit_range);
+		BB_ASSERT(success, "increase commit range of memory arena failed");
 		a_arena.commited = Pointer::Add(a_arena.commited, commit_range);
 	}
 
@@ -68,7 +68,8 @@ void BB::MemoryArenaFree(MemoryArena& a_arena)
 
 	if (a_arena.owns_memory)
 	{
-		BB_ASSERT(ReleaseVirtualMemory(buffer), "failed to release memory");
+		const bool success = ReleaseVirtualMemory(buffer);
+		BB_ASSERT(success, "failed to release memory");
 	}
 	else
 	{

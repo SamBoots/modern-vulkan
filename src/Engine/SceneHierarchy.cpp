@@ -33,9 +33,6 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 	}
 
 	m_scene_objects.Init(a_arena, a_scene_obj_max);
-	m_top_level_objects = ArenaAllocArr(a_arena, SceneObjectHandle, a_scene_obj_max);
-
-	m_top_level_object_count = 0;
 
 	m_options.skip_skybox = false;
 	m_options.skip_shadow_mapping = false;
@@ -304,19 +301,23 @@ StaticArray<Asset::AsyncAsset> SceneHierarchy::PreloadAssetsFromJson(MemoryArena
 
 SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent)
 {
-	const SceneObjectHandle scene_handle = m_scene_objects.emplace(SceneObject());
-	SceneObject& scene_obj = m_scene_objects.find(scene_handle);
+	SceneObject scene_obj;
+
 	scene_obj.name = a_node.name;
-	BB_ASSERT(m_ecs_entities.CreateEntity(scene_obj.entity), "failed to create entity");
-	BB_ASSERT(EntityAssignTransform(scene_obj.entity, a_node.translation, a_node.rotation, a_node.scale), "failed to create tranform");
+	bool success = m_ecs_entities.CreateEntity(scene_obj.entity);
+	BB_ASSERT(success, "failed to create entity");
+	success = EntityAssignTransform(scene_obj.entity, a_node.translation, a_node.rotation, a_node.scale);
+	BB_ASSERT(success, "failed to create tranform");
 	scene_obj.parent = a_parent;
+
+	const SceneObjectHandle handle{ m_scene_objects.size() };
+	m_scene_objects.push_back(scene_obj);
 
 	if (a_node.mesh)
 	{
 		const Model::Mesh& mesh = *a_node.mesh;
 		for (uint32_t i = 0; i < mesh.primitives.size(); i++)
 		{
-			BB_ASSERT(scene_obj.child_count <= SCENE_OBJ_CHILD_MAX, "Too many children for a single scene object!");
 			SceneObject prim_obj{};
 			prim_obj.name = "unimplemented naming";
 			RenderComponent mesh_info;
@@ -328,64 +329,43 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 			mesh_info.material_data = mesh.primitives[i].material_data.mesh_metallic;
 			mesh_info.material_dirty = true;
 
-			BB_ASSERT(m_ecs_entities.CreateEntity(prim_obj.entity), "failed to create entity");
-			BB_ASSERT(EntityAssignTransform(prim_obj.entity), "failed to create tranform");
-			BB_ASSERT(EntityAssignRenderComponent(prim_obj.entity, mesh_info), "failed to create RenderComponent");
-			prim_obj.parent = scene_handle;
-			scene_obj.children[scene_obj.child_count++] = m_scene_objects.emplace(prim_obj);
+			bool success = m_ecs_entities.CreateEntity(prim_obj.entity);
+			BB_ASSERT(success, "failed to create entity");
+			success = EntityAssignTransform(prim_obj.entity);
+			BB_ASSERT(success, "failed to create tranform");
+			success = EntityAssignRenderComponent(prim_obj.entity, mesh_info);
+			BB_ASSERT(success, "failed to create RenderComponent");
+			prim_obj.parent = handle;
+
+			m_scene_objects.push_back(prim_obj);
 		}
 	}
 
-	for (uint32_t i = 0; i < a_node.child_count; i++)
-	{
-		BB_ASSERT(scene_obj.child_count < SCENE_OBJ_CHILD_MAX, "Too many childeren for a single gameobject!");
-		scene_obj.children[scene_obj.child_count++] = CreateSceneObjectViaModelNode(a_model, a_node.childeren[i], a_parent);
-	}
-
-	return scene_handle;
+	return handle;
 }
 
 SceneObjectHandle SceneHierarchy::CreateSceneObject(const float3 a_position, const char* a_name, const SceneObjectHandle a_parent)
 {
-	SceneObjectHandle scene_object_handle = m_scene_objects.emplace(SceneObject());
-	SceneObject& scene_object = m_scene_objects.find(scene_object_handle);
-	if (a_parent.IsValid())
-	{
-		SceneObject& parent = m_scene_objects.find(a_parent);
-		parent.AddChild(scene_object_handle);
-		scene_object.parent = a_parent;
-	}
-	else
-	{
-		scene_object.parent = SceneObjectHandle(BB_INVALID_HANDLE_64);
-		BB_ASSERT(m_top_level_object_count < m_scene_objects.capacity(), "Too many scene objects, increase the max");
-		m_top_level_objects[m_top_level_object_count++] = scene_object_handle;
-	}
+	SceneObject scene_object;
 
+	scene_object.parent = a_parent;
 	scene_object.name = a_name;
-	BB_ASSERT(m_ecs_entities.CreateEntity(scene_object.entity), "failed to create entity");
-	BB_ASSERT(EntityAssignTransform(scene_object.entity, a_position), "failed to create transform!");
-	scene_object.child_count = 0;
+	bool success = m_ecs_entities.CreateEntity(scene_object.entity);
+	BB_ASSERT(success, "failed to create entity");
+	success = EntityAssignTransform(scene_object.entity, a_position);
+	BB_ASSERT(success, "failed to create transform!");
 
-	return scene_object_handle;
+	const SceneObjectHandle handle{ m_scene_objects.size() };
+	m_scene_objects.push_back(scene_object);
+
+	return handle;
 }
 
 SceneObjectHandle SceneHierarchy::CreateSceneObjectMesh(const float3 a_position, const SceneMeshCreateInfo& a_mesh_info, const char* a_name, const SceneObjectHandle a_parent)
 {
-	SceneObjectHandle scene_object_handle = m_scene_objects.emplace(SceneObject());
-	SceneObject& scene_object = m_scene_objects.find(scene_object_handle);
-	if (a_parent.IsValid())
-	{
-		SceneObject& parent = m_scene_objects.find(a_parent);
-		parent.AddChild(scene_object_handle);
-		scene_object.parent = a_parent;
-	}
-	else
-	{
-		scene_object.parent = SceneObjectHandle(BB_INVALID_HANDLE_64);
-		BB_ASSERT(m_top_level_object_count < m_scene_objects.capacity(), "Too many scene objects, increase the max");
-		m_top_level_objects[m_top_level_object_count++] = scene_object_handle;
-	}
+	SceneObject scene_object;
+
+	scene_object.parent = a_parent;
 
 	scene_object.name = a_name;
 	RenderComponent mesh_info;
@@ -405,69 +385,60 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectMesh(const float3 a_position,
 		mesh_info.material_dirty = false;
 	}
 
-	BB_ASSERT(m_ecs_entities.CreateEntity(scene_object.entity), "failed to create entity");
-	BB_ASSERT(EntityAssignTransform(scene_object.entity, a_position), "failed to create transform!");
-	BB_ASSERT(EntityAssignRenderComponent(scene_object.entity, mesh_info), "failed to create RenderComponent");
-	scene_object.child_count = 0;
+	bool success = m_ecs_entities.CreateEntity(scene_object.entity);
+	BB_ASSERT(success, "failed to create entity");
+	success = EntityAssignTransform(scene_object.entity, a_position);
+	BB_ASSERT(success, "failed to create transform!");
+	success = EntityAssignRenderComponent(scene_object.entity, mesh_info);
+	BB_ASSERT(success, "failed to create RenderComponent");
 
-	return scene_object_handle;
+	const SceneObjectHandle handle { m_scene_objects.size() };
+	m_scene_objects.push_back(scene_object);
+
+	return handle;
 }
 
 SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name, const SceneObjectHandle a_parent)
 {
-	SceneObjectHandle scene_object_handle = m_scene_objects.emplace(SceneObject());
-	SceneObject& scene_object = m_scene_objects.find(scene_object_handle);
-	if (a_parent.IsValid())
-	{
-		SceneObject& parent = m_scene_objects.find(a_parent);
-		parent.AddChild(scene_object_handle);
-		scene_object.parent = a_parent;
-	}
-	else
-	{
-		scene_object.parent = SceneObjectHandle(BB_INVALID_HANDLE_64);
-		BB_ASSERT(m_top_level_object_count < m_scene_objects.capacity(), "Too many scene objects, increase the max");
-		m_top_level_objects[m_top_level_object_count++] = scene_object_handle;
-	}
+	SceneObject scene_object;
 
 	scene_object.name = a_name;
-	BB_ASSERT(m_ecs_entities.CreateEntity(scene_object.entity), "failed to create entity");
-	BB_ASSERT(EntityAssignTransform(scene_object.entity, a_position), "failed to create transform!");
-	scene_object.child_count = 0;
+	bool success = m_ecs_entities.CreateEntity(scene_object.entity);
+	BB_ASSERT(success, "failed to create entity");
+	success = EntityAssignTransform(scene_object.entity, a_position);
+	BB_ASSERT(success, "failed to create transform!");
+	scene_object.parent = a_parent;
+
+	const SceneObjectHandle handle { m_scene_objects.size() };
+	m_scene_objects.push_back(scene_object);
 
 	for (uint32_t i = 0; i < a_model.root_node_count; i++)
 	{
-		scene_object.AddChild(CreateSceneObjectViaModelNode(a_model, a_model.linear_nodes[a_model.root_node_indices[i]], scene_object_handle));
+		CreateSceneObjectViaModelNode(a_model, a_model.linear_nodes[a_model.root_node_indices[i]], handle);
 	}
 
-	return scene_object_handle;
+	return handle;
 }
 
 SceneObjectHandle SceneHierarchy::CreateSceneObjectAsLight(const LightCreateInfo& a_light_create_info, const char* a_name, const SceneObjectHandle a_parent)
 {
-	SceneObjectHandle scene_object_handle = m_scene_objects.emplace(SceneObject());
-	SceneObject& scene_object = m_scene_objects.find(scene_object_handle);
-	if (a_parent.IsValid())
-	{
-		SceneObject& parent = m_scene_objects.find(a_parent);
-		parent.AddChild(scene_object_handle);
-		scene_object.parent = a_parent;
-	}
-	else
-	{
-		scene_object.parent = SceneObjectHandle(BB_INVALID_HANDLE_64);
-		BB_ASSERT(m_top_level_object_count < m_scene_objects.capacity(), "Too many scene objects, increase the max");
-		m_top_level_objects[m_top_level_object_count++] = scene_object_handle;
-	}
+	SceneObject scene_object;
+
+	scene_object.parent = a_parent;
 
 	scene_object.name = a_name;
 	
-	BB_ASSERT(m_ecs_entities.CreateEntity(scene_object.entity), "failed to create entity");
-	BB_ASSERT(EntityAssignTransform(scene_object.entity, a_light_create_info.pos), "failed to create transform!");
-	scene_object.child_count = 0;
-	BB_ASSERT(CreateLight(scene_object.entity, a_light_create_info), "failed to create light!");
+	bool success = m_ecs_entities.CreateEntity(scene_object.entity);
+	BB_ASSERT(success, "failed to create entity");
+	success = EntityAssignTransform(scene_object.entity, a_light_create_info.pos);
+	BB_ASSERT(success, "failed to create transform!");
+	success = CreateLight(scene_object.entity, a_light_create_info);
+	BB_ASSERT(success, "failed to create light!");
 
-	return scene_object_handle;
+	const SceneObjectHandle handle{ m_scene_objects.size() };
+	m_scene_objects.push_back(scene_object);
+
+	return handle;
 }
 
 bool SceneHierarchy::EntityAssignTransform(const ECSEntity a_entity, const float3 a_position, const Quat a_rotation, const float3 a_scale)
@@ -516,10 +487,10 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RImageV
 
 	m_draw_list.size = 0;
 
-	for (size_t i = 0; i < m_top_level_object_count; i++)
+	for (size_t i = 0; i < m_scene_objects.size(); i++)
 	{
 		// identity hack to awkwardly get the first matrix. 
-		DrawSceneObject(m_top_level_objects[i], Float4x4Identity(), a_list, pfd);
+		DrawSceneObject(m_scene_objects[i], a_list, pfd);
 	}
 
 	UpdateConstantBuffer(pfd, a_list, a_draw_area_size);
@@ -535,15 +506,21 @@ void SceneHierarchy::DrawSceneHierarchy(const RCommandList a_list, const RImageV
 	BloomPass(pfd, a_list, a_render_target_view, a_draw_area_size, a_draw_area_offset);
 }
 
-void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform, const RCommandList a_list, const PerFrameData& a_pfd)
+void SceneHierarchy::DrawSceneObject(const SceneObject& a_scene_object, const RCommandList a_list, const PerFrameData& a_pfd)
 {
-	SceneObject& scene_object = m_scene_objects.find(a_scene_object);
-	const float4x4 local_transform = a_transform * m_transform_pool.GetComponent(scene_object.entity).CreateMatrix();
+	SceneObjectHandle parent = a_scene_object.parent;
+	float4x4 local_transform = m_transform_pool.GetComponent(a_scene_object.entity).CreateMatrix();
+	while (parent.IsValid())
+	{
+		const SceneObject& p = m_scene_objects[parent.handle];
+		local_transform = local_transform * m_transform_pool.GetComponent(p.entity).CreateMatrix();
+		parent = p.parent;
+	}
 
 	// mesh_info should be a pointer in the drawlist. Preferably. 
-	if (m_ecs_entities.HasSignature(scene_object.entity, RENDER_ECS_SIGNATURE))
+	if (m_ecs_entities.HasSignature(a_scene_object.entity, RENDER_ECS_SIGNATURE))
 	{
-		RenderComponent& RenderComponent = m_render_mesh_pool.GetComponent(scene_object.entity);
+		RenderComponent& RenderComponent = m_render_mesh_pool.GetComponent(a_scene_object.entity);
 		AddToDrawList(RenderComponent, local_transform);
 		if (RenderComponent.material_dirty)
 		{
@@ -552,11 +529,6 @@ void SceneHierarchy::DrawSceneObject(const SceneObjectHandle a_scene_object, con
 			Material::WriteMaterial(RenderComponent.material, a_list, upload.buffer, upload.base_offset);
 			RenderComponent.material_dirty = false;
 		}
-	}
-
-	for (size_t i = 0; i < scene_object.child_count; i++)
-	{
-		DrawSceneObject(scene_object.children[i], local_transform, a_list, a_pfd);
 	}
 }
 

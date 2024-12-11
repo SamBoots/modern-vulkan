@@ -41,13 +41,6 @@ namespace BB
 		ECSEntity entity;
 
 		SceneObjectHandle parent;
-		void AddChild(const SceneObjectHandle a_child)
-		{
-			BB_ASSERT(child_count < SCENE_OBJ_CHILD_MAX, "Too many children for a single scene object!");
-			children[child_count++] = a_child;
-		}
-		size_t child_count;
-		SceneObjectHandle children[SCENE_OBJ_CHILD_MAX];
 	};
 
 	struct SceneMeshCreateInfo
@@ -157,7 +150,7 @@ namespace BB
 
 		void AddToDrawList(const RenderComponent& a_render_mesh, const float4x4& a_transform);
 		SceneObjectHandle CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent);
-		void DrawSceneObject(const SceneObjectHandle a_scene_object, const float4x4& a_transform, const RCommandList a_list, const PerFrameData& a_pfd);
+		void DrawSceneObject(const SceneObject& a_scene_object, const RCommandList a_list, const PerFrameData& a_pfd);
 
 		bool CreateLight(const ECSEntity a_entity, const LightCreateInfo& a_light_info);
 		float4x4 CalculateLightProjectionView(const float3 a_pos, const float a_near, const float a_far) const;
@@ -197,10 +190,7 @@ namespace BB
 		RenderComponentPool m_render_mesh_pool;
 		LightComponentPool m_light_pool;
 
-		StaticSlotmap<SceneObject, SceneObjectHandle> m_scene_objects;
-
-		uint32_t m_top_level_object_count;
-		SceneObjectHandle* m_top_level_objects;
+		StaticArray<SceneObject> m_scene_objects;
 
 		float3 m_clear_color;
 		RImage m_skybox;

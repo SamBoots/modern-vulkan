@@ -479,14 +479,14 @@ void Editor::ImguiDisplaySceneHierarchy(SceneHierarchy& a_hierarchy)
 			}
 		}
 
-		for (size_t i = 0; i < a_hierarchy.m_top_level_object_count; i++)
-		{
-			ImGui::PushID(static_cast<int>(i));
+		//for (size_t i = 0; i < a_hierarchy.m_top_level_object_count; i++)
+		//{
+		//	ImGui::PushID(static_cast<int>(i));
 
-			ImGuiDisplaySceneObject(a_hierarchy, a_hierarchy.m_top_level_objects[i]);
+		//	ImGuiDisplaySceneObject(a_hierarchy, a_hierarchy.m_top_level_objects[i]);
 
-			ImGui::PopID();
-		}
+		//	ImGui::PopID();
+		//}
 
 		ImGui::Unindent();
 	}
@@ -508,7 +508,7 @@ static void ImGuiShowTexturePossibleChange(const RDescriptorIndex a_texture, con
 
 void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObjectHandle a_object)
 {
-	SceneObject& scene_object = a_hierarchy.m_scene_objects.find(a_object);
+	SceneObject& scene_object = a_hierarchy.m_scene_objects[a_object.handle];
 	ImGui::PushID(static_cast<int>(a_object.handle));
 
 	if (ImGui::CollapsingHeader(scene_object.name))
@@ -636,10 +636,10 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 			}
 		}
 
-		for (size_t i = 0; i < scene_object.child_count; i++)
-		{
-			ImGuiDisplaySceneObject(a_hierarchy, scene_object.children[i]);
-		}
+		//for (size_t i = 0; i < scene_object.child_count; i++)
+		//{
+		//	ImGuiDisplaySceneObject(a_hierarchy, scene_object.children[i]);
+		//}
 
 		ImguiCreateSceneObject(a_hierarchy, a_object);
 
@@ -671,15 +671,7 @@ void Editor::ImguiCreateSceneObject(SceneHierarchy& a_hierarchy, const SceneObje
 
 		if (ImGui::Button("create scene object"))
 		{
-			BB_ASSERT(a_hierarchy.m_top_level_object_count <= a_hierarchy.m_scene_objects.capacity(), "Too many render object childeren for this object!");
-			if (mesh_name.size() != 0)
-			{
-				const Model* model = Asset::FindModelByName(mesh_name.c_str());
-				BB_ASSERT(model, "invalid model, this is not possible as we remember loaded models in the editor. has it been deleted?");
-				a_hierarchy.CreateSceneObjectViaModel(*model, float3(0.f, 0.f, 0.f), mesh_name.c_str(), a_parent);
-			}
-			else
-				a_hierarchy.CreateSceneObject(float3(0.f, 0.f, 0.f), "default", a_parent);
+			BB_UNIMPLEMENTED();
 		}
 
 		ImGui::Unindent();
