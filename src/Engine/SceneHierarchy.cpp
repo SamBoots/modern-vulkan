@@ -27,6 +27,7 @@ void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, c
 
 	{	// ECS systems
 		m_ecs_entities.Init(a_arena, a_scene_obj_max);
+		m_name_pool.Init(a_arena, a_scene_obj_max);
 		m_transform_pool.Init(a_arena, a_scene_obj_max);
 		m_render_mesh_pool.Init(a_arena, a_scene_obj_max);
 		m_light_pool.Init(a_arena, LIGHT_COUNT, a_scene_obj_max);
@@ -303,9 +304,10 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 {
 	SceneObject scene_obj;
 
-	scene_obj.name = a_node.name;
 	bool success = m_ecs_entities.CreateEntity(scene_obj.entity);
 	BB_ASSERT(success, "failed to create entity");
+	success = EntityAssignName(scene_obj.entity, a_node.name);
+	BB_ASSERT(success, "failed to create name");
 	success = EntityAssignTransform(scene_obj.entity, a_node.translation, a_node.rotation, a_node.scale);
 	BB_ASSERT(success, "failed to create tranform");
 	scene_obj.parent = a_parent;
@@ -319,7 +321,6 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 		for (uint32_t i = 0; i < mesh.primitives.size(); i++)
 		{
 			SceneObject prim_obj{};
-			prim_obj.name = "unimplemented naming";
 			RenderComponent mesh_info;
 			mesh_info.mesh = mesh.mesh;
 			mesh_info.index_start = mesh.primitives[i].start_index;
@@ -329,8 +330,10 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModelNode(const Model& a_m
 			mesh_info.material_data = mesh.primitives[i].material_data.mesh_metallic;
 			mesh_info.material_dirty = true;
 
-			bool success = m_ecs_entities.CreateEntity(prim_obj.entity);
+			success = m_ecs_entities.CreateEntity(prim_obj.entity);
 			BB_ASSERT(success, "failed to create entity");
+			success = EntityAssignName(prim_obj.entity, "unimplemented naming");
+			BB_ASSERT(success, "failed to create name");
 			success = EntityAssignTransform(prim_obj.entity);
 			BB_ASSERT(success, "failed to create tranform");
 			success = EntityAssignRenderComponent(prim_obj.entity, mesh_info);
@@ -349,9 +352,10 @@ SceneObjectHandle SceneHierarchy::CreateSceneObject(const float3 a_position, con
 	SceneObject scene_object;
 
 	scene_object.parent = a_parent;
-	scene_object.name = a_name;
 	bool success = m_ecs_entities.CreateEntity(scene_object.entity);
 	BB_ASSERT(success, "failed to create entity");
+	success = EntityAssignName(scene_object.entity, a_name);
+	BB_ASSERT(success, "failed to create name");
 	success = EntityAssignTransform(scene_object.entity, a_position);
 	BB_ASSERT(success, "failed to create transform!");
 
@@ -364,10 +368,8 @@ SceneObjectHandle SceneHierarchy::CreateSceneObject(const float3 a_position, con
 SceneObjectHandle SceneHierarchy::CreateSceneObjectMesh(const float3 a_position, const SceneMeshCreateInfo& a_mesh_info, const char* a_name, const SceneObjectHandle a_parent)
 {
 	SceneObject scene_object;
-
 	scene_object.parent = a_parent;
 
-	scene_object.name = a_name;
 	RenderComponent mesh_info;
 	mesh_info.mesh = a_mesh_info.mesh;
 	mesh_info.index_start = a_mesh_info.index_start;
@@ -387,6 +389,8 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectMesh(const float3 a_position,
 
 	bool success = m_ecs_entities.CreateEntity(scene_object.entity);
 	BB_ASSERT(success, "failed to create entity");
+	success = EntityAssignName(scene_object.entity, a_name);
+	BB_ASSERT(success, "failed to create name");
 	success = EntityAssignTransform(scene_object.entity, a_position);
 	BB_ASSERT(success, "failed to create transform!");
 	success = EntityAssignRenderComponent(scene_object.entity, mesh_info);
@@ -402,9 +406,10 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectViaModel(const Model& a_model
 {
 	SceneObject scene_object;
 
-	scene_object.name = a_name;
 	bool success = m_ecs_entities.CreateEntity(scene_object.entity);
 	BB_ASSERT(success, "failed to create entity");
+	success = EntityAssignName(scene_object.entity, a_name);
+	BB_ASSERT(success, "failed to create name");
 	success = EntityAssignTransform(scene_object.entity, a_position);
 	BB_ASSERT(success, "failed to create transform!");
 	scene_object.parent = a_parent;
@@ -425,11 +430,11 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectAsLight(const LightCreateInfo
 	SceneObject scene_object;
 
 	scene_object.parent = a_parent;
-
-	scene_object.name = a_name;
 	
 	bool success = m_ecs_entities.CreateEntity(scene_object.entity);
 	BB_ASSERT(success, "failed to create entity");
+	success = EntityAssignName(scene_object.entity, a_name);
+	BB_ASSERT(success, "failed to create name");
 	success = EntityAssignTransform(scene_object.entity, a_light_create_info.pos);
 	BB_ASSERT(success, "failed to create transform!");
 	success = CreateLight(scene_object.entity, a_light_create_info);
@@ -439,6 +444,15 @@ SceneObjectHandle SceneHierarchy::CreateSceneObjectAsLight(const LightCreateInfo
 	m_scene_objects.push_back(scene_object);
 
 	return handle;
+}
+
+bool SceneHierarchy::EntityAssignName(const ECSEntity a_entity, const NameComponent& a_name)
+{
+	if (!m_name_pool.CreateComponent(a_entity, a_name))
+		return false;
+	if (!m_ecs_entities.RegisterSignature(a_entity, m_name_pool.GetSignatureIndex()))
+		return false;
+	return true;
 }
 
 bool SceneHierarchy::EntityAssignTransform(const ECSEntity a_entity, const float3 a_position, const Quat a_rotation, const float3 a_scale)
@@ -770,13 +784,13 @@ void SceneHierarchy::ResourceUploadPass(PerFrameData& a_pfd, const RCommandList 
 	const size_t matrix_offset = bytes_uploaded + upload_buffer.base_offset;
 	bytes_uploaded += matrices_upload_size;
 
-	for (size_t i = 0; i < m_light_pool.GetSize(); i++)
+	for (uint32_t i = 0; i < m_light_pool.GetSize(); i++)
 		upload_buffer.SafeMemcpy(bytes_uploaded, &m_light_pool.GetComponent(i).light, sizeof(Light));
 
 	const size_t light_offset = bytes_uploaded + upload_buffer.base_offset;
 	bytes_uploaded += light_upload_size;
 	
-	for (size_t i = 0; i < m_light_pool.GetSize(); i++)
+	for (uint32_t i = 0; i < m_light_pool.GetSize(); i++)
 		upload_buffer.SafeMemcpy(bytes_uploaded, &m_light_pool.GetComponent(i).projection_view, sizeof(float4x4));
 	const size_t light_projection_view_offset = bytes_uploaded + upload_buffer.base_offset;
 	bytes_uploaded += light_projection_view_size;

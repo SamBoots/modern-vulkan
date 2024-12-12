@@ -6,6 +6,7 @@
 #include "GPUBuffers.hpp"
 
 #include "ecs/EntityMap.hpp"
+#include "ecs/NameComponent.hpp"
 #include "ecs/TransformComponent.hpp"
 #include "ecs/RenderComponent.hpp"
 #include "ecs/LightComponent.hpp"
@@ -36,10 +37,7 @@ namespace BB
 
 	struct SceneObject
 	{
-		const char* name;
-
 		ECSEntity entity;
-
 		SceneObjectHandle parent;
 	};
 
@@ -66,6 +64,7 @@ namespace BB
 		SceneObjectHandle CreateSceneObjectAsLight(const LightCreateInfo& a_light_create_info, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
 
 		// ECS functions
+		bool EntityAssignName(const ECSEntity a_entity, const NameComponent& a_name);
 		bool EntityAssignTransform(const ECSEntity a_entity, const float3 a_position = float3(0.f), const Quat a_rotation = Quat(0.f, 0.f, 0.f, 0.f), const float3 a_scale = float3(1.f));
 		bool EntityAssignRenderComponent(const ECSEntity a_entity, const RenderComponent& a_draw_info);
 		bool EntityAssignLight(const ECSEntity a_entity, const LightComponent& a_light);
@@ -186,6 +185,7 @@ namespace BB
 
 		//TODO, maybe remember all the transforms from the previous frames?
 		EntityMap m_ecs_entities;
+		NameComponentPool m_name_pool;
 		TransformComponentPool m_transform_pool;
 		RenderComponentPool m_render_mesh_pool;
 		LightComponentPool m_light_pool;

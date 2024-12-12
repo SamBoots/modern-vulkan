@@ -12,7 +12,7 @@ add_library(Engine
 	"ecs/EntityMap.cpp"
 	"ecs/TransformComponent.cpp"
 	"ecs/RenderComponent.cpp" 
-	"ecs/LightComponent.cpp")
+	"ecs/LightComponent.cpp" "ecs/NameComponent.cpp")
 	
 target_include_directories(Engine PUBLIC
 	"")	# this gets the current directory
