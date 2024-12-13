@@ -35,7 +35,7 @@ static void CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_
 		position.y = position_list.nodes[1]->GetNumber();
 		position.z = position_list.nodes[2]->GetNumber();
 
-		a_hierarchy.CreateSceneObjectViaModel(*model, position, obj_name);
+		a_hierarchy.CreateEntityViaModel(*model, position, obj_name);
 	}
 
 	const JsonList& lights = scene_obj.Find("lights")->GetList();
@@ -83,7 +83,7 @@ static void CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_
 		}
 
 		const StringView light_name = Asset::FindOrCreateString(light_obj.Find("name")->GetString());
-		a_hierarchy.CreateSceneObjectAsLight(light_info, light_name.c_str());
+		a_hierarchy.CreateEntityAsLight(light_info, light_name.c_str());
 	}
 }
 

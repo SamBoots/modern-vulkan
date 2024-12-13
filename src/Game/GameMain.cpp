@@ -128,9 +128,9 @@ void DungeonMap::DestroyMap()
 	m_map_size_y = 0;
 }
 
-SceneObjectHandle DungeonMap::CreateSceneObjectFloor(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy, const SceneObjectHandle a_parent)
+ECSEntity DungeonMap::CreateEntityFloor(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy, const ECSEntity a_parent)
 {
-	SceneObjectHandle map_obj{};
+	ECSEntity map_obj{};
 	MemoryArenaScope(a_temp_arena)
 	{
 		QuadVertices quad_vertices;
@@ -205,7 +205,7 @@ SceneObjectHandle DungeonMap::CreateSceneObjectFloor(MemoryArena& a_temp_arena, 
 		mesh_info.index_count = indices.size();
 		mesh_info.master_material = Material::GetDefaultMasterMaterial(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D);
 		mesh_info.material_data = material_info;
-		map_obj = a_scene_hierarchy.CreateSceneObjectMesh(float3(), mesh_info, "dungeon map floor", a_parent);
+		map_obj = a_scene_hierarchy.CreateEntityMesh(float3(), mesh_info, "dungeon map floor", a_parent);
 	}
 	return map_obj;
 }
@@ -248,7 +248,7 @@ static void MakeWallSegment(StaticArray<Vertex>& a_vertices, StaticArray<uint32_
 	a_indices.push_back(quad_indices, _countof(quad_indices));
 }
 
-SceneObjectHandle DungeonMap::CreateSceneObjectWalls(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy, const SceneObjectHandle a_parent)
+ECSEntity DungeonMap::CreateEntityWalls(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy, const ECSEntity a_parent)
 {
 	QuadVertices quad_vertices;
 	quad_vertices[0].normal = float3(0.f, 1.f, 0.1f);
@@ -267,7 +267,7 @@ SceneObjectHandle DungeonMap::CreateSceneObjectWalls(MemoryArena& a_temp_arena, 
 	quad_vertices[3].uv = float2(0.f, 0.f);
 	quad_vertices[3].color = float4(1.f, 1.f, 1.f, 1.f);
 
-	SceneObjectHandle map_obj{};
+	ECSEntity map_obj{};
 	MemoryArenaScope(a_temp_arena)
 	{
 		StaticArray<Vertex> vertices;
@@ -319,7 +319,7 @@ SceneObjectHandle DungeonMap::CreateSceneObjectWalls(MemoryArena& a_temp_arena, 
 		mesh_info.index_count = indices.size();
 		mesh_info.master_material = Material::GetDefaultMasterMaterial(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D);
 		mesh_info.material_data = material_info;
-		map_obj = a_scene_hierarchy.CreateSceneObjectMesh(float3(), mesh_info, "dungeon map wall", a_parent);
+		map_obj = a_scene_hierarchy.CreateEntityMesh(float3(), mesh_info, "dungeon map wall", a_parent);
 	}
 
 	return map_obj;
@@ -398,11 +398,11 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
 	m_dungeon_map.CreateMap(m_game_memory, 30, 30, Slice(&roomptr, 1));
 	const float3 map_start_pos = float3(0.f, 0.f, -10.f);
 
-	m_dungeon_obj = m_scene_hierarchy.CreateSceneObject(map_start_pos, "dungeon map");
+	m_dungeon_obj = m_scene_hierarchy.CreateEntity(map_start_pos, "dungeon map");
 	MemoryArenaScope(m_game_memory)
 	{
-		m_dungeon_map.CreateSceneObjectFloor(m_game_memory, m_scene_hierarchy, m_dungeon_obj);
-		m_dungeon_map.CreateSceneObjectWalls(m_game_memory, m_scene_hierarchy, m_dungeon_obj);
+		m_dungeon_map.CreateEntityFloor(m_game_memory, m_scene_hierarchy, m_dungeon_obj);
+		m_dungeon_map.CreateEntityWalls(m_game_memory, m_scene_hierarchy, m_dungeon_obj);
 	}
 	m_player.SetPosition(m_dungeon_map.GetSpawnPoint() + map_start_pos + float3(0.f, 1.f, 0.f));
 	m_player.SetLerpSpeed(5.f);

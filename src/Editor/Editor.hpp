@@ -70,8 +70,8 @@ namespace BB
 		FreelistInterface m_editor_allocator;
 
 		void ImguiDisplaySceneHierarchy(SceneHierarchy& a_hierarchy);
-		void ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObjectHandle a_object);
-		void ImguiCreateSceneObject(SceneHierarchy& a_hierarchy, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
+		void ImGuiDisplayEntity(SceneHierarchy& a_hierarchy, const ECSEntity a_object);
+		void ImguiCreateEntity(SceneHierarchy& a_hierarchy, const ECSEntity a_parent = INVALID_ECS_OBJ);
 		void ImGuiDisplayShaderEffect(MemoryArena& a_temp_arena, const CachedShaderInfo& a_shader_info) const;
 		void ImGuiDisplayShaderEffects(MemoryArena& a_temp_arena);
 		void ImGuiDisplayMaterial(const MasterMaterial& a_material) const;

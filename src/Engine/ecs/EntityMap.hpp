@@ -10,14 +10,16 @@ namespace BB
 	public:
 		bool Init(MemoryArena& a_arena, const uint32_t a_max_entities);
 
-		bool CreateEntity(ECSEntity& a_out_entity);
+		bool CreateEntity(ECSEntity& a_out_entity, const ECSEntity a_parent = ECSEntity());
 		bool FreeEntity(const ECSEntity a_entity);
+		bool EntitySetParent(const ECSEntity a_entity, const ECSEntity a_parent);
 
 		// retursn false if the signature is already set.
 		bool RegisterSignature(const ECSEntity a_entity, const ECSSignatureIndex a_signature_index);
 		// returns false if the signature was not set.
 		bool UnregisterSignature(const ECSEntity a_entity, const ECSSignatureIndex a_signature_index);
 
+		bool GetParent(const ECSEntity a_entity, ECSEntity& a_out_parent) const;
 		bool GetSignature(const ECSEntity a_entity, ECSSignature& a_out_signature) const;
 		bool HasSignature(const ECSEntity a_entity, const ECSSignatureIndex a_signature_index) const;
 		bool HasSignature(const ECSSignature a_signature, const ECSSignatureIndex a_signature_index) const;
@@ -31,6 +33,7 @@ namespace BB
 		
 		struct ECSSignatureSentinel
 		{
+			ECSEntity parent;
 			ECSSignature signature;
 			uint32_t sentinel; // same as ECSEntity.extra_index
 		};

@@ -13,8 +13,6 @@
 
 namespace BB
 {
-	using SceneObjectHandle = FrameworkHandle<struct SceneObjectHandleTag>;
-	constexpr SceneObjectHandle INVALID_SCENE_OBJ = SceneObjectHandle(BB_INVALID_HANDLE_64);
 	class JsonParser;
 
 	constexpr uint32_t DEFAULT_SCENE_OBJ_MAX = 1024;
@@ -35,12 +33,6 @@ namespace BB
 		float cutoff_radius;        // 60
 	};
 
-	struct SceneObject
-	{
-		ECSEntity entity;
-		SceneObjectHandle parent;
-	};
-
 	struct SceneMeshCreateInfo
 	{
 		Mesh mesh;
@@ -58,10 +50,10 @@ namespace BB
 		static StaticArray<Asset::AsyncAsset> PreloadAssetsFromJson(MemoryArena& a_arena, const JsonParser& a_parsed_file);
 
 		void DrawSceneHierarchy(const RCommandList a_list, const RImageView a_render_target_view, const uint32_t a_back_buffer_index, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
-		SceneObjectHandle CreateSceneObject(const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
-		SceneObjectHandle CreateSceneObjectMesh(const float3 a_position, const SceneMeshCreateInfo& a_mesh_info, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
-		SceneObjectHandle CreateSceneObjectViaModel(const Model& a_model, const float3 a_position, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
-		SceneObjectHandle CreateSceneObjectAsLight(const LightCreateInfo& a_light_create_info, const char* a_name, const SceneObjectHandle a_parent = INVALID_SCENE_OBJ);
+		ECSEntity CreateEntity(const float3 a_position, const char* a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
+		ECSEntity CreateEntityMesh(const float3 a_position, const SceneMeshCreateInfo& a_mesh_info, const char* a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
+		ECSEntity CreateEntityViaModel(const Model& a_model, const float3 a_position, const char* a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
+		ECSEntity CreateEntityAsLight(const LightCreateInfo& a_light_create_info, const char* a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
 
 		// ECS functions
 		bool EntityAssignName(const ECSEntity a_entity, const NameComponent& a_name);
@@ -148,8 +140,8 @@ namespace BB
 		void BloomPass(const PerFrameData& a_pfd, const RCommandList a_list, const RImageView a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
 
 		void AddToDrawList(const RenderComponent& a_render_mesh, const float4x4& a_transform);
-		SceneObjectHandle CreateSceneObjectViaModelNode(const Model& a_model, const Model::Node& a_node, const SceneObjectHandle a_parent);
-		void DrawSceneObject(const SceneObject& a_scene_object, const RCommandList a_list, const PerFrameData& a_pfd);
+		ECSEntity CreateEntityViaModelNode(const Model::Node& a_node, const ECSEntity a_parent);
+		void DrawSceneObject(const ECSEntity& a_scene_object, const RCommandList a_list, const PerFrameData& a_pfd);
 
 		bool CreateLight(const ECSEntity a_entity, const LightCreateInfo& a_light_info);
 		float4x4 CalculateLightProjectionView(const float3 a_pos, const float a_near, const float a_far) const;
@@ -190,7 +182,7 @@ namespace BB
 		RenderComponentPool m_render_mesh_pool;
 		LightComponentPool m_light_pool;
 
-		StaticArray<SceneObject> m_scene_objects;
+		StaticArray<ECSEntity> m_scene_objects;
 
 		float3 m_clear_color;
 		RImage m_skybox;

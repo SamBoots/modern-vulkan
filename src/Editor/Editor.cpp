@@ -443,7 +443,7 @@ void Editor::ImguiDisplaySceneHierarchy(SceneHierarchy& a_hierarchy)
 	{
 		ImGui::Indent();
 
-		ImguiCreateSceneObject(a_hierarchy);
+		ImguiCreateEntity(a_hierarchy);
 
 		if (ImGui::Button("GAMER MODE"))
 		{
@@ -506,15 +506,14 @@ static void ImGuiShowTexturePossibleChange(const RDescriptorIndex a_texture, con
 	}
 }
 
-void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObjectHandle a_object)
+void Editor::ImGuiDisplayEntity(SceneHierarchy& a_hierarchy, const ECSEntity a_object)
 {
-	SceneObject& scene_object = a_hierarchy.m_scene_objects[a_object.handle];
 	ImGui::PushID(static_cast<int>(a_object.handle));
 
-	if (ImGui::CollapsingHeader(a_hierarchy.m_name_pool.GetComponent(scene_object.entity).c_str()))
+	if (ImGui::CollapsingHeader(a_hierarchy.m_name_pool.GetComponent(a_object).c_str()))
 	{
 		ImGui::Indent();
-		TransformComponent& transform = a_hierarchy.m_transform_pool.GetComponent(scene_object.entity);
+		TransformComponent& transform = a_hierarchy.m_transform_pool.GetComponent(a_object);
 		bool position_changed = false;
 		if (ImGui::TreeNodeEx("transform"))
 		{
@@ -524,9 +523,9 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 			ImGui::TreePop();
 		}
 
-		if (a_hierarchy.m_ecs_entities.HasSignature(scene_object.entity, RENDER_ECS_SIGNATURE))
+		if (a_hierarchy.m_ecs_entities.HasSignature(a_object, RENDER_ECS_SIGNATURE))
 		{
-			RenderComponent& RenderComponent = a_hierarchy.m_render_mesh_pool.GetComponent(scene_object.entity);
+			RenderComponent& RenderComponent = a_hierarchy.m_render_mesh_pool.GetComponent(a_object);
 			if (ImGui::TreeNodeEx("rendering"))
 			{
 				ImGui::Indent();
@@ -580,12 +579,12 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 			}
 		}
 
-		if (a_hierarchy.m_ecs_entities.HasSignature(scene_object.entity, LIGHT_ECS_SIGNATURE))
+		if (a_hierarchy.m_ecs_entities.HasSignature(a_object, LIGHT_ECS_SIGNATURE))
 		{
 			if (ImGui::TreeNodeEx("light object"))
 			{
 				ImGui::Indent();
-				Light& light = a_hierarchy.GetLight(scene_object.entity);
+				Light& light = a_hierarchy.GetLight(a_object);
 
 				light.pos.x = transform.m_pos.x;
 				light.pos.y = transform.m_pos.y;
@@ -609,11 +608,11 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 				}
 
 				if (ImGui::Button("remove light"))
-					a_hierarchy.FreeLight(scene_object.entity);
+					a_hierarchy.FreeLight(a_object);
 
 				if (position_changed)
 				{
-					float4x4& vp = a_hierarchy.m_light_pool.GetComponent(scene_object.entity).projection_view;
+					float4x4& vp = a_hierarchy.m_light_pool.GetComponent(a_object).projection_view;
 					const float near_plane = 1.f, far_plane = 7.5f;
 					vp = a_hierarchy.CalculateLightProjectionView(transform.m_pos, near_plane, far_plane);
 				}
@@ -641,7 +640,7 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 		//	ImGuiDisplaySceneObject(a_hierarchy, scene_object.children[i]);
 		//}
 
-		ImguiCreateSceneObject(a_hierarchy, a_object);
+		ImguiCreateEntity(a_hierarchy, a_object);
 
 		ImGui::Unindent();
 	}
@@ -649,7 +648,7 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 	ImGui::PopID();
 }
 
-void Editor::ImguiCreateSceneObject(SceneHierarchy& a_hierarchy, const SceneObjectHandle a_parent)
+void Editor::ImguiCreateEntity(SceneHierarchy& a_hierarchy, const ECSEntity a_parent)
 {
 	if (ImGui::TreeNodeEx("create scene object menu"))
 	{
