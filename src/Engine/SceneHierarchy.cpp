@@ -341,6 +341,11 @@ ECSEntity SceneHierarchy::CreateEntityViaModelNode(const Model::Node& a_node, co
 		}
 	}
 
+	for (uint32_t i = 0; i < a_node.child_count; i++)
+	{
+		CreateEntityViaModelNode(a_node.childeren[i], ecs_obj);
+	}
+
 	return ecs_obj;
 }
 
