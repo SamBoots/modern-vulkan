@@ -1,6 +1,6 @@
 #pragma once
 #include "BBMemory.h"
-#include "ECSBase.hpp"
+#include "ecs/ECSBase.hpp"
 #include "Rendererfwd.hpp"
 
 namespace BB

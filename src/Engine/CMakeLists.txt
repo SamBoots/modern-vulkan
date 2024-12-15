@@ -10,13 +10,12 @@ add_library(Engine
 	"EngineConfig.cpp"
 	"Viewport.cpp"
 	"ecs/EntityMap.cpp"
-	"ecs/TransformComponent.cpp"
-	"ecs/RenderComponent.cpp" 
-	"ecs/LightComponent.cpp" 
-	"ecs/NameComponent.cpp")
+	"ecs/components/TransformComponent.cpp"
+	"ecs/components/RenderComponent.cpp" 
+	"ecs/components/LightComponent.cpp" 
+	"ecs/components/NameComponent.cpp")
 	
-target_include_directories(Engine PUBLIC
-	"")	# this gets the current directory
+target_include_directories(Engine PUBLIC "")
 
 target_link_libraries(Engine 
 	mikktspace

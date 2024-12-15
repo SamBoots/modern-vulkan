@@ -24,4 +24,67 @@ namespace BB
 		{ v.GetSize() } -> std::same_as<uint32_t>;
 		{ v.GetSignatureIndex() } -> std::same_as<ECSSignatureIndex>;
 	};
+
+	template <typename T, ECSSignatureIndex ECS_INDEX>
+	class ECSComponentBase
+	{
+	public:
+		void Init(struct MemoryArena& a_arena, const uint32_t a_transform_count)
+		{
+			m_components.Init(a_arena, a_transform_count);
+			m_components.resize(a_transform_count);
+		}
+
+		bool CreateComponent(const ECSEntity a_entity)
+		{
+			if (EntityInvalid(a_entity))
+				return false;
+
+			new (&m_components[a_entity.index]) T();
+			return true;
+		}
+
+		bool CreateComponent(const ECSEntity a_entity, const T& a_component)
+		{
+			if (EntityInvalid(a_entity))
+				return false;
+
+			new (&m_components[a_entity.index]) float3(a_component);
+			return true;
+		}
+		bool FreeComponent(const ECSEntity a_entity)
+		{
+			if (EntityInvalid(a_entity))
+				return false;
+
+			return true;
+		}
+		T& GetComponent(const ECSEntity a_entity) const
+		{
+			BB_ASSERT(!EntityInvalid(a_entity), "entity entry is not valid!");
+			return m_components[a_entity.index];
+		}
+
+		inline ECSSignatureIndex GetSignatureIndex() const
+		{
+			return ECS_INDEX;
+		}
+		inline uint32_t GetSize() const
+		{
+			return m_size;
+		}
+
+	private:
+		bool EntityInvalid(const ECSEntity a_entity) const
+		{
+			if (a_entity.index >= m_components.size())
+				return true;
+			return false;
+		}
+
+
+		// components equal to entities.
+		uint32_t m_size;
+		StaticArray<T> m_components;
+	};
 }

@@ -6,10 +6,10 @@
 #include "GPUBuffers.hpp"
 
 #include "ecs/EntityMap.hpp"
-#include "ecs/NameComponent.hpp"
-#include "ecs/TransformComponent.hpp"
-#include "ecs/RenderComponent.hpp"
-#include "ecs/LightComponent.hpp"
+#include "ecs/components/NameComponent.hpp"
+#include "ecs/components/TransformComponent.hpp"
+#include "ecs/components/RenderComponent.hpp"
+#include "ecs/components/LightComponent.hpp"
 
 namespace BB
 {
