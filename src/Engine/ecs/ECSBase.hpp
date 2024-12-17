@@ -4,10 +4,16 @@
 
 namespace BB
 {
-	constexpr ECSSignatureIndex TRANSFORM_ECS_SIGNATURE = ECSSignatureIndex(0);
-	constexpr ECSSignatureIndex NAME_ECS_SIGNATURE = ECSSignatureIndex(1);
-	constexpr ECSSignatureIndex RENDER_ECS_SIGNATURE = ECSSignatureIndex(2);
-	constexpr ECSSignatureIndex LIGHT_ECS_SIGNATURE = ECSSignatureIndex(3);
+	// transform
+	constexpr ECSSignatureIndex POSITION_ECS_SIGNATURE = ECSSignatureIndex(1);
+	constexpr ECSSignatureIndex ROTATION_ECS_SIGNATURE = ECSSignatureIndex(2);
+	constexpr ECSSignatureIndex SCALE_ECS_SIGNATURE = ECSSignatureIndex(3);
+	constexpr ECSSignatureIndex LOCAL_MATRIX_ECS_SIGNATURE = ECSSignatureIndex(4);
+	constexpr ECSSignatureIndex WORLD_MATRIX_ECS_SIGNATURE = ECSSignatureIndex(5);
+
+	constexpr ECSSignatureIndex NAME_ECS_SIGNATURE = ECSSignatureIndex(6);
+	constexpr ECSSignatureIndex RENDER_ECS_SIGNATURE = ECSSignatureIndex(7);
+	constexpr ECSSignatureIndex LIGHT_ECS_SIGNATURE = ECSSignatureIndex(8);
 
 	template <typename T, typename Component>
 	concept is_ecs_component_map = requires(T v, const Component& a_component, const ECSEntity a_entity)
@@ -29,10 +35,10 @@ namespace BB
 	class ECSComponentBase
 	{
 	public:
-		void Init(struct MemoryArena& a_arena, const uint32_t a_transform_count)
+		void Init(struct MemoryArena& a_arena, const uint32_t a_entity_max)
 		{
-			m_components.Init(a_arena, a_transform_count);
-			m_components.resize(a_transform_count);
+			m_components.Init(a_arena, a_entity_max);
+			m_components.resize(a_entity_max);
 		}
 
 		bool CreateComponent(const ECSEntity a_entity)
@@ -49,7 +55,7 @@ namespace BB
 			if (EntityInvalid(a_entity))
 				return false;
 
-			new (&m_components[a_entity.index]) float3(a_component);
+			new (&m_components[a_entity.index]) T(a_component);
 			return true;
 		}
 		bool FreeComponent(const ECSEntity a_entity)
