@@ -14,12 +14,12 @@ bool TransformSystem::EntityAddTransform(const ECSEntity a_entity, const float3 
 
 float3 TransformSystem::Translate(const ECSEntity a_entity, const float3 a_translate)
 {
-
+	m_pos = m_pos + a_translation;
 }
 
 float3x3 TransformSystem::Rotate(const ECSEntity a_entity, const float3x3 a_rotate)
 {
-
+	m_rot = QuatFromAxisAngle(a_axis, a_radians); //glm::angleAxis(a_radians, a_axis);
 }
 
 float3 TransformSystem::Scale(const ECSEntity a_entity, const float3x3 a_scale)
