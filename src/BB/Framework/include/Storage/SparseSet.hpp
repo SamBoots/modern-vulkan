@@ -10,6 +10,7 @@
 namespace BB
 {
 	constexpr uint32_t SPARSE_SET_INVALID = UINT32_MAX;
+	constexpr uint32_t SPARSE_SET_ALREADY_SET = UINT32_MAX - 1;
 
 	class StaticSparseSet
 	{
@@ -36,6 +37,12 @@ namespace BB
 			}
 		}
 
+		uint32_t operator[](const uint32_t a_index) const
+		{
+			BB_ASSERT(a_index <= m_dense_max, "Dynamic_Array, trying to get an element using the [] operator but that element is not there.");
+			return m_dense[a_index];
+		}
+
 		// returns SPARSE_SET_INVALID on failure
 		uint32_t Find(const uint32_t a_sparse_value) const
 		{
@@ -48,10 +55,10 @@ namespace BB
 			return dense_index;
 		}
 
-		uint32_t insert(const uint32_t a_sparse_value)
+		uint32_t Insert(const uint32_t a_sparse_value)
 		{
 			if (Find(a_sparse_value) != SPARSE_SET_INVALID)
-				return SPARSE_SET_INVALID;
+				return SPARSE_SET_ALREADY_SET;
 			if (m_dense_count >= m_dense_max)
 				return SPARSE_SET_INVALID;
 
@@ -72,6 +79,18 @@ namespace BB
 			m_sparse[move_value] = m_sparse[a_sparse_value];
 
 			return true;
+		}
+
+		void Clear()
+		{
+			for (size_t i = 0; i < m_dense_count; i++)
+			{
+				m_dense[i] = 0;
+			}
+			for (size_t i = 0; i < m_sparse_max; i++)
+			{
+				m_sparse[i] = SPARSE_SET_INVALID;
+			}
 		}
 
 		uint32_t Size() const

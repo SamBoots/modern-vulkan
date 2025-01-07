@@ -6,10 +6,7 @@
 #include "GPUBuffers.hpp"
 
 #include "ecs/EntityMap.hpp"
-#include "ecs/components/NameComponent.hpp"
-#include "ecs/components/TransformComponent.hpp"
-#include "ecs/components/RenderComponent.hpp"
-#include "ecs/components/LightComponent.hpp"
+#include "ecs/EntityComponentSystem.hpp"
 
 namespace BB
 {
@@ -50,16 +47,10 @@ namespace BB
 		static StaticArray<Asset::AsyncAsset> PreloadAssetsFromJson(MemoryArena& a_arena, const JsonParser& a_parsed_file);
 
 		void DrawSceneHierarchy(const RCommandList a_list, const RImageView a_render_target_view, const uint32_t a_back_buffer_index, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
-		ECSEntity CreateEntity(const float3 a_position, const char* a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
+		ECSEntity CreateEntity(const float3 a_position, const NameComponent& a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
 		ECSEntity CreateEntityMesh(const float3 a_position, const SceneMeshCreateInfo& a_mesh_info, const char* a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
 		ECSEntity CreateEntityViaModel(const Model& a_model, const float3 a_position, const char* a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
 		ECSEntity CreateEntityAsLight(const LightCreateInfo& a_light_create_info, const char* a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
-
-		// ECS functions
-		bool EntityAssignName(const ECSEntity a_entity, const NameComponent& a_name);
-		bool EntityAssignTransform(const ECSEntity a_entity, const float3 a_position = float3(0.f), const Quat a_rotation = Quat(0.f, 0.f, 0.f, 0.f), const float3 a_scale = float3(1.f));
-		bool EntityAssignRenderComponent(const ECSEntity a_entity, const RenderComponent& a_draw_info);
-		bool EntityAssignLight(const ECSEntity a_entity, const LightComponent& a_light);
 
 		void SetView(const float4x4& a_view, const float3& a_view_position);
 		void SetProjection(const float4x4& a_projection);
@@ -93,45 +84,6 @@ namespace BB
 
 		static RDescriptorLayout GetSceneDescriptorLayout();
 	private:
-		struct PerFrameData
-		{
-			uint2 previous_draw_area;
-			uint64_t fence_value;
-			DescriptorAllocation scene_descriptor;
-
-			// scene data
-			GPUStaticCPUWriteableBuffer scene_buffer;
-			// I want this to be uniform but hlsl is giga cringe
-			GPULinearBuffer storage_buffer;
-
-			struct Bloom
-			{
-				RImage image;
-				RDescriptorIndex descriptor_index_0;
-				RDescriptorIndex descriptor_index_1;
-				uint2 resolution;
-			};
-			Bloom bloom;
-			
-			RImage depth_image;
-			RImageView depth_image_view;
-			struct ShadowMap
-			{
-				RImage image;
-				RDescriptorIndex descriptor_index;
-				StaticArray<RImageView> render_pass_views;
-			} shadow_map;
-		};
-
-		struct PostFXOptions
-		{
-			float bloom_strength;
-			float bloom_scale;
-		};
-		PostFXOptions m_postfx;
-
-		PostFXOptions& GetPostFXOptions() { return m_postfx; }
-
 		void UpdateConstantBuffer(PerFrameData& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size);
 		void SkyboxPass(const PerFrameData& a_pfd, const RCommandList a_list, const RImageView a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
 		void ResourceUploadPass(PerFrameData& a_pfd, const RCommandList a_list);
@@ -148,47 +100,13 @@ namespace BB
 		Light& GetLight(const ECSEntity a_entity) const;
 		bool FreeLight(const ECSEntity a_entity);
 
-		struct DrawList
-		{
-			RenderComponent* mesh_draw_call;
-			ShaderTransform* transform;
-			uint32_t size;
-			uint32_t max_size;
-		};
-
-		struct Options
-		{
-			bool skip_skybox;
-			bool skip_shadow_mapping;
-			bool skip_object_rendering;
-			bool skip_bloom;
-		} m_options;
-
-		Scene3DInfo m_scene_info;
-		DrawList m_draw_list;
-
-		RFence m_fence;
-		uint64_t m_next_fence_value;
-		uint64_t m_last_completed_fence_value;
-		GPUUploadRingAllocator m_upload_allocator;
 		StaticArray<PerFrameData> m_per_frame;
 
 		StringView m_scene_name;
 
 		//TODO, maybe remember all the transforms from the previous frames?
-		EntityMap m_ecs_entities;
-		NameComponentPool m_name_pool;
-		TransformComponentPool m_transform_pool;
-		RenderComponentPool m_render_mesh_pool;
-		LightComponentPool m_light_pool;
+		EntityComponentSystem m_ecs;
 
 		StaticArray<ECSEntity> m_scene_objects;
-
-		float3 m_clear_color;
-		RImage m_skybox;
-		RDescriptorIndex m_skybox_descriptor_index;
-		MasterMaterialHandle m_skybox_material;
-		MasterMaterialHandle m_shadowmap_material;
-		MasterMaterialHandle m_gaussian_material;
 	};
 }

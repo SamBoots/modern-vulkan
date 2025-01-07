@@ -15,6 +15,111 @@ namespace BB
 	constexpr ECSSignatureIndex RENDER_ECS_SIGNATURE = ECSSignatureIndex(7);
 	constexpr ECSSignatureIndex LIGHT_ECS_SIGNATURE = ECSSignatureIndex(8);
 
+	class EntitySparseSet
+	{
+	public:
+		EntitySparseSet() = default;
+		EntitySparseSet(const EntitySparseSet& a_map) = delete;
+		EntitySparseSet(EntitySparseSet&& a_map) = delete;
+
+		EntitySparseSet& operator=(const EntitySparseSet& a_rhs) = delete;
+		EntitySparseSet& operator=(EntitySparseSet&& a_rhs) = delete;
+
+		void Init(MemoryArena& a_arena, const uint32_t a_sparse_size, const uint32_t a_dense_size)
+		{
+			BB_ASSERT(m_sparse == nullptr, "initializing a static slotmap while it was already initialized or not set to 0");
+			m_sparse_max = a_sparse_size;
+			m_dense_max = a_dense_size;
+			m_dense_count = 0;
+
+			m_sparse = ArenaAllocArr(a_arena, uint32_t, m_sparse_max);
+			m_dense_ecs = ArenaAllocArr(a_arena, ECSEntity, m_dense_max);
+			for (uint32_t i = 0; i < m_sparse_max; i++)
+				m_sparse[i] = SPARSE_SET_INVALID;
+			for (uint32_t i = 0; i < m_dense_count; i++)
+				m_dense_ecs[i] = INVALID_ECS_OBJ;
+		}
+
+		ECSEntity operator[](const uint32_t a_index) const
+		{
+			BB_ASSERT(a_index <= m_dense_max, "trying to get an element using the [] operator but that element is not there.");
+			return m_dense_ecs[a_index];
+		}
+
+		// returns SPARSE_SET_INVALID on failure
+		ECSEntity Find(const uint32_t a_ecs_index) const
+		{
+			if (a_ecs_index > m_sparse_max)
+				return INVALID_ECS_OBJ;
+			const uint32_t dense_index = m_sparse[a_ecs_index];
+			if (dense_index < m_dense_count && m_dense_ecs[dense_index].index != a_ecs_index)
+				return INVALID_ECS_OBJ;
+
+			return m_dense_ecs[dense_index];
+		}
+
+		uint32_t Insert(const ECSEntity a_value)
+		{
+			if (Find(a_value.index) != INVALID_ECS_OBJ)
+				return SPARSE_SET_ALREADY_SET;
+			if (m_dense_count >= m_dense_max)
+				return SPARSE_SET_INVALID;
+
+			m_dense_ecs[m_dense_count] = a_value;
+			m_sparse[a_value.index] = m_dense_count++;
+
+			return m_sparse[a_value.index];
+		}
+
+		bool Erase(const ECSEntity a_value)
+		{
+			if (Find(a_value.index) == INVALID_ECS_OBJ)
+				return false;
+
+			// TODO: use move here
+			const ECSEntity move_value = m_dense_ecs[--m_dense_count];
+			m_dense_ecs[m_sparse[a_value.index]] = move_value;
+			m_sparse[move_value.index] = m_sparse[a_value.index];
+
+			return true;
+		}
+
+		void Clear()
+		{
+			for (uint32_t i = 0; i < m_sparse_max; i++)
+				m_sparse[i] = SPARSE_SET_INVALID;
+			for (uint32_t i = 0; i < m_dense_count; i++)
+				m_dense_ecs[i] = INVALID_ECS_OBJ;
+		}
+
+		uint32_t Size() const
+		{
+			return m_dense_count;
+		}
+
+		uint32_t CapacitySparse() const
+		{
+			return m_sparse_max;
+		}
+
+		uint32_t CapacityDense() const
+		{
+			return m_dense_max;
+		}
+
+		ConstSlice<ECSEntity> GetDense() const
+		{
+			return ConstSlice<ECSEntity>(m_dense_ecs, m_dense_count);
+		}
+
+	private:
+		uint32_t m_sparse_max;
+		uint32_t m_dense_max;
+		uint32_t m_dense_count;
+		uint32_t* m_sparse;
+		ECSEntity* m_dense_ecs;
+	};
+
 	template <typename T, typename Component>
 	concept is_ecs_component_map = requires(T v, const Component& a_component, const ECSEntity a_entity)
 	{

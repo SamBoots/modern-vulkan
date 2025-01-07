@@ -313,6 +313,15 @@ namespace BB
     //--------------------------------------------------------
     // FLOAT3x3
 
+	static inline float3x3 operator*(const float3x3& a_lhs, const float3x3& a_rhs)
+	{
+		float3x3 mat;
+		mat.r0 = a_lhs.r0 * a_rhs.r0.x + a_lhs.r1 * a_rhs.r0.y + a_lhs.r2 * a_rhs.r0.z;
+		mat.r1 = a_lhs.r0 * a_rhs.r1.x + a_lhs.r1 * a_rhs.r1.y + a_lhs.r2 * a_rhs.r1.z;
+		mat.r2 = a_lhs.r0 * a_rhs.r2.x + a_lhs.r1 * a_rhs.r2.y + a_lhs.r2 * a_rhs.r2.z;
+		return mat;
+	}
+
 	static inline float3x3 Float3x3FromFloats(
 		const float m00, const float m01, const float m02,
 		const float m10, const float m11, const float m12,
@@ -437,7 +446,17 @@ namespace BB
 		return mat;
 	}
 
-	static inline float4x4 operator*(const float4x4& a_lhs, const float4x4 a_rhs)
+	static inline float4x4 operator*(const float4x4& a_lhs, const float3x3& a_rhs)
+	{
+		float4x4 mat;
+		mat.r0 = a_lhs.r0 * a_rhs.r0.x + a_lhs.r1 * a_rhs.r0.y + a_lhs.r2 * a_rhs.r0.z + a_lhs.r3;
+		mat.r1 = a_lhs.r0 * a_rhs.r1.x + a_lhs.r1 * a_rhs.r1.y + a_lhs.r2 * a_rhs.r1.z + a_lhs.r3;
+		mat.r2 = a_lhs.r0 * a_rhs.r2.x + a_lhs.r1 * a_rhs.r2.y + a_lhs.r2 * a_rhs.r2.z + a_lhs.r3;
+		mat.r3 = a_lhs.r0 + a_lhs.r1 + a_lhs.r2 + a_lhs.r3;
+		return mat;
+	}
+
+	static inline float4x4 operator*(const float4x4& a_lhs, const float4x4& a_rhs)
 	{
 		float4x4 mat;
 		mat.r0 = a_lhs.r0 * a_rhs.r0.x + a_lhs.r1 * a_rhs.r0.y + a_lhs.r2 * a_rhs.r0.z + a_lhs.r3 * a_rhs.r0.w;
@@ -618,6 +637,14 @@ namespace BB
 		return float3(a_transform.r0.w, a_transform.r1.w, a_transform.r2.w);
 	}
 
+	static inline float3x3 Float3x3ExtractRotationFromFloat4x4(const float4x4& a_transform, const float3 a_scale)
+	{
+		return Float3x3FromFloats(
+			a_transform.e[0][0] / a_scale.x, a_transform.e[0][1] / a_scale.x, a_transform.e[0][2] / a_scale.x,
+			a_transform.e[1][0] / a_scale.x, a_transform.e[1][1] / a_scale.x, a_transform.e[1][2] / a_scale.x,
+			a_transform.e[2][0] / a_scale.x, a_transform.e[2][1] / a_scale.x, a_transform.e[2][2] / a_scale.x);
+	}
+
 	static inline float3 Float4x4ExtractScale(const float4x4& a_transform)
 	{
 		return float3(
@@ -691,10 +718,10 @@ namespace BB
 		return quat * (0.5f / sqrtf(t));
 	}
 
-	static inline void Float4x4DecomposeTransform(const float4x4& a_transform, float3& a_translation, Quat& a_rotation, float3& a_scale)
+	static inline void Float4x4DecomposeTransform(const float4x4& a_transform, float3& a_translation, float3x3& a_rotation, float3& a_scale)
 	{
 		a_translation = Float4x4ExtractTranslation(a_transform);
 		a_scale = Float4x4ExtractScale(a_transform);
-		a_rotation = Float4x4ExtractRotationAsQuad(a_transform, a_scale);
+		a_rotation = Float3x3ExtractRotationFromFloat4x4(a_transform, a_scale);
 	}
 }

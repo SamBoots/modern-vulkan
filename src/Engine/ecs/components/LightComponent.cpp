@@ -18,7 +18,7 @@ bool LightComponentPool::CreateComponent(const ECSEntity a_entity)
 	if (m_components.capacity() == m_sparse_set.Size())
 		return false;
 
-	const uint32_t component_index = m_sparse_set.insert(a_entity.index);
+	const uint32_t component_index = m_sparse_set.Insert(a_entity);
 	if (component_index == SPARSE_SET_INVALID)
 		return false;
 
@@ -31,7 +31,7 @@ bool LightComponentPool::CreateComponent(const ECSEntity a_entity, const LightCo
 	if (m_components.capacity() == m_sparse_set.Size())
 		return false;
 
-	const uint32_t component_index = m_sparse_set.insert(a_entity.index);
+	const uint32_t component_index = m_sparse_set.Insert(a_entity);
 	if (component_index == SPARSE_SET_INVALID)
 		return false;
 
@@ -44,12 +44,17 @@ bool LightComponentPool::FreeComponent(const ECSEntity a_entity)
 	if (m_sparse_set.Size() == 0)
 		return false;
 
-	return m_sparse_set.Erase(a_entity.index);
+	return m_sparse_set.Erase(a_entity);
 }
 
 LightComponent& LightComponentPool::GetComponent(const ECSEntity a_entity) const
 {
-	const uint32_t index = m_sparse_set.Find(a_entity.index);
-	BB_ASSERT(index != SPARSE_SET_INVALID, "invalid sparse set index returned");
-	return m_components[index];
+	const ECSEntity index = m_sparse_set.Find(a_entity.index);
+	BB_ASSERT(a_entity != INVALID_ECS_OBJ, "invalid sparse set index returned");
+	return m_components[a_entity.index];
+}
+
+ConstSlice<ECSEntity> LightComponentPool::GetEntityComponents() const
+{
+	return m_sparse_set.GetDense();
 }

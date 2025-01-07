@@ -380,7 +380,7 @@ namespace BB
 			return m_arr[a_index];
 		}
 
-		void push_back(T& a_element)
+		void push_back(const T& a_element)
 		{
 			emplace_back(a_element);
 		}

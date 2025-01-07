@@ -14,12 +14,16 @@ namespace BB
 		bool FreeEntity(const ECSEntity a_entity);
 		bool EntitySetParent(const ECSEntity a_entity, const ECSEntity a_parent);
 
-		// retursn false if the signature is already set.
+		// returns false if the signature is already set.
 		bool RegisterSignature(const ECSEntity a_entity, const ECSSignatureIndex a_signature_index);
+		// returns false if one of the signature is already set.
+		bool RegisterSignatures(const ECSEntity a_entity, const ConstSlice<ECSSignatureIndex> a_signature_indices);
 		// returns false if the signature was not set.
 		bool UnregisterSignature(const ECSEntity a_entity, const ECSSignatureIndex a_signature_index);
+		// returns false if one of the signature was not set.
+		bool UnregisterSignatures(const ECSEntity a_entity, const ConstSlice<ECSSignatureIndex> a_signature_indices);
 
-		bool GetParent(const ECSEntity a_entity, ECSEntity& a_out_parent) const;
+		ECSEntity GetParent(const ECSEntity a_entity) const;
 		bool GetSignature(const ECSEntity a_entity, ECSSignature& a_out_signature) const;
 		bool HasSignature(const ECSEntity a_entity, const ECSSignatureIndex a_signature_index) const;
 		bool HasSignature(const ECSSignature a_signature, const ECSSignatureIndex a_signature_index) const;

@@ -49,7 +49,7 @@ namespace BB
 		{
 			float3 translation;
 			float3 scale;
-			Quat rotation;
+			float3x3 rotation;
 			Node* childeren;
 			size_t child_count;
 			Mesh* mesh;

@@ -2,6 +2,7 @@
 #include "BBMemory.h"
 #include "ecs/ECSBase.hpp"
 #include "Rendererfwd.hpp"
+#include "Storage/SparseSet.hpp"
 
 namespace BB
 {
@@ -19,12 +20,14 @@ namespace BB
 	class RenderComponentPool
 	{
 	public:
-		void Init(struct MemoryArena& a_arena, const uint32_t a_render_mesh_count);
+		void Init(struct MemoryArena& a_arena, const uint32_t a_render_mesh_countm, const uint32_t a_entity_count));
 
 		bool CreateComponent(const ECSEntity a_entity);
 		bool CreateComponent(const ECSEntity a_entity, const RenderComponent& a_component);
 		bool FreeComponent(const ECSEntity a_entity);
 		RenderComponent& GetComponent(const ECSEntity a_entity) const;
+		
+		ConstSlice<ECSEntity> GetEntityComponents() const;
 
 		inline ECSSignatureIndex GetSignatureIndex() const
 		{
@@ -32,14 +35,11 @@ namespace BB
 		}
 		inline uint32_t GetSize() const
 		{
-			return m_size;
+			return m_sparse_set.Size();
 		}
 
 	private:
-		bool EntityInvalid(const ECSEntity a_entity) const;
-
-		uint32_t m_size;
-		// components equal to entities.
+		EntitySparseSet m_sparse_set;
 		StaticArray<RenderComponent> m_components;
 	};
 	static_assert(is_ecs_component_map<RenderComponentPool, RenderComponent>);

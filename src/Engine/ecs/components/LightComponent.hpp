@@ -22,6 +22,8 @@ namespace BB
 		bool FreeComponent(const ECSEntity a_entity);
 		LightComponent& GetComponent(const ECSEntity a_entity) const;
 
+		ConstSlice<ECSEntity> GetEntityComponents() const;
+
 		inline ECSSignatureIndex GetSignatureIndex() const
 		{
 			return LIGHT_ECS_SIGNATURE;
@@ -37,8 +39,7 @@ namespace BB
 		}
 
 	private:
-		// components equal to entities.
-		StaticSparseSet m_sparse_set;
+		EntitySparseSet m_sparse_set;
 		StaticArray<LightComponent> m_components;
 	};
 	static_assert(is_ecs_component_map<LightComponentPool, LightComponent>);

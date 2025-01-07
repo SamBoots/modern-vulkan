@@ -10,10 +10,11 @@ add_library(Engine
 	"EngineConfig.cpp"
 	"Viewport.cpp"
 	"ecs/EntityMap.cpp"
-	"ecs/components/TransformComponent.cpp"
+	"ecs/EntityComponentSystem.cpp"
 	"ecs/components/RenderComponent.cpp" 
 	"ecs/components/LightComponent.cpp" 
-	"ecs/components/NameComponent.cpp")
+	"ecs/components/NameComponent.cpp" 
+	"ecs/systems/RenderSystem.cpp")
 	
 target_include_directories(Engine PUBLIC "")
 

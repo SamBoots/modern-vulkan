@@ -69,6 +69,20 @@ bool EntityMap::RegisterSignature(const ECSEntity a_entity, const ECSSignatureIn
 	return true;
 }
 
+bool EntityMap::RegisterSignatures(const ECSEntity a_entity, const ConstSlice<ECSSignatureIndex> a_signature_indices)
+{
+	if (!ValidateEntity(a_entity))
+		return false;
+	bool no_overlap_registrations = true;
+	for (size_t i = 0; i < a_signature_indices.size(); i++)
+	{
+		if (m_entities[a_entity.index].signature[a_signature_indices[i].handle] == true)
+			no_overlap_registrations = false;
+		m_entities[a_entity.index].signature[a_signature_indices[i].handle] = true;
+	}
+	return no_overlap_registrations;
+}
+
 bool EntityMap::UnregisterSignature(const ECSEntity a_entity, const ECSSignatureIndex a_signature_index)
 {
 	if (!ValidateEntity(a_entity))
@@ -81,13 +95,26 @@ bool EntityMap::UnregisterSignature(const ECSEntity a_entity, const ECSSignature
 	return true;
 }
 
-bool EntityMap::GetParent(const ECSEntity a_entity, ECSEntity& a_out_parent) const
+bool EntityMap::UnregisterSignatures(const ECSEntity a_entity, const ConstSlice<ECSSignatureIndex> a_signature_indices)
 {
 	if (!ValidateEntity(a_entity))
 		return false;
+	bool no_overlap_registrations = true;
+	for (size_t i = 0; i < a_signature_indices.size(); i++)
+	{
+		if (m_entities[a_entity.index].signature[a_signature_indices[i].handle] == false)
+			no_overlap_registrations = false;
+		m_entities[a_entity.index].signature[a_signature_indices[i].handle] = false;
+	}
+	return no_overlap_registrations;
+}
 
-	a_out_parent = m_entities[a_entity.index].parent;
-	return true;
+ECSEntity EntityMap::GetParent(const ECSEntity a_entity) const
+{
+	if (!ValidateEntity(a_entity))
+		return INVALID_ECS_OBJ;
+
+	return m_entities[a_entity.index].parent;
 }
 
 bool EntityMap::GetSignature(const ECSEntity a_entity, ECSSignature& a_out_signature) const
