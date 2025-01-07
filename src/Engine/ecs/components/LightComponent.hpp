@@ -23,6 +23,7 @@ namespace BB
 		LightComponent& GetComponent(const ECSEntity a_entity) const;
 
 		ConstSlice<ECSEntity> GetEntityComponents() const;
+		ConstSlice<LightComponent> GetAllComponents() const;
 
 		inline ECSSignatureIndex GetSignatureIndex() const
 		{

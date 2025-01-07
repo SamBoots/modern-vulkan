@@ -58,3 +58,8 @@ ConstSlice<ECSEntity> LightComponentPool::GetEntityComponents() const
 {
 	return m_sparse_set.GetDense();
 }
+
+ConstSlice<LightComponent> LightComponentPool::GetAllComponents() const
+{
+	return m_components.const_slice();
+}

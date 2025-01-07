@@ -497,20 +497,20 @@ namespace BB
 		Iterator begin() { return Iterator(m_arr); }
 		Iterator end() { return Iterator(&m_arr[m_size + 1]); } //Get an out of bounds Iterator.
 
-		ConstSlice<T> const_slice()
+		ConstSlice<T> const_slice() const
 		{
 			return const_slice(m_size);
 		}
-		ConstSlice<T> const_slice(const size_t a_size, const size_t a_begin = 0)
+		ConstSlice<T> const_slice(const size_t a_size, const size_t a_begin = 0) const
 		{
 			BB_ASSERT(a_begin + a_size <= m_size, "requesting an out of bounds slice");
 			return ConstSlice<T>(&m_arr[a_begin], a_size);
 		}
-		Slice<T> slice()
+		Slice<T> slice() const
 		{
 			return slice(m_size);
 		}
-		Slice<T> slice(const size_t a_size, const size_t a_begin = 0)
+		Slice<T> slice(const size_t a_size, const size_t a_begin = 0) const
 		{
 			BB_ASSERT(a_begin + a_size <= m_size, "requesting an out of bounds slice");
 			return Slice<T>(&m_arr[a_begin], a_size);

@@ -23,30 +23,7 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 	m_global_buffer.buffer.Allocate(a_max_lights * sizeof(float4x4), m_global_buffer.light_viewproj_view);
 }
 
-void RenderSystem::UpdateLights(MemoryArena& a_temp_arena, const RCommandList a_list, const LightComponentPool& a_light_pool, const ConstSlice<ECSEntity> a_update_lights)
-{
-	const size_t buffer_size = a_update_lights.size() * (sizeof(Light) + sizeof(float4x4));
-	UploadBuffer upload_buffer = m_upload_allocator.AllocateUploadMemory(buffer_size, m_last_completed_fence_value);
-
-	size_t offset = 0;
-	for (size_t i = 0; i < a_update_lights.size(); i++)
-	{
-		upload_buffer.SafeMemcpy(offset, &a_light_pool.GetComponent(i).light, sizeof(Light));
-		offset += sizeof(Light);
-	}
-
-	for (size_t i = 0; i < a_update_lights.size(); i++)
-	{
-		upload_buffer.SafeMemcpy(offset, &a_light_pool.GetComponent(i).projection_view, sizeof(float4x4));
-		offset += sizeof(float4x4);
-	}
-
-	StaticArray<RenderCopyBufferRegion> copy_regions{};
-	copy_regions.Init(a_temp_arena, static_cast<uint32_t>(a_update_lights.size() * 2));
-
-}
-
-void RenderSystem::UpdateRenderSystem(MemoryArena& a_arena, const RCommandList a_list, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool)
+void RenderSystem::UpdateRenderSystem(MemoryArena& a_arena, const RCommandList a_list, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const LightComponentPool& a_light_pool)
 {
 	PerFrame& pfd = m_per_frame[m_current_backbuffer];
 	WaitFence(m_fence, pfd.fence_value);
@@ -90,9 +67,9 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_arena, const RCommandList a
 	m_current_backbuffer = ;
 }
 
-void RenderSystem::UpdateConstantBuffer(PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size)
+void RenderSystem::UpdateConstantBuffer(PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size, const ConstSlice<LightComponent> a_lights)
 {
-	m_scene_info.light_count = m_light_pool.GetSize();
+	m_scene_info.light_count = a_lights.size();
 	m_scene_info.scene_resolution = a_draw_area_size;
 	m_scene_info.shadow_map_count = a_pfd.shadow_map.render_pass_views.size();
 	m_scene_info.shadow_map_array_descriptor = a_pfd.shadow_map.descriptor_index;
@@ -267,7 +244,7 @@ void RenderSystem::SkyboxPass(const PerFrame& a_pfd, const RCommandList a_list, 
 	EndRenderPass(a_list);
 }
 
-void RenderSystem::ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list, const DrawList& a_draw_list)
+void RenderSystem::ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list, const DrawList& a_draw_list, const ConstSlice<LightComponent> a_lights)
 {
 	GPULinearBuffer& cur_scene_buffer = a_pfd.storage_buffer;
 	cur_scene_buffer.Clear();
@@ -277,6 +254,9 @@ void RenderSystem::ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list
 	}
 
 	const size_t matrices_upload_size = a_draw_list.draw_entries.size() * sizeof(ShaderTransform);
+	const size_t light_upload_size = a_lights.size() * sizeof(Light);
+	const size_t light_projection_view_size = a_lights.size() * sizeof(float4x4);
+
 	// optimize this
 	const size_t total_size = matrices_upload_size + light_upload_size + light_projection_view_size;
 
@@ -288,14 +268,15 @@ void RenderSystem::ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list
 	const size_t matrix_offset = bytes_uploaded + upload_buffer.base_offset;
 	bytes_uploaded += matrices_upload_size;
 
-	for (uint32_t i = 0; i < m_light_pool.GetSize(); i++)
-		upload_buffer.SafeMemcpy(bytes_uploaded, &m_light_pool.GetComponent(i).light, sizeof(Light));
+
+	for (uint32_t i = 0; i < a_lights.size(); i++)
+		upload_buffer.SafeMemcpy(bytes_uploaded + i * sizeof(Light), &a_lights[i].light, sizeof(Light));
 
 	const size_t light_offset = bytes_uploaded + upload_buffer.base_offset;
 	bytes_uploaded += light_upload_size;
 
-	for (uint32_t i = 0; i < m_light_pool.GetSize(); i++)
-		upload_buffer.SafeMemcpy(bytes_uploaded, &m_light_pool.GetComponent(i).projection_view, sizeof(float4x4));
+	for (uint32_t i = 0; i < a_lights.size(); i++)
+		upload_buffer.SafeMemcpy(bytes_uploaded + i * sizeof(float4x4), &a_lights[i].projection_view, sizeof(float4x4));
 	const size_t light_projection_view_offset = bytes_uploaded + upload_buffer.base_offset;
 	bytes_uploaded += light_projection_view_size;
 
@@ -366,9 +347,9 @@ void RenderSystem::ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list
 	}
 }
 
-void RenderSystem::ShadowMapPass(const PerFrame& a_pfd, const RCommandList a_list, const uint2 a_shadow_map_resolution, const DrawList& a_draw_list)
+void RenderSystem::ShadowMapPass(const PerFrame& a_pfd, const RCommandList a_list, const uint2 a_shadow_map_resolution, const DrawList& a_draw_list, const ConstSlice<LightComponent> a_lights)
 {
-	const uint32_t shadow_map_count = m_light_pool.GetSize();
+	const uint32_t shadow_map_count = a_lights.size();
 	if (shadow_map_count == 0)
 	{
 		return;
