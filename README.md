@@ -7,6 +7,7 @@ A game engine using modern vulkan techniques such as descriptor buffers, dynamic
 ### [BBFramework](https://github.com/SamBoots/BBFramework/tree/main), my custom framework to replace most of the STL 
 My own framework to replace parts of the STL to learn how and why it works. At times adjusting it to exactly what I need. 
 Most data containers and cross-platform code comes from here. The base bones of the project.
+This project has a modified version of the BBFramework and is consindered to be the most up to date.
 ### Tight memory control
 Most if not all memory is managed via memory arena's, which are linear allocators with debug functionality to track memory usage.
 There are memory interfaces for freelists, but the underlying memory comes from a linear allocator.
@@ -15,7 +16,6 @@ The engine is made to support multiple scenes. With the image above you can see 
 These scenes can be updated async and you can have multiple of these scenes.
 ### Custom math library
 In order to learn the underlying math I have implemented most math functions and primitives myself. Pure for learning.
-
 All scenes handle their own input events. 
 
 ### ECS - WIP
@@ -37,7 +37,7 @@ The engine's internals will be using an ECS system per scene. This will simplify
 - Sparseset
 #### Rendering Low level
 - Vulkan
-- Multi Commandlist rendering
+- Multiple Aync Commandlist rendering
 - Descriptor Buffers over Descriptor Sets
 - Shader Objects over Render Pipelines
 - Shader hot reloading
@@ -46,7 +46,6 @@ The engine's internals will be using an ECS system per scene. This will simplify
 - Forward Rendering
 - Bloom
 - Normal Maps
-- Lights
 - Shadow Mapping
 - Multiple lights & shadows
 #### Editor
@@ -61,7 +60,7 @@ The engine's internals will be using an ECS system per scene. This will simplify
 - Resize images via stb image resize
 - Generate and store on disk icons for assets
 #### Input
-- Raw Input for Mouse & Keyboard
+- Raw Input API from Windows for Mouse & Keyboard
 #### Game
 - Rudamentry old-school dungeon navigation controls
 - Dungeon generation via .jpg
