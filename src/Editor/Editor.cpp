@@ -269,7 +269,7 @@ void Editor::MainEditorImGuiInfo(const MemoryArena& a_arena)
 	ImGui::End();
 }
 
-void Editor::ThreadFuncForDrawing(MemoryArena&, void* a_param)
+void Editor::ThreadFuncForDrawing(MemoryArena& a_arena, void* a_param)
 {
 	ThreadFuncForDrawing_Params* param_in = reinterpret_cast<ThreadFuncForDrawing_Params*>(a_param);
 
@@ -277,10 +277,10 @@ void Editor::ThreadFuncForDrawing(MemoryArena&, void* a_param)
 	Viewport& viewport = *param_in->viewport;
 	SceneHierarchy& scene_hierarchy = *param_in->scene_hierarchy;
 	RCommandList list = param_in->command_list;
-
-	const RImageView render_target = viewport.StartRenderTarget(list, back_buffer_index);
-	scene_hierarchy.DrawSceneHierarchy(list, render_target, back_buffer_index, viewport.GetExtent(), int2());
-	viewport.EndRenderTarget(list, back_buffer_index, IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL);
+	MemoryArenaScope(a_arena)
+	{
+		RenderSystemFrame frame = scene_hierarchy.UpdateScene(a_arena, list, viewport.GetExtent());
+	}
 }
 
 void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent, const size_t a_editor_memory)

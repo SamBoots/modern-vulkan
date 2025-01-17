@@ -4,16 +4,15 @@
 #include "Storage/BBString.h"
 #include "AssetLoader.hpp"
 #include "GPUBuffers.hpp"
+#include "ViewportInterface.hpp"
 
 #include "ecs/EntityMap.hpp"
 #include "ecs/EntityComponentSystem.hpp"
+#include "ecs/systems/RenderSystem.hpp"
 
 namespace BB
 {
 	class JsonParser;
-
-	constexpr uint32_t DEFAULT_SCENE_OBJ_MAX = 1024;
-	constexpr uint32_t SCENE_OBJ_CHILD_MAX = 256;
 
 	struct LightCreateInfo
 	{
@@ -43,70 +42,23 @@ namespace BB
 	{
 	public:
 		friend class Editor;
-		void Init(MemoryArena& a_memory_arena, const uint32_t a_back_buffers, const StringView a_name, const uint32_t a_scene_obj_max = DEFAULT_SCENE_OBJ_MAX);
+		void Init(MemoryArena& a_arena, const uint32_t a_ecs_obj_max, const uint2 a_window_size, const uint32_t a_back_buffers, const StackString<32> a_name);
 		static StaticArray<Asset::AsyncAsset> PreloadAssetsFromJson(MemoryArena& a_arena, const JsonParser& a_parsed_file);
 
-		void DrawSceneHierarchy(const RCommandList a_list, const RImageView a_render_target_view, const uint32_t a_back_buffer_index, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
+		void UpdateScene(MemoryArena& a_temp_arena, const RCommandList a_list, const Viewport& a_viewport);
+		bool DrawImgui(bool& a_resized, const RDescriptorIndex a_render_target, const Viewport& a_viewport);
+
 		ECSEntity CreateEntity(const float3 a_position, const NameComponent& a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
 		ECSEntity CreateEntityMesh(const float3 a_position, const SceneMeshCreateInfo& a_mesh_info, const char* a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
 		ECSEntity CreateEntityViaModel(const Model& a_model, const float3 a_position, const char* a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
 		ECSEntity CreateEntityAsLight(const LightCreateInfo& a_light_create_info, const char* a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
 
-		void SetView(const float4x4& a_view, const float3& a_view_position);
-		void SetProjection(const float4x4& a_projection);
-
-		bool ToggleSkipSkyboxPass()
-		{
-			return m_options.skip_skybox = !m_options.skip_skybox;
-		}
-
-		bool ToggleSkipShadowMappingPass()
-		{
-			return m_options.skip_shadow_mapping = !m_options.skip_shadow_mapping;
-		}
-
-		bool ToggleSkipObjectRenderingPass()
-		{
-			return m_options.skip_object_rendering = !m_options.skip_object_rendering;
-		}
-
-		bool ToggleSkipBloomPass()
-		{
-			return m_options.skip_bloom = !m_options.skip_bloom;
-		}
-
-		void SetClearColor(const float3 a_clear_color) { m_clear_color = a_clear_color; }
-		void IncrementNextFenceValue(RFence* a_out_fence, uint64_t* a_out_value) 
-		{ 
-			*a_out_fence = m_fence;  
-			*a_out_value = m_next_fence_value++;
-		}
-
-		static RDescriptorLayout GetSceneDescriptorLayout();
 	private:
-		void UpdateConstantBuffer(PerFrameData& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size);
-		void SkyboxPass(const PerFrameData& a_pfd, const RCommandList a_list, const RImageView a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
-		void ResourceUploadPass(PerFrameData& a_pfd, const RCommandList a_list);
-		void ShadowMapPass(const PerFrameData& a_pfd, const RCommandList a_list, const uint2 a_shadow_map_resolution);
-		void GeometryPass(const PerFrameData& a_pfd, const RCommandList a_list, const RImageView a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
-		void BloomPass(const PerFrameData& a_pfd, const RCommandList a_list, const RImageView a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
-
-		void AddToDrawList(const RenderComponent& a_render_mesh, const float4x4& a_transform);
 		ECSEntity CreateEntityViaModelNode(const Model::Node& a_node, const ECSEntity a_parent);
-		void DrawSceneObject(const ECSEntity& a_scene_object, const RCommandList a_list, const PerFrameData& a_pfd);
 
 		bool CreateLight(const ECSEntity a_entity, const LightCreateInfo& a_light_info);
 		float4x4 CalculateLightProjectionView(const float3 a_pos, const float a_near, const float a_far) const;
-		Light& GetLight(const ECSEntity a_entity) const;
-		bool FreeLight(const ECSEntity a_entity);
 
-		StaticArray<PerFrameData> m_per_frame;
-
-		StringView m_scene_name;
-
-		//TODO, maybe remember all the transforms from the previous frames?
 		EntityComponentSystem m_ecs;
-
-		StaticArray<ECSEntity> m_scene_objects;
 	};
 }

@@ -14,7 +14,7 @@ add_library(Engine
 	"ecs/components/RenderComponent.cpp" 
 	"ecs/components/LightComponent.cpp" 
 	"ecs/components/NameComponent.cpp" 
-	"ecs/systems/RenderSystem.cpp")
+	"ecs/systems/RenderSystem.cpp" )
 	
 target_include_directories(Engine PUBLIC "")
 

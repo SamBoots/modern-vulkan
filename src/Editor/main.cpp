@@ -19,14 +19,14 @@
 
 using namespace BB;
 
-static Editor editor;
 static EngineConfig engine_config;
+static bool end_app = false;
 
 static void CustomCloseWindow(const BB::WindowHandle a_window_handle)
 {
 	(void)a_window_handle;
 	WriteEngineConfigData(engine_config);
-	editor.Destroy();
+	end_app = true;
 }
 
 static void CustomResizeWindow(const BB::WindowHandle a_window_handle, const uint32_t a_x, const uint32_t a_y)
@@ -98,7 +98,7 @@ int main(int argc, char** argv)
 		const Asset::AssetManagerInitInfo asset_manager_info = {};
 		Asset::InitializeAssetManager(asset_manager_info);
 	}
-
+	Editor editor{};
 	editor.Init(main_arena, window_handle, engine_config.window_size);
 
 	SetWindowCloseEvent(CustomCloseWindow);
@@ -107,7 +107,6 @@ int main(int argc, char** argv)
 
 	auto current_time = std::chrono::high_resolution_clock::now();
 
-	bool quit_app = false;
 	float delta_time = 0;
 
 	DungeonGame def_game{};
@@ -116,7 +115,7 @@ int main(int argc, char** argv)
 	RenderViewport render_viewport{};
 	render_viewport.Init(window_extent / 2, back_buffer_count, "../../resources/scenes/standard_scene.json");
 
-	while (!quit_app)
+	while (!end_app)
 	{
 		Asset::Update();
 

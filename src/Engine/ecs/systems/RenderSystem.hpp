@@ -8,16 +8,34 @@
 
 namespace BB
 {
+	struct RenderSystemFrame
+	{
+		RDescriptorIndex render_target;
+	};
+
 	class RenderSystem
 	{
 	public:
-		void Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count, const uint32_t a_max_lights);
+		void Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count, const uint32_t a_max_lights, const uint2 a_render_target_size);
 
-		void UpdateRenderSystem(MemoryArena& a_arena, const RCommandList a_list, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const LightComponentPool& a_light_pool);
+		void StartFrame(const RCommandList a_list);
+		RenderSystemFrame EndFrame(const RCommandList a_list, const IMAGE_LAYOUT a_current_layout);
+		void UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCommandList a_list, const uint2 a_draw_area, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const ConstSlice<LightComponent> a_lights);
 		
+		void Resize(const uint2 a_new_extent);
+		void Screenshot(const RDescriptorIndex a_render_target, const char* a_name) const;
+
+		static RDescriptorLayout GetSceneDescriptorLayout();
+
+		void SetView(const float4x4& a_view, const float3& a_view_position);
+		void SetProjection(const float4x4& a_projection);
+		void SetClearColor(const float3 a_clear_color);
+
 	private:
 		struct PerFrame
 		{
+			RDescriptorIndex render_target_view;
+
 			uint2 previous_draw_area;
 			uint64_t fence_value;
 			DescriptorAllocation scene_descriptor;
@@ -60,14 +78,25 @@ namespace BB
 			StaticArray<ShaderTransform> transforms;
 		};
 
+		struct RenderTarget
+		{
+			RImage image;
+			uint2 size;
+		};
+
 		void UpdateConstantBuffer(PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size, const ConstSlice<LightComponent> a_lights);
-		void SkyboxPass(const PerFrame& a_pfd, const RCommandList a_list, const RImageView a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
+		void SkyboxPass(const PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size);
 		void ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list, const DrawList& a_draw_list, const ConstSlice<LightComponent> a_lights);
 		void ShadowMapPass(const PerFrame& a_pfd, const RCommandList a_list, const uint2 a_shadow_map_resolution, const DrawList& a_draw_list, const ConstSlice<LightComponent> a_lights);
-		void GeometryPass(const PerFrame& a_pfd, const RCommandList a_list, const RImageView a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset, const DrawList& a_draw_list);
-		void BloomPass(const PerFrame& a_pfd, const RCommandList a_list, const RImageView a_render_target, const uint2 a_draw_area_size, const int2 a_draw_area_offset);
+		void GeometryPass(const PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size, const DrawList& a_draw_list);
+		void BloomPass(const PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size);
 
+		void CreateRenderTarget(const uint2 a_render_target_size);
+
+		uint32_t m_current_frame;
 		StaticArray<PerFrame> m_per_frame;
+		RenderTarget m_render_target;
+
 
 		float m_bloom_strength;
 		float m_bloom_scale;
@@ -88,6 +117,11 @@ namespace BB
 			GPUBufferView light_viewproj_view;
 		} m_global_buffer;
 
+		struct PostFX
+		{
+			float bloom_strength;
+			float bloom_scale;
+		} m_postfx;
 
 		RFence m_fence;
 		uint64_t m_next_fence_value;

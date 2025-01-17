@@ -1,6 +1,7 @@
 #pragma once
 #include "Enginefwd.hpp"
 #include "Storage/Array.h"
+#include "Storage/SparseSet.hpp"
 
 namespace BB
 {
