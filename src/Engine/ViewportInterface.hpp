@@ -15,17 +15,17 @@ namespace BB
 	class Viewport
 	{
 	public:
-		void Init(const uint2 a_extent, const int2 a_offset, const StackString<32> a_name);
+		void Init(const uint2 a_extent, const int2 a_offset);
 
 		bool PositionWithinViewport(const uint2 a_pos) const;
 
 		float4x4 CreateProjection(const float a_fov, const float a_near_field, const float a_far_field) const;
 
-		const uint2 GetExtent() const { return m_extent; }
-		const int2 GetOffset() const { return m_offset; }
+		void SetExtent(const uint2 a_extent);
+		uint2 GetExtent() const;
+		int2 GetOffset() const;
 
 	private:
-		StackString<32> m_name;
 		uint2 m_extent;
 		int2 m_offset;
 	};

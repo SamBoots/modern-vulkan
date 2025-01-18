@@ -5,6 +5,7 @@
 #include "RendererTypes.hpp"
 #include "OS/Program.h"
 #include "MaterialSystem.hpp"
+#include "ViewportInterface.hpp"
 
 #include <vector>
 
@@ -72,14 +73,14 @@ StaticArray<Asset::AsyncAsset> SceneHierarchy::PreloadAssetsFromJson(MemoryArena
 	return async_model_loads;
 }
 
-void SceneHierarchy::UpdateScene(MemoryArena& a_temp_arena, const RCommandList a_list, const Viewport& a_viewport)
+void SceneHierarchy::UpdateScene(MemoryArena& a_temp_arena, const RCommandList a_list, Viewport& a_viewport)
 {
 	m_ecs.StartFrame();
 	RenderSystemFrame render_frame = m_ecs.RenderSystemUpdate(a_list, a_viewport.GetExtent());
 	bool has_resized = false;
 	if (DrawImgui(has_resized, render_frame.render_target, a_viewport) && has_resized)
 	{
-		hierarchy.SetProjection(a_viewport.CreateProjection(60.f, 0.001f, 10000.0f));
+		m_ecs.GetRenderSystem().SetProjection(a_viewport.CreateProjection(60.f, 0.001f, 10000.0f));
 	}
 
 	m_ecs.EndFrame();
@@ -87,7 +88,7 @@ void SceneHierarchy::UpdateScene(MemoryArena& a_temp_arena, const RCommandList a
 
 #include "imgui.h"
 
-bool SceneHierarchy::DrawImgui(bool& a_resized, const RDescriptorIndex a_render_target, const Viewport& a_viewport)
+bool SceneHierarchy::DrawImgui(bool& a_resized, const RDescriptorIndex a_render_target, Viewport& a_viewport)
 {
 	bool rendered_image = false;
 	if (ImGui::Begin(m_ecs.GetName().c_str(), nullptr, ImGuiWindowFlags_MenuBar))
@@ -110,19 +111,20 @@ bool SceneHierarchy::DrawImgui(bool& a_resized, const RDescriptorIndex a_render_
 
 		ImGuiIO im_io = ImGui::GetIO();
 
-		if (static_cast<unsigned int>(ImGui::OSGetWindowSize().x) < a_minimum_size.x ||
-			static_cast<unsigned int>(ImGui::OSGetWindowSize().y) < a_minimum_size.y)
+		constexpr uint2 MINIMUM_WINDOW_SIZE = uint2(80, 80);
+
+		const ImVec2 viewport_draw_area = ImGui::GetContentRegionAvail();
+		const uint2 window_size_u = uint2(static_cast<unsigned int>(viewport_draw_area.x), static_cast<unsigned int>(viewport_draw_area.y));
+		if (window_size_u.x < MINIMUM_WINDOW_SIZE.x || window_size_u.y < MINIMUM_WINDOW_SIZE.y)
 		{
 			return false;
 		}
 
-		const ImVec2 viewport_draw_area = ImGui::GetContentRegionAvail();
-
-		const uint2 window_size_u = uint2(static_cast<unsigned int>(viewport_draw_area.x), static_cast<unsigned int>(viewport_draw_area.y));
-		if (window_size_u != a_minimum_size && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+		if (window_size_u != a_viewport.GetExtent() || !ImGui::IsMouseDown(ImGuiMouseButton_Left))
 		{
 			a_resized = true;
-			m_render_system.Resize(window_size_u);
+			m_ecs.GetRenderSystem().Resize(window_size_u);
+			a_viewport.SetExtent(window_size_u);
 
 		}
 
@@ -198,8 +200,6 @@ ECSEntity SceneHierarchy::CreateEntityMesh(const float3 a_position, const SceneM
 
 ECSEntity SceneHierarchy::CreateEntityViaModel(const Model& a_model, const float3 a_position, const char* a_name, const ECSEntity a_parent)
 {
-	ECSEntity ecs_obj;
-
 	const ECSEntity ecs_obj = m_ecs.CreateEntity(a_name, a_parent, a_position);
 
 	for (uint32_t i = 0; i < a_model.root_node_count; i++)

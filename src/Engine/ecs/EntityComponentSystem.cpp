@@ -25,6 +25,8 @@ bool EntityComponentSystem::Init(MemoryArena& a_arena, const EntityComponentSyst
 	m_transform_system.dirty_transforms.Init(a_arena, a_create_info.entity_count, a_create_info.entity_count);
 
 	m_render_system.Init(a_arena, a_create_info.render_frame_count, a_create_info.light_count, a_create_info.window_size);
+
+	return true;
 }
 
 ECSEntity EntityComponentSystem::CreateEntity(const NameComponent& a_name, const ECSEntity& a_parent, const float3 a_position, const float3x3 a_rotation, const float3 a_scale)
@@ -33,7 +35,7 @@ ECSEntity EntityComponentSystem::CreateEntity(const NameComponent& a_name, const
 	bool success = m_ecs_entities.CreateEntity(entity, a_parent);
 	BB_ASSERT(success, "error creating ecs entity");
 
-	bool success = m_name_pool.CreateComponent(entity, a_name);
+	success = m_name_pool.CreateComponent(entity, a_name);
 	BB_ASSERT(success, "ecs entity was not correctly deleted");
 	success = m_positions.CreateComponent(entity, a_position);
 	BB_ASSERT(success, "ecs entity was not correctly deleted");

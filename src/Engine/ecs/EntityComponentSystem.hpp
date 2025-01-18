@@ -45,6 +45,11 @@ namespace BB
 		bool EntityAssignRenderComponent(const ECSEntity a_entity, const RenderComponent& a_draw_info);
 		bool EntityAssignLight(const ECSEntity a_entity, const LightComponent& a_light);
 
+		RenderSystem& GetRenderSystem()
+		{
+			return m_render_system;
+		}
+
 		StackString<32> GetName() const { return m_name; }
 
 	private:

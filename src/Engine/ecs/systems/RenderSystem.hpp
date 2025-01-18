@@ -97,9 +97,6 @@ namespace BB
 		StaticArray<PerFrame> m_per_frame;
 		RenderTarget m_render_target;
 
-
-		float m_bloom_strength;
-		float m_bloom_scale;
 		struct Options
 		{
 			bool skip_skybox;

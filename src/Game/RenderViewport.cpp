@@ -1,6 +1,10 @@
 #include "RenderViewport.hpp"
 #include "BBjson.hpp"
 #include "BBThreadScheduler.hpp"
+#include "Program.h"
+#include "HID.h"
+#include "AssetLoader.hpp"
+
 #include "Math.inl"
 
 using namespace BB;
@@ -12,11 +16,11 @@ struct LoadAssetsAsync_params
 	size_t asset_count;
 };
 
-static void CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint32_t a_back_buffer_count, const JsonParser& a_parsed_file)
+static void CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint2 a_window_size, const uint32_t a_back_buffer_count, const JsonParser& a_parsed_file)
 {
 	const JsonObject& scene_obj = a_parsed_file.GetRootNode()->GetObject().Find("scene")->GetObject();
 	{
-		a_hierarchy.Init(a_arena, a_back_buffer_count, Asset::FindOrCreateString(scene_obj.Find("name")->GetString()));
+		a_hierarchy.Init(a_arena, STANDARD_ECS_OBJ_COUNT, a_window_size, a_back_buffer_count, scene_obj.Find("name")->GetString());
 	}
 
 	const JsonList& scene_objects = scene_obj.Find("scene_objects")->GetList();
@@ -100,10 +104,10 @@ bool RenderViewport::Init(const uint2 a_game_viewport_size, const uint32_t a_bac
 		Asset::LoadAssets(m_memory, viewer_list.slice());
 	}
 
-	CreateSceneHierarchyViaJson(m_memory, m_scene_hierarchy, a_back_buffer_count, json_file);
-	m_scene_hierarchy.SetClearColor(float3(0.3f, 0.3f, 0.3f));
+	CreateSceneHierarchyViaJson(m_memory, m_scene_hierarchy, a_game_viewport_size, a_back_buffer_count, json_file);
+	m_scene_hierarchy.GetECS().GetRenderSystem().SetClearColor(float3(0.3f, 0.3f, 0.3f));
 
-	m_viewport.Init(a_game_viewport_size, int2(0, 0), a_back_buffer_count, "rendering showcase screen");
+	m_viewport.Init(a_game_viewport_size, int2(0, 0));
 	m_camera.SetPosition(float3(0.f, 1.f, -1.f));
 	m_camera.SetUp(float3(0.f, 1.f, 0.f));
 	m_camera.SetSpeed(m_speed);
@@ -115,7 +119,7 @@ bool RenderViewport::Update(const float a_delta_time)
 	m_camera.Update(a_delta_time);
 	if (!m_freeze_cam)
 	{
-		m_scene_hierarchy.SetView(m_camera.CalculateView(), m_camera.GetPosition());
+		m_scene_hierarchy.GetECS().GetRenderSystem().SetView(m_camera.CalculateView(), m_camera.GetPosition());
 	}
 	DisplayImGuiInfo();
 	return true;

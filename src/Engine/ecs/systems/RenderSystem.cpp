@@ -507,7 +507,7 @@ void RenderSystem::SetClearColor(const float3 a_clear_color)
 
 void RenderSystem::UpdateConstantBuffer(PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size, const ConstSlice<LightComponent> a_lights)
 {
-	m_scene_info.light_count = a_lights.size();
+	m_scene_info.light_count = static_cast<uint32_t>(a_lights.size());
 	m_scene_info.scene_resolution = a_draw_area_size;
 	m_scene_info.shadow_map_count = a_pfd.shadow_map.render_pass_views.size();
 	m_scene_info.shadow_map_array_descriptor = a_pfd.shadow_map.descriptor_index;
@@ -787,7 +787,7 @@ void RenderSystem::ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list
 
 void RenderSystem::ShadowMapPass(const PerFrame& a_pfd, const RCommandList a_list, const uint2 a_shadow_map_resolution, const DrawList& a_draw_list, const ConstSlice<LightComponent> a_lights)
 {
-	const uint32_t shadow_map_count = a_lights.size();
+	const uint32_t shadow_map_count = static_cast<uint32_t>(a_lights.size());
 	if (shadow_map_count == 0)
 	{
 		return;

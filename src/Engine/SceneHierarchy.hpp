@@ -4,7 +4,6 @@
 #include "Storage/BBString.h"
 #include "AssetLoader.hpp"
 #include "GPUBuffers.hpp"
-#include "ViewportInterface.hpp"
 
 #include "ecs/EntityMap.hpp"
 #include "ecs/EntityComponentSystem.hpp"
@@ -38,6 +37,8 @@ namespace BB
 		MeshMetallic material_data;
 	};
 
+	constexpr uint32_t STANDARD_ECS_OBJ_COUNT = 4096;
+
 	class SceneHierarchy
 	{
 	public:
@@ -45,14 +46,15 @@ namespace BB
 		void Init(MemoryArena& a_arena, const uint32_t a_ecs_obj_max, const uint2 a_window_size, const uint32_t a_back_buffers, const StackString<32> a_name);
 		static StaticArray<Asset::AsyncAsset> PreloadAssetsFromJson(MemoryArena& a_arena, const JsonParser& a_parsed_file);
 
-		void UpdateScene(MemoryArena& a_temp_arena, const RCommandList a_list, const Viewport& a_viewport);
-		bool DrawImgui(bool& a_resized, const RDescriptorIndex a_render_target, const Viewport& a_viewport);
+		void UpdateScene(MemoryArena& a_temp_arena, const RCommandList a_list, class Viewport& a_viewport);
+		bool DrawImgui(bool& a_resized, const RDescriptorIndex a_render_target, class Viewport& a_viewport);
 
 		ECSEntity CreateEntity(const float3 a_position, const NameComponent& a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
 		ECSEntity CreateEntityMesh(const float3 a_position, const SceneMeshCreateInfo& a_mesh_info, const char* a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
 		ECSEntity CreateEntityViaModel(const Model& a_model, const float3 a_position, const char* a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
 		ECSEntity CreateEntityAsLight(const LightCreateInfo& a_light_create_info, const char* a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
 
+		EntityComponentSystem& GetECS() { return m_ecs; }
 	private:
 		ECSEntity CreateEntityViaModelNode(const Model::Node& a_node, const ECSEntity a_parent);
 

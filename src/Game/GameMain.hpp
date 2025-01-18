@@ -1,6 +1,9 @@
 #pragma once
 #include "ViewportInterface.hpp"
 #include "Camera.hpp"
+#include "Storage/Array.h"
+#include "Enginefwd.hpp"
+#include "SceneHierarchy.hpp"
 
 namespace BB
 {

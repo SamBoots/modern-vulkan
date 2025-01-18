@@ -1,8 +1,9 @@
 #include "MaterialSystem.hpp"
-#include "SceneHierarchy.hpp"
+#include "ecs/systems/RenderSystem.hpp"
 #include "Renderer.hpp"
 #include "Program.h"
 #include "Storage/Hashmap.h"
+#include "Storage/Slotmap.h"
 
 using namespace BB;
 
@@ -179,7 +180,7 @@ void Material::InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCrea
 	s_material_inst->shader_effects.Init(a_arena, a_create_info.max_shader_effects);
 	s_material_inst->shader_effect_cache.Init(a_arena, a_create_info.max_shader_effects);
 	
-	s_material_inst->scene_desc_layout = SceneHierarchy::GetSceneDescriptorLayout();
+	s_material_inst->scene_desc_layout = RenderSystem::GetSceneDescriptorLayout();
 
 	MemoryArenaScope(a_arena)
 	{

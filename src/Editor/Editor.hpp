@@ -39,7 +39,7 @@ namespace BB
 			ImguiDisplaySceneHierarchy(hierarchy);
 
 			bool resized = false;
-			viewport.DrawImgui(resized, m_per_frame.back_buffer_index);
+			hierarchy.DrawImgui(resized, m_per_frame.back_buffer_index, viewport);
 			if (resized)
 			{
 				hierarchy.SetProjection(viewport.CreateProjection(60.f, 0.001f, 10000.0f));

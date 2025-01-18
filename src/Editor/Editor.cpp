@@ -279,7 +279,7 @@ void Editor::ThreadFuncForDrawing(MemoryArena& a_arena, void* a_param)
 	RCommandList list = param_in->command_list;
 	MemoryArenaScope(a_arena)
 	{
-		RenderSystemFrame frame = scene_hierarchy.UpdateScene(a_arena, list, viewport.GetExtent());
+		scene_hierarchy.UpdateScene(a_arena, list, viewport);
 	}
 }
 

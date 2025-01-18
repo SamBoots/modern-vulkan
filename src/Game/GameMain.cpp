@@ -2,6 +2,9 @@
 #include "BBImage.hpp"
 #include "MaterialSystem.hpp"
 #include "imgui.h"
+#include "Program.h"
+#include "SceneHierarchy.hpp"
+#include "HID.h"
 
 #include "Math.inl"
 
@@ -387,10 +390,10 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
 {
 	m_game_memory = MemoryArenaCreate();
 	const uint32_t back_buffer_count = GetRenderIO().frame_count;
-	m_scene_hierarchy.Init(m_game_memory, back_buffer_count, Asset::FindOrCreateString("game hierarchy"));
-	m_scene_hierarchy.SetClearColor(float3(0.3f, 0.3f, 0.3f));
+	m_scene_hierarchy.Init(m_game_memory, STANDARD_ECS_OBJ_COUNT, a_game_viewport_size, back_buffer_count, "game hierarchy");
+	m_scene_hierarchy.GetECS().GetRenderSystem().SetClearColor(float3(0.3f, 0.3f, 0.3f));
 
-	m_viewport.Init(a_game_viewport_size, int2(0, 0), a_back_buffer_count, "game screen");
+	m_viewport.Init(a_game_viewport_size, int2(0, 0));
 
 	DungeonRoom room;
 	room.CreateRoom(m_game_memory, "../../resources/game/dungeon_rooms/map1.bmp");
@@ -416,11 +419,11 @@ bool DungeonGame::Update(const float a_delta_time)
 	if (m_free_cam.use_free_cam)
 	{
 		m_free_cam.camera.Update(a_delta_time);
-		m_scene_hierarchy.SetView(m_free_cam.camera.CalculateView(), m_free_cam.camera.GetPosition());
+		m_scene_hierarchy.GetECS().GetRenderSystem().SetView(m_free_cam.camera.CalculateView(), m_free_cam.camera.GetPosition());
 	}
 	else
 	{
-		m_scene_hierarchy.SetView(m_player.CalculateView(), m_player.GetPosition());
+		m_scene_hierarchy.GetECS().GetRenderSystem().SetView(m_player.CalculateView(), m_player.GetPosition());
 	}
 
 	DisplayImGuiInfo();
