@@ -47,9 +47,7 @@ void Transform::SetScale(const float3 a_scale)
 
 const float4x4 Transform::CreateMatrix()
 {
-	float4x4 matrix = Float4x4Identity();
-	matrix = matrix * Float4x4FromTranslation(m_pos);
-	matrix = matrix * Float4x4FromQuat(m_rot);
+	float4x4 matrix = Float4x4FromTranslation(m_pos) * Float4x4FromQuat(m_rot);
 	matrix = Float4x4Scale(matrix, m_scale);
 	return matrix;
 }
@@ -57,13 +55,13 @@ const float4x4 Transform::CreateMatrix()
 //slotmap type of data structure.
 struct BB::TransformNode
 {
-	union //44 bytes
+	union
 	{
 		Transform transform; 
 		uint32_t next;
 	};
 	
-	uint32_t generation; //48 bytes
+	uint32_t generation;
 };
 
 void TransformPool::Init(struct MemoryArena& a_arena, const uint32_t a_transform_count)
