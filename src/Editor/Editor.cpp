@@ -563,6 +563,7 @@ void Editor::ImGuiDisplaySceneObject(SceneHierarchy& a_hierarchy, const SceneObj
 								Material::FreeMaterialInstance(scene_object.mesh_info.material);
 								scene_object.mesh_info.master_material = new_mat.handle;
 								scene_object.mesh_info.material = Material::CreateMaterialInstance(scene_object.mesh_info.master_material);
+								scene_object.mesh_info.material_dirty = true;
 							}
 						}
 
