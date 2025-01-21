@@ -437,24 +437,24 @@ void Editor::EndFrame(MemoryArena& a_arena)
 	}
 }
 
-void Editor::ImguiDisplaySceneHierarchy(SceneHierarchy& a_hierarchy)
+void Editor::ImguiDisplaySceneHierarchy(EntityComponentSystem& a_ecs)
 {
-	if (ImGui::Begin(a_hierarchy.m_scene_name.c_str()))
+	if (ImGui::Begin(a_ecs.GetName().c_str()))
 	{
 		ImGui::Indent();
 
-		ImguiCreateEntity(a_hierarchy);
+		ImguiCreateEntity(a_ecs);
 
 		if (ImGui::Button("GAMER MODE"))
 		{
-			auto& postfx_options = a_hierarchy.GetPostFXOptions();
+			auto& postfx_options = a_ecs.GetRenderSystem().m_postfx;
 			postfx_options.bloom_strength = 5.f;
 			postfx_options.bloom_scale = 10.5f;
 		}
 
 		if (ImGui::CollapsingHeader("post fx option"))
 		{
-			auto& postfx_options = a_hierarchy.GetPostFXOptions();
+			auto& postfx_options = a_ecs.GetRenderSystem().m_postfx;
 			ImGui::InputFloat("bloom strength", &postfx_options.bloom_strength);
 			ImGui::InputFloat("bloom scale", &postfx_options.bloom_scale);
 		}
@@ -463,19 +463,19 @@ void Editor::ImguiDisplaySceneHierarchy(SceneHierarchy& a_hierarchy)
 		{
 			if (ImGui::Button("toggle skipping skybox pass"))
 			{
-				a_hierarchy.ToggleSkipSkyboxPass();
+				a_ecs.GetRenderSystem().ToggleSkipSkyboxPass();
 			}
 			if (ImGui::Button("toggle shadowmapping pass"))
 			{
-				a_hierarchy.ToggleSkipShadowMappingPass();
+				a_ecs.GetRenderSystem().ToggleSkipShadowMappingPass();
 			}
 			if (ImGui::Button("toggle skipping object rendering pass"))
 			{
-				a_hierarchy.ToggleSkipObjectRenderingPass();
+				a_ecs.GetRenderSystem().ToggleSkipObjectRenderingPass();
 			}
 			if (ImGui::Button("toggle skipping bloom pass"))
 			{
-				a_hierarchy.ToggleSkipBloomPass();
+				a_ecs.GetRenderSystem().ToggleSkipBloomPass();
 			}
 		}
 
@@ -506,26 +506,29 @@ static void ImGuiShowTexturePossibleChange(const RDescriptorIndex a_texture, con
 	}
 }
 
-void Editor::ImGuiDisplayEntity(SceneHierarchy& a_hierarchy, const ECSEntity a_object)
+void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_object)
 {
 	ImGui::PushID(static_cast<int>(a_object.handle));
 
-	if (ImGui::CollapsingHeader(a_hierarchy.m_name_pool.GetComponent(a_object).c_str()))
+	if (ImGui::CollapsingHeader(a_ecs.m_name_pool.GetComponent(a_object).c_str()))
 	{
 		ImGui::Indent();
-		TransformComponent& transform = a_hierarchy.m_transform_pool.GetComponent(a_object);
 		bool position_changed = false;
 		if (ImGui::TreeNodeEx("transform"))
 		{
-			position_changed = ImGui::InputFloat3("position", transform.m_pos.e);
-			ImGui::InputFloat4("rotation quat (xyzw)", transform.m_rot.xyzw.e);
-			ImGui::InputFloat3("scale", transform.m_scale.e);
+			float3& pos = a_ecs.m_positions.GetComponent(a_object);
+			float3x3& rot = a_ecs.m_rotations.GetComponent(a_object);
+			float3& scale = a_ecs.m_scales.GetComponent(a_object);
+
+			position_changed = ImGui::InputFloat3("position", pos.e);
+			//ImGui::InputFloat4("rotation quat (xyzw)", rot.e);
+			ImGui::InputFloat3("scale", scale.e);
 			ImGui::TreePop();
 		}
 
-		if (a_hierarchy.m_ecs_entities.HasSignature(a_object, RENDER_ECS_SIGNATURE))
+		if (a_ecs.m_ecs_entities.HasSignature(a_object, RENDER_ECS_SIGNATURE))
 		{
-			RenderComponent& RenderComponent = a_hierarchy.m_render_mesh_pool.GetComponent(a_object);
+			RenderComponent& RenderComponent = a_ecs.m_render_mesh_pool.GetComponent(a_object);
 			if (ImGui::TreeNodeEx("rendering"))
 			{
 				ImGui::Indent();
@@ -648,29 +651,18 @@ void Editor::ImGuiDisplayEntity(SceneHierarchy& a_hierarchy, const ECSEntity a_o
 	ImGui::PopID();
 }
 
-void Editor::ImguiCreateEntity(SceneHierarchy& a_hierarchy, const ECSEntity a_parent)
+void Editor::ImguiCreateEntity(EntityComponentSystem& a_ecs, const ECSEntity a_parent)
 {
 	if (ImGui::TreeNodeEx("create scene object menu"))
 	{
 		ImGui::Indent();
-		static StringView mesh_name{};
+		static NameComponent mesh_name{};
 
-		if (ImGui::TreeNodeEx("mesh_list"))
-		{
-			ImGui::Indent();
-
-			if (ImGui::Button("set empty"))
-			{
-				mesh_name = StringView();
-			}
-
-			ImGui::Unindent();
-			ImGui::TreePop();
-		}
+		ImGui::InputText("entity name: ", mesh_name.data(), mesh_name.capacity());
 
 		if (ImGui::Button("create scene object"))
 		{
-			BB_UNIMPLEMENTED();
+			a_ecs.CreateEntity(mesh_name, a_parent);
 		}
 
 		ImGui::Unindent();

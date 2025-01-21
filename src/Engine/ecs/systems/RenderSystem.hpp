@@ -16,6 +16,7 @@ namespace BB
 	class RenderSystem
 	{
 	public:
+		friend class Editor;
 		void Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count, const uint32_t a_max_lights, const uint2 a_render_target_size);
 
 		void StartFrame(const RCommandList a_list);
@@ -26,6 +27,26 @@ namespace BB
 		void Screenshot(const RDescriptorIndex a_render_target, const char* a_name) const;
 
 		static RDescriptorLayout GetSceneDescriptorLayout();
+
+		bool ToggleSkipSkyboxPass()
+		{
+			return m_options.skip_skybox = !m_options.skip_skybox;
+		}
+
+		bool ToggleSkipShadowMappingPass()
+		{
+			return m_options.skip_shadow_mapping = !m_options.skip_shadow_mapping;
+		}
+
+		bool ToggleSkipObjectRenderingPass()
+		{
+			return m_options.skip_object_rendering = !m_options.skip_object_rendering;
+		}
+
+		bool ToggleSkipBloomPass()
+		{
+			return m_options.skip_bloom = !m_options.skip_bloom;
+		}
 
 		void SetView(const float4x4& a_view, const float3& a_view_position);
 		void SetProjection(const float4x4& a_projection);
