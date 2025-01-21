@@ -331,10 +331,6 @@ namespace BB
 			Memory::Copy(&m_string[0], &a_string.m_string[0], a_string.m_size);
 			m_size = a_string.m_size;
 		}
-		~Stack_String()
-		{
-			clear();
-		}
 
 		Stack_String& operator=(const Stack_String<CharT, STRING_SIZE>& a_rhs)
 		{

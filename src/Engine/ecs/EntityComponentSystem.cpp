@@ -10,6 +10,14 @@ bool EntityComponentSystem::Init(MemoryArena& a_arena, const EntityComponentSyst
 {
 	m_name = a_name;
 
+
+	m_per_frame.Init(a_arena, a_create_info.render_frame_count);
+	m_per_frame.resize(a_create_info.render_frame_count);
+	for (uint32_t i = 0; i < a_create_info.render_frame_count; i++)
+	{
+		m_per_frame[i].arena = MemoryArenaCreate();
+	}
+
 	// components
 	m_ecs_entities.Init(a_arena, a_create_info.entity_count);
 	m_name_pool.Init(a_arena, a_create_info.entity_count);

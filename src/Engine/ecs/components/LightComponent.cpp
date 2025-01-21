@@ -61,5 +61,5 @@ ConstSlice<ECSEntity> LightComponentPool::GetEntityComponents() const
 
 ConstSlice<LightComponent> LightComponentPool::GetAllComponents() const
 {
-	return m_components.const_slice();
+	return m_components.const_slice(m_sparse_set.Size());
 }

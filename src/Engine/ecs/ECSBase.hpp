@@ -53,7 +53,7 @@ namespace BB
 			if (a_ecs_index > m_sparse_max)
 				return INVALID_ECS_OBJ;
 			const uint32_t dense_index = m_sparse[a_ecs_index];
-			if (dense_index < m_dense_count && m_dense_ecs[dense_index].index != a_ecs_index)
+			if (dense_index > m_dense_count || m_dense_ecs[dense_index].index != a_ecs_index)
 				return INVALID_ECS_OBJ;
 
 			return m_dense_ecs[dense_index];
