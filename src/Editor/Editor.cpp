@@ -273,13 +273,14 @@ void Editor::ThreadFuncForDrawing(MemoryArena& a_arena, void* a_param)
 {
 	ThreadFuncForDrawing_Params* param_in = reinterpret_cast<ThreadFuncForDrawing_Params*>(a_param);
 
-	uint32_t back_buffer_index = param_in->back_buffer_index;
 	Viewport& viewport = *param_in->viewport;
 	SceneHierarchy& scene_hierarchy = *param_in->scene_hierarchy;
 	RCommandList list = param_in->command_list;
 	MemoryArenaScope(a_arena)
 	{
-		scene_hierarchy.UpdateScene(a_arena, list, viewport);
+		const SceneFrame frame = scene_hierarchy.UpdateScene(a_arena, list, viewport);
+		*param_in->fence_value = frame.render_frame.fence_value;
+		*param_in->fence = frame.render_frame.fence;
 	}
 }
 
@@ -437,7 +438,7 @@ void Editor::EndFrame(MemoryArena& a_arena)
 	}
 }
 
-void Editor::ImguiDisplaySceneHierarchy(EntityComponentSystem& a_ecs)
+void Editor::ImguiDisplayECS(EntityComponentSystem& a_ecs)
 {
 	if (ImGui::Begin(a_ecs.GetName().c_str()))
 	{
@@ -506,19 +507,19 @@ static void ImGuiShowTexturePossibleChange(const RDescriptorIndex a_texture, con
 	}
 }
 
-void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_object)
+void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_entity)
 {
-	ImGui::PushID(static_cast<int>(a_object.handle));
+	ImGui::PushID(static_cast<int>(a_entity.handle));
 
-	if (ImGui::CollapsingHeader(a_ecs.m_name_pool.GetComponent(a_object).c_str()))
+	if (ImGui::CollapsingHeader(a_ecs.m_name_pool.GetComponent(a_entity).c_str()))
 	{
 		ImGui::Indent();
 		bool position_changed = false;
 		if (ImGui::TreeNodeEx("transform"))
 		{
-			float3& pos = a_ecs.m_positions.GetComponent(a_object);
-			float3x3& rot = a_ecs.m_rotations.GetComponent(a_object);
-			float3& scale = a_ecs.m_scales.GetComponent(a_object);
+			float3& pos = a_ecs.m_positions.GetComponent(a_entity);
+			float3x3& rot = a_ecs.m_rotations.GetComponent(a_entity);
+			float3& scale = a_ecs.m_scales.GetComponent(a_entity);
 
 			position_changed = ImGui::InputFloat3("position", pos.e);
 			//ImGui::InputFloat4("rotation quat (xyzw)", rot.e);
@@ -526,9 +527,9 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 			ImGui::TreePop();
 		}
 
-		if (a_ecs.m_ecs_entities.HasSignature(a_object, RENDER_ECS_SIGNATURE))
+		if (a_ecs.m_ecs_entities.HasSignature(a_entity, RENDER_ECS_SIGNATURE))
 		{
-			RenderComponent& RenderComponent = a_ecs.m_render_mesh_pool.GetComponent(a_object);
+			RenderComponent& RenderComponent = a_ecs.m_render_mesh_pool.GetComponent(a_entity);
 			if (ImGui::TreeNodeEx("rendering"))
 			{
 				ImGui::Indent();
@@ -582,42 +583,42 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 			}
 		}
 
-		if (a_hierarchy.m_ecs_entities.HasSignature(a_object, LIGHT_ECS_SIGNATURE))
+		if (a_ecs.m_ecs_entities.HasSignature(a_entity, LIGHT_ECS_SIGNATURE))
 		{
 			if (ImGui::TreeNodeEx("light object"))
 			{
 				ImGui::Indent();
-				Light& light = a_hierarchy.GetLight(a_object);
+				LightComponent& comp = a_ecs.m_light_pool.GetComponent(a_entity);
+				const float3 pos = a_ecs.m_positions.GetComponent(a_entity);
 
-				light.pos.x = transform.m_pos.x;
-				light.pos.y = transform.m_pos.y;
-				light.pos.z = transform.m_pos.z;
+				comp.light.pos.x = pos.x;
+				comp.light.pos.y = pos.y;
+				comp.light.pos.z = pos.z;
 
-				ImGui::InputFloat3("color", light.color.e);
-				ImGui::InputFloat("linear radius", &light.radius_linear);
-				ImGui::InputFloat("quadratic radius", &light.radius_quadratic);
+				ImGui::InputFloat3("color", comp.light.color.e);
+				ImGui::InputFloat("linear radius", &comp.light.radius_linear);
+				ImGui::InputFloat("quadratic radius", &comp.light.radius_quadratic);
 
-				switch (static_cast<LIGHT_TYPE>(light.light_type))
+				switch (static_cast<LIGHT_TYPE>(comp.light.light_type))
 				{
 				case LIGHT_TYPE::POINT_LIGHT:
 
 					break;
 				case LIGHT_TYPE::SPOT_LIGHT:
 				case LIGHT_TYPE::DIRECTIONAL_LIGHT:
-					ImGui::InputFloat3("direction", light.direction.e);
+					ImGui::InputFloat3("direction", comp.light.direction.e);
 					break;
 				default:
 					break;
 				}
 
 				if (ImGui::Button("remove light"))
-					a_hierarchy.FreeLight(a_object);
+					a_ecs.EntityFreeLight(a_entity);
 
 				if (position_changed)
 				{
-					float4x4& vp = a_hierarchy.m_light_pool.GetComponent(a_object).projection_view;
 					const float near_plane = 1.f, far_plane = 7.5f;
-					vp = a_hierarchy.CalculateLightProjectionView(transform.m_pos, near_plane, far_plane);
+					comp.projection_view =SceneHierarchy::CalculateLightProjectionView(pos, near_plane, far_plane);
 				}
 
 				ImGui::Unindent();
@@ -643,7 +644,7 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 		//	ImGuiDisplaySceneObject(a_hierarchy, scene_object.children[i]);
 		//}
 
-		ImguiCreateEntity(a_hierarchy, a_object);
+		ImguiCreateEntity(a_ecs, a_entity);
 
 		ImGui::Unindent();
 	}

@@ -159,6 +159,17 @@ bool EntityComponentSystem::EntityAssignLight(const ECSEntity a_entity, const Li
 	return true;
 }
 
+bool EntityComponentSystem::EntityFreeLight(const ECSEntity a_entity)
+{
+	if (!m_ecs_entities.HasSignature(a_entity, LIGHT_ECS_SIGNATURE))
+		return false;
+	if (!m_light_pool.FreeComponent(a_entity))
+		return false;
+	if (!m_ecs_entities.UnregisterSignature(a_entity, LIGHT_ECS_SIGNATURE))
+		return false;
+	return true;
+}
+
 void EntityComponentSystem::UpdateTransform(const ECSEntity a_entity)
 {
 	float4x4& local_matrix = m_local_matrices.GetComponent(a_entity);

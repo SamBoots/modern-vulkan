@@ -11,6 +11,8 @@ namespace BB
 	struct RenderSystemFrame
 	{
 		RDescriptorIndex render_target;
+		RFence fence;
+		uint64_t fence_value;
 	};
 
 	class RenderSystem

@@ -73,17 +73,21 @@ StaticArray<Asset::AsyncAsset> SceneHierarchy::PreloadAssetsFromJson(MemoryArena
 	return async_model_loads;
 }
 
-void SceneHierarchy::UpdateScene(MemoryArena& a_temp_arena, const RCommandList a_list, Viewport& a_viewport)
+SceneFrame SceneHierarchy::UpdateScene(MemoryArena& a_temp_arena, const RCommandList a_list, Viewport& a_viewport)
 {
+	SceneFrame scene_frame;
+
 	m_ecs.StartFrame();
-	RenderSystemFrame render_frame = m_ecs.RenderSystemUpdate(a_list, a_viewport.GetExtent());
+	scene_frame.render_frame = m_ecs.RenderSystemUpdate(a_list, a_viewport.GetExtent());
 	bool has_resized = false;
-	if (DrawImgui(has_resized, render_frame.render_target, a_viewport) && has_resized)
+	if (DrawImgui(has_resized, scene_frame.render_frame.render_target, a_viewport) && has_resized)
 	{
 		m_ecs.GetRenderSystem().SetProjection(a_viewport.CreateProjection(60.f, 0.001f, 10000.0f));
 	}
 
 	m_ecs.EndFrame();
+
+	return scene_frame;
 }
 
 #include "imgui.h"
@@ -241,7 +245,7 @@ bool SceneHierarchy::CreateLight(const ECSEntity a_entity, const LightCreateInfo
 	return m_ecs.EntityAssignLight(a_entity, light_component);
 }
 
-float4x4 SceneHierarchy::CalculateLightProjectionView(const float3 a_pos, const float a_near, const float a_far) const
+float4x4 SceneHierarchy::CalculateLightProjectionView(const float3 a_pos, const float a_near, const float a_far)
 {
 	const float4x4 projection = Float4x4Perspective(ToRadians(45.f), 1.0f, a_near, a_far);
 	const float4x4 view = Float4x4Lookat(a_pos, float3(), float3(0.0f, -1.0f, 0.0f));

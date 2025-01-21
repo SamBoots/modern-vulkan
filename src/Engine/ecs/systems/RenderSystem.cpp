@@ -330,6 +330,9 @@ RenderSystemFrame RenderSystem::EndFrame(const RCommandList a_list, const IMAGE_
 	RenderSystemFrame frame;
 	frame.render_target = m_per_frame[m_current_frame].render_target_view;
 	m_current_frame = (m_current_frame + 1) % m_per_frame.size();
+
+	frame.fence = m_fence;
+	frame.fence_value = m_next_fence_value++;
 	return frame;
 }
 

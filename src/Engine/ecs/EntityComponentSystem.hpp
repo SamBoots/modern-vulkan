@@ -45,6 +45,7 @@ namespace BB
 		bool EntityAssignName(const ECSEntity a_entity, const NameComponent& a_name);
 		bool EntityAssignRenderComponent(const ECSEntity a_entity, const RenderComponent& a_draw_info);
 		bool EntityAssignLight(const ECSEntity a_entity, const LightComponent& a_light);
+		bool EntityFreeLight(const ECSEntity a_entity);
 
 		RenderSystem& GetRenderSystem()
 		{

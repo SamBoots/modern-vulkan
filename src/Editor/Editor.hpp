@@ -36,20 +36,14 @@ namespace BB
 
 			a_game_interface.Update(a_delta_time);
 
-			ImguiDisplaySceneHierarchy(hierarchy);
-
-			bool resized = false;
-			hierarchy.DrawImgui(resized, m_per_frame.back_buffer_index, viewport);
-			if (resized)
-			{
-				hierarchy.SetProjection(viewport.CreateProjection(60.f, 0.001f, 10000.0f));
-			}
+			ImguiDisplayECS(hierarchy.m_ecs);
 
 			const uint32_t render_pool_index = m_per_frame.current_count.fetch_add(1, std::memory_order_seq_cst);
 			ThreadFuncForDrawing_Params& params = m_per_frame.params[render_pool_index];
 			CommandPool& pool = m_per_frame.pools[render_pool_index];
 			RCommandList& list = m_per_frame.lists[render_pool_index];
-			hierarchy.IncrementNextFenceValue(&m_per_frame.fences[render_pool_index], &m_per_frame.fence_values[render_pool_index]);
+			uint64_t& fence_value = m_per_frame.fence_values[render_pool_index];
+			RFence& fence = m_per_frame.fences[render_pool_index];
 			// render_pool 0 is already set.
 			if (render_pool_index != 0)
 			{
@@ -57,10 +51,11 @@ namespace BB
 				list = pool.StartCommandList();
 			}
 
-			params.back_buffer_index = m_per_frame.back_buffer_index;
 			params.viewport = &viewport;
 			params.scene_hierarchy = &hierarchy;
 			params.command_list = list;
+			params.fence_value = &fence_value;
+			params.fence = &fence;
 
 			return Threads::StartTaskThread(ThreadFuncForDrawing, &params, L"scene draw task");
 		}
@@ -69,7 +64,7 @@ namespace BB
 	private:
 		FreelistInterface m_editor_allocator;
 
-		void ImguiDisplaySceneHierarchy(EntityComponentSystem& a_ecs);
+		void ImguiDisplayECS(EntityComponentSystem& a_ecs);
 		void ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_object);
 		void ImguiCreateEntity(EntityComponentSystem& a_ecs, const ECSEntity a_parent = INVALID_ECS_OBJ);
 		void ImGuiDisplayShaderEffect(MemoryArena& a_temp_arena, const CachedShaderInfo& a_shader_info) const;
@@ -80,10 +75,11 @@ namespace BB
 		void MainEditorImGuiInfo(const MemoryArena& a_arena);
 		struct ThreadFuncForDrawing_Params
 		{
-			uint32_t back_buffer_index;
 			Viewport* viewport;
 			SceneHierarchy* scene_hierarchy;
 			RCommandList command_list;
+			uint64_t* fence_value;
+			RFence* fence;
 		};
 		static void ThreadFuncForDrawing(MemoryArena& a_thread_arena, void* a_param);
 
