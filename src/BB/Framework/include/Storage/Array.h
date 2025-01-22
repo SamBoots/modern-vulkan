@@ -339,7 +339,7 @@ namespace BB
 		{
 			BB_ASSERT(a_size != 0, "StaticArray size is specified to be 0");
 			m_capacity = a_size;
-
+			m_size = 0;
 			m_arr = reinterpret_cast<T*>(ArenaAllocArr(a_arena, T, m_capacity));
 		}
 
@@ -347,7 +347,7 @@ namespace BB
 		{
 			BB_ASSERT(a_size != 0, "StaticArray size is specified to be 0");
 			m_capacity = a_size;
-
+			m_size = 0;
 			m_arr = reinterpret_cast<T*>(a_mem);
 			memset(m_arr, 0, a_size * sizeof(T));
 		}
