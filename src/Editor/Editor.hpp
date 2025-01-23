@@ -75,11 +75,15 @@ namespace BB
 		void MainEditorImGuiInfo(const MemoryArena& a_arena);
 		struct ThreadFuncForDrawing_Params
 		{
+			// in
 			Viewport* viewport;
 			SceneHierarchy* scene_hierarchy;
 			RCommandList command_list;
 			uint64_t* fence_value;
 			RFence* fence;
+
+			// out
+			SceneFrame scene_frame;
 		};
 		static void ThreadFuncForDrawing(MemoryArena& a_thread_arena, void* a_param);
 

@@ -49,9 +49,9 @@ bool LightComponentPool::FreeComponent(const ECSEntity a_entity)
 
 LightComponent& LightComponentPool::GetComponent(const ECSEntity a_entity) const
 {
-	const ECSEntity index = m_sparse_set.Find(a_entity.index);
-	BB_ASSERT(index != INVALID_ECS_OBJ, "invalid sparse set index returned");
-	return m_components[a_entity.index];
+	const uint32_t dense_index = m_sparse_set.Find(a_entity.index);
+	BB_ASSERT(dense_index != SPARSE_SET_INVALID, "invalid sparse set index returned");
+	return m_components[dense_index];
 }
 
 ConstSlice<ECSEntity> LightComponentPool::GetEntityComponents() const

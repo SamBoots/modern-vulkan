@@ -278,9 +278,9 @@ void Editor::ThreadFuncForDrawing(MemoryArena& a_arena, void* a_param)
 	RCommandList list = param_in->command_list;
 	MemoryArenaScope(a_arena)
 	{
-		const SceneFrame frame = scene_hierarchy.UpdateScene(a_arena, list, viewport);
-		*param_in->fence_value = frame.render_frame.fence_value;
-		*param_in->fence = frame.render_frame.fence;
+		param_in->scene_frame = scene_hierarchy.UpdateScene(a_arena, list, viewport);
+		*param_in->fence_value = param_in->scene_frame.render_frame.fence_value;
+		*param_in->fence = param_in->scene_frame.render_frame.fence;
 	}
 }
 
@@ -418,6 +418,11 @@ void Editor::EndFrame(MemoryArena& a_arena)
 
 		Asset::ShowAssetMenu(a_arena);
 		MainEditorImGuiInfo(a_arena);
+		for (size_t i = 0; i < m_per_frame.current_count; i++)
+		{
+			auto& draw_params = m_per_frame.params[i];
+			draw_params.scene_hierarchy->DrawImgui(draw_params.scene_frame.render_frame.render_target, *draw_params.viewport);
+		}
 
 		Slice imgui_shaders = Material::GetMaterialShaders(m_imgui_material);
 		RenderEndFrame(m_per_frame.lists[0], imgui_shaders[0], imgui_shaders[1], m_per_frame.back_buffer_index);
@@ -426,6 +431,8 @@ void Editor::EndFrame(MemoryArena& a_arena)
 		{
 			m_per_frame.pools[i].EndCommandList(m_per_frame.lists[i]);
 		}
+
+
 
 		const uint32_t command_list_count = Max(m_per_frame.current_count.load(), 1u);
 		uint64_t present_queue_value;
@@ -440,7 +447,9 @@ void Editor::EndFrame(MemoryArena& a_arena)
 
 void Editor::ImguiDisplayECS(EntityComponentSystem& a_ecs)
 {
-	if (ImGui::Begin(a_ecs.GetName().c_str()))
+	StackString<128> name_editor = a_ecs.GetName().c_str();
+	name_editor.append(" - editor");
+	if (ImGui::Begin(name_editor.c_str()))
 	{
 		ImGui::Indent();
 
@@ -657,9 +666,9 @@ void Editor::ImguiCreateEntity(EntityComponentSystem& a_ecs, const ECSEntity a_p
 	if (ImGui::TreeNodeEx("create scene object menu"))
 	{
 		ImGui::Indent();
-		static NameComponent mesh_name{};
+		static char mesh_name[NameComponent::capacity()];
 
-		ImGui::InputText("entity name: ", mesh_name.data(), mesh_name.capacity());
+		ImGui::InputText("entity name: ", mesh_name, NameComponent::capacity());
 
 		if (ImGui::Button("create scene object"))
 		{

@@ -392,7 +392,7 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
 	m_scene_hierarchy.Init(m_game_memory, STANDARD_ECS_OBJ_COUNT, a_game_viewport_size, a_back_buffer_count, "game hierarchy");
 	m_scene_hierarchy.GetECS().GetRenderSystem().SetClearColor(float3(0.3f, 0.3f, 0.3f));
 
-	m_viewport.Init(a_game_viewport_size, int2(0, 0));
+	m_viewport.Init(a_game_viewport_size, int2(0, 0), "dungeon game viewport");
 
 	DungeonRoom room;
 	room.CreateRoom(m_game_memory, "../../resources/game/dungeon_rooms/map1.bmp");

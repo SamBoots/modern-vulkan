@@ -3,8 +3,9 @@
 
 using namespace BB;
 
-void Viewport::Init(const uint2 a_extent, const int2 a_offset)
+void Viewport::Init(const uint2 a_extent, const int2 a_offset, const StackString<32>& a_name)
 {
+	m_name = a_name;
 	m_extent = a_extent;
 	m_offset = a_offset;
 }
@@ -27,6 +28,11 @@ float4x4 Viewport::CreateProjection(const float a_fov, const float a_near_field,
 void Viewport::SetExtent(const uint2 a_extent)
 {
 	m_extent = a_extent;
+}
+
+void Viewport::SetOffset(const int2 a_offset)
+{
+	m_offset = a_offset;
 }
 
 uint2 Viewport::GetExtent() const

@@ -75,16 +75,18 @@ StaticArray<Asset::AsyncAsset> SceneHierarchy::PreloadAssetsFromJson(MemoryArena
 
 SceneFrame SceneHierarchy::UpdateScene(MemoryArena& a_temp_arena, const RCommandList a_list, Viewport& a_viewport)
 {
+	RenderSystem& render_sys = m_ecs.GetRenderSystem();
 	SceneFrame scene_frame;
+
+
+	if (render_sys.GetRenderTargetSize() != a_viewport.GetExtent())
+	{
+		render_sys.Resize(a_viewport.GetExtent());
+		render_sys.SetProjection(a_viewport.CreateProjection(60.f, 0.001f, 10000.0f));
+	}
 
 	m_ecs.StartFrame();
 	scene_frame.render_frame = m_ecs.RenderSystemUpdate(a_list, a_viewport.GetExtent());
-	bool has_resized = false;
-	if (DrawImgui(has_resized, scene_frame.render_frame.render_target, a_viewport) && has_resized)
-	{
-		m_ecs.GetRenderSystem().SetProjection(a_viewport.CreateProjection(60.f, 0.001f, 10000.0f));
-	}
-
 	m_ecs.EndFrame();
 
 	return scene_frame;
@@ -92,7 +94,7 @@ SceneFrame SceneHierarchy::UpdateScene(MemoryArena& a_temp_arena, const RCommand
 
 #include "imgui.h"
 
-bool SceneHierarchy::DrawImgui(bool& a_resized, const RDescriptorIndex a_render_target, Viewport& a_viewport)
+bool SceneHierarchy::DrawImgui(const RDescriptorIndex a_render_target, Viewport& a_viewport)
 {
 	bool rendered_image = false;
 	if (ImGui::Begin(m_ecs.GetName().c_str(), nullptr, ImGuiWindowFlags_MenuBar))
@@ -117,20 +119,19 @@ bool SceneHierarchy::DrawImgui(bool& a_resized, const RDescriptorIndex a_render_
 
 		constexpr uint2 MINIMUM_WINDOW_SIZE = uint2(80, 80);
 
+		const ImVec2 viewport_offset = ImGui::GetWindowPos();
 		const ImVec2 viewport_draw_area = ImGui::GetContentRegionAvail();
 		const uint2 window_size_u = uint2(static_cast<unsigned int>(viewport_draw_area.x), static_cast<unsigned int>(viewport_draw_area.y));
 		if (window_size_u.x < MINIMUM_WINDOW_SIZE.x || window_size_u.y < MINIMUM_WINDOW_SIZE.y)
 		{
+			ImGui::End();
 			return false;
 		}
-
-		if (window_size_u != a_viewport.GetExtent() || !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+		if (window_size_u != a_viewport.GetExtent() && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
 		{
-			a_resized = true;
-			m_ecs.GetRenderSystem().Resize(window_size_u);
 			a_viewport.SetExtent(window_size_u);
-
 		}
+		a_viewport.SetOffset(int2(viewport_offset.x, viewport_offset.y));
 
 		ImGui::Image(a_render_target.handle, viewport_draw_area);
 		rendered_image = true;

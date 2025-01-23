@@ -187,7 +187,7 @@ void EntityComponentSystem::UpdateTransform(const ECSEntity a_entity)
 	const ECSEntity parent = m_ecs_entities.GetParent(a_entity);
 	if (parent.IsValid())
 	{
-		if (m_transform_system.dirty_transforms.Find(parent.index) != INVALID_ECS_OBJ)
+		if (m_transform_system.dirty_transforms.Find(parent.index) != SPARSE_SET_INVALID)
 			UpdateTransform(parent);
 
 		const float4x4& world_parent_matrix = m_world_matrices.GetComponent(parent);

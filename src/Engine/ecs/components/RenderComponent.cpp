@@ -49,9 +49,9 @@ bool RenderComponentPool::FreeComponent(const ECSEntity a_entity)
 
 RenderComponent& RenderComponentPool::GetComponent(const ECSEntity a_entity) const
 {
-	const ECSEntity entity = m_sparse_set.Find(a_entity.index);
-	BB_ASSERT(entity.index != SPARSE_SET_INVALID, "invalid sparse set index returned");
-	return m_components[entity.index];
+	const uint32_t dense_index = m_sparse_set.Find(a_entity.index);
+	BB_ASSERT(dense_index != SPARSE_SET_INVALID, "invalid sparse set index returned");
+	return m_components[dense_index];
 }
 
 ConstSlice<ECSEntity> RenderComponentPool::GetEntityComponents() const

@@ -313,10 +313,7 @@ namespace BB
 	class Stack_String
 	{
 	public:
-		Stack_String()
-		{
-			memset(m_string, 0, STRING_SIZE);
-		}
+		Stack_String() = default;
 		Stack_String(const CharT* a_string) 
 			: Stack_String(a_string, Memory::StrLength(a_string)) {}
 		Stack_String(const CharT* a_string, size_t a_size)
@@ -482,7 +479,7 @@ namespace BB
 		}
 
 		size_t size() const { return m_size; }
-		constexpr size_t capacity() const { return STRING_SIZE; }
+		static constexpr size_t capacity() { return STRING_SIZE; }
 		CharT* data() { return m_string; }
 		const CharT* c_str() const { return m_string; }
 

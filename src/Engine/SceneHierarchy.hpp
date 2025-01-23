@@ -52,7 +52,7 @@ namespace BB
 		static StaticArray<Asset::AsyncAsset> PreloadAssetsFromJson(MemoryArena& a_arena, const JsonParser& a_parsed_file);
 
 		SceneFrame UpdateScene(MemoryArena& a_temp_arena, const RCommandList a_list, class Viewport& a_viewport);
-		bool DrawImgui(bool& a_resized, const RDescriptorIndex a_render_target, class Viewport& a_viewport);
+		bool DrawImgui(const RDescriptorIndex a_render_target, class Viewport& a_viewport);
 
 		ECSEntity CreateEntity(const float3 a_position, const NameComponent& a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
 		ECSEntity CreateEntityMesh(const float3 a_position, const SceneMeshCreateInfo& a_mesh_info, const char* a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);

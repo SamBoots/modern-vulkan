@@ -395,6 +395,7 @@ void RenderSystem::Resize(const uint2 a_new_extent)
 
 	// wait until the rendering is all done
 	WaitFence(m_fence, m_next_fence_value - 1);
+	GPUWaitIdle();
 
 	FreeImage(m_render_target.image);
 	for (uint32_t i = 0; i < m_per_frame.size(); i++)

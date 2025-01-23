@@ -50,6 +50,11 @@ namespace BB
 			return m_options.skip_bloom = !m_options.skip_bloom;
 		}
 
+		uint2 GetRenderTargetSize() const
+		{
+			return m_render_target.size;
+		}
+
 		void SetView(const float4x4& a_view, const float3& a_view_position);
 		void SetProjection(const float4x4& a_projection);
 		void SetClearColor(const float3 a_clear_color);

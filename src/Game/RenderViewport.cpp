@@ -107,7 +107,7 @@ bool RenderViewport::Init(const uint2 a_game_viewport_size, const uint32_t a_bac
 	CreateSceneHierarchyViaJson(m_memory, m_scene_hierarchy, a_game_viewport_size, a_back_buffer_count, json_file);
 	m_scene_hierarchy.GetECS().GetRenderSystem().SetClearColor(float3(0.3f, 0.3f, 0.3f));
 
-	m_viewport.Init(a_game_viewport_size, int2(0, 0));
+	m_viewport.Init(a_game_viewport_size, int2(0, 0), "render viewport");
 	m_camera.SetPosition(float3(0.f, 1.f, -1.f));
 	m_camera.SetUp(float3(0.f, 1.f, 0.f));
 	m_camera.SetSpeed(m_speed);

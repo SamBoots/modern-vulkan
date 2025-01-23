@@ -48,20 +48,20 @@ namespace BB
 		}
 
 		// returns SPARSE_SET_INVALID on failure
-		ECSEntity Find(const uint32_t a_ecs_index) const
+		uint32_t Find(const uint32_t a_ecs_index) const
 		{
 			if (a_ecs_index > m_sparse_max)
-				return INVALID_ECS_OBJ;
+				return SPARSE_SET_INVALID;
 			const uint32_t dense_index = m_sparse[a_ecs_index];
 			if (dense_index > m_dense_count || m_dense_ecs[dense_index].index != a_ecs_index)
-				return INVALID_ECS_OBJ;
+				return SPARSE_SET_INVALID;
 
-			return m_dense_ecs[dense_index];
+			return dense_index;
 		}
 
 		uint32_t Insert(const ECSEntity a_value)
 		{
-			if (Find(a_value.index) != INVALID_ECS_OBJ)
+			if (Find(a_value.index) != SPARSE_SET_INVALID)
 				return SPARSE_SET_ALREADY_SET;
 			if (m_dense_count >= m_dense_max)
 				return SPARSE_SET_INVALID;
@@ -74,7 +74,7 @@ namespace BB
 
 		bool Erase(const ECSEntity a_value)
 		{
-			if (Find(a_value.index) == INVALID_ECS_OBJ)
+			if (Find(a_value.index) == SPARSE_SET_INVALID)
 				return false;
 
 			// TODO: use move here
