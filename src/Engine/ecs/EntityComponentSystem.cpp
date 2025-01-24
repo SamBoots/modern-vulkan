@@ -88,7 +88,7 @@ void EntityComponentSystem::EndFrame()
 
 void EntityComponentSystem::TransformSystemUpdate()
 {
-	while (m_transform_system.dirty_transforms.Size() == 0)
+	while (m_transform_system.dirty_transforms.Size() != 0)
 	{
 		UpdateTransform(m_transform_system.dirty_transforms[0]);
 	}
@@ -192,6 +192,10 @@ void EntityComponentSystem::UpdateTransform(const ECSEntity a_entity)
 
 		const float4x4& world_parent_matrix = m_world_matrices.GetComponent(parent);
 		m_world_matrices.GetComponent(a_entity) = world_parent_matrix * local_matrix;
+	}
+	else
+	{
+		m_world_matrices.GetComponent(a_entity) = local_matrix;
 	}
 
 	m_transform_system.dirty_transforms.Erase(a_entity);

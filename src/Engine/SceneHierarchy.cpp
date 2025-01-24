@@ -73,11 +73,12 @@ StaticArray<Asset::AsyncAsset> SceneHierarchy::PreloadAssetsFromJson(MemoryArena
 	return async_model_loads;
 }
 
-SceneFrame SceneHierarchy::UpdateScene(MemoryArena& a_temp_arena, const RCommandList a_list, Viewport& a_viewport)
+SceneFrame SceneHierarchy::UpdateScene(const RCommandList a_list, Viewport& a_viewport)
 {
 	RenderSystem& render_sys = m_ecs.GetRenderSystem();
 	SceneFrame scene_frame;
 
+	m_ecs.TransformSystemUpdate();
 
 	if (render_sys.GetRenderTargetSize() != a_viewport.GetExtent())
 	{
@@ -131,7 +132,7 @@ bool SceneHierarchy::DrawImgui(const RDescriptorIndex a_render_target, Viewport&
 		{
 			a_viewport.SetExtent(window_size_u);
 		}
-		a_viewport.SetOffset(int2(viewport_offset.x, viewport_offset.y));
+		a_viewport.SetOffset(int2(static_cast<int>(viewport_offset.x), static_cast<int>(viewport_offset.y)));
 
 		ImGui::Image(a_render_target.handle, viewport_draw_area);
 		rendered_image = true;

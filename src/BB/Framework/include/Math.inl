@@ -215,6 +215,11 @@ namespace BB
 		return float4(MulFloat4(a_lhs.vec, a_float));
 	}
 
+	static inline float4 operator*(const float4 a_lhs, const float3 a_rhs)
+	{
+		return float4(a_lhs.x * a_rhs.x, a_lhs.y * a_rhs.y, a_lhs.z * a_rhs.z, a_lhs.w);
+	}
+
 	static inline float4 operator*(const float4 a_lhs, const float4 a_rhs)
 	{
 		return float4(MulFloat4(a_lhs.vec, a_rhs.vec));
@@ -391,7 +396,7 @@ namespace BB
 
 	static inline float3x3 Float3x3FromQuat(const Quat q)
 	{
-		float3x3 rotMat = Float3x3Identity();
+		float3x3 rot_mat = Float3x3Identity();
 		const float qxx = q.x * q.x;
 		const float qyy = q.y * q.y;
 		const float qzz = q.z * q.z;
@@ -404,18 +409,18 @@ namespace BB
 		const float qwy = q.w * q.y;
 		const float qwz = q.w * q.z;
 
-		rotMat.e[0][0] = 1.f - 2.f * (qyy + qzz);
-		rotMat.e[0][1] = 2.f * (qxy + qwz);
-		rotMat.e[0][2] = 2.f * (qxz - qwy);
+		rot_mat.e[0][0] = 1.f - 2.f * (qyy + qzz);
+		rot_mat.e[0][1] = 2.f * (qxy + qwz);
+		rot_mat.e[0][2] = 2.f * (qxz - qwy);
 
-		rotMat.e[1][0] = 2.f * (qxy - qwz);
-		rotMat.e[1][1] = 1.f - 2.f * (qxx + qzz);
-		rotMat.e[1][2] = 2.f * (qyz + qwx);
+		rot_mat.e[1][0] = 2.f * (qxy - qwz);
+		rot_mat.e[1][1] = 1.f - 2.f * (qxx + qzz);
+		rot_mat.e[1][2] = 2.f * (qyz + qwx);
 
-		rotMat.e[2][0] = 2.f * (qxz + qwy);
-		rotMat.e[2][1] = 2.f * (qyz - qwx);
-		rotMat.e[2][2] = 1.f - 2.f * (qxx + qyy);
-		return rotMat;
+		rot_mat.e[2][0] = 2.f * (qxz + qwy);
+		rot_mat.e[2][1] = 2.f * (qyz - qwx);
+		rot_mat.e[2][2] = 1.f - 2.f * (qxx + qyy);
+		return rot_mat;
 	}
 
 	// FLOAT3x3
@@ -446,16 +451,6 @@ namespace BB
 		return mat;
 	}
 
-	static inline float4x4 operator*(const float4x4& a_lhs, const float3x3& a_rhs)
-	{
-		float4x4 mat;
-		mat.r0 = a_lhs.r0 * a_rhs.r0.x + a_lhs.r1 * a_rhs.r0.y + a_lhs.r2 * a_rhs.r0.z + a_lhs.r3;
-		mat.r1 = a_lhs.r0 * a_rhs.r1.x + a_lhs.r1 * a_rhs.r1.y + a_lhs.r2 * a_rhs.r1.z + a_lhs.r3;
-		mat.r2 = a_lhs.r0 * a_rhs.r2.x + a_lhs.r1 * a_rhs.r2.y + a_lhs.r2 * a_rhs.r2.z + a_lhs.r3;
-		mat.r3 = a_lhs.r0 + a_lhs.r1 + a_lhs.r2 + a_lhs.r3;
-		return mat;
-	}
-
 	static inline float4x4 operator*(const float4x4& a_lhs, const float4x4& a_rhs)
 	{
 		float4x4 mat;
@@ -464,6 +459,15 @@ namespace BB
 		mat.r2 = a_lhs.r0 * a_rhs.r2.x + a_lhs.r1 * a_rhs.r2.y + a_lhs.r2 * a_rhs.r2.z + a_lhs.r3 * a_rhs.r2.w;
 		mat.r3 = a_lhs.r0 * a_rhs.r3.x + a_lhs.r1 * a_rhs.r3.y + a_lhs.r2 * a_rhs.r3.z + a_lhs.r3 * a_rhs.r3.w;
 		return mat;
+	}
+
+	static inline float4x4 operator*(const float4x4& a_lhs, const float3x3& a_rhs)
+	{
+		return Float4x4FromFloats(
+			a_lhs.r0.x * a_rhs.r0.x, a_lhs.r0.y * a_rhs.r0.y, a_lhs.r0.z * a_rhs.r0.z, a_lhs.r0.w,
+			a_lhs.r1.x * a_rhs.r1.x, a_lhs.r1.y * a_rhs.r1.y, a_lhs.r1.z * a_rhs.r1.z, a_lhs.r1.w,
+			a_lhs.r2.x * a_rhs.r2.x, a_lhs.r2.y * a_rhs.r2.y, a_lhs.r2.z * a_rhs.r2.z, a_lhs.r2.w,
+			a_lhs.r3.x, a_lhs.r3.y, a_lhs.r3.z, a_lhs.r3.w);
 	}
 
 	static inline float4x4 Float4x4Identity()
@@ -487,7 +491,7 @@ namespace BB
 
 	static inline float4x4 Float4x4FromQuat(const Quat q)
 	{
-		float4x4 rotMat = Float4x4Identity();
+		float4x4 rot_mat = Float4x4Identity();
 		const float qxx = q.x * q.x;
 		const float qyy = q.y * q.y;
 		const float qzz = q.z * q.z;
@@ -500,18 +504,18 @@ namespace BB
 		const float qwy = q.w * q.y;
 		const float qwz = q.w * q.z;
 
-		rotMat.e[0][0] = 1.f - 2.f * (qyy + qzz);
-		rotMat.e[0][1] = 2.f * (qxy + qwz);
-		rotMat.e[0][2] = 2.f * (qxz - qwy);
+		rot_mat.e[0][0] = 1.f - 2.f * (qyy + qzz);
+		rot_mat.e[0][1] = 2.f * (qxy + qwz);
+		rot_mat.e[0][2] = 2.f * (qxz - qwy);
 
-		rotMat.e[1][0] = 2.f * (qxy - qwz);
-		rotMat.e[1][1] = 1.f - 2.f * (qxx + qzz);
-		rotMat.e[1][2] = 2.f * (qyz + qwx);
+		rot_mat.e[1][0] = 2.f * (qxy - qwz);
+		rot_mat.e[1][1] = 1.f - 2.f * (qxx + qzz);
+		rot_mat.e[1][2] = 2.f * (qyz + qwx);
 
-		rotMat.e[2][0] = 2.f * (qxz + qwy);
-		rotMat.e[2][1] = 2.f * (qyz - qwx);
-		rotMat.e[2][2] = 1.f - 2.f * (qxx + qyy);
-		return rotMat;
+		rot_mat.e[2][0] = 2.f * (qxz + qwy);
+		rot_mat.e[2][1] = 2.f * (qyz - qwx);
+		rot_mat.e[2][2] = 1.f - 2.f * (qxx + qyy);
+		return rot_mat;
 	}
 
 	static inline float4x4 Float4x4FromRotation(const float3 a_rotation)
@@ -641,8 +645,8 @@ namespace BB
 	{
 		return Float3x3FromFloats(
 			a_transform.e[0][0] / a_scale.x, a_transform.e[0][1] / a_scale.x, a_transform.e[0][2] / a_scale.x,
-			a_transform.e[1][0] / a_scale.x, a_transform.e[1][1] / a_scale.x, a_transform.e[1][2] / a_scale.x,
-			a_transform.e[2][0] / a_scale.x, a_transform.e[2][1] / a_scale.x, a_transform.e[2][2] / a_scale.x);
+			a_transform.e[1][0] / a_scale.y, a_transform.e[1][1] / a_scale.y, a_transform.e[1][2] / a_scale.y,
+			a_transform.e[2][0] / a_scale.z, a_transform.e[2][1] / a_scale.z, a_transform.e[2][2] / a_scale.z);
 	}
 
 	static inline float3 Float4x4ExtractScale(const float4x4& a_transform)
@@ -657,8 +661,8 @@ namespace BB
 	{
 		return Float4x4FromFloats(
 			a_transform.e[0][0] / a_scale.x, a_transform.e[0][1] / a_scale.x, a_transform.e[0][2] / a_scale.x, 0,
-			a_transform.e[1][0] / a_scale.x, a_transform.e[1][1] / a_scale.x, a_transform.e[1][2] / a_scale.x, 0,
-			a_transform.e[2][0] / a_scale.x, a_transform.e[2][1] / a_scale.x, a_transform.e[2][2] / a_scale.x, 0,
+			a_transform.e[0][1] / a_scale.y, a_transform.e[1][1] / a_scale.y, a_transform.e[1][2] / a_scale.y, 0,
+			a_transform.e[0][2] / a_scale.z, a_transform.e[2][1] / a_scale.z, a_transform.e[2][2] / a_scale.z, 0,
 			0, 0, 0, 1);
 	}
 

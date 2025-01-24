@@ -269,19 +269,17 @@ void Editor::MainEditorImGuiInfo(const MemoryArena& a_arena)
 	ImGui::End();
 }
 
-void Editor::ThreadFuncForDrawing(MemoryArena& a_arena, void* a_param)
+void Editor::ThreadFuncForDrawing(MemoryArena&, void* a_param)
 {
 	ThreadFuncForDrawing_Params* param_in = reinterpret_cast<ThreadFuncForDrawing_Params*>(a_param);
 
 	Viewport& viewport = *param_in->viewport;
 	SceneHierarchy& scene_hierarchy = *param_in->scene_hierarchy;
 	RCommandList list = param_in->command_list;
-	MemoryArenaScope(a_arena)
-	{
-		param_in->scene_frame = scene_hierarchy.UpdateScene(a_arena, list, viewport);
-		*param_in->fence_value = param_in->scene_frame.render_frame.fence_value;
-		*param_in->fence = param_in->scene_frame.render_frame.fence;
-	}
+
+	param_in->scene_frame = scene_hierarchy.UpdateScene(list, viewport);
+	*param_in->fence_value = param_in->scene_frame.render_frame.fence_value;
+	*param_in->fence = param_in->scene_frame.render_frame.fence;
 }
 
 void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent, const size_t a_editor_memory)
@@ -531,7 +529,11 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 			float3& scale = a_ecs.m_scales.GetComponent(a_entity);
 
 			position_changed = ImGui::InputFloat3("position", pos.e);
-			//ImGui::InputFloat4("rotation quat (xyzw)", rot.e);
+			float3 euler_angles;
+			if (ImGui::InputFloat3("rotation", euler_angles.e))
+			{
+				BB_UNIMPLEMENTED();
+			}
 			ImGui::InputFloat3("scale", scale.e);
 			ImGui::TreePop();
 		}

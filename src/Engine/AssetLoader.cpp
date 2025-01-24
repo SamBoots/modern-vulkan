@@ -768,9 +768,14 @@ static void LoadglTFNode(const cgltf_data& a_cgltf_data, Model& a_model, uint32_
 		else
 			node.translation = {};
 		if (cgltf_node.has_rotation)
-			memcpy(&node.rotation, cgltf_node.rotation, sizeof(cgltf_node.rotation));
+		{
+			Quat rot;
+			memcpy(&rot, cgltf_node.rotation, sizeof(Quat));
+
+			node.rotation = Float3x3FromQuat(rot);
+		}
 		else
-			node.rotation = {};
+			node.rotation = Float3x3Identity();
 		if (cgltf_node.has_scale)
 			memcpy(&node.scale, cgltf_node.scale, sizeof(cgltf_node.scale));
 		else
