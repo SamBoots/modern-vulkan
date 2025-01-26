@@ -4,10 +4,9 @@ using namespace BB;
 
 bool EntityMap::Init(MemoryArena& a_arena, const uint32_t a_max_entities)
 {
-	if (m_entity_max != 0)
+	if (m_entities.capacity() != 0)
 		return false;
 
-	m_entity_max = a_max_entities;
 	m_entity_count = 0;
 	m_entity_queue.Init(a_arena, a_max_entities);
 	m_entities.Init(a_arena, a_max_entities);
@@ -26,7 +25,7 @@ bool EntityMap::Init(MemoryArena& a_arena, const uint32_t a_max_entities)
 
 bool EntityMap::CreateEntity(ECSEntity& a_out_entity, const ECSEntity a_parent)
 {
-	if (m_entity_count > m_entity_max)
+	if (m_entity_count > m_entities.capacity())
 		return false;
 	++m_entity_count;
 	a_out_entity = m_entity_queue.DeQueue();
@@ -150,7 +149,7 @@ bool EntityMap::ValidateEntity(const ECSEntity a_entity) const
 
 bool EntityMap::EntityWithinBounds(const ECSEntity a_entity) const
 {
-	if (a_entity.index >= m_entity_max)
+	if (a_entity.index >= m_entities.capacity())
 		return false;
 	return true;
 }
