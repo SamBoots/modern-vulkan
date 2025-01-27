@@ -345,32 +345,7 @@ void Editor::StartFrame(const Slice<InputEvent> a_input_events, const float a_de
 		if (ip.input_type == INPUT_TYPE::KEYBOARD)
 		{
 			const KeyInfo& ki = ip.key_info;
-			float3 cam_move{};
-			if (ki.key_pressed)
-				switch (ki.scan_code)
-				{
-				case KEYBOARD_KEY::W:
-					cam_move.y = 1;
-					break;
-				case KEYBOARD_KEY::S:
-					cam_move.y = -1;
-					break;
-				case KEYBOARD_KEY::A:
-					cam_move.x = 1;
-					break;
-				case KEYBOARD_KEY::D:
-					cam_move.x = -1;
-					break;
-				case KEYBOARD_KEY::X:
-					cam_move.z = 1;
-					break;
-				case KEYBOARD_KEY::Z:
-					cam_move.z = -1;
-					break;
-				default:
-					break;
-				}
-
+			(void)ki;
 		}
 		else if (ip.input_type == INPUT_TYPE::MOUSE)
 		{
@@ -381,13 +356,6 @@ void Editor::StartFrame(const Slice<InputEvent> a_input_events, const float a_de
 				FreezeMouseOnWindow(m_main_window);
 			if (mi.left_released)
 				UnfreezeMouseOnWindow();
-
-			//if (mi.wheel_move)
-			//{
-			//	m_cam_speed = Clampf(m_cam_speed + static_cast<float>(mi.wheel_move) * 0.1f,
-			//		m_cam_speed_min,
-			//		m_cam_speed_max);
-			//}
 		}
 	}
 

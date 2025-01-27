@@ -25,7 +25,7 @@ namespace BB
 
 		FreeCamera m_camera{};
 		float m_speed = 200.f;
-		float m_min_speed = 100.f;
+		float m_min_speed = 10.f;
 		float m_max_speed = 1000.0f;
 		bool m_freeze_cam = false;
 	};
