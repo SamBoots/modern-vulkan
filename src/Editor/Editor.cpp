@@ -487,14 +487,14 @@ void Editor::ImguiDisplayECS(EntityComponentSystem& a_ecs)
 			}
 		}
 
-		//for (size_t i = 0; i < a_hierarchy.m_top_level_object_count; i++)
-		//{
-		//	ImGui::PushID(static_cast<int>(i));
+		for (size_t i = 0; i < a_hierarchy.m_top_level_object_count; i++)
+		{
+			ImGui::PushID(static_cast<int>(i));
 
-		//	ImGuiDisplaySceneObject(a_hierarchy, a_hierarchy.m_top_level_objects[i]);
+			ImGuiDisplaySceneObject(a_hierarchy, a_hierarchy.m_top_level_objects[i]);
 
-		//	ImGui::PopID();
-		//}
+			ImGui::PopID();
+		}
 
 		ImGui::Unindent();
 	}

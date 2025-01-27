@@ -1,7 +1,6 @@
 #pragma once
-#include "Enginefwd.hpp"
+#include "ECSBase.hpp"
 #include "Storage/Queue.hpp"
-#include "Storage/Array.h"
 
 namespace BB
 {
@@ -29,7 +28,6 @@ namespace BB
 		bool ValidateEntity(const ECSEntity a_entity) const;
 	private:
 		bool EntityWithinBounds(const ECSEntity a_entity) const;
-		uint32_t m_entity_max;
 		uint32_t m_entity_count;
 		SPSCQueue<ECSEntity> m_entity_queue;
 		
