@@ -87,5 +87,10 @@ namespace BB
 		{
 			EntitySparseSet dirty_transforms;
 		} m_transform_system;
+
+		struct RootEntitySystem
+		{
+			EntitySparseSet root_entities;
+		} m_root_entity_system;
 	};
 }

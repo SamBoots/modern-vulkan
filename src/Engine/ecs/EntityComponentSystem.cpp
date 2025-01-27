@@ -32,6 +32,7 @@ bool EntityComponentSystem::Init(MemoryArena& a_arena, const EntityComponentSyst
 
 	// maybe better system for this?
 	m_transform_system.dirty_transforms.Init(a_arena, a_create_info.entity_count, a_create_info.entity_count);
+	m_root_entity_system.root_entities.Init(a_arena, a_create_info.entity_count, a_create_info.entity_count / 4);
 
 	m_render_system.Init(a_arena, a_create_info.render_frame_count, a_create_info.light_count, a_create_info.window_size);
 
@@ -209,6 +210,8 @@ bool EntityComponentSystem::AddEntityRelation(const ECSEntity a_entity, const EC
 
 		++parent_relation.child_count;
 	}
+	else
+		m_root_entity_system.root_entities.Insert(a_entity);
 
 	return m_relations.CreateComponent(a_entity, relations);
 }

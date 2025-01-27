@@ -455,11 +455,12 @@ void Editor::ImguiDisplayECS(EntityComponentSystem& a_ecs)
 			}
 		}
 
-		for (size_t i = 0; i < a_hierarchy.m_top_level_object_count; i++)
+		for (uint32_t i = 0; i < a_ecs.m_root_entity_system.root_entities.Size(); i++)
 		{
-			ImGui::PushID(static_cast<int>(i));
+			const ECSEntity entity = a_ecs.m_root_entity_system.root_entities[i];
+			ImGui::PushID(static_cast<int>(entity.index));
 
-			ImGuiDisplaySceneObject(a_hierarchy, a_hierarchy.m_top_level_objects[i]);
+			ImGuiDisplayEntity(a_ecs, entity);
 
 			ImGui::PopID();
 		}
@@ -618,10 +619,13 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 			}
 		}
 
-		//for (size_t i = 0; i < scene_object.child_count; i++)
-		//{
-		//	ImGuiDisplaySceneObject(a_hierarchy, scene_object.children[i]);
-		//}
+		const EntityRelation relation = a_ecs.m_relations.GetComponent(a_entity);
+		ECSEntity child = relation.first_child;
+		for (size_t i = 0; i < relation.child_count; i++)
+		{
+			ImGuiDisplayEntity(a_ecs, child);
+			child = a_ecs.m_relations.GetComponent(child).next;
+		}
 
 		ImguiCreateEntity(a_ecs, a_entity);
 
