@@ -5,6 +5,7 @@
 
 namespace BB
 {
+	constexpr ECSSignatureIndex RELATION_ECS_SIGNATURE = ECSSignatureIndex(0);
 	// transform
 	constexpr ECSSignatureIndex POSITION_ECS_SIGNATURE = ECSSignatureIndex(1);
 	constexpr ECSSignatureIndex ROTATION_ECS_SIGNATURE = ECSSignatureIndex(2);

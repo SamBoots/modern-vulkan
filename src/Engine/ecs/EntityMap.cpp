@@ -24,13 +24,12 @@ bool EntityMap::Init(MemoryArena& a_arena, const uint32_t a_max_entities)
 	return true;
 }
 
-bool EntityMap::CreateEntity(ECSEntity& a_out_entity, const ECSEntity a_parent)
+bool EntityMap::CreateEntity(ECSEntity& a_out_entity)
 {
 	if (m_entity_count > m_entity_max)
 		return false;
 	++m_entity_count;
 	a_out_entity = m_entity_queue.DeQueue();
-	m_entities[a_out_entity.index].parent = a_parent;
 	return true;
 }
 
@@ -47,14 +46,6 @@ bool EntityMap::FreeEntity(const ECSEntity a_entity)
 	queue_entity.extra_index = ++m_entities[a_entity.index].sentinel;
 	m_entity_queue.EnQueue(queue_entity);
 
-	return true;
-}
-
-bool EntityMap::EntitySetParent(const ECSEntity a_entity, const ECSEntity a_parent)
-{
-	if (!ValidateEntity(a_entity))
-		return false;
-	m_entities[a_entity.index].parent = a_parent;
 	return true;
 }
 
@@ -107,14 +98,6 @@ bool EntityMap::UnregisterSignatures(const ECSEntity a_entity, const ConstSlice<
 		m_entities[a_entity.index].signature[a_signature_indices[i].handle] = false;
 	}
 	return no_overlap_registrations;
-}
-
-ECSEntity EntityMap::GetParent(const ECSEntity a_entity) const
-{
-	if (!ValidateEntity(a_entity))
-		return INVALID_ECS_OBJ;
-
-	return m_entities[a_entity.index].parent;
 }
 
 bool EntityMap::GetSignature(const ECSEntity a_entity, ECSSignature& a_out_signature) const

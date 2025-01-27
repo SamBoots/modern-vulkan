@@ -3,6 +3,7 @@
 #include "systems/RenderSystem.hpp"
 #include "components/LightComponent.hpp"
 #include "components/NameComponent.hpp"
+#include "components/RelationComponent.hpp"
 
 #include "GPUBuffers.hpp"
 
@@ -55,6 +56,7 @@ namespace BB
 		StackString<32> GetName() const { return m_name; }
 
 	private:
+		bool AddEntityRelation(const ECSEntity a_entity, const ECSEntity a_parent);
 		void UpdateTransform(const ECSEntity a_entity);
 
 		StackString<32> m_name;
@@ -69,6 +71,7 @@ namespace BB
 		EntityMap m_ecs_entities;
 
 		// component pools
+		RelationComponentPool m_relations;
 		PositionComponentPool m_positions;
 		RotationComponentPool m_rotations;
 		ScaleComponentPool m_scales;

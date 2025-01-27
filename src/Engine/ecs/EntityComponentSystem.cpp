@@ -20,6 +20,7 @@ bool EntityComponentSystem::Init(MemoryArena& a_arena, const EntityComponentSyst
 
 	// components
 	m_ecs_entities.Init(a_arena, a_create_info.entity_count);
+	m_relations.Init(a_arena, a_create_info.entity_count);
 	m_name_pool.Init(a_arena, a_create_info.entity_count);
 	m_positions.Init(a_arena, a_create_info.entity_count);
 	m_rotations.Init(a_arena, a_create_info.entity_count);
@@ -40,9 +41,11 @@ bool EntityComponentSystem::Init(MemoryArena& a_arena, const EntityComponentSyst
 ECSEntity EntityComponentSystem::CreateEntity(const NameComponent& a_name, const ECSEntity& a_parent, const float3 a_position, const float3x3 a_rotation, const float3 a_scale)
 {
 	ECSEntity entity;
-	bool success = m_ecs_entities.CreateEntity(entity, a_parent);
+	bool success = m_ecs_entities.CreateEntity(entity);
 	BB_ASSERT(success, "error creating ecs entity");
 
+	success = AddEntityRelation(entity, a_parent);
+	BB_ASSERT(success, "ecs entity was not correctly deleted");
 	success = m_name_pool.CreateComponent(entity, a_name);
 	BB_ASSERT(success, "ecs entity was not correctly deleted");
 	success = m_positions.CreateComponent(entity, a_position);
@@ -61,6 +64,7 @@ ECSEntity EntityComponentSystem::CreateEntity(const NameComponent& a_name, const
 
 	constexpr ECSSignatureIndex signatures[] =
 	{
+		RELATION_ECS_SIGNATURE,
 		NAME_ECS_SIGNATURE,
 		POSITION_ECS_SIGNATURE,
 		ROTATION_ECS_SIGNATURE,
@@ -178,19 +182,47 @@ bool EntityComponentSystem::EntityFreeLight(const ECSEntity a_entity)
 	return true;
 }
 
+bool EntityComponentSystem::AddEntityRelation(const ECSEntity a_entity, const ECSEntity a_parent)
+{
+	// TODO, maybe add previous entry as well.
+	EntityRelation relations;
+	relations.child_count = 0;
+	relations.first_child = INVALID_ECS_OBJ;
+	relations.next = INVALID_ECS_OBJ;
+	relations.parent = a_parent;
+	if (relations.parent.IsValid())
+	{
+		EntityRelation& parent_relation = m_relations.GetComponent(relations.parent);
+		if (parent_relation.child_count != 0)
+		{
+			ECSEntity next_free = parent_relation.first_child;
+			for (size_t i = 1; i < parent_relation.child_count; i++)
+			{
+				next_free = m_relations.GetComponent(next_free).next;
+			}
+
+			BB_ASSERT(!m_relations.GetComponent(next_free).next.IsValid(), "next free entity is not free!");
+			m_relations.GetComponent(next_free).next = a_entity;
+		}
+		else
+			parent_relation.first_child = a_entity;
+
+		++parent_relation.child_count;
+	}
+
+	return m_relations.CreateComponent(a_entity, relations);
+}
+
 void EntityComponentSystem::UpdateTransform(const ECSEntity a_entity)
 {
 	float4x4& local_matrix = m_local_matrices.GetComponent(a_entity);
 	local_matrix = Float4x4FromTranslation(m_positions.GetComponent(a_entity)) * m_rotations.GetComponent(a_entity);
 	local_matrix = Float4x4Scale(local_matrix, m_scales.GetComponent(a_entity));
 
-	const ECSEntity parent = m_ecs_entities.GetParent(a_entity);
-	if (parent.IsValid())
+	const EntityRelation& parent_relation = m_relations.GetComponent(a_entity);
+	if (parent_relation.parent.IsValid())
 	{
-		if (m_transform_system.dirty_transforms.Find(parent.index) != SPARSE_SET_INVALID)
-			UpdateTransform(parent);
-
-		const float4x4& world_parent_matrix = m_world_matrices.GetComponent(parent);
+		const float4x4& world_parent_matrix = m_world_matrices.GetComponent(parent_relation.parent);
 		m_world_matrices.GetComponent(a_entity) = world_parent_matrix * local_matrix;
 	}
 	else
@@ -199,4 +231,12 @@ void EntityComponentSystem::UpdateTransform(const ECSEntity a_entity)
 	}
 
 	m_transform_system.dirty_transforms.Erase(a_entity);
+
+	// update all the chilren last
+	ECSEntity child = parent_relation.first_child;
+	for (size_t i = 0; i < parent_relation.child_count; i++)
+	{
+		UpdateTransform(child);
+		child = m_relations.GetComponent(child).next;
+	}
 }
