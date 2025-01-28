@@ -80,7 +80,7 @@ SceneFrame SceneHierarchy::UpdateScene(const RCommandList a_list, Viewport& a_vi
 
 	m_ecs.TransformSystemUpdate();
 
-	if (render_sys.GetRenderTargetSize() != a_viewport.GetExtent())
+	if (render_sys.GetRenderTargetExtent() != a_viewport.GetExtent())
 	{
 		render_sys.Resize(a_viewport.GetExtent());
 		render_sys.SetProjection(a_viewport.CreateProjection(60.f, 0.001f, 10000.0f));
@@ -108,8 +108,7 @@ bool SceneHierarchy::DrawImgui(const RDescriptorIndex a_render_target, Viewport&
 				ImGui::InputText("sceenshot name", image_name, 128);
 
 				if (ImGui::Button("make screenshot"))
-					BB_UNIMPLEMENTED();
-					//m_render_system.Screenshot(a_render_target, image_name);
+					m_ecs.GetRenderSystem().Screenshot(image_name);
 
 				ImGui::EndMenu();
 			}

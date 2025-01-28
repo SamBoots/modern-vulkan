@@ -26,7 +26,7 @@ namespace BB
 		void UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCommandList a_list, const uint2 a_draw_area, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const ConstSlice<LightComponent> a_lights);
 		
 		void Resize(const uint2 a_new_extent);
-		void Screenshot(const RDescriptorIndex a_render_target, const char* a_name) const;
+		void Screenshot(const PathString& a_path) const;
 
 		static RDescriptorLayout GetSceneDescriptorLayout();
 
@@ -50,9 +50,9 @@ namespace BB
 			return m_options.skip_bloom = !m_options.skip_bloom;
 		}
 
-		uint2 GetRenderTargetSize() const
+		uint2 GetRenderTargetExtent() const
 		{
-			return m_render_target.size;
+			return m_render_target.extent;
 		}
 
 		void SetView(const float4x4& a_view, const float3& a_view_position);
@@ -109,7 +109,7 @@ namespace BB
 		struct RenderTarget
 		{
 			RImage image;
-			uint2 size;
+			uint2 extent;
 		};
 
 		void UpdateConstantBuffer(PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size, const ConstSlice<LightComponent> a_lights);

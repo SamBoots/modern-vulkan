@@ -68,7 +68,6 @@ namespace BB
 	using POW_FreelistAllocator_t = allocators::POW_FreelistAllocator;
 
 	constexpr const uint64_t BB_INVALID_HANDLE_64 = UINT64_MAX;
-
 	constexpr const uint32_t MAX_PATH_SIZE = 260;
 
 	template<typename Tag>
@@ -221,6 +220,7 @@ namespace BB
 	union int2
 	{
 		constexpr int2() : x(0), y(0) {}
+		constexpr int2(const int a_v) : x(a_v), y(a_v) {}
 		constexpr int2(const int a_x, const int a_y) : x(a_x), y(a_y) {}
 		int e[2];
 		struct

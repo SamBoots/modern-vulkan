@@ -12,5 +12,4 @@ namespace BB
 	};
 
 	using RelationComponentPool = ECSComponentBase<EntityRelation, RELATION_ECS_SIGNATURE>;
-
 }

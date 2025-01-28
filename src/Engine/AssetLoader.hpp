@@ -13,6 +13,13 @@ namespace BB
 	class BBImage;
 	class UploadBufferView;
 
+	// used this to forward declare it
+	class PathString : public StackString<MAX_PATH_SIZE>
+	{
+	public:
+		using StackString<MAX_PATH_SIZE>::StackString;
+	};
+
 	struct Image
 	{
 		uint32_t width;		//4
@@ -146,8 +153,9 @@ namespace BB
 		const StringView LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op);
 		const StringView LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoadFromMemory& a_mesh_op);
 
-		bool WriteImage(const char* a_file_name, const uint32_t a_width, const uint32_t a_height, const uint32_t a_channels, const void* a_pixels);
-		unsigned char* LoadImageCPU(const char* a_file_name, int& a_width, int& a_height, int& a_bytes_per_pixel);
+		bool ReadWriteTextureDeferred(const PathString& a_path, const ImageInfo& a_read_image_info);
+		bool WriteImage(const PathString& a_path, const uint2 a_extent, const uint32_t a_channels, const void* a_pixels);
+		unsigned char* LoadImageCPU(const PathString& a_path, int& a_width, int& a_height, int& a_bytes_per_pixel);
 		void FreeImageCPU(void* a_pixels);
 
 		const Model* FindModelByName(const char* a_name);

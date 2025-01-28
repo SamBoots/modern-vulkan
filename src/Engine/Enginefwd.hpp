@@ -13,5 +13,8 @@ namespace BB
 	using ECSSignature = std::bitset<MAX_ECS_COMPONENTS>;
 	using ECSSignatureIndex = FrameworkHandle32Bit<struct ECSSignatureIndexHandle>;
 
+	// String Forwards
+	class PathString;
+
 	constexpr ECSEntity INVALID_ECS_OBJ = ECSEntity(BB_INVALID_HANDLE_64);
 }

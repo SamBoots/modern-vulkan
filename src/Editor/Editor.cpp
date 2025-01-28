@@ -398,8 +398,6 @@ void Editor::EndFrame(MemoryArena& a_arena)
 			m_per_frame.pools[i].EndCommandList(m_per_frame.lists[i]);
 		}
 
-
-
 		const uint32_t command_list_count = Max(m_per_frame.current_count.load(), 1u);
 		uint64_t present_queue_value;
 		// TODO: fence values could bug if no scenes are being rendered.
@@ -502,7 +500,7 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 			float3 euler_angles;
 			if (ImGui::InputFloat3("rotation", euler_angles.e))
 			{
-				BB_UNIMPLEMENTED();
+				BB_UNIMPLEMENTED("rotation float3x3->euler->float3x3");
 			}
 			ImGui::InputFloat3("scale", scale.e);
 			ImGui::TreePop();

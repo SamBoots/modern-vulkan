@@ -72,7 +72,6 @@ constexpr uint32_t MAX_TEXTURE_UPLOAD_QUEUE = 256;
 
 constexpr uint32_t MAX_TEXTURES = 1024;
 
-constexpr IMAGE_FORMAT SCREENSHOT_IMAGE_FORMAT = IMAGE_FORMAT::RGBA8_SRGB; // check the variable below here before you change shit k thnx
 constexpr size_t SCREENSHOT_IMAGE_PIXEL_BYTE_SIZE = 4;	// check the variable above here before you change shit k thnx
 
 static void CreateBasicColorImage(RImage& a_image, RDescriptorIndex& a_index, const char* a_name, const uint32_t a_color)
@@ -1296,7 +1295,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 bool BB::DestroyRenderer()
 {
 	IMGUI_IMPL::ImShutdown();
-	BB_UNIMPLEMENTED();
+	BB_UNIMPLEMENTED("BB::DestroyRenderer");
 	// delete all vulkan objects
 	return true;
 }
@@ -1490,31 +1489,37 @@ static void UploadAssets(MemoryArena& a_thread_arena, void*)
 			while (s_render_inst->asset_uploader.upload_textures.DeQueue(upload_data) &&
 				index++ < MAX_TEXTURE_UPLOAD_QUEUE)
 			{
+				IMAGE_LAYOUT layout;
+				BARRIER_ACCESS_MASK mask;
 				switch (upload_data.upload_type)
 				{
 				case UPLOAD_TEXTURE_TYPE::WRITE:
 					write_infos[write_info_count++] = upload_data.write_info;
 					base_layer = upload_data.write_info.dst_image_info.base_array_layer;
 					layer_count = upload_data.write_info.dst_image_info.layer_count;
+					layout = IMAGE_LAYOUT::TRANSFER_DST;
+					mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
 					break;
 				case UPLOAD_TEXTURE_TYPE::READ:
 					read_infos[read_info_count++] = upload_data.read_info;
 					base_layer = upload_data.read_info.src_image_info.base_array_layer;
 					layer_count = upload_data.read_info.src_image_info.layer_count;
+					layout = IMAGE_LAYOUT::TRANSFER_SRC;
+					mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
 					break;
 				default:
 					BB_ASSERT(false, "invalid upload UPLOAD_TEXTURE_TYPE value or unimplemented switch statement");
 					break;
 				}
 
-				if (upload_data.start_layout != IMAGE_LAYOUT::TRANSFER_DST)
+				if (upload_data.start_layout != layout)
 				{
 					PipelineBarrierImageInfo& pi = before_transition[before_trans_count++];
 					pi.src_mask = BARRIER_ACCESS_MASK::NONE;
-					pi.dst_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
+					pi.dst_mask = mask;
 					pi.image = upload_data.image;
 					pi.old_layout = upload_data.start_layout;
-					pi.new_layout = IMAGE_LAYOUT::TRANSFER_DST;
+					pi.new_layout = layout;
 					pi.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
 					pi.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
 					pi.layer_count = layer_count;
@@ -1526,13 +1531,13 @@ static void UploadAssets(MemoryArena& a_thread_arena, void*)
 					pi.aspects = IMAGE_ASPECT::COLOR;
 				}
 
-				if (upload_data.end_layout == IMAGE_LAYOUT::TRANSFER_DST)
+				if (upload_data.end_layout == layout)
 				{
 					PipelineBarrierImageInfo pi{};
-					pi.src_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
+					pi.src_mask = mask;
 					pi.dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
 					pi.image = upload_data.image;
-					pi.old_layout = IMAGE_LAYOUT::TRANSFER_DST;
+					pi.old_layout = layout;
 					pi.new_layout = upload_data.end_layout;
 					pi.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
 					pi.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
@@ -1823,7 +1828,7 @@ void BB::FreeMesh(const Mesh a_mesh)
 {
 	(void)a_mesh;
 	// free the vertex memory
-	BB_UNIMPLEMENTED();
+	BB_UNIMPLEMENTED("BB::FreeMesh");
 }
 
 RDescriptorLayout BB::CreateDescriptorLayout(MemoryArena& a_temp_arena, const ConstSlice<DescriptorBindingInfo> a_bindings)
@@ -1981,7 +1986,7 @@ void BB::ClearDepthImage(const RCommandList a_list, const ClearDepthImageInfo& a
 void BB::BlitImage(const RCommandList a_list, const BlitImageInfo& a_blit_info)
 {
 	// use with new asset system, but this is not used now.
-	BB_UNIMPLEMENTED();
+	BB_UNIMPLEMENTED("BB::BlitImage");
 
 	Vulkan::BlitImage(a_list, a_blit_info);
 }
@@ -1989,7 +1994,7 @@ void BB::BlitImage(const RCommandList a_list, const BlitImageInfo& a_blit_info)
 void BB::CopyImage(const RCommandList a_list, const CopyImageInfo& a_copy_info)
 {
 	// use with new asset system, but this is not used.
-	BB_UNIMPLEMENTED();
+	BB_UNIMPLEMENTED("BB::CopyImage");
 
 	Vulkan::CopyImage(a_list, a_copy_info);
 }
@@ -2030,38 +2035,39 @@ GPUFenceValue BB::WriteTexture(const WriteImageInfo& a_write_info)
 	return GPUFenceValue(uploader.next_fence_value.load());
 }
 
-GPUFenceValue BB::ReadTexture(const RImage a_image, const IMAGE_LAYOUT a_current_layout, const uint2 a_extent, const int2 a_offset, const GPUBuffer a_readback_buffer, const size_t a_readback_buffer_size)
+GPUFenceValue BB::ReadTexture(const ImageReadInfo a_image_info)
 {
 	RenderInterface_inst::AssetUploader& uploader = s_render_inst->asset_uploader;
 
 	const size_t image_size =
-		static_cast<size_t>(a_extent.x) *
-		static_cast<size_t>(a_extent.y) *
+		static_cast<size_t>(a_image_info.image_info.extent.x) *
+		static_cast<size_t>(a_image_info.image_info.extent.y) *
 		SCREENSHOT_IMAGE_PIXEL_BYTE_SIZE;
 
-	BB_ASSERT(image_size <= a_readback_buffer_size, "readback buffer too small");
+	BB_ASSERT(image_size <= a_image_info.readback_size, "readback buffer too small");
 
-	RenderCopyImageToBufferInfo image_to_buffer;
-	image_to_buffer.dst_buffer = a_readback_buffer;
+	RenderCopyImageToBufferInfo image_to_buffer{};
+	image_to_buffer.dst_buffer = a_image_info.readback;
 	image_to_buffer.dst_offset = 0; // change this if i have a global readback buffer thing
 
-	image_to_buffer.src_image = a_image;
-	image_to_buffer.src_extent.x = a_extent.x;
-	image_to_buffer.src_extent.y = a_extent.y;
+	image_to_buffer.src_image = a_image_info.image_info.image;
+	image_to_buffer.src_aspects = IMAGE_ASPECT::COLOR;
+	image_to_buffer.src_extent.x = a_image_info.image_info.extent.x;
+	image_to_buffer.src_extent.y = a_image_info.image_info.extent.y;
 	image_to_buffer.src_extent.z = 1;
-	image_to_buffer.src_image_info.offset_x = a_offset.x;
-	image_to_buffer.src_image_info.offset_y = a_offset.y;
+	image_to_buffer.src_image_info.offset_x = a_image_info.image_info.offset.x;
+	image_to_buffer.src_image_info.offset_y = a_image_info.image_info.offset.y;
 	image_to_buffer.src_image_info.offset_z = 0;
-	image_to_buffer.src_image_info.mip_level = 0;
-	image_to_buffer.src_image_info.layer_count = 1;
-	image_to_buffer.src_image_info.base_array_layer = 0;
+	image_to_buffer.src_image_info.mip_level = a_image_info.image_info.mip_layer;
+	image_to_buffer.src_image_info.layer_count = a_image_info.image_info.array_layers;
+	image_to_buffer.src_image_info.base_array_layer = a_image_info.image_info.base_array_layer;
 
 	UploadDataTexture upload_texture{};
-	upload_texture.image = a_image;
+	upload_texture.image = a_image_info.image_info.image;
 	upload_texture.upload_type = UPLOAD_TEXTURE_TYPE::READ;
 	upload_texture.read_info = image_to_buffer;
-	upload_texture.start_layout = a_current_layout;
-	upload_texture.end_layout = a_current_layout;
+	upload_texture.start_layout = a_image_info.image_info.layout;
+	upload_texture.end_layout = a_image_info.image_info.layout;
 	uploader.upload_textures.EnQueue(upload_texture);
 
 	return GPUFenceValue(uploader.next_fence_value.load());

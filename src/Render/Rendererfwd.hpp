@@ -469,6 +469,25 @@ namespace BB
 		IMAGE_ASPECT aspects;
 	};
 
+	struct ImageInfo
+	{
+		RImage image;
+		uint2 extent;
+		int2 offset;
+		uint16_t array_layers;
+		uint16_t base_array_layer;
+		uint32_t mip_layer;
+		IMAGE_LAYOUT layout;
+	};
+
+	struct ImageReadInfo
+	{
+		ImageInfo image_info;
+
+		uint32_t readback_size;
+		GPUBuffer readback;
+	};
+
 	struct ClearImageInfo
 	{
 		RImage image;

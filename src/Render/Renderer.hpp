@@ -1,3 +1,5 @@
+
+
 #pragma once
 
 #include "Common.h"
@@ -140,7 +142,7 @@ namespace BB
 	void BlitImage(const RCommandList a_list, const BlitImageInfo& a_blit_info);
 	void CopyImage(const RCommandList a_list, const CopyImageInfo& a_copy_info);
 	GPUFenceValue WriteTexture(const WriteImageInfo& a_write_info);
-	GPUFenceValue ReadTexture(const RImage a_image, const IMAGE_LAYOUT a_current_layout, const uint2 a_extent, const int2 a_offset, const GPUBuffer a_readback_buffer, const size_t a_readback_buffer_size);
+	GPUFenceValue ReadTexture(const ImageReadInfo a_image_info);
 
 	GPUFenceValue GetTransferFenceValue();
 

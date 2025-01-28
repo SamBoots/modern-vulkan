@@ -390,7 +390,7 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 
 void RenderSystem::Resize(const uint2 a_new_extent)
 {
-	if (m_render_target.size == a_new_extent)
+	if (m_render_target.extent == a_new_extent)
 		return;
 
 	// wait until the rendering is all done
@@ -405,92 +405,24 @@ void RenderSystem::Resize(const uint2 a_new_extent)
 	CreateRenderTarget(a_new_extent);
 }
 
-void RenderSystem::Screenshot(const RDescriptorIndex a_render_target, const char* a_name) const
+void RenderSystem::Screenshot(const PathString& a_path) const
 {
 	// wait until the rendering is all done
 	WaitFence(m_fence, m_next_fence_value - 1);
 
-	CommandPool& pool = GetGraphicsCommandPool();
-	const RCommandList list = pool.StartCommandList();
+	const uint32_t prev_frame = (m_current_frame + 1) % m_per_frame.size();
 
-	{
-		PipelineBarrierImageInfo read_image;
-		read_image.image = m_render_target.image;
-		read_image.old_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
-		read_image.new_layout = IMAGE_LAYOUT::TRANSFER_SRC;
-		read_image.aspects = IMAGE_ASPECT::COLOR;
-		read_image.base_array_layer = a_render_target.handle;
-		read_image.base_mip_level = 0;
-		read_image.layer_count = 1;
-		read_image.level_count = 1;
-		read_image.src_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
-		read_image.dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
-		read_image.src_mask = BARRIER_ACCESS_MASK::SHADER_READ;
-		read_image.dst_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
-		read_image.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
-		read_image.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
+	ImageInfo image_info;
+	image_info.image = m_render_target.image;
+	image_info.extent = m_render_target.extent;
+	image_info.offset = int2(0);
+	image_info.array_layers = 1;
+	image_info.base_array_layer = static_cast<uint16_t>(prev_frame);
+	image_info.mip_layer = 0;
+	image_info.layout = IMAGE_LAYOUT::TRANSFER_SRC;
 
-		PipelineBarrierInfo read_info{};
-		read_info.image_infos = &read_image;
-		read_info.image_info_count = 1;
-		PipelineBarriers(list, read_info);
-	}
-
-	GPUBufferCreateInfo readback_info;
-	readback_info.name = "viewport screenshot readback";
-	readback_info.size = static_cast<uint64_t>(m_render_target.size.x * m_render_target.size.y * 4u);
-	readback_info.type = BUFFER_TYPE::READBACK;
-	readback_info.host_writable = true;
-	GPUBuffer readback = CreateGPUBuffer(readback_info);
-
-	// this is deffered so it works later.
-	BB_UNIMPLEMENTED();
-	//ReadTexture(m_image, IMAGE_LAYOUT::TRANSFER_SRC, m_render_target.size, int2(0, 0), readback, readback_info.size);
-
-	//{
-	//	PipelineBarrierImageInfo read_image;
-	//	read_image.image = m_image;
-	//	read_image.old_layout = IMAGE_LAYOUT::TRANSFER_SRC;
-	//	read_image.new_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
-	//	read_image.aspects = IMAGE_ASPECT::COLOR;
-	//	read_image.base_array_layer = a_back_buffer_index;
-	//	read_image.base_mip_level = 0;
-	//	read_image.layer_count = 1;
-	//	read_image.level_count = 1;
-	//	read_image.src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
-	//	read_image.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
-	//	read_image.src_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
-	//	read_image.dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
-	//	read_image.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
-	//	read_image.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
-
-	//	PipelineBarrierInfo read_info{};
-	//	read_info.image_infos = &read_image;
-	//	read_info.image_info_count = 1;
-	//	PipelineBarriers(list, read_info);
-	//}
-
-	//pool.EndCommandList(list);
-	//uint64_t fence;
-	//ExecuteGraphicCommands(Slice(&pool, 1), nullptr, nullptr, 0, fence);
-
-	//StackString<256> image_name_bmp{ "screenshots" };
-	//// if (OSDirectoryExist(image_name_bmp.c_str()))
-	//OSCreateDirectory(image_name_bmp.c_str());
-
-	//image_name_bmp.push_back('/');
-	//image_name_bmp.append(a_name);
-	//image_name_bmp.append(".png");
-
-	//// maybe deadlock if it's never idle...
-	//GPUWaitIdle();
-
-	//const void* readback_mem = MapGPUBuffer(readback);
-
-	//BB_ASSERT(Asset::WriteImage(image_name_bmp.c_str(), m_extent.x, m_extent.y, 4, readback_mem), "failed to write screenshot image to disk");
-
-	//UnmapGPUBuffer(readback);
-	//FreeGPUBuffer(readback);
+	const bool success = Asset::ReadWriteTextureDeferred(a_path, image_info);
+	BB_ASSERT(success, "failed to write screenshot image to disk");
 }
 
 void RenderSystem::SetView(const float4x4& a_view, const float3& a_view_position)
@@ -1142,7 +1074,7 @@ void RenderSystem::CreateRenderTarget(const uint2 a_render_target_size)
 	render_target_create.use_optimal_tiling = true;
 	render_target_create.is_cube_map = false;
 	m_render_target.image = CreateImage(render_target_create);
-	m_render_target.size = a_render_target_size;
+	m_render_target.extent = a_render_target_size;
 
 	ImageViewCreateInfo image_view_create;
 	image_view_create.name = "render target color view";

@@ -47,7 +47,6 @@ constexpr const char ICON_DIRECTORY[] = "../../resources/icons/";
 
 constexpr const IMAGE_FORMAT ICON_IMAGE_FORMAT = IMAGE_FORMAT::RGBA8_SRGB;
 
-using PathString = StackString<MAX_PATH_SIZE>;
 using AssetString = StackString<MAX_ASSET_NAME_SIZE>;
 
 static bool IsPathImage(const StringView a_view)
@@ -282,42 +281,55 @@ static inline void* ResizeImage(MemoryArena& a_arena, const void* a_src_pixels, 
 	return icon_pixels;
 }
 
-struct IconWriteToDisk_params
+struct WriteToDisk_params
 {
 	GPUBuffer readback;
 	uint2 image_extent;
 	PathString write_path;
 };
 
-static inline void IconWriteToDisk_impl(const void* a_params)
+static inline void WriteToDisk_impl(const void* a_params)
 {
-	const IconWriteToDisk_params* params = reinterpret_cast<const IconWriteToDisk_params*>(a_params);
+	const WriteToDisk_params* params = reinterpret_cast<const WriteToDisk_params*>(a_params);
 
 	const void* mapped = MapGPUBuffer(params->readback);
-	BB_WARNING(Asset::WriteImage(params->write_path.c_str(), params->image_extent.x, params->image_extent.y, 4, mapped), "failed to write icon image to disk", WarningType::MEDIUM);
+	const bool success = Asset::WriteImage(params->write_path.c_str(), params->image_extent, 4, mapped);
+	BB_WARNING(success, "failed to write image to disk", WarningType::MEDIUM);
 	UnmapGPUBuffer(params->readback);
 	FreeGPUBuffer(params->readback);
 }
 
 static inline bool IconWriteToDisk(const IconSlot a_slot, const PathString& a_write_path)
 {
+	const uint32_t readback_size = ICON_EXTENT.x * ICON_EXTENT.y * 4;
+
 	GPUBufferCreateInfo readback_buff;
 	readback_buff.name = "icon readback";
-	readback_buff.size = static_cast<size_t>(ICON_EXTENT.x * ICON_EXTENT.y) * 4; // 4 color channels
+	readback_buff.size = static_cast<uint64_t>(readback_size) * 4; // 4 color channels
 	readback_buff.host_writable = true;
 	readback_buff.type = BUFFER_TYPE::READBACK;
 	const GPUBuffer readback = CreateGPUBuffer(readback_buff);
 
 	const int2 read_offset(static_cast<int>(a_slot.slot_index * ICON_EXTENT.x), 0);
 
-	const GPUFenceValue fence_value = ReadTexture(s_asset_manager->icons_storage.image, IMAGE_LAYOUT::SHADER_READ_ONLY, ICON_EXTENT, read_offset, readback, readback_buff.size);
+	ImageReadInfo read_info;
+	read_info.image_info.image = s_asset_manager->icons_storage.image;
+	read_info.image_info.extent = ICON_EXTENT;
+	read_info.image_info.offset = read_offset;
+	read_info.image_info.array_layers = 1;
+	read_info.image_info.base_array_layer = 1;
+	read_info.image_info.mip_layer = 0;
+	read_info.image_info.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+	read_info.readback_size = readback_size;
+	read_info.readback = readback;
+	const GPUFenceValue fence_value = ReadTexture(read_info);
 
-	IconWriteToDisk_params params;
+	WriteToDisk_params params;
 	params.readback = readback;
 	params.image_extent = ICON_EXTENT;
 	params.write_path = a_write_path;
 	
-	return AddGPUTask(IconWriteToDisk_impl, params, fence_value);
+	return AddGPUTask(WriteToDisk_impl, params, fence_value);
 }
 
 static inline IconSlot LoadIconFromPath(MemoryArena& a_temp_arena, const StringView a_icon_path, const bool a_set_icons_shader_visible)
@@ -641,9 +653,35 @@ const StringView Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_p
 	return asset.path;
 }
 
-bool Asset::WriteImage(const char* a_file_name, const uint32_t a_width, const uint32_t a_height, const uint32_t a_channels, const void* a_pixels)
+bool Asset::ReadWriteTextureDeferred(const PathString& a_path, const ImageInfo& a_image_info)
 {
-	if (stbi_write_png(a_file_name, static_cast<int>(a_width), static_cast<int>(a_height), static_cast<int>(a_channels), a_pixels, static_cast<int>(a_width * a_channels)))
+	const uint32_t readback_size = a_image_info.extent.x * a_image_info.extent.y * 4u;
+
+	GPUBufferCreateInfo readback_info;
+	readback_info.name = "viewport screenshot readback";
+	readback_info.size = static_cast<uint64_t>(readback_size);
+	readback_info.type = BUFFER_TYPE::READBACK;
+	readback_info.host_writable = true;
+	GPUBuffer readback = CreateGPUBuffer(readback_info);
+
+	ImageReadInfo read_info;
+	read_info.image_info = a_image_info;
+	read_info.readback_size = readback_size;
+	read_info.readback = readback;
+	const GPUFenceValue fence_value = ReadTexture(read_info);
+
+	WriteToDisk_params params;
+	params.readback = readback;
+	params.image_extent = a_image_info.extent;
+	params.write_path = a_path;
+	params.write_path.append(".png");
+
+	return AddGPUTask(WriteToDisk_impl, params, fence_value);
+}
+
+bool Asset::WriteImage(const PathString& a_path, const uint2 a_extent, const uint32_t a_channels, const void* a_pixels)
+{
+	if (stbi_write_png(a_path.c_str(), static_cast<int>(a_extent.x), static_cast<int>(a_extent.y), static_cast<int>(a_channels), a_pixels, static_cast<int>(a_extent.x * a_channels)))
 		return true;
 
 	if (const char* stbi_fail_msg = stbi_failure_reason())
@@ -651,9 +689,9 @@ bool Asset::WriteImage(const char* a_file_name, const uint32_t a_width, const ui
 	return false;
 }
 
-unsigned char* Asset::LoadImageCPU(const char* a_file_name, int& a_width, int& a_height, int& a_bytes_per_pixel)
+unsigned char* Asset::LoadImageCPU(const PathString& a_path, int& a_width, int& a_height, int& a_bytes_per_pixel)
 {
-	stbi_uc* pixels = stbi_load(a_file_name, &a_width, &a_height, &a_bytes_per_pixel, 4);
+	stbi_uc* pixels = stbi_load(a_path.c_str(), &a_width, &a_height, &a_bytes_per_pixel, 4);
 	a_bytes_per_pixel = 4;
 	return pixels;
 }
