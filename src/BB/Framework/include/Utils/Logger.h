@@ -49,7 +49,9 @@ namespace BB
 				}					\
 			} while (0)
 
-#define BB_UNIMPLEMENTED() BB_ASSERT(false, "unimplemented code hit")
+#define BB_UNIMPLEMENTED()								\
+			__pragma(message("implement this"))			\
+			BB_ASSERT(false, "unimplemented code hit")	
 			/*  Check for unintented behaviour at runtime, if a_Check is false the program will post a warning message.
 			@param a_Check, If false the program will print the message and assert.
 			@param a_msg, The message that will be printed.

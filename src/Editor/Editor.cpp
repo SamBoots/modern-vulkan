@@ -491,9 +491,10 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 	{
 		ImGui::Indent();
 		bool position_changed = false;
+		
 		if (ImGui::TreeNodeEx("transform"))
 		{
-			float3& pos = a_ecs.m_positions.GetComponent(a_entity);
+			float3 pos = a_ecs.m_positions.GetComponent(a_entity);
 			float3x3& rot = a_ecs.m_rotations.GetComponent(a_entity);
 			float3& scale = a_ecs.m_scales.GetComponent(a_entity);
 
@@ -506,6 +507,8 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 			ImGui::InputFloat3("scale", scale.e);
 			ImGui::TreePop();
 		}
+
+		const float3 pos = a_ecs.m_positions.GetComponent(a_entity);
 
 		if (a_ecs.m_ecs_entities.HasSignature(a_entity, RENDER_ECS_SIGNATURE))
 		{
@@ -565,11 +568,10 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 
 		if (a_ecs.m_ecs_entities.HasSignature(a_entity, LIGHT_ECS_SIGNATURE))
 		{
-			if (ImGui::TreeNodeEx("light object"))
+			if (ImGui::TreeNodeEx("light"))
 			{
 				ImGui::Indent();
 				LightComponent& comp = a_ecs.m_light_pool.GetComponent(a_entity);
-				const float3 pos = a_ecs.m_positions.GetComponent(a_entity);
 
 				comp.light.pos.x = pos.x;
 				comp.light.pos.y = pos.y;
@@ -605,18 +607,57 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 				ImGui::TreePop();
 			}
 		}
-		else
+
+		if (ImGui::TreeNodeEx("Add Component"))
 		{
-			if (ImGui::Button("create light"))
+			ImGui::Indent();
+			if (!a_ecs.m_ecs_entities.HasSignature(a_entity, LIGHT_ECS_SIGNATURE))
 			{
-				BB_UNIMPLEMENTED();
-				//CreateLightInfo light_create_info;
-				//light_create_info.pos = transform.m_pos;
-				//light_create_info.color = float3(1.f, 1.f, 1.f);
-				//light_create_info.linear_distance = 0.35f;
-				//light_create_info.quadratic_distance = 0.44f;
-				//scene_object.light_handle = CreateLight(a_hierarchy.m_render_scene, light_create_info);
+				if (ImGui::TreeNodeEx("Light"))
+				{
+					ImGui::Indent();
+
+					static float specular_strength = 0.5f;
+					static float3 color = float3(1.f);
+					static float cutoff_radius = 0.3f;
+					static float3 direction = float3(0.f);
+
+					static float constant = 1.f;
+					static float linear = 0.35f;
+					static float quadratic = 0.5f;
+
+					ImGui::InputFloat3("color", color.e);
+					ImGui::InputFloat3("direction", direction.e);
+					ImGui::InputFloat("specular strength", &specular_strength);
+					ImGui::InputFloat("cutoff radius", &cutoff_radius);
+					ImGui::InputFloat("radius constant", &constant);
+					ImGui::InputFloat("radius linear", &linear);
+					ImGui::InputFloat("radius quadratic", &quadratic);
+
+					if (ImGui::Button("create light"))
+					{
+						LightComponent light_comp;
+						light_comp.light.light_type = static_cast<uint32_t>(LIGHT_TYPE::DIRECTIONAL_LIGHT);
+						light_comp.light.color = float4(color.x, color.y, color.z, specular_strength);
+						light_comp.light.pos = float4(pos.x, pos.y, pos.z, 0.0f);
+						light_comp.light.direction = float4(direction.x, direction.y, direction.z, cutoff_radius);
+
+						light_comp.light.radius_constant = constant;
+						light_comp.light.radius_linear = linear;
+						light_comp.light.radius_quadratic = quadratic;
+
+						const float near_plane = 1.f, far_plane = 7.5f;
+						light_comp.projection_view = SceneHierarchy::CalculateLightProjectionView(pos, near_plane, far_plane);
+
+						a_ecs.EntityAssignLight(a_entity, light_comp);
+					}
+
+					ImGui::Unindent();
+					ImGui::TreePop();
+				}
 			}
+			ImGui::Unindent();
+			ImGui::TreePop();
 		}
 
 		const EntityRelation relation = a_ecs.m_relations.GetComponent(a_entity);
