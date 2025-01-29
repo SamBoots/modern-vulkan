@@ -1244,7 +1244,7 @@ const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadF
 	{
 		const size_t gltf_node_index = CgltfGetNodeIndex(*gltf_data, gltf_data->scene->nodes[i]);
 		LoadglTFNode(*gltf_data, *model, gltf_node_index);
-		model->root_node_indices[i] = gltf_node_index;
+		model->root_node_indices[i] = static_cast<uint32_t>(gltf_node_index);
 	}
 	cgltf_free(gltf_data);
 
