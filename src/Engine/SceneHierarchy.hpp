@@ -59,7 +59,6 @@ namespace BB
 		ECSEntity CreateEntityViaModel(const Model& a_model, const float3 a_position, const char* a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
 		ECSEntity CreateEntityAsLight(const LightCreateInfo& a_light_create_info, const char* a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
 
-
 		static float4x4 CalculateLightProjectionView(const float3 a_pos, const float a_near, const float a_far);
 
 		EntityComponentSystem& GetECS() { return m_ecs; }

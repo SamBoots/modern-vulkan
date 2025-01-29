@@ -82,7 +82,7 @@ namespace BB
 			const ECSEntity move_value = m_dense_ecs[--m_dense_count];
 			m_dense_ecs[m_sparse[a_value.index]] = move_value;
 			m_sparse[move_value.index] = m_sparse[a_value.index];
-
+			m_sparse[a_value.index] = SPARSE_SET_INVALID;
 			return true;
 		}
 

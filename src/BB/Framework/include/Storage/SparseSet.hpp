@@ -77,6 +77,7 @@ namespace BB
 			const uint32_t move_value = m_dense[--m_dense_count];
 			m_dense[m_sparse[a_sparse_value]] = move_value;
 			m_sparse[move_value] = m_sparse[a_sparse_value];
+			m_sparse[a_sparse_value] = SPARSE_SET_INVALID;
 
 			return true;
 		}

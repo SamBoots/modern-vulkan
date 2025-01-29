@@ -317,9 +317,9 @@ static inline bool IconWriteToDisk(const IconSlot a_slot, const PathString& a_wr
 	read_info.image_info.extent = ICON_EXTENT;
 	read_info.image_info.offset = read_offset;
 	read_info.image_info.array_layers = 1;
-	read_info.image_info.base_array_layer = 1;
+	read_info.image_info.base_array_layer = 0;
 	read_info.image_info.mip_layer = 0;
-	read_info.image_info.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+	read_info.image_info.layout = IMAGE_LAYOUT::TRANSFER_DST;
 	read_info.readback_size = readback_size;
 	read_info.readback = readback;
 	const GPUFenceValue fence_value = ReadTexture(read_info);
@@ -642,7 +642,7 @@ const StringView Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_p
 			icon_write = ResizeImage(a_temp_arena, pixels, width, height, static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
 		}
 		asset.icon = LoadIconFromPixels(icon_write, true);
-		IconWriteToDisk(asset.icon, icon_path);
+		WriteImage(icon_path, ICON_EXTENT, 4, icon_write);
 	}
 
 	AddElementToAssetTable(asset);
@@ -787,10 +787,15 @@ static inline size_t CgltfGetMeshIndex(const cgltf_data& a_cgltf_data, const cgl
 	return (reinterpret_cast<size_t>(a_mesh) - reinterpret_cast<size_t>(a_cgltf_data.meshes)) / sizeof(cgltf_mesh);
 }
 
-static void LoadglTFNode(const cgltf_data& a_cgltf_data, Model& a_model, uint32_t& a_node_index)
+static inline size_t CgltfGetNodeIndex(const cgltf_data& a_cgltf_data, const cgltf_node* a_node)
 {
-	const cgltf_node& cgltf_node = a_cgltf_data.nodes[a_node_index];
-	Model::Node& node = a_model.linear_nodes[a_node_index++];
+	return (reinterpret_cast<size_t>(a_node) - reinterpret_cast<size_t>(a_cgltf_data.nodes)) / sizeof(cgltf_node);
+}
+
+static void LoadglTFNode(const cgltf_data& a_cgltf_data, Model& a_model, const size_t a_gltf_node_index)
+{
+	const cgltf_node& cgltf_node = a_cgltf_data.nodes[a_gltf_node_index];
+	Model::Node& node = a_model.linear_nodes[a_gltf_node_index];
 	if (cgltf_node.has_matrix)
 	{
 		float4x4 matrix;
@@ -833,10 +838,13 @@ static void LoadglTFNode(const cgltf_data& a_cgltf_data, Model& a_model, uint32_
 	node.child_count = static_cast<uint32_t>(cgltf_node.children_count);
 	if (node.child_count != 0)
 	{
-		node.childeren = &a_model.linear_nodes[a_node_index]; //childeren are loaded linearly, i'm quite sure.
+		const size_t cgltf_base_child_index = CgltfGetNodeIndex(a_cgltf_data, cgltf_node.children[0]);
+		node.childeren = &a_model.linear_nodes[cgltf_base_child_index];
 		for (size_t i = 0; i < node.child_count; i++)
 		{
-			LoadglTFNode(a_cgltf_data, a_model, a_node_index);
+			const size_t child_index = CgltfGetNodeIndex(a_cgltf_data, cgltf_node.children[i]);
+			BB_ASSERT(cgltf_base_child_index + i == child_index, "childeren are not sequentually loaded! Create a new solution");
+			LoadglTFNode(a_cgltf_data, a_model, child_index);
 		}
 	}
 }
@@ -1232,12 +1240,11 @@ const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadF
 	// check if we have done all the work required.
 	barrier.Wait();
 
-	uint32_t current_node = 0;
-
 	for (size_t i = 0; i < gltf_data->scene->nodes_count; i++)
 	{
-		model->root_node_indices[i] = current_node;
-		LoadglTFNode(*gltf_data, *model, current_node);
+		const size_t gltf_node_index = CgltfGetNodeIndex(*gltf_data, gltf_data->scene->nodes[i]);
+		LoadglTFNode(*gltf_data, *model, gltf_node_index);
+		model->root_node_indices[i] = gltf_node_index;
 	}
 	cgltf_free(gltf_data);
 

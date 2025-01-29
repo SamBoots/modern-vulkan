@@ -492,17 +492,25 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 		
 		if (ImGui::TreeNodeEx("transform"))
 		{
-			float3 pos = a_ecs.m_positions.GetComponent(a_entity);
+			float3& pos = a_ecs.m_positions.GetComponent(a_entity);
 			float3x3& rot = a_ecs.m_rotations.GetComponent(a_entity);
 			float3& scale = a_ecs.m_scales.GetComponent(a_entity);
 
-			position_changed = ImGui::InputFloat3("position", pos.e);
+			if (ImGui::InputFloat3("position", pos.e))
+			{
+				position_changed = true;
+				a_ecs.m_transform_system.dirty_transforms.Insert(a_entity);
+			}
 			float3 euler_angles;
 			if (ImGui::InputFloat3("rotation", euler_angles.e))
 			{
 				BB_UNIMPLEMENTED("rotation float3x3->euler->float3x3");
+				a_ecs.m_transform_system.dirty_transforms.Insert(a_entity);
 			}
-			ImGui::InputFloat3("scale", scale.e);
+			if (ImGui::InputFloat3("scale", scale.e))
+			{
+				a_ecs.m_transform_system.dirty_transforms.Insert(a_entity);
+			}
 			ImGui::TreePop();
 		}
 

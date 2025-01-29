@@ -137,6 +137,7 @@ public:
 	void Init(MemoryArena& a_arena, const RDescriptorLayout a_global_layout, const DescriptorAllocation& a_allocation)
 	{
 		m_graphics_texture_transitions.Init(a_arena, MAX_TEXTURES / 4);
+		m_graphics_texture_transitions.resize(m_graphics_texture_transitions.capacity());
 
 		m_views = ArenaAllocArr(a_arena, RImageView, MAX_TEXTURES);
 		m_next_free = 0;
@@ -217,9 +218,8 @@ public:
 
 	void AddGraphicsTransition(const PipelineBarrierImageInfo& a_transition_info)
 	{
-		OSAcquireSRWLockWrite(&m_lock);
-		m_graphics_texture_transitions.emplace_back(a_transition_info);
-		OSReleaseSRWLockWrite(&m_lock);
+		const uint32_t index = m_transition_size.fetch_add(1);
+		m_graphics_texture_transitions[index] = a_transition_info;
 	}
 
 	void DisplayTextureListImgui()
@@ -263,6 +263,7 @@ private:
 	RImageView* m_views;
 	BBRWLock m_lock;
 
+	std::atomic<uint32_t> m_transition_size;
 	StaticArray<PipelineBarrierImageInfo> m_graphics_texture_transitions;
 	
 	// purple color
@@ -1004,19 +1005,14 @@ WriteableGPUBufferView BB::AllocateFromWritableIndexBuffer(const size_t a_size_i
 
 void GPUTextureManager::TransitionTextures(const RCommandList a_list)
 {
-	if (m_graphics_texture_transitions.size() == 0)
+	if (m_transition_size.load() == 0)
 		return;
-
-	OSAcquireSRWLockWrite(&m_lock);
-	if (m_graphics_texture_transitions.size())
-	{
-		PipelineBarrierInfo barrier_info{};
-		barrier_info.image_infos = m_graphics_texture_transitions.data();
-		barrier_info.image_info_count = m_graphics_texture_transitions.size();
-		Vulkan::PipelineBarriers(a_list, barrier_info);
-		m_graphics_texture_transitions.clear();
-	}
-	OSReleaseSRWLockWrite(&m_lock);
+	
+	PipelineBarrierInfo barrier_info{};
+	barrier_info.image_infos = m_graphics_texture_transitions.data();
+	barrier_info.image_info_count = m_graphics_texture_transitions.size();
+	Vulkan::PipelineBarriers(a_list, barrier_info);
+	m_transition_size.store(0);
 };
 
 static size_t GetByteSizeOfImageFormat(const IMAGE_FORMAT a_format)
@@ -1529,26 +1525,6 @@ static void UploadAssets(MemoryArena& a_thread_arena, void*)
 					pi.src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
 					pi.dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
 					pi.aspects = IMAGE_ASPECT::COLOR;
-				}
-
-				if (upload_data.end_layout == layout)
-				{
-					PipelineBarrierImageInfo pi{};
-					pi.src_mask = mask;
-					pi.dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
-					pi.image = upload_data.image;
-					pi.old_layout = layout;
-					pi.new_layout = upload_data.end_layout;
-					pi.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
-					pi.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
-					pi.layer_count = layer_count;
-					pi.level_count = 1;
-					pi.base_array_layer = base_layer;
-					pi.base_mip_level = 0;
-					pi.src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
-					pi.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
-					pi.aspects = IMAGE_ASPECT::COLOR;
-					s_render_inst->texture_manager.AddGraphicsTransition(pi);
 				}
 			}
 
