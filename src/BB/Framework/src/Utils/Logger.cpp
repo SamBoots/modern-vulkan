@@ -8,71 +8,39 @@
 
 using namespace BB;
 
-
-static void Log_to_Console(const char* a_file_name, int a_line, const WarningType a_warning_type, const char* a_formats, void* a_puserdata, va_list a_args)
+static void StandardLogCallback(const char* a_file_name, const int a_line, const WarningType a_warning_type, const char* a_formats, void*, va_list a_args)
 {
-	constexpr const char LOG_MESSAGE_ERROR_LEVEL_0[]{ "Severity: " };
-	constexpr const char LOG_MESSAGE_FILE_0[]{ "\nFile: " };
-	constexpr const char LOG_MESSAGE_LINE_NUMBER_1[]{ "\nLine Number: " };
-	constexpr const char LOG_MESSAGE_MESSAGE_TXT_2[]{ "\nThe Message: " };
-	(void)a_puserdata;
-
-	//Format the message
-	StackString<8192> string{};
-	{	//Start with the warning level
-		string.append(LOG_MESSAGE_ERROR_LEVEL_0, sizeof(LOG_MESSAGE_ERROR_LEVEL_0) - 1);
-		string.append(Logger::WarningTypeToCChar(a_warning_type));
-	}
-	{ //Get the file.
-		string.append(LOG_MESSAGE_FILE_0, sizeof(LOG_MESSAGE_FILE_0) - 1);
-		string.append(a_file_name);
-	}
-	{ //Get the line number into the buffer
-		char lineNumString[8]{};
-		sprintf_s(lineNumString, 8, "%u", a_line);
-
-		string.append(LOG_MESSAGE_LINE_NUMBER_1, sizeof(LOG_MESSAGE_LINE_NUMBER_1) - 1);
-		string.append(lineNumString);
-	}
-	{ //Get the message(s).
-		string.append(LOG_MESSAGE_MESSAGE_TXT_2, sizeof(LOG_MESSAGE_MESSAGE_TXT_2) - 1);
-		for (size_t i = 0; static_cast<size_t>(a_formats[i] != '\0'); i++)
+	StackString<2048> string{};
+	for (size_t i = 0; static_cast<size_t>(a_formats[i] != '\0'); i++)
+	{
+		switch (a_formats[i])
 		{
-			switch (a_formats[i])
-			{
-			case 's':
-				string.append(va_arg(a_args, char*));
-				break;
-			case 'S': //convert it to a char first.
-			{
-				const wchar_t* w_char = va_arg(a_args, const wchar_t*);
-				const size_t char_size = wcslen(w_char);
-				//check to see if we do not go over bounds, largly to deal with non-null-terminated wchar strings.
-				BB_ASSERT(char_size < string.capacity() - string.size(), "error log string size exceeds 1024 characters!");
-				char* character = BBstackAlloc_s(char_size, char);
-				size_t conv_chars = 0;
-				wcstombs_s(&conv_chars, character, char_size, w_char, _TRUNCATE);
-				string.append(character);
-				BBstackFree_s(character);
-			}
+		case 's':
+			string.append(va_arg(a_args, char*));
 			break;
-			default:
-				BB_ASSERT(false, "va arg format not yet supported");
-				break;
-			}
-
-			string.append(" ", 1);
+		case 'S': //convert it to a char first.
+		{
+			const wchar_t* w_char = va_arg(a_args, const wchar_t*);
+			const size_t char_size = wcslen(w_char);
+			//check to see if we do not go over bounds, largly to deal with non-null-terminated wchar strings.
+			BB_ASSERT(char_size < string.capacity() - string.size(), "error log string size exceeds 1024 characters!");
+			char* character = BBstackAlloc_s(char_size, char);
+			size_t conv_chars = 0;
+			wcstombs_s(&conv_chars, character, char_size, w_char, _TRUNCATE);
+			string.append(character);
+			BBstackFree_s(character);
 		}
-		//double line ending for better reading.
-		string.append("\n\n", 2);
+		break;
+		default:
+			BB_ASSERT(false, "va arg format not yet supported");
+			break;
+		}
+
+		string.append(" ", 1);
 	}
-
-	WriteToConsole(string.c_str(), static_cast<uint32_t>(string.size()));
-}
-
-static void StandardLogCallback(const char* a_file_name, const int a_line, const WarningType a_warning_type, const char* a_formats, void* a_puserdata, va_list a_args)
-{
-	Log_to_Console(a_file_name, a_line, a_warning_type, a_formats, a_puserdata, a_args);
+	//double line ending for better reading.
+	string.append("\n\n", 2);
+	Logger::LogToConsole(a_file_name, a_line, a_warning_type, string.c_str());
 }
 
 static PFN_LoggerCallback logger_callback = StandardLogCallback;
@@ -90,8 +58,8 @@ const char* Logger::WarningTypeToCChar(const WarningType a_type)
 	{
 	case BB::WarningType::INFO:
 		return "WARNING TYPE Info";
-	case BB::WarningType::OPTIMALIZATION:
-		return "WARNING TYPE OPTIMALIZATION";
+	case BB::WarningType::OPTIMIZATION:
+		return "WARNING TYPE OPTIMIZATION";
 	case BB::WarningType::LOW:
 		return "WARNING TYPE LOW";
 	case BB::WarningType::MEDIUM:
@@ -105,7 +73,41 @@ const char* Logger::WarningTypeToCChar(const WarningType a_type)
 		return "ERROR";
 	}
 }
-void Logger::Log_Message(const char* a_file_name, const int a_line, const WarningType a_type, const char* a_formats, ...)
+
+void Logger::LogToConsole(const char* a_file_name, int a_line, const WarningType a_warning_type, const char* a_message)
+{
+	constexpr const char LOG_MESSAGE_ERROR_LEVEL_0[]{ "Severity: " };
+	constexpr const char LOG_MESSAGE_FILE_0[]{ "\nFile: " };
+	constexpr const char LOG_MESSAGE_LINE_NUMBER_1[]{ "\nLine Number: " };
+	constexpr const char LOG_MESSAGE_MESSAGE_TXT_2[]{ "\nThe Message: " };
+
+	// format the message
+	StackString<8192> string{};
+	// start with the warning level
+	string.append(LOG_MESSAGE_ERROR_LEVEL_0, sizeof(LOG_MESSAGE_ERROR_LEVEL_0) - 1);
+	string.append(Logger::WarningTypeToCChar(a_warning_type));
+
+	// get the file.
+	string.append(LOG_MESSAGE_FILE_0, sizeof(LOG_MESSAGE_FILE_0) - 1);
+	string.append(a_file_name);
+
+	// get the line number into the buffer
+	char lineNumString[8]{};
+	sprintf_s(lineNumString, 8, "%u", a_line);
+	string.append(LOG_MESSAGE_LINE_NUMBER_1, sizeof(LOG_MESSAGE_LINE_NUMBER_1) - 1);
+	string.append(lineNumString);
+
+	// get message
+	string.append(LOG_MESSAGE_MESSAGE_TXT_2, sizeof(LOG_MESSAGE_MESSAGE_TXT_2) - 1);
+	string.append(a_message);
+
+	// skip two lines.
+	string.append("\n\n", 2);
+
+	WriteToConsole(string.c_str(), static_cast<uint32_t>(string.size()));
+}
+
+void Logger::LogMessage(const char* a_file_name, const int a_line, const WarningType a_type, const char* a_formats, ...)
 {
 	va_list vl;
 	va_start(vl, a_formats);

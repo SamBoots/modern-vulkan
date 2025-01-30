@@ -37,8 +37,8 @@ namespace BB
 	using WarningTypeFlags = unsigned int;
 	enum class WarningType : WarningTypeFlags
 	{
-		INFO = 1 << 0,				// No warning, just a message.
-		OPTIMALIZATION = 1 << 1,	// Indicates a possible issue that might cause problems with performance.
+		INFO = 1 << 0,				//s No warning, just a message.
+		OPTIMIZATION = 1 << 1,	// Indicates a possible issue that might cause problems with performance.
 		LOW = 1 << 2,				// Low chance of breaking the application or causing undefined behaviour.
 		MEDIUM = 1 << 3,			// Medium chance of breaking the application or causing undefined behaviour.
 		HIGH = 1 << 4,				// High chance of breaking the application or causing undefined behaviour.

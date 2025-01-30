@@ -847,7 +847,7 @@ namespace BB
 		void emplace(const Key& a_key, Args&&... a_value_args)
 		{
 			m_size++;
-			BB_WARNING(m_size < LFCalculation(m_capacity, Hashmap_Specs::OL_UnLoadFactor), "hashmap over loadfactor, collision slowdown will happen", WarningType::OPTIMALIZATION);
+			BB_WARNING(m_size < LFCalculation(m_capacity, Hashmap_Specs::OL_UnLoadFactor), "hashmap over loadfactor, collision slowdown will happen", WarningType::OPTIMIZATION);
 			BB_ASSERT(m_size < m_capacity, "OL_Hashmap out of capacity!");
 			const Hash hash = Hash::MakeHash(a_key) % m_capacity;
 			

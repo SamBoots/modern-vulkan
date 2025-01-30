@@ -284,6 +284,23 @@ void Editor::ThreadFuncForDrawing(MemoryArena&, void* a_param)
 
 void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent, const size_t a_editor_memory)
 {
+	// console stuff
+	m_console_info.arena = MemoryArenaCreate();
+	m_console_info.lock = OSCreateRWLock();
+	m_console_info.enabled_logs = WARNING_TYPES_ALL;
+	m_console_info.entries_after_last_write = 0;
+	m_console_info.entries_till_write_to_file = 2;
+	m_console_info.writing_to_file = false;
+	m_console_info.entry_count = 0;
+	m_console_info.entry_commit_limit = 2;
+	m_console_info.entry_start = reinterpret_cast<ConsoleInfo::ConsoleEntry*>(ArenaAlloc(
+		m_console_info.arena,
+		sizeof(ConsoleInfo::ConsoleEntry) * m_console_info.entry_commit_limit,
+		__alignof(ConsoleInfo::ConsoleEntry)));
+
+	m_console_info.log_file = OSCreateFile("logger.txt");
+	Logger::LoggerSetCallback(Editor::LoggerCallback, &m_console_info);
+
 	m_main_window = a_window;
 	m_app_window_extent = a_window_extent;
 
@@ -319,21 +336,6 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 	Material::InitMaterialSystem(a_arena, material_system_init);
 
 	m_imgui_material = Material::GetDefaultMasterMaterial(PASS_TYPE::GLOBAL, MATERIAL_TYPE::MATERIAL_2D);
-
-	m_console_info.arena = MemoryArenaCreate();
-	m_console_info.lock = OSCreateRWLock();
-	m_console_info.enabled_logs = WARNING_TYPES_ALL;
-	m_console_info.entries_after_last_write = 0;
-	m_console_info.entries_till_write_to_file = 128;
-	m_console_info.writing_to_file = false;
-	m_console_info.entry_count = 0;
-	m_console_info.entry_commit_limit = 4;
-	m_console_info.entry_start = reinterpret_cast<ConsoleInfo::ConsoleEntry*>(ArenaAlloc(
-		m_console_info.arena,
-		sizeof(ConsoleInfo) * m_console_info.entry_commit_limit,
-		__alignof(ConsoleInfo)));
-
-	m_console_info.log_file = OSCreateFile("logger.txt");
 }
 
 void Editor::Destroy()
@@ -384,6 +386,8 @@ void Editor::StartFrame(const Slice<InputEvent> a_input_events, const float a_de
 	start_info.mouse_pos = m_previous_mouse_pos;
 
 	RenderStartFrame(list, start_info, m_per_frame.back_buffer_index);
+
+	ImGuiShowConsole();
 }
 
 void Editor::EndFrame(MemoryArena& a_arena)
@@ -796,6 +800,11 @@ void Editor::ImGuiDisplayMaterials()
 	}
 }
 
+static bool IsWarningSet(const WarningType a_type, const WarningTypeFlags a_flags)
+{
+	return (a_flags & static_cast<WarningTypeFlags>(a_type)) == static_cast<WarningTypeFlags>(a_type);
+}
+
 void Editor::LoggerCallback(const char* a_file_name, int a_line, const WarningType a_warning_type, const char* a_formats, void* a_puserdata, va_list a_args)
 {
 	ConsoleInfo::ConsoleEntry entry{};
@@ -852,15 +861,18 @@ void Editor::LoggerCallback(const char* a_file_name, int a_line, const WarningTy
 	pconsole_info->entry_start[index] = entry;
 
 	// check if write to file
-	const uint32_t entries_till_write = pconsole_info->entries_till_write_to_file.fetch_add(1);
+	const uint32_t entries_till_write = pconsole_info->entries_after_last_write.fetch_add(1);
 	// TODO this if is not thread safe
 	if (entries_till_write == pconsole_info->entries_till_write_to_file && !pconsole_info->writing_to_file)
 	{
 		pconsole_info->writing_to_file = true;
-		pconsole_info->entries_till_write_to_file = 0;
+		pconsole_info->entries_after_last_write = 0;
 		pconsole_info->write_entry_end = index;
 		Threads::StartTaskThread(LoggerToFile, a_puserdata, L"logger to file");
 	}
+	
+	if (IsWarningSet(a_warning_type, pconsole_info->enabled_logs))
+		Logger::LogToConsole(entry.file_name.c_str(), entry.line, entry.warning_type, entry.message.c_str());
 }
 
 void Editor::LoggerToFile(MemoryArena& a_arena, void* a_puserdata)
@@ -876,7 +888,7 @@ void Editor::LoggerToFile(MemoryArena& a_arena, void* a_puserdata)
 		constexpr const char LOG_MESSAGE_ERROR_LEVEL_0[]{ "Severity: " };
 		constexpr const char LOG_MESSAGE_FILE_0[]{ "\nFile: " };
 		constexpr const char LOG_MESSAGE_LINE_NUMBER_1[]{ "\nLine Number: " };
-		constexpr const char LOG_MESSAGE_MESSAGE_TXT_2[]{ "\nMessage: " };
+		constexpr const char LOG_MESSAGE_MESSAGE_TXT_2[]{ "\nThe Message: " };
 
 		const ConsoleInfo::ConsoleEntry& entry = pconsole_info->entry_start[i];
 
@@ -926,7 +938,45 @@ void Editor::ImGuiShowConsole()
 {
 	OSAcquireSRWLockRead(&m_console_info.lock);
 
+	if (ImGui::Begin("Console log"))
+	{
+		if (ImGui::BeginTable("log enable all options", 2, 0, ImVec2(256.f, 0.f)))
+		{
+			ImGui::TableNextColumn();
+			if (ImGui::Button("enable all logs"))
+				m_console_info.enabled_logs = WARNING_TYPES_ALL;
 
+			ImGui::TableNextColumn();
+			if (ImGui::Button("disable all logs"))
+				m_console_info.enabled_logs = 0;
+
+			ImGui::EndTable();
+		}
+
+		if (ImGui::BeginTable("log enable options", 3, 0, ImVec2(512.f, 0.f)))
+		{
+			ImGui::TableNextColumn();
+			ImGui::CheckboxFlags("warning info", &m_console_info.enabled_logs, static_cast<WarningTypeFlags>(WarningType::INFO));
+
+			ImGui::TableNextColumn();
+			ImGui::CheckboxFlags("warning optimization", &m_console_info.enabled_logs, static_cast<WarningTypeFlags>(WarningType::OPTIMIZATION));
+
+			ImGui::TableNextColumn();
+			ImGui::CheckboxFlags("warning low", &m_console_info.enabled_logs, static_cast<WarningTypeFlags>(WarningType::LOW));
+
+			ImGui::TableNextColumn();
+			ImGui::CheckboxFlags("warning medium", &m_console_info.enabled_logs, static_cast<WarningTypeFlags>(WarningType::MEDIUM));
+
+			ImGui::TableNextColumn();
+			ImGui::CheckboxFlags("warning high", &m_console_info.enabled_logs, static_cast<WarningTypeFlags>(WarningType::HIGH));
+
+			ImGui::TableNextColumn();
+			ImGui::CheckboxFlags("asserts", &m_console_info.enabled_logs, static_cast<WarningTypeFlags>(WarningType::ASSERT));
+
+			ImGui::EndTable();
+		}
+	}
+	ImGui::End();
 
 	OSReleaseSRWLockRead(&m_console_info.lock);
 }

@@ -82,8 +82,8 @@ namespace BB
 			BBRWLock lock; // possible get a lockfree arena
 			WarningTypeFlags enabled_logs;
 
-			std::atomic<uint32_t> entries_till_write_to_file;
-			uint32_t entries_after_last_write;
+			uint32_t entries_till_write_to_file;
+			std::atomic<uint32_t> entries_after_last_write;
 			std::atomic<bool> writing_to_file;
 
 			OSFileHandle log_file;

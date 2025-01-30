@@ -310,7 +310,7 @@ void Material::FreeMaterialInstance(const MaterialHandle a_material)
 void Material::WriteMaterial(const MaterialHandle a_material, const RCommandList a_list, const GPUBuffer a_src_buffer, const size_t a_src_offset)
 {
 	const MaterialInstance& mat = s_material_inst->material_instances.find(a_material.handle);
-	BB_WARNING(!mat.mapper_ptr, "trying to write to a material that is meant to be CPU writeable", WarningType::OPTIMALIZATION);
+	BB_WARNING(!mat.mapper_ptr, "trying to write to a material that is meant to be CPU writeable", WarningType::OPTIMIZATION);
 	RenderCopyBufferRegion copy_region;
 	copy_region.size = mat.user_data_size;
 	copy_region.src_offset = a_src_offset;

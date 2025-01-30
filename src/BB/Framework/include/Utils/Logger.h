@@ -12,11 +12,12 @@ namespace BB
 
 		const char* WarningTypeToCChar(const WarningType a_type);
 
-		void Log_Message(const char* a_file_name, const int a_line, const WarningType a_type, const char* a_formats, ...);
+		void LogToConsole(const char* a_file_name, int a_line, const WarningType a_warning_type, const char* a_message);
+		void LogMessage(const char* a_file_name, const int a_line, const WarningType a_type, const char* a_formats, ...);
 	}
 }
 
-#define BB_LOG(a_msg) BB::Logger::Log_Message(__FILE__, __LINE__, WarningType::INFO, "s", a_msg)
+#define BB_LOG(a_msg) BB::Logger::LogMessage(__FILE__, __LINE__, WarningType::INFO, "s", a_msg)
 
 #ifdef _DEBUG
 	// Check for unintented behaviour at compile time, if a_check is false the program will stop and post a message.
@@ -28,7 +29,7 @@ namespace BB
 	{						\
 		if (!(a_check))		\
 		{					\
-			BB::Logger::Log_Message(__FILE__, __LINE__, WarningType::ASSERT, "s", a_msg); \
+			BB::Logger::LogMessage(__FILE__, __LINE__, WarningType::ASSERT, "s", a_msg); \
 			assert(false);	\
 		}					\
 	} while (0)
@@ -47,7 +48,7 @@ namespace BB
 	{																			\
 		if (!(a_check))															\
 		{																		\
-			BB::Logger::Log_Message(__FILE__, __LINE__, a_warning_type, "s", a_msg);\
+			BB::Logger::LogMessage(__FILE__, __LINE__, a_warning_type, "s", a_msg);\
 		}																		\
 	} while (0) 
 #else

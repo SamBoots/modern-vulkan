@@ -121,13 +121,13 @@ static void* FreeDebug(BaseAllocator* a_allocator, bool a_is_array, void* a_ptr)
 	{
 	case BOUNDRY_ERROR::FRONT:
 		//We call it explictally since we can avoid the macro and pull in the file + name directly to Log_Error. 
-		Logger::Log_Message(alloc_log->file, alloc_log->line, WarningType::ASSERT, "ss",
+		Logger::LogMessage(alloc_log->file, alloc_log->line, WarningType::ASSERT, "ss",
 			alloc_log->tag_name,
 			"Memory Boundry overwritten at the front of memory block");
 		break;
 	case BOUNDRY_ERROR::BACK:
 		//We call it explictally since we can avoid the macro and pull in the file + name directly to Log_Error. 
-		Logger::Log_Message(alloc_log->file, alloc_log->line, WarningType::ASSERT, "ss",
+		Logger::LogMessage(alloc_log->file, alloc_log->line, WarningType::ASSERT, "ss",
 			alloc_log->tag_name,
 			"Memory Boundry overwritten at the back of memory block");
 		break;
@@ -188,7 +188,7 @@ void BB::allocators::BaseAllocator::Validate() const
 			temp_string.append(leak_size);
 		}
 	
-		Logger::Log_Message(front_log->file, front_log->line, WarningType::ASSERT, "s", temp_string.c_str());
+		Logger::LogMessage(front_log->file, front_log->line, WarningType::ASSERT, "s", temp_string.c_str());
 
 		front_log = front_log->prev;
 	}
@@ -430,7 +430,7 @@ FreelistAllocator::FreelistAllocator(const size_t a_size, const char* a_Name)
 	: BaseAllocator(a_Name)
 {
 	BB_ASSERT(a_size != 0, "Freelist allocator is created with a size of 0!");
-	BB_WARNING(a_size > 10240, "Freelist allocator is smaller then 10 kb, you generally want a bigger freelist.", WarningType::OPTIMALIZATION);
+	BB_WARNING(a_size > 10240, "Freelist allocator is smaller then 10 kb, you generally want a bigger freelist.", WarningType::OPTIMIZATION);
 	m_Totalalloc_size = a_size;
 	m_start = reinterpret_cast<uint8_t*>(mallocVirtual(nullptr, m_Totalalloc_size));
 	m_FreeBlocks = reinterpret_cast<FreeBlock*>(m_start);
@@ -499,7 +499,7 @@ void* FreelistAllocator::Alloc(size_t a_size, size_t a_alignment)
 
 		return reinterpret_cast<void*>(t_Address);
 	}
-	BB_WARNING(false, "Increasing the size of a freelist allocator, risk of fragmented memory.", WarningType::OPTIMALIZATION);
+	BB_WARNING(false, "Increasing the size of a freelist allocator, risk of fragmented memory.", WarningType::OPTIMIZATION);
 	//Double the size of the freelist.
 	FreeBlock* t_NewAllocBlock = reinterpret_cast<FreeBlock*>(mallocVirtual(m_start, m_Totalalloc_size));
 	t_NewAllocBlock->size = m_Totalalloc_size;
