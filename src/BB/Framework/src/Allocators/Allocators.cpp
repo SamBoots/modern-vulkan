@@ -121,13 +121,13 @@ static void* FreeDebug(BaseAllocator* a_allocator, bool a_is_array, void* a_ptr)
 	{
 	case BOUNDRY_ERROR::FRONT:
 		//We call it explictally since we can avoid the macro and pull in the file + name directly to Log_Error. 
-		Logger::Log_Assert(alloc_log->file, alloc_log->line, "ss",
+		Logger::Log_Message(alloc_log->file, alloc_log->line, WarningType::ASSERT, "ss",
 			alloc_log->tag_name,
 			"Memory Boundry overwritten at the front of memory block");
 		break;
 	case BOUNDRY_ERROR::BACK:
 		//We call it explictally since we can avoid the macro and pull in the file + name directly to Log_Error. 
-		Logger::Log_Assert(alloc_log->file, alloc_log->line, "ss",
+		Logger::Log_Message(alloc_log->file, alloc_log->line, WarningType::ASSERT, "ss",
 			alloc_log->tag_name,
 			"Memory Boundry overwritten at the back of memory block");
 		break;
@@ -188,7 +188,7 @@ void BB::allocators::BaseAllocator::Validate() const
 			temp_string.append(leak_size);
 		}
 	
-		Logger::Log_Assert(front_log->file, front_log->line, "s", temp_string.c_str());
+		Logger::Log_Message(front_log->file, front_log->line, WarningType::ASSERT, "s", temp_string.c_str());
 
 		front_log = front_log->prev;
 	}

@@ -217,3 +217,50 @@ void* BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG MemoryArena& a_arena, size_t a_memor
 
 	return return_address;
 }
+
+void* BB::ArenaRealloc_f(BB_ARENA_DEBUG MemoryArena& a_arena, void* a_ptr, const size_t a_ptr_size, const size_t a_memory_size, const uint32_t a_align)
+{
+	void* ret_add = ArenaReallocNoZero_f(BB_ARENA_DEBUG_SEND a_arena, a_ptr, a_ptr_size, a_memory_size, a_align);
+	memset(Pointer::Add(ret_add, a_ptr_size), 0, a_memory_size - a_ptr_size);
+	return ret_add;
+}
+
+void* BB::ArenaReallocNoZero_f(BB_ARENA_DEBUG MemoryArena& a_arena, void* a_ptr, const size_t a_ptr_size, const size_t a_memory_size, const uint32_t a_align)
+{
+#ifdef SANITIZER_ENABLED
+	constexpr size_t mem_debug_offset = sizeof(MemoryArenaAllocationInfo) + MEMORY_BOUNDRY_SIZE;
+	const size_t mem_end_offset = MEMORY_BOUNDRY_SIZE;
+#else
+	constexpr size_t mem_debug_offset = sizeof(MemoryArenaAllocationInfo);
+	const size_t mem_end_offset = 0;
+#endif // SANITIZER_ENABLED
+
+	void* mem_end = Pointer::Add(a_ptr, a_ptr_size + mem_end_offset);
+	if (mem_end == a_arena.at)
+	{
+#ifdef SANITIZER_ENABLED
+		// unpoison previous region
+		__asan_unpoison_memory_region(Pointer::Add(a_ptr, a_ptr_size), MEMORY_BOUNDRY_SIZE);
+		// poison new region
+		__asan_poison_memory_region(mem_end, MEMORY_BOUNDRY_SIZE);
+		mem_end = Pointer::Add(mem_end, MEMORY_BOUNDRY_SIZE);
+#endif // SANITIZER_ENABLED
+
+		ChangeArenaAt(a_arena, mem_end);
+
+#ifdef _DEBUG_MEMORY
+		MemoryArenaAllocationInfo* debug_address = reinterpret_cast<MemoryArenaAllocationInfo*>(Pointer::Subtract(a_ptr, mem_debug_offset));
+		debug_address->alloc_size = a_memory_size;
+#endif // _DEBUG
+
+		return a_ptr;
+	}
+	else
+	{
+		(void)a_line;
+		(void)a_file;
+		(void)a_align;
+		BB_UNIMPLEMENTED("rest of realloc");
+		return nullptr;
+	}
+}

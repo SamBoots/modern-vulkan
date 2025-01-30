@@ -46,7 +46,7 @@ int main(int argc, char** argv)
 {
 	(void)argc;
 
-	StackString<512> exe_path;
+	StackString<512> exe_path{};
 
 	{
 		const StringView exe_path_manipulator{ argv[0] };

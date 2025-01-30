@@ -110,9 +110,10 @@ const ShaderCode BB::CompileShader(const ShaderCompiler a_shader_compiler, const
 
 	if (errors != nullptr && errors->GetStringLength() != 0)
 	{
-		Logger::Log_Warning_High(
+		Logger::Log_Message(
 			__FILE__, 
 			__LINE__, 
+			WarningType::HIGH,
 			"ss", "Shader Compilation failed with errors:\n%hs\n", 
 			errors->GetStringPointer());
 		errors->Release();

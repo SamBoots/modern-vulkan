@@ -71,6 +71,39 @@ namespace BB
 		void ImGuiDisplayShaderEffects(MemoryArena& a_temp_arena);
 		void ImGuiDisplayMaterial(const MasterMaterial& a_material) const;
 		void ImGuiDisplayMaterials();
+		void ImGuiShowConsole();
+
+		static void LoggerCallback(const char* a_file_name, int a_line, const WarningType a_warning_type, const char* a_formats, void* a_puserdata, va_list a_args);
+		static void LoggerToFile(MemoryArena& a_arena, void* a_puserdata);
+
+		struct ConsoleInfo
+		{
+			MemoryArena arena;
+			BBRWLock lock; // possible get a lockfree arena
+			WarningTypeFlags enabled_logs;
+
+			std::atomic<uint32_t> entries_till_write_to_file;
+			uint32_t entries_after_last_write;
+			std::atomic<bool> writing_to_file;
+
+			OSFileHandle log_file;
+
+			struct ConsoleEntry
+			{
+				StackString<2048> message;
+				WarningType warning_type;
+				PathString file_name;
+				int line;
+			};
+
+			std::atomic<size_t> entry_count;
+			std::atomic<size_t> entry_commit_limit;
+			size_t write_entry_end;
+			size_t last_written_entry;
+			ConsoleEntry* entry_start;
+		};
+
+		ConsoleInfo m_console_info;
 
 		void MainEditorImGuiInfo(const MemoryArena& a_arena);
 		struct ThreadFuncForDrawing_Params

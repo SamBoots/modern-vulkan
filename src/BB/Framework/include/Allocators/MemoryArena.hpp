@@ -79,8 +79,10 @@ namespace BB
 	for (MemoryArenaMarker _stack_marker = MemoryArenaGetMemoryMarker(a_memory_arena); _stack_marker.at; MemoryArenaSetMemoryMarker(a_memory_arena, _stack_marker), _stack_marker.at = nullptr)
 
 	//don't use this unless you know what you are doing, use ArenaAlloc instead
-	void* ArenaAlloc_f(BB_ARENA_DEBUG MemoryArena& a_arena, size_t a_memory_size, const uint32_t a_align);
-	void* ArenaAllocNoZero_f(BB_ARENA_DEBUG MemoryArena& a_arena, size_t a_memory_size, const uint32_t a_align);
+	void* ArenaAlloc_f(BB_ARENA_DEBUG MemoryArena& a_arena, const size_t a_memory_size, const uint32_t a_align);
+	void* ArenaAllocNoZero_f(BB_ARENA_DEBUG MemoryArena& a_arena, const size_t a_memory_size, const uint32_t a_align);
+	void* ArenaRealloc_f(BB_ARENA_DEBUG MemoryArena& a_arena, void* a_ptr, const size_t a_ptr_size, const size_t a_memory_size, const uint32_t a_align);
+	void* ArenaReallocNoZero_f(BB_ARENA_DEBUG MemoryArena& a_arena, void* a_ptr, const size_t a_ptr_size, const size_t a_memory_size, const uint32_t a_align);
 
 #define ArenaAlloc(a_arena, a_memory_size, a_align) BB::ArenaAlloc_f(BB_ARENA_DEBUG_ARGS a_arena, a_memory_size, a_align)
 #define ArenaAllocNoZero(a_arena, a_memory_size, a_align) BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG_ARGS a_arena, a_memory_size, a_align)
@@ -90,4 +92,7 @@ namespace BB
 
 #define ArenaAllocArr(a_arena, a_type, a_count) reinterpret_cast<a_type*>(BB::ArenaAlloc_f(BB_ARENA_DEBUG_ARGS a_arena, sizeof(a_type) * a_count, alignof(a_type)))
 #define ArenaAllocArrNoZero(a_arena, a_memory_size, a_align) reinterpret_cast<a_type*>(BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG_ARGS a_arena, sizeof(a_type) * a_count, alignof(a_type)))
+
+#define ArenaRealloc(a_arena, a_ptr, a_ptr_size, a_memory_size, a_align) BB::ArenaRealloc_f(BB_ARENA_DEBUG_ARGS a_arena, a_ptr, a_ptr_size, a_memory_size, a_align)
+#define ArenaReallocNoZero(a_arena, a_ptr, a_ptr_size, a_memory_size, a_align) BB::ArenaReallocNoZero_f(BB_ARENA_DEBUG_ARGS a_arena, a_ptr, a_ptr_size, a_memory_size, a_align)
 }

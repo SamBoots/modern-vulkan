@@ -319,6 +319,21 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 	Material::InitMaterialSystem(a_arena, material_system_init);
 
 	m_imgui_material = Material::GetDefaultMasterMaterial(PASS_TYPE::GLOBAL, MATERIAL_TYPE::MATERIAL_2D);
+
+	m_console_info.arena = MemoryArenaCreate();
+	m_console_info.lock = OSCreateRWLock();
+	m_console_info.enabled_logs = WARNING_TYPES_ALL;
+	m_console_info.entries_after_last_write = 0;
+	m_console_info.entries_till_write_to_file = 128;
+	m_console_info.writing_to_file = false;
+	m_console_info.entry_count = 0;
+	m_console_info.entry_commit_limit = 4;
+	m_console_info.entry_start = reinterpret_cast<ConsoleInfo::ConsoleEntry*>(ArenaAlloc(
+		m_console_info.arena,
+		sizeof(ConsoleInfo) * m_console_info.entry_commit_limit,
+		__alignof(ConsoleInfo)));
+
+	m_console_info.log_file = OSCreateFile("logger.txt");
 }
 
 void Editor::Destroy()
@@ -779,4 +794,139 @@ void Editor::ImGuiDisplayMaterials()
 		}
 		ImGui::Unindent();
 	}
+}
+
+void Editor::LoggerCallback(const char* a_file_name, int a_line, const WarningType a_warning_type, const char* a_formats, void* a_puserdata, va_list a_args)
+{
+	ConsoleInfo::ConsoleEntry entry{};
+	entry.warning_type = a_warning_type;
+	entry.file_name = a_file_name;
+	entry.line = a_line;
+
+	for (size_t i = 0; static_cast<size_t>(a_formats[i] != '\0'); i++)
+	{
+		switch (a_formats[i])
+		{
+		case 's':
+			entry.message.append(va_arg(a_args, char*));
+			break;
+		case 'S': //convert it to a char first.
+		{
+			const wchar_t* w_char = va_arg(a_args, const wchar_t*);
+			const size_t char_size = wcslen(w_char);
+			//check to see if we do not go over bounds, largly to deal with non-null-terminated wchar strings.
+			BB_ASSERT(char_size < entry.message.capacity() - entry.message.size(), "error log string size exceeds 2048 characters!");
+			char* character = BBstackAlloc_s(char_size, char);
+			size_t conv_chars = 0;
+			wcstombs_s(&conv_chars, character, char_size, w_char, _TRUNCATE);
+			entry.message.append(character);
+			BBstackFree_s(character);
+		}
+		break;
+		default:
+			BB_ASSERT(false, "va arg format not yet supported");
+			break;
+		}
+
+		entry.message.append(" ", 1);
+	}
+
+	ConsoleInfo* pconsole_info = reinterpret_cast<ConsoleInfo*>(a_puserdata);
+	const size_t index = pconsole_info->entry_count.fetch_add(1);
+	// TODO this if is not thread safe, double resize could happen.
+	if (index >= pconsole_info->entry_commit_limit)
+	{
+		OSAcquireSRWLockWrite(&pconsole_info->lock);
+		const size_t new_commit_limit = pconsole_info->entry_commit_limit * 2;
+
+		pconsole_info->entry_start = reinterpret_cast<ConsoleInfo::ConsoleEntry*>(ArenaRealloc(
+			pconsole_info->arena,
+			pconsole_info->entry_start,
+			sizeof(ConsoleInfo::ConsoleEntry) * pconsole_info->entry_commit_limit,
+			sizeof(ConsoleInfo::ConsoleEntry) * new_commit_limit,
+			__alignof(ConsoleInfo::ConsoleEntry)));
+
+		pconsole_info->entry_commit_limit = new_commit_limit;
+		OSReleaseSRWLockWrite(&pconsole_info->lock);
+	}
+	pconsole_info->entry_start[index] = entry;
+
+	// check if write to file
+	const uint32_t entries_till_write = pconsole_info->entries_till_write_to_file.fetch_add(1);
+	// TODO this if is not thread safe
+	if (entries_till_write == pconsole_info->entries_till_write_to_file && !pconsole_info->writing_to_file)
+	{
+		pconsole_info->writing_to_file = true;
+		pconsole_info->entries_till_write_to_file = 0;
+		pconsole_info->write_entry_end = index;
+		Threads::StartTaskThread(LoggerToFile, a_puserdata, L"logger to file");
+	}
+}
+
+void Editor::LoggerToFile(MemoryArena& a_arena, void* a_puserdata)
+{
+	ConsoleInfo* pconsole_info = reinterpret_cast<ConsoleInfo*>(a_puserdata);
+
+	// way to big, TODO, add a resize function that uses realloc
+	String massive_string(a_arena, mbSize * 32);
+
+	// put it all in a massive string so that we only have one I/O operation.
+	for (size_t i = pconsole_info->last_written_entry; i < pconsole_info->write_entry_end; i++)
+	{
+		constexpr const char LOG_MESSAGE_ERROR_LEVEL_0[]{ "Severity: " };
+		constexpr const char LOG_MESSAGE_FILE_0[]{ "\nFile: " };
+		constexpr const char LOG_MESSAGE_LINE_NUMBER_1[]{ "\nLine Number: " };
+		constexpr const char LOG_MESSAGE_MESSAGE_TXT_2[]{ "\nMessage: " };
+
+		const ConsoleInfo::ConsoleEntry& entry = pconsole_info->entry_start[i];
+
+		//Start with the warning level
+		massive_string.append(LOG_MESSAGE_ERROR_LEVEL_0, sizeof(LOG_MESSAGE_ERROR_LEVEL_0) - 1);
+		massive_string.append(Logger::WarningTypeToCChar(entry.warning_type));
+		//Get the file.
+		massive_string.append(LOG_MESSAGE_FILE_0, sizeof(LOG_MESSAGE_FILE_0) - 1);
+		massive_string.append(entry.file_name.c_str(), entry.file_name.size());
+
+		//Get the line number into the buffer
+		char lineNumString[8]{};
+		sprintf_s(lineNumString, 8, "%u", entry.line);
+
+		massive_string.append(LOG_MESSAGE_LINE_NUMBER_1, sizeof(LOG_MESSAGE_LINE_NUMBER_1) - 1);
+		massive_string.append(lineNumString);
+
+		//Get the message(s).
+		massive_string.append(LOG_MESSAGE_MESSAGE_TXT_2, sizeof(LOG_MESSAGE_MESSAGE_TXT_2) - 1);
+		massive_string.append(entry.message.c_str(), entry.message.size());
+		//double line ending for better reading.
+		massive_string.append("\n\n", 2);
+	}
+
+	bool success = OSWriteFile(pconsole_info->log_file, massive_string.data(), massive_string.size());
+	BB_ASSERT(success, "failed to write file to log");
+	pconsole_info->last_written_entry = pconsole_info->write_entry_end;
+	pconsole_info->writing_to_file = false;
+}
+
+//static bool IsLogEnabled(const WarningType a_type)
+//{
+//	return (g_logger->enabled_warning_flags & static_cast<WarningTypeFlags>(a_type)) == static_cast<WarningTypeFlags>(a_type);
+//}
+//
+//void Logger::EnableLogType(const WarningType a_warning_type)
+//{
+//	g_logger->enabled_warning_flags |= static_cast<WarningTypeFlags>(a_warning_type);
+//}
+//
+//void Logger::EnableLogTypes(const WarningTypeFlags a_warning_types)
+//{
+//	g_logger->enabled_warning_flags = a_warning_types;
+//}
+
+void Editor::ImGuiShowConsole()
+{
+	OSAcquireSRWLockRead(&m_console_info.lock);
+
+
+
+	OSReleaseSRWLockRead(&m_console_info.lock);
 }
