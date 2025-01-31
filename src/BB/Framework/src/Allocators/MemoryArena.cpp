@@ -29,6 +29,21 @@ static inline void ChangeArenaAt(MemoryArena& a_arena, void* a_at)
 	a_arena.at = a_at;
 }
 
+MemoryArenaTemp::MemoryArenaTemp(MemoryArena& a_arena) : m_arena(a_arena)
+{
+	m_scope = MemoryArenaGetMemoryMarker(a_arena);
+}
+
+MemoryArenaTemp::~MemoryArenaTemp()
+{
+	MemoryArenaSetMemoryMarker(m_arena, m_scope);
+}
+
+MemoryArenaTemp::operator MemoryArena& () const
+{ 
+	return m_arena; 
+};
+
 MemoryArena BB::MemoryArenaCreate(const size_t a_reserve_size)
 {
 	MemoryArena memory_arena{};

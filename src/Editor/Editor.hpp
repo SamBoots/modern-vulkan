@@ -5,6 +5,7 @@
 #include "AssetLoader.hpp"
 #include "ViewportInterface.hpp"
 #include "MaterialSystem.hpp"
+#include "BBThreadScheduler.hpp"
 
 #include <tuple>
 
@@ -19,7 +20,7 @@ namespace BB
 		void Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent, const size_t a_editor_memory = EDITOR_DEFAULT_MEMORY);
 		void Destroy();
 
-		void StartFrame(const Slice<InputEvent> a_input_events, const float a_delta_time);
+		void StartFrame(MemoryArena& a_arena, const Slice<InputEvent> a_input_events, const float a_delta_time);
 
 		template<typename viewport_interface>
 		requires is_interactable_viewport_interface<viewport_interface>
@@ -67,11 +68,11 @@ namespace BB
 		void ImguiDisplayECS(EntityComponentSystem& a_ecs);
 		void ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_object);
 		void ImguiCreateEntity(EntityComponentSystem& a_ecs, const ECSEntity a_parent = INVALID_ECS_OBJ);
-		void ImGuiDisplayShaderEffect(MemoryArena& a_temp_arena, const CachedShaderInfo& a_shader_info) const;
-		void ImGuiDisplayShaderEffects(MemoryArena& a_temp_arena);
+		void ImGuiDisplayShaderEffect(MemoryArenaTemp a_temp_arena, const CachedShaderInfo& a_shader_info) const;
+		void ImGuiDisplayShaderEffects(MemoryArena& a_arena);
 		void ImGuiDisplayMaterial(const MasterMaterial& a_material) const;
 		void ImGuiDisplayMaterials();
-		void ImGuiShowConsole();
+		void ImGuiShowConsole(MemoryArena& a_arena);
 
 		static void LoggerCallback(const char* a_file_name, int a_line, const WarningType a_warning_type, const char* a_formats, void* a_puserdata, va_list a_args);
 		static void LoggerToFile(MemoryArena& a_arena, void* a_puserdata);

@@ -395,7 +395,7 @@ namespace BB
 			BB_ASSERT(m_size >= a_pos, "Trying to insert a string in a invalid position.");
 			BB_ASSERT(m_size + a_size < sizeof(m_string), "Stack string overflow");
 
-			Memory::sMove(m_string + (a_pos + a_size), m_string + a_pos, m_size - a_pos);
+			Memory::Move(m_string + (a_pos + a_size), m_string + a_pos, m_size - a_pos);
 
 			Memory::Copy(m_string + a_pos, a_string, a_size);
 			m_size += a_size;

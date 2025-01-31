@@ -176,7 +176,7 @@ namespace BB
 			a_rhs.m_next_free = 1;
 			a_rhs.m_id_arr = nullptr;
 			a_rhs.m_obj_arr = nullptr;
-			a_rhs.m_erase_arr = nullptr;;
+			a_rhs.m_erase_arr = nullptr;
 			a_rhs.m_allocator.allocator = nullptr;
 			a_rhs.m_allocator.func = nullptr;
 
@@ -392,7 +392,7 @@ namespace BB
 					}
 				}
 
-				BBfree(m_allocator, m_id_arr);
+				BBfree(a_allocator, m_id_arr);
 			}
 			Memory::Set(this, 0, 1);
 		}

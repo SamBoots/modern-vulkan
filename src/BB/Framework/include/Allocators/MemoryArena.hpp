@@ -58,6 +58,18 @@ namespace BB
 		void* at;
 	};
 
+	class MemoryArenaTemp
+	{
+	public:
+		MemoryArenaTemp(MemoryArena& a_arena);
+		~MemoryArenaTemp();
+		operator MemoryArena&() const;
+
+	private:
+		MemoryArena& m_arena;
+		MemoryArenaMarker m_scope;
+	};
+
 	MemoryArena MemoryArenaCreate(const size_t a_reserve_size = ARENA_DEFAULT_RESERVE);
 	MemoryArena MemoryArenaCreate(MemoryArena& a_memory_source, const size_t a_memory_size);
 	void MemoryArenaFree(MemoryArena& a_arena);

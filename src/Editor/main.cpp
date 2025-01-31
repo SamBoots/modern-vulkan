@@ -124,7 +124,7 @@ int main(int argc, char** argv)
 
 		ProcessMessages(window_handle);
 		PollInputEvents(input_events, input_event_count);
-		editor.StartFrame(Slice(input_events, input_event_count), delta_time);
+		editor.StartFrame(main_arena, Slice(input_events, input_event_count), delta_time);
 		const ThreadTask tasks[2]
 		{
 			editor.UpdateViewport(main_arena, delta_time, render_viewport, Slice(input_events, input_event_count)),

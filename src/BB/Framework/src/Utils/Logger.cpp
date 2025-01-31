@@ -57,17 +57,17 @@ const char* Logger::WarningTypeToCChar(const WarningType a_type)
 	switch (a_type)
 	{
 	case BB::WarningType::INFO:
-		return "WARNING TYPE Info";
+		return "INFO";
 	case BB::WarningType::OPTIMIZATION:
-		return "WARNING TYPE OPTIMIZATION";
+		return "OPTIMIZATION";
 	case BB::WarningType::LOW:
-		return "WARNING TYPE LOW";
+		return "LOW";
 	case BB::WarningType::MEDIUM:
-		return "WARNING TYPE MEDIUM";
+		return "MEDIUM";
 	case BB::WarningType::HIGH:
-		return "WARNING TYPE HIGH";
+		return "HIGH";
 	case BB::WarningType::ASSERT:
-		return "WARNING TYPE HIGH";
+		return "HIGH";
 	default:
 		BB_ASSERT(false, "error finding warning type");
 		return "ERROR";

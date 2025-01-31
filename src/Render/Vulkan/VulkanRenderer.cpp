@@ -29,9 +29,12 @@ using namespace BB;
 
 
 #ifdef _DEBUG
-#define VKASSERT(vk_result, a_msg)\
-	if (vk_result != VK_SUCCESS)\
-		BB_ASSERT(false, a_msg)
+#define VKASSERT(vk_result, a_msg)  \
+	do								\
+	{								\
+		if (vk_result != VK_SUCCESS)\
+			BB_ASSERT(false, a_msg);	\
+	} while (0)
 #else
 #define VKASSERT(vk_result, a_msg) vk_result
 #endif //_DEBUG
@@ -131,11 +134,10 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 
 static VkDebugUtilsMessengerCreateInfoEXT CreateDebugCallbackCreateInfo()
 {
-	VkDebugUtilsMessengerCreateInfoEXT create_info{};
-	create_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+	VkDebugUtilsMessengerCreateInfoEXT create_info{ VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT };
 	create_info.messageSeverity =
-		// VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-		// VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
+		VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+		VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
 		VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
 		VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
 	create_info.messageType =
@@ -559,6 +561,7 @@ struct Vulkan_inst
 	}
 
 	VkInstance instance;
+	VkDebugUtilsMessengerEXT debug_msgr;
 	VkPhysicalDevice phys_device;
 	VkDevice device;
 	VkQueue present_queue;
@@ -1089,15 +1092,15 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, cons
 
 		VkInstanceCreateInfo instance_create_info{ VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO };
 		instance_create_info.pApplicationInfo = &app_info;
-		VkDebugUtilsMessengerCreateInfoEXT debug_create_info{ VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT };
+		VkDebugUtilsMessengerCreateInfoEXT debug_create_info;
+		const char* validation_layer = "VK_LAYER_KHRONOS_validation";
 		if (a_debug)
 		{
-			const char* validationLayer = "VK_LAYER_KHRONOS_validation";
-			BB_WARNING(CheckValidationLayerSupport(a_arena, Slice(&validationLayer, 1)), "Vulkan: Validation layer(s) not available.", WarningType::MEDIUM);
+			BB_WARNING(CheckValidationLayerSupport(a_arena, Slice(&validation_layer, 1)), "Vulkan: Validation layer(s) not available.", WarningType::MEDIUM);
 			debug_create_info = CreateDebugCallbackCreateInfo();
-			instance_create_info.ppEnabledLayerNames = &validationLayer;
+			instance_create_info.ppEnabledLayerNames = &validation_layer;
 			instance_create_info.enabledLayerCount = 1;
-			instance_create_info.pNext = &debug_create_info;
+			instance_create_info.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debug_create_info;
 		}
 		else
 		{
@@ -1111,6 +1114,16 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, cons
 			nullptr,
 			&s_vulkan_inst->instance), "Failed to create Vulkan Instance!");
 
+		// create debug messenger
+		if (a_debug)
+		{
+			PFN_vkCreateDebugUtilsMessengerEXT debug_msgr_create = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCreateDebugUtilsMessengerEXT"));
+			if (debug_msgr_create != nullptr)
+				VKASSERT(debug_msgr_create(s_vulkan_inst->instance, &debug_create_info, nullptr, &s_vulkan_inst->debug_msgr), "failed to create debug messenger");
+			else
+				BB_ASSERT(false, "failed to create debug messenger");
+		}
+		
 		s_vulkan_inst->pfn.GetDescriptorSetLayoutSizeEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkGetDescriptorSetLayoutSizeEXT);
 		s_vulkan_inst->pfn.GetDescriptorSetLayoutBindingOffsetEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkGetDescriptorSetLayoutBindingOffsetEXT);
 		s_vulkan_inst->pfn.GetDescriptorEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkGetDescriptorEXT);

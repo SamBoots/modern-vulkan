@@ -256,7 +256,7 @@ namespace BB
 		}
 		void erase(const Key& a_key)
 		{
-			const Hash hash = Hash::MakeHash(a_key) % m_capacity;;
+			const Hash hash = Hash::MakeHash(a_key) % m_capacity;
 
 			HashEntry* entry = &m_entries[hash];
 			if (Match(entry, a_key))
@@ -331,7 +331,7 @@ namespace BB
 	private:
 		void grow(size_t a_MinCapacity = 1)
 		{
-			BB_WARNING(false, "Resizing an OL_HashMap, this might be a bit slow. Possibly reserve more.", WarningType::OPTIMALIZATION);
+			BB_WARNING(false, "Resizing an OL_HashMap, this might be a bit slow. Possibly reserve more.", WarningType::OPTIMIZATION);
 
 			size_t modified_capacity = m_capacity * 2;
 
@@ -703,7 +703,7 @@ namespace BB
 	private:
 		void grow(size_t a_MinCapacity = 1)
 		{
-			BB_WARNING(false, "Resizing an OL_HashMap, this might be a bit slow. Possibly reserve more.", WarningType::OPTIMALIZATION);
+			BB_WARNING(false, "Resizing an OL_HashMap, this might be a bit slow. Possibly reserve more.", WarningType::OPTIMIZATION);
 
 			size_t modified_capacity = m_capacity * 2;
 

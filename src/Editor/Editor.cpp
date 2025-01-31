@@ -289,10 +289,10 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 	m_console_info.lock = OSCreateRWLock();
 	m_console_info.enabled_logs = WARNING_TYPES_ALL;
 	m_console_info.entries_after_last_write = 0;
-	m_console_info.entries_till_write_to_file = 2;
+	m_console_info.entries_till_write_to_file = 64;
 	m_console_info.writing_to_file = false;
 	m_console_info.entry_count = 0;
-	m_console_info.entry_commit_limit = 2;
+	m_console_info.entry_commit_limit = 64;
 	m_console_info.entry_start = reinterpret_cast<ConsoleInfo::ConsoleEntry*>(ArenaAlloc(
 		m_console_info.arena,
 		sizeof(ConsoleInfo::ConsoleEntry) * m_console_info.entry_commit_limit,
@@ -345,7 +345,7 @@ void Editor::Destroy()
 	DirectDestroyOSWindow(m_main_window);
 }
 
-void Editor::StartFrame(const Slice<InputEvent> a_input_events, const float a_delta_time)
+void Editor::StartFrame(MemoryArena& a_arena, const Slice<InputEvent> a_input_events, const float a_delta_time)
 {
 	m_per_frame.current_count = 0;
 	m_swallow_input = false;
@@ -387,7 +387,7 @@ void Editor::StartFrame(const Slice<InputEvent> a_input_events, const float a_de
 
 	RenderStartFrame(list, start_info, m_per_frame.back_buffer_index);
 
-	ImGuiShowConsole();
+	ImGuiShowConsole(a_arena);
 }
 
 void Editor::EndFrame(MemoryArena& a_arena)
@@ -720,7 +720,7 @@ void Editor::ImguiCreateEntity(EntityComponentSystem& a_ecs, const ECSEntity a_p
 	}
 }
 
-void Editor::ImGuiDisplayShaderEffect(MemoryArena& a_temp_arena, const CachedShaderInfo& a_shader_info) const
+void Editor::ImGuiDisplayShaderEffect(MemoryArenaTemp a_temp_arena, const CachedShaderInfo& a_shader_info) const
 {
 	if (ImGui::CollapsingHeader(a_shader_info.path.c_str()))
 	{
@@ -733,17 +733,14 @@ void Editor::ImGuiDisplayShaderEffect(MemoryArena& a_temp_arena, const CachedSha
 
 		if (ImGui::Button("Reload Shader"))
 		{
-			MemoryArenaScope(a_temp_arena)
-			{
-				const Buffer shader = OSReadFile(a_temp_arena, a_shader_info.path.c_str());
-				BB_ASSERT(ReloadShaderEffect(a_shader_info.handle, shader), "something went wrong with reloading a shader");
-			}
+			const Buffer shader = OSReadFile(a_temp_arena, a_shader_info.path.c_str());
+			BB_ASSERT(ReloadShaderEffect(a_shader_info.handle, shader), "something went wrong with reloading a shader");
 		}
 		ImGui::Unindent();
 	}
 }
 
-void Editor::ImGuiDisplayShaderEffects(MemoryArena& a_temp_arena)
+void Editor::ImGuiDisplayShaderEffects(MemoryArena& a_arena)
 {
 	if (ImGui::CollapsingHeader("shader effects"))
 	{
@@ -753,7 +750,7 @@ void Editor::ImGuiDisplayShaderEffects(MemoryArena& a_temp_arena)
 		{
 			ImGui::PushID(static_cast<int>(i));
 			// rework this?
-			ImGuiDisplayShaderEffect(a_temp_arena, shaders[i]);
+			ImGuiDisplayShaderEffect(a_arena, shaders[i]);
 			ImGui::PopID();
 		}
 		ImGui::Unindent();
@@ -879,68 +876,76 @@ void Editor::LoggerToFile(MemoryArena& a_arena, void* a_puserdata)
 {
 	ConsoleInfo* pconsole_info = reinterpret_cast<ConsoleInfo*>(a_puserdata);
 
-	// way to big, TODO, add a resize function that uses realloc
-	String massive_string(a_arena, mbSize * 32);
-
-	// put it all in a massive string so that we only have one I/O operation.
-	for (size_t i = pconsole_info->last_written_entry; i < pconsole_info->write_entry_end; i++)
+	MemoryArenaScope(a_arena)
 	{
-		constexpr const char LOG_MESSAGE_ERROR_LEVEL_0[]{ "Severity: " };
-		constexpr const char LOG_MESSAGE_FILE_0[]{ "\nFile: " };
-		constexpr const char LOG_MESSAGE_LINE_NUMBER_1[]{ "\nLine Number: " };
-		constexpr const char LOG_MESSAGE_MESSAGE_TXT_2[]{ "\nThe Message: " };
+		// way to big, TODO, add a resize function that uses realloc
+		String massive_string(a_arena, mbSize * 32);
 
-		const ConsoleInfo::ConsoleEntry& entry = pconsole_info->entry_start[i];
+		// put it all in a massive string so that we only have one I/O operation.
+		for (size_t i = pconsole_info->last_written_entry; i < pconsole_info->write_entry_end; i++)
+		{
+			constexpr const char LOG_MESSAGE_ERROR_LEVEL_0[]{ "Severity: " };
+			constexpr const char LOG_MESSAGE_FILE_0[]{ "\nFile: " };
+			constexpr const char LOG_MESSAGE_LINE_NUMBER_1[]{ "\nLine Number: " };
+			constexpr const char LOG_MESSAGE_MESSAGE_TXT_2[]{ "\nThe Message: " };
 
-		//Start with the warning level
-		massive_string.append(LOG_MESSAGE_ERROR_LEVEL_0, sizeof(LOG_MESSAGE_ERROR_LEVEL_0) - 1);
-		massive_string.append(Logger::WarningTypeToCChar(entry.warning_type));
-		//Get the file.
-		massive_string.append(LOG_MESSAGE_FILE_0, sizeof(LOG_MESSAGE_FILE_0) - 1);
-		massive_string.append(entry.file_name.c_str(), entry.file_name.size());
+			const ConsoleInfo::ConsoleEntry& entry = pconsole_info->entry_start[i];
 
-		//Get the line number into the buffer
-		char lineNumString[8]{};
-		sprintf_s(lineNumString, 8, "%u", entry.line);
+			//Start with the warning level
+			massive_string.append(LOG_MESSAGE_ERROR_LEVEL_0, sizeof(LOG_MESSAGE_ERROR_LEVEL_0) - 1);
+			massive_string.append(Logger::WarningTypeToCChar(entry.warning_type));
+			//Get the file.
+			massive_string.append(LOG_MESSAGE_FILE_0, sizeof(LOG_MESSAGE_FILE_0) - 1);
+			massive_string.append(entry.file_name.c_str(), entry.file_name.size());
 
-		massive_string.append(LOG_MESSAGE_LINE_NUMBER_1, sizeof(LOG_MESSAGE_LINE_NUMBER_1) - 1);
-		massive_string.append(lineNumString);
+			//Get the line number into the buffer
+			char lineNumString[8]{};
+			sprintf_s(lineNumString, 8, "%u", entry.line);
 
-		//Get the message(s).
-		massive_string.append(LOG_MESSAGE_MESSAGE_TXT_2, sizeof(LOG_MESSAGE_MESSAGE_TXT_2) - 1);
-		massive_string.append(entry.message.c_str(), entry.message.size());
-		//double line ending for better reading.
-		massive_string.append("\n\n", 2);
+			massive_string.append(LOG_MESSAGE_LINE_NUMBER_1, sizeof(LOG_MESSAGE_LINE_NUMBER_1) - 1);
+			massive_string.append(lineNumString);
+
+			//Get the message(s).
+			massive_string.append(LOG_MESSAGE_MESSAGE_TXT_2, sizeof(LOG_MESSAGE_MESSAGE_TXT_2) - 1);
+			massive_string.append(entry.message.c_str(), entry.message.size());
+			//double line ending for better reading.
+			massive_string.append("\n\n", 2);
+		}
+
+		bool success = OSWriteFile(pconsole_info->log_file, massive_string.data(), massive_string.size());
+		BB_ASSERT(success, "failed to write file to log");
 	}
-
-	bool success = OSWriteFile(pconsole_info->log_file, massive_string.data(), massive_string.size());
-	BB_ASSERT(success, "failed to write file to log");
 	pconsole_info->last_written_entry = pconsole_info->write_entry_end;
 	pconsole_info->writing_to_file = false;
 }
 
-//static bool IsLogEnabled(const WarningType a_type)
-//{
-//	return (g_logger->enabled_warning_flags & static_cast<WarningTypeFlags>(a_type)) == static_cast<WarningTypeFlags>(a_type);
-//}
-//
-//void Logger::EnableLogType(const WarningType a_warning_type)
-//{
-//	g_logger->enabled_warning_flags |= static_cast<WarningTypeFlags>(a_warning_type);
-//}
-//
-//void Logger::EnableLogTypes(const WarningTypeFlags a_warning_types)
-//{
-//	g_logger->enabled_warning_flags = a_warning_types;
-//}
-
-void Editor::ImGuiShowConsole()
+void Editor::ImGuiShowConsole(MemoryArena& a_arena)
 {
 	OSAcquireSRWLockRead(&m_console_info.lock);
 
-	if (ImGui::Begin("Console log"))
+	if (ImGui::Begin("Console log", nullptr, ImGuiWindowFlags_MenuBar))
 	{
-		if (ImGui::BeginTable("log enable all options", 2, 0, ImVec2(256.f, 0.f)))
+		if (ImGui::BeginMenuBar())
+		{
+			if (ImGui::BeginMenu("Menu"))
+			{
+				if (ImGui::MenuItem("[DEBUG] add 5 entries"))
+				{
+					for (uint32_t i = 0; i < 5; i++)
+						BB_LOG("DEBUG ENTRY");
+				}
+				if (ImGui::MenuItem("Write to file"))
+				{
+					LoggerToFile(a_arena, &m_console_info);
+				}
+
+
+				ImGui::EndMenu();
+			}
+			ImGui::EndMenuBar();
+		}
+
+		if (ImGui::BeginTable("log enable all options", 3, ImGuiTableFlags_NoPadOuterX))
 		{
 			ImGui::TableNextColumn();
 			if (ImGui::Button("enable all logs"))
@@ -949,6 +954,7 @@ void Editor::ImGuiShowConsole()
 			ImGui::TableNextColumn();
 			if (ImGui::Button("disable all logs"))
 				m_console_info.enabled_logs = 0;
+
 
 			ImGui::EndTable();
 		}
@@ -973,6 +979,55 @@ void Editor::ImGuiShowConsole()
 			ImGui::TableNextColumn();
 			ImGui::CheckboxFlags("asserts", &m_console_info.enabled_logs, static_cast<WarningTypeFlags>(WarningType::ASSERT));
 
+			ImGui::EndTable();
+		}
+		static bool show_file_info = false;
+		ImGui::Checkbox("file info", &show_file_info);
+
+		int columns = 2;
+		if (show_file_info)
+			columns += 2;
+
+		if (ImGui::BeginTable("table_scrollx", columns, ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg))
+		{
+			ImGui::TableSetupColumn("Severity"); // Make the first column not hideable to match our use of TableSetupScrollFreeze()
+			ImGui::TableSetupColumn("Message");
+			if (show_file_info)
+			{
+				ImGui::TableSetupColumn("source file");
+				ImGui::TableSetupColumn("line");
+			}
+			ImGui::TableHeadersRow();
+			for (size_t i = 0; i < m_console_info.entry_count; i++)
+			{
+				ImGui::PushID(static_cast<int>(i));
+				const ConsoleInfo::ConsoleEntry& entry = m_console_info.entry_start[i];
+				static size_t selected = -1;
+				if ((m_console_info.enabled_logs & static_cast<WarningTypeFlags>(entry.warning_type)) == static_cast<WarningTypeFlags>(entry.warning_type))
+				{
+					ImGui::TableNextRow();
+					ImGui::TableSetColumnIndex(0);
+					ImGui::Text("[%s]", Logger::WarningTypeToCChar(entry.warning_type));
+					ImGui::TableSetColumnIndex(1);
+					if (ImGui::Selectable(entry.message.c_str(), selected == i))
+						selected == i;
+					if (ImGui::BeginPopupContextItem())
+					{
+						selected = i;
+						ImGui::TextWrapped(entry.message.c_str());
+						ImGui::EndPopup();
+					}
+
+					if (show_file_info)
+					{
+						ImGui::TableSetColumnIndex(2);
+						ImGui::TextUnformatted(entry.file_name.c_str());
+						ImGui::TableSetColumnIndex(3);
+						ImGui::Text("%d", entry.line);
+					}
+				}
+				ImGui::PopID();
+			}
 			ImGui::EndTable();
 		}
 	}
