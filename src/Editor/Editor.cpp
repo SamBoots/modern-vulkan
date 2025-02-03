@@ -285,21 +285,13 @@ void Editor::ThreadFuncForDrawing(MemoryArena&, void* a_param)
 void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent, const size_t a_editor_memory)
 {
 	// console stuff
-	m_console_info.arena = MemoryArenaCreate();
-	m_console_info.lock = OSCreateRWLock();
-	m_console_info.enabled_logs = WARNING_TYPES_ALL;
-	m_console_info.entries_after_last_write = 0;
-	m_console_info.entries_till_write_to_file = 64;
-	m_console_info.writing_to_file = false;
-	m_console_info.entry_count = 0;
-	m_console_info.entry_commit_limit = 64;
-	m_console_info.entry_start = reinterpret_cast<ConsoleInfo::ConsoleEntry*>(ArenaAlloc(
-		m_console_info.arena,
-		sizeof(ConsoleInfo::ConsoleEntry) * m_console_info.entry_commit_limit,
-		__alignof(ConsoleInfo::ConsoleEntry)));
-
-	m_console_info.log_file = OSCreateFile("logger.txt");
-	Logger::LoggerSetCallback(Editor::LoggerCallback, &m_console_info);
+	ConsoleCreateInfo create_info;
+	create_info.entries_till_resize = 8;
+	create_info.entries_till_file_write = 8;
+	create_info.write_to_console = true;
+	create_info.write_to_file = true;
+	create_info.enabled_warnings = WARNING_TYPES_ALL;
+	m_console.Init(create_info);
 
 	m_main_window = a_window;
 	m_app_window_extent = a_window_extent;
@@ -310,9 +302,10 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 
 	m_editor_allocator.Initialize(a_arena, a_editor_memory);
 
-	MaterialSystemCreateInfo material_system_init;
+	MaterialSystemCreateInfo material_system_init{};
 	material_system_init.max_materials = 128;
 	material_system_init.max_shader_effects = 64;
+	material_system_init.max_material_instances = 256;
 	material_system_init.default_2d_vertex.path = "../../resources/shaders/hlsl/Imgui.hlsl";
 	material_system_init.default_2d_vertex.entry = "VertexMain";
 	material_system_init.default_2d_vertex.stage = SHADER_STAGE::VERTEX;
@@ -387,7 +380,7 @@ void Editor::StartFrame(MemoryArena& a_arena, const Slice<InputEvent> a_input_ev
 
 	RenderStartFrame(list, start_info, m_per_frame.back_buffer_index);
 
-	ImGuiShowConsole(a_arena);
+	m_console.ImGuiShowConsole(a_arena, m_app_window_extent);
 }
 
 void Editor::EndFrame(MemoryArena& a_arena)
@@ -795,243 +788,4 @@ void Editor::ImGuiDisplayMaterials()
 		}
 		ImGui::Unindent();
 	}
-}
-
-static bool IsWarningSet(const WarningType a_type, const WarningTypeFlags a_flags)
-{
-	return (a_flags & static_cast<WarningTypeFlags>(a_type)) == static_cast<WarningTypeFlags>(a_type);
-}
-
-void Editor::LoggerCallback(const char* a_file_name, int a_line, const WarningType a_warning_type, const char* a_formats, void* a_puserdata, va_list a_args)
-{
-	ConsoleInfo::ConsoleEntry entry{};
-	entry.warning_type = a_warning_type;
-	entry.file_name = a_file_name;
-	entry.line = a_line;
-
-	for (size_t i = 0; static_cast<size_t>(a_formats[i] != '\0'); i++)
-	{
-		switch (a_formats[i])
-		{
-		case 's':
-			entry.message.append(va_arg(a_args, char*));
-			break;
-		case 'S': //convert it to a char first.
-		{
-			const wchar_t* w_char = va_arg(a_args, const wchar_t*);
-			const size_t char_size = wcslen(w_char);
-			//check to see if we do not go over bounds, largly to deal with non-null-terminated wchar strings.
-			BB_ASSERT(char_size < entry.message.capacity() - entry.message.size(), "error log string size exceeds 2048 characters!");
-			char* character = BBstackAlloc_s(char_size, char);
-			size_t conv_chars = 0;
-			wcstombs_s(&conv_chars, character, char_size, w_char, _TRUNCATE);
-			entry.message.append(character);
-			BBstackFree_s(character);
-		}
-		break;
-		default:
-			BB_ASSERT(false, "va arg format not yet supported");
-			break;
-		}
-
-		entry.message.append(" ", 1);
-	}
-
-	ConsoleInfo* pconsole_info = reinterpret_cast<ConsoleInfo*>(a_puserdata);
-	const size_t index = pconsole_info->entry_count.fetch_add(1);
-	// TODO this if is not thread safe, double resize could happen.
-	if (index >= pconsole_info->entry_commit_limit)
-	{
-		OSAcquireSRWLockWrite(&pconsole_info->lock);
-		const size_t new_commit_limit = pconsole_info->entry_commit_limit * 2;
-
-		pconsole_info->entry_start = reinterpret_cast<ConsoleInfo::ConsoleEntry*>(ArenaRealloc(
-			pconsole_info->arena,
-			pconsole_info->entry_start,
-			sizeof(ConsoleInfo::ConsoleEntry) * pconsole_info->entry_commit_limit,
-			sizeof(ConsoleInfo::ConsoleEntry) * new_commit_limit,
-			__alignof(ConsoleInfo::ConsoleEntry)));
-
-		pconsole_info->entry_commit_limit = new_commit_limit;
-		OSReleaseSRWLockWrite(&pconsole_info->lock);
-	}
-	pconsole_info->entry_start[index] = entry;
-
-	// check if write to file
-	const uint32_t entries_till_write = pconsole_info->entries_after_last_write.fetch_add(1);
-	// TODO this if is not thread safe
-	if (entries_till_write == pconsole_info->entries_till_write_to_file && !pconsole_info->writing_to_file)
-	{
-		pconsole_info->writing_to_file = true;
-		pconsole_info->entries_after_last_write = 0;
-		pconsole_info->write_entry_end = index;
-		Threads::StartTaskThread(LoggerToFile, a_puserdata, L"logger to file");
-	}
-	
-	if (IsWarningSet(a_warning_type, pconsole_info->enabled_logs))
-		Logger::LogToConsole(entry.file_name.c_str(), entry.line, entry.warning_type, entry.message.c_str());
-}
-
-void Editor::LoggerToFile(MemoryArena& a_arena, void* a_puserdata)
-{
-	ConsoleInfo* pconsole_info = reinterpret_cast<ConsoleInfo*>(a_puserdata);
-
-	MemoryArenaScope(a_arena)
-	{
-		// way to big, TODO, add a resize function that uses realloc
-		String massive_string(a_arena, mbSize * 32);
-
-		// put it all in a massive string so that we only have one I/O operation.
-		for (size_t i = pconsole_info->last_written_entry; i < pconsole_info->write_entry_end; i++)
-		{
-			constexpr const char LOG_MESSAGE_ERROR_LEVEL_0[]{ "Severity: " };
-			constexpr const char LOG_MESSAGE_FILE_0[]{ "\nFile: " };
-			constexpr const char LOG_MESSAGE_LINE_NUMBER_1[]{ "\nLine Number: " };
-			constexpr const char LOG_MESSAGE_MESSAGE_TXT_2[]{ "\nThe Message: " };
-
-			const ConsoleInfo::ConsoleEntry& entry = pconsole_info->entry_start[i];
-
-			//Start with the warning level
-			massive_string.append(LOG_MESSAGE_ERROR_LEVEL_0, sizeof(LOG_MESSAGE_ERROR_LEVEL_0) - 1);
-			massive_string.append(Logger::WarningTypeToCChar(entry.warning_type));
-			//Get the file.
-			massive_string.append(LOG_MESSAGE_FILE_0, sizeof(LOG_MESSAGE_FILE_0) - 1);
-			massive_string.append(entry.file_name.c_str(), entry.file_name.size());
-
-			//Get the line number into the buffer
-			char lineNumString[8]{};
-			sprintf_s(lineNumString, 8, "%u", entry.line);
-
-			massive_string.append(LOG_MESSAGE_LINE_NUMBER_1, sizeof(LOG_MESSAGE_LINE_NUMBER_1) - 1);
-			massive_string.append(lineNumString);
-
-			//Get the message(s).
-			massive_string.append(LOG_MESSAGE_MESSAGE_TXT_2, sizeof(LOG_MESSAGE_MESSAGE_TXT_2) - 1);
-			massive_string.append(entry.message.c_str(), entry.message.size());
-			//double line ending for better reading.
-			massive_string.append("\n\n", 2);
-		}
-
-		bool success = OSWriteFile(pconsole_info->log_file, massive_string.data(), massive_string.size());
-		BB_ASSERT(success, "failed to write file to log");
-	}
-	pconsole_info->last_written_entry = pconsole_info->write_entry_end;
-	pconsole_info->writing_to_file = false;
-}
-
-void Editor::ImGuiShowConsole(MemoryArena& a_arena)
-{
-	OSAcquireSRWLockRead(&m_console_info.lock);
-
-	if (ImGui::Begin("Console log", nullptr, ImGuiWindowFlags_MenuBar))
-	{
-		if (ImGui::BeginMenuBar())
-		{
-			if (ImGui::BeginMenu("Menu"))
-			{
-				if (ImGui::MenuItem("[DEBUG] add 5 entries"))
-				{
-					for (uint32_t i = 0; i < 5; i++)
-						BB_LOG("DEBUG ENTRY");
-				}
-				if (ImGui::MenuItem("Write to file"))
-				{
-					LoggerToFile(a_arena, &m_console_info);
-				}
-				ImGui::SliderFloat("popup window size: %.3f", &m_console_info.popup_window_x_size_factor, 1.f, 8.f);
-				ImGui::EndMenu();
-			}
-			ImGui::EndMenuBar();
-		}
-
-		if (ImGui::BeginTable("log enable all options", 3, ImGuiTableFlags_NoPadOuterX))
-		{
-			ImGui::TableNextColumn();
-			if (ImGui::Button("enable all logs"))
-				m_console_info.enabled_logs = WARNING_TYPES_ALL;
-
-			ImGui::TableNextColumn();
-			if (ImGui::Button("disable all logs"))
-				m_console_info.enabled_logs = 0;
-
-
-			ImGui::EndTable();
-		}
-
-		if (ImGui::BeginTable("log enable options", 3, 0, ImVec2(512.f, 0.f)))
-		{
-			ImGui::TableNextColumn();
-			ImGui::CheckboxFlags("warning info", &m_console_info.enabled_logs, static_cast<WarningTypeFlags>(WarningType::INFO));
-
-			ImGui::TableNextColumn();
-			ImGui::CheckboxFlags("warning optimization", &m_console_info.enabled_logs, static_cast<WarningTypeFlags>(WarningType::OPTIMIZATION));
-
-			ImGui::TableNextColumn();
-			ImGui::CheckboxFlags("warning low", &m_console_info.enabled_logs, static_cast<WarningTypeFlags>(WarningType::LOW));
-
-			ImGui::TableNextColumn();
-			ImGui::CheckboxFlags("warning medium", &m_console_info.enabled_logs, static_cast<WarningTypeFlags>(WarningType::MEDIUM));
-
-			ImGui::TableNextColumn();
-			ImGui::CheckboxFlags("warning high", &m_console_info.enabled_logs, static_cast<WarningTypeFlags>(WarningType::HIGH));
-
-			ImGui::TableNextColumn();
-			ImGui::CheckboxFlags("asserts", &m_console_info.enabled_logs, static_cast<WarningTypeFlags>(WarningType::ASSERT));
-
-			ImGui::EndTable();
-		}
-		static bool show_file_info = false;
-		ImGui::Checkbox("file info", &show_file_info);
-
-		int columns = 2;
-		if (show_file_info)
-			columns += 2;
-
-		if (ImGui::BeginTable("table_scrollx", columns, ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg))
-		{
-			ImGui::TableSetupColumn("Severity"); // Make the first column not hideable to match our use of TableSetupScrollFreeze()
-			ImGui::TableSetupColumn("Message");
-			if (show_file_info)
-			{
-				ImGui::TableSetupColumn("source file");
-				ImGui::TableSetupColumn("line");
-			}
-			ImGui::TableHeadersRow();
-			for (size_t i = 0; i < m_console_info.entry_count; i++)
-			{
-				ImGui::PushID(static_cast<int>(i));
-				const ConsoleInfo::ConsoleEntry& entry = m_console_info.entry_start[i];
-				static size_t selected = -1;
-				if ((m_console_info.enabled_logs & static_cast<WarningTypeFlags>(entry.warning_type)) == static_cast<WarningTypeFlags>(entry.warning_type))
-				{
-					ImGui::TableNextRow();
-					ImGui::TableSetColumnIndex(0);
-					ImGui::Text("[%s]", Logger::WarningTypeToCChar(entry.warning_type));
-					ImGui::TableSetColumnIndex(1);
-					ImGui::SetNextWindowSize(ImVec2(static_cast<float>(m_app_window_extent.x) / m_console_info.popup_window_x_size_factor, 0.f));
-					if (ImGui::Selectable(entry.message.c_str(), selected == i))
-						selected == i;
-					if (ImGui::BeginPopupContextItem())
-					{
-						selected = i;
-						ImGui::TextWrapped(entry.message.c_str());
-						ImGui::EndPopup();
-					}
-
-					if (show_file_info)
-					{
-						ImGui::TableSetColumnIndex(2);
-						ImGui::TextUnformatted(entry.file_name.c_str());
-						ImGui::TableSetColumnIndex(3);
-						ImGui::Text("%d", entry.line);
-					}
-				}
-				ImGui::PopID();
-			}
-			ImGui::EndTable();
-		}
-	}
-	ImGui::End();
-
-	OSReleaseSRWLockRead(&m_console_info.lock);
 }

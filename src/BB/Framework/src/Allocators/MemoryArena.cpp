@@ -261,7 +261,7 @@ void* BB::ArenaReallocNoZero_f(BB_ARENA_DEBUG MemoryArena& a_arena, void* a_ptr,
 		mem_end = Pointer::Add(mem_end, MEMORY_BOUNDRY_SIZE);
 #endif // SANITIZER_ENABLED
 
-		ChangeArenaAt(a_arena, mem_end);
+		ChangeArenaAt(a_arena, Pointer::Add(a_ptr, a_memory_size));
 
 #ifdef _DEBUG_MEMORY
 		MemoryArenaAllocationInfo* debug_address = reinterpret_cast<MemoryArenaAllocationInfo*>(Pointer::Subtract(a_ptr, mem_debug_offset));

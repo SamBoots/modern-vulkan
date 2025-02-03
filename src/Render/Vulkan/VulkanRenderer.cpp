@@ -1100,7 +1100,7 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, cons
 			debug_create_info = CreateDebugCallbackCreateInfo();
 			instance_create_info.ppEnabledLayerNames = &validation_layer;
 			instance_create_info.enabledLayerCount = 1;
-			instance_create_info.pNext = (VkDebugUtilsMessengerCreateInfoEXT*)&debug_create_info;
+			instance_create_info.pNext = reinterpret_cast<VkDebugUtilsMessengerCreateInfoEXT*>(&debug_create_info);
 		}
 		else
 		{
