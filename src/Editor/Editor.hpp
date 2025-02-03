@@ -102,6 +102,9 @@ namespace BB
 			size_t write_entry_end;
 			size_t last_written_entry;
 			ConsoleEntry* entry_start;
+
+			// constants
+			float popup_window_x_size_factor = 1.3f;
 		};
 
 		ConsoleInfo m_console_info;

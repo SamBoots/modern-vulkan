@@ -938,8 +938,7 @@ void Editor::ImGuiShowConsole(MemoryArena& a_arena)
 				{
 					LoggerToFile(a_arena, &m_console_info);
 				}
-
-
+				ImGui::SliderFloat("popup window size: %.3f", &m_console_info.popup_window_x_size_factor, 1.f, 8.f);
 				ImGui::EndMenu();
 			}
 			ImGui::EndMenuBar();
@@ -1009,6 +1008,7 @@ void Editor::ImGuiShowConsole(MemoryArena& a_arena)
 					ImGui::TableSetColumnIndex(0);
 					ImGui::Text("[%s]", Logger::WarningTypeToCChar(entry.warning_type));
 					ImGui::TableSetColumnIndex(1);
+					ImGui::SetNextWindowSize(ImVec2(static_cast<float>(m_app_window_extent.x) / m_console_info.popup_window_x_size_factor, 0.f));
 					if (ImGui::Selectable(entry.message.c_str(), selected == i))
 						selected == i;
 					if (ImGui::BeginPopupContextItem())
