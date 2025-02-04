@@ -43,22 +43,30 @@ void Console::ImGuiShowConsole(MemoryArena& a_arena, const uint2 a_window_size)
 		{
 			if (ImGui::BeginMenu("Menu"))
 			{
-				if (ImGui::MenuItem("[DEBUG] add 5 entries"))
+				if (ImGui::Button("Clear console logs"))
 				{
-					for (uint32_t i = 0; i < 5; i++)
-						BB_LOG("DEBUG ENTRY");
+					OSAcquireSRWLockWrite(&m_lock);
+					memset(m_entry_start, 0, sizeof(Console::ConsoleEntry) * m_entry_count);
+					m_entry_count = 0;
+					m_entries_after_last_write = 0;
+					OSReleaseSRWLockWrite(&m_lock);
 				}
 				if (ImGui::MenuItem("Write to file"))
 				{
 					LoggerToFile(a_arena, this);
 				}
 				ImGui::SliderFloat("popup window size: %.3f", &m_popup_window_x_size_factor, 1.f, 8.f);
+				if (ImGui::MenuItem("[DEBUG] add 5 entries"))
+				{
+					for (uint32_t i = 0; i < 5; i++)
+						BB_LOG("DEBUG ENTRY");
+				}
 				ImGui::EndMenu();
 			}
 			ImGui::EndMenuBar();
 		}
 
-		if (ImGui::BeginTable("log enable all options", 2, ImGuiTableFlags_NoPadOuterX))
+		if (ImGui::BeginTable("log enable all options", 2, ImGuiTableFlags_NoPadOuterX, ImVec2(512.f, 0.f)))
 		{
 			ImGui::TableNextColumn();
 			if (ImGui::Button("enable all logs"))
@@ -95,7 +103,7 @@ void Console::ImGuiShowConsole(MemoryArena& a_arena, const uint2 a_window_size)
 		}
 		static bool show_file_info = false;
 
-		if (ImGui::BeginTable("Extra options console", 3, ImGuiTableFlags_NoPadOuterX))
+		if (ImGui::BeginTable("Extra options console", 3, ImGuiTableFlags_NoPadOuterX, ImVec2(512.f, 0.f)))
 		{
 			ImGui::TableNextColumn();
 			ImGui::Checkbox("file info", &show_file_info);
