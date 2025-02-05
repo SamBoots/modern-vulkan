@@ -1039,7 +1039,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
 			const StringView img = Asset::LoadImageDisk(a_temp_arena, full_image_path, IMAGE_FORMAT::RGBA8_UNORM);
 
-			metallic_info.orm_texture = Asset::FindImageByName(full_image_path)->descriptor_index;
+			metallic_info.orm_texture = Asset::FindImageByName(img.c_str())->descriptor_index;
 		}
 		else
 		{

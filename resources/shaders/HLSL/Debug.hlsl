@@ -68,6 +68,11 @@ PixelOutput FragmentMain(VSOutput a_input)
     
     const float4 texture_color = textures_data[material.albedo_texture].Sample(basic_3d_sampler, a_input.uv);
     const float4 color = texture_color * a_input.color;
+
+    const float3 orm_data = textures_data[meterial.orm_texture].Sample(basic_3d_sampler, a_input.uv);
+    const float oclussion = orm_data.r;
+    const float roughness = orm_data.g;
+    const float metallic = orm_data.b;
     
     float3 normal = textures_data[material.normal_texture].Sample(basic_3d_sampler, a_input.uv).xyz * 2.0 - 1.0;
     normal = normalize(mul(a_input.TBN, normal));
