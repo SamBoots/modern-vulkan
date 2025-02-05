@@ -1024,6 +1024,29 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 			metallic_info.normal_texture = GetWhiteTexture();
 
 
+		bool texture_is_orm = false;
+		if (prim.material->has_pbr_metallic_roughness)
+		{
+			if (prim.material->occlusion_texture.texture == nullptr)
+				texture_is_orm = true;
+			else
+				texture_is_orm = prim.material->occlusion_texture.texture->image == prim.material->pbr_metallic_roughness.metallic_roughness_texture.texture->image;
+		}
+
+		if (texture_is_orm)
+		{
+			const cgltf_image& image = *prim.material->pbr_metallic_roughness.metallic_roughness_texture.texture->image;
+			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
+			const StringView img = Asset::LoadImageDisk(a_temp_arena, full_image_path, IMAGE_FORMAT::RGBA8_UNORM);
+
+			metallic_info.orm_texture = Asset::FindImageByName(full_image_path)->descriptor_index;
+		}
+		else
+		{
+			BB_ASSERT(texture_is_orm, "non-orm pbr textures not supported");
+		}
+
+
 		{	// get indices
 			void* index_data = GetAccessorDataPtr(prim.indices);
 			if (prim.indices->component_type == cgltf_component_type_r_32u)

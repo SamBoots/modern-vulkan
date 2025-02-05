@@ -93,6 +93,8 @@ namespace BB
         float roughness_factor;
         RDescriptorIndex albedo_texture;
         RDescriptorIndex normal_texture;
+        RDescriptorIndex orm_texture;
+        float3 pad;
     };
 
 #ifndef __HLSL_VERSION // C++ version
