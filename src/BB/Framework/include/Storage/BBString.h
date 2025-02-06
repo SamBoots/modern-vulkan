@@ -319,12 +319,13 @@ namespace BB
 		Stack_String(const CharT* a_string, size_t a_size)
 		{
 			BB_ASSERT(a_size < sizeof(m_string), "Stack string overflow");
-			memset(m_string, 0, sizeof(m_string));
+			memset(m_string, 0, STRING_SIZE);
 			Memory::Copy(&m_string[0], a_string, a_size);
 			m_size = a_size;
 		}
 		Stack_String(const Stack_String<CharT, STRING_SIZE>& a_string)
 		{
+			memset(m_string, 0, STRING_SIZE);
 			Memory::Copy(&m_string[0], &a_string.m_string[0], a_string.m_size);
 			m_size = a_string.m_size;
 		}

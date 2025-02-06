@@ -173,14 +173,13 @@ float3 CalculateLight(const BB::Light a_light, const float3 a_L, const float3 a_
 
     if (a_light.light_type == SPOT_LIGHT)
     {
-        light_dir = normalize(a_light.pos.xyz - a_world_pos);
+        light_dir = normalize(a_light.direction.xyz);
         const float theta = dot(light_dir, normalize(-a_light.direction.xyz));
         if (theta <= a_light.direction.w)
         {
             const float N_dot_L = max(dot(a_N, light_dir), 0.0);
-            return float3((a_albedo / PI) * N_dot_L);
+            return float3(scene_data.ambient_light.xyz * a_albedo);
         }
-
     }
     else if (a_light.light_type == DIRECTIONAL_LIGHT)
     {

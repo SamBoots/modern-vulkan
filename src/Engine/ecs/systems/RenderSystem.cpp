@@ -428,7 +428,7 @@ void RenderSystem::Screenshot(const PathString& a_path) const
 void RenderSystem::SetView(const float4x4& a_view, const float3& a_view_position)
 {
 	m_scene_info.view = a_view;
-	m_scene_info.view_pos = float4(a_view_position.x, a_view_position.y, a_view_position.z, 0.0);
+	m_scene_info.view_pos = float3(a_view_position.x, a_view_position.y, a_view_position.z);
 }
 
 void RenderSystem::SetProjection(const float4x4& a_projection)

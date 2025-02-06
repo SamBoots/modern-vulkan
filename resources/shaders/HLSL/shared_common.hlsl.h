@@ -78,7 +78,8 @@ namespace BB
         uint2 scene_resolution;          // 152
         float2 shadow_map_resolution;    // 160
 
-        float4 view_pos;                 // 176 .w = padding
+        float3 view_pos;                 // 172
+        float pad;                       // 176
 
         uint shadow_map_count;           // 180
         RDescriptorIndex shadow_map_array_descriptor; // 184

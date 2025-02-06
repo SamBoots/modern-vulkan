@@ -31,11 +31,12 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
     BB::ShaderTransform transform = transform_data.Load < BB::ShaderTransform > (
         sizeof(BB::ShaderTransform) * shader_indices.transform_index);
     
-    const float3 T = normalize(mul(transform.transform, float4(cur_vertex.tangent.xyz, 1.0f)).xyz);
-    const float3 N = normalize(mul(transform.transform, float4(cur_vertex.normal.xyz, 1.0f)).xyz);
-    const float3 B = normalize(cross(N, T));
+    float3x3 normalMatrix = transpose(transform.inverse);
+    float3 T = normalize(mul(normalMatrix, float4(cur_vertex.tangent.xyz, 1.0f)).xyz);
+    const float3 N = normalize(mul(normalMatrix, float4(cur_vertex.normal.xyz, 1.0f)).xyz);
+    T = normalize(T - dot(T, N) * N);
+    const float3 B = cross(N, T);
     const float3x3 TBN = transpose(float3x3(T, B, N));
-
 
     VSOutput output = (VSOutput) 0;
     output.world_pos = float4(mul(transform.transform, float4(cur_vertex.position, 1.0f))).xyz;
@@ -64,7 +65,7 @@ PixelOutput FragmentMain(VSOutput a_input)
 
     const float3 normal_map = textures_data[material.normal_texture].Sample(basic_3d_sampler, a_input.uv).xyz * 2.0 - 1.0;
     const float3 N = normalize(mul(a_input.TBN, normal_map));
-    const float3 V = normalize(scene_data.view_pos.xyz - a_input.world_pos);
+    const float3 V = normalize(scene_data.view_pos - a_input.world_pos);
 
     float3 orm_data = float3(0.0, 0.0, 0.0);
     if (material.orm_texture != INVALID_TEXTURE)
