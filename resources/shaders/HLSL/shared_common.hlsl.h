@@ -89,8 +89,8 @@ namespace BB
     struct ALIGN_STRUCT(16) MeshMetallic
     {
         float4 base_color_factor;
-        float metallic_factor;
         float roughness_factor;
+        float metallic_factor;
         RDescriptorIndex albedo_texture;
         RDescriptorIndex normal_texture;
         RDescriptorIndex orm_texture;
