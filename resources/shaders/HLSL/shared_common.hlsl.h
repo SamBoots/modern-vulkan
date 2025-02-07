@@ -137,7 +137,8 @@ namespace BB
         uint vertex_buffer_offset;       // 4
         uint transform_index;            // 8
         RDescriptorIndex material_index; // 12
-        float3 padding;                  // 24
+        float pad0;                      // 16
+        float4 pad1;                     // 32
     };
 
     struct ShaderIndices2D
@@ -146,6 +147,7 @@ namespace BB
         RDescriptorIndex albedo_texture; // 8
         float2 rect_scale;               // 16
         float2 translate;                // 24
+        uint2 pad0;                      // 32
     };
 
     struct ShaderIndicesShadowMapping
@@ -153,17 +155,18 @@ namespace BB
         uint vertex_buffer_offset;        // 4
         uint transform_index;             // 8
         uint light_projection_view_index; // 12
-        uint pad1;
-        uint2 pad2;                    // 24
+        uint pad0;                        // 16
+        uint4 pad1;                       // 32
     };
 
     struct ShaderGaussianBlur
     {
-        RDescriptorIndex src_texture;
-        uint horizontal_enable;
-        uint2 src_resolution;
-        float blur_strength;
-        float blur_scale;
+        RDescriptorIndex src_texture; // 4
+        uint horizontal_enable;       // 8
+        uint2 src_resolution;         // 16
+        float blur_strength;          // 20
+        float blur_scale;             // 24
+        float2 pad0;                  // 32
     };
 
 #ifndef __HLSL_VERSION // C++ version
