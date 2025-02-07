@@ -32,9 +32,9 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
     BB::ShaderTransform transform = transform_data.Load < BB::ShaderTransform > (
         sizeof(BB::ShaderTransform) * shader_indices.transform_index);
     
-    float3x3 normalMatrix = transpose(transform.inverse);
-    float3 T = normalize(mul(normalMatrix, float4(cur_vertex.tangent.xyz, 1.0f)).xyz);
-    const float3 N = normalize(mul(normalMatrix, float4(cur_vertex.normal.xyz, 1.0f)).xyz);
+    float3x3 normalMatrix = (float3x3)transpose(transform.inverse);
+    float3 T = normalize(mul(normalMatrix, cur_vertex.tangent.xyz));
+    const float3 N = normalize(mul(normalMatrix, cur_vertex.normal));
     T = normalize(T - dot(T, N) * N);
     const float3 B = cross(N, T);
     const float3x3 TBN = transpose(float3x3(T, B, N));
@@ -96,8 +96,12 @@ PixelOutput FragmentMain(VSOutput a_input)
         lo += (1.0 - shadow) * (light_color);
     }
 
-    const float3 ambient = scene_data.ambient_light.xyz;
-    float3 color = (ambient + lo) * albedo;
+    const float3 ambient = scene_data.ambient_light.xyz * albedo * orm_data.r;
+    float3 color = ambient + lo;
+
+    color = color / (color + float3(1.0, 1.0, 1.0));
+    color = pow(color, float3(1.0/2.2, 1.0/2.2, 1.0/2.2));  
+
     PixelOutput output;
     output.color = float4(color, 1.0);
     

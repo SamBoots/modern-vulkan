@@ -63,6 +63,8 @@ namespace BB
 	public:
 		MemoryArenaTemp(MemoryArena& a_arena);
 		~MemoryArenaTemp();
+
+		MemoryArenaTemp(MemoryArenaTemp& a_temp_arena);
 		operator MemoryArena&() const;
 
 	private:

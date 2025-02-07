@@ -120,7 +120,6 @@ float3 PBRCalculateLight(const BB::Light a_light, const float3 a_L, const float3
         light_dir = normalize(-a_light.direction.xyz);
     }
 
-    const float ao = a_orm.r;
     const float roughness = a_orm.g;
     const float metallic = a_orm.b;
     const float3 H = normalize(a_V + a_L);
@@ -133,7 +132,7 @@ float3 PBRCalculateLight(const BB::Light a_light, const float3 a_L, const float3
     const float G = GeometrySmith(a_N, a_V, a_L, roughness);
     const float3 fresnel = FresnelSchlick(max(dot(H, a_V), 0.0), a_f0);
 
-    const float3 kD = (float3(1.0, 1.0, 1.0) - fresnel) * 1.0 - metallic;
+    const float3 kD = (float3(1.0, 1.0, 1.0) - fresnel) * (1.0 - metallic);
 
     const float3 numerator = NDF * G * fresnel;
     const float denominator = 4.0 * max(dot(a_N, a_V), 0.0) * max(dot(a_N, a_L), 0.0) + 0.0001;

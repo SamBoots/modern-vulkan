@@ -526,6 +526,23 @@ bool BB::OSFindFileNameDialogWindow(char* a_str_buffer, const size_t a_str_buffe
 	return false;
 }
 
+bool BB::OSOpenFolder(const StringView a_directory, MemoryArenaTemp a_temp_arena)
+{
+	wchar_t* wide_chars = ArenaAllocArr(a_temp_arena, wchar_t, a_directory.size());
+	mbstowcs(wide_chars, a_directory.c_str(), a_directory.size());
+
+	PIDLIST_ABSOLUTE pidl;
+	if (SUCCEEDED(SHParseDisplayName(wide_chars, nullptr, &pidl, 0, nullptr)))
+	{
+		ITEMIDLIST idNull = {};
+		LPCITEMIDLIST pidlNull[1] = { &idNull };
+		SHOpenFolderAndSelectItems(pidl, 1, pidlNull, 0);
+		ILFree(pidl);
+		return true;
+	}
+	return false;
+}
+
 bool BB::CloseOSFile(const OSFileHandle a_file_handle)
 {
 	return CloseHandle(reinterpret_cast<HANDLE>(a_file_handle.handle));

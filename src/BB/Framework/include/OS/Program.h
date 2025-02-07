@@ -102,6 +102,7 @@ namespace BB
 	void SetOSFilePosition(const OSFileHandle a_file_handle, const uint32_t a_offset, const OS_FILE_READ_POINT a_file_read_point);
 	bool OSFileExist(const char* a_path);
 	bool OSFindFileNameDialogWindow(char* a_str_buffer, const size_t a_str_buffer_size, const char* a_initial_directory = nullptr);
+	bool OSOpenFolder(const StringView a_directory, MemoryArenaTemp a_temp_arena);
 
 	bool CloseOSFile(const OSFileHandle a_file_handle);
 

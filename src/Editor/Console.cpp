@@ -150,7 +150,7 @@ void Console::ImGuiShowConsole(MemoryArena& a_arena, const uint2 a_window_size)
 					if (ImGui::BeginPopupContextItem())
 					{
 						selected = static_cast<int>(i);
-						ImGui::TextWrapped(entry.message.c_str());
+						ImGui::TextWrapped("%s", entry.message.c_str());
 						ImGui::EndPopup();
 					}
 

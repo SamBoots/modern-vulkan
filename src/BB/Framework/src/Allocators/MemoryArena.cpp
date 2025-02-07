@@ -34,6 +34,11 @@ MemoryArenaTemp::MemoryArenaTemp(MemoryArena& a_arena) : m_arena(a_arena)
 	m_scope = MemoryArenaGetMemoryMarker(a_arena);
 }
 
+MemoryArenaTemp::MemoryArenaTemp(MemoryArenaTemp& a_temp_arena) : m_arena(a_temp_arena.m_arena)
+{
+	m_scope = MemoryArenaGetMemoryMarker(m_arena);
+}
+
 MemoryArenaTemp::~MemoryArenaTemp()
 {
 	MemoryArenaSetMemoryMarker(m_arena, m_scope);

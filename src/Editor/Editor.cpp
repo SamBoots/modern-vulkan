@@ -316,12 +316,12 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 	material_system_init.default_2d_fragment.stage = SHADER_STAGE::FRAGMENT_PIXEL;
 	material_system_init.default_2d_fragment.next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::NONE);
 
-	material_system_init.default_3d_vertex.path = "../../resources/shaders/hlsl/Debug.hlsl";
+	material_system_init.default_3d_vertex.path = "../../resources/shaders/hlsl/pbrmesh.hlsl";
 	material_system_init.default_3d_vertex.entry = "VertexMain";
 	material_system_init.default_3d_vertex.stage = SHADER_STAGE::VERTEX;
 	material_system_init.default_3d_vertex.next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::FRAGMENT_PIXEL);
 
-	material_system_init.default_3d_fragment.path = "../../resources/shaders/hlsl/Debug.hlsl";
+	material_system_init.default_3d_fragment.path = "../../resources/shaders/hlsl/pbrmesh.hlsl";
 	material_system_init.default_3d_fragment.entry = "FragmentMain";
 	material_system_init.default_3d_fragment.stage = SHADER_STAGE::FRAGMENT_PIXEL;
 	material_system_init.default_3d_fragment.next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::NONE);
@@ -505,7 +505,7 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 		if (ImGui::TreeNodeEx("transform"))
 		{
 			float3& pos = a_ecs.m_positions.GetComponent(a_entity);
-			float3x3& rot = a_ecs.m_rotations.GetComponent(a_entity);
+			//float3x3& rot = a_ecs.m_rotations.GetComponent(a_entity);
 			float3& scale = a_ecs.m_scales.GetComponent(a_entity);
 
 			if (ImGui::InputFloat3("position", pos.e))
@@ -734,6 +734,7 @@ void Editor::ImGuiDisplayShaderEffect(MemoryArenaTemp a_temp_arena, const Cached
 			const Buffer shader = OSReadFile(a_temp_arena, a_shader_info.path.c_str());
 			reload_status = ReloadShaderEffect(a_shader_info.handle, shader) ? RELOAD_STATUS_OK : RELOAD_STATUS_FAILURE;
 		}
+
 		ImGui::Unindent();
 	}
 }
