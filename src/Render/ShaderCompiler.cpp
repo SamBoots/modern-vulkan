@@ -44,7 +44,7 @@ void BB::DestroyShaderCompiler(const ShaderCompiler a_shader_compiler)
 	inst->utils->Release();
 }
 
-const ShaderCode BB::CompileShader(const ShaderCompiler a_shader_compiler, const Buffer& a_buffer, const char* a_entry, const SHADER_STAGE a_shader_stage)
+bool BB::CompileShader(const ShaderCompiler a_shader_compiler, const Buffer& a_buffer, const char* a_entry, const SHADER_STAGE a_shader_stage, ShaderCode& a_out_shader_code)
 {
 	const ShaderCompiler_inst* inst = reinterpret_cast<ShaderCompiler_inst*>(a_shader_compiler.handle);
 	LPCWSTR shader_type;
@@ -123,7 +123,7 @@ const ShaderCode BB::CompileShader(const ShaderCompiler a_shader_compiler, const
 	if (FAILED(hresult))
 	{
 		BB_WARNING(false, "Failed to load shader", WarningType::HIGH);
-		return ShaderCode(BB_INVALID_HANDLE_64);
+		return false;
 	}
 
 	IDxcBlob* shader_code;
@@ -131,12 +131,13 @@ const ShaderCode BB::CompileShader(const ShaderCompiler a_shader_compiler, const
 	if (shader_code->GetBufferPointer() == nullptr)
 	{
 		BB_WARNING(false, "Something went wrong with DXC shader compiling", WarningType::HIGH);
-		return ShaderCode(BB_INVALID_HANDLE_64);
+		return false;
 	}
 
 	result->Release();
 
-	return ShaderCode(reinterpret_cast<uintptr_t>(shader_code));
+	a_out_shader_code = ShaderCode(reinterpret_cast<uintptr_t>(shader_code));
+	return true;
 }
 
 void BB::ReleaseShaderCode(const ShaderCode a_handle)

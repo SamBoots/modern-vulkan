@@ -1,4 +1,5 @@
 #include "common.hlsl"
+#include "lights.hlsl"
 
 struct VSOutput
 {
@@ -89,18 +90,14 @@ PixelOutput FragmentMain(VSOutput a_input)
         const BB::Light light = light_data.Load<BB::Light>(sizeof(BB::Light) * i);
         const float3 L = normalize(light.pos.xyz - a_input.world_pos);
 
-        const float3 light_color = CalculateLight(light, L, V, N, albedo, f0, orm_data, a_input.world_pos);
+        const float3 light_color = PBRCalculateLight(light, L, V, N, albedo, f0, orm_data, a_input.world_pos);
         const float shadow = CalculateShadowPCF(a_input.world_pos_light[i], scene_data.shadow_map_resolution, scene_data.shadow_map_array_descriptor, i);
         
         lo += (1.0 - shadow) * (light_color);
     }
 
-    const float3 ambient = scene_data.ambient_light.xyz * albedo * orm_data.r;
-    float3 color = ambient + lo;
-    color = color / (color + float3(1.0, 1.0, 1.0));
-
-    const float pow_v = 1.0 / 2.2;
-    color = pow(color, float3(pow_v, pow_v, pow_v));
+    const float3 ambient = scene_data.ambient_light.xyz;
+    float3 color = (ambient + lo) * albedo;
     PixelOutput output;
     output.color = float4(color, 1.0);
     

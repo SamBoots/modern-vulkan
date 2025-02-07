@@ -1835,10 +1835,15 @@ bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderE
 
 		shader_effects[i].pipeline_layout = Vulkan::CreatePipelineLayout(create_info.desc_layouts.data(), create_info.desc_layout_count, push_constant_range);
 
-		shader_codes[i] = CompileShader(s_render_inst->shader_compiler,
+		if (!CompileShader(s_render_inst->shader_compiler,
 			create_info.shader_data,
 			create_info.shader_entry,
-			create_info.stage);
+			create_info.stage,
+			shader_codes[i]))
+		{
+			BB_WARNING(false, "failed to compile shader and aborting shader object creation", WarningType::HIGH);
+			return false;
+		}
 		const Buffer shader_buffer = GetShaderCodeBuffer(shader_codes[i]);
 
 		shader_object_infos[i].stage = create_info.stage;
@@ -1888,10 +1893,15 @@ bool BB::ReloadShaderEffect(const ShaderEffectHandle a_shader_effect, const Buff
 	GPUWaitIdle();
 	ShaderEffect& old_effect = s_render_inst->shader_effects[a_shader_effect];
 
-	const ShaderCode shader_code = CompileShader(s_render_inst->shader_compiler,
+	ShaderCode shader_code;
+	if (!CompileShader(s_render_inst->shader_compiler,
 		a_shader,
 		old_effect.shader_entry,
-		old_effect.shader_stage);
+		old_effect.shader_stage,
+		shader_code))
+	{
+		return false;
+	}
 
 	const Buffer shader_data = GetShaderCodeBuffer(shader_code);
 	old_effect.create_info.shader_code = shader_data.data;

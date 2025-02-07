@@ -713,6 +713,9 @@ void Editor::ImguiCreateEntity(EntityComponentSystem& a_ecs, const ECSEntity a_p
 	}
 }
 
+constexpr const char* RELOAD_STATUS_OK = "shader reload status: ok";
+constexpr const char* RELOAD_STATUS_FAILURE = "shader reload status: failed";
+
 void Editor::ImGuiDisplayShaderEffect(MemoryArenaTemp a_temp_arena, const CachedShaderInfo& a_shader_info) const
 {
 	if (ImGui::CollapsingHeader(a_shader_info.path.c_str()))
@@ -724,10 +727,12 @@ void Editor::ImGuiDisplayShaderEffect(MemoryArenaTemp a_temp_arena, const Cached
 		const StackString<256> next_stages = ShaderStagesToCChar(a_shader_info.next_stages);
 		ImGui::Text("NEXT EXPECTED STAGES: %s", next_stages.c_str());
 
+		static const char* reload_status = RELOAD_STATUS_OK;
+		ImGui::TextUnformatted(reload_status);
 		if (ImGui::Button("Reload Shader"))
 		{
 			const Buffer shader = OSReadFile(a_temp_arena, a_shader_info.path.c_str());
-			BB_ASSERT(ReloadShaderEffect(a_shader_info.handle, shader), "something went wrong with reloading a shader");
+			reload_status = ReloadShaderEffect(a_shader_info.handle, shader) ? RELOAD_STATUS_OK : RELOAD_STATUS_FAILURE;
 		}
 		ImGui::Unindent();
 	}
