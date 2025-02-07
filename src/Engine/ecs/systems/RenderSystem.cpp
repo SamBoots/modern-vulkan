@@ -238,7 +238,7 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 			}
 		}
 	}
-
+	m_render_target.format = RENDER_TARGET_IMAGE_FORMAT;
 	CreateRenderTarget(a_render_target_size);
 }
 
@@ -403,6 +403,12 @@ void RenderSystem::Resize(const uint2 a_new_extent)
 		FreeImageView(m_per_frame[i].render_target_view);
 	}
 	CreateRenderTarget(a_new_extent);
+}
+
+void RenderSystem::ResizeNewFormat(const uint2 a_render_target_size, const IMAGE_FORMAT a_render_target_format)
+{
+	m_render_target.format = a_render_target_format;
+	Resize(a_render_target_size);
 }
 
 void RenderSystem::Screenshot(const PathString& a_path) const
@@ -1069,7 +1075,7 @@ void RenderSystem::CreateRenderTarget(const uint2 a_render_target_size)
 	render_target_create.array_layers = static_cast<uint16_t>(m_per_frame.size());
 	render_target_create.mip_levels = 1;
 	render_target_create.type = IMAGE_TYPE::TYPE_2D;
-	render_target_create.format = RENDER_TARGET_IMAGE_FORMAT;
+	render_target_create.format = m_render_target.format;
 	render_target_create.usage = IMAGE_USAGE::RENDER_TARGET;
 	render_target_create.use_optimal_tiling = true;
 	render_target_create.is_cube_map = false;

@@ -431,16 +431,29 @@ void Editor::ImguiDisplayECS(EntityComponentSystem& a_ecs)
 
 		ImguiCreateEntity(a_ecs);
 
+		RenderSystem& render_sys = a_ecs.GetRenderSystem();
+
 		if (ImGui::Button("GAMER MODE"))
 		{
-			auto& postfx_options = a_ecs.GetRenderSystem().m_postfx;
+			auto& postfx_options = render_sys.m_postfx;
 			postfx_options.bloom_strength = 5.f;
 			postfx_options.bloom_scale = 10.5f;
 		}
 
+		if (render_sys.m_render_target.format == IMAGE_FORMAT::RGBA16_SFLOAT)
+		{
+			if (ImGui::Button("Render Format to: RGBA8_SRGB"))
+				render_sys.ResizeNewFormat(render_sys.m_render_target.extent, IMAGE_FORMAT::RGBA8_SRGB);
+		}
+		else
+		{
+			if (ImGui::Button("Render Format to: RGBA16_SFLOAT"))
+				render_sys.ResizeNewFormat(render_sys.m_render_target.extent, IMAGE_FORMAT::RGBA16_SFLOAT);
+		}
+
 		if (ImGui::CollapsingHeader("post fx option"))
 		{
-			auto& postfx_options = a_ecs.GetRenderSystem().m_postfx;
+			auto& postfx_options = render_sys.m_postfx;
 			ImGui::InputFloat("bloom strength", &postfx_options.bloom_strength);
 			ImGui::InputFloat("bloom scale", &postfx_options.bloom_scale);
 		}
@@ -449,19 +462,19 @@ void Editor::ImguiDisplayECS(EntityComponentSystem& a_ecs)
 		{
 			if (ImGui::Button("toggle skipping skybox pass"))
 			{
-				a_ecs.GetRenderSystem().ToggleSkipSkyboxPass();
+				render_sys.ToggleSkipSkyboxPass();
 			}
 			if (ImGui::Button("toggle shadowmapping pass"))
 			{
-				a_ecs.GetRenderSystem().ToggleSkipShadowMappingPass();
+				render_sys.ToggleSkipShadowMappingPass();
 			}
 			if (ImGui::Button("toggle skipping object rendering pass"))
 			{
-				a_ecs.GetRenderSystem().ToggleSkipObjectRenderingPass();
+				render_sys.ToggleSkipObjectRenderingPass();
 			}
 			if (ImGui::Button("toggle skipping bloom pass"))
 			{
-				a_ecs.GetRenderSystem().ToggleSkipBloomPass();
+				render_sys.ToggleSkipBloomPass();
 			}
 		}
 

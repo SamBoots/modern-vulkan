@@ -529,7 +529,8 @@ bool BB::OSFindFileNameDialogWindow(char* a_str_buffer, const size_t a_str_buffe
 bool BB::OSOpenFolder(const StringView a_directory, MemoryArenaTemp a_temp_arena)
 {
 	wchar_t* wide_chars = ArenaAllocArr(a_temp_arena, wchar_t, a_directory.size());
-	mbstowcs(wide_chars, a_directory.c_str(), a_directory.size());
+	size_t conv_char;
+	mbstowcs_s(&conv_char, wide_chars, a_directory.size(), a_directory.c_str(), a_directory.size());
 
 	PIDLIST_ABSOLUTE pidl;
 	if (SUCCEEDED(SHParseDisplayName(wide_chars, nullptr, &pidl, 0, nullptr)))
