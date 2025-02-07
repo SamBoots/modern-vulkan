@@ -949,6 +949,7 @@ static void ImguiDisplayRenderer()
 	if (ImGui::Begin("Renderer"))
 	{
 		s_render_inst->texture_manager.DisplayTextureListImgui();
+		ImGui::InputFloat("gamma", &s_render_inst->global_buffer.data.gamma);
 	}
 	ImGui::End();
 }
@@ -1136,6 +1137,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		s_render_inst->global_buffer.buffer = Vulkan::CreateBuffer(global_buffer);
 		s_render_inst->global_buffer.mapped = Vulkan::MapBufferMemory(s_render_inst->global_buffer.buffer);
 		s_render_inst->global_buffer.data.swapchain_resolution = uint2(a_render_create_info.swapchain_width, a_render_create_info.swapchain_height);
+		s_render_inst->global_buffer.data.gamma = a_render_create_info.gamma;
 	}
 
 	{

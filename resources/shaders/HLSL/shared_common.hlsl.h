@@ -64,8 +64,9 @@ namespace BB
         uint frame_count;           // 24
         float delta_time;           // 28
         float total_time;           // 32
-        uint cube_vertexpos_vertex_buffer_pos; // 36 used for cubemaps, the type is VertexPos
-        uint3 padding;               // 48
+        float gamma;                // 36
+        uint cube_vertexpos_vertex_buffer_pos; // 40 used for cubemaps, the type is VertexPos
+        uint2 padding;               // 48
     };
 
     struct ALIGN_STRUCT(16) Scene3DInfo

@@ -23,6 +23,7 @@ namespace BB
 		uint32_t swapchain_width;
 		uint32_t swapchain_height;
 		bool debug;
+		float gamma;
 
 		// EXTRA STUFF
 		size_t frame_upload_buffer_size = mbSize * 64;

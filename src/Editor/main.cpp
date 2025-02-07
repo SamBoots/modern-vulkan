@@ -89,6 +89,7 @@ int main(int argc, char** argv)
 	render_create_info.window_handle = window_handle;
 	render_create_info.swapchain_width = window_extent.x;
 	render_create_info.swapchain_height = window_extent.y;
+	render_create_info.gamma = 2.2f;
 	render_create_info.debug = true;
 
 	InitializeRenderer(main_arena, render_create_info);
