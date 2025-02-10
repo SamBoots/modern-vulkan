@@ -726,11 +726,27 @@ void Editor::ImguiCreateEntity(EntityComponentSystem& a_ecs, const ECSEntity a_p
 	}
 }
 
-constexpr const char* RELOAD_STATUS_OK = "shader reload status: ok";
-constexpr const char* RELOAD_STATUS_FAILURE = "shader reload status: failed";
+constexpr int RELOAD_STATUS_OK = 0;
+constexpr int RELOAD_STATUS_SUCCESS = 1;
+constexpr int RELOAD_STATUS_FAIL = 2;
 
-void Editor::ImGuiDisplayShaderEffect(MemoryArenaTemp a_temp_arena, const CachedShaderInfo& a_shader_info) const
+constexpr const char* RELOAD_STATUS_TEXT[] =
 {
+	"shader reload status: ok",
+	"shader reload status: compilation succeeded",
+	"shader reload status: compilation failed"
+};
+
+constexpr ImVec4 RELOAD_STATUS_COLOR[] =
+{
+	ImVec4(1.f, 1.f, 1.f, 1.f),
+	ImVec4(0.f, 1.f, 0.f, 1.f),
+	ImVec4(1.f, 0.f, 0.f, 1.f),
+};
+
+void Editor::ImGuiDisplayShaderEffect(MemoryArenaTemp a_temp_arena, const CachedShaderInfo& a_shader_info, int& a_reload_status) const
+{
+
 	if (ImGui::CollapsingHeader(a_shader_info.path.c_str()))
 	{
 		ImGui::Indent();
@@ -740,12 +756,11 @@ void Editor::ImGuiDisplayShaderEffect(MemoryArenaTemp a_temp_arena, const Cached
 		const StackString<256> next_stages = ShaderStagesToCChar(a_shader_info.next_stages);
 		ImGui::Text("NEXT EXPECTED STAGES: %s", next_stages.c_str());
 
-		static const char* reload_status = RELOAD_STATUS_OK;
-		ImGui::TextUnformatted(reload_status);
+		ImGui::TextColored(RELOAD_STATUS_COLOR[a_reload_status], "%s", RELOAD_STATUS_TEXT[a_reload_status]);
 		if (ImGui::Button("Reload Shader"))
 		{
 			const Buffer shader = OSReadFile(a_temp_arena, a_shader_info.path.c_str());
-			reload_status = ReloadShaderEffect(a_shader_info.handle, shader) ? RELOAD_STATUS_OK : RELOAD_STATUS_FAILURE;
+			a_reload_status = ReloadShaderEffect(a_shader_info.handle, shader) ? RELOAD_STATUS_SUCCESS : RELOAD_STATUS_FAIL;
 		}
 
 		ImGui::Unindent();
@@ -754,6 +769,7 @@ void Editor::ImGuiDisplayShaderEffect(MemoryArenaTemp a_temp_arena, const Cached
 
 void Editor::ImGuiDisplayShaderEffects(MemoryArena& a_arena)
 {
+	static int reload_status = RELOAD_STATUS_OK;
 	if (ImGui::CollapsingHeader("shader effects"))
 	{
 		ImGui::Indent();
@@ -761,12 +777,13 @@ void Editor::ImGuiDisplayShaderEffects(MemoryArena& a_arena)
 		for (size_t i = 0; i < shaders.size(); i++)
 		{
 			ImGui::PushID(static_cast<int>(i));
-			// rework this?
-			ImGuiDisplayShaderEffect(a_arena, shaders[i]);
+			ImGuiDisplayShaderEffect(a_arena, shaders[i], reload_status);
 			ImGui::PopID();
 		}
 		ImGui::Unindent();
 	}
+	else
+		reload_status = RELOAD_STATUS_OK;
 }
 
 void Editor::ImGuiDisplayMaterial(const MasterMaterial& a_material) const
@@ -785,6 +802,7 @@ void Editor::ImGuiDisplayMaterial(const MasterMaterial& a_material) const
 		ImGui::Text("Material CPU writeable: %d", a_material.cpu_writeable);
 		ImGui::Separator();
 
+		ImGui::Text("Descriptor Layout 2 (scene): %s", Material::PASS_TYPE_STR(a_material.pass_type));
 		ImGui::Text("Descriptor Layout 2 (scene): %s", Material::PASS_TYPE_STR(a_material.pass_type));
 		ImGui::Text("Descriptor Layout 3 (material): %s", Material::MATERIAL_TYPE_STR(a_material.material_type));
 		ImGui::Text("Descriptor Layout 4 (mesh): %s", "not implemented yet");

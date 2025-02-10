@@ -6,6 +6,15 @@
 using namespace BB;
 
 constexpr const char* CONSOLE_FILE_NAME = "console_log.txt";
+constexpr ImVec4 WARNING_COLOR_TYPE[] =
+{
+	ImVec4(0.f, 0.f, 1.f, 1.f),
+	ImVec4(0.f, 1.f, 0.f, 1.f),
+	ImVec4(1.f, 1.f, 0.f, 1.f),
+	ImVec4(1.f, 1.f, 0.f, 1.f),
+	ImVec4(1.f, 1.f, 0.f, 1.f),
+	ImVec4(1.f, 0.f, 0.f, 1.f),
+};
 
 static bool IsWarningSet(const WarningType a_type, const WarningTypeFlags a_flags)
 {
@@ -141,7 +150,7 @@ void Console::ImGuiShowConsole(MemoryArena& a_arena, const uint2 a_window_size)
 				{
 					ImGui::TableNextRow();
 					ImGui::TableSetColumnIndex(0);
-					ImGui::Text("[%s]", Logger::WarningTypeToCChar(entry.warning_type));
+					ImGui::TextColored(WARNING_COLOR_TYPE[static_cast<uint32_t>(entry.warning_type)], "[%s]", Logger::WarningTypeToCChar(entry.warning_type));
 					ImGui::TableSetColumnIndex(1);
 
 					// popup for error message
