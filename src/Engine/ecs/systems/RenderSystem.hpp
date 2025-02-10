@@ -25,7 +25,7 @@ namespace BB
 		RenderSystemFrame EndFrame(const RCommandList a_list, const IMAGE_LAYOUT a_current_layout);
 		void UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCommandList a_list, const uint2 a_draw_area, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const ConstSlice<LightComponent> a_lights);
 		
-		void Resize(const uint2 a_new_extent);
+		void Resize(const uint2 a_new_extent, const bool a_force = false);
 		void ResizeNewFormat(const uint2 a_render_target_size, const IMAGE_FORMAT a_render_target_format);
 		void Screenshot(const PathString& a_path) const;
 

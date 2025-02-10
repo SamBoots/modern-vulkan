@@ -239,7 +239,7 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 			}
 		}
 	}
-	m_render_target.format = RENDER_TARGET_IMAGE_FORMAT;
+	m_render_target.format = IMAGE_FORMAT::RGBA8_SRGB;
 	CreateRenderTarget(a_render_target_size);
 }
 
@@ -389,9 +389,9 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 	BloomPass(pfd, a_list, a_draw_area);
 }
 
-void RenderSystem::Resize(const uint2 a_new_extent)
+void RenderSystem::Resize(const uint2 a_new_extent, const bool a_force)
 {
-	if (m_render_target.extent == a_new_extent)
+	if (m_render_target.extent == a_new_extent && !a_force)
 		return;
 
 	// wait until the rendering is all done
@@ -409,7 +409,7 @@ void RenderSystem::Resize(const uint2 a_new_extent)
 void RenderSystem::ResizeNewFormat(const uint2 a_render_target_size, const IMAGE_FORMAT a_render_target_format)
 {
 	m_render_target.format = a_render_target_format;
-	Resize(a_render_target_size);
+	Resize(a_render_target_size, true);
 }
 
 void RenderSystem::Screenshot(const PathString& a_path) const
@@ -513,7 +513,7 @@ void RenderSystem::UpdateConstantBuffer(PerFrame& a_pfd, const RCommandList a_li
 			bloom_img_info.depth = 1;
 			bloom_img_info.mip_levels = 1;
 			bloom_img_info.array_layers = 2;			// 0 == bloom image, 1 = bloom vertical blur
-			bloom_img_info.format = RENDER_TARGET_IMAGE_FORMAT;
+			bloom_img_info.format = m_render_target.format;
 			bloom_img_info.usage = IMAGE_USAGE::RENDER_TARGET;
 			bloom_img_info.type = IMAGE_TYPE::TYPE_2D;
 			bloom_img_info.use_optimal_tiling = true;
@@ -528,7 +528,7 @@ void RenderSystem::UpdateConstantBuffer(PerFrame& a_pfd, const RCommandList a_li
 			bloom_img_view_info.array_layers = 1;
 			bloom_img_view_info.mip_levels = 1;
 			bloom_img_view_info.base_mip_level = 0;
-			bloom_img_view_info.format = RENDER_TARGET_IMAGE_FORMAT;
+			bloom_img_view_info.format = m_render_target.format;
 			bloom_img_view_info.aspects = IMAGE_ASPECT::COLOR;
 			a_pfd.bloom.descriptor_index_0 = CreateImageView(bloom_img_view_info);
 
@@ -1089,7 +1089,7 @@ void RenderSystem::CreateRenderTarget(const uint2 a_render_target_size)
 	image_view_create.mip_levels = 1;
 	image_view_create.base_mip_level = 0;
 	image_view_create.image = m_render_target.image;
-	image_view_create.format = RENDER_TARGET_IMAGE_FORMAT;
+	image_view_create.format = m_render_target.format;
 	image_view_create.type = IMAGE_VIEW_TYPE::TYPE_2D;
 	image_view_create.aspects = IMAGE_ASPECT::COLOR;
 

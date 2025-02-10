@@ -48,8 +48,6 @@ namespace BB
 		bool set_shader_visible;
 	};
 
-	constexpr IMAGE_FORMAT RENDER_TARGET_IMAGE_FORMAT = IMAGE_FORMAT::RGBA16_SFLOAT; // due to screenshots this is now RGBA8_SGRB, should be RGBA16_SFLOAT
-
 	// get one pool per thread
 	class CommandPool : public LinkedListNode<CommandPool>
 	{

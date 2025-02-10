@@ -1234,7 +1234,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		render_target_info.type = IMAGE_TYPE::TYPE_2D;
 		render_target_info.use_optimal_tiling = true;
 		render_target_info.is_cube_map = false;
-		render_target_info.format = RENDER_TARGET_IMAGE_FORMAT;
+		render_target_info.format = IMAGE_FORMAT::RGBA16_SFLOAT;
 		render_target_info.usage = IMAGE_USAGE::SWAPCHAIN_COPY_IMG;
 
 		s_render_inst->render_target_image = CreateImage(render_target_info);
@@ -1251,7 +1251,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 			view_info.base_mip_level = 0;
 			view_info.aspects = IMAGE_ASPECT::COLOR;
 			view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
-			view_info.format = RENDER_TARGET_IMAGE_FORMAT;
+			view_info.format = IMAGE_FORMAT::RGBA16_SFLOAT;
 
 			s_render_inst->frames[i].render_target_descriptor = CreateImageView(view_info);
 			s_render_inst->frames[i].render_target_view = GetImageView(s_render_inst->frames[i].render_target_descriptor);
@@ -1330,7 +1330,7 @@ static void ResizeRendererSwapchain(const uint32_t a_width, const uint32_t a_hei
 	render_target_info.type = IMAGE_TYPE::TYPE_2D;
 	render_target_info.use_optimal_tiling = true;
 	render_target_info.is_cube_map = false;
-	render_target_info.format = RENDER_TARGET_IMAGE_FORMAT;
+	render_target_info.format = IMAGE_FORMAT::RGBA16_SFLOAT;
 	render_target_info.usage = IMAGE_USAGE::SWAPCHAIN_COPY_IMG;
 
 	s_render_inst->render_target_image = CreateImage(render_target_info);
@@ -1348,7 +1348,7 @@ static void ResizeRendererSwapchain(const uint32_t a_width, const uint32_t a_hei
 		view_info.base_mip_level = 0;
 		view_info.aspects = IMAGE_ASPECT::COLOR;
 		view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
-		view_info.format = RENDER_TARGET_IMAGE_FORMAT;
+		view_info.format = IMAGE_FORMAT::RGBA16_SFLOAT;
 
 		s_render_inst->frames[i].render_target_descriptor = CreateImageView(view_info);
 		s_render_inst->frames[i].render_target_view = GetImageView(s_render_inst->frames[i].render_target_descriptor);
