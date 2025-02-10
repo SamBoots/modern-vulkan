@@ -9,6 +9,7 @@ add_library(Engine
 	"MaterialSystem.cpp" 
 	"EngineConfig.cpp"
 	"Viewport.cpp"
+	"Profiler.cpp"
 	"ecs/EntityMap.cpp"
 	"ecs/EntityComponentSystem.cpp"
 	"ecs/components/RenderComponent.cpp" 
