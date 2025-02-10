@@ -80,7 +80,7 @@ namespace BB
         float2 shadow_map_resolution;    // 160
 
         float3 view_pos;                 // 172
-        float pad;                       // 176
+        float exposure;                  // 176
 
         uint shadow_map_count;           // 180
         RDescriptorIndex shadow_map_array_descriptor; // 184

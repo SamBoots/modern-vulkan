@@ -100,6 +100,7 @@ PixelOutput FragmentMain(VSOutput a_input)
     float3 color = ambient + lo;
 
     color = color / (color + float3(1.0, 1.0, 1.0));
+    color = ExposureToneMapping(color, scene_data.exposure);
 
     PixelOutput output;
     output.color = float4(color, 1.0);

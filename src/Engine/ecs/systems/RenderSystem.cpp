@@ -31,6 +31,7 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 	m_upload_allocator.Init(a_arena, mbSize * 4, m_fence, "scene upload buffer");
 
 	m_scene_info.ambient_light = float4(0.03f, 0.03f, 0.03f, 1.f);
+	m_scene_info.exposure = 1.0;
 	m_scene_info.shadow_map_resolution = float2(DEPTH_IMAGE_SIZE_W_H, DEPTH_IMAGE_SIZE_W_H);
 
 	m_options.skip_skybox = false;

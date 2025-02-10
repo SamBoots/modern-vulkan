@@ -5,7 +5,6 @@ struct VSOutput
                 float4 pos  : SV_POSITION;
     _BBEXT(0)   float4 color : COLOR0;
     _BBEXT(1)   float2 uv   : TEXCOORD0;
-
 };
 
 _BBCONSTANT(BB::ShaderIndices2D) shader_indices2D;

@@ -48,5 +48,15 @@ float4 UnpackR8B8G8A8_UNORMToFloat4(uint a_packed)
     float sc = 1.0f / 255.0f;
     return unpacked * sc;
 }
+    
+float3 ReinhardToneMapping(const float3 a_hdr_color)
+{
+    return a_hdr_color / (a_hdr_color + float3(1.0, 1.0, 1.0));
+}
+
+float3 ExposureToneMapping(const float3 a_hdr_color, const float a_exposure)
+{
+    return float3(1.0, 1.0, 1.0) - exp(-a_hdr_color * a_exposure);
+}
 
 #endif //COMMON_HLSL

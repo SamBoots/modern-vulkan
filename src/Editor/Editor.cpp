@@ -451,6 +451,12 @@ void Editor::ImguiDisplayECS(EntityComponentSystem& a_ecs)
 				render_sys.ResizeNewFormat(render_sys.m_render_target.extent, IMAGE_FORMAT::RGBA16_SFLOAT);
 		}
 
+		if (ImGui::CollapsingHeader("graphical options"))
+		{
+			ImGui::InputFloat("exposure", &render_sys.m_scene_info.exposure);
+			ImGui::InputFloat3("ambient light", render_sys.m_scene_info.ambient_light.e);
+		}
+
 		if (ImGui::CollapsingHeader("post fx option"))
 		{
 			auto& postfx_options = render_sys.m_postfx;
