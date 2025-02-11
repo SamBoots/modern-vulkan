@@ -17,6 +17,8 @@
 
 #include "EngineConfig.hpp"
 
+#include "Profiler.hpp"
+
 using namespace BB;
 
 static EngineConfig engine_config;
@@ -92,6 +94,7 @@ int main(int argc, char** argv)
 	render_create_info.gamma = 2.2f;
 	render_create_info.debug = true;
 
+	InitializeProfiler(main_arena, 64);
 	InitializeRenderer(main_arena, render_create_info);
 	const uint32_t back_buffer_count = GetRenderIO().frame_count;
 

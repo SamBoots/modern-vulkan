@@ -341,9 +341,15 @@ namespace BB
 
 		bool operator==(const Stack_String<CharT, STRING_SIZE>& a_rhs) const
 		{
-			if (Memory::Compare(m_string, a_rhs.data(), m_size) == 0)
+			if (Memory::Compare(m_string, a_rhs.c_str(), m_size) == 0)
 				return true;
 			return false;
+		}
+
+		const CharT& operator[](const size_t a_index) const
+		{
+			BB_ASSERT(a_index <= m_size, "Stack_String, trying to get an element using the [] operator but that element is not there.");
+			return m_string[a_index];
 		}
 
 		template<size_t PARAM_STRING_SIZE>

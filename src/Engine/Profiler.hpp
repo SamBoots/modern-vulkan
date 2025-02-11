@@ -7,9 +7,9 @@ namespace BB
 {
 	struct ProfileResults : public LinkedListNode<ProfileResults>
 	{
-		uint64_t frame;
 		StackString<32> name;
-		int time_in_nano_seconds;
+		double start_time;
+		double time_in_seconds;
 		int line;
 		const char* file;
 	};
@@ -23,5 +23,5 @@ namespace BB
 	LinkedList<ProfileResults> GetProfileResultsList();
 
 	#define BB_START_PROFILE(a_name) StartProfile_f(__LINE__, __FILE__, a_name)
-	#define BB_END_PROFILE(a_name, a_write_to_file) EndProfile_f(__LINE__, __FILE__, a_name, a_write_to_file)
+	#define BB_END_PROFILE(a_name, a_write_to_file) EndProfile_f(a_name, a_write_to_file)
 }

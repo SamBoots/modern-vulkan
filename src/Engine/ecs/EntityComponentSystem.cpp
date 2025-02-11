@@ -2,6 +2,8 @@
 #include "Renderer.hpp"
 #include "MaterialSystem.hpp"
 
+#include "Profiler.hpp"
+
 #include "Math.inl"
 
 using namespace BB;
@@ -102,7 +104,13 @@ void EntityComponentSystem::TransformSystemUpdate()
 RenderSystemFrame EntityComponentSystem::RenderSystemUpdate(const RCommandList a_list, const uint2 a_draw_area_size)
 {
 	m_render_system.StartFrame(a_list);
+
+	StackString<32> rendering_name = m_name;
+	rendering_name.append("- render");
+	BB_START_PROFILE(rendering_name);
 	m_render_system.UpdateRenderSystem(m_per_frame[m_current_frame].arena, a_list, a_draw_area_size, m_world_matrices, m_render_mesh_pool, m_light_pool.GetAllComponents());
+	BB_END_PROFILE(rendering_name, false);
+
 	return m_render_system.EndFrame(a_list, IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL);
 }
 
