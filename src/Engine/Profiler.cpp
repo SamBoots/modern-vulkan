@@ -1,69 +1,94 @@
 #include "Profiler.hpp"
 #include "Storage/Hashmap.h"
-#include "OS/Program.h"
+#include "Storage/Array.h"
+
+#include "Program.h"
 #include <chrono>
 
 using namespace BB;
 
 struct ProfilerSystem_inst
 {
-	StaticOL_HashMap<StackString<32>, ProfileResults> profile_entries;
-	LinkedList<ProfileResults> profile_entry_linked;
+	StaticOL_HashMap<StackString<32>, ProfileResult*> profile_entries;
+	uint32_t profile_count;
+	StaticArray<ProfileResult> profile_results;
 	BBRWLock lock;
 };
 
 static ProfilerSystem_inst* s_profiler;
 
+static double GetTimeInnanoseconds()
+{
+	auto now = std::chrono::high_resolution_clock::now();
+	auto duration = now.time_since_epoch();
+	double nanoseconds = std::chrono::duration<double, std::milli>(duration).count();
+
+	return nanoseconds;
+}
+
 void BB::InitializeProfiler(MemoryArena& a_arena, const uint32_t a_max_profile_entries)
 {
 	s_profiler = ArenaAllocType(a_arena, ProfilerSystem_inst);
 	s_profiler->profile_entries.Init(a_arena, a_max_profile_entries);
+	s_profiler->profile_results.Init(a_arena, a_max_profile_entries);
+	s_profiler->profile_results.resize(a_max_profile_entries);
+	for (uint32_t i = 0; i < a_max_profile_entries; i++)
+	{
+		s_profiler->profile_results[i].history.Init(a_arena, PROFILE_RESULT_HISTORY_BUFFER_SIZE);
+	}
 	s_profiler->lock = OSCreateRWLock();
+	s_profiler->profile_count = 0;
 }
 
 void BB::StartProfile_f(const int a_line, const char* a_file, const StackString<32>& a_name)
 {
 	OSAcquireSRWLockWrite(&s_profiler->lock);
 
-	ProfileResults* results = s_profiler->profile_entries.find(a_name);
-	if (!results)
+	if (!s_profiler->profile_entries.find(a_name))
 	{
-		s_profiler->profile_entries.insert(a_name, ProfileResults());
-		results = s_profiler->profile_entries.find(a_name);
-		BB_ASSERT(results, "incorrectly inserted element in profile entries, this should not happen");
-		results->name = a_name;
-		results->line = a_line;
-		results->file = a_file;
-		s_profiler->profile_entry_linked.Push(results);
+		ProfileResult* new_result = &s_profiler->profile_results[s_profiler->profile_count++];
+		s_profiler->profile_entries.insert(a_name, new_result);
+
+		new_result->name = a_name;
+		new_result->line = a_line;
+		new_result->file = a_file;
 	}
 
-	auto current_time = std::chrono::system_clock::now();
-	auto duration_in_seconds = std::chrono::duration<double>(current_time.time_since_epoch());
-	results->start_time = std::chrono::duration<double, std::nano>(duration_in_seconds.count()).count();
-	results->time_in_seconds = 0;
+	ProfileResult** presult = s_profiler->profile_entries.find(a_name);
+	BB_ASSERT(presult != nullptr, "wrong hashtable insertion. This should not happen");
+
+	ProfileResult* result = *presult;
+	BB_ASSERT(result->start_time == 0, "started profile on an entry that is already recording!");
+
+	result->start_time = GetTimeInnanoseconds();
+	result->time_in_miliseconds = 0;
 
 	OSReleaseSRWLockWrite(&s_profiler->lock);
 }
 
 // use BB_END_PROFILE instead of this function
-ProfileResults BB::EndProfile_f(const StackString<32>& a_name, const bool a_write_to_file)
+void BB::EndProfile_f(const StackString<32>& a_name)
 {
-	ProfileResults* results = s_profiler->profile_entries.find(a_name);
-	if (!results)
+	ProfileResult** presult = s_profiler->profile_entries.find(a_name);
+	if (!presult)
 	{
 		BB_WARNING(false, "did not start the profile results!", WarningType::MEDIUM);
-		return ProfileResults();
+		return;
 	}
+	ProfileResult* result = *presult;
+	result->time_in_miliseconds = GetTimeInnanoseconds() - result->start_time;
 
-	auto current_time = std::chrono::system_clock::now();
-	auto duration_in_seconds = std::chrono::duration<double>(current_time.time_since_epoch());
-	double end_time = std::chrono::duration<double, std::nano>(duration_in_seconds.count()).count();
-	results->time_in_seconds = end_time - results->start_time;
+	++result->profile_count;
+	result->total_time += result->time_in_miliseconds;
+	result->average_time = result->total_time / static_cast<double>(result->profile_count);
+	result->start_time = 0;
 
-	return *results;
+	if (result->history.IsFull())
+		result->history.clear();
+	result->history.push_back(result->time_in_miliseconds);
 }
 
-LinkedList<ProfileResults> BB::GetProfileResultsList()
+ConstSlice<ProfileResult> BB::GetProfileResultsList()
 {
-	return s_profiler->profile_entry_linked;
+	return s_profiler->profile_results.const_slice(s_profiler->profile_count);
 }

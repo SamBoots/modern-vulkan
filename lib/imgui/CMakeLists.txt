@@ -11,9 +11,9 @@ add_library(IMGUI STATIC
     "imgui_widgets.cpp"
 	"imgui_tables.cpp"
 
-    #"implot/implot.cpp"
-    #"implot/implot_demo.cpp"
-    #"implot/implot_items.cpp"
+    "implot.cpp"
+    "implot_demo.cpp"
+    "implot_items.cpp"
 )
 
 target_include_directories(IMGUI SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

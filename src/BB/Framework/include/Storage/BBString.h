@@ -22,7 +22,7 @@ namespace BB
 
 		bool operator==(const String_View<CharT>& a_rhs) const
 		{
-			return compare(a_rhs);
+			return m_size == a_rhs.size() && compare(a_rhs);
 		}
 
 		size_t find_first_of(const CharT a_char) const
@@ -172,7 +172,7 @@ namespace BB
 		}
 		bool operator==(const Basic_String<CharT>& a_rhs) const
 		{
-			if (Memory::Compare(m_string, a_rhs.data(), m_size) == 0)
+			if (m_size == a_rhs.size() && Memory::Compare(m_string, a_rhs.data(), m_size) == 0)
 				return true;
 			return false;
 		}
@@ -341,7 +341,7 @@ namespace BB
 
 		bool operator==(const Stack_String<CharT, STRING_SIZE>& a_rhs) const
 		{
-			if (Memory::Compare(m_string, a_rhs.c_str(), m_size) == 0)
+			if (m_size == a_rhs.size() && Memory::Compare(m_string, a_rhs.c_str(), m_size) == 0)
 				return true;
 			return false;
 		}

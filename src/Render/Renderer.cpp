@@ -10,6 +10,7 @@
 #include "Math.inl"
 
 #include "imgui.h"
+#include "implot.h"
 
 #include "BBThreadScheduler.hpp"
 
@@ -839,6 +840,7 @@ namespace IMGUI_IMPL
 	{
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
+		ImPlot::CreateContext();
 		ImGui::StyleColorsClassic();
 
 		BB_STATIC_ASSERT(sizeof(ImDrawIdx) == sizeof(uint32_t), "Index size is not 32 bit, it must be 32 bit.");
