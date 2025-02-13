@@ -5,5 +5,5 @@
 
 namespace BB
 {
-	void ImGuiShowProfiler();
+	void ImGuiShowProfiler(MemoryArenaTemp temp_arena);
 }

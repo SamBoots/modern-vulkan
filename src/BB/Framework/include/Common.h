@@ -148,6 +148,20 @@ namespace BB
 #define BB_MEMORY_DEBUG_FREE_ARR
 #endif //_DEBUG
 
+// also do this for msvc
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wfloat-equal"
+	constexpr bool FloatEqualNoWarning(const float a_a, const float a_b)
+	{
+		return a_a == a_b;
+	}
+
+	constexpr bool DoubleEqualNoWarning(const double a_a, const double a_b)
+	{
+		return a_a == a_b;
+	}
+#pragma clang diagnostic pop
+
 	typedef void* (*AllocateFunc)(BB_MEMORY_DEBUG void* a_allocator, size_t a_size, const size_t a_alignment, void* a_old_ptr);
 	struct Allocator
 	{

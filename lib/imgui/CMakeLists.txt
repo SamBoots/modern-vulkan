@@ -17,3 +17,4 @@ add_library(IMGUI STATIC
 )
 
 target_include_directories(IMGUI SYSTEM PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(IMGUI PRIVATE "-w")

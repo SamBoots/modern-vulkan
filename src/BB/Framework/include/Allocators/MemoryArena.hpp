@@ -69,7 +69,7 @@ namespace BB
 
 	private:
 		MemoryArena& m_arena;
-		MemoryArenaMarker m_scope;
+		void* m_at;
 	};
 
 	MemoryArena MemoryArenaCreate(const size_t a_reserve_size = ARENA_DEFAULT_RESERVE);

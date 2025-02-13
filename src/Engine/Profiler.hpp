@@ -5,19 +5,33 @@
 
 namespace BB
 {
+
+	struct CountingRingBuffer
+	{
+		double sum;
+		double* buffer;
+		uint32_t head;
+		uint32_t tail;
+		uint32_t max_size;
+	};
+
+	// not thread safe, so specify your own head and tail here. 
+	// Strange things can still happen.
+	// please don't use it
+	StaticArray<double> CountingRingBufferLinear(MemoryArena& a_arena, const CountingRingBuffer& a_buff);
+
+
 	constexpr uint32_t PROFILE_RESULT_HISTORY_BUFFER_SIZE = 2048;
 	struct ProfileResult
 	{
 		StackString<32> name;
-		size_t profile_count;
 		double start_time;
 		double time_in_miliseconds;
 		double average_time;
-		double total_time;
 		int line;
 		const char* file;
 
-		StaticArray<double> history;
+		CountingRingBuffer history_buffer;
 	};
 
 	void InitializeProfiler(MemoryArena& a_arena, const uint32_t a_max_profile_entries);

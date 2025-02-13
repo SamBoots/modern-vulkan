@@ -382,7 +382,7 @@ void Editor::StartFrame(MemoryArena& a_arena, const Slice<InputEvent> a_input_ev
 
 	RenderStartFrame(list, start_info, m_per_frame.back_buffer_index);
 
-	ImGuiShowProfiler();
+	ImGuiShowProfiler(a_arena);
 	m_console.ImGuiShowConsole(a_arena, m_app_window_extent);
 }
 

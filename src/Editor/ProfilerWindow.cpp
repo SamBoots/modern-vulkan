@@ -5,7 +5,7 @@
 
 using namespace BB;
 
-void BB::ImGuiShowProfiler()
+void BB::ImGuiShowProfiler(MemoryArenaTemp temp_arena)
 {
 	if (ImGui::Begin("Profile Info", nullptr, ImGuiWindowFlags_MenuBar))
 	{
@@ -24,11 +24,13 @@ void BB::ImGuiShowProfiler()
 			if (ImGui::CollapsingHeader(profile_results[i].name.c_str()))
 			{
 				ImGui::Text("Average Time in miliseconds: %.6f", profile_results[i].average_time);
-				ImGui::PushID(i);
+				ImGui::PushID(static_cast<int>(i));
 				if (ImPlot::BeginPlot("##NoTitle", ImVec2(-1, 150))) {
+					const StaticArray<double> history_buffer = CountingRingBufferLinear(temp_arena, profile_results[i].history_buffer);
+
 					ImPlot::SetupAxis(ImAxis_X1, nullptr, ImPlotAxisFlags_NoTickLabels);
 					ImPlot::SetupAxisLimits(ImAxis_X1, 0, PROFILE_RESULT_HISTORY_BUFFER_SIZE, ImGuiCond_Always);
-					ImPlot::PlotLine("Time in miliseconds", profile_results[i].history.data(), static_cast<int>(profile_results[i].history.size()));
+					ImPlot::PlotLine("Time in miliseconds", history_buffer.data(), static_cast<int>(history_buffer.size()));
 					ImPlot::EndPlot();
 				}
 

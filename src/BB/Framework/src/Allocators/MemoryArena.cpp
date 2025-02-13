@@ -31,17 +31,17 @@ static inline void ChangeArenaAt(MemoryArena& a_arena, void* a_at)
 
 MemoryArenaTemp::MemoryArenaTemp(MemoryArena& a_arena) : m_arena(a_arena)
 {
-	m_scope = MemoryArenaGetMemoryMarker(a_arena);
+	m_at = MemoryArenaGetMemoryMarker(a_arena).at;
 }
 
 MemoryArenaTemp::MemoryArenaTemp(MemoryArenaTemp& a_temp_arena) : m_arena(a_temp_arena.m_arena)
 {
-	m_scope = MemoryArenaGetMemoryMarker(m_arena);
+	m_at = MemoryArenaGetMemoryMarker(m_arena).at;
 }
 
 MemoryArenaTemp::~MemoryArenaTemp()
 {
-	MemoryArenaSetMemoryMarker(m_arena, m_scope);
+	MemoryArenaSetMemoryMarker(m_arena, MemoryArenaMarker{ &m_arena, m_at });
 }
 
 MemoryArenaTemp::operator MemoryArena& () const
