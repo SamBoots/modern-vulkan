@@ -1566,7 +1566,7 @@ void BB::RenderEndFrame(const RCommandList a_list, const ShaderEffectHandle a_im
 	if ((!s_render_inst->asset_uploader.upload_meshes.IsEmpty() || !s_render_inst->asset_uploader.upload_textures.IsEmpty()) &&
 		!uploading_assets)
 	{
-		Threads::StartTaskThread(UploadAssets, nullptr, L"upload assets task");
+		Threads::StartTaskThread(UploadAssets, L"upload assets task");
 	}
 
 	if (a_skip || s_render_inst->render_io.resizing_request)

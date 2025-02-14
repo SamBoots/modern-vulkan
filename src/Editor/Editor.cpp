@@ -279,9 +279,11 @@ void Editor::ThreadFuncForDrawing(MemoryArena&, void* a_param)
 	SceneHierarchy& scene_hierarchy = *param_in->scene_hierarchy;
 	RCommandList list = param_in->command_list;
 
-	param_in->scene_frame = scene_hierarchy.UpdateScene(list, viewport);
-	*param_in->fence_value = param_in->scene_frame.render_frame.fence_value;
-	*param_in->fence = param_in->scene_frame.render_frame.fence;
+	*param_in->scene_frame = scene_hierarchy.UpdateScene(list, viewport);
+	*param_in->fence_value = param_in->scene_frame->render_frame.fence_value;
+	*param_in->fence = param_in->scene_frame->render_frame.fence;
+
+	scene_hierarchy.DrawImgui(param_in->scene_frame->render_frame.render_target, viewport);
 }
 
 void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent, const size_t a_editor_memory)
@@ -399,11 +401,6 @@ void Editor::EndFrame(MemoryArena& a_arena)
 
 		Asset::ShowAssetMenu(a_arena);
 		MainEditorImGuiInfo(a_arena);
-		for (size_t i = 0; i < m_per_frame.current_count; i++)
-		{
-			auto& draw_params = m_per_frame.params[i];
-			draw_params.scene_hierarchy->DrawImgui(draw_params.scene_frame.render_frame.render_target, *draw_params.viewport);
-		}
 
 		Slice imgui_shaders = Material::GetMaterialShaders(m_imgui_material);
 		RenderEndFrame(m_per_frame.lists[0], imgui_shaders[0], imgui_shaders[1], m_per_frame.back_buffer_index);

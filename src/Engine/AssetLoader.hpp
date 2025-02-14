@@ -141,6 +141,7 @@ namespace BB
 		StringView FindOrCreateString(const char* a_string, const size_t a_string_size);
 		StringView FindOrCreateString(const StringView& a_view);
 
+		ThreadTask LoadAssetsASync(MemoryArenaTemp a_temp_arena, const BB::Slice<Asset::AsyncAsset> a_asyn_assets);
 		struct LoadedAssetInfo
 		{
 			StringView name;

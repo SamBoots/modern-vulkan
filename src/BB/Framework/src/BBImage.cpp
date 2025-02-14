@@ -208,33 +208,31 @@ void BBImage::FilterImage(MemoryArena& a_temp_arena, const float* a_filter, cons
 		//allocate on heap for better memory locality :) maybe.
 		Threads::Barrier* thread_barrier = ArenaAllocType(a_temp_arena, Threads::Barrier)(a_thread_count);
 
-		process_image_part_params* params = ArenaAllocArr(a_temp_arena, process_image_part_params, a_thread_count);
-		params[0].barrier = thread_barrier;
-		params[0].img_start_new_pixel = reinterpret_cast<uint32_t*>(m_pixels);
-		params[0].img_start_old_pixel = reinterpret_cast<const uint32_t*>(old_data);
-		params[0].img_width = m_width;
-		params[0].img_height = m_height;
+		process_image_part_params param;
+		param.barrier = thread_barrier;
+		param.img_start_new_pixel = reinterpret_cast<uint32_t*>(m_pixels);
+		param.img_start_old_pixel = reinterpret_cast<const uint32_t*>(old_data);
+		param.img_width = m_width;
+		param.img_height = m_height;
 
-		params[0].filter = a_filter;
-		params[0].filter_width = a_filter_width;
-		params[0].filter_height = a_filter_height;
-		params[0].factor = a_factor;
-		params[0].bias = a_bias;
+		param.filter = a_filter;
+		param.filter_width = a_filter_width;
+		param.filter_height = a_filter_height;
+		param.factor = a_factor;
+		param.bias = a_bias;
 
 		for (uint32_t i = 0; i < worker_threads; i++)
 		{
-			params[i] = params[0];
-			params[i].img_height_start = pixel_height_per_thread * i;
-			params[i].img_height_end = params[i].img_height_start + pixel_height_per_thread;
+			param.img_height_start = pixel_height_per_thread * i;
+			param.img_height_end = param.img_height_start + pixel_height_per_thread;
 
-			Threads::StartTaskThread(FilterImagePart, &params[i]);
+			Threads::StartTaskThread(FilterImagePart, &param, sizeof(param));
 		}
 
-		params[worker_threads] = params[0];
-		params[worker_threads].img_height_start = pixel_height_per_thread * worker_threads;
-		params[worker_threads].img_height_end = params[worker_threads].img_height_start + pixel_height_per_thread;
+		param.img_height_start = pixel_height_per_thread * worker_threads;
+		param.img_height_end = param.img_height_start + pixel_height_per_thread;
 		//now send the main thread for some work.
-		FilterImagePart(a_temp_arena, &params[worker_threads]);
+		FilterImagePart(a_temp_arena, &param);
 
 		thread_barrier->Wait();
 	}

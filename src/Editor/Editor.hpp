@@ -40,11 +40,9 @@ namespace BB
 			ImguiDisplayECS(hierarchy.m_ecs);
 
 			const uint32_t render_pool_index = m_per_frame.current_count.fetch_add(1, std::memory_order_seq_cst);
-			ThreadFuncForDrawing_Params& params = m_per_frame.params[render_pool_index];
+			ThreadFuncForDrawing_Params params;
 			CommandPool& pool = m_per_frame.pools[render_pool_index];
 			RCommandList& list = m_per_frame.lists[render_pool_index];
-			uint64_t& fence_value = m_per_frame.fence_values[render_pool_index];
-			RFence& fence = m_per_frame.fences[render_pool_index];
 			// render_pool 0 is already set.
 			if (render_pool_index != 0)
 			{
@@ -55,14 +53,26 @@ namespace BB
 			params.viewport = &viewport;
 			params.scene_hierarchy = &hierarchy;
 			params.command_list = list;
-			params.fence_value = &fence_value;
-			params.fence = &fence;
+			params.fence_value = &m_per_frame.fence_values[render_pool_index];
+			params.fence = &m_per_frame.fences[render_pool_index];
+			params.scene_frame = &m_per_frame.frame_results[render_pool_index];
 
-			return Threads::StartTaskThread(ThreadFuncForDrawing, &params, L"scene draw task");
+			return Threads::StartTaskThread(ThreadFuncForDrawing, &params, sizeof(params), L"scene draw task");
 		}
 		void EndFrame(MemoryArena& a_arena);
 
 	private:
+		struct ThreadFuncForDrawing_Params
+		{
+			// in
+			Viewport* viewport;
+			SceneHierarchy* scene_hierarchy;
+			RCommandList command_list;
+			uint64_t* fence_value;
+			RFence* fence;
+			SceneFrame* scene_frame;
+		};
+
 		FreelistInterface m_editor_allocator;
 
 		void ImguiDisplayECS(EntityComponentSystem& a_ecs);
@@ -74,18 +84,6 @@ namespace BB
 		void ImGuiDisplayMaterials();
 
 		void MainEditorImGuiInfo(const MemoryArena& a_arena);
-		struct ThreadFuncForDrawing_Params
-		{
-			// in
-			Viewport* viewport;
-			SceneHierarchy* scene_hierarchy;
-			RCommandList command_list;
-			uint64_t* fence_value;
-			RFence* fence;
-
-			// out
-			SceneFrame scene_frame;
-		};
 		static void ThreadFuncForDrawing(MemoryArena& a_thread_arena, void* a_param);
 
 		uint2 m_app_window_extent;
@@ -94,7 +92,7 @@ namespace BB
 		struct PerFrameInfo
 		{
 			uint32_t back_buffer_index;
-			FixedArray<ThreadFuncForDrawing_Params, 8> params;
+			FixedArray<SceneFrame, 8> frame_results;
 			FixedArray<CommandPool, 8> pools;
 			FixedArray<RCommandList, 8> lists;
 			FixedArray<RFence, 8> fences;

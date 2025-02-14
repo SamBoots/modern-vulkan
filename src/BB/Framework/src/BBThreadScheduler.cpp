@@ -42,6 +42,7 @@ struct ThreadInfo
 	BBConditionalVariable condition;
 	const wchar_t* task_name;
 	std::atomic<uint32_t> generation;
+	MemoryArena arena;
 };
 
 struct Thread
@@ -62,23 +63,22 @@ static ThreadScheduler s_thread_scheduler{};
 static void ThreadStartFunc(void* a_args)
 {
 	ThreadInfo* thread_info = reinterpret_cast<ThreadInfo*>(a_args);
+	thread_info->arena = MemoryArenaCreate();
 	BBRWLock lock = OSCreateRWLock();
-	MemoryArena arena = MemoryArenaCreate();
 	OSAcquireSRWLockWrite(&lock);
+	MemoryArenaMarker mem_start = MemoryArenaGetMemoryMarker(thread_info->arena);
 
 	while (thread_info->thread_status != THREAD_STATUS::DESTROY)
 	{
-		MemoryArenaScope(arena)
-		{
-			OSWaitConditionalVariableExclusive(&thread_info->condition, &lock);
-			OSSetThreadName(thread_info->task_name);
-			thread_info->function(arena, thread_info->function_parameter);
-			thread_info->function = nullptr;
-			thread_info->function_parameter = nullptr;
-			++thread_info->generation;
-			OSSetThreadName(L"none");
-			thread_info->thread_status = THREAD_STATUS::IDLE;
-		}
+		OSWaitConditionalVariableExclusive(&thread_info->condition, &lock);
+		OSSetThreadName(thread_info->task_name);
+		thread_info->function(thread_info->arena, thread_info->function_parameter);
+		thread_info->function = nullptr;
+		thread_info->function_parameter = nullptr;
+		++thread_info->generation;
+		OSSetThreadName(L"none");
+		thread_info->thread_status = THREAD_STATUS::IDLE;
+		MemoryArenaSetMemoryMarker(thread_info->arena, mem_start);
 	}
 }
 #pragma optimize( "", on )
@@ -109,7 +109,7 @@ void BB::Threads::DestroyThreads()
 	}
 }
 
-ThreadTask BB::Threads::StartTaskThread(void(*a_Function)(MemoryArena&, void*), void* a_FuncParameter, const wchar_t* a_task_name)
+ThreadTask BB::Threads::StartTaskThread(void(*a_function)(MemoryArena&, void*), void* a_func_parameter, const size_t a_func_parameter_size, const wchar_t* a_task_name)
 {
 	for (uint32_t i = 0; i < s_thread_scheduler.thread_count; i++)
 	{
@@ -117,8 +117,9 @@ ThreadTask BB::Threads::StartTaskThread(void(*a_Function)(MemoryArena&, void*), 
 		{
 			const uint32_t next_gen = s_thread_scheduler.threads[i].thread_info.generation + 1;
 			s_thread_scheduler.threads[i].thread_info.task_name = a_task_name;
-			s_thread_scheduler.threads[i].thread_info.function = a_Function;
-			s_thread_scheduler.threads[i].thread_info.function_parameter = a_FuncParameter;
+			s_thread_scheduler.threads[i].thread_info.function = a_function;
+			void* func_parameter_mem = ArenaAlloc(s_thread_scheduler.threads[i].thread_info.arena, a_func_parameter_size, 16);
+			s_thread_scheduler.threads[i].thread_info.function_parameter = memcpy(func_parameter_mem, a_func_parameter, a_func_parameter_size);
 			s_thread_scheduler.threads[i].thread_info.thread_status = THREAD_STATUS::BUSY;
 			OSWakeConditionVariable(&s_thread_scheduler.threads[i].thread_info.condition);
 			return ThreadTask(i, next_gen);
@@ -126,6 +127,11 @@ ThreadTask BB::Threads::StartTaskThread(void(*a_Function)(MemoryArena&, void*), 
 	}
 	BB_ASSERT(false, "No free threads! Maybe implement a way to just re-iterate over the list again.");
 	return ThreadTask(BB_INVALID_HANDLE_64);
+}
+
+ThreadTask BB::Threads::StartTaskThread(void(*a_function)(MemoryArena& a_thread_arena, void*), const wchar_t* a_task_name)
+{
+	return StartTaskThread(a_function, nullptr, 0, a_task_name);
 }
 
 void BB::Threads::WaitForTask(const ThreadTask a_handle)

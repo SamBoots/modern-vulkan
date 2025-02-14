@@ -24,7 +24,9 @@ namespace BB
 
 		void InitThreads(const uint32_t a_thread_count);
 		void DestroyThreads();
-		ThreadTask StartTaskThread(void(*a_Function)(MemoryArena& a_thread_arena, void*), void* a_FuncParameter, const wchar_t* a_task_name = L"no task name");
+
+		ThreadTask StartTaskThread(void(*a_function)(MemoryArena& a_thread_arena, void*), void* a_func_parameter, const size_t a_func_parameter_size, const wchar_t* a_task_name = L"no task name");
+		ThreadTask StartTaskThread(void(*a_function)(MemoryArena& a_thread_arena, void*), const wchar_t* a_task_name = L"no task name");
 
 		void WaitForTask(const ThreadTask a_handle);
 		bool TaskFinished(const ThreadTask a_handle);

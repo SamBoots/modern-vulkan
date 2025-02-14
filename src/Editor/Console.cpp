@@ -240,7 +240,7 @@ void Console::LoggerCallback(const char* a_file_name, int a_line, const WarningT
 	// TODO this if is not thread safe
 	if (entries_till_write == pconsole->m_entries_till_write_to_file && !pconsole->m_writing_to_file && pconsole->m_write_to_file)
 	{
-		Threads::StartTaskThread(LoggerToFile, a_puserdata, L"logger to file");
+		Threads::StartTaskThread(LoggerToFile, pconsole, sizeof(Console), L"logger to file");
 	}
 
 	if (IsWarningSet(a_warning_type, pconsole->m_enabled_logs) && pconsole->m_write_to_console)

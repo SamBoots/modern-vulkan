@@ -499,6 +499,31 @@ StringView Asset::FindOrCreateString(const StringView& a_view)
 	return AllocateStringSpace(a_view.c_str(), string_size, string_hash);
 }
 
+struct LoadAsyncFunc_Params
+{
+	size_t asset_count;
+	Asset::AsyncAsset* assets;
+};
+
+static void LoadAsync_func(MemoryArena& a_arena, void* a_param)
+{
+	using namespace Asset;
+	LoadAsyncFunc_Params* params = reinterpret_cast<LoadAsyncFunc_Params*>(a_param);
+
+	LoadAssets(a_arena, Slice(params->assets, params->asset_count));
+}
+
+ThreadTask Asset::LoadAssetsASync(MemoryArenaTemp a_temp_arena, const BB::Slice<Asset::AsyncAsset> a_asyn_assets)
+{
+	const size_t alloc_size = sizeof(size_t) * a_asyn_assets.sizeInBytes();
+	LoadAsyncFunc_Params* params = reinterpret_cast<LoadAsyncFunc_Params*>(ArenaAlloc(a_temp_arena, alloc_size, 8));
+	params->asset_count = a_asyn_assets.size();
+	params->assets = reinterpret_cast<Asset::AsyncAsset*>(Pointer::Add(params, sizeof(size_t)));
+	memcpy(params->assets, a_asyn_assets.data(), a_asyn_assets.sizeInBytes());
+
+	return Threads::StartTaskThread(LoadAsync_func, params, alloc_size);
+}
+
 Slice<Asset::LoadedAssetInfo> Asset::LoadAssets(MemoryArena& a_temp_arena, const Slice<AsyncAsset> a_asyn_assets)
 {
 	LoadedAssetInfo* loaded_assets = ArenaAllocArr(a_temp_arena, LoadedAssetInfo, a_asyn_assets.size());
@@ -538,23 +563,6 @@ Slice<Asset::LoadedAssetInfo> Asset::LoadAssets(MemoryArena& a_temp_arena, const
 	}
 
 	return Slice(loaded_assets, a_asyn_assets.size());
-}
-
-struct LoadAsyncFunc_Params
-{
-	MemoryArena memory_arena;
-	Asset::AsyncAsset* assets;
-	size_t asset_count;
-};
-
-static void LoadAsync_func(MemoryArena&, void* a_param)
-{
-	using namespace Asset;
-	LoadAsyncFunc_Params* params = reinterpret_cast<LoadAsyncFunc_Params*>(a_param);
-
-	LoadAssets(params->memory_arena, Slice(params->assets, params->asset_count));
-
-	MemoryArenaFree(params->memory_arena);
 }
 
 static inline void CreateImage_func(const StringView& a_name, const uint32_t a_width, const uint32_t a_height, const IMAGE_FORMAT a_format, RImage& a_out_image, RDescriptorIndex& a_out_index)
@@ -1028,9 +1036,14 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 		if (prim.material->has_pbr_metallic_roughness)
 		{
 			if (prim.material->occlusion_texture.texture == nullptr)
-				texture_is_orm = true;
+			{
+				if (prim.material->pbr_metallic_roughness.metallic_roughness_texture.texture == nullptr)
+					texture_is_orm = false;
+				else
+					texture_is_orm = true;
+			}
 			else
-				texture_is_orm = prim.material->occlusion_texture.texture->image == prim.material->pbr_metallic_roughness.metallic_roughness_texture.texture->image;
+				texture_is_orm = prim.material->occlusion_texture.texture == prim.material->pbr_metallic_roughness.metallic_roughness_texture.texture;
 		}
 
 		if (texture_is_orm)
@@ -1043,7 +1056,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 		}
 		else
 		{
-			BB_ASSERT(texture_is_orm, "non-orm pbr textures not supported");
+			metallic_info.orm_texture = GetWhiteTexture();
 		}
 
 
@@ -1234,20 +1247,22 @@ const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadF
 	model->root_node_indices = ArenaAllocArr(s_asset_manager->asset_arena, uint32_t, model->root_node_count);
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 
+
+
 	// for every 5 meshes create a thread;
 	constexpr size_t TASKS_PER_THREAD = 4;
 
 	const uint32_t thread_count = model->meshes.size() / TASKS_PER_THREAD;
 
-	LoadgltfMeshBatch_params* batches = ArenaAllocArr(a_temp_arena, LoadgltfMeshBatch_params, thread_count);
 	Threads::Barrier barrier(thread_count);
 	size_t task_index = 0;
 	for (uint32_t i = 0; i < thread_count; i++)
 	{
-		batches[i].barrier = &barrier;
-		batches[i].cgltf_meshes = Slice(&gltf_data->meshes[task_index], TASKS_PER_THREAD);
-		batches[i].meshes = Slice(&model->meshes[task_index], TASKS_PER_THREAD);
-		Threads::StartTaskThread(LoadgltfMeshBatch, &batches[i], L"gltf mesh upload batch");
+		LoadgltfMeshBatch_params batch;
+		batch.barrier = &barrier;
+		batch.cgltf_meshes = Slice(&gltf_data->meshes[task_index], TASKS_PER_THREAD);
+		batch.meshes = Slice(&model->meshes[task_index], TASKS_PER_THREAD);
+		Threads::StartTaskThread(LoadgltfMeshBatch, &batch, sizeof(batch), L"gltf mesh upload batch");
 
 		task_index += TASKS_PER_THREAD;
 	}
@@ -1396,21 +1411,7 @@ void Asset::FreeAsset(const AssetHandle a_asset_handle)
 
 constexpr size_t ASSET_SEARCH_PATH_SIZE_MAX = 512;
 
-static ThreadTask LoadAssetsASync(const BB::Slice<Asset::AsyncAsset> a_asyn_assets)
-{
-	// maybe have each thread have it's own memory arena
-	MemoryArena load_arena = MemoryArenaCreate();
-
-	LoadAsyncFunc_Params* params = ArenaAllocType(load_arena, LoadAsyncFunc_Params);
-	params->assets = ArenaAllocArr(load_arena, Asset::AsyncAsset, a_asyn_assets.size());
-	memcpy(params->assets, a_asyn_assets.data(), a_asyn_assets.sizeInBytes());
-	params->asset_count = a_asyn_assets.size();
-	params->memory_arena = load_arena;
-
-	return Threads::StartTaskThread(LoadAsync_func, params);
-}
-
-static void LoadAssetViaSearch()
+static void LoadAssetViaSearch(MemoryArena& a_temp_arena)
 {
 	StackString<ASSET_SEARCH_PATH_SIZE_MAX> search_path;
 
@@ -1443,7 +1444,7 @@ static void LoadAssetViaSearch()
 			BB_ASSERT(false, "NOT SUPPORTED FILE NAME!");
 		}
 
-		LoadAssetsASync(Slice(&asset, 1));
+		LoadAssetsASync(a_temp_arena, Slice(&asset, 1));
 	}
 }
 
@@ -1457,7 +1458,7 @@ void Asset::ShowAssetMenu(MemoryArena& a_arena)
 			{
 				if (ImGui::MenuItem("load new asset"))
 				{
-					LoadAssetViaSearch();
+					LoadAssetViaSearch(a_arena);
 				}
 
 				ImGui::EndMenu();
