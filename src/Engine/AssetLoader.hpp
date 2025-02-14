@@ -13,6 +13,9 @@ namespace BB
 	class BBImage;
 	class UploadBufferView;
 
+	constexpr size_t MAX_ASSET_NAME_SIZE = 64;
+	using AssetString = StackString<MAX_ASSET_NAME_SIZE>;
+
 	// used this to forward declare it
 	class PathString : public StackString<MAX_PATH_SIZE>
 	{
@@ -96,19 +99,19 @@ namespace BB
 
 		struct TextureLoadFromMemory
 		{
-			const char* name;
+			StringView name;
 			BBImage* image;
 		};
 
 		struct TextureLoadFromDisk
 		{
-			const char* path;
+			StringView path;
 			IMAGE_FORMAT format;
 		};
 
 		struct MeshLoadFromMemory
 		{
-			const char* name;
+			StringView name;
 			// material def here....
 			Slice<Vertex> vertices;
 			Slice<uint32_t> indices;
@@ -117,7 +120,7 @@ namespace BB
 
 		struct MeshLoadFromDisk
 		{
-			const char* path;
+			StringView path;
 		};
 
 		struct AsyncAsset
@@ -149,14 +152,14 @@ namespace BB
 		};
 		Slice<LoadedAssetInfo> LoadAssets(MemoryArena& a_temp_arena, const Slice<AsyncAsset> a_asyn_assets);
 
-		const StringView LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path, const IMAGE_FORMAT a_format);
-		const StringView LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const char* a_name);
+		const StringView LoadImageDisk(MemoryArena& a_temp_arena, const StringView& a_path, const IMAGE_FORMAT a_format);
+		const StringView LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const StringView& a_name);
 		const StringView LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op);
 		const StringView LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoadFromMemory& a_mesh_op);
 
-		bool ReadWriteTextureDeferred(const PathString& a_path, const ImageInfo& a_read_image_info);
-		bool WriteImage(const PathString& a_path, const uint2 a_extent, const uint32_t a_channels, const void* a_pixels);
-		unsigned char* LoadImageCPU(const PathString& a_path, int& a_width, int& a_height, int& a_bytes_per_pixel);
+		bool ReadWriteTextureDeferred(const StringView& a_path, const ImageInfo& a_read_image_info);
+		bool WriteImage(const StringView& a_path, const uint2 a_extent, const uint32_t a_channels, const void* a_pixels);
+		unsigned char* LoadImageCPU(const StringView& a_path, int& a_width, int& a_height, int& a_bytes_per_pixel);
 		void FreeImageCPU(void* a_pixels);
 
 		const Model* FindModelByName(const char* a_name);

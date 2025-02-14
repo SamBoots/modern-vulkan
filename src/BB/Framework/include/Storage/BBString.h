@@ -323,11 +323,24 @@ namespace BB
 			Memory::Copy(&m_string[0], a_string, a_size);
 			m_size = a_size;
 		}
+		Stack_String(const String_View<CharT> a_view)
+			: Stack_String(a_view.c_str(), a_view.size()) {}
 		Stack_String(const Stack_String<CharT, STRING_SIZE>& a_string)
 		{
 			memset(m_string, 0, STRING_SIZE);
 			Memory::Copy(&m_string[0], &a_string.m_string[0], a_string.m_size);
 			m_size = a_string.m_size;
+		}
+
+		Stack_String& operator=(const String_View<CharT> a_rhs)
+		{
+			this->~Stack_String();
+
+			BB_ASSERT(a_size < sizeof(m_string), "Stack string overflow");
+			memset(m_string, 0, STRING_SIZE);
+			Memory::Copy(&m_string[0], a_string, a_size);
+			m_size = a_size;
+			return *this;
 		}
 
 		Stack_String& operator=(const Stack_String<CharT, STRING_SIZE>& a_rhs)
@@ -455,6 +468,19 @@ namespace BB
 			for (size_t i = 0; i < m_size; i++)
 			{
 				if (m_string[i] == a_char)
+					last_pos = i;
+			}
+
+			return last_pos;
+		}
+
+		size_t find_last_of_directory_slash() const
+		{
+			size_t last_pos = size_t(-1);
+
+			for (size_t i = 0; i < m_size; i++)
+			{
+				if (m_string_view[i] == '\\' || m_string_view[i] == '/')
 					last_pos = i;
 			}
 

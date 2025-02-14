@@ -36,8 +36,6 @@ BB_WARNINGS_ON
 
 using namespace BB;
 
-constexpr size_t MAX_ASSET_NAME_SIZE = 64;
-
 constexpr size_t GPU_TASK_QUEUE_SIZE = 64;
 
 constexpr size_t MAX_STRING_SIZE_STORAGE = 2024;
@@ -46,8 +44,6 @@ constexpr const char TEXTURE_DIRECTORY[] = "../../resources/textures/";
 constexpr const char ICON_DIRECTORY[] = "../../resources/icons/";
 
 constexpr const IMAGE_FORMAT ICON_IMAGE_FORMAT = IMAGE_FORMAT::RGBA8_SRGB;
-
-using AssetString = StackString<MAX_ASSET_NAME_SIZE>;
 
 static bool IsPathImage(const StringView a_view)
 {
@@ -72,14 +68,13 @@ static char* CreateGLTFImagePath(MemoryArena& a_temp_arena, const char* a_image_
 }
 
 //crappy hash, don't care for now.
-static uint64_t StringHash(const char* a_string, const size_t a_size)
+static uint64_t StringHash(const StringView a_view)
 {
 	uint64_t hash = 5381;
-	uint32_t c;
 
-	for (size_t i = 0; i < a_size; i++)
+	for (size_t i = 0; i < a_view.size(); i++)
 	{
-		c = *reinterpret_cast<const uint8_t*>(a_string++);
+		const size_t c = *reinterpret_cast<const uint8_t*>(a_view.c_str()[i]);
 		hash = ((hash << 5) + hash) + c;
 	}
 
@@ -145,8 +140,8 @@ struct IconSlot
 struct AssetSlot
 {
 	AssetHash hash;
-	const char* path;
-	const char* name;
+	PathString path;
+	AssetString name;
 	IconSlot icon;
 	union
 	{
@@ -232,17 +227,16 @@ static void ExecuteGPUTasks()
 
 static inline AssetString GetAssetIconName(const StringView& a_asset_name)
 {
-	StackString<MAX_ASSET_NAME_SIZE> icon_name(a_asset_name.c_str(), a_asset_name.size());
+	AssetString icon_name(a_asset_name.c_str(), a_asset_name.size());
 	icon_name.append(" icon");
 	return icon_name;
 }
 
-static inline void GetAssetNameFromPath(const char* a_path, AssetString& a_asset_name)
+static inline void GetAssetNameFromPath(const StringView& a_path, AssetString& a_asset_name)
 {
-	StringView path_view = a_path;
-	const size_t name_start = path_view.find_last_of_directory_slash();
+	const size_t name_start = a_path.find_last_of_directory_slash();
 	BB_ASSERT(name_start != size_t(-1), "cannot find a directory slash");
-	const size_t name_end = path_view.find_last_of('.');
+	const size_t name_end = a_path.find_last_of('.');
 	BB_ASSERT(name_end != size_t(-1), "file has no file extension name");
 	a_asset_name.append(&a_path[name_start + 1], name_end - name_start - 1);
 }
@@ -489,7 +483,7 @@ StringView Asset::FindOrCreateString(const char* a_string, const size_t a_string
 
 StringView Asset::FindOrCreateString(const StringView& a_view)
 {
-	const uint64_t string_hash = StringHash(a_view.c_str(), a_view.size());
+	const uint64_t string_hash = StringHash(a_view);
 	char** string_ptr = s_asset_manager->string_table.find(string_hash);
 	if (string_ptr != nullptr)
 		return *string_ptr;
@@ -507,7 +501,6 @@ struct LoadAsyncFunc_Params
 
 static void LoadAsync_func(MemoryArena& a_arena, void* a_param)
 {
-	using namespace Asset;
 	LoadAsyncFunc_Params* params = reinterpret_cast<LoadAsyncFunc_Params*>(a_param);
 
 	LoadAssets(a_arena, Slice(params->assets, params->asset_count));
@@ -594,21 +587,20 @@ static inline void CreateImage_func(const StringView& a_name, const uint32_t a_w
 	a_out_index = CreateImageView(create_view_info);
 }
 
-const StringView Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_path, const IMAGE_FORMAT a_format)
+const StringView Asset::LoadImageDisk(MemoryArena& a_temp_arena, const StringView& a_path, const IMAGE_FORMAT a_format)
 {
-	AssetString asset_name;
-	GetAssetNameFromPath(a_path, asset_name);
-	const StringView image_name = FindOrCreateString(asset_name.GetView());
+	AssetSlot asset;
+	GetAssetNameFromPath(a_path, asset.name);
 
 	int width = 0, height = 0, channels = 0;
-	stbi_uc* pixels = stbi_load(a_path, &width, &height, &channels, 4);
+	stbi_uc* pixels = stbi_load(a_path.c_str(), &width, &height, &channels, 4);
 
 	RImage gpu_image;
 	RDescriptorIndex descriptor_index;
 	const IMAGE_FORMAT format = a_format;
 	const uint32_t uwidth = static_cast<uint32_t>(width);
 	const uint32_t uheight = static_cast<uint32_t>(height);
-	CreateImage_func(image_name, uwidth, uheight, format, gpu_image, descriptor_index);
+	CreateImage_func(asset.name.GetView(), uwidth, uheight, format, gpu_image, descriptor_index);
 
 	WriteImageInfo write_info{};
 	write_info.image = gpu_image;
@@ -629,15 +621,14 @@ const StringView Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_p
 	image->gpu_image = gpu_image;
 	image->descriptor_index = descriptor_index;
 
-	const uint64_t path_hash = StringHash(a_path, strnlen_s(a_path, MAX_PATH_SIZE));
+	const uint64_t path_hash = StringHash(a_path);
 
 	AssetSlot asset;
 	asset.hash = CreateAssetHash(path_hash, ASSET_TYPE::IMAGE);
-	asset.path = FindOrCreateString(a_path).c_str(); //memory loads have nullptr as path.
+	asset.path = a_path;
 	asset.image = image;
-	asset.name = image_name.c_str();
 
-	const PathString icon_path = GetIconPathFromAssetName(asset.name);
+	const PathString icon_path = GetIconPathFromAssetName(asset.name.GetView());
 	if (OSFileExist(icon_path.c_str()))
 	{
 		asset.icon = LoadIconFromPath(a_temp_arena, icon_path.GetView(), true);
@@ -650,7 +641,7 @@ const StringView Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_p
 			icon_write = ResizeImage(a_temp_arena, pixels, width, height, static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
 		}
 		asset.icon = LoadIconFromPixels(icon_write, true);
-		WriteImage(icon_path, ICON_EXTENT, 4, icon_write);
+		WriteImage(icon_path.GetView(), ICON_EXTENT, 4, icon_write);
 	}
 
 	AddElementToAssetTable(asset);
@@ -658,10 +649,10 @@ const StringView Asset::LoadImageDisk(MemoryArena& a_temp_arena, const char* a_p
 
 	STBI_FREE(pixels);
 
-	return asset.path;
+	return asset.path.GetView();
 }
 
-bool Asset::ReadWriteTextureDeferred(const PathString& a_path, const ImageInfo& a_image_info)
+bool Asset::ReadWriteTextureDeferred(const StringView& a_path, const ImageInfo& a_image_info)
 {
 	const uint32_t readback_size = a_image_info.extent.x * a_image_info.extent.y * 4u;
 
@@ -687,7 +678,7 @@ bool Asset::ReadWriteTextureDeferred(const PathString& a_path, const ImageInfo& 
 	return AddGPUTask(WriteToDisk_impl, params, fence_value);
 }
 
-bool Asset::WriteImage(const PathString& a_path, const uint2 a_extent, const uint32_t a_channels, const void* a_pixels)
+bool Asset::WriteImage(const StringView& a_path, const uint2 a_extent, const uint32_t a_channels, const void* a_pixels)
 {
 	if (stbi_write_png(a_path.c_str(), static_cast<int>(a_extent.x), static_cast<int>(a_extent.y), static_cast<int>(a_channels), a_pixels, static_cast<int>(a_extent.x * a_channels)))
 		return true;
@@ -697,7 +688,7 @@ bool Asset::WriteImage(const PathString& a_path, const uint2 a_extent, const uin
 	return false;
 }
 
-unsigned char* Asset::LoadImageCPU(const PathString& a_path, int& a_width, int& a_height, int& a_bytes_per_pixel)
+unsigned char* Asset::LoadImageCPU(const StringView& a_path, int& a_width, int& a_height, int& a_bytes_per_pixel)
 {
 	stbi_uc* pixels = stbi_load(a_path.c_str(), &a_width, &a_height, &a_bytes_per_pixel, 4);
 	a_bytes_per_pixel = 4;
@@ -709,9 +700,10 @@ void Asset::FreeImageCPU(void* a_pixels)
 	STBI_FREE(a_pixels);
 }
 
-const StringView Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const char* a_name)
+const StringView Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const StringView& a_name)
 {
-	const StringView image_name = FindOrCreateString(a_name);
+	AssetSlot asset;
+	asset.name = a_name;
 
 	const uint32_t uwidth = a_image.GetWidth();
 	const uint32_t uheight = a_image.GetHeight();
@@ -738,7 +730,7 @@ const StringView Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBI
 
 	RImage gpu_image;
 	RDescriptorIndex descriptor_index;
-	CreateImage_func(image_name, uwidth, uheight, format,  gpu_image, descriptor_index);
+	CreateImage_func(asset.name.GetView(), uwidth, uheight, format, gpu_image, descriptor_index);
 
 	WriteImageInfo write_info{};
 	write_info.image = gpu_image;
@@ -761,13 +753,13 @@ const StringView Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBI
 	const uint64_t hash = TurboCrappyImageHash(a_image.GetPixels(), static_cast<size_t>(image->width) + image->height + a_image.GetBytesPerPixel());
 	// BB_ASSERT(hash != 0, "Image hashing failed");
 
-	AssetSlot asset;
+
 	asset.hash = CreateAssetHash(hash, ASSET_TYPE::IMAGE);
 	asset.path = nullptr; // memory loads have nullptr has path.
 	asset.image = image;
-	asset.name = image_name.c_str();
 
-	const PathString icon_path = GetIconPathFromAssetName(asset.name);
+
+	const PathString icon_path = GetIconPathFromAssetName(asset.name.GetView());
 	if (OSFileExist(icon_path.c_str()))
 	{
 		asset.icon = LoadIconFromPath(a_temp_arena, icon_path.GetView(), true);
@@ -787,7 +779,7 @@ const StringView Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBI
 	AddElementToAssetTable(asset);
 	image->asset_handle = AssetHandle(asset.hash.full_hash);
 
-	return image_name;
+	return asset.name.GetView();
 }
 
 static inline size_t CgltfGetMeshIndex(const cgltf_data& a_cgltf_data, const cgltf_mesh* a_mesh)
@@ -988,9 +980,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 	uint32_t vertex_tangent_offset = 0;
 
 	for (size_t i = 0; i < vertex_count; i++)
-	{
-		vertices[i].color = { 1.f, 1.f, 1.f, 1.f};
-	}
+		vertices[i].color = float4(1.f);
 
 	for (size_t prim_index = 0; prim_index < mesh.primitives_count; prim_index++)
 	{
@@ -1201,11 +1191,11 @@ static void cgltf_arena_free(void*, void*)
 
 const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op)
 {
-	const AssetHash asset_hash = CreateAssetHash(StringHash(a_mesh_op.path, Memory::StrLength(a_mesh_op.path)), ASSET_TYPE::MODEL);
+	const AssetHash asset_hash = CreateAssetHash(StringHash(a_mesh_op.path), ASSET_TYPE::MODEL);
 	
 	if (AssetSlot* slot = s_asset_manager->asset_table.find(asset_hash.full_hash))
 	{
-		return slot->name;
+		return slot->name.GetView();
 	}
 
 	cgltf_options gltf_option = {};
@@ -1214,13 +1204,13 @@ const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadF
 	gltf_option.memory.user_data = &a_temp_arena;
 	cgltf_data* gltf_data = nullptr;
 
-	if (cgltf_parse_file(&gltf_option, a_mesh_op.path, &gltf_data) != cgltf_result_success)
+	if (cgltf_parse_file(&gltf_option, a_mesh_op.path.c_str(), &gltf_data) != cgltf_result_success)
 	{
 		BB_ASSERT(false, "Failed to load glTF model, cgltf_parse_file.");
 		return nullptr;
 	}
 
-	cgltf_load_buffers(&gltf_option, gltf_data, a_mesh_op.path);
+	cgltf_load_buffers(&gltf_option, gltf_data, a_mesh_op.path.c_str());
 
 	if (cgltf_validate(gltf_data) != cgltf_result_success)
 	{
@@ -1291,11 +1281,11 @@ const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadF
 	
 	AssetSlot asset;
 	asset.hash = asset_hash;
-	asset.path = FindOrCreateString(a_mesh_op.path).c_str();
+	asset.path = a_mesh_op.path;
 	asset.model = model;
-	asset.name = FindOrCreateString(asset_name.GetView()).c_str();
+	asset.name = asset_name.GetView();
 
-	const PathString icon_path = GetIconPathFromAssetName(asset.name);
+	const PathString icon_path = GetIconPathFromAssetName(asset.name.GetView());
 	if (OSFileExist(icon_path.c_str()))
 		asset.icon = LoadIconFromPath(a_temp_arena, icon_path.GetView(), true);
 	else
@@ -1304,19 +1294,24 @@ const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadF
 	AddElementToAssetTable(asset);
 	model->asset_handle = AssetHandle(asset.hash.full_hash);
 
-	return asset.path;
+	return asset.path.c_str();
 }
 
 const StringView Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoadFromMemory& a_mesh_op)
 {
 	// this is all garbage
 
-	const AssetHash asset_hash = CreateAssetHash(StringHash(a_mesh_op.name, Memory::StrLength(a_mesh_op.name)), ASSET_TYPE::MODEL);
+	const AssetHash asset_hash = CreateAssetHash(StringHash(a_mesh_op.name), ASSET_TYPE::MODEL);
 
 	if (AssetSlot* slot = s_asset_manager->asset_table.find(asset_hash.full_hash))
 	{
-		return slot->name;
+		return slot->name.c_str();
 	}
+
+	AssetSlot asset;
+	asset.hash = asset_hash;
+	asset.path = nullptr;
+	asset.name = a_mesh_op.name;
 
 	CreateMeshInfo mesh_info;
 	mesh_info.vertices = a_mesh_op.vertices;
@@ -1342,18 +1337,12 @@ const StringView Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const Mesh
 	*model->root_node_indices = 0;
 
 	model->linear_nodes[0] = {};
-	model->linear_nodes[0].name = a_mesh_op.name;
+	model->linear_nodes[0].name = a_mesh_op.name.c_str();
 	model->linear_nodes[0].child_count = 0;
 	model->linear_nodes[0].mesh = &mesh;
 	model->linear_nodes[0].scale = float3(1.f, 1.f, 1.f);
 
-	AssetSlot asset;
-	asset.hash = asset_hash;
-	asset.path = nullptr;
-	asset.model = model;
-	asset.name = FindOrCreateString(a_mesh_op.name).c_str();
-
-	const PathString icon_path = GetIconPathFromAssetName(asset.name);
+	const PathString icon_path = GetIconPathFromAssetName(asset.name.c_str());
 	if (OSFileExist(icon_path.c_str()))
 		asset.icon = LoadIconFromPath(a_temp_arena, icon_path.GetView(), true);
 	else
@@ -1361,13 +1350,15 @@ const StringView Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const Mesh
 
 	AddElementToAssetTable(asset);
 
+	asset.model = model;
+
 	model->asset_handle = AssetHandle(asset.hash.full_hash);
-	return asset.name;
+	return asset.name.c_str();
 }
 
 const Model* Asset::FindModelByName(const char* a_name)
 {
-	AssetHash asset_hash = CreateAssetHash(StringHash(a_name, Memory::StrLength(a_name)), ASSET_TYPE::MODEL);
+	AssetHash asset_hash = CreateAssetHash(StringHash(a_name), ASSET_TYPE::MODEL);
 	if (AssetSlot* slot = s_asset_manager->asset_table.find(asset_hash.full_hash))
 	{
 		return slot->model;
@@ -1377,7 +1368,7 @@ const Model* Asset::FindModelByName(const char* a_name)
 
 const Image* Asset::FindImageByName(const char* a_name)
 {
-	AssetHash asset_hash = CreateAssetHash(StringHash(a_name, Memory::StrLength(a_name)), ASSET_TYPE::IMAGE);
+	AssetHash asset_hash = CreateAssetHash(StringHash(a_name), ASSET_TYPE::IMAGE);
 	if (AssetSlot* slot = s_asset_manager->asset_table.find(asset_hash.full_hash))
 	{
 		return slot->image;
@@ -1487,7 +1478,7 @@ void Asset::ShowAssetMenu(MemoryArena& a_arena)
 
 				ImGui::TableSetColumnIndex(current_column_index++);
 
-				const char* asset_name = slot->name;
+				const char* asset_name = slot->name.c_str();
 				if (!asset_name)
 				{
 					asset_name = "unnamed";
@@ -1496,7 +1487,7 @@ void Asset::ShowAssetMenu(MemoryArena& a_arena)
 
 				if (ImGui::CollapsingHeader(asset_name))
 				{
-					if (slot->path)
+					if (slot->path.c_str())
 						ImGui::Text("Path: %s", slot->path);
 					else
 						ImGui::Text("Path: None");
@@ -1510,7 +1501,7 @@ void Asset::ShowAssetMenu(MemoryArena& a_arena)
 							if (IsPathImage(path_search.GetView()))
 							{
 								slot->icon = LoadIconFromPath(a_arena, path_search.GetView(), false);
-								IconWriteToDisk(slot->icon, GetIconPathFromAssetName(StringView(slot->name)));
+								IconWriteToDisk(slot->icon, GetIconPathFromAssetName(slot->name.c_str()));
 							}
 						}
 					}
