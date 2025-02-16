@@ -428,7 +428,7 @@ void RenderSystem::Screenshot(const PathString& a_path) const
 	image_info.mip_layer = 0;
 	image_info.layout = IMAGE_LAYOUT::TRANSFER_SRC;
 
-	const bool success = Asset::ReadWriteTextureDeferred(a_path, image_info);
+	const bool success = Asset::ReadWriteTextureDeferred(a_path.GetView(), image_info);
 	BB_ASSERT(success, "failed to write screenshot image to disk");
 }
 

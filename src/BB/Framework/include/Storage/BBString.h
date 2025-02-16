@@ -25,6 +25,12 @@ namespace BB
 			return m_size == a_rhs.size() && compare(a_rhs);
 		}
 
+		const CharT& operator[](const size_t a_index) const
+		{
+			BB_ASSERT(a_index <= m_size, "String_View, trying to get an element using the [] operator but that element is not there.");
+			return m_string_view[a_index];
+		}
+
 		size_t find_first_of(const CharT a_char) const
 		{
 			for (size_t i = 0; i < m_size; i++)
@@ -336,17 +342,17 @@ namespace BB
 		{
 			this->~Stack_String();
 
-			BB_ASSERT(a_size < sizeof(m_string), "Stack string overflow");
+			BB_ASSERT(a_rhs.size() < sizeof(m_string), "Stack string overflow");
 			memset(m_string, 0, STRING_SIZE);
-			Memory::Copy(&m_string[0], a_string, a_size);
-			m_size = a_size;
+			Memory::Copy(&m_string[0], a_rhs.c_str(), a_rhs.size());
+			m_size = a_rhs.size();
 			return *this;
 		}
 
 		Stack_String& operator=(const Stack_String<CharT, STRING_SIZE>& a_rhs)
 		{
 			this->~Stack_String();
-
+			memset(m_string, 0, STRING_SIZE);
 			memcpy(m_string, a_rhs.m_string, a_rhs.m_size);
 			m_size = a_rhs.m_size;
 			return *this;
@@ -449,7 +455,7 @@ namespace BB
 		void RecalculateStringSize()
 		{
 			m_size = strnlen_s(m_string, STRING_SIZE);
-		}
+		}	
 
 		size_t find_first_of(const CharT a_char) const
 		{

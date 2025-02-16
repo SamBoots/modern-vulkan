@@ -93,54 +93,6 @@ SceneFrame SceneHierarchy::UpdateScene(const RCommandList a_list, Viewport& a_vi
 	return scene_frame;
 }
 
-#include "imgui.h"
-
-bool SceneHierarchy::DrawImgui(const RDescriptorIndex a_render_target, Viewport& a_viewport)
-{
-	bool rendered_image = false;
-	if (ImGui::Begin(m_ecs.GetName().c_str(), nullptr, ImGuiWindowFlags_MenuBar))
-	{
-		if (ImGui::BeginMenuBar())
-		{
-			if (ImGui::BeginMenu("screenshot"))
-			{
-				static char image_name[128]{};
-				ImGui::InputText("sceenshot name", image_name, 128);
-
-				if (ImGui::Button("make screenshot"))
-					m_ecs.GetRenderSystem().Screenshot(image_name);
-
-				ImGui::EndMenu();
-			}
-			ImGui::EndMenuBar();
-		}
-
-		ImGuiIO im_io = ImGui::GetIO();
-
-		constexpr uint2 MINIMUM_WINDOW_SIZE = uint2(80, 80);
-
-		const ImVec2 viewport_offset = ImGui::GetWindowPos();
-		const ImVec2 viewport_draw_area = ImGui::GetContentRegionAvail();
-		const uint2 window_size_u = uint2(static_cast<unsigned int>(viewport_draw_area.x), static_cast<unsigned int>(viewport_draw_area.y));
-		if (window_size_u.x < MINIMUM_WINDOW_SIZE.x || window_size_u.y < MINIMUM_WINDOW_SIZE.y)
-		{
-			ImGui::End();
-			return false;
-		}
-		if (window_size_u != a_viewport.GetExtent() && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
-		{
-			a_viewport.SetExtent(window_size_u);
-		}
-		a_viewport.SetOffset(int2(static_cast<int>(viewport_offset.x), static_cast<int>(viewport_offset.y)));
-
-		ImGui::Image(a_render_target.handle, viewport_draw_area);
-		rendered_image = true;
-	}
-	ImGui::End();
-
-	return rendered_image;
-}
-
 ECSEntity SceneHierarchy::CreateEntityViaModelNode(const Model::Node& a_node, const ECSEntity a_parent)
 {
 	const ECSEntity ecs_obj = m_ecs.CreateEntity(a_node.name, a_parent, a_node.translation, a_node.rotation, a_node.scale);

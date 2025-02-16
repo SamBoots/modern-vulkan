@@ -43,5 +43,5 @@ namespace BB
 	ConstSlice<ProfileResult> GetProfileResultsList();
 
 	#define BB_START_PROFILE(a_name) StartProfile_f(__LINE__, __FILE__, a_name)
-	#define BB_END_PROFILE(a_name, a_write_to_file) EndProfile_f(a_name)
+	#define BB_END_PROFILE(a_name) EndProfile_f(a_name)
 }

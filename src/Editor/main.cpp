@@ -121,6 +121,7 @@ int main(int argc, char** argv)
 
 	while (!end_app)
 	{
+		BB_START_PROFILE("frame time");
 		Asset::Update();
 
 		InputEvent input_events[INPUT_EVENT_BUFFER_MAX]{};
@@ -145,6 +146,7 @@ int main(int argc, char** argv)
 		delta_time = std::chrono::duration<float, std::chrono::seconds::period>(current_new - current_time).count();
 
 		current_time = current_new;
+		BB_END_PROFILE("frame time");
 	}
 
 	editor.Destroy();

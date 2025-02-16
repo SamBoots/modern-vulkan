@@ -282,8 +282,6 @@ void Editor::ThreadFuncForDrawing(MemoryArena&, void* a_param)
 	*param_in->scene_frame = scene_hierarchy.UpdateScene(list, viewport);
 	*param_in->fence_value = param_in->scene_frame->render_frame.fence_value;
 	*param_in->fence = param_in->scene_frame->render_frame.fence;
-
-	scene_hierarchy.DrawImgui(param_in->scene_frame->render_frame.render_target, viewport);
 }
 
 void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent, const size_t a_editor_memory)

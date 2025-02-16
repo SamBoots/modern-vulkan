@@ -74,7 +74,7 @@ static uint64_t StringHash(const StringView a_view)
 
 	for (size_t i = 0; i < a_view.size(); i++)
 	{
-		const size_t c = *reinterpret_cast<const uint8_t*>(a_view.c_str()[i]);
+		const uint64_t c = static_cast<uint64_t>(a_view[i]);
 		hash = ((hash << 5) + hash) + c;
 	}
 
@@ -623,7 +623,6 @@ const StringView Asset::LoadImageDisk(MemoryArena& a_temp_arena, const StringVie
 
 	const uint64_t path_hash = StringHash(a_path);
 
-	AssetSlot asset;
 	asset.hash = CreateAssetHash(path_hash, ASSET_TYPE::IMAGE);
 	asset.path = a_path;
 	asset.image = image;
@@ -1487,8 +1486,8 @@ void Asset::ShowAssetMenu(MemoryArena& a_arena)
 
 				if (ImGui::CollapsingHeader(asset_name))
 				{
-					if (slot->path.c_str())
-						ImGui::Text("Path: %s", slot->path);
+					if (slot->path.size())
+						ImGui::Text("Path: %s", slot->path.c_str());
 					else
 						ImGui::Text("Path: None");
 
