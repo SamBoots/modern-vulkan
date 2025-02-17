@@ -469,28 +469,22 @@ namespace BB
 
 		size_t find_last_of(const CharT a_char) const
 		{
-			size_t last_pos = size_t(-1);
-
-			for (size_t i = 0; i < m_size; i++)
+			for (size_t i = m_size; i--;)
 			{
 				if (m_string[i] == a_char)
-					last_pos = i;
+					return i;
 			}
-
-			return last_pos;
+			return size_t(-1);
 		}
 
 		size_t find_last_of_directory_slash() const
 		{
-			size_t last_pos = size_t(-1);
-
-			for (size_t i = 0; i < m_size; i++)
+			for (size_t i = m_size; i--;)
 			{
-				if (m_string_view[i] == '\\' || m_string_view[i] == '/')
-					last_pos = i;
+				if (m_string[i] == '\\' || m_string[i] == '/')
+					return i;
 			}
-
-			return last_pos;
+			return size_t(-1);
 		}
 
 		bool compare(const size_t a_pos, const CharT* a_str) const

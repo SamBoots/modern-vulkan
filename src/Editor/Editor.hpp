@@ -39,25 +39,12 @@ namespace BB
 
 			ImguiDisplayECS(hierarchy.m_ecs);
 
-			const uint32_t render_pool_index = m_per_frame.current_count.fetch_add(1, std::memory_order_seq_cst);
-			ThreadFuncForDrawing_Params params;
-			CommandPool& pool = m_per_frame.pools[render_pool_index];
-			RCommandList& list = m_per_frame.lists[render_pool_index];
-			// render_pool 0 is already set.
-			if (render_pool_index != 0)
+			ThreadFuncForDrawing_Params params =
 			{
-				pool = GetGraphicsCommandPool();
-				list = pool.StartCommandList();
-			}
-
-			params.viewport = &viewport;
-			params.scene_hierarchy = &hierarchy;
-			params.command_list = list;
-			params.fence_value = &m_per_frame.fence_values[render_pool_index];
-			params.fence = &m_per_frame.fences[render_pool_index];
-			params.scene_frame = &m_per_frame.frame_results[render_pool_index];
-
-			scene_hierarchy.DrawImgui(param_in->scene_frame->render_frame.render_target, viewport);
+				*this,
+				viewport,
+				hierarchy
+			};
 
 			return Threads::StartTaskThread(ThreadFuncForDrawing, &params, sizeof(params), L"scene draw task");
 		}
@@ -66,60 +53,12 @@ namespace BB
 	private:
 		struct ThreadFuncForDrawing_Params
 		{
-			// in
-			Viewport* viewport;
-			SceneHierarchy* scene_hierarchy;
-			RCommandList command_list;
-			uint64_t* fence_value;
-			RFence* fence;
-			SceneFrame* scene_frame;
+			Editor& editor;
+			Viewport& viewport;
+			SceneHierarchy& scene_hierarchy;
 		};
 
-		bool DrawImgui(const RDescriptorIndex a_render_target, SceneHierarchy& a_hierarchy, Viewport& a_viewport)
-		{
-			bool rendered_image = false;
-			if (ImGui::Begin(a_hierarchy.GetECS().GetName().c_str(), nullptr, ImGuiWindowFlags_MenuBar))
-			{
-				if (ImGui::BeginMenuBar())
-				{
-					if (ImGui::BeginMenu("screenshot"))
-					{
-						static char image_name[128]{};
-						ImGui::InputText("sceenshot name", image_name, 128);
-
-						if (ImGui::Button("make screenshot"))
-							a_hierarchy.GetECS().GetRenderSystem().Screenshot(image_name);
-
-						ImGui::EndMenu();
-					}
-					ImGui::EndMenuBar();
-				}
-
-				ImGuiIO im_io = ImGui::GetIO();
-
-				constexpr uint2 MINIMUM_WINDOW_SIZE = uint2(80, 80);
-
-				const ImVec2 viewport_offset = ImGui::GetWindowPos();
-				const ImVec2 viewport_draw_area = ImGui::GetContentRegionAvail();
-				const uint2 window_size_u = uint2(static_cast<unsigned int>(viewport_draw_area.x), static_cast<unsigned int>(viewport_draw_area.y));
-				if (window_size_u.x < MINIMUM_WINDOW_SIZE.x || window_size_u.y < MINIMUM_WINDOW_SIZE.y)
-				{
-					ImGui::End();
-					return false;
-				}
-				if (window_size_u != a_viewport.GetExtent() && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
-				{
-					a_viewport.SetExtent(window_size_u);
-				}
-				a_viewport.SetOffset(int2(static_cast<int>(viewport_offset.x), static_cast<int>(viewport_offset.y)));
-
-				ImGui::Image(a_render_target.handle, viewport_draw_area);
-				rendered_image = true;
-			}
-			ImGui::End();
-
-			return rendered_image;
-		}
+		bool DrawImgui(const RDescriptorIndex a_render_target, SceneHierarchy& a_hierarchy, Viewport& a_viewport);
 
 		FreelistInterface m_editor_allocator;
 
@@ -133,6 +72,7 @@ namespace BB
 
 		void MainEditorImGuiInfo(const MemoryArena& a_arena);
 		static void ThreadFuncForDrawing(MemoryArena& a_thread_arena, void* a_param);
+		void DrawScene(Viewport& a_viewport, SceneHierarchy& a_hierarchy);
 
 		uint2 m_app_window_extent;
 		Console m_console;
@@ -140,11 +80,13 @@ namespace BB
 		struct PerFrameInfo
 		{
 			uint32_t back_buffer_index;
-			FixedArray<SceneFrame, 8> frame_results;
 			FixedArray<CommandPool, 8> pools;
 			FixedArray<RCommandList, 8> lists;
+			FixedArray<SceneHierarchy*, 8> scene_hierachies;
+			FixedArray<Viewport*, 8> viewports;
 			FixedArray<RFence, 8> fences;
 			FixedArray<uint64_t, 8> fence_values;
+			FixedArray<SceneFrame, 8> frame_results;
 
 			std::atomic<uint32_t> current_count = 0;
 		};

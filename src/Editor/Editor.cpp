@@ -273,15 +273,31 @@ void Editor::MainEditorImGuiInfo(const MemoryArena& a_arena)
 
 void Editor::ThreadFuncForDrawing(MemoryArena&, void* a_param)
 {
-	ThreadFuncForDrawing_Params* param_in = reinterpret_cast<ThreadFuncForDrawing_Params*>(a_param);
+	ThreadFuncForDrawing_Params* params = reinterpret_cast<ThreadFuncForDrawing_Params*>(a_param);
+	params->editor.DrawScene(params->viewport, params->scene_hierarchy);
+}
 
-	Viewport& viewport = *param_in->viewport;
-	SceneHierarchy& scene_hierarchy = *param_in->scene_hierarchy;
-	RCommandList list = param_in->command_list;
+void Editor::DrawScene(Viewport& a_viewport, SceneHierarchy& a_hierarchy)
+{
+	const uint32_t pool_index = m_per_frame.current_count.fetch_add(1, std::memory_order_seq_cst);
 
-	*param_in->scene_frame = scene_hierarchy.UpdateScene(list, viewport);
-	*param_in->fence_value = param_in->scene_frame->render_frame.fence_value;
-	*param_in->fence = param_in->scene_frame->render_frame.fence;
+	CommandPool& pool = m_per_frame.pools[pool_index];
+	RCommandList& list = m_per_frame.lists[pool_index];
+	// render_pool 0 is already set.
+	if (pool_index != 0)
+	{
+		pool = GetGraphicsCommandPool();
+		list = pool.StartCommandList();
+	}
+
+	const SceneFrame frame = a_hierarchy.UpdateScene(list, a_viewport);
+
+	// book keep all the end details
+	m_per_frame.scene_hierachies[pool_index] = &a_hierarchy;
+	m_per_frame.viewports[pool_index] = &a_viewport;
+	m_per_frame.fences[pool_index] = frame.render_frame.fence;
+	m_per_frame.fence_values[pool_index] = frame.render_frame.fence_value;
+	m_per_frame.frame_results[pool_index] = frame;
 }
 
 void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent, const size_t a_editor_memory)
@@ -400,6 +416,11 @@ void Editor::EndFrame(MemoryArena& a_arena)
 		Asset::ShowAssetMenu(a_arena);
 		MainEditorImGuiInfo(a_arena);
 
+		for (size_t i = 0; i < m_per_frame.current_count; i++)
+		{
+			DrawImgui(m_per_frame.frame_results[i].render_frame.render_target, *m_per_frame.scene_hierachies[i], *m_per_frame.viewports[i]);
+		}
+
 		Slice imgui_shaders = Material::GetMaterialShaders(m_imgui_material);
 		RenderEndFrame(m_per_frame.lists[0], imgui_shaders[0], imgui_shaders[1], m_per_frame.back_buffer_index);
 
@@ -417,6 +438,52 @@ void Editor::EndFrame(MemoryArena& a_arena)
 			m_per_frame.current_count,
 			present_queue_value);
 	}
+}
+
+bool Editor::DrawImgui(const RDescriptorIndex a_render_target, SceneHierarchy& a_hierarchy, Viewport& a_viewport)
+{
+	bool rendered_image = false;
+	if (ImGui::Begin(a_hierarchy.GetECS().GetName().c_str(), nullptr, ImGuiWindowFlags_MenuBar))
+	{
+		if (ImGui::BeginMenuBar())
+		{
+			if (ImGui::BeginMenu("screenshot"))
+			{
+				static char image_name[128]{};
+				ImGui::InputText("sceenshot name", image_name, 128);
+
+				if (ImGui::Button("make screenshot"))
+					a_hierarchy.GetECS().GetRenderSystem().Screenshot(image_name);
+
+				ImGui::EndMenu();
+			}
+			ImGui::EndMenuBar();
+		}
+
+		ImGuiIO im_io = ImGui::GetIO();
+
+		constexpr uint2 MINIMUM_WINDOW_SIZE = uint2(80, 80);
+
+		const ImVec2 viewport_offset = ImGui::GetWindowPos();
+		const ImVec2 viewport_draw_area = ImGui::GetContentRegionAvail();
+		const uint2 window_size_u = uint2(static_cast<unsigned int>(viewport_draw_area.x), static_cast<unsigned int>(viewport_draw_area.y));
+		if (window_size_u.x < MINIMUM_WINDOW_SIZE.x || window_size_u.y < MINIMUM_WINDOW_SIZE.y)
+		{
+			ImGui::End();
+			return false;
+		}
+		if (window_size_u != a_viewport.GetExtent() && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+		{
+			a_viewport.SetExtent(window_size_u);
+		}
+		a_viewport.SetOffset(int2(static_cast<int>(viewport_offset.x), static_cast<int>(viewport_offset.y)));
+
+		ImGui::Image(a_render_target.handle, viewport_draw_area);
+		rendered_image = true;
+	}
+	ImGui::End();
+
+	return rendered_image;
 }
 
 void Editor::ImguiDisplayECS(EntityComponentSystem& a_ecs)
