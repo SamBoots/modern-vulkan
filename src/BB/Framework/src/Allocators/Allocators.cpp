@@ -132,6 +132,9 @@ static void* FreeDebug(BaseAllocator* a_allocator, bool a_is_array, void* a_ptr)
 			"Memory Boundry overwritten at the back of memory block");
 		break;
 	case BOUNDRY_ERROR::NONE: break;
+	default:
+		BB_ASSERT(false, "default hit while it shouldn't");
+		break;
 	}
 #endif //BB_USE_ADDRESS_SANITIZER
 

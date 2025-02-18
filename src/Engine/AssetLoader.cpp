@@ -536,6 +536,9 @@ Slice<Asset::LoadedAssetInfo> Asset::LoadAssets(MemoryArena& a_temp_arena, const
 			case ASYNC_LOAD_TYPE::MEMORY:
 				loaded_assets[i].name = LoadMeshFromMemory(a_temp_arena, task.mesh_memory);
 				break;
+			default:
+				BB_ASSERT(false, "default hit while it shouldn't");
+				break;
 			}
 			break;
 		}
@@ -549,9 +552,15 @@ Slice<Asset::LoadedAssetInfo> Asset::LoadAssets(MemoryArena& a_temp_arena, const
 			case ASYNC_LOAD_TYPE::MEMORY:
 				loaded_assets[i].name = LoadImageMemory(a_temp_arena, *task.texture_memory.image, task.texture_memory.name);
 				break;
+			default:
+				BB_ASSERT(false, "default hit while it shouldn't");
+				break;
 			}
 		}
 		break;
+		default:
+			BB_ASSERT(false, "default hit while it shouldn't");
+			break;
 		}
 	}
 
@@ -1388,6 +1397,9 @@ void Asset::FreeAsset(const AssetHandle a_asset_handle)
 		break;
 	case ASSET_TYPE::IMAGE:
 		//BBfree(s_asset_manager->allocator, slot->image);
+		break;
+	default:
+		BB_ASSERT(false, "default hit while it shouldn't");
 		break;
 	}
 

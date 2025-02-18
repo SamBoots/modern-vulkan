@@ -968,6 +968,9 @@ static VkSampler CreateSampler(const SamplerCreateInfo& a_create_info)
 		sampler_info.magFilter = VK_FILTER_LINEAR;
 		sampler_info.minFilter = VK_FILTER_LINEAR;
 		break;
+	default:
+		BB_ASSERT(false, "default hit while it shouldn't");
+		break;
 	}
 	sampler_info.minLod = a_create_info.min_lod;
 	sampler_info.maxLod = a_create_info.max_lod;

@@ -191,7 +191,6 @@ static LRESULT wm_input(HWND a_hwnd, WPARAM a_wparam, LPARAM a_lparam)
 //Custom callback for the Windows proc.
 static LRESULT CALLBACK WindowProc(HWND a_hwnd, UINT a_msg, WPARAM a_wparam, LPARAM a_lparam)
 {
-
 	switch (a_msg)
 	{
 	case WM_QUIT:
@@ -221,6 +220,7 @@ static LRESULT CALLBACK WindowProc(HWND a_hwnd, UINT a_msg, WPARAM a_wparam, LPA
 		break;
 	case WM_INPUT:
 		return wm_input(a_hwnd, a_wparam, a_lparam);
+	default: break;
 	}
 
 	return DefWindowProcW(a_hwnd, a_msg, a_wparam, a_lparam);
@@ -680,6 +680,9 @@ WindowHandle BB::CreateOSWindow(const OS_WINDOW_STYLE a_style, const int a_x, co
 		break;
 	case OS_WINDOW_STYLE::CHILD:
 		style = WS_OVERLAPPED | WS_THICKFRAME;
+		break;
+	default:
+		BB_ASSERT(false, "default hit while it shouldn't");
 		break;
 	}
 

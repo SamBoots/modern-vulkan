@@ -194,6 +194,9 @@ void BB::JsonNodeToString(const JsonNode* a_Node, String& a_string)
 	case BB::JSON_TYPE::NULL_TYPE:
 		a_string.append("null");
 		break;
+	default:
+		BB_ASSERT(false, "default hit while it shouldn't");
+		break;
 	}
 }
 
@@ -313,6 +316,9 @@ JsonNode* JsonParser::ParseObject()
 		case TOKEN_TYPE::CURLY_CLOSE:
 		case TOKEN_TYPE::ARRAY_CLOSE:
 		case TOKEN_TYPE::COMMA:
+			break;
+		default:
+			BB_ASSERT(false, "default hit while it shouldn't");
 			break;
 		}
 

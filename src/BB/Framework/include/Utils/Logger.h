@@ -38,7 +38,7 @@ namespace BB
 #define BB_UNIMPLEMENTED(text)						\
 	do												\
 	{												\
-		__pragma(message("implement this: " text))	\
+		__pragma(message("implement: " text))	    \
 		BB_ASSERT(false, "unimplemented code hit");	\
 	} while (0) 
 
