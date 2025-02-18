@@ -5,7 +5,7 @@ using namespace BB;
 
 // increment 
 constexpr uint32_t CONFIG_IDENTITY = 0xBBCBBCBB;
-constexpr uint32_t CONFIG_NUMBER = 2;
+constexpr uint32_t CONFIG_NUMBER = 3;
 constexpr uint2 CONFIG_DEFAULT_WINDOW_SIZE = uint2(1280, 720);
 constexpr uint2 CONFIG_DEFAULT_WINDOW_OFFSET = uint2(1280 / 4, 720 / 4);
 constexpr const char* CONFIG_FILE_NAME = "config.bbc";
@@ -14,11 +14,12 @@ constexpr EngineConfig DEFAULT_CONFIG_FILE
 {
 	CONFIG_IDENTITY,
 	CONFIG_NUMBER,
-	CONFIG_DEFAULT_WINDOW_SIZE,
-	CONFIG_DEFAULT_WINDOW_OFFSET,
+	CONFIG_DEFAULT_WINDOW_SIZE.x,
+	CONFIG_DEFAULT_WINDOW_SIZE.y,
+	CONFIG_DEFAULT_WINDOW_OFFSET.x,
+	CONFIG_DEFAULT_WINDOW_OFFSET.y,
 	false
 };
-
 
 ENGINE_CONFIG_LOAD_STATUS BB::GetEngineConfigData(MemoryArena& a_temp_arena, EngineConfig& a_out_config)
 {

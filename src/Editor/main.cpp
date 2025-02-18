@@ -35,13 +35,15 @@ static void CustomResizeWindow(const BB::WindowHandle a_window_handle, const uin
 {
 	(void)a_window_handle;
 	BB::RequestResize();
-	engine_config.window_size = uint2(a_x, a_y);
+	engine_config.window_size_x = a_x;
+	engine_config.window_size_y = a_y;
 }
 
 static void CustomMoveWindow(const BB::WindowHandle a_window_handle, const uint32_t a_x, const uint32_t a_y)
 {
 	(void)a_window_handle;
-	engine_config.window_offset = uint2(a_x, a_y);
+	engine_config.window_offset_x = a_x;
+	engine_config.window_offset_y = a_y;
 }
 
 int main(int argc, char** argv)
@@ -74,8 +76,8 @@ int main(int argc, char** argv)
 		GetEngineConfigData(main_arena, engine_config);
 	}
 
-	const uint2 window_extent = engine_config.window_size;
-	const uint2 window_offest = engine_config.window_offset;
+	const uint2 window_extent = uint2(engine_config.window_size_x, engine_config.window_size_y);
+	const uint2 window_offest = uint2(engine_config.window_offset_x, engine_config.window_offset_y);
 
 	const WindowHandle window_handle = CreateOSWindow(
 		BB::OS_WINDOW_STYLE::MAIN,
@@ -103,7 +105,7 @@ int main(int argc, char** argv)
 		Asset::InitializeAssetManager(asset_manager_info);
 	}
 	Editor editor{};
-	editor.Init(main_arena, window_handle, engine_config.window_size);
+	editor.Init(main_arena, window_handle, window_extent);
 
 	SetWindowCloseEvent(CustomCloseWindow);
 	SetWindowResizeEvent(CustomResizeWindow);

@@ -8,8 +8,10 @@ namespace BB
 	{
 		uint32_t config_identity;
 		uint32_t config_number;
-		uint2 window_size;
-		uint2 window_offset;
+		uint32_t window_size_x;
+		uint32_t window_size_y;
+		uint32_t window_offset_x;
+		uint32_t window_offset_y;
 		bool window_full_screen;
 	};
 
