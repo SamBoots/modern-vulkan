@@ -91,7 +91,6 @@ void GPUUploadRingAllocator::Init(MemoryArena& a_arena, const size_t a_ring_buff
 
 UploadBuffer GPUUploadRingAllocator::AllocateUploadMemory(const size_t a_byte_amount, const uint64_t a_fence_value)
 {
-
 	BB_ASSERT(a_byte_amount < GetUploadAllocatorCapacity(), "trying to upload more memory then the ringbuffer size");
 	OSAcquireSRWLockWrite(&m_lock);
 
@@ -103,10 +102,11 @@ UploadBuffer GPUUploadRingAllocator::AllocateUploadMemory(const size_t a_byte_am
 	// if we go over the end, but not over the readpointer then recalculate
 	if (end > m_end)
 	{
+		m_write_at = begin;
 		begin = m_begin;
 		end = Pointer::Add(m_begin, a_byte_amount);
 		// is free_until larger then end? if yes then we can allocate without waiting
-		must_free_memory = end > m_free_until ? true : false;
+		must_free_memory = end >= m_free_until ? true : false;
 	}
 	const size_t remaining_size = GetUploadSpaceRemaining();
 	if (m_locked_queue.IsFull() || a_byte_amount > remaining_size)
@@ -126,6 +126,10 @@ UploadBuffer GPUUploadRingAllocator::AllocateUploadMemory(const size_t a_byte_am
 			else
 				break;
 		}
+
+		const size_t remaining_size = GetUploadSpaceRemaining();
+		if (a_byte_amount < remaining_size)
+			return UploadBuffer();
 	}
 
 	GPUUploadRingAllocator::LockedRegions locked_region;
