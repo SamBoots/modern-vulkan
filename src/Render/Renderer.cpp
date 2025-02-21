@@ -1210,6 +1210,34 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	CommandPool& start_up_pool = s_render_inst->graphics_queue.GetCommandPool("startup pool");
 	const RCommandList list = start_up_pool.StartCommandList();
 
+	const uint64_t fence_value_transfer = s_render_inst->asset_uploader.next_fence_value.fetch_add(1);
+
+	// setup cube positions
+	{
+		s_render_inst->cubemap_position = AllocateFromVertexBuffer(sizeof(SKYBOX_VERTICES));
+		UploadBuffer cube_buffer = s_render_inst->asset_uploader.gpu_allocator.AllocateUploadMemory(sizeof(SKYBOX_VERTICES), fence_value_transfer);
+		cube_buffer.SafeMemcpy(0, SKYBOX_VERTICES, sizeof(SKYBOX_VERTICES));
+		RenderCopyBuffer copy_op;
+		copy_op.src = cube_buffer.buffer;
+		copy_op.dst = s_render_inst->cubemap_position.buffer;
+		RenderCopyBufferRegion region_copy_op;
+		region_copy_op.size = s_render_inst->cubemap_position.size;
+		region_copy_op.src_offset = cube_buffer.base_offset;
+		region_copy_op.dst_offset = s_render_inst->cubemap_position.offset;
+		copy_op.regions = Slice(&region_copy_op, 1);
+		Vulkan::CopyBuffer(list, copy_op);
+
+		s_render_inst->global_buffer.data.cube_vertexpos_vertex_buffer_pos = static_cast<uint32_t>(s_render_inst->cubemap_position.offset);
+	}
+
+	start_up_pool.EndCommandList(list);
+	//special upload here, due to uploading as well
+	s_render_inst->graphics_queue.ReturnPool(start_up_pool);
+
+	uint64_t fence_value_startup;
+	s_render_inst->graphics_queue.ExecuteCommands(&list, 1, &s_render_inst->asset_uploader.fence, &fence_value_transfer, 1, nullptr, nullptr, 0, fence_value_startup);
+	s_render_inst->graphics_queue.WaitFenceValue(fence_value_startup);
+
 	{	//initialize texture system
 		s_render_inst->texture_manager.Init(a_arena, s_render_inst->global_descriptor_set, s_render_inst->global_descriptor_allocation);
 
@@ -1219,6 +1247,8 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		const uint32_t black = 0x000000FF;
 		CreateBasicColorImage(s_render_inst->black.image, s_render_inst->black.index, "black", black);
 	}
+
+	IMGUI_IMPL::ImInit(a_arena);
 
 	{
 		ImageCreateInfo render_target_info;
@@ -1254,36 +1284,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 			s_render_inst->frames[i].render_target_view = GetImageView(s_render_inst->frames[i].render_target_descriptor);
 		}
 	}
-	
-	IMGUI_IMPL::ImInit(a_arena);
 
-	const uint64_t fence_value_transfer = s_render_inst->asset_uploader.next_fence_value.fetch_add(1);
-
-	// setup cube positions
-	{
-		s_render_inst->cubemap_position = AllocateFromVertexBuffer(sizeof(SKYBOX_VERTICES));
-		UploadBuffer cube_buffer = s_render_inst->asset_uploader.gpu_allocator.AllocateUploadMemory(sizeof(SKYBOX_VERTICES), fence_value_transfer);
-		cube_buffer.SafeMemcpy(0, SKYBOX_VERTICES, sizeof(SKYBOX_VERTICES));
-		RenderCopyBuffer copy_op;
-		copy_op.src = cube_buffer.buffer;
-		copy_op.dst = s_render_inst->cubemap_position.buffer;
-		RenderCopyBufferRegion region_copy_op;
-		region_copy_op.size = s_render_inst->cubemap_position.size;
-		region_copy_op.src_offset = cube_buffer.base_offset;
-		region_copy_op.dst_offset = s_render_inst->cubemap_position.offset;
-		copy_op.regions = Slice(&region_copy_op, 1);
-		Vulkan::CopyBuffer(list, copy_op);
-
-		s_render_inst->global_buffer.data.cube_vertexpos_vertex_buffer_pos = static_cast<uint32_t>(s_render_inst->cubemap_position.offset);
-	}
-
-	start_up_pool.EndCommandList(list);
-	//special upload here, due to uploading as well
-	s_render_inst->graphics_queue.ReturnPool(start_up_pool);
-
-	uint64_t fence_value_startup;
-	s_render_inst->graphics_queue.ExecuteCommands(&list, 1, &s_render_inst->asset_uploader.fence, &fence_value_transfer, 1, nullptr, nullptr, 0, fence_value_startup);
-	s_render_inst->graphics_queue.WaitFenceValue(fence_value_startup);
 	return true;
 }
 
