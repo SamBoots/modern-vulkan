@@ -1066,11 +1066,11 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	{	// do asset upload allocator here
 		s_render_inst->asset_uploader.upload_meshes.Init(a_arena, MAX_MESH_UPLOAD_QUEUE);
 		s_render_inst->asset_uploader.upload_textures.Init(a_arena, MAX_TEXTURE_UPLOAD_QUEUE);
+		s_render_inst->asset_uploader.fence = Vulkan::CreateFence(0, "asset upload fence");
 		s_render_inst->asset_uploader.gpu_allocator.Init(a_arena,
 			a_render_create_info.asset_upload_buffer_size, 
 			s_render_inst->asset_uploader.fence, 
 			"asset upload buffer");
-		s_render_inst->asset_uploader.fence = Vulkan::CreateFence(0, "asset upload fence");
 		s_render_inst->asset_uploader.next_fence_value = 1;
 	}
 
@@ -1786,6 +1786,13 @@ const Mesh BB::CreateMesh(const CreateMeshInfo& a_create_info)
 	RenderInterface_inst::AssetUploader& uploader = s_render_inst->asset_uploader;
 
 	UploadBuffer upload_buffer = uploader.gpu_allocator.AllocateUploadMemory(a_create_info.vertices.sizeInBytes() + a_create_info.indices.sizeInBytes(), uploader.next_fence_value);
+	if (upload_buffer.begin == nullptr)
+	{
+		// temporary arena
+		MemoryArena arena = MemoryArenaCreate();
+		UploadAndWaitAssets(arena, nullptr);
+		return CreateMesh(a_create_info);
+	}
 
 	GPUBufferView vertex_buffer = AllocateFromVertexBuffer(a_create_info.vertices.sizeInBytes());
 	GPUBufferView index_buffer = AllocateFromIndexBuffer(a_create_info.indices.sizeInBytes());
@@ -2007,6 +2014,7 @@ GPUFenceValue BB::WriteTexture(const WriteImageInfo& a_write_info)
 		// temporary arena
 		MemoryArena arena = MemoryArenaCreate();
 		UploadAndWaitAssets(arena, nullptr);
+		return WriteTexture(a_write_info);
 	}
 
 	upload_buffer.SafeMemcpy(0, a_write_info.pixels, byte_per_pixel * a_write_info.extent.x * a_write_info.extent.y);

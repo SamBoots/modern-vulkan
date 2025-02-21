@@ -22,6 +22,8 @@ namespace BB
 			BBSemaphore barrier;
 		};
 
+		size_t ThreadsAvailable();
+
 		void InitThreads(const uint32_t a_thread_count);
 		void DestroyThreads();
 

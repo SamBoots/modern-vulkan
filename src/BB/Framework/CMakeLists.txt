@@ -25,7 +25,8 @@ add_library (BBFramework STATIC
 "src/BBThreadScheduler.cpp"
 "src/BBjson.cpp"
 "src/BBImage.cpp"
-"src/BBMain.cpp")
+"src/BBMain.cpp" 
+"src/Common.cpp")
 
 #Include library
 target_include_directories(BBFramework PUBLIC

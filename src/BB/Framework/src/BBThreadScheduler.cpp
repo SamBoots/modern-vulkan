@@ -83,6 +83,11 @@ static void ThreadStartFunc(void* a_args)
 }
 #pragma optimize( "", on )
 
+size_t BB::Threads::ThreadsAvailable()
+{
+	return s_thread_scheduler.thread_count;
+}
+
 void BB::Threads::InitThreads(const uint32_t a_thread_count)
 {
 	BB_ASSERT(a_thread_count < _countof(s_thread_scheduler.threads), "Trying to create too many threads!");
