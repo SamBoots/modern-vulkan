@@ -15,10 +15,6 @@ namespace BB
 			m_end = m_begin + a_element_count;
 			m_front_queue = -1u;
 			m_back_queue = 0;
-
-#ifdef _DEBUG
-			m_size = 0;
-#endif // _DEBUG
 		}
 
 		bool EnQueue(T& a_element)
@@ -41,9 +37,6 @@ namespace BB
 			if (&m_begin[++m_back_queue] == m_end)
 				m_back_queue = 0;
 			return true;
-#ifdef _DEBUG
-			++m_size;
-#endif // _DEBUG
 		}
 
 		T DeQueue()
@@ -57,10 +50,6 @@ namespace BB
 			{
 				m_front_queue = -1u;
 			}
-
-#ifdef _DEBUG
-			--m_size;
-#endif // _DEBUG
 
 			return m_begin[front_queue];
 		}
@@ -89,9 +78,6 @@ namespace BB
 		T* m_end;
 		uint32_t m_front_queue;
 		uint32_t m_back_queue;
-#ifdef _DEBUG
-		uint32_t m_size;
-#endif // _DEBUG
 	};
 
 	template<typename T>

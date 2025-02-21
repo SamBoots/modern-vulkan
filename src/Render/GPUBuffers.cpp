@@ -105,14 +105,9 @@ UploadBuffer GPUUploadRingAllocator::AllocateUploadMemory(const size_t a_byte_am
 		m_write_at = begin;
 		begin = m_begin;
 		end = Pointer::Add(m_begin, a_byte_amount);
-		// is free_until larger then end? if yes then we can allocate without waiting
-		if (m_free_until < m_write_at)
-			must_free_memory = end >= m_free_until ? true : false;
-		else
-			must_free_memory = true;
 
 	}
-	const size_t remaining_size = GetUploadSpaceRemaining();
+	size_t remaining_size = GetUploadSpaceRemaining();
 	if (m_locked_queue.IsFull() || a_byte_amount > remaining_size)
 		must_free_memory = true;
 
@@ -131,8 +126,8 @@ UploadBuffer GPUUploadRingAllocator::AllocateUploadMemory(const size_t a_byte_am
 				break;
 		}
 
-		const size_t remaining_size = GetUploadSpaceRemaining();
-		if (a_byte_amount < remaining_size)
+		remaining_size = GetUploadSpaceRemaining();
+		if (a_byte_amount > remaining_size || m_locked_queue.IsFull())
 			return UploadBuffer();
 	}
 

@@ -6,7 +6,7 @@ using namespace BB;
 BBRWLockScopeWrite::BBRWLockScopeWrite(BBRWLock a_lock)
 {
 	lock = a_lock;
-	OSAcquireSRWLockRead(&lock);
+	OSAcquireSRWLockWrite(&lock);
 }
 BBRWLockScopeWrite::~BBRWLockScopeWrite()
 {

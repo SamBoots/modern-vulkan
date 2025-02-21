@@ -56,7 +56,7 @@ namespace BB
 		size_t base_offset;
 	};
 
-	constexpr size_t RING_BUFFER_QUEUE_ELEMENT_COUNT = 1024;
+	constexpr size_t RING_BUFFER_QUEUE_ELEMENT_COUNT = 128;
 
 	class GPUUploadRingAllocator
 	{
@@ -72,17 +72,12 @@ namespace BB
 
 		size_t GetUploadSpaceRemaining() const
 		{
-			if (m_write_at > m_free_until)
-			{
-				size_t size_remaining = reinterpret_cast<size_t>(m_end) - reinterpret_cast<size_t>(m_write_at);
-				size_remaining += reinterpret_cast<size_t>(m_begin) - reinterpret_cast<size_t>(m_free_until);
-				return size_remaining;
-			}
-
-			return reinterpret_cast<size_t>(m_free_until) - reinterpret_cast<size_t>(m_write_at);
+			return (m_free_until > m_write_at) ? reinterpret_cast<size_t>(m_free_until) - reinterpret_cast<size_t>(m_write_at) : 
+				GetUploadAllocatorCapacity() - reinterpret_cast<size_t>(m_write_at) + reinterpret_cast<size_t>(m_free_until);
 		}
 
 		const GPUBuffer GetBuffer() const { return m_buffer; }
+		const RFence GetFence() const { return m_fence; }
 
 	private:
 		struct LockedRegions

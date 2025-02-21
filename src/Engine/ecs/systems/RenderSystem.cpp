@@ -642,7 +642,7 @@ void RenderSystem::ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list
 	const size_t total_size = matrices_upload_size + light_upload_size + light_projection_view_size;
 
 	const UploadBuffer upload_buffer = m_upload_allocator.AllocateUploadMemory(total_size, a_pfd.fence_value);
-
+	BB_ASSERT(upload_buffer.begin, "upload memory failed");
 	size_t bytes_uploaded = 0;
 
 	upload_buffer.SafeMemcpy(bytes_uploaded, a_draw_list.transforms.data(), matrices_upload_size);

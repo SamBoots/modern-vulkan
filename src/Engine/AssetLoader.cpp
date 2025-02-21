@@ -828,7 +828,7 @@ static void LoadglTFNode(const cgltf_data& a_cgltf_data, Model& a_model, const s
 		else
 			node.rotation = Float3x3Identity();
 		if (cgltf_node.has_scale)
-			memcpy(&node.scale, cgltf_node.scale, sizeof(cgltf_node.scale));
+			node.scale = float3(cgltf_node.scale[0], cgltf_node.scale[1], cgltf_node.scale[2]);
 		else
 			node.scale = float3(1.f, 1.f, 1.f);
 	}
@@ -1146,18 +1146,18 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 			default:
 				break;
 			}
-			BB_ASSERT(index_count + 1 > index_offset, "overwriting gltf Index Memory!");
-			BB_ASSERT(vertex_count + 1 > vertex_pos_offset, "overwriting gltf Vertex Memory!");
-			BB_ASSERT(vertex_count + 1 > vertex_normal_offset, "overwriting gltf Vertex Memory!");
-			BB_ASSERT(vertex_count + 1 > vertex_uv_offset, "overwriting gltf Vertex Memory!");
-			BB_ASSERT(vertex_count + 1 > vertex_color_offset, "overwriting gltf Vertex Memory!");
-			BB_ASSERT(vertex_count + 1 > vertex_tangent_offset, "overwriting gltf Vertex Memory!");
+		}
+		BB_ASSERT(index_count + 1 > index_offset, "overwriting gltf Index Memory!");
+		BB_ASSERT(vertex_count + 1 > vertex_pos_offset, "overwriting gltf Vertex Memory!");
+		BB_ASSERT(vertex_count + 1 > vertex_normal_offset, "overwriting gltf Vertex Memory!");
+		BB_ASSERT(vertex_count + 1 > vertex_uv_offset, "overwriting gltf Vertex Memory!");
+		BB_ASSERT(vertex_count + 1 > vertex_color_offset, "overwriting gltf Vertex Memory!");
+		BB_ASSERT(vertex_count + 1 > vertex_tangent_offset, "overwriting gltf Vertex Memory!");
 
-			// tangents not calculated, do it yourself
-			if (vertex_tangent_offset == 0)
-			{
-				GenerateTangents(Slice(vertices, vertex_count), Slice(indices, index_count));
-			}
+		// tangents not calculated, do it yourself
+		if (vertex_tangent_offset == 0)
+		{
+			GenerateTangents(Slice(vertices, vertex_count), Slice(indices, index_count));
 		}
 	}
 
@@ -1252,18 +1252,19 @@ const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadF
 
 	const uint32_t thread_count = model->meshes.size() / TASKS_PER_THREAD;
 
-	Threads::Barrier barrier(thread_count);
+	// +1 due to main thread also working.
+	//Threads::Barrier barrier(thread_count + 1);
 	size_t task_index = 0;
-	for (uint32_t i = 0; i < thread_count; i++)
-	{
-		LoadgltfMeshBatch_params batch;
-		batch.barrier = &barrier;
-		batch.cgltf_meshes = Slice(&gltf_data->meshes[task_index], TASKS_PER_THREAD);
-		batch.meshes = Slice(&model->meshes[task_index], TASKS_PER_THREAD);
-		Threads::StartTaskThread(LoadgltfMeshBatch, &batch, sizeof(batch), L"gltf mesh upload batch");
+	//for (uint32_t i = 0; i < thread_count; i++)
+	//{
+	//	LoadgltfMeshBatch_params batch;
+	//	batch.barrier = &barrier;
+	//	batch.cgltf_meshes = Slice(&gltf_data->meshes[task_index], TASKS_PER_THREAD);
+	//	batch.meshes = Slice(&model->meshes[task_index], TASKS_PER_THREAD);
+	//	Threads::StartTaskThread(LoadgltfMeshBatch, &batch, sizeof(batch), L"gltf mesh upload batch");
 
-		task_index += TASKS_PER_THREAD;
-	}
+	//	task_index += TASKS_PER_THREAD;
+	//}
 
 	MemoryArenaScope(a_temp_arena)
 	{
@@ -1272,9 +1273,9 @@ const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadF
 			LoadglTFMesh(a_temp_arena, gltf_data->meshes[task_index], model->meshes[task_index]);
 		}
 	}
-
-	// check if we have done all the work required.
-	barrier.Wait();
+	//barrier.Signal();
+	//// check if we have done all the work required.
+	//barrier.Wait();
 
 	for (size_t i = 0; i < gltf_data->scene->nodes_count; i++)
 	{

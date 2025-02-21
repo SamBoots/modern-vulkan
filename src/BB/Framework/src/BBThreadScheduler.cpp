@@ -13,6 +13,7 @@ enum class THREAD_STATUS : uint32_t
 BB::Threads::Barrier::Barrier(const uint32_t a_thread_count)
 	: thread_count(a_thread_count)
 {
+	BB_ASSERT(a_thread_count > 0, "barrier thread_count is 0, this is invalid");
 	count = 0;
 	barrier = OSCreateSemaphore(0, 1); //initially locked
 }

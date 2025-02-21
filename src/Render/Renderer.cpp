@@ -68,8 +68,9 @@ struct RenderFence
 	uint64_t last_complete_value;
 	RFence fence;
 };
-constexpr uint32_t MAX_MESH_UPLOAD_QUEUE = 128;
-constexpr uint32_t MAX_TEXTURE_UPLOAD_QUEUE = 256;
+// TODO, fix this to be lower
+constexpr uint32_t MAX_MESH_UPLOAD_QUEUE = 1024;
+constexpr uint32_t MAX_TEXTURE_UPLOAD_QUEUE = 1024;
 
 constexpr uint32_t MAX_TEXTURES = 1024;
 
@@ -554,7 +555,6 @@ struct RenderInterface_inst
 
 	ShaderCompiler shader_compiler;
 
-	GPUUploadRingAllocator frame_upload_allocator;
 	RenderQueue graphics_queue;
 	RenderQueue transfer_queue;
 
@@ -593,28 +593,28 @@ struct RenderInterface_inst
 	struct VertexBuffer
 	{
 		GPUBuffer buffer;
-		uint32_t size;
-		std::atomic<uint32_t> used;
+		uint64_t size;
+		std::atomic<uint64_t> used;
 	} vertex_buffer;
 	struct CPUVertexBuffer
 	{
 		GPUBuffer buffer;
-		uint32_t size;
-		std::atomic<uint32_t> used;
+		uint64_t size;
+		std::atomic<uint64_t> used;
 		void* start_mapped;
 	} cpu_vertex_buffer;
 
 	struct IndexBuffer
 	{
 		GPUBuffer buffer;
-		uint32_t size;
-		std::atomic<uint32_t> used;
+		uint64_t size;
+		std::atomic<uint64_t> used;
 	} index_buffer;
 	struct CPUIndexBuffer
 	{
 		GPUBuffer buffer;
-		uint32_t size;
-		std::atomic<uint32_t> used;
+		uint64_t size;
+		std::atomic<uint64_t> used;
 		void* start_mapped;
 	} cpu_index_buffer;
 
@@ -961,10 +961,9 @@ GPUBufferView BB::AllocateFromVertexBuffer(const size_t a_size_in_bytes)
 	GPUBufferView view;
 	view.buffer = s_render_inst->vertex_buffer.buffer;
 	view.size = a_size_in_bytes;
-	view.offset = s_render_inst->vertex_buffer.used.fetch_add(static_cast<uint32_t>(a_size_in_bytes));
+	view.offset = s_render_inst->vertex_buffer.used.fetch_add(a_size_in_bytes);
 
 	BB_ASSERT(s_render_inst->vertex_buffer.size > view.offset + a_size_in_bytes, "out of vertex buffer space!");
-
 	return view;
 }
 
@@ -973,10 +972,9 @@ GPUBufferView BB::AllocateFromIndexBuffer(const size_t a_size_in_bytes)
 	GPUBufferView view;
 	view.buffer = s_render_inst->index_buffer.buffer;
 	view.size = a_size_in_bytes;
-	view.offset = s_render_inst->index_buffer.used.fetch_add(static_cast<uint32_t>(a_size_in_bytes));
+	view.offset = s_render_inst->index_buffer.used.fetch_add(a_size_in_bytes);
 
 	BB_ASSERT(s_render_inst->index_buffer.size > view.offset + a_size_in_bytes, "out of index buffer space!");
-
 	return view;
 }
 
@@ -1058,9 +1056,6 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	s_render_inst->debug = a_render_create_info.debug;
 
 	s_render_inst->shader_effects.Init(a_arena, 64);
-
-	s_render_inst->frame_upload_allocator.Init(a_arena, a_render_create_info.frame_upload_buffer_size, s_render_inst->graphics_queue.GetFence().fence, "frame upload allocator");
-
 	
 
 	{	// do asset upload allocator here
@@ -1559,7 +1554,7 @@ static void UploadAndWaitAssets(MemoryArena& a_thread_arena, void*)
 	}
 	else
 	{
-		while (uploading_assets) {};
+		while (uploading_assets) {}
 	}
 
 	uploading_assets = false;
@@ -1808,7 +1803,8 @@ const Mesh BB::CreateMesh(const CreateMeshInfo& a_create_info)
 	task.index_region.size = index_buffer.size;
 	task.index_region.dst_offset = index_buffer.offset;
 	task.index_region.src_offset = index_offset + upload_buffer.base_offset;
-	uploader.upload_meshes.EnQueue(task);
+	const bool success = uploader.upload_meshes.EnQueue(task);
+	BB_ASSERT(success, "failed to add mesh to uploadmesh tasks");
 
 	Mesh mesh{};
 	mesh.vertex_buffer_offset = vertex_buffer.offset;
@@ -2041,7 +2037,8 @@ GPUFenceValue BB::WriteTexture(const WriteImageInfo& a_write_info)
 	upload_texture.write_info = buffer_to_image;
 	upload_texture.start_layout = IMAGE_LAYOUT::UNDEFINED;
 	upload_texture.end_layout = a_write_info.set_shader_visible ? IMAGE_LAYOUT::SHADER_READ_ONLY : IMAGE_LAYOUT::TRANSFER_DST;
-	uploader.upload_textures.EnQueue(upload_texture);
+	const bool success = uploader.upload_textures.EnQueue(upload_texture);
+	BB_ASSERT(success, "failed to add mesh to upload_textures tasks");
 
 	return GPUFenceValue(uploader.next_fence_value.load());
 }
@@ -2079,7 +2076,8 @@ GPUFenceValue BB::ReadTexture(const ImageReadInfo a_image_info)
 	upload_texture.read_info = image_to_buffer;
 	upload_texture.start_layout = a_image_info.image_info.layout;
 	upload_texture.end_layout = a_image_info.image_info.layout;
-	uploader.upload_textures.EnQueue(upload_texture);
+	const bool success = uploader.upload_textures.EnQueue(upload_texture);
+	BB_ASSERT(success, "failed to add mesh to upload_textures tasks");
 
 	return GPUFenceValue(uploader.next_fence_value.load());
 }
