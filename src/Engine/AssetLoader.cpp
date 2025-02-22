@@ -918,7 +918,7 @@ static inline bool GenerateTangents(Slice<float3> a_tangents, const Slice<float3
 			MikktUserData* user_data = reinterpret_cast<MikktUserData*>(pContext->m_pUserData);
 			const size_t index = user_data->indices[static_cast<size_t>(iFace * pContext->m_pInterface->m_getNumVerticesOfFace(pContext, iFace) + iVert)];
 			float3& tangent = user_data->tangents[index];
-
+			(void)fSign;
 			tangent.x = fvTangent[0];
 			tangent.y = fvTangent[1];
 			tangent.z = fvTangent[2];
