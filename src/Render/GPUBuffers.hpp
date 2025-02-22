@@ -42,12 +42,17 @@ namespace BB
 
 	struct UploadBuffer
 	{
-		void SafeMemcpy(const size_t a_dst_offset, const void* a_src, const size_t a_src_size) const
+		// returns a_dst_offset + a_src_size
+		size_t SafeMemcpy(const size_t a_dst_offset, const void* a_src, const size_t a_src_size) const
 		{
-			void* copy_pos = Pointer::Add(begin, a_dst_offset);
-			BB_ASSERT(Pointer::Add(copy_pos, a_src_size) <= end, "gpu upload buffer writing out of bounds");
+			if (a_src_size)
+			{
+				void* copy_pos = Pointer::Add(begin, a_dst_offset);
+				BB_ASSERT(Pointer::Add(copy_pos, a_src_size) <= end, "gpu upload buffer writing out of bounds");
 
-			memcpy(copy_pos, a_src, a_src_size);
+				memcpy(copy_pos, a_src, a_src_size);
+			}
+			return a_dst_offset + a_src_size;
 		}
 
 		GPUBuffer buffer;

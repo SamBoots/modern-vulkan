@@ -813,7 +813,7 @@ void RenderSystem::ShadowMapPass(const PerFrame& a_pfd, const RCommandList a_lis
 					const DrawList::DrawEntry& mesh_draw_call = a_draw_list.draw_entries[draw_index];
 
 					ShaderIndicesShadowMapping shader_indices;
-					shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_buffer_offset);
+					shader_indices.position_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_position_offset);
 					shader_indices.transform_index = draw_index;
 					shader_indices.light_projection_view_index = shadow_map_index;
 					SetPushConstants(a_list, pipe_layout, 0, sizeof(shader_indices), &shader_indices);
@@ -937,7 +937,11 @@ void RenderSystem::GeometryPass(const PerFrame& a_pfd, const RCommandList a_list
 
 		ShaderIndices shader_indices;
 		shader_indices.transform_index = i;
-		shader_indices.vertex_buffer_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_buffer_offset);
+		shader_indices.position_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_position_offset);
+		shader_indices.normal_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_normal_offset);
+		shader_indices.uv_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_uv_offset);
+		shader_indices.color_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_color_offset);
+		shader_indices.tangent_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_tangent_offset);
 		shader_indices.material_index = RDescriptorIndex(mesh_draw_call.material.index);
 		SetPushConstants(a_list, pipe_layout, 0, sizeof(shader_indices), &shader_indices);
 		DrawIndexed(a_list,

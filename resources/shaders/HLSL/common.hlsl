@@ -36,6 +36,21 @@ _BBBIND(PER_SCENE_LIGHT_PROJECTION_VIEW_DATA_BINDING, SPACE_PER_SCENE)ByteAddres
 //PER_MATERIAL BINDINGS
 _BBBIND(PER_MATERIAL_BINDING, SPACE_PER_MATERIAL)ConstantBuffer<BB::MeshMetallic> materials_metallic[];
 
+float2 GetAttributeFloat2(const uint a_offset, const uint a_vertex_index)
+{
+     return asfloat(vertex_data.Load2(a_offset + sizeof(float2) * a_vertex_index));
+}
+
+float3 GetAttributeFloat3(const uint a_offset, const uint a_vertex_index)
+{
+     return asfloat(vertex_data.Load3(a_offset + sizeof(float3) * a_vertex_index));
+}
+
+float4 GetAttributeFloat4(const uint a_offset, const uint a_vertex_index)
+{
+    return asfloat(vertex_data.Load4(a_offset + sizeof(float4) * a_vertex_index));
+}
+
 float4 UnpackR8B8G8A8_UNORMToFloat4(uint a_packed)
 {
     float4 unpacked;

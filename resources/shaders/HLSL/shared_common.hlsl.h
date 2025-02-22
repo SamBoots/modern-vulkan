@@ -34,21 +34,6 @@ namespace BB
 #define CUBEMAP_RIGHT   4
 #define CUBEMAP_TOP     5
 
-
-    struct ALIGN_STRUCT(16) Vertex
-    {
-        float3 position;            // 12
-        float3 normal;              // 24
-        float2 uv;                  // 32
-        float4 color;               // 48
-        float4 tangent;             // 64
-    };
-
-    struct VertexPos
-    {
-        float3 position;            // 12
-    };
-
     struct Vertex2D
     {
         float2 position;
@@ -134,11 +119,15 @@ namespace BB
     //could make the size the same for shaderindices and shaderindices2d so that the pushconstant pipelinelayout is the same.....
     struct ShaderIndices
     {
-        uint vertex_buffer_offset;       // 4
-        uint transform_index;            // 8
-        RDescriptorIndex material_index; // 12
-        float pad0;                      // 16
-        float4 pad1;                     // 32
+        uint position_offset;            // 4
+        uint normal_offset;              // 8
+        uint uv_offset;                  // 12
+        uint color_offset;               // 16
+        uint tangent_offset;             // 20
+
+        uint transform_index;            // 24
+        RDescriptorIndex material_index; // 28
+        float pad0;                      // 32
     };
 
     struct ShaderIndices2D
@@ -152,7 +141,7 @@ namespace BB
 
     struct ShaderIndicesShadowMapping
     {
-        uint vertex_buffer_offset;        // 4
+        uint position_offset;             // 4
         uint transform_index;             // 8
         uint light_projection_view_index; // 12
         uint pad0;                        // 16

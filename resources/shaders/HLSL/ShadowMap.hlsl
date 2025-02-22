@@ -4,8 +4,7 @@ _BBCONSTANT(BB::ShaderIndicesShadowMapping) shader_indices;
 
 float4 VertexMain(uint a_vertex_index : SV_VertexID) : SV_POSITION
 {
-    const uint vertex_offset = shader_indices.vertex_buffer_offset + sizeof(BB::Vertex) * a_vertex_index;
-    const float3 cur_vertex_pos = asfloat(vertex_data.Load3(vertex_offset));
+    const float3 cur_vertex_pos = GetAttributeFloat3(shader_indices.position_offset, a_vertex_index);
    
     BB::ShaderTransform transform = transform_data.Load<BB::ShaderTransform>(
         sizeof(BB::ShaderTransform) * shader_indices.transform_index);

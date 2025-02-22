@@ -113,7 +113,14 @@ namespace BB
 		{
 			StringView name;
 			// material def here....
-			Slice<Vertex> vertices;
+			struct MeshLoad
+			{
+				size_t vertex_count;
+				float3* positions;
+				float3* normals;
+				float2* uvs;
+				float4* colors;
+			} mesh_load;
 			Slice<uint32_t> indices;
 			RDescriptorIndex base_albedo;
 		};

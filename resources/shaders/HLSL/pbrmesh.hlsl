@@ -21,35 +21,32 @@ static const float4x4 biasMat = float4x4(
 
 VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 {
-    const uint vertex_offset = shader_indices.vertex_buffer_offset + sizeof(BB::Vertex) * a_vertex_index;
-    BB::Vertex cur_vertex;
-    cur_vertex.position = asfloat(vertex_data.Load3(vertex_offset));
-    cur_vertex.normal = asfloat(vertex_data.Load3(vertex_offset + 12));
-    cur_vertex.uv = asfloat(vertex_data.Load2(vertex_offset + 24));
-    cur_vertex.color = asfloat(vertex_data.Load4(vertex_offset + 32));
-    cur_vertex.tangent = asfloat(vertex_data.Load4(vertex_offset + 48));
+    const float3 position = GetAttributeFloat3(shader_indices.position_offset, a_vertex_index);
+    const float3 normal = GetAttributeFloat3(shader_indices.normal_offset, a_vertex_index);
+    const float2 uv = GetAttributeFloat2(shader_indices.uv_offset, a_vertex_index);
+    const float4 color = GetAttributeFloat4(shader_indices.color_offset, a_vertex_index);
+    const float3 tangent = GetAttributeFloat3(shader_indices.tangent_offset, a_vertex_index);
    
-    BB::ShaderTransform transform = transform_data.Load < BB::ShaderTransform > (
-        sizeof(BB::ShaderTransform) * shader_indices.transform_index);
+    BB::ShaderTransform transform = transform_data.Load<BB::ShaderTransform>(sizeof(BB::ShaderTransform) * shader_indices.transform_index);
     
     float3x3 normalMatrix = (float3x3)transpose(transform.inverse);
-    float3 T = normalize(mul(normalMatrix, cur_vertex.tangent.xyz));
-    const float3 N = normalize(mul(normalMatrix, cur_vertex.normal));
+    float3 T = normalize(mul(normalMatrix, tangent));
+    const float3 N = normalize(mul(normalMatrix, normal));
     T = normalize(T - dot(T, N) * N);
     const float3 B = cross(N, T);
     const float3x3 TBN = transpose(float3x3(T, B, N));
 
     VSOutput output = (VSOutput) 0;
-    output.world_pos = float4(mul(transform.transform, float4(cur_vertex.position, 1.0f))).xyz;
+    output.world_pos = float4(mul(transform.transform, float4(position, 1.0f))).xyz;
     output.pos = mul(scene_data.proj, mul(scene_data.view, float4(output.world_pos, 1.0)));
-    output.uv = cur_vertex.uv;
-    output.color = cur_vertex.color;
+    output.uv = uv;
+    output.color = color;
     output.TBN = TBN;
     
     for (uint i = 0; i < scene_data.light_count; i++)
     {
         const float4x4 projview = light_view_projection_data.Load<float4x4>(sizeof(float4x4) * i);
-        output.world_pos_light[i] = mul(biasMat, mul(projview, mul(transform.transform, float4(cur_vertex.position, 1.0))));
+        output.world_pos_light[i] = mul(biasMat, mul(projview, mul(transform.transform, float4(position, 1.0))));
     }
     return output;
 }

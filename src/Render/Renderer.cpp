@@ -1781,7 +1781,9 @@ const Mesh BB::CreateMesh(const CreateMeshInfo& a_create_info)
 	// make this it's own class or something
 	RenderInterface_inst::AssetUploader& uploader = s_render_inst->asset_uploader;
 
-	UploadBuffer upload_buffer = uploader.gpu_allocator.AllocateUploadMemory(a_create_info.vertices.sizeInBytes() + a_create_info.indices.sizeInBytes(), uploader.next_fence_value);
+	const size_t vertex_buffer_size = a_create_info.positions.sizeInBytes() + a_create_info.normals.sizeInBytes() + a_create_info.uvs.sizeInBytes() + a_create_info.colors.sizeInBytes() + a_create_info.tangents.sizeInBytes();
+
+	UploadBuffer upload_buffer = uploader.gpu_allocator.AllocateUploadMemory(vertex_buffer_size + a_create_info.indices.sizeInBytes(), uploader.next_fence_value);
 	if (upload_buffer.begin == nullptr)
 	{
 		// temporary arena
@@ -1790,17 +1792,23 @@ const Mesh BB::CreateMesh(const CreateMeshInfo& a_create_info)
 		return CreateMesh(a_create_info);
 	}
 
-	GPUBufferView vertex_buffer = AllocateFromVertexBuffer(a_create_info.vertices.sizeInBytes());
-	GPUBufferView index_buffer = AllocateFromIndexBuffer(a_create_info.indices.sizeInBytes());
-	const size_t vertex_offset = 0;
-	const size_t index_offset = a_create_info.vertices.sizeInBytes();
-	upload_buffer.SafeMemcpy(vertex_offset, a_create_info.vertices.data(), a_create_info.vertices.sizeInBytes());
+	const GPUBufferView vertex_buffer = AllocateFromVertexBuffer(vertex_buffer_size);
+	const GPUBufferView index_buffer = AllocateFromIndexBuffer(a_create_info.indices.sizeInBytes());
+
+	const size_t position_offset = 0;
+	const size_t normal_offset = upload_buffer.SafeMemcpy(position_offset, a_create_info.positions.data(), a_create_info.positions.sizeInBytes());
+	const size_t uv_offset = upload_buffer.SafeMemcpy(normal_offset, a_create_info.normals.data(), a_create_info.normals.sizeInBytes());
+	const size_t color_offset = upload_buffer.SafeMemcpy(uv_offset, a_create_info.uvs.data(), a_create_info.uvs.sizeInBytes());
+	const size_t tangent_offset = upload_buffer.SafeMemcpy(color_offset, a_create_info.colors.data(), a_create_info.colors.sizeInBytes());
+	upload_buffer.SafeMemcpy(tangent_offset, a_create_info.tangents.data(), a_create_info.tangents.sizeInBytes());
+
+	const size_t index_offset = vertex_buffer_size;
 	upload_buffer.SafeMemcpy(index_offset, a_create_info.indices.data(), a_create_info.indices.sizeInBytes());
 
 	UploadDataMesh task{};
 	task.vertex_region.size = vertex_buffer.size;
 	task.vertex_region.dst_offset = vertex_buffer.offset;
-	task.vertex_region.src_offset = vertex_offset + upload_buffer.base_offset;
+	task.vertex_region.src_offset = upload_buffer.base_offset;
 	task.index_region.size = index_buffer.size;
 	task.index_region.dst_offset = index_buffer.offset;
 	task.index_region.src_offset = index_offset + upload_buffer.base_offset;
@@ -1808,7 +1816,11 @@ const Mesh BB::CreateMesh(const CreateMeshInfo& a_create_info)
 	BB_ASSERT(success, "failed to add mesh to uploadmesh tasks");
 
 	Mesh mesh{};
-	mesh.vertex_buffer_offset = vertex_buffer.offset;
+	mesh.vertex_position_offset = vertex_buffer.offset + position_offset;
+	mesh.vertex_normal_offset = vertex_buffer.offset + normal_offset;
+	mesh.vertex_uv_offset = vertex_buffer.offset + uv_offset;
+	mesh.vertex_color_offset = vertex_buffer.offset + color_offset;
+	mesh.vertex_tangent_offset = vertex_buffer.offset + tangent_offset;
 	mesh.index_buffer_offset = index_buffer.offset;
 
 	return mesh;

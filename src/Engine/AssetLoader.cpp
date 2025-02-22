@@ -857,15 +857,18 @@ static void LoadglTFNode(const cgltf_data& a_cgltf_data, Model& a_model, const s
 	}
 }
 
-static inline bool GenerateTangents(Slice<Vertex> a_vertices, const Slice<uint32_t> a_indices)
+static inline bool GenerateTangents(Slice<float3> a_tangents, const Slice<float3> a_positions, const Slice<float3> a_normals, const Slice<float2> a_uvs, const Slice<uint32_t> a_indices)
 {
 #if 1 // MIKKT
-	if (a_vertices.size() == 0)
+	if (a_positions.size() == 0 && a_normals.size() && a_uvs.size())
 		return false;
 
 	struct MikktUserData
 	{
-		Slice<Vertex> vertices;
+		Slice<float3> tangents;
+		const Slice<float3> positions;
+		const Slice<float3> normals;
+		const Slice<float2> uvs;
 		const Slice<uint32_t> indices;
 	};
 
@@ -885,44 +888,44 @@ static inline bool GenerateTangents(Slice<Vertex> a_vertices, const Slice<uint32
 		{
 			MikktUserData* user_data = reinterpret_cast<MikktUserData*>(pContext->m_pUserData);
 			const size_t index = user_data->indices[static_cast<size_t>(iFace * pContext->m_pInterface->m_getNumVerticesOfFace(pContext, iFace) + iVert)];
-			const Vertex& vertices = user_data->vertices[index];
-			fvPosOut[0] = vertices.position.x;
-			fvPosOut[1] = vertices.position.y;
-			fvPosOut[2] = vertices.position.z;
+			const float3& pos = user_data->positions[index];
+			fvPosOut[0] = pos.x;
+			fvPosOut[1] = pos.y;
+			fvPosOut[2] = pos.z;
 		};
 
 	mikkt_interface.m_getNormal = [](const SMikkTSpaceContext* pContext, float fvNormOut[], const int iFace, const int iVert)
 		{
 			MikktUserData* user_data = reinterpret_cast<MikktUserData*>(pContext->m_pUserData);
 			const size_t index = user_data->indices[static_cast<size_t>(iFace * pContext->m_pInterface->m_getNumVerticesOfFace(pContext, iFace) + iVert)];
-			const Vertex& vertices = user_data->vertices[index];
-			fvNormOut[0] = vertices.normal.x;
-			fvNormOut[1] = vertices.normal.y;
-			fvNormOut[2] = vertices.normal.z;
+			const float3& normal = user_data->normals[index];
+			fvNormOut[0] = normal.x;
+			fvNormOut[1] = normal.y;
+			fvNormOut[2] = normal.z;
 		};
 
 	mikkt_interface.m_getTexCoord = [](const SMikkTSpaceContext* pContext, float fvTexcOut[], const int iFace, const int iVert)
 		{
 			MikktUserData* user_data = reinterpret_cast<MikktUserData*>(pContext->m_pUserData);
 			const size_t index = user_data->indices[static_cast<size_t>(iFace * pContext->m_pInterface->m_getNumVerticesOfFace(pContext, iFace) + iVert)];
-			const Vertex& vertices = user_data->vertices[index];
-			fvTexcOut[0] = vertices.uv.x;
-			fvTexcOut[1] = vertices.uv.y;
+			const float2& uvs = user_data->uvs[index];
+			fvTexcOut[0] = uvs.x;
+			fvTexcOut[1] = uvs.y;
 		};
 
 	mikkt_interface.m_setTSpaceBasic = [](const SMikkTSpaceContext * pContext, const float fvTangent[], const float fSign, const int iFace, const int iVert)
 		{
 			MikktUserData* user_data = reinterpret_cast<MikktUserData*>(pContext->m_pUserData);
 			const size_t index = user_data->indices[static_cast<size_t>(iFace * pContext->m_pInterface->m_getNumVerticesOfFace(pContext, iFace) + iVert)];
-			Vertex& vertices = user_data->vertices[index];
+			float3& tangent = user_data->tangents[index];
 
-			vertices.tangent.x = fvTangent[0];
-			vertices.tangent.y = fvTangent[1];
-			vertices.tangent.z = fvTangent[2];
-			vertices.tangent.w = fSign;
+			tangent.x = fvTangent[0];
+			tangent.y = fvTangent[1];
+			tangent.z = fvTangent[2];
+			//tangent.w = fSign;
 		};
 
-	MikktUserData user_data{ a_vertices , a_indices };
+	MikktUserData user_data{ a_tangents, a_positions, a_normals, a_uvs, a_indices };
 
 	SMikkTSpaceContext mikkt_context = {};
 	mikkt_context.m_pInterface = &mikkt_interface;
@@ -978,17 +981,14 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 		}
 	}
 
-	uint32_t* indices = ArenaAllocArr(a_temp_arena, uint32_t, index_count);
-	Vertex* vertices = ArenaAllocArr(a_temp_arena, Vertex, vertex_count);
+	CreateMeshInfo create_mesh{};
+
 	uint32_t index_offset = 0;
 	uint32_t vertex_pos_offset = 0;
 	uint32_t vertex_normal_offset = 0;
 	uint32_t vertex_uv_offset = 0;
 	uint32_t vertex_color_offset = 0;
 	uint32_t vertex_tangent_offset = 0;
-
-	for (size_t i = 0; i < vertex_count; i++)
-		vertices[i].color = float4(1.f);
 
 	for (size_t prim_index = 0; prim_index < mesh.primitives_count; prim_index++)
 	{
@@ -1004,7 +1004,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 		metallic_info.base_color_factor.w = prim.material->pbr_metallic_roughness.base_color_factor[3];
 		metallic_info.metallic_factor = prim.material->pbr_metallic_roughness.metallic_factor;
 		metallic_info.roughness_factor = prim.material->pbr_metallic_roughness.roughness_factor;
-		
+
 		model_prim.material_data.material = Material::GetDefaultMasterMaterial(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D);
 
 		if (prim.material->pbr_metallic_roughness.base_color_texture.texture)
@@ -1012,7 +1012,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 			const cgltf_image& image = *prim.material->pbr_metallic_roughness.base_color_texture.texture->image;
 			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
 			const StringView img = Asset::LoadImageDisk(a_temp_arena, full_image_path, IMAGE_FORMAT::RGBA8_SRGB);
-			
+
 			metallic_info.albedo_texture = Asset::FindImageByName(img.c_str())->descriptor_index;
 		}
 		else
@@ -1023,7 +1023,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 			const cgltf_image& image = *prim.material->normal_texture.texture->image;
 			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
 			const StringView img = Asset::LoadImageDisk(a_temp_arena, full_image_path, IMAGE_FORMAT::RGBA8_UNORM);
-			
+
 			metallic_info.normal_texture = Asset::FindImageByName(img.c_str())->descriptor_index;
 		}
 		else
@@ -1060,88 +1060,175 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 
 		{	// get indices
 			void* index_data = GetAccessorDataPtr(prim.indices);
-			if (prim.indices->component_type == cgltf_component_type_r_32u)
+			uint32_t* indices = reinterpret_cast<uint32_t*>(index_data);
+			if (prim.indices->component_type == cgltf_component_type_r_16u)
 			{
-				indices = reinterpret_cast<uint32_t*>(index_data);
-			}
-			else if (prim.indices->component_type == cgltf_component_type_r_16u)
-			{
+				indices = ArenaAllocArr(a_temp_arena, uint32_t, prim.indices->count);
 				const uint16_t* index_data16 = reinterpret_cast<const uint16_t*>(index_data);
 				for (size_t i = 0; i < prim.indices->count; i++)
 					indices[index_offset + i] = index_data16[i];
 				index_offset += static_cast<uint32_t>(prim.indices->count);
 			}
 			else
-				BB_ASSERT(false, "GLTF mesh has an index type that is not supported!");
+				BB_ASSERT(prim.indices->component_type == cgltf_component_type_r_32u, "GLTF mesh has an index type that is not supported!");
+
+			create_mesh.indices = Slice<uint32_t>(indices, prim.indices->count);
 		}
 
 		for (size_t attrib_index = 0; attrib_index < prim.attributes_count; attrib_index++)
 		{
 			const cgltf_attribute& attrib = prim.attributes[attrib_index];
-			const float* data_pos = reinterpret_cast<float*>(GetAccessorDataPtr(attrib.data));
-			
+
+			size_t element_size;
+			switch (attrib.data->type)
+			{
+			case cgltf_type_scalar:
+				element_size = sizeof(float);
+				break;
+			case cgltf_type_vec2:
+				element_size = sizeof(float2);
+				break;
+			case cgltf_type_vec3:
+				element_size = sizeof(float3);
+				break;
+			case cgltf_type_vec4:
+				element_size = sizeof(float4);
+				break;
+			default:
+				element_size = 0;
+				BB_ASSERT(false, "invalid cgltf_type, parsing is messed up");
+				break;
+			}
+			const size_t byte_stride = attrib.data->stride == 0 ? element_size : attrib.data->stride;
+			const bool is_interleaved = element_size != byte_stride;
+
+			float* data_pos = reinterpret_cast<float*>(GetAccessorDataPtr(attrib.data));
 			switch (attrib.type)
 			{
 			case cgltf_attribute_type_position:
-				for (size_t i = 0; i < attrib.data->count; i++)
+			{
+				float3* positions;
+				BB_ASSERT(attrib.data->type == cgltf_type_vec3, "position is not vec3");
+				if (is_interleaved)
 				{
-					BB_ASSERT(attrib.data->type == cgltf_type_vec3, "position is not vec3");
-					vertices[vertex_pos_offset].position.x = data_pos[0];
-					vertices[vertex_pos_offset].position.y = data_pos[1];
-					vertices[vertex_pos_offset].position.z = data_pos[2];
+					positions = ArenaAllocArr(a_temp_arena, float3, vertex_count);
+					for (size_t i = 0; i < attrib.data->count; i++)
+					{
+						positions[vertex_pos_offset].x = data_pos[0];
+						positions[vertex_pos_offset].y = data_pos[1];
+						positions[vertex_pos_offset].z = data_pos[2];
 
-					data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride));
-					++vertex_pos_offset;
+						data_pos = reinterpret_cast<float*>(Pointer::Add(data_pos, attrib.data->stride));
+						++vertex_pos_offset;
+					}
 				}
+				else
+				{
+					BB_ASSERT(attrib.data->count == vertex_count, "vertex count is not equal while data is not interleaved");
+					positions = reinterpret_cast<float3*>(data_pos);
+				}
+				create_mesh.positions = Slice<float3>(positions, attrib.data->count);
+			}
 				break;
 			case cgltf_attribute_type_normal:
-				for (size_t i = 0; i < attrib.data->count; i++)
+			{
+				float3* normals;
+				BB_ASSERT(attrib.data->type == cgltf_type_vec3, "normal is not vec3");
+				if (is_interleaved)
 				{
-					BB_ASSERT(attrib.data->type == cgltf_type_vec3, "normal is not vec3");
-					vertices[vertex_normal_offset].normal.x = data_pos[0];
-					vertices[vertex_normal_offset].normal.y = data_pos[1];
-					vertices[vertex_normal_offset].normal.z = data_pos[2];
+					normals = ArenaAllocArr(a_temp_arena, float3, vertex_count);
+					for (size_t i = 0; i < attrib.data->count; i++)
+					{
+						normals[vertex_normal_offset].x = data_pos[0];
+						normals[vertex_normal_offset].y = data_pos[1];
+						normals[vertex_normal_offset].z = data_pos[2];
 
-					data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride));
-					++vertex_normal_offset;
+						data_pos = reinterpret_cast<float*>(Pointer::Add(data_pos, attrib.data->stride));
+						++vertex_normal_offset;
+					}
 				}
+				else
+				{
+					BB_ASSERT(attrib.data->count == vertex_count, "vertex count is not equal while data is not interleaved");
+					normals = reinterpret_cast<float3*>(data_pos);
+				}
+				create_mesh.normals = Slice<float3>(normals, attrib.data->count);
+			}
 				break;
 			case cgltf_attribute_type_texcoord:
-				for (size_t i = 0; i < attrib.data->count; i++)
+			{
+				float2* uvs;
+				BB_ASSERT(attrib.data->type == cgltf_type_vec2, "uv is not vec3");
+				if (is_interleaved)
 				{
-					BB_ASSERT(attrib.data->type == cgltf_type_vec2, "uv is not vec2");
-					vertices[vertex_uv_offset].uv.x = data_pos[0];
-					vertices[vertex_uv_offset].uv.y = data_pos[1];
+					uvs = ArenaAllocArr(a_temp_arena, float2, vertex_count);
+					for (size_t i = 0; i < attrib.data->count; i++)
+					{
+						uvs[vertex_uv_offset].x = data_pos[0];
+						uvs[vertex_uv_offset].y = data_pos[1];
 
-					data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride));
-					++vertex_uv_offset;
+						data_pos = reinterpret_cast<float*>(Pointer::Add(data_pos, attrib.data->stride));
+						++vertex_uv_offset;
+					}
 				}
+				else
+				{
+					BB_ASSERT(attrib.data->count == vertex_count, "vertex count is not equal while data is not interleaved");
+					uvs = reinterpret_cast<float2*>(data_pos);
+				}
+				create_mesh.uvs = Slice<float2>(uvs, attrib.data->count);
+			}
 				break;
 			case cgltf_attribute_type_color:
-				for (size_t i = 0; i < attrib.data->count; i++)
+			{
+				float4* colors;
+				BB_ASSERT(attrib.data->type == cgltf_type_vec4, "color is not vec3");
+				if (is_interleaved)
 				{
-					BB_ASSERT(attrib.data->type == cgltf_type_vec4, "color is not vec4");
-					vertices[vertex_color_offset].color.x = data_pos[0];
-					vertices[vertex_color_offset].color.y = data_pos[1];
-					vertices[vertex_color_offset].color.z = data_pos[2];
-					vertices[vertex_color_offset].color.w = data_pos[3];
+					colors = ArenaAllocArr(a_temp_arena, float4, vertex_count);
+					for (size_t i = 0; i < attrib.data->count; i++)
+					{
+						colors[vertex_color_offset].x = data_pos[0];
+						colors[vertex_color_offset].y = data_pos[1];
+						colors[vertex_color_offset].z = data_pos[2];
+						colors[vertex_color_offset].w = data_pos[3];
 
-					data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride));
-					++vertex_color_offset;
+						data_pos = reinterpret_cast<float*>(Pointer::Add(data_pos, attrib.data->stride));
+						++vertex_color_offset;
+					}
 				}
+				else
+				{
+					BB_ASSERT(attrib.data->count == vertex_count, "vertex count is not equal while data is not interleaved");
+					colors = reinterpret_cast<float4*>(data_pos);
+				}
+				create_mesh.colors = Slice<float4>(colors, attrib.data->count);
+			}
 				break;
 			case cgltf_attribute_type_tangent:
-				for (size_t i = 0; i < attrib.data->count; i++)
+			{
+				float3* tangents;
+				BB_ASSERT(attrib.data->type == cgltf_type_vec3, "tangents is not vec3");
+				if (is_interleaved)
 				{
-					BB_ASSERT(attrib.data->type == cgltf_type_vec4, "tangent is not vec4");
-					vertices[vertex_tangent_offset].tangent.x = data_pos[0];
-					vertices[vertex_tangent_offset].tangent.y = data_pos[1];
-					vertices[vertex_tangent_offset].tangent.z = data_pos[2];
-					vertices[vertex_tangent_offset].tangent.w = data_pos[3];
+					tangents = ArenaAllocArr(a_temp_arena, float3, vertex_count);
+					for (size_t i = 0; i < attrib.data->count; i++)
+					{
+						tangents[vertex_tangent_offset].x = data_pos[0];
+						tangents[vertex_tangent_offset].y = data_pos[1];
+						tangents[vertex_tangent_offset].z = data_pos[2];
 
-					data_pos = reinterpret_cast<const float*>(Pointer::Add(data_pos, attrib.data->stride));
-					++vertex_tangent_offset;
+						data_pos = reinterpret_cast<float*>(Pointer::Add(data_pos, attrib.data->stride));
+						++vertex_tangent_offset;
+					}
 				}
+				else
+				{
+					BB_ASSERT(attrib.data->count == vertex_count, "vertex count is not equal while data is not interleaved");
+					tangents = reinterpret_cast<float3*>(data_pos);
+				}
+				create_mesh.tangents = Slice<float3>(tangents, attrib.data->count);
+			}
 				break;
 			default:
 				break;
@@ -1157,13 +1244,19 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 		// tangents not calculated, do it yourself
 		if (vertex_tangent_offset == 0)
 		{
-			GenerateTangents(Slice(vertices, vertex_count), Slice(indices, index_count));
+			float3* tangents = ArenaAllocArr(a_temp_arena, float3, vertex_count);
+			GenerateTangents(Slice(tangents, vertex_count), create_mesh.positions, create_mesh.normals, create_mesh.uvs, create_mesh.indices);
+			create_mesh.tangents = Slice<float3>(tangents, vertex_count);
+		}
+
+		if (vertex_tangent_offset == 0)
+		{
+			float4* colors = ArenaAllocArr(a_temp_arena, float4, vertex_count);
+			for (size_t i = 0; i < vertex_count; i++)
+				colors[i] = float4(1.f);
+			create_mesh.colors = Slice<float4>(colors, vertex_count);
 		}
 	}
-
-	CreateMeshInfo create_mesh;
-	create_mesh.vertices = Slice(vertices, vertex_count);
-	create_mesh.indices = Slice(indices, index_count);
 
 	a_mesh.mesh = CreateMesh(create_mesh);
 }
@@ -1322,9 +1415,17 @@ const StringView Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const Mesh
 	asset.path = nullptr;
 	asset.name = a_mesh_op.name;
 
-	CreateMeshInfo mesh_info;
-	mesh_info.vertices = a_mesh_op.vertices;
-	mesh_info.indices = a_mesh_op.indices;
+	CreateMeshInfo create_mesh;
+	create_mesh.indices = a_mesh_op.indices;
+	create_mesh.positions = Slice(a_mesh_op.mesh_load.positions, a_mesh_op.mesh_load.vertex_count);
+	create_mesh.normals = Slice(a_mesh_op.mesh_load.normals, a_mesh_op.mesh_load.vertex_count);
+	create_mesh.uvs = Slice(a_mesh_op.mesh_load.uvs, a_mesh_op.mesh_load.vertex_count);
+	create_mesh.colors = Slice(a_mesh_op.mesh_load.colors, a_mesh_op.mesh_load.vertex_count);
+
+	float3* tangents = ArenaAllocArr(a_temp_arena, float3, a_mesh_op.mesh_load.vertex_count);
+	GenerateTangents(Slice(tangents, a_mesh_op.mesh_load.vertex_count), create_mesh.positions, create_mesh.normals, create_mesh.uvs, create_mesh.indices);
+	create_mesh.tangents = Slice<float3>(tangents, a_mesh_op.mesh_load.vertex_count);
+
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
 	//hack shit way, but a single mesh just has one primitive to draw.
 	Model* model = ArenaAllocType(s_asset_manager->asset_arena, Model);
@@ -1341,7 +1442,7 @@ const StringView Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const Mesh
 
 	Model::Mesh& mesh = model->meshes[0];
 	mesh.primitives[0] = primitive;
-	mesh.mesh = CreateMesh(mesh_info);
+	mesh.mesh = CreateMesh(create_mesh);
 
 	*model->root_node_indices = 0;
 

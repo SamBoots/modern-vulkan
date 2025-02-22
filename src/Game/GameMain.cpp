@@ -10,7 +10,10 @@
 
 using namespace BB;
 
-using QuadVertices = FixedArray<Vertex, 4>;
+using QuadVerticesPos = FixedArray<float3, 4>;
+using QuadVerticesNormals = FixedArray<float3, 4>;
+using QuadVerticesUVs = FixedArray<float2, 4>;
+using QuadVerticesColors = FixedArray<float4, 4>;
 
 enum class BB::DUNGEON_TILE : uint32_t
 {
@@ -136,25 +139,33 @@ ECSEntity DungeonMap::CreateEntityFloor(MemoryArena& a_temp_arena, SceneHierarch
 	ECSEntity map_obj{};
 	MemoryArenaScope(a_temp_arena)
 	{
-		QuadVertices quad_vertices;
-		quad_vertices[0].normal = float3(0.f, 1.f, 0.1f);
-		quad_vertices[0].uv = float2(0.f, 1.f);
-		quad_vertices[0].color = float4(1.f, 1.f, 1.f, 1.f);
+		QuadVerticesNormals quad_norms;
+		quad_norms[0] = float3(0.f, 1.f, 0.1f);
+		quad_norms[1] = float3(0.f, 1.f, 0.1f);
+		quad_norms[2] = float3(0.f, 1.f, 0.1f);
+		quad_norms[3] = float3(0.f, 1.f, 0.1f);
 
-		quad_vertices[1].normal = float3(0.f, 1.f, 0.1f);
-		quad_vertices[1].uv = float2(1.f, 1.f);
-		quad_vertices[1].color = float4(1.f, 1.f, 1.f, 1.f);
+		QuadVerticesUVs quad_uvs;
+		quad_uvs[0] = float2(0.f, 1.f);
+		quad_uvs[1] = float2(1.f, 1.f);
+		quad_uvs[2] = float2(1.f, 0.f);
+		quad_uvs[3] = float2(0.f, 0.f);
 
-		quad_vertices[2].normal = float3(0.f, 1.f, 0.1f);
-		quad_vertices[2].uv = float2(1.f, 0.f);
-		quad_vertices[2].color = float4(1.f, 1.f, 1.f, 1.f);
+		QuadVerticesColors quad_colors;
+		quad_colors[0] = float4(1.f, 1.f, 1.f, 1.f);
+		quad_colors[1] = float4(1.f, 1.f, 1.f, 1.f);
+		quad_colors[2] = float4(1.f, 1.f, 1.f, 1.f);
+		quad_colors[3] = float4(1.f, 1.f, 1.f, 1.f);
 
-		quad_vertices[3].normal = float3(0.f, 1.f, 0.1f);
-		quad_vertices[3].uv = float2(0.f, 0.f);
-		quad_vertices[3].color = float4(1.f, 1.f, 1.f, 1.f);
+		StaticArray<float3> positions;
+		StaticArray<float3> normals;
+		StaticArray<float2> uvs;
+		StaticArray<float4> colors;
+		positions.Init(a_temp_arena, m_map.size() * 4);
+		normals.Init(a_temp_arena, m_map.size() * 4);
+		uvs.Init(a_temp_arena, m_map.size() * 4);
+		colors.Init(a_temp_arena, m_map.size() * 4);
 
-		StaticArray<Vertex> vertices;
-		vertices.Init(a_temp_arena, m_map.size() * 4);
 		StaticArray<uint32_t> indices;
 		indices.Init(a_temp_arena, m_map.size() * 6);
 		// optimize this
@@ -165,6 +176,7 @@ ECSEntity DungeonMap::CreateEntityFloor(MemoryArena& a_temp_arena, SceneHierarch
 				const DungeonTile& tile = GetTile(x, y);
 				if (tile.walkable)
 				{
+					QuadVerticesPos quad_pos;
 					const float fx = static_cast<float>(x);
 					const float fy = static_cast<float>(y);
 					const float3 pos_top_left = float3(fx - .5f, 0.f, fy + .5f);
@@ -172,12 +184,12 @@ ECSEntity DungeonMap::CreateEntityFloor(MemoryArena& a_temp_arena, SceneHierarch
 					const float3 pos_bot_right = float3(fx + .5f, 0.f, fy - .5f);
 					const float3 pos_bot_left = float3(fx - .5f, 0.f, fy - .5f);
 
-					quad_vertices[0].position = pos_top_left;
-					quad_vertices[1].position = pos_top_right;
-					quad_vertices[2].position = pos_bot_right;
-					quad_vertices[3].position = pos_bot_left;
+					quad_pos[0] = pos_top_left;
+					quad_pos[1] = pos_top_right;
+					quad_pos[2] = pos_bot_right;
+					quad_pos[3] = pos_bot_left;
 
-					const uint32_t current_index = vertices.size();
+					const uint32_t current_index = positions.size();
 					const uint32_t quad_indices[] = {
 						current_index,
 						current_index + 1,
@@ -186,13 +198,19 @@ ECSEntity DungeonMap::CreateEntityFloor(MemoryArena& a_temp_arena, SceneHierarch
 						current_index + 3,
 						current_index 
 					};
-					vertices.push_back(quad_vertices.const_slice());
+					positions.push_back(quad_pos.const_slice());
+					normals.push_back(quad_norms.const_slice());
+					uvs.push_back(quad_uvs.const_slice());
+					colors.push_back(quad_colors.const_slice());
 					indices.push_back(quad_indices, _countof(quad_indices));
 				}
 			}
 		}
 		CreateMeshInfo create_mesh_info;
-		create_mesh_info.vertices = Slice(vertices.data(), vertices.size());
+		create_mesh_info.positions = positions.slice();
+		create_mesh_info.normals = normals.slice();
+		create_mesh_info.uvs = uvs.slice();
+		create_mesh_info.colors = colors.slice();
 		create_mesh_info.indices = Slice(indices.data(), indices.size());
 		Mesh mesh = CreateMesh(create_mesh_info);
 		MeshMetallic material_info;
@@ -219,7 +237,7 @@ static float3 RotatePointOnPoint(const float3x3& a_rotation_matrix, const float3
 	return a_middle + res;
 }
 
-static void MakeWallSegment(StaticArray<Vertex>& a_vertices, StaticArray<uint32_t>& a_indices, QuadVertices& a_quad_vertices, const int a_x, const int a_y, const float3 a_offset, const float3 a_rotation)
+static QuadVerticesPos MakeWallSegment(const int a_x, const int a_y, const float3 a_offset, const float3 a_rotation)
 {
 	const float fx = static_cast<float>(a_x);
 	const float fz = static_cast<float>(a_y);
@@ -232,49 +250,45 @@ static void MakeWallSegment(StaticArray<Vertex>& a_vertices, StaticArray<uint32_
 	const float3 pos_bot_right = RotatePointOnPoint(rotation_matrix, float3(fx + 0.5f, 0.5f, fz - 0.5f), middle);
 	const float3 pos_bot_left = RotatePointOnPoint(rotation_matrix, float3(fx - 0.5f, 0.5f, fz - 0.5f), middle);
 
-	a_quad_vertices[0].position = pos_top_left + a_offset;
-	a_quad_vertices[1].position = pos_top_right + a_offset;
-	a_quad_vertices[2].position = pos_bot_right + a_offset;
-	a_quad_vertices[3].position = pos_bot_left + a_offset;
-
-	const uint32_t current_index = a_vertices.size();
-	const uint32_t quad_indices[] = {
-		current_index,
-		current_index + 1,
-		current_index + 2,
-		current_index + 2,
-		current_index + 3,
-		current_index
-	};
-
-	a_vertices.push_back(a_quad_vertices.const_slice());
-	a_indices.push_back(quad_indices, _countof(quad_indices));
+	QuadVerticesPos pos;
+	pos[0] = pos_top_left + a_offset;
+	pos[1] = pos_top_right + a_offset;
+	pos[2] = pos_bot_right + a_offset;
+	pos[3] = pos_bot_left + a_offset;
+	return pos;
 }
 
 ECSEntity DungeonMap::CreateEntityWalls(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy, const ECSEntity a_parent)
 {
-	QuadVertices quad_vertices;
-	quad_vertices[0].normal = float3(0.f, 1.f, 0.1f);
-	quad_vertices[0].uv = float2(0.f, 1.f);
-	quad_vertices[0].color = float4(1.f, 1.f, 1.f, 1.f);
+	QuadVerticesNormals quad_norms;
+	quad_norms[0] = float3(0.f, 1.f, 0.1f);
+	quad_norms[1] = float3(0.f, 1.f, 0.1f);
+	quad_norms[2] = float3(0.f, 1.f, 0.1f);
+	quad_norms[3] = float3(0.f, 1.f, 0.1f);
 
-	quad_vertices[1].normal = float3(0.f, 1.f, 0.1f);
-	quad_vertices[1].uv = float2(1.f, 1.f);
-	quad_vertices[1].color = float4(1.f, 1.f, 1.f, 1.f);
+	QuadVerticesUVs quad_uvs;
+	quad_uvs[0] = float2(0.f, 1.f);
+	quad_uvs[1] = float2(1.f, 1.f);
+	quad_uvs[2] = float2(1.f, 0.f);
+	quad_uvs[3] = float2(0.f, 0.f);
 
-	quad_vertices[2].normal = float3(0.f, 1.f, 0.1f);
-	quad_vertices[2].uv = float2(1.f, 0.f);
-	quad_vertices[2].color = float4(1.f, 1.f, 1.f, 1.f);
-
-	quad_vertices[3].normal = float3(0.f, 1.f, 0.1f);
-	quad_vertices[3].uv = float2(0.f, 0.f);
-	quad_vertices[3].color = float4(1.f, 1.f, 1.f, 1.f);
+	QuadVerticesColors quad_colors;
+	quad_colors[0] = float4(1.f, 1.f, 1.f, 1.f);
+	quad_colors[1] = float4(1.f, 1.f, 1.f, 1.f);
+	quad_colors[2] = float4(1.f, 1.f, 1.f, 1.f);
+	quad_colors[3] = float4(1.f, 1.f, 1.f, 1.f);
 
 	ECSEntity map_obj{};
 	MemoryArenaScope(a_temp_arena)
 	{
-		StaticArray<Vertex> vertices;
-		vertices.Init(a_temp_arena, m_map.size() * 4);
+		StaticArray<float3> positions;
+		StaticArray<float3> normals;
+		StaticArray<float2> uvs;
+		StaticArray<float4> colors;
+		positions.Init(a_temp_arena, m_map.size() * 4);
+		normals.Init(a_temp_arena, m_map.size() * 4);
+		uvs.Init(a_temp_arena, m_map.size() * 4);
+		colors.Init(a_temp_arena, m_map.size() * 4);
 		StaticArray<uint32_t> indices;
 		indices.Init(a_temp_arena, m_map.size() * 6);
 
@@ -285,28 +299,47 @@ ECSEntity DungeonMap::CreateEntityWalls(MemoryArena& a_temp_arena, SceneHierarch
 				const DungeonTile& tile = GetTile(x, y);
 				if (tile.walkable)
 				{
+					QuadVerticesPos quad_pos;
 					if (!IsTileWalkable(x + 1, y))
 					{
-						MakeWallSegment(vertices, indices, quad_vertices, x, y, float3(0.5f, 0.f, 0.f), float3(0.f, 0.f, 90.f));
+						quad_pos = MakeWallSegment(x, y, float3(0.5f, 0.f, 0.f), float3(0.f, 0.f, 90.f));
 					}
 					if (!IsTileWalkable(x - 1, y))
 					{
-						MakeWallSegment(vertices, indices, quad_vertices, x, y, float3(-0.5f, 0.f, 0.f), float3(0.f, 0.f, -90.f));
+						quad_pos = MakeWallSegment(x, y, float3(-0.5f, 0.f, 0.f), float3(0.f, 0.f, -90.f));
 					}
 					if (!IsTileWalkable(x, y + 1))
 					{
-						MakeWallSegment(vertices, indices, quad_vertices, x, y, float3(0.f, 0.f, 0.5f), float3(-90.f, 0.f, 00.f));
+						quad_pos = MakeWallSegment(x, y, float3(0.f, 0.f, 0.5f), float3(-90.f, 0.f, 00.f));
 					}
 					if (!IsTileWalkable(x, y - 1))
 					{
-						MakeWallSegment(vertices, indices, quad_vertices, x, y, float3(0.f, 0.f, -0.5f), float3(90.f, 0.f, 0.f));
+						quad_pos = MakeWallSegment(x, y, float3(0.f, 0.f, -0.5f), float3(90.f, 0.f, 0.f));
 					}
+
+					const uint32_t current_index = positions.size();
+					const uint32_t quad_indices[] = {
+						current_index,
+						current_index + 1,
+						current_index + 2,
+						current_index + 2,
+						current_index + 3,
+						current_index
+					};
+					positions.push_back(quad_pos.const_slice());
+					normals.push_back(quad_norms.const_slice());
+					uvs.push_back(quad_uvs.const_slice());
+					colors.push_back(quad_colors.const_slice());
+					indices.push_back(quad_indices, _countof(quad_indices));
 				}
 			}
 		}
 
 		CreateMeshInfo create_mesh_info;
-		create_mesh_info.vertices = Slice(vertices.data(), vertices.size());
+		create_mesh_info.positions = positions.slice();
+		create_mesh_info.normals = normals.slice();
+		create_mesh_info.uvs = uvs.slice();
+		create_mesh_info.colors = colors.slice();
 		create_mesh_info.indices = Slice(indices.data(), indices.size());
 		Mesh mesh = CreateMesh(create_mesh_info);
 		MeshMetallic material_info;
