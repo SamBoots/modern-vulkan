@@ -1420,29 +1420,30 @@ static void UploadAndWaitAssets(MemoryArena& a_thread_arena, void*)
 				RenderCopyBufferRegion* vertex_regions = ArenaAllocArr(a_thread_arena, RenderCopyBufferRegion, MAX_MESH_UPLOAD_QUEUE);
 				RenderCopyBufferRegion* index_regions = ArenaAllocArr(a_thread_arena, RenderCopyBufferRegion, MAX_MESH_UPLOAD_QUEUE);
 
-				size_t index = 0;
+				size_t vertex_buffer_index = 0;
+				size_t index_buffer_index = 0;
 				UploadDataMesh upload_data;
-				while (s_render_inst->asset_uploader.upload_meshes.DeQueue(upload_data) &&
-					index < MAX_MESH_UPLOAD_QUEUE)
+				while (s_render_inst->asset_uploader.upload_meshes.DeQueue(upload_data) && vertex_buffer_index < MAX_MESH_UPLOAD_QUEUE)
 				{
-					vertex_regions[index] = upload_data.vertex_region;
-					index_regions[index] = upload_data.index_region;
-					++index;
+					vertex_regions[vertex_buffer_index++] = upload_data.vertex_region;
+					if (upload_data.index_region.size)
+						index_regions[index_buffer_index++] = upload_data.index_region;
 				}
 
 				{
 					RenderCopyBuffer vertex_copy{};
 					vertex_copy.src = s_render_inst->asset_uploader.gpu_allocator.GetBuffer();
 					vertex_copy.dst = s_render_inst->vertex_buffer.buffer;
-					vertex_copy.regions = Slice(vertex_regions, index);
+					vertex_copy.regions = Slice(vertex_regions, vertex_buffer_index);
 
 					Vulkan::CopyBuffer(list, vertex_copy);
 				}
+				if (index_buffer_index)
 				{
 					RenderCopyBuffer index_copy{};
 					index_copy.src = s_render_inst->asset_uploader.gpu_allocator.GetBuffer();
 					index_copy.dst = s_render_inst->index_buffer.buffer;
-					index_copy.regions = Slice(index_regions, index);
+					index_copy.regions = Slice(index_regions, index_buffer_index);
 
 					Vulkan::CopyBuffer(list, index_copy);
 				}
