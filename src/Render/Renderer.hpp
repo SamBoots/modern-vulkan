@@ -25,17 +25,17 @@ namespace BB
 		bool debug;
 		float gamma;
 
-		size_t asset_upload_buffer_size = mbSize * 128;
+		size_t asset_upload_buffer_size = mbSize * 64;
 	};
 
 	struct CreateMeshInfo
 	{
-		Slice<float3> positions;
-		Slice<float3> normals;
-		Slice<float2> uvs;
-		Slice<float4> colors;
-		Slice<float3> tangents;
-		Slice<uint32_t> indices;
+		ConstSlice<float3> positions;
+		ConstSlice<float3> normals;
+		ConstSlice<float2> uvs;
+		ConstSlice<float4> colors;
+		ConstSlice<float3> tangents;
+		ConstSlice<uint32_t> indices;
 	};
 
 	struct WriteImageInfo

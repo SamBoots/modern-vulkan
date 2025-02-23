@@ -207,11 +207,11 @@ ECSEntity DungeonMap::CreateEntityFloor(MemoryArena& a_temp_arena, SceneHierarch
 			}
 		}
 		CreateMeshInfo create_mesh_info;
-		create_mesh_info.positions = positions.slice();
-		create_mesh_info.normals = normals.slice();
-		create_mesh_info.uvs = uvs.slice();
-		create_mesh_info.colors = colors.slice();
-		create_mesh_info.indices = Slice(indices.data(), indices.size());
+		create_mesh_info.positions = positions.const_slice();
+		create_mesh_info.normals = normals.const_slice();
+		create_mesh_info.uvs = uvs.const_slice();
+		create_mesh_info.colors = colors.const_slice();
+		create_mesh_info.indices = ConstSlice<uint32_t>(indices.data(), indices.size());
 		Mesh mesh = CreateMesh(create_mesh_info);
 		MeshMetallic material_info;
 		material_info.metallic_factor = 1.0f;
@@ -336,11 +336,11 @@ ECSEntity DungeonMap::CreateEntityWalls(MemoryArena& a_temp_arena, SceneHierarch
 		}
 
 		CreateMeshInfo create_mesh_info;
-		create_mesh_info.positions = positions.slice();
-		create_mesh_info.normals = normals.slice();
-		create_mesh_info.uvs = uvs.slice();
-		create_mesh_info.colors = colors.slice();
-		create_mesh_info.indices = Slice(indices.data(), indices.size());
+		create_mesh_info.positions = positions.const_slice();
+		create_mesh_info.normals = normals.const_slice();
+		create_mesh_info.uvs = uvs.const_slice();
+		create_mesh_info.colors = colors.const_slice();
+		create_mesh_info.indices = ConstSlice<uint32_t>(indices.data(), indices.size());
 		Mesh mesh = CreateMesh(create_mesh_info);
 		MeshMetallic material_info;
 		material_info.metallic_factor = 1.0f;

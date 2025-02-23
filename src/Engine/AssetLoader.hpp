@@ -121,7 +121,7 @@ namespace BB
 				float2* uvs;
 				float4* colors;
 			} mesh_load;
-			Slice<uint32_t> indices;
+			ConstSlice<uint32_t> indices;
 			RDescriptorIndex base_albedo;
 		};
 

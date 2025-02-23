@@ -857,7 +857,7 @@ static void LoadglTFNode(const cgltf_data& a_cgltf_data, Model& a_model, const s
 	}
 }
 
-static inline bool GenerateTangents(Slice<float3> a_tangents, const Slice<float3> a_positions, const Slice<float3> a_normals, const Slice<float2> a_uvs, const Slice<uint32_t> a_indices)
+static inline bool GenerateTangents(Slice<float3> a_tangents, const ConstSlice<float3> a_positions, const ConstSlice<float3> a_normals, const ConstSlice<float2> a_uvs, const ConstSlice<uint32_t> a_indices)
 {
 #if 1 // MIKKT
 	if (a_positions.size() == 0 && a_normals.size() && a_uvs.size())
@@ -866,10 +866,10 @@ static inline bool GenerateTangents(Slice<float3> a_tangents, const Slice<float3
 	struct MikktUserData
 	{
 		Slice<float3> tangents;
-		const Slice<float3> positions;
-		const Slice<float3> normals;
-		const Slice<float2> uvs;
-		const Slice<uint32_t> indices;
+		const ConstSlice<float3> positions;
+		const ConstSlice<float3> normals;
+		const ConstSlice<float2> uvs;
+		const ConstSlice<uint32_t> indices;
 	};
 
 	SMikkTSpaceInterface mikkt_interface = {};
@@ -1072,7 +1072,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 			else
 				BB_ASSERT(prim.indices->component_type == cgltf_component_type_r_32u, "GLTF mesh has an index type that is not supported!");
 
-			create_mesh.indices = Slice<uint32_t>(indices, prim.indices->count);
+			create_mesh.indices = ConstSlice<uint32_t>(indices, prim.indices->count);
 		}
 
 		for (size_t attrib_index = 0; attrib_index < prim.attributes_count; attrib_index++)
@@ -1127,7 +1127,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 					BB_ASSERT(attrib.data->count == vertex_count, "vertex count is not equal while data is not interleaved");
 					positions = reinterpret_cast<float3*>(data_pos);
 				}
-				create_mesh.positions = Slice<float3>(positions, attrib.data->count);
+				create_mesh.positions = ConstSlice<float3>(positions, attrib.data->count);
 			}
 				break;
 			case cgltf_attribute_type_normal:
@@ -1152,7 +1152,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 					BB_ASSERT(attrib.data->count == vertex_count, "vertex count is not equal while data is not interleaved");
 					normals = reinterpret_cast<float3*>(data_pos);
 				}
-				create_mesh.normals = Slice<float3>(normals, attrib.data->count);
+				create_mesh.normals = ConstSlice<float3>(normals, attrib.data->count);
 			}
 				break;
 			case cgltf_attribute_type_texcoord:
@@ -1176,7 +1176,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 					BB_ASSERT(attrib.data->count == vertex_count, "vertex count is not equal while data is not interleaved");
 					uvs = reinterpret_cast<float2*>(data_pos);
 				}
-				create_mesh.uvs = Slice<float2>(uvs, attrib.data->count);
+				create_mesh.uvs = ConstSlice<float2>(uvs, attrib.data->count);
 			}
 				break;
 			case cgltf_attribute_type_color:
@@ -1202,7 +1202,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 					BB_ASSERT(attrib.data->count == vertex_count, "vertex count is not equal while data is not interleaved");
 					colors = reinterpret_cast<float4*>(data_pos);
 				}
-				create_mesh.colors = Slice<float4>(colors, attrib.data->count);
+				create_mesh.colors = ConstSlice<float4>(colors, attrib.data->count);
 			}
 				break;
 			case cgltf_attribute_type_tangent:
@@ -1227,7 +1227,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 					BB_ASSERT(attrib.data->count == vertex_count, "vertex count is not equal while data is not interleaved");
 					tangents = reinterpret_cast<float3*>(data_pos);
 				}
-				create_mesh.tangents = Slice<float3>(tangents, attrib.data->count);
+				create_mesh.tangents = ConstSlice<float3>(tangents, attrib.data->count);
 			}
 				break;
 			default:
@@ -1246,7 +1246,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 		{
 			float3* tangents = ArenaAllocArr(a_temp_arena, float3, vertex_count);
 			GenerateTangents(Slice(tangents, vertex_count), create_mesh.positions, create_mesh.normals, create_mesh.uvs, create_mesh.indices);
-			create_mesh.tangents = Slice<float3>(tangents, vertex_count);
+			create_mesh.tangents = ConstSlice<float3>(tangents, vertex_count);
 		}
 
 		if (vertex_tangent_offset == 0)
@@ -1254,7 +1254,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 			float4* colors = ArenaAllocArr(a_temp_arena, float4, vertex_count);
 			for (size_t i = 0; i < vertex_count; i++)
 				colors[i] = float4(1.f);
-			create_mesh.colors = Slice<float4>(colors, vertex_count);
+			create_mesh.colors = ConstSlice<float4>(colors, vertex_count);
 		}
 	}
 
@@ -1417,14 +1417,14 @@ const StringView Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const Mesh
 
 	CreateMeshInfo create_mesh;
 	create_mesh.indices = a_mesh_op.indices;
-	create_mesh.positions = Slice(a_mesh_op.mesh_load.positions, a_mesh_op.mesh_load.vertex_count);
-	create_mesh.normals = Slice(a_mesh_op.mesh_load.normals, a_mesh_op.mesh_load.vertex_count);
-	create_mesh.uvs = Slice(a_mesh_op.mesh_load.uvs, a_mesh_op.mesh_load.vertex_count);
-	create_mesh.colors = Slice(a_mesh_op.mesh_load.colors, a_mesh_op.mesh_load.vertex_count);
+	create_mesh.positions = ConstSlice<float3>(a_mesh_op.mesh_load.positions, a_mesh_op.mesh_load.vertex_count);
+	create_mesh.normals = ConstSlice<float3>(a_mesh_op.mesh_load.normals, a_mesh_op.mesh_load.vertex_count);
+	create_mesh.uvs = ConstSlice<float2>(a_mesh_op.mesh_load.uvs, a_mesh_op.mesh_load.vertex_count);
+	create_mesh.colors = ConstSlice<float4>(a_mesh_op.mesh_load.colors, a_mesh_op.mesh_load.vertex_count);
 
 	float3* tangents = ArenaAllocArr(a_temp_arena, float3, a_mesh_op.mesh_load.vertex_count);
 	GenerateTangents(Slice(tangents, a_mesh_op.mesh_load.vertex_count), create_mesh.positions, create_mesh.normals, create_mesh.uvs, create_mesh.indices);
-	create_mesh.tangents = Slice<float3>(tangents, a_mesh_op.mesh_load.vertex_count);
+	create_mesh.tangents = ConstSlice<float3>(tangents, a_mesh_op.mesh_load.vertex_count);
 
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
 	//hack shit way, but a single mesh just has one primitive to draw.

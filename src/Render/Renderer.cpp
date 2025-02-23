@@ -18,48 +18,48 @@
 
 using namespace BB;
 
-constexpr float SKYBOX_VERTICES[] = {
-	-1.0f,-1.0f,-1.0f,  // -X side
-	-1.0f,-1.0f, 1.0f,
-	-1.0f, 1.0f, 1.0f,
-	-1.0f, 1.0f, 1.0f,
-	-1.0f, 1.0f,-1.0f,
-	-1.0f,-1.0f,-1.0f,
+constexpr float3 SKYBOX_VERTICES[] = {
+	{-1.0f,-1.0f,-1.0f},  // -X side
+	{-1.0f,-1.0f, 1.0f},
+	{-1.0f, 1.0f, 1.0f},
+	{-1.0f, 1.0f, 1.0f},
+	{-1.0f, 1.0f,-1.0f},
+	{-1.0f,-1.0f,-1.0f},
 
-	-1.0f,-1.0f,-1.0f,  // -Z side
-	 1.0f, 1.0f,-1.0f,
-	 1.0f,-1.0f,-1.0f,
-	-1.0f,-1.0f,-1.0f,
-	-1.0f, 1.0f,-1.0f,
-	 1.0f, 1.0f,-1.0f,
+	{-1.0f,-1.0f,-1.0f},  // -Z side
+	{ 1.0f, 1.0f,-1.0f},
+	{ 1.0f,-1.0f,-1.0f},
+	{-1.0f,-1.0f,-1.0f},
+	{-1.0f, 1.0f,-1.0f},
+	{ 1.0f, 1.0f,-1.0f},
 
-	-1.0f,-1.0f,-1.0f,  // -Y side
-	 1.0f,-1.0f,-1.0f,
-	 1.0f,-1.0f, 1.0f,
-	-1.0f,-1.0f,-1.0f,
-	 1.0f,-1.0f, 1.0f,
-	-1.0f,-1.0f, 1.0f,
+	{-1.0f,-1.0f,-1.0f},  // -Y side
+	{ 1.0f,-1.0f,-1.0f},
+	{ 1.0f,-1.0f, 1.0f},
+	{-1.0f,-1.0f,-1.0f},
+	{ 1.0f,-1.0f, 1.0f},
+	{-1.0f,-1.0f, 1.0f},
 
-	-1.0f, 1.0f,-1.0f,  // +Y side
-	-1.0f, 1.0f, 1.0f,
-	 1.0f, 1.0f, 1.0f,
-	-1.0f, 1.0f,-1.0f,
-	 1.0f, 1.0f, 1.0f,
-	 1.0f, 1.0f,-1.0f,
+	{-1.0f, 1.0f,-1.0f},  // +Y side
+	{-1.0f, 1.0f, 1.0f},
+	{ 1.0f, 1.0f, 1.0f},
+	{-1.0f, 1.0f,-1.0f},
+	{ 1.0f, 1.0f, 1.0f},
+	{ 1.0f, 1.0f,-1.0f},
 
-	 1.0f, 1.0f,-1.0f,  // +X side
-	 1.0f, 1.0f, 1.0f,
-	 1.0f,-1.0f, 1.0f,
-	 1.0f,-1.0f, 1.0f,
-	 1.0f,-1.0f,-1.0f,
-	 1.0f, 1.0f,-1.0f,
+	{ 1.0f, 1.0f,-1.0f},  // +X side
+	{ 1.0f, 1.0f, 1.0f},
+	{ 1.0f,-1.0f, 1.0f},
+	{ 1.0f,-1.0f, 1.0f},
+	{ 1.0f,-1.0f,-1.0f},
+	{ 1.0f, 1.0f,-1.0f},
 
-	-1.0f, 1.0f, 1.0f,  // +Z side
-	-1.0f,-1.0f, 1.0f,
-	 1.0f, 1.0f, 1.0f,
-	-1.0f,-1.0f, 1.0f,
-	 1.0f,-1.0f, 1.0f,
-	 1.0f, 1.0f, 1.0f,
+	{-1.0f, 1.0f, 1.0f},  // +Z side
+	{-1.0f,-1.0f, 1.0f},
+	{ 1.0f, 1.0f, 1.0f},
+	{-1.0f,-1.0f, 1.0f},
+	{ 1.0f,-1.0f, 1.0f},
+	{ 1.0f, 1.0f, 1.0f},
 };
 
 struct RenderFence
@@ -1206,37 +1206,18 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		s_render_inst->cpu_index_buffer.start_mapped = Vulkan::MapBufferMemory(s_render_inst->cpu_index_buffer.buffer);
 	}
 
-	//do some basic CPU-GPU upload that we need.
-	CommandPool& start_up_pool = s_render_inst->graphics_queue.GetCommandPool("startup pool");
-	const RCommandList list = start_up_pool.StartCommandList();
-
 	const uint64_t fence_value_transfer = s_render_inst->asset_uploader.next_fence_value.fetch_add(1);
 
 	// setup cube positions
 	{
 		s_render_inst->cubemap_position = AllocateFromVertexBuffer(sizeof(SKYBOX_VERTICES));
 		UploadBuffer cube_buffer = s_render_inst->asset_uploader.gpu_allocator.AllocateUploadMemory(sizeof(SKYBOX_VERTICES), fence_value_transfer);
-		cube_buffer.SafeMemcpy(0, SKYBOX_VERTICES, sizeof(SKYBOX_VERTICES));
-		RenderCopyBuffer copy_op;
-		copy_op.src = cube_buffer.buffer;
-		copy_op.dst = s_render_inst->cubemap_position.buffer;
-		RenderCopyBufferRegion region_copy_op;
-		region_copy_op.size = s_render_inst->cubemap_position.size;
-		region_copy_op.src_offset = cube_buffer.base_offset;
-		region_copy_op.dst_offset = s_render_inst->cubemap_position.offset;
-		copy_op.regions = Slice(&region_copy_op, 1);
-		Vulkan::CopyBuffer(list, copy_op);
 
-		s_render_inst->global_buffer.data.cube_vertexpos_vertex_buffer_pos = static_cast<uint32_t>(s_render_inst->cubemap_position.offset);
+		CreateMeshInfo cube_info{};
+		cube_info.positions = ConstSlice<float3>(SKYBOX_VERTICES, _countof(SKYBOX_VERTICES));
+		const Mesh cube_map = CreateMesh(cube_info);
+		s_render_inst->global_buffer.data.cube_vertexpos_vertex_buffer_pos = cube_map.vertex_position_offset;
 	}
-
-	start_up_pool.EndCommandList(list);
-	//special upload here, due to uploading as well
-	s_render_inst->graphics_queue.ReturnPool(start_up_pool);
-
-	uint64_t fence_value_startup;
-	s_render_inst->graphics_queue.ExecuteCommands(&list, 1, &s_render_inst->asset_uploader.fence, &fence_value_transfer, 1, nullptr, nullptr, 0, fence_value_startup);
-	s_render_inst->graphics_queue.WaitFenceValue(fence_value_startup);
 
 	{	//initialize texture system
 		s_render_inst->texture_manager.Init(a_arena, s_render_inst->global_descriptor_set, s_render_inst->global_descriptor_allocation);
@@ -1793,7 +1774,7 @@ const Mesh BB::CreateMesh(const CreateMeshInfo& a_create_info)
 	}
 
 	const GPUBufferView vertex_buffer = AllocateFromVertexBuffer(vertex_buffer_size);
-	const GPUBufferView index_buffer = AllocateFromIndexBuffer(a_create_info.indices.sizeInBytes());
+	const GPUBufferView index_buffer = a_create_info.indices.size() ? AllocateFromIndexBuffer(a_create_info.indices.sizeInBytes()) : GPUBufferView();
 
 	const size_t position_offset = 0;
 	const size_t normal_offset = upload_buffer.SafeMemcpy(position_offset, a_create_info.positions.data(), a_create_info.positions.sizeInBytes());
