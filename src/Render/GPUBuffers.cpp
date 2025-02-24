@@ -85,19 +85,21 @@ void GPUUploadRingAllocator::Init(MemoryArena& a_arena, const size_t a_ring_buff
 	m_begin = Vulkan::MapBufferMemory(m_buffer);
 	m_write_at = m_begin;
 	m_end = Pointer::Add(m_begin, a_ring_buffer_size);
-	m_free_until = m_end;
+	m_size = 0;
 	m_locked_queue.Init(a_arena, RING_BUFFER_QUEUE_ELEMENT_COUNT);
 }
 
 UploadBuffer GPUUploadRingAllocator::AllocateUploadMemory(const size_t a_byte_amount, const uint64_t a_fence_value)
 {
-	BB_ASSERT(a_byte_amount < GetUploadAllocatorCapacity(), "trying to upload more memory then the ringbuffer size");
+	BB_ASSERT(a_byte_amount < Capacity(), "trying to upload more memory then the ringbuffer size");
+	if (a_byte_amount == 0)
+		return UploadBuffer();
 	BBRWLockScopeWrite scope_lock(m_lock);
 
+	//
 	void* begin = m_write_at;
 	void* end = Pointer::Add(m_write_at, a_byte_amount);
-
-	bool must_free_memory = end > m_free_until ? true : false;
+	size_t alloc_size = a_byte_amount;
 
 	// if we go over the end, but not over the readpointer then recalculate
 	if (end > m_end)
@@ -105,11 +107,13 @@ UploadBuffer GPUUploadRingAllocator::AllocateUploadMemory(const size_t a_byte_am
 		m_write_at = begin;
 		begin = m_begin;
 		end = Pointer::Add(m_begin, a_byte_amount);
+		alloc_size += reinterpret_cast<size_t>(m_end) - reinterpret_cast<size_t>(m_write_at);
 	}
-	size_t remaining_size = GetUploadSpaceRemaining();
-	if (m_locked_queue.IsFull() || a_byte_amount > remaining_size)
-		must_free_memory = true;
 
+	bool must_free_memory = false;
+	if (m_locked_queue.IsFull() || a_byte_amount > SizeRemaining())
+		must_free_memory = true;
+	//
 	if (must_free_memory)
 	{
 		const uint64_t fence_value = Vulkan::GetCurrentFenceValue(m_fence);
@@ -118,20 +122,21 @@ UploadBuffer GPUUploadRingAllocator::AllocateUploadMemory(const size_t a_byte_am
 		{
 			if (locked_region->fence_value <= fence_value)
 			{
-				m_free_until = locked_region->memory_end;
+				m_size -= locked_region->mem_size;
 				m_locked_queue.DeQueue();
 			}
 			else
 				break;
 		}
 
-		remaining_size = GetUploadSpaceRemaining();
-		if (a_byte_amount > remaining_size || m_locked_queue.IsFull())
+		if (a_byte_amount > SizeRemaining() || m_locked_queue.IsFull())
 			return UploadBuffer();
 	}
 
+	m_size += alloc_size;
+
 	GPUUploadRingAllocator::LockedRegions locked_region;
-	locked_region.memory_end = end;
+	locked_region.mem_size = alloc_size;
 	locked_region.fence_value = a_fence_value;
 	m_locked_queue.EnQueue(locked_region);
 	m_write_at = end;

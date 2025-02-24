@@ -1206,13 +1206,8 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		s_render_inst->cpu_index_buffer.start_mapped = Vulkan::MapBufferMemory(s_render_inst->cpu_index_buffer.buffer);
 	}
 
-	const uint64_t fence_value_transfer = s_render_inst->asset_uploader.next_fence_value.fetch_add(1);
-
 	// setup cube positions
 	{
-		s_render_inst->cubemap_position = AllocateFromVertexBuffer(sizeof(SKYBOX_VERTICES));
-		UploadBuffer cube_buffer = s_render_inst->asset_uploader.gpu_allocator.AllocateUploadMemory(sizeof(SKYBOX_VERTICES), fence_value_transfer);
-
 		CreateMeshInfo cube_info{};
 		cube_info.positions = ConstSlice<float3>(SKYBOX_VERTICES, _countof(SKYBOX_VERTICES));
 		const Mesh cube_map = CreateMesh(cube_info);
@@ -1771,7 +1766,8 @@ const Mesh BB::CreateMesh(const CreateMeshInfo& a_create_info)
 		// temporary arena
 		MemoryArena arena = MemoryArenaCreate();
 		UploadAndWaitAssets(arena, nullptr);
-		return CreateMesh(a_create_info);
+		MemoryArenaFree(arena);
+;		return CreateMesh(a_create_info);
 	}
 
 	const GPUBufferView vertex_buffer = AllocateFromVertexBuffer(vertex_buffer_size);
@@ -2005,6 +2001,7 @@ GPUFenceValue BB::WriteTexture(const WriteImageInfo& a_write_info)
 		// temporary arena
 		MemoryArena arena = MemoryArenaCreate();
 		UploadAndWaitAssets(arena, nullptr);
+		MemoryArenaFree(arena);
 		return WriteTexture(a_write_info);
 	}
 

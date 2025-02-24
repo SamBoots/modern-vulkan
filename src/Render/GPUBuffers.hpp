@@ -70,15 +70,14 @@ namespace BB
 
 		UploadBuffer AllocateUploadMemory(const size_t a_byte_amount, const uint64_t a_fence_value);
 
-		size_t GetUploadAllocatorCapacity() const
+		size_t Capacity() const
 		{
 			return reinterpret_cast<size_t>(m_end) - reinterpret_cast<size_t>(m_begin);
 		}
 
-		size_t GetUploadSpaceRemaining() const
+		size_t SizeRemaining() const
 		{
-			return (m_free_until > m_write_at) ? reinterpret_cast<size_t>(m_free_until) - reinterpret_cast<size_t>(m_write_at) : 
-				GetUploadAllocatorCapacity() - reinterpret_cast<size_t>(m_write_at) + reinterpret_cast<size_t>(m_free_until);
+			return Capacity() - m_size;
 		}
 
 		const GPUBuffer GetBuffer() const { return m_buffer; }
@@ -87,7 +86,7 @@ namespace BB
 	private:
 		struct LockedRegions
 		{
-			void* memory_end;
+			size_t mem_size;
 			uint64_t fence_value;
 		};
 
@@ -96,7 +95,7 @@ namespace BB
 		GPUBuffer m_buffer;
 
 		void* m_begin;
-		void* m_free_until;
+		size_t m_size;
 		void* m_write_at;
 		void* m_end;
 		SPSCQueue<LockedRegions> m_locked_queue;

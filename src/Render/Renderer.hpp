@@ -25,7 +25,7 @@ namespace BB
 		bool debug;
 		float gamma;
 
-		size_t asset_upload_buffer_size = mbSize * 64;
+		size_t asset_upload_buffer_size = mbSize * 32;
 	};
 
 	struct CreateMeshInfo
