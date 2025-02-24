@@ -96,7 +96,6 @@ UploadBuffer GPUUploadRingAllocator::AllocateUploadMemory(const size_t a_byte_am
 		return UploadBuffer();
 	BBRWLockScopeWrite scope_lock(m_lock);
 
-	//
 	void* begin = m_write_at;
 	void* end = Pointer::Add(m_write_at, a_byte_amount);
 	size_t alloc_size = a_byte_amount;
@@ -110,11 +109,7 @@ UploadBuffer GPUUploadRingAllocator::AllocateUploadMemory(const size_t a_byte_am
 		alloc_size += reinterpret_cast<size_t>(m_end) - reinterpret_cast<size_t>(m_write_at);
 	}
 
-	bool must_free_memory = false;
 	if (m_locked_queue.IsFull() || a_byte_amount > SizeRemaining())
-		must_free_memory = true;
-	//
-	if (must_free_memory)
 	{
 		const uint64_t fence_value = Vulkan::GetCurrentFenceValue(m_fence);
 

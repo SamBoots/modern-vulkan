@@ -3,9 +3,8 @@
 
 using namespace BB;
 
-BBRWLockScopeWrite::BBRWLockScopeWrite(BBRWLock a_lock)
+BBRWLockScopeWrite::BBRWLockScopeWrite(BBRWLock& a_lock) : lock(a_lock)
 {
-	lock = a_lock;
 	OSAcquireSRWLockWrite(&lock);
 }
 BBRWLockScopeWrite::~BBRWLockScopeWrite()

@@ -1346,18 +1346,18 @@ const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadF
 	const uint32_t thread_count = model->meshes.size() / TASKS_PER_THREAD;
 
 	// +1 due to main thread also working.
-	//Threads::Barrier barrier(thread_count + 1);
+	Threads::Barrier barrier(thread_count + 1);
 	size_t task_index = 0;
-	//for (uint32_t i = 0; i < thread_count; i++)
-	//{
-	//	LoadgltfMeshBatch_params batch;
-	//	batch.barrier = &barrier;
-	//	batch.cgltf_meshes = Slice(&gltf_data->meshes[task_index], TASKS_PER_THREAD);
-	//	batch.meshes = Slice(&model->meshes[task_index], TASKS_PER_THREAD);
-	//	Threads::StartTaskThread(LoadgltfMeshBatch, &batch, sizeof(batch), L"gltf mesh upload batch");
+	for (uint32_t i = 0; i < thread_count; i++)
+	{
+		LoadgltfMeshBatch_params batch;
+		batch.barrier = &barrier;
+		batch.cgltf_meshes = Slice(&gltf_data->meshes[task_index], TASKS_PER_THREAD);
+		batch.meshes = Slice(&model->meshes[task_index], TASKS_PER_THREAD);
+		Threads::StartTaskThread(LoadgltfMeshBatch, &batch, sizeof(batch), L"gltf mesh upload batch");
 
-	//	task_index += TASKS_PER_THREAD;
-	//}
+		task_index += TASKS_PER_THREAD;
+	}
 
 	MemoryArenaScope(a_temp_arena)
 	{
@@ -1366,9 +1366,9 @@ const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadF
 			LoadglTFMesh(a_temp_arena, gltf_data->meshes[task_index], model->meshes[task_index]);
 		}
 	}
-	//barrier.Signal();
-	//// check if we have done all the work required.
-	//barrier.Wait();
+	barrier.Signal();
+	// check if we have done all the work required.
+	barrier.Wait();
 
 	for (size_t i = 0; i < gltf_data->scene->nodes_count; i++)
 	{

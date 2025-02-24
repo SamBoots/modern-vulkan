@@ -103,10 +103,10 @@ namespace BB
 
 	struct BBRWLockScopeWrite
 	{
-		BBRWLockScopeWrite(BBRWLock a_lock);
+		BBRWLockScopeWrite(BBRWLock& a_lock);
 		~BBRWLockScopeWrite();
 
-		BBRWLock lock;
+		BBRWLock& lock;
 	};
 
 	constexpr const uint32_t BB_INVALID_HANDLE_32 = UINT32_MAX;
