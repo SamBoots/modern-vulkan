@@ -28,9 +28,8 @@ void BB::ImGuiShowProfiler(MemoryArenaTemp temp_arena)
 				if (ImPlot::BeginPlot("##NoTitle", ImVec2(-1, 150))) {
 					const StaticArray<double> history_buffer = CountingRingBufferLinear(temp_arena, profile_results[i].history_buffer);
 
-					ImPlot::SetupAxis(ImAxis_X1, nullptr, ImPlotAxisFlags_NoTickLabels);
-					ImPlot::SetupAxisLimits(ImAxis_X1, 0, PROFILE_RESULT_HISTORY_BUFFER_SIZE, ImGuiCond_Always);
-					ImPlot::PlotLine("Time in miliseconds", history_buffer.data(), static_cast<int>(history_buffer.size()));
+					ImPlot::SetupAxis(ImAxis_X1, nullptr, ImPlotAxisFlags_AutoFit | ImPlotAxisFlags_NoTickLabels);
+					ImPlot::PlotShaded("Time in miliseconds", history_buffer.data(), static_cast<int>(history_buffer.size()));
 					ImPlot::EndPlot();
 				}
 
