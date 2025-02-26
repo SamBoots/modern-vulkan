@@ -1211,7 +1211,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		CreateMeshInfo cube_info{};
 		cube_info.positions = ConstSlice<float3>(SKYBOX_VERTICES, _countof(SKYBOX_VERTICES));
 		const Mesh cube_map = CreateMesh(cube_info);
-		s_render_inst->global_buffer.data.cube_vertexpos_vertex_buffer_pos = cube_map.vertex_position_offset;
+		s_render_inst->global_buffer.data.cube_vertexpos_vertex_buffer_pos = static_cast<uint32_t>(cube_map.vertex_position_offset);
 	}
 
 	{	//initialize texture system
@@ -1767,7 +1767,7 @@ const Mesh BB::CreateMesh(const CreateMeshInfo& a_create_info)
 		MemoryArena arena = MemoryArenaCreate();
 		UploadAndWaitAssets(arena, nullptr);
 		MemoryArenaFree(arena);
-;		return CreateMesh(a_create_info);
+		return CreateMesh(a_create_info);
 	}
 
 	const GPUBufferView vertex_buffer = AllocateFromVertexBuffer(vertex_buffer_size);

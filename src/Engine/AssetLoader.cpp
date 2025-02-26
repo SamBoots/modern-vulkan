@@ -38,8 +38,6 @@ using namespace BB;
 
 constexpr size_t GPU_TASK_QUEUE_SIZE = 64;
 
-constexpr size_t MAX_STRING_SIZE_STORAGE = 2024;
-
 constexpr const char TEXTURE_DIRECTORY[] = "../../resources/textures/";
 constexpr const char ICON_DIRECTORY[] = "../../resources/icons/";
 
@@ -183,12 +181,6 @@ struct AssetManager
 	};
 
 	IconGigaTexture icons_storage;
-
-	// string storage
-	BBRWLock string_lock;
-	MemoryArena string_arena;
-	// change char* to a string class 
-	StaticOL_HashMap<uint64_t, char*> string_table;
 };
 static AssetManager* s_asset_manager;
 
@@ -372,18 +364,6 @@ static inline IconSlot LoadIconFromPixels(const void* a_pixels, const bool a_set
 	return slot;
 }
 
-static inline StringView AllocateStringSpace(const char* a_str, const size_t a_string_size, const uint64_t a_hash)
-{
-	OSAcquireSRWLockWrite(&s_asset_manager->string_lock);
-	char* const string = ArenaAllocArr(s_asset_manager->string_arena, char, a_string_size);
-	memcpy(string, a_str, a_string_size);
-	string[a_string_size - 1] = '\0';
-
-	s_asset_manager->string_table.emplace(a_hash, string);
-	OSReleaseSRWLockWrite(&s_asset_manager->string_lock);
-	return StringView(string, a_string_size - 1);
-}
-
 static inline void AddElementToAssetTable(AssetSlot& a_asset_slot)
 {
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
@@ -408,10 +388,8 @@ void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
 	}
 
 	s_asset_manager->asset_lock = OSCreateRWLock();
-	s_asset_manager->string_lock = OSCreateRWLock();
 	s_asset_manager->asset_table.Init(s_asset_manager->asset_arena, a_init_info.asset_count);
 	s_asset_manager->linear_asset_table.Init(s_asset_manager->asset_arena, a_init_info.asset_count);
-	s_asset_manager->string_table.Init(s_asset_manager->asset_arena, a_init_info.string_entry_count);
 
 	s_asset_manager->gpu_task_lock = OSCreateRWLock();
 	s_asset_manager->gpu_task_arena.Initialize(s_asset_manager->asset_arena, mbSize * 64);
@@ -459,8 +437,6 @@ void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
 	s_asset_manager->icons_storage.slots[s_asset_manager->icons_storage.max_slots - 1].slot_index = s_asset_manager->icons_storage.max_slots - 1;
 	s_asset_manager->icons_storage.slots[s_asset_manager->icons_storage.max_slots - 1].next_slot = UINT32_MAX;
 
-	s_asset_manager->string_arena = MemoryArenaCreate();
-
 	// create some directories for files we are going to write
 	if (!OSDirectoryExist(ICON_DIRECTORY))
 		BB_ASSERT(OSCreateDirectory(ICON_DIRECTORY), "failed to create ICON directory");
@@ -469,28 +445,6 @@ void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
 void Asset::Update()
 {
 	ExecuteGPUTasks();
-}
-
-StringView Asset::FindOrCreateString(const char* a_string)
-{
-	return FindOrCreateString(StringView(a_string, strnlen_s(a_string, MAX_STRING_SIZE_STORAGE)));
-}
-
-StringView Asset::FindOrCreateString(const char* a_string, const size_t a_string_size)
-{
-	return FindOrCreateString(StringView(a_string, a_string_size));
-}
-
-StringView Asset::FindOrCreateString(const StringView& a_view)
-{
-	const uint64_t string_hash = StringHash(a_view);
-	char** string_ptr = s_asset_manager->string_table.find(string_hash);
-	if (string_ptr != nullptr)
-		return *string_ptr;
-
-	const uint32_t string_size = static_cast<uint32_t>(a_view.size() + 1);
-
-	return AllocateStringSpace(a_view.c_str(), string_size, string_hash);
 }
 
 struct LoadAsyncFunc_Params
@@ -834,9 +788,9 @@ static void LoadglTFNode(const cgltf_data& a_cgltf_data, Model& a_model, const s
 	}
 
 	if (cgltf_node.name)
-		node.name = Asset::FindOrCreateString(cgltf_node.name).c_str();
+		node.name = StringView(cgltf_node.name);
 	else
-		node.name = "unnamed";
+		node.name = StringView("unnamed", _countof("unnamed"));
 	
 	if (cgltf_node.mesh != nullptr)
 		node.mesh = &a_model.meshes[CgltfGetMeshIndex(a_cgltf_data, cgltf_node.mesh)];
@@ -1447,7 +1401,7 @@ const StringView Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const Mesh
 	*model->root_node_indices = 0;
 
 	model->linear_nodes[0] = {};
-	model->linear_nodes[0].name = a_mesh_op.name.c_str();
+	model->linear_nodes[0].name = a_mesh_op.name;
 	model->linear_nodes[0].child_count = 0;
 	model->linear_nodes[0].mesh = &mesh;
 	model->linear_nodes[0].scale = float3(1.f, 1.f, 1.f);
@@ -1517,7 +1471,7 @@ constexpr size_t ASSET_SEARCH_PATH_SIZE_MAX = 512;
 
 static void LoadAssetViaSearch(MemoryArena& a_temp_arena)
 {
-	StackString<ASSET_SEARCH_PATH_SIZE_MAX> search_path;
+	static StackString<ASSET_SEARCH_PATH_SIZE_MAX> search_path;
 
 	if (OSFindFileNameDialogWindow(search_path.data(), search_path.capacity()))
 	{
@@ -1526,8 +1480,6 @@ static void LoadAssetViaSearch(MemoryArena& a_temp_arena)
 		const size_t get_file_name = search_path.find_last_of('\\');
 		BB_ASSERT(get_file_name != size_t(-1), "i fucked up");
 
-		// get asset name
-		const char* path_str = Asset::FindOrCreateString(search_path.c_str()).c_str();
 		Asset::AsyncAsset asset{};
 
 		// we always load from disk due to the nature of loading an asset via a path
@@ -1536,12 +1488,12 @@ static void LoadAssetViaSearch(MemoryArena& a_temp_arena)
 		if (search_path.compare(get_extension_pos, ".gltf"))
 		{
 			asset.asset_type = Asset::ASYNC_ASSET_TYPE::MODEL;
-			asset.mesh_disk.path = path_str;
+			asset.mesh_disk.path = search_path.GetView();
 		}
 		else if (search_path.compare(get_extension_pos, ".png") || search_path.compare(get_extension_pos, ".jpg") || search_path.compare(get_extension_pos, ".bmp"))
 		{
 			asset.asset_type = Asset::ASYNC_ASSET_TYPE::TEXTURE;
-			asset.texture_disk.path = path_str;
+			asset.texture_disk.path = search_path.GetView();
 		}
 		else
 		{

@@ -1,6 +1,7 @@
 #pragma once
 #include "Rendererfwd.hpp"
 #include "Enginefwd.hpp"
+#include "ecs/components/NameComponent.hpp"
 
 // forward declare this, I don't know why that didn't actually work
 #include "Storage/BBString.h"
@@ -63,7 +64,7 @@ namespace BB
 			Node* childeren;
 			size_t child_count;
 			Mesh* mesh;
-			const char* name;
+			NameComponent name;
 		};
 
 		StaticArray<Mesh> meshes;
@@ -146,10 +147,6 @@ namespace BB
 		void InitializeAssetManager(const AssetManagerInitInfo& a_init_info);
 
 		void Update();
-
-		StringView FindOrCreateString(const char* a_string);
-		StringView FindOrCreateString(const char* a_string, const size_t a_string_size);
-		StringView FindOrCreateString(const StringView& a_view);
 
 		ThreadTask LoadAssetsASync(MemoryArenaTemp a_temp_arena, const BB::Slice<Asset::AsyncAsset> a_asyn_assets);
 		struct LoadedAssetInfo

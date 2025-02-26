@@ -86,7 +86,7 @@ static void CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_
 			light_info.cutoff_radius = light_obj.Find("cutoff_radius")->GetNumber();
 		}
 
-		const StringView light_name = Asset::FindOrCreateString(light_obj.Find("name")->GetString());
+		const StringView light_name = light_obj.Find("name")->GetString();
 		a_hierarchy.CreateEntityAsLight(light_info, light_name.c_str());
 	}
 }
