@@ -103,12 +103,12 @@ UploadBuffer GPUUploadRingAllocator::AllocateUploadMemory(const size_t a_byte_am
 	// if we go over the end, but not over the readpointer then recalculate
 	if (end > m_end)
 	{
-		m_write_at = begin;
+		alloc_offset = reinterpret_cast<size_t>(m_end) - reinterpret_cast<size_t>(m_write_at);
+		m_write_at = m_begin;
 		begin = m_begin;
 		end = Pointer::Add(m_begin, a_byte_amount);
-		alloc_offset = reinterpret_cast<size_t>(m_end) - reinterpret_cast<size_t>(m_write_at);
 
-		m_size = Min(m_size += alloc_offset, Capacity());
+		m_size += alloc_offset;
 	}
 
 	if (m_locked_queue.IsFull() || a_byte_amount > SizeRemaining())
@@ -132,7 +132,7 @@ UploadBuffer GPUUploadRingAllocator::AllocateUploadMemory(const size_t a_byte_am
 			{
 				GPUUploadRingAllocator::LockedRegions locked_region;
 				locked_region.mem_size = alloc_offset;
-				locked_region.fence_value = a_fence_value;
+				locked_region.fence_value = 0;
 				m_locked_queue.EnQueue(locked_region);
 			}
 			return UploadBuffer();

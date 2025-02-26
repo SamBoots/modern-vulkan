@@ -136,6 +136,7 @@ namespace BB
 		inline size_t Capacity() const { return m_capacity; }
 
 	private:
+		BBRWLock lock;
 		std::atomic<T>* m_arr;
 		size_t m_capacity;
 		std::atomic<uint32_t> m_size;

@@ -146,6 +146,8 @@ struct AssetSlot
 		Model* model;
 		Image* image;
 	};
+
+	bool finished_loading;
 };
 
 typedef void (*PFN_GPUTaskCallback)(const void* a_params);
@@ -364,13 +366,36 @@ static inline IconSlot LoadIconFromPixels(const void* a_pixels, const bool a_set
 	return slot;
 }
 
-static inline void AddElementToAssetTable(AssetSlot& a_asset_slot)
+static inline AssetSlot& FindElementOrCreateElement(const AssetHash a_hash, bool& a_out_found)
 {
-	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
-	s_asset_manager->asset_table.insert(a_asset_slot.hash.full_hash, a_asset_slot);
-	AssetSlot* slot = s_asset_manager->asset_table.find(a_asset_slot.hash.full_hash);
+	const BBRWLockScopeWrite lock(s_asset_manager->asset_lock);
+	if (AssetSlot* found_slot = s_asset_manager->asset_table.find(a_hash.full_hash))
+	{
+		while (!found_slot->finished_loading) {}
+		a_out_found = true;
+		return *found_slot;
+	}
+
+	AssetSlot* slot = s_asset_manager->asset_table.insert(a_hash.full_hash, AssetSlot());
+	BB_ASSERT(slot, "asset slot invalid, asset table is full?");
 	s_asset_manager->linear_asset_table.push_back(slot);
-	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
+	slot->finished_loading = false;
+
+	switch (a_hash.type)
+	{
+	case ASSET_TYPE::MODEL:
+		slot->model = ArenaAllocType(s_asset_manager->asset_arena, Model);
+		break;
+	case ASSET_TYPE::IMAGE:
+		slot->image = ArenaAllocType(s_asset_manager->asset_arena, Image);
+		break;
+	default:
+		BB_ASSERT(false, "unknown ASSET_TYPE");
+		break;
+	}
+
+	a_out_found = false;
+	return *slot;
 }
 
 using namespace BB;
@@ -471,13 +496,11 @@ ThreadTask Asset::LoadAssetsASync(MemoryArenaTemp a_temp_arena, const BB::Slice<
 	return Threads::StartTaskThread(LoadAsync_func, params, alloc_size);
 }
 
-Slice<Asset::LoadedAssetInfo> Asset::LoadAssets(MemoryArena& a_temp_arena, const Slice<AsyncAsset> a_asyn_assets)
+void Asset::LoadAssets(MemoryArena& a_temp_arena, const Slice<AsyncAsset> a_asyn_assets)
 {
-	LoadedAssetInfo* loaded_assets = ArenaAllocArr(a_temp_arena, LoadedAssetInfo, a_asyn_assets.size());
 	for (size_t i = 0; i < a_asyn_assets.size(); i++)
 	{
 		const AsyncAsset& task = a_asyn_assets[i];
-		loaded_assets[i].type = task.asset_type;
 		switch (task.asset_type)
 		{
 		case ASYNC_ASSET_TYPE::MODEL:
@@ -485,10 +508,10 @@ Slice<Asset::LoadedAssetInfo> Asset::LoadAssets(MemoryArena& a_temp_arena, const
 			switch (task.load_type)
 			{
 			case ASYNC_LOAD_TYPE::DISK:
-				loaded_assets[i].name = LoadglTFModel(a_temp_arena, task.mesh_disk);
+				LoadglTFModel(a_temp_arena, task.mesh_disk);
 				break;
 			case ASYNC_LOAD_TYPE::MEMORY:
-				loaded_assets[i].name = LoadMeshFromMemory(a_temp_arena, task.mesh_memory);
+				LoadMeshFromMemory(a_temp_arena, task.mesh_memory);
 				break;
 			default:
 				BB_ASSERT(false, "default hit while it shouldn't");
@@ -501,10 +524,10 @@ Slice<Asset::LoadedAssetInfo> Asset::LoadAssets(MemoryArena& a_temp_arena, const
 			switch (task.load_type)
 			{
 			case ASYNC_LOAD_TYPE::DISK:
-				loaded_assets[i].name = LoadImageDisk(a_temp_arena, task.texture_disk.path, task.texture_disk.format);
+				LoadImageDisk(a_temp_arena, task.texture_disk.path, task.texture_disk.format);
 				break;
 			case ASYNC_LOAD_TYPE::MEMORY:
-				loaded_assets[i].name = LoadImageMemory(a_temp_arena, *task.texture_memory.image, task.texture_memory.name);
+				LoadImageMemory(a_temp_arena, *task.texture_memory.image, task.texture_memory.name);
 				break;
 			default:
 				BB_ASSERT(false, "default hit while it shouldn't");
@@ -517,8 +540,6 @@ Slice<Asset::LoadedAssetInfo> Asset::LoadAssets(MemoryArena& a_temp_arena, const
 			break;
 		}
 	}
-
-	return Slice(loaded_assets, a_asyn_assets.size());
 }
 
 static inline void CreateImage_func(const StringView& a_name, const uint32_t a_width, const uint32_t a_height, const IMAGE_FORMAT a_format, RImage& a_out_image, RDescriptorIndex& a_out_index)
@@ -550,9 +571,14 @@ static inline void CreateImage_func(const StringView& a_name, const uint32_t a_w
 	a_out_index = CreateImageView(create_view_info);
 }
 
-const StringView Asset::LoadImageDisk(MemoryArena& a_temp_arena, const StringView& a_path, const IMAGE_FORMAT a_format)
+const Image& Asset::LoadImageDisk(MemoryArena& a_temp_arena, const StringView& a_path, const IMAGE_FORMAT a_format)
 {
-	AssetSlot asset;
+	const AssetHash path_hash = CreateAssetHash(StringHash(a_path), ASSET_TYPE::IMAGE);
+	bool exists = false;
+	AssetSlot& asset = FindElementOrCreateElement(path_hash, exists);
+	if (exists)
+		return *asset.image;
+
 	GetAssetNameFromPath(a_path, asset.name);
 
 	int width = 0, height = 0, channels = 0;
@@ -576,19 +602,14 @@ const StringView Asset::LoadImageDisk(MemoryArena& a_temp_arena, const StringVie
 
 	WriteTexture(write_info);
 	
-	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
-	Image* image = ArenaAllocType(s_asset_manager->asset_arena, Image);
-	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
-	image->width = uwidth;
-	image->height = uheight;
-	image->gpu_image = gpu_image;
-	image->descriptor_index = descriptor_index;
-
-	const uint64_t path_hash = StringHash(a_path);
-
-	asset.hash = CreateAssetHash(path_hash, ASSET_TYPE::IMAGE);
+	asset.hash = path_hash;
 	asset.path = a_path;
-	asset.image = image;
+
+	asset.image->width = uwidth;
+	asset.image->height = uheight;
+	asset.image->gpu_image = gpu_image;
+	asset.image->descriptor_index = descriptor_index;
+	asset.image->asset_handle = AssetHandle(asset.hash.full_hash);
 
 	const PathString icon_path = GetIconPathFromAssetName(asset.name.GetView());
 	if (OSFileExist(icon_path.c_str()))
@@ -606,12 +627,9 @@ const StringView Asset::LoadImageDisk(MemoryArena& a_temp_arena, const StringVie
 		WriteImage(icon_path.GetView(), ICON_EXTENT, 4, icon_write);
 	}
 
-	AddElementToAssetTable(asset);
-	asset.image->asset_handle = AssetHandle(asset.hash.full_hash);
-
 	STBI_FREE(pixels);
-
-	return asset.path.GetView();
+	asset.finished_loading = true;
+	return *asset.image;
 }
 
 bool Asset::ReadWriteTextureDeferred(const StringView& a_path, const ImageInfo& a_image_info)
@@ -662,9 +680,14 @@ void Asset::FreeImageCPU(void* a_pixels)
 	STBI_FREE(a_pixels);
 }
 
-const StringView Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const StringView& a_name)
+const Image& Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const StringView& a_name)
 {
-	AssetSlot asset;
+	const AssetHash path_hash = CreateAssetHash(TurboCrappyImageHash(a_image.GetPixels(), static_cast<size_t>(a_image.GetWidth()) + a_image.GetHeight() + a_image.GetBytesPerPixel()), ASSET_TYPE::IMAGE);
+	bool exists = false;
+	AssetSlot& asset = FindElementOrCreateElement(path_hash, exists);
+	if (exists)
+		return *asset.image;
+
 	asset.name = a_name;
 
 	const uint32_t uwidth = a_image.GetWidth();
@@ -704,22 +727,14 @@ const StringView Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBI
 	write_info.base_array_layer = 0;
 	WriteTexture(write_info);
 
-	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
-	Image* image = ArenaAllocType(s_asset_manager->asset_arena, Image);
-	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
-	image->width = uwidth;
-	image->height = uheight;
-	image->gpu_image = gpu_image;
-	image->descriptor_index = descriptor_index;
-
-	const uint64_t hash = TurboCrappyImageHash(a_image.GetPixels(), static_cast<size_t>(image->width) + image->height + a_image.GetBytesPerPixel());
-	// BB_ASSERT(hash != 0, "Image hashing failed");
-
-
-	asset.hash = CreateAssetHash(hash, ASSET_TYPE::IMAGE);
+	asset.hash = path_hash;
 	asset.path = nullptr; // memory loads have nullptr has path.
-	asset.image = image;
 
+	asset.image->width = uwidth;
+	asset.image->height = uheight;
+	asset.image->gpu_image = gpu_image;
+	asset.image->descriptor_index = descriptor_index;
+	asset.image->asset_handle = AssetHandle(path_hash.full_hash);
 
 	const PathString icon_path = GetIconPathFromAssetName(asset.name.GetView());
 	if (OSFileExist(icon_path.c_str()))
@@ -737,11 +752,8 @@ const StringView Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBI
 		IconWriteToDisk(asset.icon, icon_path);
 	}
 
-
-	AddElementToAssetTable(asset);
-	image->asset_handle = AssetHandle(asset.hash.full_hash);
-
-	return asset.name.GetView();
+	asset.finished_loading = true;
+	return *asset.image;
 }
 
 static inline size_t CgltfGetMeshIndex(const cgltf_data& a_cgltf_data, const cgltf_mesh* a_mesh)
@@ -965,9 +977,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 		{
 			const cgltf_image& image = *prim.material->pbr_metallic_roughness.base_color_texture.texture->image;
 			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
-			const StringView img = Asset::LoadImageDisk(a_temp_arena, full_image_path, IMAGE_FORMAT::RGBA8_SRGB);
-
-			metallic_info.albedo_texture = Asset::FindImageByName(img.c_str())->descriptor_index;
+			metallic_info.albedo_texture = Asset::LoadImageDisk(a_temp_arena, full_image_path, IMAGE_FORMAT::RGBA8_SRGB).descriptor_index;
 		}
 		else
 			metallic_info.albedo_texture = GetWhiteTexture();
@@ -976,9 +986,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 		{
 			const cgltf_image& image = *prim.material->normal_texture.texture->image;
 			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
-			const StringView img = Asset::LoadImageDisk(a_temp_arena, full_image_path, IMAGE_FORMAT::RGBA8_UNORM);
-
-			metallic_info.normal_texture = Asset::FindImageByName(img.c_str())->descriptor_index;
+			metallic_info.normal_texture = Asset::LoadImageDisk(a_temp_arena, full_image_path, IMAGE_FORMAT::RGBA8_UNORM).descriptor_index;
 		}
 		else
 			metallic_info.normal_texture = GetWhiteTexture();
@@ -1002,9 +1010,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 		{
 			const cgltf_image& image = *prim.material->pbr_metallic_roughness.metallic_roughness_texture.texture->image;
 			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
-			const StringView img = Asset::LoadImageDisk(a_temp_arena, full_image_path, IMAGE_FORMAT::RGBA8_UNORM);
-
-			metallic_info.orm_texture = Asset::FindImageByName(img.c_str())->descriptor_index;
+			metallic_info.orm_texture = Asset::LoadImageDisk(a_temp_arena, full_image_path, IMAGE_FORMAT::RGBA8_UNORM).descriptor_index;
 		}
 		else
 		{
@@ -1244,14 +1250,13 @@ static void cgltf_arena_free(void*, void*)
 	// nothing
 }
 
-const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op)
+const Model& Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op)
 {
 	const AssetHash asset_hash = CreateAssetHash(StringHash(a_mesh_op.path), ASSET_TYPE::MODEL);
-	
-	if (AssetSlot* slot = s_asset_manager->asset_table.find(asset_hash.full_hash))
-	{
-		return slot->name.GetView();
-	}
+	bool exists = false;
+	AssetSlot& asset = FindElementOrCreateElement(asset_hash, exists);
+	if (exists)
+		return *asset.model;
 
 	cgltf_options gltf_option = {};
 	gltf_option.memory.alloc_func = cgltf_arena_alloc;
@@ -1262,7 +1267,7 @@ const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadF
 	if (cgltf_parse_file(&gltf_option, a_mesh_op.path.c_str(), &gltf_data) != cgltf_result_success)
 	{
 		BB_ASSERT(false, "Failed to load glTF model, cgltf_parse_file.");
-		return nullptr;
+		return *asset.model;
 	}
 
 	cgltf_load_buffers(&gltf_option, gltf_data, a_mesh_op.path.c_str());
@@ -1270,34 +1275,32 @@ const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadF
 	if (cgltf_validate(gltf_data) != cgltf_result_success)
 	{
 		BB_ASSERT(false, "GLTF model validation failed!");
-		return nullptr;
+		return *asset.model;
 	}
 	const uint32_t linear_node_count = static_cast<uint32_t>(gltf_data->nodes_count);
+
+	// JANK :( VERY UNHAPPY
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
-	// optimize the memory space with one allocation for the entire model, maybe when I convert it to not gltf.
-	Model* model = ArenaAllocType(s_asset_manager->asset_arena, Model);
-	model->meshes.Init(s_asset_manager->asset_arena, static_cast<uint32_t>(gltf_data->meshes_count));
-	model->meshes.resize(model->meshes.capacity());
-	for (size_t mesh_index = 0; mesh_index < model->meshes.size(); mesh_index++)
+	asset.model->meshes.Init(s_asset_manager->asset_arena, static_cast<uint32_t>(gltf_data->meshes_count));
+	asset.model->meshes.resize(asset.model->meshes.capacity());
+	for (size_t mesh_index = 0; mesh_index < asset.model->meshes.size(); mesh_index++)
 	{
 		const cgltf_mesh& cgltf_mesh = gltf_data->meshes[mesh_index];
-		Model::Mesh& mesh = model->meshes[mesh_index];
+		Model::Mesh& mesh = asset.model->meshes[mesh_index];
 
 		mesh.primitives.Init(s_asset_manager->asset_arena, static_cast<uint32_t>(cgltf_mesh.primitives_count));
 		mesh.primitives.resize(mesh.primitives.capacity());
 	}
 
-	model->linear_nodes = ArenaAllocArr(s_asset_manager->asset_arena, Model::Node, linear_node_count);
-	model->root_node_count = static_cast<uint32_t>(gltf_data->scene->nodes_count);
-	model->root_node_indices = ArenaAllocArr(s_asset_manager->asset_arena, uint32_t, model->root_node_count);
+	asset.model->linear_nodes = ArenaAllocArr(s_asset_manager->asset_arena, Model::Node, linear_node_count);
+	asset.model->root_node_count = static_cast<uint32_t>(gltf_data->scene->nodes_count);
+	asset.model->root_node_indices = ArenaAllocArr(s_asset_manager->asset_arena, uint32_t, asset.model->root_node_count);
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
-
-
 
 	// for every 5 meshes create a thread;
 	constexpr size_t TASKS_PER_THREAD = 4;
 
-	const uint32_t thread_count = model->meshes.size() / TASKS_PER_THREAD;
+	const uint32_t thread_count = asset.model->meshes.size() / TASKS_PER_THREAD;
 
 	// +1 due to main thread also working.
 	Threads::Barrier barrier(thread_count + 1);
@@ -1307,7 +1310,7 @@ const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadF
 		LoadgltfMeshBatch_params batch;
 		batch.barrier = &barrier;
 		batch.cgltf_meshes = Slice(&gltf_data->meshes[task_index], TASKS_PER_THREAD);
-		batch.meshes = Slice(&model->meshes[task_index], TASKS_PER_THREAD);
+		batch.meshes = Slice(&asset.model->meshes[task_index], TASKS_PER_THREAD);
 		Threads::StartTaskThread(LoadgltfMeshBatch, &batch, sizeof(batch), L"gltf mesh upload batch");
 
 		task_index += TASKS_PER_THREAD;
@@ -1315,9 +1318,9 @@ const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadF
 
 	MemoryArenaScope(a_temp_arena)
 	{
-		for (; task_index < model->meshes.size(); task_index++)
+		for (; task_index < asset.model->meshes.size(); task_index++)
 		{
-			LoadglTFMesh(a_temp_arena, gltf_data->meshes[task_index], model->meshes[task_index]);
+			LoadglTFMesh(a_temp_arena, gltf_data->meshes[task_index], asset.model->meshes[task_index]);
 		}
 	}
 	barrier.Signal();
@@ -1327,19 +1330,16 @@ const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadF
 	for (size_t i = 0; i < gltf_data->scene->nodes_count; i++)
 	{
 		const size_t gltf_node_index = CgltfGetNodeIndex(*gltf_data, gltf_data->scene->nodes[i]);
-		LoadglTFNode(*gltf_data, *model, gltf_node_index);
-		model->root_node_indices[i] = static_cast<uint32_t>(gltf_node_index);
+		LoadglTFNode(*gltf_data, *asset.model, gltf_node_index);
+		asset.model->root_node_indices[i] = static_cast<uint32_t>(gltf_node_index);
 	}
 	cgltf_free(gltf_data);
 
-	AssetString asset_name;
-	GetAssetNameFromPath(a_mesh_op.path, asset_name);
+	GetAssetNameFromPath(a_mesh_op.path, asset.name);
 	
-	AssetSlot asset;
 	asset.hash = asset_hash;
 	asset.path = a_mesh_op.path;
-	asset.model = model;
-	asset.name = asset_name.GetView();
+	asset.model->asset_handle = AssetHandle(asset.hash.full_hash);
 
 	const PathString icon_path = GetIconPathFromAssetName(asset.name.GetView());
 	if (OSFileExist(icon_path.c_str()))
@@ -1347,24 +1347,20 @@ const StringView Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadF
 	else
 		asset.icon = GetEmptyIconSlot();
 
-	AddElementToAssetTable(asset);
-	model->asset_handle = AssetHandle(asset.hash.full_hash);
-
-	return asset.path.c_str();
+	asset.finished_loading = true;
+	return *asset.model;
 }
 
-const StringView Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoadFromMemory& a_mesh_op)
+const Model& Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoadFromMemory& a_mesh_op)
 {
 	// this is all garbage
 
 	const AssetHash asset_hash = CreateAssetHash(StringHash(a_mesh_op.name), ASSET_TYPE::MODEL);
+	bool exists = false;
+	AssetSlot& asset = FindElementOrCreateElement(asset_hash, exists);
+	if (exists)
+		return *asset.model;
 
-	if (AssetSlot* slot = s_asset_manager->asset_table.find(asset_hash.full_hash))
-	{
-		return slot->name.c_str();
-	}
-
-	AssetSlot asset;
 	asset.hash = asset_hash;
 	asset.path = nullptr;
 	asset.name = a_mesh_op.name;
@@ -1382,11 +1378,10 @@ const StringView Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const Mesh
 
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
 	//hack shit way, but a single mesh just has one primitive to draw.
-	Model* model = ArenaAllocType(s_asset_manager->asset_arena, Model);
-	model->linear_nodes = ArenaAllocArr(s_asset_manager->asset_arena, Model::Node, 1);
-	model->meshes.Init(s_asset_manager->asset_arena, 1);
-	model->meshes[0].primitives.Init(s_asset_manager->asset_arena, 1);
-	model->root_node_indices = ArenaAllocArr(s_asset_manager->asset_arena, uint32_t, 1);
+	asset.model->linear_nodes = ArenaAllocArr(s_asset_manager->asset_arena, Model::Node, 1);
+	asset.model->meshes.Init(s_asset_manager->asset_arena, 1);
+	asset.model->meshes[0].primitives.Init(s_asset_manager->asset_arena, 1);
+	asset.model->root_node_indices = ArenaAllocArr(s_asset_manager->asset_arena, uint32_t, 1);
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 	Model::Primitive primitive;
 	primitive.material_data.mesh_metallic.albedo_texture = a_mesh_op.base_albedo;
@@ -1394,17 +1389,18 @@ const StringView Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const Mesh
 	primitive.start_index = 0;
 	primitive.index_count = static_cast<uint32_t>(a_mesh_op.indices.size());
 
-	Model::Mesh& mesh = model->meshes[0];
+	Model::Mesh& mesh = asset.model->meshes[0];
 	mesh.primitives[0] = primitive;
 	mesh.mesh = CreateMesh(create_mesh);
 
-	*model->root_node_indices = 0;
+	*asset.model->root_node_indices = 0;
 
-	model->linear_nodes[0] = {};
-	model->linear_nodes[0].name = a_mesh_op.name;
-	model->linear_nodes[0].child_count = 0;
-	model->linear_nodes[0].mesh = &mesh;
-	model->linear_nodes[0].scale = float3(1.f, 1.f, 1.f);
+	asset.model->linear_nodes[0] = {};
+	asset.model->linear_nodes[0].name = a_mesh_op.name;
+	asset.model->linear_nodes[0].child_count = 0;
+	asset.model->linear_nodes[0].mesh = &mesh;
+	asset.model->linear_nodes[0].scale = float3(1.f, 1.f, 1.f);
+	asset.model->asset_handle = AssetHandle(asset.hash.full_hash);
 
 	const PathString icon_path = GetIconPathFromAssetName(asset.name.c_str());
 	if (OSFileExist(icon_path.c_str()))
@@ -1412,12 +1408,7 @@ const StringView Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const Mesh
 	else
 		asset.icon = GetEmptyIconSlot();
 
-	AddElementToAssetTable(asset);
-
-	asset.model = model;
-
-	model->asset_handle = AssetHandle(asset.hash.full_hash);
-	return asset.name.c_str();
+	return *asset.model;
 }
 
 const Model* Asset::FindModelByName(const char* a_name)
@@ -1425,6 +1416,7 @@ const Model* Asset::FindModelByName(const char* a_name)
 	AssetHash asset_hash = CreateAssetHash(StringHash(a_name), ASSET_TYPE::MODEL);
 	if (AssetSlot* slot = s_asset_manager->asset_table.find(asset_hash.full_hash))
 	{
+		while (!slot->finished_loading) {}
 		return slot->model;
 	}
 	return nullptr;
@@ -1435,6 +1427,7 @@ const Image* Asset::FindImageByName(const char* a_name)
 	AssetHash asset_hash = CreateAssetHash(StringHash(a_name), ASSET_TYPE::IMAGE);
 	if (AssetSlot* slot = s_asset_manager->asset_table.find(asset_hash.full_hash))
 	{
+		while (!slot->finished_loading) {}
 		return slot->image;
 	}
 	return nullptr;

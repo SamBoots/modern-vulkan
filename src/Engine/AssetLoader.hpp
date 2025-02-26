@@ -149,17 +149,13 @@ namespace BB
 		void Update();
 
 		ThreadTask LoadAssetsASync(MemoryArenaTemp a_temp_arena, const BB::Slice<Asset::AsyncAsset> a_asyn_assets);
-		struct LoadedAssetInfo
-		{
-			StringView name;
-			ASYNC_ASSET_TYPE type;
-		};
-		Slice<LoadedAssetInfo> LoadAssets(MemoryArena& a_temp_arena, const Slice<AsyncAsset> a_asyn_assets);
 
-		const StringView LoadImageDisk(MemoryArena& a_temp_arena, const StringView& a_path, const IMAGE_FORMAT a_format);
-		const StringView LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const StringView& a_name);
-		const StringView LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op);
-		const StringView LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoadFromMemory& a_mesh_op);
+		void LoadAssets(MemoryArena& a_temp_arena, const Slice<AsyncAsset> a_asyn_assets);
+
+		const Image& LoadImageDisk(MemoryArena& a_temp_arena, const StringView& a_path, const IMAGE_FORMAT a_format);
+		const Image& LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const StringView& a_name);
+		const Model& LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op);
+		const Model& LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoadFromMemory& a_mesh_op);
 
 		bool ReadWriteTextureDeferred(const StringView& a_path, const ImageInfo& a_read_image_info);
 		bool WriteImage(const StringView& a_path, const uint2 a_extent, const uint32_t a_channels, const void* a_pixels);

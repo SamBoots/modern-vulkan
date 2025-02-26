@@ -839,12 +839,12 @@ namespace BB
 		StaticOL_HashMap<Key, Value>& operator=(const StaticOL_HashMap<Key, Value>& a_rhs) = delete;
 		StaticOL_HashMap<Key, Value>& operator=(StaticOL_HashMap<Key, Value>&& a_rhs) = delete;
 
-		void insert(const Key& a_key, const Value& a_res)
+		Value* insert(const Key& a_key, const Value& a_res)
 		{
-			emplace(a_key, a_res);
+			return emplace(a_key, a_res);
 		}
 		template <class... Args>
-		void emplace(const Key& a_key, Args&&... a_value_args)
+		Value* emplace(const Key& a_key, Args&&... a_value_args)
 		{
 			m_size++;
 			BB_WARNING(m_size < LFCalculation(m_capacity, Hashmap_Specs::OL_UnLoadFactor), "hashmap over loadfactor, collision slowdown will happen", WarningType::OPTIMIZATION);
@@ -859,7 +859,7 @@ namespace BB
 					m_hashes[i] = hash;
 					m_keys[i] = a_key;
 					new (&m_values[i]) Value(std::forward<Args>(a_value_args)...);
-					return;
+					return &m_values[i];
 				}
 			}
 
@@ -871,9 +871,11 @@ namespace BB
 					m_hashes[i] = hash;
 					m_keys[i] = a_key;
 					new (&m_values[i]) Value(std::forward<Args>(a_value_args)...);
-					return;
+					return &m_values[i];
 				}
 			}
+
+			return nullptr;
 		}
 		Value* find(const Key& a_key) const
 		{
