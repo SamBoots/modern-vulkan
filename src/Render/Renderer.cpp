@@ -1755,6 +1755,7 @@ bool BB::ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const 
 
 const Mesh BB::CreateMesh(const CreateMeshInfo& a_create_info)
 {
+	BBRWLockScopeWrite slock(lock);
 	// make this it's own class or something
 	RenderInterface_inst::AssetUploader& uploader = s_render_inst->asset_uploader;
 

@@ -952,6 +952,14 @@ static inline VkBlendFactor BlendFactor(const BLEND_MODE a_blend_mode)
 #endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
+// temp to figure out 
+static void AddMemoryToAllocationMap(const uintptr_t a_address, const VmaAllocation a_vma_allocation)
+{
+	static BBRWLock lock = BBRWLock(0);
+	BBRWLockScopeWrite slock(lock);
+	s_vulkan_inst->allocation_map.insert(a_address, a_vma_allocation);
+}
+
 static VkSampler CreateSampler(const SamplerCreateInfo& a_create_info)
 {
 	VkSamplerCreateInfo sampler_info{ VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
@@ -1541,7 +1549,7 @@ const GPUBuffer Vulkan::CreateBuffer(const GPUBufferCreateInfo& a_create_info)
 
 	SetDebugName(a_create_info.name, buffer, VK_OBJECT_TYPE_BUFFER);
 
-	s_vulkan_inst->allocation_map.insert(reinterpret_cast<uintptr_t>(buffer), allocation);
+	AddMemoryToAllocationMap(reinterpret_cast<uintptr_t>(buffer), allocation);
 	return GPUBuffer(reinterpret_cast<uintptr_t>(buffer));
 }
 
@@ -1591,7 +1599,7 @@ const RImage Vulkan::CreateImage(const ImageCreateInfo& a_create_info)
 
 	SetDebugName(a_create_info.name, image, VK_OBJECT_TYPE_IMAGE);
 
-	s_vulkan_inst->allocation_map.insert(reinterpret_cast<uintptr_t>(image), allocation);
+	AddMemoryToAllocationMap(reinterpret_cast<uintptr_t>(image), allocation);
 	return RImage(reinterpret_cast<uintptr_t>(image));
 }
 

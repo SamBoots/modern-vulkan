@@ -579,6 +579,8 @@ const Image& Asset::LoadImageDisk(MemoryArena& a_temp_arena, const StringView& a
 	if (exists)
 		return *asset.image;
 
+	const BBRWLockScopeWrite lock(s_asset_manager->asset_lock);
+
 	GetAssetNameFromPath(a_path, asset.name);
 
 	int width = 0, height = 0, channels = 0;
@@ -590,7 +592,7 @@ const Image& Asset::LoadImageDisk(MemoryArena& a_temp_arena, const StringView& a
 	const uint32_t uwidth = static_cast<uint32_t>(width);
 	const uint32_t uheight = static_cast<uint32_t>(height);
 	CreateImage_func(asset.name.GetView(), uwidth, uheight, format, gpu_image, descriptor_index);
-
+		
 	WriteImageInfo write_info{};
 	write_info.image = gpu_image;
 	write_info.format = format;
@@ -1142,7 +1144,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 			case cgltf_attribute_type_color:
 			{
 				float4* colors;
-				BB_ASSERT(attrib.data->type == cgltf_type_vec4, "color is not vec3");
+				BB_ASSERT(attrib.data->type == cgltf_type_vec4, "color is not vec4");
 				if (is_interleaved)
 				{
 					colors = ArenaAllocArr(a_temp_arena, float4, vertex_count);
@@ -1209,7 +1211,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 			create_mesh.tangents = ConstSlice<float3>(tangents, vertex_count);
 		}
 
-		if (vertex_tangent_offset == 0)
+		if (vertex_color_offset == 0)
 		{
 			float4* colors = ArenaAllocArr(a_temp_arena, float4, vertex_count);
 			for (size_t i = 0; i < vertex_count; i++)

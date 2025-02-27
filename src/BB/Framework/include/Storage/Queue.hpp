@@ -3,6 +3,8 @@
 #include "MemoryArena.hpp"
 #include <atomic>
 
+#include "Program.h"
+
 namespace BB
 {
 	template<typename T>
@@ -91,11 +93,13 @@ namespace BB
 			m_tail = 0;
 			m_head = 0;
 			m_size = 0;
+			lock = OSCreateRWLock();
 		}
 
 		// thread safe
 		bool EnQueue(const T& a_element)
 		{
+			BBRWLockScopeWrite slock(lock);
 			const size_t current_size = m_size.fetch_add(1, std::memory_order_acquire);
 			if (current_size >= m_capacity)
 			{
@@ -111,6 +115,7 @@ namespace BB
 		// thread unsafe
 		bool DeQueue(T& a_out)
 		{
+			BBRWLockScopeWrite slock(lock);
 			if (m_size == 0)
 			{
 				return false;

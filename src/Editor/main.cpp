@@ -76,6 +76,9 @@ int main(int argc, char** argv)
 		GetEngineConfigData(main_arena, engine_config);
 	}
 
+	InitializeProfiler(main_arena, 64);
+	BB_START_PROFILE("startup profile");
+
 	const uint2 window_extent = uint2(engine_config.window_size_x, engine_config.window_size_y);
 	const uint2 window_offest = uint2(engine_config.window_offset_x, engine_config.window_offset_y);
 
@@ -96,7 +99,6 @@ int main(int argc, char** argv)
 	render_create_info.gamma = 2.2f;
 	render_create_info.debug = true;
 
-	InitializeProfiler(main_arena, 64);
 	InitializeRenderer(main_arena, render_create_info);
 	const uint32_t back_buffer_count = GetRenderIO().frame_count;
 
@@ -120,6 +122,8 @@ int main(int argc, char** argv)
 
 	RenderViewport render_viewport{};
 	render_viewport.Init(window_extent / 2, back_buffer_count, "../../resources/scenes/standard_scene.json");
+
+	BB_END_PROFILE("startup profile");
 
 	while (!end_app)
 	{

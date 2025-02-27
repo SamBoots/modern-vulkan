@@ -109,6 +109,7 @@ UploadBuffer GPUUploadRingAllocator::AllocateUploadMemory(const size_t a_byte_am
 		end = Pointer::Add(m_begin, a_byte_amount);
 
 		m_size += alloc_offset;
+		BB_ASSERT(m_size <= Capacity(), "GPUUploadRingAllocator size bigger then capacity");
 	}
 
 	if (m_locked_queue.IsFull() || a_byte_amount > SizeRemaining())
