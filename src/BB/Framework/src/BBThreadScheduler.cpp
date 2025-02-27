@@ -3,6 +3,8 @@
 
 using namespace BB;
 
+constexpr bool FORCE_SINGLE_THREAD = true;
+
 enum class THREAD_STATUS : uint32_t
 {
 	IDLE,
@@ -117,22 +119,33 @@ void BB::Threads::DestroyThreads()
 
 ThreadTask BB::Threads::StartTaskThread(void(*a_function)(MemoryArena&, void*), void* a_func_parameter, const size_t a_func_parameter_size, const wchar_t* a_task_name)
 {
-	for (uint32_t i = 0; i < s_thread_scheduler.thread_count; i++)
+	if (FORCE_SINGLE_THREAD)
 	{
-		if (s_thread_scheduler.threads[i].thread_info.thread_status == THREAD_STATUS::IDLE)
+		MemoryArenaScope(s_thread_scheduler.threads[0].thread_info.arena)
 		{
-			const uint32_t next_gen = s_thread_scheduler.threads[i].thread_info.generation + 1;
-			s_thread_scheduler.threads[i].thread_info.task_name = a_task_name;
-			s_thread_scheduler.threads[i].thread_info.function = a_function;
-			void* func_parameter_mem = ArenaAlloc(s_thread_scheduler.threads[i].thread_info.arena, a_func_parameter_size, 16);
-			s_thread_scheduler.threads[i].thread_info.function_parameter = memcpy(func_parameter_mem, a_func_parameter, a_func_parameter_size);
-			s_thread_scheduler.threads[i].thread_info.thread_status = THREAD_STATUS::BUSY;
-			OSWakeConditionVariable(&s_thread_scheduler.threads[i].thread_info.condition);
-			return ThreadTask(i, next_gen);
+			a_function(s_thread_scheduler.threads[0].thread_info.arena, a_func_parameter);
 		}
+		return ThreadTask(0);
 	}
-	BB_ASSERT(false, "No free threads! Maybe implement a way to just re-iterate over the list again.");
-	return ThreadTask(BB_INVALID_HANDLE_64);
+	else
+	{
+		for (uint32_t i = 0; i < s_thread_scheduler.thread_count; i++)
+		{
+			if (s_thread_scheduler.threads[i].thread_info.thread_status == THREAD_STATUS::IDLE)
+			{
+				const uint32_t next_gen = s_thread_scheduler.threads[i].thread_info.generation + 1;
+				s_thread_scheduler.threads[i].thread_info.task_name = a_task_name;
+				s_thread_scheduler.threads[i].thread_info.function = a_function;
+				void* func_parameter_mem = ArenaAlloc(s_thread_scheduler.threads[i].thread_info.arena, a_func_parameter_size, 16);
+				s_thread_scheduler.threads[i].thread_info.function_parameter = memcpy(func_parameter_mem, a_func_parameter, a_func_parameter_size);
+				s_thread_scheduler.threads[i].thread_info.thread_status = THREAD_STATUS::BUSY;
+				OSWakeConditionVariable(&s_thread_scheduler.threads[i].thread_info.condition);
+				return ThreadTask(i, next_gen);
+			}
+		}
+		BB_ASSERT(false, "No free threads! Maybe implement a way to just re-iterate over the list again.");
+		return ThreadTask(BB_INVALID_HANDLE_64);
+	}
 }
 
 ThreadTask BB::Threads::StartTaskThread(void(*a_function)(MemoryArena& a_thread_arena, void*), const wchar_t* a_task_name)
@@ -142,13 +155,19 @@ ThreadTask BB::Threads::StartTaskThread(void(*a_function)(MemoryArena& a_thread_
 
 void BB::Threads::WaitForTask(const ThreadTask a_handle)
 {
-	while (s_thread_scheduler.threads[a_handle.index].thread_info.generation < a_handle.extra_index) {}
+	if (FORCE_SINGLE_THREAD)
+		return;
+	else
+		while (s_thread_scheduler.threads[a_handle.index].thread_info.generation < a_handle.extra_index) {}
 }
 
 bool BB::Threads::TaskFinished(const ThreadTask a_handle)
 {
-	if (s_thread_scheduler.threads[a_handle.index].thread_info.generation <= a_handle.extra_index)
+	if (FORCE_SINGLE_THREAD)
 		return true;
+	else
+		if (s_thread_scheduler.threads[a_handle.index].thread_info.generation <= a_handle.extra_index)
+			return true;
 
 	return false;
 }
