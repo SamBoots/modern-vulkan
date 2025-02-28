@@ -511,6 +511,7 @@ constexpr uint32_t BACK_BUFFER_MAX = 3;
 
 struct UploadDataMesh
 {
+	uint64_t fence_value;
 	RenderCopyBufferRegion vertex_region;
 	RenderCopyBufferRegion index_region;
 };
@@ -523,6 +524,7 @@ enum class UPLOAD_TEXTURE_TYPE
 
 struct UploadDataTexture
 {
+	uint64_t fence_value;
 	RImage image;
 	UPLOAD_TEXTURE_TYPE upload_type;
 	union 
@@ -1407,6 +1409,7 @@ static void UploadAndWaitAssets(MemoryArena& a_thread_arena, void*)
 	{
 		CommandPool& cmd_pool = GetTransferCommandPool();
 		const RCommandList list = cmd_pool.StartCommandList("upload asset list");
+		const uint64_t asset_fence_value = s_render_inst->asset_uploader.next_fence_value.fetch_add(1);
 
 		if (!s_render_inst->asset_uploader.upload_meshes.IsEmpty())
 		{
@@ -1527,7 +1530,6 @@ static void UploadAndWaitAssets(MemoryArena& a_thread_arena, void*)
 
 		s_render_inst->transfer_queue.ReturnPools(Slice(&cmd_pool, 1));
 		uint64_t mock_fence;	// TODO, remove this
-		const uint64_t asset_fence_value = s_render_inst->asset_uploader.next_fence_value.fetch_add(1);
 		s_render_inst->transfer_queue.ExecuteCommands(&list, 1, &s_render_inst->asset_uploader.fence, &asset_fence_value, 1, nullptr, nullptr, 0, mock_fence);
 	}
 	else
@@ -1755,13 +1757,13 @@ bool BB::ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const 
 
 const Mesh BB::CreateMesh(const CreateMeshInfo& a_create_info)
 {
-	BBRWLockScopeWrite slock(lock);
 	// make this it's own class or something
 	RenderInterface_inst::AssetUploader& uploader = s_render_inst->asset_uploader;
 
 	const size_t vertex_buffer_size = a_create_info.positions.sizeInBytes() + a_create_info.normals.sizeInBytes() + a_create_info.uvs.sizeInBytes() + a_create_info.colors.sizeInBytes() + a_create_info.tangents.sizeInBytes();
 
-	UploadBuffer upload_buffer = uploader.gpu_allocator.AllocateUploadMemory(vertex_buffer_size + a_create_info.indices.sizeInBytes(), uploader.next_fence_value);
+	const size_t fence_value = uploader.next_fence_value.load();
+	UploadBuffer upload_buffer = uploader.gpu_allocator.AllocateUploadMemory(vertex_buffer_size + a_create_info.indices.sizeInBytes(), fence_value);
 	if (upload_buffer.begin == nullptr)
 	{
 		// temporary arena
@@ -1785,6 +1787,7 @@ const Mesh BB::CreateMesh(const CreateMeshInfo& a_create_info)
 	upload_buffer.SafeMemcpy(index_offset, a_create_info.indices.data(), a_create_info.indices.sizeInBytes());
 
 	UploadDataMesh task{};
+	task.fence_value = fence_value;
 	task.vertex_region.size = vertex_buffer.size;
 	task.vertex_region.dst_offset = vertex_buffer.offset;
 	task.vertex_region.src_offset = upload_buffer.base_offset;
@@ -1996,7 +1999,8 @@ GPUFenceValue BB::WriteTexture(const WriteImageInfo& a_write_info)
 
 	const size_t byte_per_pixel = GetByteSizeOfImageFormat(a_write_info.format);
 	//now upload the image.
-	UploadBuffer upload_buffer = uploader.gpu_allocator.AllocateUploadMemory(byte_per_pixel * a_write_info.extent.x * a_write_info.extent.y, uploader.next_fence_value);
+	const size_t fence_value = uploader.next_fence_value.load();
+	UploadBuffer upload_buffer = uploader.gpu_allocator.AllocateUploadMemory(byte_per_pixel * a_write_info.extent.x * a_write_info.extent.y, fence_value);
 	if (upload_buffer.begin == nullptr)
 	{
 		// temporary arena
@@ -2025,6 +2029,7 @@ GPUFenceValue BB::WriteTexture(const WriteImageInfo& a_write_info)
 	buffer_to_image.dst_aspects = IMAGE_ASPECT::COLOR;
 
 	UploadDataTexture upload_texture{};
+	upload_texture.fence_value = fence_value;
 	upload_texture.image = a_write_info.image;
 	upload_texture.upload_type = UPLOAD_TEXTURE_TYPE::WRITE;
 	upload_texture.write_info = buffer_to_image;
@@ -2064,6 +2069,7 @@ GPUFenceValue BB::ReadTexture(const ImageReadInfo a_image_info)
 	image_to_buffer.src_image_info.base_array_layer = a_image_info.image_info.base_array_layer;
 
 	UploadDataTexture upload_texture{};
+	upload_texture.fence_value = uploader.next_fence_value.load();
 	upload_texture.image = a_image_info.image_info.image;
 	upload_texture.upload_type = UPLOAD_TEXTURE_TYPE::READ;
 	upload_texture.read_info = image_to_buffer;

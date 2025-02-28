@@ -100,7 +100,7 @@ UploadBuffer GPUUploadRingAllocator::AllocateUploadMemory(const size_t a_byte_am
 	void* end = Pointer::Add(m_write_at, a_byte_amount);
 
 	size_t alloc_offset = 0;
-	// if we go over the end, but not over the readpointer then recalculate
+	// if we go over the end then recalculate
 	if (end > m_end)
 	{
 		alloc_offset = reinterpret_cast<size_t>(m_end) - reinterpret_cast<size_t>(m_write_at);

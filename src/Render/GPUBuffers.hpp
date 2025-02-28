@@ -94,10 +94,10 @@ namespace BB
 		RFence m_fence;
 		GPUBuffer m_buffer;
 
-		void* m_begin;
 		size_t m_size;
-		void* m_write_at;
+		void* m_begin;
 		void* m_end;
+		void* m_write_at;
 		SPSCQueue<LockedRegions> m_locked_queue;
 	};
 }

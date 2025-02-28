@@ -93,13 +93,11 @@ namespace BB
 			m_tail = 0;
 			m_head = 0;
 			m_size = 0;
-			lock = OSCreateRWLock();
 		}
 
 		// thread safe
 		bool EnQueue(const T& a_element)
 		{
-			BBRWLockScopeWrite slock(lock);
 			const size_t current_size = m_size.fetch_add(1, std::memory_order_acquire);
 			if (current_size >= m_capacity)
 			{
@@ -115,11 +113,9 @@ namespace BB
 		// thread unsafe
 		bool DeQueue(T& a_out)
 		{
-			BBRWLockScopeWrite slock(lock);
 			if (m_size == 0)
-			{
 				return false;
-			}
+
 			a_out = m_arr[m_tail].load();
 			m_size.fetch_sub(1, std::memory_order_release);
 			if (++m_tail >= m_capacity)
@@ -141,7 +137,6 @@ namespace BB
 		inline size_t Capacity() const { return m_capacity; }
 
 	private:
-		BBRWLock lock;
 		std::atomic<T>* m_arr;
 		size_t m_capacity;
 		std::atomic<uint32_t> m_size;

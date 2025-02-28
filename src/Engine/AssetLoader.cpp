@@ -578,21 +578,17 @@ const Image& Asset::LoadImageDisk(MemoryArena& a_temp_arena, const StringView& a
 	AssetSlot& asset = FindElementOrCreateElement(path_hash, exists);
 	if (exists)
 		return *asset.image;
-
-	const BBRWLockScopeWrite lock(s_asset_manager->asset_lock);
-
 	GetAssetNameFromPath(a_path, asset.name);
 
 	int width = 0, height = 0, channels = 0;
 	stbi_uc* pixels = stbi_load(a_path.c_str(), &width, &height, &channels, 4);
-
 	RImage gpu_image;
 	RDescriptorIndex descriptor_index;
 	const IMAGE_FORMAT format = a_format;
 	const uint32_t uwidth = static_cast<uint32_t>(width);
 	const uint32_t uheight = static_cast<uint32_t>(height);
 	CreateImage_func(asset.name.GetView(), uwidth, uheight, format, gpu_image, descriptor_index);
-		
+
 	WriteImageInfo write_info{};
 	write_info.image = gpu_image;
 	write_info.format = format;
@@ -601,7 +597,6 @@ const Image& Asset::LoadImageDisk(MemoryArena& a_temp_arena, const StringView& a
 	write_info.set_shader_visible = true;
 	write_info.layer_count = 1;
 	write_info.base_array_layer = 0;
-
 	WriteTexture(write_info);
 	
 	asset.hash = path_hash;
@@ -1300,7 +1295,7 @@ const Model& Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 
 	// for every 5 meshes create a thread;
-	constexpr size_t TASKS_PER_THREAD = 4;
+	constexpr size_t TASKS_PER_THREAD = 2;
 
 	const uint32_t thread_count = asset.model->meshes.size() / TASKS_PER_THREAD;
 
