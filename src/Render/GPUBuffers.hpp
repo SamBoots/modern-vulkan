@@ -63,12 +63,13 @@ namespace BB
 
 	constexpr size_t RING_BUFFER_QUEUE_ELEMENT_COUNT = 128;
 
+	// idea from https://www.codeproject.com/Articles/1094799/Implementing-Dynamic-Resources-with-Direct3D12
 	class GPUUploadRingAllocator
 	{
 	public:
 		void Init(MemoryArena& a_arena, const size_t a_ring_buffer_size, const RFence a_fence, const char* a_name);
 
-		UploadBuffer AllocateUploadMemory(const size_t a_byte_amount, const uint64_t a_fence_value);
+		UploadBuffer AllocateUploadMemory(const size_t a_byte_amount, const uint64_t a_fence_value, const bool a_retry = true);
 
 		size_t Capacity() const
 		{
@@ -84,20 +85,26 @@ namespace BB
 		const RFence GetFence() const { return m_fence; }
 
 	private:
+		size_t FindOffset(const size_t a_byte_amount, const uint64_t a_fence_value);
+		void FreeElements();
+
 		struct LockedRegions
 		{
-			size_t mem_size;
+			size_t size;
+			size_t begin;
 			uint64_t fence_value;
 		};
 
 		BBRWLock m_lock;
 		RFence m_fence;
 		GPUBuffer m_buffer;
-
 		size_t m_size;
+
 		void* m_begin;
 		void* m_end;
-		void* m_write_at;
+		size_t m_head;
+		size_t m_tail;
+
 		SPSCQueue<LockedRegions> m_locked_queue;
 	};
 }
