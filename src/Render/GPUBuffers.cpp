@@ -92,7 +92,7 @@ void GPUUploadRingAllocator::Init(MemoryArena& a_arena, const size_t a_ring_buff
 	m_locked_queue.Init(a_arena, RING_BUFFER_QUEUE_ELEMENT_COUNT);
 }
 
-UploadBuffer GPUUploadRingAllocator::AllocateUploadMemory(const size_t a_byte_amount, const uint64_t a_fence_value, const bool a_retry)
+uint64_t GPUUploadRingAllocator::AllocateUploadMemory(const size_t a_byte_amount, const GPUFenceValue a_fence_value, const bool a_retry)
 {
 	BB_ASSERT(a_byte_amount < Capacity(), "trying to upload more memory then the ringbuffer size");
 	BBRWLockScopeWrite scope_lock(m_lock);
@@ -101,7 +101,7 @@ UploadBuffer GPUUploadRingAllocator::AllocateUploadMemory(const size_t a_byte_am
 	{
 		FreeElements();
 		if (m_locked_queue.IsFull())
-			return UploadBuffer();
+			return uint64_t(-1);
 	}
 
 	size_t offset = FindOffset(a_byte_amount, a_fence_value);
@@ -111,21 +111,22 @@ UploadBuffer GPUUploadRingAllocator::AllocateUploadMemory(const size_t a_byte_am
 		FreeElements();
 		offset = FindOffset(a_byte_amount, a_fence_value);
 		if (offset == size_t(-1))
-			return UploadBuffer();
+			return uint64_t(-1);
 	}
 
-	void* begin = Pointer::Add(m_begin, offset);
-	void* end = Pointer::Add(begin, a_byte_amount);
-
-	UploadBuffer upload_buffer;
-	upload_buffer.buffer = m_buffer;
-	upload_buffer.begin = begin;
-	upload_buffer.end = end;
-	upload_buffer.base_offset = offset;
-	return upload_buffer;
+	return offset;
 }
 
-size_t GPUUploadRingAllocator::FindOffset(const size_t a_byte_amount, const uint64_t a_fence_value)
+bool GPUUploadRingAllocator::MemcpyIntoBuffer(const size_t a_offset, const void* a_src_data, const size_t a_src_size) const
+{
+	if (a_offset + a_src_size > Capacity())
+		return false;
+
+	memcpy(Pointer::Add(m_begin, a_offset), a_src_data, a_src_size);
+	return true;
+}
+
+size_t GPUUploadRingAllocator::FindOffset(const size_t a_byte_amount, const GPUFenceValue a_fence_value)
 {
 	GPUUploadRingAllocator::LockedRegions locked_region;
 	locked_region.fence_value = a_fence_value;
@@ -175,11 +176,11 @@ size_t GPUUploadRingAllocator::FindOffset(const size_t a_byte_amount, const uint
 
 void GPUUploadRingAllocator::FreeElements()
 {
-	const uint64_t fence_value = Vulkan::GetCurrentFenceValue(m_fence);
+	const GPUFenceValue fence_value = Vulkan::GetCurrentFenceValue(m_fence);
 
 	while (const LockedRegions* locked_region = m_locked_queue.Peek())
 	{
-		if (locked_region->fence_value <= fence_value)
+		if (locked_region->fence_value.handle <= fence_value.handle)
 		{
 			m_size -= locked_region->size;
 			m_head = locked_region->begin;

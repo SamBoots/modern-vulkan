@@ -40,27 +40,6 @@ namespace BB
 		std::atomic<size_t> m_size;
 	};
 
-	struct UploadBuffer
-	{
-		// returns a_dst_offset + a_src_size
-		size_t SafeMemcpy(const size_t a_dst_offset, const void* a_src, const size_t a_src_size) const
-		{
-			if (a_src_size)
-			{
-				void* copy_pos = Pointer::Add(begin, a_dst_offset);
-				BB_ASSERT(Pointer::Add(copy_pos, a_src_size) <= end, "gpu upload buffer writing out of bounds");
-
-				memcpy(copy_pos, a_src, a_src_size);
-			}
-			return a_dst_offset + a_src_size;
-		}
-
-		GPUBuffer buffer;
-		void* begin;
-		void* end;
-		size_t base_offset;
-	};
-
 	constexpr size_t RING_BUFFER_QUEUE_ELEMENT_COUNT = 128;
 
 	// idea from https://www.codeproject.com/Articles/1094799/Implementing-Dynamic-Resources-with-Direct3D12
@@ -69,8 +48,9 @@ namespace BB
 	public:
 		void Init(MemoryArena& a_arena, const size_t a_ring_buffer_size, const RFence a_fence, const char* a_name);
 
-		UploadBuffer AllocateUploadMemory(const size_t a_byte_amount, const uint64_t a_fence_value, const bool a_retry = true);
+		uint64_t AllocateUploadMemory(const size_t a_byte_amount, const GPUFenceValue a_fence_value, const bool a_retry = true);
 
+		bool MemcpyIntoBuffer(const size_t a_offset, const void* a_src_data, const size_t a_src_size) const;
 		size_t Capacity() const
 		{
 			return reinterpret_cast<size_t>(m_end) - reinterpret_cast<size_t>(m_begin);
@@ -85,14 +65,14 @@ namespace BB
 		const RFence GetFence() const { return m_fence; }
 
 	private:
-		size_t FindOffset(const size_t a_byte_amount, const uint64_t a_fence_value);
+		size_t FindOffset(const size_t a_byte_amount, const GPUFenceValue a_fence_value);
 		void FreeElements();
 
 		struct LockedRegions
 		{
 			size_t size;
 			size_t begin;
-			uint64_t fence_value;
+			GPUFenceValue fence_value;
 		};
 
 		BBRWLock m_lock;

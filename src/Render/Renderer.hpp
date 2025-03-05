@@ -1,5 +1,3 @@
-
-
 #pragma once
 
 #include "Common.h"
@@ -36,18 +34,6 @@ namespace BB
 		ConstSlice<float4> colors;
 		ConstSlice<float3> tangents;
 		ConstSlice<uint32_t> indices;
-	};
-
-	struct WriteImageInfo
-	{
-		RImage image;
-		uint2 extent;
-		int2 offset;
-		uint16_t layer_count;
-		uint16_t base_array_layer;
-		IMAGE_FORMAT format;
-		const void* pixels;
-		bool set_shader_visible;
 	};
 
 	// get one pool per thread
@@ -111,17 +97,13 @@ namespace BB
 
 	bool PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value);
 	bool ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value);
-	
+	bool ExecuteTransferCommands(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value);
+
 	GPUBufferView AllocateFromVertexBuffer(const size_t a_size_in_bytes);
 	GPUBufferView AllocateFromIndexBuffer(const size_t a_size_in_bytes);
 
 	WriteableGPUBufferView AllocateFromWritableVertexBuffer(const size_t a_size_in_bytes);
 	WriteableGPUBufferView AllocateFromWritableIndexBuffer(const size_t a_size_in_bytes);
-
-	// returns invalid mesh when not enough upload buffer space
-	// maybe do this on the engine side, and upload later
-	const Mesh CreateMesh(const CreateMeshInfo& a_create_info);
-	void FreeMesh(const Mesh a_mesh);
 
 	RDescriptorLayout CreateDescriptorLayout(MemoryArena& a_temp_arena, const ConstSlice<DescriptorBindingInfo> a_bindings);
 	DescriptorAllocation AllocateDescriptor(const RDescriptorLayout a_descriptor);
@@ -142,7 +124,8 @@ namespace BB
 	void ClearDepthImage(const RCommandList a_list, const ClearDepthImageInfo& a_clear_info);
 	void BlitImage(const RCommandList a_list, const BlitImageInfo& a_blit_info);
 	void CopyImage(const RCommandList a_list, const CopyImageInfo& a_copy_info);
-	GPUFenceValue WriteTexture(const WriteImageInfo& a_write_info);
+	void CopyBufferToImage(const RCommandList a_list, const RenderCopyBufferToImageInfo& a_copy_info);
+	void CopyImageToBuffer(const RCommandList a_list, const RenderCopyImageToBufferInfo& a_copy_info);
 	GPUFenceValue ReadTexture(const ImageReadInfo a_image_info);
 
 	GPUFenceValue GetTransferFenceValue();

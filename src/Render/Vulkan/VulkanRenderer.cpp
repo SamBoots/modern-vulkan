@@ -2037,21 +2037,21 @@ void Vulkan::CopyImage(const RCommandList a_list, const CopyImageInfo& a_copy_in
 	image_copy.extent.height = a_copy_info.extent.y;
 	image_copy.extent.depth = a_copy_info.extent.z;
 
-	image_copy.srcOffset.x = a_copy_info.src_copy_info.offset_x;
-	image_copy.srcOffset.y = a_copy_info.src_copy_info.offset_y;
-	image_copy.srcOffset.z = a_copy_info.src_copy_info.offset_z;
+	image_copy.srcOffset.x = a_copy_info.src_offset.x;
+	image_copy.srcOffset.y = a_copy_info.src_offset.y;
+	image_copy.srcOffset.z = a_copy_info.src_offset.z;
 	image_copy.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	image_copy.srcSubresource.mipLevel = a_copy_info.src_copy_info.mip_level;
-	image_copy.srcSubresource.baseArrayLayer = a_copy_info.src_copy_info.base_array_layer;
-	image_copy.srcSubresource.layerCount = a_copy_info.src_copy_info.layer_count;
+	image_copy.srcSubresource.mipLevel = a_copy_info.src_mip_level;
+	image_copy.srcSubresource.baseArrayLayer = a_copy_info.src_base_array_layer;
+	image_copy.srcSubresource.layerCount = a_copy_info.src_layer_count;
 
-	image_copy.dstOffset.x = a_copy_info.dst_copy_info.offset_x;
-	image_copy.dstOffset.y = a_copy_info.dst_copy_info.offset_y;
-	image_copy.dstOffset.z = a_copy_info.dst_copy_info.offset_z;
+	image_copy.dstOffset.x = a_copy_info.dst_offset.x;
+	image_copy.dstOffset.y = a_copy_info.dst_offset.y;
+	image_copy.dstOffset.z = a_copy_info.dst_offset.z;
 	image_copy.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	image_copy.dstSubresource.mipLevel = a_copy_info.dst_copy_info.mip_level;
-	image_copy.dstSubresource.baseArrayLayer = a_copy_info.dst_copy_info.base_array_layer;
-	image_copy.dstSubresource.layerCount = a_copy_info.dst_copy_info.layer_count;
+	image_copy.dstSubresource.mipLevel = a_copy_info.dst_mip_level;
+	image_copy.dstSubresource.baseArrayLayer = a_copy_info.dst_base_array_layer;
+	image_copy.dstSubresource.layerCount = a_copy_info.dst_layer_count;
 
 	vkCmdCopyImage(cmd_list,
 		reinterpret_cast<VkImage>(a_copy_info.src_image.handle), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
@@ -2068,13 +2068,13 @@ void Vulkan::CopyBufferToImage(const RCommandList a_list, const RenderCopyBuffer
 	copy_image.bufferImageHeight = 0;
 	copy_image.bufferRowLength = 0;
 
-	copy_image.imageExtent.width = a_copy_info.dst_extent.x;
-	copy_image.imageExtent.height = a_copy_info.dst_extent.y;
-	copy_image.imageExtent.depth = a_copy_info.dst_extent.z;
+	copy_image.imageExtent.width = a_copy_info.dst_image_info.extent.x;
+	copy_image.imageExtent.height = a_copy_info.dst_image_info.extent.y;
+	copy_image.imageExtent.depth = a_copy_info.dst_image_info.extent.z;
 	
-	copy_image.imageOffset.x = a_copy_info.dst_image_info.offset_x;
-	copy_image.imageOffset.y = a_copy_info.dst_image_info.offset_y;
-	copy_image.imageOffset.z = a_copy_info.dst_image_info.offset_z;
+	copy_image.imageOffset.x = a_copy_info.dst_image_info.offset.x;
+	copy_image.imageOffset.y = a_copy_info.dst_image_info.offset.y;
+	copy_image.imageOffset.z = a_copy_info.dst_image_info.offset.z;
 
 	copy_image.imageSubresource.mipLevel = a_copy_info.dst_image_info.mip_level;
 	copy_image.imageSubresource.baseArrayLayer = a_copy_info.dst_image_info.base_array_layer;
@@ -2097,13 +2097,13 @@ void Vulkan::CopyImageToBuffer(const RCommandList a_list, const RenderCopyImageT
 	copy_image.bufferImageHeight = 0;
 	copy_image.bufferRowLength = 0;
 
-	copy_image.imageExtent.width = a_copy_info.src_extent.x;
-	copy_image.imageExtent.height = a_copy_info.src_extent.y;
-	copy_image.imageExtent.depth = a_copy_info.src_extent.z;
+	copy_image.imageExtent.width = a_copy_info.src_image_info.extent.x;
+	copy_image.imageExtent.height = a_copy_info.src_image_info.extent.y;
+	copy_image.imageExtent.depth = a_copy_info.src_image_info.extent.z;
 
-	copy_image.imageOffset.x = a_copy_info.src_image_info.offset_x;
-	copy_image.imageOffset.y = a_copy_info.src_image_info.offset_y;
-	copy_image.imageOffset.z = a_copy_info.src_image_info.offset_z;
+	copy_image.imageOffset.x = a_copy_info.src_image_info.offset.x;
+	copy_image.imageOffset.y = a_copy_info.src_image_info.offset.y;
+	copy_image.imageOffset.z = a_copy_info.src_image_info.offset.z;
 
 	copy_image.imageSubresource.aspectMask = ImageAspect(a_copy_info.src_aspects);
 	copy_image.imageSubresource.mipLevel = a_copy_info.src_image_info.mip_level;
@@ -2763,12 +2763,12 @@ void Vulkan::WaitFences(const RFence* a_fences, const uint64_t* a_fence_values, 
 	vkWaitSemaphores(s_vulkan_inst->device, &wait_info, 1000000000);
 }
 
-uint64_t Vulkan::GetCurrentFenceValue(const RFence a_fence)
+GPUFenceValue Vulkan::GetCurrentFenceValue(const RFence a_fence)
 {
-	uint64_t value;
+	GPUFenceValue value;
 	vkGetSemaphoreCounterValue(s_vulkan_inst->device,
 		reinterpret_cast<const VkSemaphore>(a_fence.handle),
-		&value);
+		&value.handle);
 	return value;
 }
 

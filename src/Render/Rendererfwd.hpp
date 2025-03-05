@@ -30,7 +30,7 @@ namespace BB
 	using RDescriptorLayout = FrameworkHandle<struct RDescriptorLayoutTag>;
 	using GPUFenceValue = FrameworkHandle<struct GPUFenceValueTag>;
 
-	using GPUBuffer = FrameworkHandle<struct RBufferTag>;
+	using GPUBuffer = FrameworkHandle<struct GPUBufferTag>;
 	using RImage = FrameworkHandle<struct RImageTag>;
 	using RImageView = FrameworkHandle<struct RImageViewTag>;
 
@@ -268,22 +268,48 @@ namespace BB
 
 	struct ImageSizeInfo
 	{
-		int32_t offset_x;
-		int32_t offset_y;
-		int32_t offset_z;
+		uint3 extent;
+		int3 offset;
 
 		uint32_t mip_level;
 		uint16_t base_array_layer;
 		uint16_t layer_count;
 	};
 
+	struct RenderCopyBufferToImageInfo
+	{
+		GPUBuffer src_buffer;
+		uint64_t src_offset;
+
+		RImage dst_image;
+		ImageSizeInfo dst_image_info;
+		IMAGE_ASPECT dst_aspects;
+	};
+
+	struct RenderCopyImageToBufferInfo
+	{
+		RImage src_image;
+		IMAGE_ASPECT src_aspects;
+		ImageSizeInfo src_image_info;
+
+		GPUBuffer dst_buffer;
+		uint32_t dst_offset;
+	};
+
 	struct CopyImageInfo
 	{
 		uint3 extent;
 		RImage src_image;
-		ImageSizeInfo src_copy_info;
+		int3 src_offset;
+		uint32_t src_mip_level;
+		uint16_t src_base_array_layer;
+		uint16_t src_layer_count;
+
 		RImage dst_image;
-		ImageSizeInfo dst_copy_info;
+		int3 dst_offset;
+		uint32_t dst_mip_level;
+		uint16_t dst_base_array_layer;
+		uint16_t dst_layer_count;
 	};
 
 	struct BlitImageInfo

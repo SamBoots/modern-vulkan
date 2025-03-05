@@ -509,31 +509,6 @@ struct ShaderEffect
 
 constexpr uint32_t BACK_BUFFER_MAX = 3;
 
-struct UploadDataMesh
-{
-	RenderCopyBufferRegion vertex_region;
-	RenderCopyBufferRegion index_region;
-};
-
-enum class UPLOAD_TEXTURE_TYPE
-{
-	WRITE,
-	READ
-};
-
-struct UploadDataTexture
-{
-	RImage image;
-	UPLOAD_TEXTURE_TYPE upload_type;
-	union 
-	{
-		RenderCopyBufferToImageInfo write_info;
-		RenderCopyImageToBufferInfo read_info;
-	};
-	IMAGE_LAYOUT start_layout;
-	IMAGE_LAYOUT end_layout;
-};
-
 struct RenderInterface_inst
 {
 	RenderInterface_inst(MemoryArena& a_arena)
@@ -557,16 +532,6 @@ struct RenderInterface_inst
 
 	RenderQueue graphics_queue;
 	RenderQueue transfer_queue;
-
-	struct AssetUploader
-	{
-		GPUUploadRingAllocator gpu_allocator;
-		RFence fence;
-		std::atomic<uint64_t> next_fence_value;
-		MPSCQueue<UploadDataMesh> upload_meshes;
-		MPSCQueue<UploadDataTexture> upload_textures;
-	};
-	AssetUploader asset_uploader;
 
 	GPUTextureManager texture_manager;
 	struct BasicColorImage
@@ -622,6 +587,8 @@ struct RenderInterface_inst
 };
 
 static RenderInterface_inst* s_render_inst;
+
+
 
 namespace IMGUI_IMPL
 {
@@ -1016,26 +983,6 @@ void GPUTextureManager::TransitionTextures(const RCommandList a_list)
 	m_transition_size.store(0);
 };
 
-static size_t GetByteSizeOfImageFormat(const IMAGE_FORMAT a_format)
-{
-	switch (a_format)
-	{
-	case IMAGE_FORMAT::RGBA16_UNORM:
-	case IMAGE_FORMAT::RGBA16_SFLOAT:
-		return 8;
-	case IMAGE_FORMAT::RGBA8_SRGB:
-	case IMAGE_FORMAT::RGBA8_UNORM:
-		return 4;
-	case IMAGE_FORMAT::RGB8_SRGB:
-		return 3;
-	case IMAGE_FORMAT::A8_UNORM:
-		return 1;
-	default:
-		BB_ASSERT(false, "Unsupported bit_count for upload image");
-		return 4;
-	}
-}
-
 const RenderIO& BB::GetRenderIO()
 {
 	return s_render_inst->render_io;
@@ -1398,146 +1345,6 @@ void BB::RenderStartFrame(const RCommandList a_list, const RenderStartFrameInfo&
 	a_out_back_buffer_index = frame_index;
 }
 
-static std::atomic<bool> uploading_assets = false;
-
-static void UploadAndWaitAssets(MemoryArena& a_thread_arena, void*)
-{
-	bool expected = false;
-	if (uploading_assets.compare_exchange_strong(expected, true))
-	{
-		CommandPool& cmd_pool = GetTransferCommandPool();
-		const RCommandList list = cmd_pool.StartCommandList("upload asset list");
-		const uint64_t asset_fence_value = s_render_inst->asset_uploader.next_fence_value.fetch_add(1);
-
-		if (!s_render_inst->asset_uploader.upload_meshes.IsEmpty())
-		{
-			MemoryArenaScope(a_thread_arena)
-			{
-				RenderCopyBufferRegion* vertex_regions = ArenaAllocArr(a_thread_arena, RenderCopyBufferRegion, MAX_MESH_UPLOAD_QUEUE);
-				RenderCopyBufferRegion* index_regions = ArenaAllocArr(a_thread_arena, RenderCopyBufferRegion, MAX_MESH_UPLOAD_QUEUE);
-
-				size_t vertex_buffer_index = 0;
-				size_t index_buffer_index = 0;
-				UploadDataMesh upload_data;
-				while (s_render_inst->asset_uploader.upload_meshes.DeQueue(upload_data) && vertex_buffer_index < MAX_MESH_UPLOAD_QUEUE)
-				{
-					vertex_regions[vertex_buffer_index++] = upload_data.vertex_region;
-					if (upload_data.index_region.size)
-						index_regions[index_buffer_index++] = upload_data.index_region;
-				}
-
-				{
-					RenderCopyBuffer vertex_copy{};
-					vertex_copy.src = s_render_inst->asset_uploader.gpu_allocator.GetBuffer();
-					vertex_copy.dst = s_render_inst->vertex_buffer.buffer;
-					vertex_copy.regions = Slice(vertex_regions, vertex_buffer_index);
-
-					Vulkan::CopyBuffer(list, vertex_copy);
-				}
-				if (index_buffer_index)
-				{
-					RenderCopyBuffer index_copy{};
-					index_copy.src = s_render_inst->asset_uploader.gpu_allocator.GetBuffer();
-					index_copy.dst = s_render_inst->index_buffer.buffer;
-					index_copy.regions = Slice(index_regions, index_buffer_index);
-
-					Vulkan::CopyBuffer(list, index_copy);
-				}
-			}
-		}
-
-		if (!s_render_inst->asset_uploader.upload_textures.IsEmpty())
-		{
-			MemoryArenaScope(a_thread_arena)
-			{
-				uint32_t write_info_count = 0;
-				RenderCopyBufferToImageInfo* write_infos = ArenaAllocArr(a_thread_arena, RenderCopyBufferToImageInfo, MAX_TEXTURE_UPLOAD_QUEUE);
-				uint32_t read_info_count = 0;
-				RenderCopyImageToBufferInfo* read_infos = ArenaAllocArr(a_thread_arena, RenderCopyImageToBufferInfo, MAX_TEXTURE_UPLOAD_QUEUE);
-				uint32_t before_trans_count = 0;
-				PipelineBarrierImageInfo* before_transition = ArenaAllocArr(a_thread_arena, PipelineBarrierImageInfo, MAX_TEXTURE_UPLOAD_QUEUE);
-
-				size_t index = 0;
-				uint16_t base_layer = 0;
-				uint16_t layer_count = 0;
-				UploadDataTexture upload_data{};
-				while (s_render_inst->asset_uploader.upload_textures.DeQueue(upload_data) &&
-					index++ < MAX_TEXTURE_UPLOAD_QUEUE)
-				{
-					IMAGE_LAYOUT layout;
-					BARRIER_ACCESS_MASK mask;
-					switch (upload_data.upload_type)
-					{
-					case UPLOAD_TEXTURE_TYPE::WRITE:
-						write_infos[write_info_count++] = upload_data.write_info;
-						base_layer = upload_data.write_info.dst_image_info.base_array_layer;
-						layer_count = upload_data.write_info.dst_image_info.layer_count;
-						layout = IMAGE_LAYOUT::TRANSFER_DST;
-						mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
-						break;
-					case UPLOAD_TEXTURE_TYPE::READ:
-						read_infos[read_info_count++] = upload_data.read_info;
-						base_layer = upload_data.read_info.src_image_info.base_array_layer;
-						layer_count = upload_data.read_info.src_image_info.layer_count;
-						layout = IMAGE_LAYOUT::TRANSFER_SRC;
-						mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
-						break;
-					default:
-						BB_ASSERT(false, "invalid upload UPLOAD_TEXTURE_TYPE value or unimplemented switch statement");
-						break;
-					}
-
-					if (upload_data.start_layout != layout)
-					{
-						PipelineBarrierImageInfo& pi = before_transition[before_trans_count++];
-						pi.src_mask = BARRIER_ACCESS_MASK::NONE;
-						pi.dst_mask = mask;
-						pi.image = upload_data.image;
-						pi.old_layout = upload_data.start_layout;
-						pi.new_layout = layout;
-						pi.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
-						pi.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
-						pi.layer_count = layer_count;
-						pi.level_count = 1;
-						pi.base_array_layer = base_layer;
-						pi.base_mip_level = 0;
-						pi.src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
-						pi.dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
-						pi.aspects = IMAGE_ASPECT::COLOR;
-					}
-				}
-
-				PipelineBarrierInfo pipeline_info{};
-				pipeline_info.image_info_count = before_trans_count;
-				pipeline_info.image_infos = before_transition;
-				Vulkan::PipelineBarriers(list, pipeline_info);
-
-				for (size_t i = 0; i < write_info_count; i++)
-				{
-					Vulkan::CopyBufferToImage(list, write_infos[i]);
-				}
-
-				for (size_t i = 0; i < read_info_count; i++)
-				{
-					Vulkan::CopyImageToBuffer(list, read_infos[i]);
-				}
-			}
-		}
-
-		cmd_pool.EndCommandList(list);
-
-		s_render_inst->transfer_queue.ReturnPools(Slice(&cmd_pool, 1));
-		uint64_t mock_fence;	// TODO, remove this
-		s_render_inst->transfer_queue.ExecuteCommands(&list, 1, &s_render_inst->asset_uploader.fence, &asset_fence_value, 1, nullptr, nullptr, 0, mock_fence);
-	}
-	else
-	{
-		while (uploading_assets) {}
-	}
-
-	uploading_assets = false;
-}
-
 void BB::RenderEndFrame(const RCommandList a_list, const ShaderEffectHandle a_imgui_vertex, const ShaderEffectHandle a_imgui_fragment, const uint32_t a_back_buffer_index, bool a_skip)
 {
 	BB_ASSERT(s_render_inst->render_io.frame_started == true, "did not call RenderStartFrame before a RenderEndFrame");
@@ -1732,7 +1539,7 @@ bool BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_
 	return true;
 }
 
-bool BB::ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value)
+static bool ExecuteQueueCommands(RenderQueue& a_queue, const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value)
 {
 	uint32_t list_count = 0;
 	for (size_t i = 0; i < a_cmd_pools.size(); i++)
@@ -1748,61 +1555,19 @@ bool BB::ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const 
 		list_count += a_cmd_pools[i].GetListsRecorded();
 	}
 
-	s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
-	s_render_inst->graphics_queue.ExecuteCommands(lists, list_count, a_signal_fences, a_signal_values, a_signal_count, nullptr, nullptr, 0, a_out_present_fence_value);
+	a_queue.ReturnPools(a_cmd_pools);
+	a_queue.ExecuteCommands(lists, list_count, a_signal_fences, a_signal_values, a_signal_count, nullptr, nullptr, 0, a_out_present_fence_value);
 	return true;
 }
 
-const Mesh BB::CreateMesh(const CreateMeshInfo& a_create_info)
+bool BB::ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value)
 {
-	// make this it's own class or something
-	RenderInterface_inst::AssetUploader& uploader = s_render_inst->asset_uploader;
+	return ExecuteQueueCommands(s_render_inst->graphics_queue, a_cmd_pools, a_signal_fences, a_signal_values, a_signal_count, a_out_present_fence_value);
+}
 
-	const size_t vertex_buffer_size = a_create_info.positions.sizeInBytes() + a_create_info.normals.sizeInBytes() + a_create_info.uvs.sizeInBytes() + a_create_info.colors.sizeInBytes() + a_create_info.tangents.sizeInBytes();
-
-	const size_t fence_value = uploader.next_fence_value.load();
-	UploadBuffer upload_buffer = uploader.gpu_allocator.AllocateUploadMemory(vertex_buffer_size + a_create_info.indices.sizeInBytes(), fence_value);
-	if (upload_buffer.begin == nullptr)
-	{
-		// temporary arena
-		MemoryArena arena = MemoryArenaCreate();
-		UploadAndWaitAssets(arena, nullptr);
-		MemoryArenaFree(arena);
-		return CreateMesh(a_create_info);
-	}
-
-	const GPUBufferView vertex_buffer = AllocateFromVertexBuffer(vertex_buffer_size);
-	const GPUBufferView index_buffer = a_create_info.indices.size() ? AllocateFromIndexBuffer(a_create_info.indices.sizeInBytes()) : GPUBufferView();
-
-	const size_t position_offset = 0;
-	const size_t normal_offset = upload_buffer.SafeMemcpy(position_offset, a_create_info.positions.data(), a_create_info.positions.sizeInBytes());
-	const size_t uv_offset = upload_buffer.SafeMemcpy(normal_offset, a_create_info.normals.data(), a_create_info.normals.sizeInBytes());
-	const size_t color_offset = upload_buffer.SafeMemcpy(uv_offset, a_create_info.uvs.data(), a_create_info.uvs.sizeInBytes());
-	const size_t tangent_offset = upload_buffer.SafeMemcpy(color_offset, a_create_info.colors.data(), a_create_info.colors.sizeInBytes());
-	upload_buffer.SafeMemcpy(tangent_offset, a_create_info.tangents.data(), a_create_info.tangents.sizeInBytes());
-
-	const size_t index_offset = vertex_buffer_size;
-	upload_buffer.SafeMemcpy(index_offset, a_create_info.indices.data(), a_create_info.indices.sizeInBytes());
-
-	UploadDataMesh task{};
-	task.vertex_region.size = vertex_buffer.size;
-	task.vertex_region.dst_offset = vertex_buffer.offset;
-	task.vertex_region.src_offset = upload_buffer.base_offset;
-	task.index_region.size = index_buffer.size;
-	task.index_region.dst_offset = index_buffer.offset;
-	task.index_region.src_offset = index_offset + upload_buffer.base_offset;
-	const bool success = uploader.upload_meshes.EnQueue(task);
-	BB_ASSERT(success, "failed to add mesh to uploadmesh tasks");
-
-	Mesh mesh{};
-	mesh.vertex_position_offset = vertex_buffer.offset + position_offset;
-	mesh.vertex_normal_offset = vertex_buffer.offset + normal_offset;
-	mesh.vertex_uv_offset = vertex_buffer.offset + uv_offset;
-	mesh.vertex_color_offset = vertex_buffer.offset + color_offset;
-	mesh.vertex_tangent_offset = vertex_buffer.offset + tangent_offset;
-	mesh.index_buffer_offset = index_buffer.offset;
-
-	return mesh;
+bool BB::ExecuteTransferCommands(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value)
+{
+	return ExecuteQueueCommands(s_render_inst->transfer_queue, a_cmd_pools, a_signal_fences, a_signal_values, a_signal_count, a_out_present_fence_value);
 }
 
 void BB::FreeMesh(const Mesh a_mesh)
@@ -1990,56 +1755,18 @@ void BB::CopyImage(const RCommandList a_list, const CopyImageInfo& a_copy_info)
 	Vulkan::CopyImage(a_list, a_copy_info);
 }
 
-GPUFenceValue BB::WriteTexture(const WriteImageInfo& a_write_info)
+void BB::CopyBufferToImage(const RCommandList a_list, const RenderCopyBufferToImageInfo& a_copy_info)
 {
-	RenderInterface_inst::AssetUploader& uploader = s_render_inst->asset_uploader;
+	Vulkan::CopyBufferToImage(a_list, a_copy_info);
+}
 
-	const size_t byte_per_pixel = GetByteSizeOfImageFormat(a_write_info.format);
-	//now upload the image.
-	const size_t fence_value = uploader.next_fence_value.load();
-	UploadBuffer upload_buffer = uploader.gpu_allocator.AllocateUploadMemory(byte_per_pixel * a_write_info.extent.x * a_write_info.extent.y, fence_value);
-	if (upload_buffer.begin == nullptr)
-	{
-		// temporary arena
-		MemoryArena arena = MemoryArenaCreate();
-		UploadAndWaitAssets(arena, nullptr);
-		MemoryArenaFree(arena);
-		return WriteTexture(a_write_info);
-	}
-
-	upload_buffer.SafeMemcpy(0, a_write_info.pixels, byte_per_pixel * a_write_info.extent.x * a_write_info.extent.y);
-
-	RenderCopyBufferToImageInfo buffer_to_image;
-	buffer_to_image.src_buffer = upload_buffer.buffer;
-	buffer_to_image.src_offset = static_cast<uint32_t>(upload_buffer.base_offset);
-
-	buffer_to_image.dst_image = a_write_info.image;
-	buffer_to_image.dst_extent.x = a_write_info.extent.x;
-	buffer_to_image.dst_extent.y = a_write_info.extent.y;
-	buffer_to_image.dst_extent.z = 1;
-	buffer_to_image.dst_image_info.offset_x = a_write_info.offset.x;
-	buffer_to_image.dst_image_info.offset_y = a_write_info.offset.y;
-	buffer_to_image.dst_image_info.offset_z = 0;
-	buffer_to_image.dst_image_info.mip_level = 0;
-	buffer_to_image.dst_image_info.layer_count = a_write_info.layer_count;
-	buffer_to_image.dst_image_info.base_array_layer = a_write_info.base_array_layer;
-	buffer_to_image.dst_aspects = IMAGE_ASPECT::COLOR;
-
-	UploadDataTexture upload_texture{};
-	upload_texture.image = a_write_info.image;
-	upload_texture.upload_type = UPLOAD_TEXTURE_TYPE::WRITE;
-	upload_texture.write_info = buffer_to_image;
-	upload_texture.start_layout = IMAGE_LAYOUT::UNDEFINED;
-	upload_texture.end_layout = a_write_info.set_shader_visible ? IMAGE_LAYOUT::SHADER_READ_ONLY : IMAGE_LAYOUT::TRANSFER_DST;
-	const bool success = uploader.upload_textures.EnQueue(upload_texture);
-	BB_ASSERT(success, "failed to add mesh to upload_textures tasks");
-
-	return GPUFenceValue(uploader.next_fence_value.load());
+void BB::CopyImageToBuffer(const RCommandList a_list, const RenderCopyImageToBufferInfo& a_copy_info)
+{
+	Vulkan::CopyImageToBuffer(a_list, a_copy_info)
 }
 
 GPUFenceValue BB::ReadTexture(const ImageReadInfo a_image_info)
 {
-	RenderInterface_inst::AssetUploader& uploader = s_render_inst->asset_uploader;
 
 	const size_t image_size =
 		static_cast<size_t>(a_image_info.image_info.extent.x) *
@@ -2054,16 +1781,18 @@ GPUFenceValue BB::ReadTexture(const ImageReadInfo a_image_info)
 
 	image_to_buffer.src_image = a_image_info.image_info.image;
 	image_to_buffer.src_aspects = IMAGE_ASPECT::COLOR;
-	image_to_buffer.src_extent.x = a_image_info.image_info.extent.x;
-	image_to_buffer.src_extent.y = a_image_info.image_info.extent.y;
-	image_to_buffer.src_extent.z = 1;
-	image_to_buffer.src_image_info.offset_x = a_image_info.image_info.offset.x;
-	image_to_buffer.src_image_info.offset_y = a_image_info.image_info.offset.y;
-	image_to_buffer.src_image_info.offset_z = 0;
+	image_to_buffer.src_image_info.extent.x = a_image_info.image_info.extent.x;
+	image_to_buffer.src_image_info.extent.y = a_image_info.image_info.extent.y;
+	image_to_buffer.src_image_info.extent.z = 1;
+	image_to_buffer.src_image_info.offset.x = a_image_info.image_info.offset.x;
+	image_to_buffer.src_image_info.offset.y = a_image_info.image_info.offset.y;
+	image_to_buffer.src_image_info.offset.z = 0;
 	image_to_buffer.src_image_info.mip_level = a_image_info.image_info.mip_layer;
 	image_to_buffer.src_image_info.layer_count = a_image_info.image_info.array_layers;
 	image_to_buffer.src_image_info.base_array_layer = a_image_info.image_info.base_array_layer;
 
+	RenderInterface_inst::AssetUploader& uploader = s_render_inst->asset_uploader;
+	const GPUFenceValue fence_value = GPUFenceValue(uploader.next_fence_value.load());
 	UploadDataTexture upload_texture{};
 	upload_texture.image = a_image_info.image_info.image;
 	upload_texture.upload_type = UPLOAD_TEXTURE_TYPE::READ;
@@ -2073,7 +1802,7 @@ GPUFenceValue BB::ReadTexture(const ImageReadInfo a_image_info)
 	const bool success = uploader.upload_textures.EnQueue(upload_texture);
 	BB_ASSERT(success, "failed to add mesh to upload_textures tasks");
 
-	return GPUFenceValue(uploader.next_fence_value.load());
+	return fence_value;
 }
 
 GPUFenceValue BB::GetTransferFenceValue()
