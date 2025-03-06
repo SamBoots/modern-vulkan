@@ -22,8 +22,6 @@ namespace BB
 		uint32_t swapchain_height;
 		bool debug;
 		float gamma;
-
-		size_t asset_upload_buffer_size = mbSize * 32;
 	};
 
 	struct CreateMeshInfo
@@ -101,6 +99,8 @@ namespace BB
 
 	GPUBufferView AllocateFromVertexBuffer(const size_t a_size_in_bytes);
 	GPUBufferView AllocateFromIndexBuffer(const size_t a_size_in_bytes);
+	void CopyToVertexBuffer(const RCommandList a_list, const GPUBuffer a_src, const Slice<RenderCopyBufferRegion> a_regions);
+	void CopyToIndexBuffer(const RCommandList a_list, const GPUBuffer a_src, const Slice<RenderCopyBufferRegion> a_regions);
 
 	WriteableGPUBufferView AllocateFromWritableVertexBuffer(const size_t a_size_in_bytes);
 	WriteableGPUBufferView AllocateFromWritableIndexBuffer(const size_t a_size_in_bytes);
@@ -126,9 +126,6 @@ namespace BB
 	void CopyImage(const RCommandList a_list, const CopyImageInfo& a_copy_info);
 	void CopyBufferToImage(const RCommandList a_list, const RenderCopyBufferToImageInfo& a_copy_info);
 	void CopyImageToBuffer(const RCommandList a_list, const RenderCopyImageToBufferInfo& a_copy_info);
-	GPUFenceValue ReadTexture(const ImageReadInfo a_image_info);
-
-	GPUFenceValue GetTransferFenceValue();
 
 	const GPUBuffer CreateGPUBuffer(const GPUBufferCreateInfo& a_create_info);
 	void FreeGPUBuffer(const GPUBuffer a_buffer);
@@ -144,7 +141,7 @@ namespace BB
 	void FreeFence(const RFence a_fence);
 	void WaitFence(const RFence a_fence, const uint64_t a_fence_value);
 	void WaitFences(const RFence* a_fences, const uint64_t* a_fence_values, const uint32_t a_fence_count);
-	uint64_t GetCurrentFenceValue(const RFence a_fence);
+	GPUFenceValue GetCurrentFenceValue(const RFence a_fence);
 
 	void SetPushConstants(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_offset, const uint32_t a_size, const void* a_data);
 	void PipelineBarriers(const RCommandList a_list, const struct PipelineBarrierInfo& a_barrier_info);

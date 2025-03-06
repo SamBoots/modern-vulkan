@@ -14,6 +14,17 @@ namespace BB
 	class BBImage;
 	class UploadBufferView;
 
+	// temp
+	struct ImageInfo
+	{
+		RImage image;
+		uint2 extent;
+		int2 offset;
+		uint16_t array_layers;
+		uint16_t base_array_layer;
+		uint32_t mip_layer;
+	};
+
 	constexpr size_t MAX_ASSET_NAME_SIZE = 64;
 	using AssetString = StackString<MAX_ASSET_NAME_SIZE>;
 
@@ -84,6 +95,8 @@ namespace BB
 		{
 			uint32_t asset_count = ASSET_COUNT_STANDARD;
 			uint32_t string_entry_count = STRING_ENTRY_COUNT_STANDARD;
+
+			size_t asset_upload_buffer_size = mbSize * 32;
 		};
 
 		enum class ASYNC_ASSET_TYPE : uint32_t
