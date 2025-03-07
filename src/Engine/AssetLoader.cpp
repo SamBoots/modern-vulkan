@@ -226,6 +226,17 @@ struct AssetManager
 	FreelistInterface gpu_task_arena;
 	SPSCQueue<GPUTask> gpu_tasks_queue;
 
+	struct Preloaded
+	{
+		struct BasicColorImage
+		{
+			RImage image;
+			RDescriptorIndex index;
+		};
+		BasicColorImage white;
+		BasicColorImage black;
+	} pre_loaded;
+
 	struct IconGigaTexture
 	{
 		IconSlot empty_slot;
@@ -733,7 +744,11 @@ void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
 		s_asset_manager->gpu_uploader.next_fence_value = 1;
 	}
 
-
+	//some basic colors
+	const uint32_t white = UINT32_MAX;
+	CreateBasicColorImage(s_asset_manager->pre_loaded.white.image, s_asset_manager->pre_loaded.white.index, "white", white);
+	const uint32_t black = 0x000000FF;
+	CreateBasicColorImage(s_asset_manager->pre_loaded.black.image, s_asset_manager->pre_loaded.black.index, "black", black);
 }
 
 static std::atomic<bool> uploading_assets = false;
@@ -1378,7 +1393,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 			metallic_info.albedo_texture = Asset::LoadImageDisk(a_temp_arena, full_image_path, IMAGE_FORMAT::RGBA8_SRGB).descriptor_index;
 		}
 		else
-			metallic_info.albedo_texture = GetWhiteTexture();
+			metallic_info.albedo_texture = Asset::GetWhiteTexture();
 
 		if (prim.material->normal_texture.texture)
 		{
@@ -1387,7 +1402,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 			metallic_info.normal_texture = Asset::LoadImageDisk(a_temp_arena, full_image_path, IMAGE_FORMAT::RGBA8_UNORM).descriptor_index;
 		}
 		else
-			metallic_info.normal_texture = GetWhiteTexture();
+			metallic_info.normal_texture = Asset::GetWhiteTexture();
 
 
 		bool texture_is_orm = false;
@@ -1412,7 +1427,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 		}
 		else
 		{
-			metallic_info.orm_texture = GetWhiteTexture();
+			metallic_info.orm_texture = Asset::GetWhiteTexture();
 		}
 
 
@@ -1979,4 +1994,14 @@ void Asset::ShowAssetMenu(MemoryArena& a_arena)
 		}
 	}
 	ImGui::End();
+}
+
+RDescriptorIndex Asset::GetWhiteTexture()
+{
+	return s_asset_manager->pre_loaded.white.index;
+}
+
+RDescriptorIndex Asset::GetBlackTexture()
+{
+	return s_asset_manager->pre_loaded.black.index;
 }

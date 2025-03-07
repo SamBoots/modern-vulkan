@@ -489,13 +489,6 @@ struct RenderInterface_inst
 	RenderQueue transfer_queue;
 
 	GPUTextureManager texture_manager;
-	struct BasicColorImage
-	{
-		RImage image;
-		RDescriptorIndex index;
-	};
-	BasicColorImage white;
-	BasicColorImage black;
 
 	GPUBufferView cubemap_position;
 
@@ -1126,12 +1119,6 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 
 	{	//initialize texture system
 		s_render_inst->texture_manager.Init(a_arena, s_render_inst->global_descriptor_set, s_render_inst->global_descriptor_allocation);
-
-		//some basic colors
-		const uint32_t white = UINT32_MAX;
-		CreateBasicColorImage(s_render_inst->white.image, s_render_inst->white.index, "white", white);
-		const uint32_t black = 0x000000FF;
-		CreateBasicColorImage(s_render_inst->black.image, s_render_inst->black.index, "black", black);
 	}
 
 	IMGUI_IMPL::ImInit(a_arena);
@@ -1798,16 +1785,6 @@ void BB::SetDescriptorBufferOffset(const RCommandList a_list, const RPipelineLay
 const BB::DescriptorAllocation& BB::GetGlobalDescriptorAllocation()
 {
 	return s_render_inst->global_descriptor_allocation;
-}
-
-RDescriptorIndex BB::GetWhiteTexture()
-{
-	return s_render_inst->white.index;
-}
-
-RDescriptorIndex BB::GetBlackTexture()
-{
-	return s_render_inst->black.index;
 }
 
 RDescriptorIndex BB::GetDebugTexture()

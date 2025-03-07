@@ -148,8 +148,6 @@ namespace BB
 	void SetDescriptorBufferOffset(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_first_set, const uint32_t a_set_count, const uint32_t* a_buffer_indices, const size_t* a_offsets);
 	const DescriptorAllocation& GetGlobalDescriptorAllocation();
 
-	RDescriptorIndex GetWhiteTexture();
-	RDescriptorIndex GetBlackTexture();
 	RDescriptorIndex GetDebugTexture();
 
 	// should always be placed as layout 0

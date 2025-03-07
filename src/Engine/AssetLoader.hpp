@@ -181,5 +181,8 @@ namespace BB
 		void ShowAssetMenu(MemoryArena& a_temp_arena);
 
 		void FreeAsset(const AssetHandle a_asset_handle);
+
+		RDescriptorIndex GetWhiteTexture();
+		RDescriptorIndex GetBlackTexture();
 	};
 }
