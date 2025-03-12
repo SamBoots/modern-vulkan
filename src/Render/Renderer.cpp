@@ -109,7 +109,46 @@ public:
 
 		{	// create debug texture
 			const uint32_t debug_purple = (209u << 0u) | (106u << 8u) | (255u << 16u) | (255u << 24u);
-			CreateBasicColorImage(m_debug_image, m_debug_descriptor_index, "debug purple", debug_purple);
+			const uint32_t debug_black = 0;
+			const uint32_t checker_board[4]{ debug_purple, debug_black, debug_purple, debug_black };
+
+			ImageCreateInfo image_info;
+			image_info.name = "debug texture";
+			image_info.width = 2;
+			image_info.height = 2;
+			image_info.depth = 1;
+			image_info.array_layers = 1;
+			image_info.mip_levels = 1;
+			image_info.type = IMAGE_TYPE::TYPE_2D;
+			image_info.use_optimal_tiling = true;
+			image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+			image_info.usage = IMAGE_USAGE::TEXTURE;
+			image_info.is_cube_map = false;
+			m_debug_image = CreateImage(image_info);
+
+			ImageViewCreateInfo debug_view_info;
+			debug_view_info.name = "debug texture";
+			debug_view_info.base_array_layer = 0;
+			debug_view_info.mip_levels = 1;
+			debug_view_info.array_layers = 1;
+			debug_view_info.base_mip_level = 0;
+			debug_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
+			debug_view_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+			debug_view_info.image = m_debug_image;
+			debug_view_info.aspects = IMAGE_ASPECT::COLOR;
+			m_debug_descriptor_index = CreateImageView(debug_view_info);
+
+			WriteImageInfo debug_write_info;
+			debug_write_info.image_info.image = a_image;
+			debug_write_info.image_info.extent = uint2(2, 2);
+			debug_write_info.image_info.offset = int2(0, 0);
+			debug_write_info.image_info.array_layers = 1;
+			debug_write_info.image_info.mip_layer = 0;
+			debug_write_info.image_info.base_array_layer = 0;
+			debug_write_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+			debug_write_info.pixels = &checker_board;
+			debug_write_info.set_shader_visible = true;
+			WriteTexture(debug_write_info);
 		}
 
 		DescriptorWriteImageInfo image_write;

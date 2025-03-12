@@ -97,6 +97,7 @@ namespace BB
 			uint32_t string_entry_count = STRING_ENTRY_COUNT_STANDARD;
 
 			size_t asset_upload_buffer_size = mbSize * 32;
+			size_t max_textures = 1024;
 		};
 
 		enum class ASYNC_ASSET_TYPE : uint32_t
