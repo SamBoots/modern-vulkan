@@ -940,7 +940,7 @@ void Asset::LoadAssets(MemoryArena& a_temp_arena, const Slice<AsyncAsset> a_asyn
 				LoadImageDisk(a_temp_arena, task.texture_disk.path, task.texture_disk.format);
 				break;
 			case ASYNC_LOAD_TYPE::MEMORY:
-				LoadImageMemory(a_temp_arena, *task.texture_memory.image, task.texture_memory.name);
+				LoadImageMemory(a_temp_arena, task.texture_memory);
 				break;
 			default:
 				BB_ASSERT(false, "default hit while it shouldn't");
@@ -1091,20 +1091,18 @@ void Asset::FreeImageCPU(void* a_pixels)
 	STBI_FREE(a_pixels);
 }
 
-const Image& Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const StringView& a_name)
+const Image& Asset::LoadImageMemory(MemoryArena& a_temp_arena, const TextureLoadFromMemory& a_info)
 {
-	const AssetHash path_hash = CreateAssetHash(TurboCrappyImageHash(a_image.GetPixels(), static_cast<size_t>(a_image.GetWidth()) + a_image.GetHeight() + a_image.GetBytesPerPixel()), ASSET_TYPE::IMAGE);
+	const AssetHash path_hash = CreateAssetHash(TurboCrappyImageHash(a_info.pixels, static_cast<size_t>(a_info.width) + a_info.height + a_info.bytes_per_pixel), ASSET_TYPE::IMAGE);
 	bool exists = false;
 	AssetSlot& asset = FindElementOrCreateElement(path_hash, exists);
 	if (exists)
 		return *asset.image;
 
-	asset.name = a_name;
+	asset.name = a_info.name;
 
-	const uint32_t uwidth = a_image.GetWidth();
-	const uint32_t uheight = a_image.GetHeight();
 	IMAGE_FORMAT format;
-	switch (a_image.GetBytesPerPixel())
+	switch (a_info.bytes_per_pixel)
 	{
 	case 8:
 		format = IMAGE_FORMAT::RGBA16_UNORM;
@@ -1126,24 +1124,24 @@ const Image& Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage
 
 	RImage gpu_image;
 	RDescriptorIndex descriptor_index;
-	CreateImage_func(asset.name.GetView(), uwidth, uheight, format, gpu_image, descriptor_index);
+	CreateImage_func(asset.name.GetView(), a_info.width, a_info.height, format, gpu_image, descriptor_index);
 
 	WriteImageInfo write_info{};
 	write_info.image_info.image = gpu_image;
-	write_info.image_info.extent = { uwidth, uheight };
+	write_info.image_info.extent = { a_info.width, a_info.height };
 	write_info.image_info.mip_layer = 1;
 	write_info.image_info.array_layers = 1;
 	write_info.image_info.base_array_layer = 0;
 	write_info.format = format;
-	write_info.pixels = a_image.GetPixels();
+	write_info.pixels = a_info.pixels;
 	write_info.set_shader_visible = true;
 	WriteTexture(write_info);
 
 	asset.hash = path_hash;
 	asset.path = nullptr; // memory loads have nullptr has path.
 
-	asset.image->width = uwidth;
-	asset.image->height = uheight;
+	asset.image->width = a_info.width;
+	asset.image->height = a_info.height;
 	asset.image->gpu_image = gpu_image;
 	asset.image->descriptor_index = descriptor_index;
 	asset.image->asset_handle = AssetHandle(path_hash.full_hash);
@@ -1155,10 +1153,10 @@ const Image& Asset::LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage
 	}
 	else
 	{
-		const void* icon_write = a_image.GetPixels();
-		if (uwidth != ICON_EXTENT.x || uheight != ICON_EXTENT.y)
+		const void* icon_write = a_info.pixels;
+		if (a_info.width != ICON_EXTENT.x || a_info.height != ICON_EXTENT.y)
 		{
-			icon_write = ResizeImage(a_temp_arena, a_image.GetPixels(), static_cast<int>(uwidth), static_cast<int>(uheight), static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
+			icon_write = ResizeImage(a_temp_arena, a_info.pixels, static_cast<int>(a_info.width), static_cast<int>(a_info.height), static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
 		}
 		asset.icon = LoadIconFromPixels(icon_write, true);
 		const bool success = Asset::WriteImage(icon_path.GetView(), uint2(ICON_EXTENT.x, ICON_EXTENT.y), 4, icon_write);

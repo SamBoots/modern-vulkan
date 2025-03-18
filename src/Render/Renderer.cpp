@@ -91,78 +91,7 @@ constexpr uint32_t MAX_TEXTURES = 1024;
 class GPUTextureManager
 {
 public:
-	void Init(MemoryArena& a_arena, const RDescriptorLayout a_global_layout, const DescriptorAllocation& a_allocation)
-	{
-		m_graphics_texture_transitions.Init(a_arena, MAX_TEXTURES / 4);
-		m_graphics_texture_transitions.resize(m_graphics_texture_transitions.capacity());
-
-		m_views = ArenaAllocArr(a_arena, RImageView, MAX_TEXTURES);
-		m_next_free = 0;
-		m_lock = OSCreateRWLock();
-
-		// setup the freelist before making the debug texture
-		for (uint32_t i = m_next_free; i < MAX_TEXTURES - 1; i++)
-		{
-			m_views[i].index = i + 1;
-		}
-		m_views[MAX_TEXTURES - 1].index = UINT32_MAX;
-
-		{	// create debug texture
-			const uint32_t debug_purple = (209u << 0u) | (106u << 8u) | (255u << 16u) | (255u << 24u);
-			const uint32_t debug_black = 0;
-			const uint32_t checker_board[4]{ debug_purple, debug_black, debug_purple, debug_black };
-
-			ImageCreateInfo image_info;
-			image_info.name = "debug texture";
-			image_info.width = 2;
-			image_info.height = 2;
-			image_info.depth = 1;
-			image_info.array_layers = 1;
-			image_info.mip_levels = 1;
-			image_info.type = IMAGE_TYPE::TYPE_2D;
-			image_info.use_optimal_tiling = true;
-			image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
-			image_info.usage = IMAGE_USAGE::TEXTURE;
-			image_info.is_cube_map = false;
-			m_debug_image = CreateImage(image_info);
-
-			ImageViewCreateInfo debug_view_info;
-			debug_view_info.name = "debug texture";
-			debug_view_info.base_array_layer = 0;
-			debug_view_info.mip_levels = 1;
-			debug_view_info.array_layers = 1;
-			debug_view_info.base_mip_level = 0;
-			debug_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
-			debug_view_info.format = IMAGE_FORMAT::RGBA8_SRGB;
-			debug_view_info.image = m_debug_image;
-			debug_view_info.aspects = IMAGE_ASPECT::COLOR;
-			m_debug_descriptor_index = CreateImageView(debug_view_info);
-
-			WriteImageInfo debug_write_info;
-			debug_write_info.image_info.image = a_image;
-			debug_write_info.image_info.extent = uint2(2, 2);
-			debug_write_info.image_info.offset = int2(0, 0);
-			debug_write_info.image_info.array_layers = 1;
-			debug_write_info.image_info.mip_layer = 0;
-			debug_write_info.image_info.base_array_layer = 0;
-			debug_write_info.format = IMAGE_FORMAT::RGBA8_SRGB;
-			debug_write_info.pixels = &checker_board;
-			debug_write_info.set_shader_visible = true;
-			WriteTexture(debug_write_info);
-		}
-
-		DescriptorWriteImageInfo image_write;
-		image_write.descriptor_layout = a_global_layout;
-		image_write.allocation = a_allocation;
-		image_write.view = GetImageView(m_debug_descriptor_index);
-		image_write.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
-		image_write.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
-		for (uint32_t i = 0; i < MAX_TEXTURES; i++)
-		{
-			image_write.descriptor_index = i;
-			DescriptorWriteImage(image_write);
-		}
-	}
+	void Init(MemoryArena& a_arena, const RDescriptorLayout a_global_layout, const DescriptorAllocation& a_allocation);
 
 	const RDescriptorIndex AllocAndWriteImageView(const ImageViewCreateInfo& a_info, const RDescriptorLayout a_global_layout, const DescriptorAllocation& a_allocation)
 	{
@@ -186,36 +115,11 @@ public:
 		return RDescriptorIndex(descriptor_index);
 	}
 
-	void FreeImageView(const RDescriptorIndex a_descriptor_index, const RDescriptorLayout a_global_layout, const DescriptorAllocation& a_allocation)
-	{
-		OSAcquireSRWLockWrite(&m_lock);
-		Vulkan::FreeViewImage(m_views[a_descriptor_index.handle]);
-		m_views[a_descriptor_index.handle].index = m_next_free;
-		m_next_free = m_views[a_descriptor_index.handle].index;
-		OSReleaseSRWLockWrite(&m_lock);
-
-		DescriptorWriteImageInfo write_info;
-		write_info.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
-		write_info.descriptor_index = a_descriptor_index.handle;
-		write_info.view = GetImageView(m_debug_descriptor_index);
-		write_info.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
-		write_info.allocation = a_allocation;
-		write_info.descriptor_layout = a_global_layout;
-
-		DescriptorWriteImage(write_info);
-	}
+	void FreeImageView(const RDescriptorIndex a_descriptor_index, const RDescriptorLayout a_global_layout, const DescriptorAllocation& a_allocation);
 
 	const RImageView GetImageView(const RDescriptorIndex a_index) const
 	{
 		return m_views[a_index.handle];
-	}
-
-	void TransitionTextures(const RCommandList a_list);
-
-	void AddGraphicsTransition(const PipelineBarrierImageInfo& a_transition_info)
-	{
-		const uint32_t index = m_transition_size.fetch_add(1);
-		m_graphics_texture_transitions[index] = a_transition_info;
 	}
 
 	void DisplayTextureListImgui()
@@ -251,20 +155,10 @@ public:
 		}
 	}
 
-	RDescriptorIndex GetDebugImageViewDescriptorIndex() const { return m_debug_descriptor_index; }
-	RImageView GetDebugImageView() const { return GetImageView(m_debug_descriptor_index); }
-
 private:
 	uint32_t m_next_free;
 	RImageView* m_views;
 	BBRWLock m_lock;
-
-	std::atomic<uint32_t> m_transition_size;
-	StaticArray<PipelineBarrierImageInfo> m_graphics_texture_transitions;
-	
-	// purple color
-	RImage m_debug_image;
-	RDescriptorIndex m_debug_descriptor_index;
 };
 
 RCommandList CommandPool::StartCommandList(const char* a_name)
@@ -530,6 +424,8 @@ struct RenderInterface_inst
 	GPUTextureManager texture_manager;
 
 	GPUBufferView cubemap_position;
+	RImage debug_texture;
+	RDescriptorIndex debug_descriptor_index;
 
 	RDescriptorLayout static_sampler_descriptor_set;
 	RDescriptorLayout global_descriptor_set;
@@ -575,330 +471,50 @@ struct RenderInterface_inst
 
 static RenderInterface_inst* s_render_inst;
 
-
-
-namespace IMGUI_IMPL
+void GPUTextureManager::Init(MemoryArena& a_arena, const RDescriptorLayout a_global_layout, const DescriptorAllocation& a_allocation)
 {
-	constexpr size_t INITIAL_VERTEX_SIZE = sizeof(Vertex2D) * 128;
-	constexpr size_t INITIAL_INDEX_SIZE = sizeof(uint32_t) * 256;
+	m_views = ArenaAllocArr(a_arena, RImageView, MAX_TEXTURES);
+	m_next_free = 0;
+	m_lock = OSCreateRWLock();
 
-	struct ImRenderBuffer
+	// setup the freelist before making the debug texture
+	for (uint32_t i = m_next_free; i < MAX_TEXTURES - 1; i++)
 	{
-		WriteableGPUBufferView vertex_buffer;
-		WriteableGPUBufferView index_buffer;
-	};
-
-	struct ImRenderData
-	{
-		RImage font_image;				 // 8
-		RDescriptorIndex font_descriptor;// 12
-
-		// Render buffers for main window
-		uint32_t frame_index;            // 16
-		ImRenderBuffer* frame_buffers;	 // 24
-	};
-
-	inline static ImRenderData* ImGetRenderData()
-	{
-		return ImGui::GetCurrentContext() ? reinterpret_cast<ImRenderData*>(ImGui::GetIO().BackendRendererUserData) : nullptr;
+		m_views[i].index = i + 1;
 	}
+	m_views[MAX_TEXTURES - 1].index = UINT32_MAX;
 
-	inline static void ImSetRenderState(const ImDrawData& a_draw_data, const RCommandList a_cmd_list, const uint32_t a_vert_pos, const ShaderObject* a_vertex_and_fragment, const RPipelineLayout a_pipeline_layout)
+	DescriptorWriteImageInfo image_write;
+	image_write.descriptor_layout = a_global_layout;
+	image_write.allocation = a_allocation;
+	image_write.view = GetImageView(s_render_inst->debug_descriptor_index);
+	image_write.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+	image_write.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
+	for (uint32_t i = 0; i < MAX_TEXTURES; i++)
 	{
-		ImRenderData* bd = ImGetRenderData();
-
-		{
-			constexpr SHADER_STAGE IMGUI_SHADER_STAGES[2]{ SHADER_STAGE::VERTEX, SHADER_STAGE::FRAGMENT_PIXEL };
-			Vulkan::BindShaders(a_cmd_list, _countof(IMGUI_SHADER_STAGES), IMGUI_SHADER_STAGES, a_vertex_and_fragment);
-			Vulkan::SetFrontFace(a_cmd_list, true);
-			Vulkan::SetCullMode(a_cmd_list, CULL_MODE::NONE);
-		}
-
-		// Setup scale and translation:
-		// Our visible imgui space lies from draw_data->DisplayPps (top left) to draw_data->DisplayPos+data_data->DisplaySize (bottom right). DisplayPos is (0,0) for single viewport apps.
-		{
-			ShaderIndices2D shader_indices;
-			shader_indices.vertex_buffer_offset = a_vert_pos;
-			shader_indices.albedo_texture = bd->font_descriptor;
-			shader_indices.rect_scale.x = 2.0f / a_draw_data.DisplaySize.x;
-			shader_indices.rect_scale.y = 2.0f / a_draw_data.DisplaySize.y;
-			shader_indices.translate.x = -1.0f - a_draw_data.DisplayPos.x * shader_indices.rect_scale.x;
-			shader_indices.translate.y = -1.0f - a_draw_data.DisplayPos.y * shader_indices.rect_scale.y;
-
-			Vulkan::SetPushConstants(a_cmd_list, a_pipeline_layout, 0, sizeof(shader_indices), &shader_indices);
-		}
+		image_write.descriptor_index = i;
+		DescriptorWriteImage(image_write);
 	}
+}
 
-	inline static void ImGrowFrameBufferGPUBuffers(ImRenderBuffer& a_rb, const size_t a_new_vertex_size, const size_t a_new_index_size)
-	{
-		// free I guess, lol can't do that now XDDD
+void GPUTextureManager::FreeImageView(const RDescriptorIndex a_descriptor_index, const RDescriptorLayout a_global_layout, const DescriptorAllocation& a_allocation)
+{
+	OSAcquireSRWLockWrite(&m_lock);
+	Vulkan::FreeViewImage(m_views[a_descriptor_index.handle]);
+	m_views[a_descriptor_index.handle].index = m_next_free;
+	m_next_free = m_views[a_descriptor_index.handle].index;
+	OSReleaseSRWLockWrite(&m_lock);
 
-		a_rb.vertex_buffer = AllocateFromWritableVertexBuffer(a_new_vertex_size);
-		a_rb.index_buffer = AllocateFromWritableIndexBuffer(a_new_index_size);
-	}
+	DescriptorWriteImageInfo write_info;
+	write_info.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
+	write_info.descriptor_index = a_descriptor_index.handle;
+	write_info.view = GetImageView(s_render_inst->debug_descriptor_index);
+	write_info.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+	write_info.allocation = a_allocation;
+	write_info.descriptor_layout = a_global_layout;
 
-
-	static void ImRenderFrame(const RCommandList a_cmd_list, const RImageView render_target_view, const bool a_clear_image, const ShaderEffectHandle a_vertex, const ShaderEffectHandle a_fragment)
-	{
-		const ImDrawData& draw_data = *ImGui::GetDrawData();
-		// Avoid rendering when minimized, scale coordinates for retina displays (screen coordinates != framebuffer coordinates)
-		int fb_width = static_cast<int>(draw_data.DisplaySize.x * draw_data.FramebufferScale.x);
-		int fb_height = static_cast<int>(draw_data.DisplaySize.y * draw_data.FramebufferScale.y);
-		if (fb_width <= 0 || fb_height <= 0)
-			return;
-
-		const ShaderEffect& vertex = s_render_inst->shader_effects[a_vertex];
-		const ShaderEffect& fragment = s_render_inst->shader_effects[a_fragment];
-		const ShaderObject shader_objects[2] = { vertex.shader_object, fragment.shader_object };
-		const RPipelineLayout pipeline_layout = vertex.pipeline_layout;
-		BB_ASSERT(vertex.pipeline_layout == fragment.pipeline_layout, "pipeline layout not the same for the imgui vertex and fragment shader");
-
-		ImRenderData* bd = ImGetRenderData();
-		const RenderIO& render_io = GetRenderIO();
-
-		BB_ASSERT(bd->frame_index < render_io.frame_count, "Frame index is higher then the framebuffer amount! Forgot to resize the imgui window info.");
-		bd->frame_index = (bd->frame_index + 1) % render_io.frame_count;
-		ImRenderBuffer& rb = bd->frame_buffers[bd->frame_index];
-
-		if (draw_data.TotalVtxCount > 0)
-		{
-			// Create or resize the vertex/index buffers
-			const size_t vertex_size = static_cast<size_t>(draw_data.TotalVtxCount) * sizeof(ImDrawVert);
-			const size_t index_size = static_cast<size_t>(draw_data.TotalIdxCount) * sizeof(ImDrawIdx);
-			if (rb.vertex_buffer.size < vertex_size || rb.index_buffer.size < index_size)
-				ImGrowFrameBufferGPUBuffers(rb, Max(rb.vertex_buffer.size * 2, vertex_size), Max(rb.index_buffer.size * 2, index_size));
-
-
-			BB_STATIC_ASSERT(sizeof(Vertex2D) == sizeof(ImDrawVert), "Vertex2D size is not the same as ImDrawVert");
-			BB_STATIC_ASSERT(IM_OFFSETOF(Vertex2D, position) == IM_OFFSETOF(ImDrawVert, pos), "Vertex2D does not have the same offset for the position variable as ImDrawVert");
-			BB_STATIC_ASSERT(IM_OFFSETOF(Vertex2D, uv) == IM_OFFSETOF(ImDrawVert, uv), "Vertex2D does not have the same offset for the uv variable as ImDrawVert");
-			BB_STATIC_ASSERT(IM_OFFSETOF(Vertex2D, color) == IM_OFFSETOF(ImDrawVert, col), "Vertex2D does not have the same offset for the color variable as ImDrawVert");
-
-			// Upload vertex/index data into a single contiguous GPU buffer
-			ImDrawVert* vtx_dst = reinterpret_cast<ImDrawVert*>(rb.vertex_buffer.mapped);
-			ImDrawIdx* idx_dst = reinterpret_cast<ImDrawIdx*>(rb.index_buffer.mapped);
-
-			for (int n = 0; n < draw_data.CmdListsCount; n++)
-			{
-				const ImDrawList* cmd_list = draw_data.CmdLists[n];
-				Memory::Copy(vtx_dst, cmd_list->VtxBuffer.Data, static_cast<size_t>(cmd_list->VtxBuffer.Size));
-				Memory::Copy(idx_dst, cmd_list->IdxBuffer.Data, static_cast<size_t>(cmd_list->IdxBuffer.Size));
-				vtx_dst += cmd_list->VtxBuffer.Size;
-				idx_dst += cmd_list->IdxBuffer.Size;
-			}
-		}
-
-		RenderingAttachmentColor color_attach{};
-		color_attach.load_color = !a_clear_image;
-		color_attach.store_color = true;
-		color_attach.image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-		color_attach.image_view = render_target_view;
-
-		StartRenderingInfo imgui_pass_start{};
-		imgui_pass_start.render_area_extent = { render_io.screen_width, render_io.screen_height };
-		imgui_pass_start.render_area_offset = {};
-		imgui_pass_start.color_attachments = Slice(&color_attach, 1);
-		imgui_pass_start.depth_attachment = nullptr;
-		Vulkan::StartRenderPass(a_cmd_list, imgui_pass_start);
-		FixedArray<ColorBlendState, 1> blend_state;
-		blend_state[0].blend_enable = true;
-		blend_state[0].color_flags = 0xF;
-		blend_state[0].color_blend_op = BLEND_OP::ADD;
-		blend_state[0].src_blend = BLEND_MODE::FACTOR_SRC_ALPHA;
-		blend_state[0].dst_blend = BLEND_MODE::FACTOR_ONE_MINUS_SRC_ALPHA;
-		blend_state[0].alpha_blend_op = BLEND_OP::ADD;
-		blend_state[0].src_alpha_blend = BLEND_MODE::FACTOR_ONE;
-		blend_state[0].dst_alpha_blend = BLEND_MODE::FACTOR_ZERO;
-		Vulkan::SetBlendMode(a_cmd_list, 0, blend_state.slice());
-
-		// Setup desired CrossRenderer state
-		ImSetRenderState(draw_data, a_cmd_list, 0, shader_objects, pipeline_layout);
-
-		// Will project scissor/clipping rectangles into framebuffer space
-		const ImVec2 clip_off = draw_data.DisplayPos;    // (0,0) unless using multi-viewports
-		const ImVec2 clip_scale = draw_data.FramebufferScale; // (1,1) unless using retina display which are often (2,2)
-
-		// Because we merged all buffers into a single one, we maintain our own offset into them
-		uint32_t global_idx_offset = 0;
-		uint32_t vertex_offset = static_cast<uint32_t>(rb.vertex_buffer.offset);
-
-		Vulkan::BindIndexBuffer(a_cmd_list, rb.index_buffer.buffer, rb.index_buffer.offset);
-
-		ImTextureID last_texture = bd->font_descriptor.handle;
-		for (int n = 0; n < draw_data.CmdListsCount; n++)
-		{
-			const ImDrawList* cmd_list = draw_data.CmdLists[n];
-			Vulkan::SetPushConstants(a_cmd_list, pipeline_layout, IM_OFFSETOF(ShaderIndices2D, vertex_buffer_offset), sizeof(vertex_offset), &vertex_offset);
-
-			for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++)
-			{
-				const ImDrawCmd* pcmd = &cmd_list->CmdBuffer[cmd_i];
-				if (pcmd->UserCallback != nullptr)
-				{
-					// User callback, registered via ImDrawList::AddCallback()
-					// (ImDrawCallback_ResetRenderState is a special callback value used by the user to request the renderer to reset render state.)
-					if (pcmd->UserCallback == ImDrawCallback_ResetRenderState)
-						ImSetRenderState(draw_data, a_cmd_list, vertex_offset, shader_objects, pipeline_layout);
-					else
-						pcmd->UserCallback(cmd_list, pcmd);
-				}
-				else
-				{
-					// Project scissor/clipping rectangles into framebuffer space
-					ImVec2 clip_min((pcmd->ClipRect.x - clip_off.x) * clip_scale.x, (pcmd->ClipRect.y - clip_off.y) * clip_scale.y);
-					ImVec2 clip_max((pcmd->ClipRect.z - clip_off.x) * clip_scale.x, (pcmd->ClipRect.w - clip_off.y) * clip_scale.y);
-
-					// Clamp to viewport as vkCmdSetScissor() won't accept values that are off bounds
-					if (clip_min.x < 0.0f) { clip_min.x = 0.0f; }
-					if (clip_min.y < 0.0f) { clip_min.y = 0.0f; }
-					if (clip_max.x > static_cast<float>(fb_width)) { clip_max.x = static_cast<float>(fb_width); }
-					if (clip_max.y > static_cast<float>(fb_height)) { clip_max.y = static_cast<float>(fb_height); }
-					if (clip_max.x <= clip_min.x || clip_max.y <= clip_min.y)
-						continue;
-
-					const ImTextureID new_text = pcmd->TextureId;
-					if (new_text != last_texture)
-					{
-						Vulkan::SetPushConstants(a_cmd_list, pipeline_layout, IM_OFFSETOF(ShaderIndices2D, albedo_texture), sizeof(new_text), &new_text);
-						last_texture = new_text;
-					}
-					// Apply scissor/clipping rectangle
-					ScissorInfo scissor;
-					scissor.offset.x = static_cast<int32_t>(clip_min.x);
-					scissor.offset.y = static_cast<int32_t>(clip_min.y);
-					scissor.extent.x = static_cast<uint32_t>(clip_max.x);
-					scissor.extent.y = static_cast<uint32_t>(clip_max.y);
-					Vulkan::SetScissor(a_cmd_list, scissor);
-
-					// Draw
-					const uint32_t index_offset = pcmd->IdxOffset + global_idx_offset;
-					Vulkan::DrawIndexed(a_cmd_list, pcmd->ElemCount, 1, index_offset, 0, 0);
-				}
-			}
-			vertex_offset += static_cast<uint32_t>(cmd_list->VtxBuffer.size_in_bytes());
-			global_idx_offset += static_cast<uint32_t>(cmd_list->IdxBuffer.Size);
-		}
-
-		// Since we dynamically set our scissor lets set it back to the full viewport. 
-		// This might be bad to do since this can leak into different system's code. 
-		ScissorInfo base_scissor{};
-		base_scissor.offset.x = 0;
-		base_scissor.offset.y = 0;
-		base_scissor.extent = imgui_pass_start.render_area_extent;
-		Vulkan::SetScissor(a_cmd_list, base_scissor);
-
-		Vulkan::EndRenderPass(a_cmd_list);
-	}
-
-	static bool ImInit(MemoryArena& a_arena)
-	{
-		IMGUI_CHECKVERSION();
-		ImGui::CreateContext();
-		ImPlot::CreateContext();
-		ImGui::StyleColorsClassic();
-
-		BB_STATIC_ASSERT(sizeof(ImDrawIdx) == sizeof(uint32_t), "Index size is not 32 bit, it must be 32 bit.");
-
-		ImGuiIO& io = ImGui::GetIO();
-		io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
-		io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
-		IM_ASSERT(io.BackendRendererUserData == nullptr && "Already initialized a renderer backend!");
-
-		// Setup backend capabilities flags
-		ImRenderData* bd = ArenaAllocType(a_arena, ImRenderData);
-		io.BackendRendererName = "imgui-modern-vulkan";
-		io.BackendRendererUserData = reinterpret_cast<void*>(bd);
-
-		//create framebuffers.
-		{
-			const RenderIO render_io = GetRenderIO();
-			bd->frame_index = 0;
-			bd->frame_buffers = ArenaAllocArr(a_arena, ImRenderBuffer,  render_io.frame_count);
-
-			for (size_t i = 0; i < render_io.frame_count; i++)
-			{
-				//I love C++
-				new (&bd->frame_buffers[i])(ImRenderBuffer);
-				ImRenderBuffer& rb = bd->frame_buffers[i];
-
-				rb.vertex_buffer = AllocateFromWritableVertexBuffer(INITIAL_VERTEX_SIZE);
-				rb.index_buffer = AllocateFromWritableIndexBuffer(INITIAL_INDEX_SIZE);
-			}
-		}
-
-		unsigned char* pixels;
-		int width, height;
-		io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
-
-		ImageCreateInfo font_info{};
-		font_info.name = "imgui font";
-		font_info.width = static_cast<uint32_t>(width);
-		font_info.height = static_cast<uint32_t>(height);
-		font_info.depth = 1;
-		font_info.format = IMAGE_FORMAT::RGBA8_UNORM;
-		font_info.usage = IMAGE_USAGE::TEXTURE;
-		font_info.array_layers = 1;
-		font_info.mip_levels = 1;
-		font_info.use_optimal_tiling = true;
-		font_info.type = IMAGE_TYPE::TYPE_2D;
-		font_info.is_cube_map = false;
-		bd->font_image = CreateImage(font_info);
-
-		ImageViewCreateInfo view_info;
-		view_info.name = "imgui font";
-		view_info.image = bd->font_image;
-		view_info.format = IMAGE_FORMAT::RGBA8_UNORM;
-		view_info.base_array_layer = 0;
-		view_info.array_layers = 1;
-		view_info.mip_levels = 1;
-		view_info.base_mip_level = 0;
-		view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
-		view_info.aspects = IMAGE_ASPECT::COLOR;
-		bd->font_descriptor = CreateImageView(view_info);
-
-		WriteImageInfo write_info{};
-		write_info.image = bd->font_image;
-		write_info.format = IMAGE_FORMAT::RGBA8_UNORM;
-		write_info.extent = { font_info.width, font_info.height };
-		write_info.pixels = pixels;
-		write_info.set_shader_visible = true;
-		write_info.layer_count = 1;
-		write_info.base_array_layer = 0;
-		WriteTexture(write_info);
-
-		io.Fonts->SetTexID(bd->font_descriptor.handle);
-
-		return bd->font_descriptor.IsValid() && bd->font_image.IsValid();
-	}
-
-	inline static void ImShutdown()
-	{
-		ImRenderData* bd = ImGetRenderData();
-		BB_ASSERT(bd != nullptr, "No renderer backend to shutdown, or already shutdown?");
-		ImGuiIO& io = ImGui::GetIO();
-
-		//delete my things here.
-		FreeImage(bd->font_image);	
-		bd->font_image = RImage();
-
-		FreeImageView(bd->font_descriptor);
-		bd->font_descriptor = RDescriptorIndex();
-
-		io.BackendRendererName = nullptr;
-		io.BackendRendererUserData = nullptr;
-
-		ImGui::DestroyContext();
-	}
-
-	inline static void ImNewFrame()
-	{
-		ImGuiIO& io = ImGui::GetIO();
-
-		io.DisplaySize = ImVec2(
-			static_cast<float>(s_render_inst->render_io.screen_width), 
-			static_cast<float>(s_render_inst->render_io.screen_height));
-	}
-} // IMGUI_IMPL
+	DescriptorWriteImage(write_info);
+}
 
 static void ImguiDisplayRenderer()
 {
@@ -978,21 +594,144 @@ WriteableGPUBufferView BB::AllocateFromWritableIndexBuffer(const size_t a_size_i
 	return view;
 }
 
-void GPUTextureManager::TransitionTextures(const RCommandList a_list)
-{
-	if (m_transition_size.load() == 0)
-		return;
-	
-	PipelineBarrierInfo barrier_info{};
-	barrier_info.image_infos = m_graphics_texture_transitions.data();
-	barrier_info.image_info_count = m_graphics_texture_transitions.size();
-	Vulkan::PipelineBarriers(a_list, barrier_info);
-	m_transition_size.store(0);
-};
-
 const RenderIO& BB::GetRenderIO()
 {
 	return s_render_inst->render_io;
+}
+
+static GPUBuffer UploadStartupResources()
+{
+	CommandPool pool = GetGraphicsCommandPool();
+	const RCommandList list = pool.StartCommandList();
+
+	const uint32_t debug_texture_size = 4 * 4;
+
+	GPUBufferCreateInfo create_info;
+	create_info.host_writable = true;
+	create_info.type = BUFFER_TYPE::UPLOAD;
+	create_info.name = "startup resources upload";
+	create_info.size = debug_texture_size + sizeof(SKYBOX_VERTICES);
+	const GPUBuffer upload_buffer = CreateGPUBuffer(create_info);
+	void* mapped = MapGPUBuffer(upload_buffer);
+
+	{	// create debug texture
+		const uint32_t debug_purple = (209u << 0u) | (106u << 8u) | (255u << 16u) | (255u << 24u);
+		const uint32_t debug_black = 0;
+		const uint32_t checker_board[4]{ debug_purple, debug_black, debug_purple, debug_black };
+
+		memcpy(mapped, checker_board, sizeof(checker_board));
+
+		ImageCreateInfo image_info;
+		image_info.name = "debug texture";
+		image_info.width = 2;
+		image_info.height = 2;
+		image_info.depth = 1;
+		image_info.array_layers = 1;
+		image_info.mip_levels = 1;
+		image_info.type = IMAGE_TYPE::TYPE_2D;
+		image_info.use_optimal_tiling = true;
+		image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+		image_info.usage = IMAGE_USAGE::TEXTURE;
+		image_info.is_cube_map = false;
+		s_render_inst->debug_texture = CreateImage(image_info);
+
+		ImageViewCreateInfo debug_view_info;
+		debug_view_info.name = "debug texture";
+		debug_view_info.base_array_layer = 0;
+		debug_view_info.mip_levels = 1;
+		debug_view_info.array_layers = 1;
+		debug_view_info.base_mip_level = 0;
+		debug_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
+		debug_view_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+		debug_view_info.image = s_render_inst->debug_texture;
+		debug_view_info.aspects = IMAGE_ASPECT::COLOR;
+		s_render_inst->debug_descriptor_index = CreateImageView(debug_view_info);
+
+		{
+			PipelineBarrierImageInfo default_to_upload;
+			default_to_upload.src_mask = BARRIER_ACCESS_MASK::NONE;
+			default_to_upload.dst_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
+			default_to_upload.image = s_render_inst->debug_texture;
+			default_to_upload.old_layout = IMAGE_LAYOUT::UNDEFINED;
+			default_to_upload.new_layout = IMAGE_LAYOUT::TRANSFER_DST;
+			default_to_upload.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
+			default_to_upload.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
+			default_to_upload.layer_count = 1;
+			default_to_upload.level_count = 1;
+			default_to_upload.base_array_layer = 0;
+			default_to_upload.base_mip_level = 0;
+			default_to_upload.src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
+			default_to_upload.dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
+			default_to_upload.aspects = IMAGE_ASPECT::COLOR;
+			PipelineBarrierInfo pipeline_info{};
+			pipeline_info.image_info_count = 1;
+			pipeline_info.image_infos = &default_to_upload;
+			PipelineBarriers(list, pipeline_info);
+		}
+
+		RenderCopyBufferToImageInfo write_to_image;
+		write_to_image.src_buffer = upload_buffer;
+		write_to_image.src_offset = 0;
+		write_to_image.dst_image = s_render_inst->debug_texture;
+		write_to_image.dst_aspects = IMAGE_ASPECT::COLOR;
+		write_to_image.dst_image_info.extent = uint3(2, 2, 0);
+		write_to_image.dst_image_info.offset = int3(0, 0, 0);
+		write_to_image.dst_image_info.layer_count = 1;
+		write_to_image.dst_image_info.mip_level = 0;
+		write_to_image.dst_image_info.base_array_layer = 0;
+		Vulkan::CopyBufferToImage(list, write_to_image);
+
+		{
+			PipelineBarrierImageInfo upload_to_shader;
+			upload_to_shader.src_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
+			upload_to_shader.dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
+			upload_to_shader.image = s_render_inst->debug_texture;
+			upload_to_shader.old_layout = IMAGE_LAYOUT::TRANSFER_DST;
+			upload_to_shader.new_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+			upload_to_shader.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
+			upload_to_shader.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
+			upload_to_shader.layer_count = 1;
+			upload_to_shader.level_count = 1;
+			upload_to_shader.base_array_layer = 1;
+			upload_to_shader.base_mip_level = 0;
+			upload_to_shader.src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
+			upload_to_shader.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
+			upload_to_shader.aspects = IMAGE_ASPECT::COLOR;
+			PipelineBarrierInfo pipeline_info{};
+			pipeline_info.image_info_count = 1;
+			pipeline_info.image_infos = &upload_to_shader;
+			PipelineBarriers(list, pipeline_info);
+		}
+	}
+	
+	// setup cube positions
+	{
+		memcpy(Pointer::Add(mapped, debug_texture_size), SKYBOX_VERTICES, sizeof(SKYBOX_VERTICES));
+
+		const GPUBufferView vertex_view = AllocateFromVertexBuffer(sizeof(SKYBOX_VERTICES));
+		s_render_inst->global_buffer.data.cube_vertexpos_vertex_buffer_pos = static_cast<uint32_t>(vertex_view.offset);
+
+		RenderCopyBufferRegion region;
+		region.src_offset = debug_texture_size;
+		region.dst_offset = 0;
+		region.size = sizeof(SKYBOX_VERTICES);
+		RenderCopyBuffer copy_buffer;
+		copy_buffer.src = upload_buffer;
+		copy_buffer.src = vertex_view.buffer;
+		copy_buffer.regions = Slice(&region, 1);
+
+		CopyBuffer(list, copy_buffer);
+	}
+
+	pool.EndCommandList(list);
+
+	UnmapGPUBuffer(upload_buffer);
+
+	uint64_t a_out_fence_value;
+	const bool success = ExecuteGraphicCommands(Slice(&pool, 1), nullptr, nullptr, 0, a_out_fence_value);
+	BB_ASSERT(success, "failed to upload base resources");
+
+	return upload_buffer;
 }
 
 bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_render_create_info)
@@ -1148,19 +887,11 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		s_render_inst->cpu_index_buffer.start_mapped = Vulkan::MapBufferMemory(s_render_inst->cpu_index_buffer.buffer);
 	}
 
-	// setup cube positions
-	{
-		CreateMeshInfo cube_info{};
-		cube_info.positions = ConstSlice<float3>(SKYBOX_VERTICES, _countof(SKYBOX_VERTICES));
-		const Mesh cube_map = CreateMesh(cube_info);
-		s_render_inst->global_buffer.data.cube_vertexpos_vertex_buffer_pos = static_cast<uint32_t>(cube_map.vertex_position_offset);
-	}
-
 	{	//initialize texture system
 		s_render_inst->texture_manager.Init(a_arena, s_render_inst->global_descriptor_set, s_render_inst->global_descriptor_allocation);
 	}
 
-	IMGUI_IMPL::ImInit(a_arena);
+	const GPUBuffer startup_buffer = UploadStartupResources();
 
 	{
 		ImageCreateInfo render_target_info;
@@ -1197,12 +928,15 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		}
 	}
 
+	GPUWaitIdle();
+
+	FreeGPUBuffer(startup_buffer);
+
 	return true;
 }
 
 bool BB::DestroyRenderer()
 {
-	IMGUI_IMPL::ImShutdown();
 	BB_UNIMPLEMENTED("BB::DestroyRenderer");
 	// delete all vulkan objects
 	return true;
@@ -1327,28 +1061,21 @@ void BB::RenderStartFrame(const RCommandList a_list, const RenderStartFrameInfo&
 			sizeof(s_render_inst->global_buffer.data));
 	}
 
-	IMGUI_IMPL::ImNewFrame();
-	ImGui::NewFrame();
 	ImguiDisplayRenderer();
 
 	a_out_back_buffer_index = frame_index;
 }
 
-void BB::RenderEndFrame(const RCommandList a_list, const ShaderEffectHandle a_imgui_vertex, const ShaderEffectHandle a_imgui_fragment, const uint32_t a_back_buffer_index, bool a_skip)
+void BB::RenderEndFrame(const RCommandList a_list, const uint32_t a_back_buffer_index, bool a_skip)
 {
 	BB_ASSERT(s_render_inst->render_io.frame_started == true, "did not call RenderStartFrame before a RenderEndFrame");
 
 	if (a_skip || s_render_inst->render_io.resizing_request)
 	{
-		ImGui::EndFrame();
 		return;
 	}
 	const uint32_t frame_index = a_back_buffer_index;
 	const RenderInterface_inst::Frame& cur_frame = s_render_inst->frames[frame_index];
-
-	ImGui::Render();
-	IMGUI_IMPL::ImRenderFrame(a_list, cur_frame.render_target_view, true, a_imgui_vertex, a_imgui_fragment);
-	ImGui::EndFrame();
 
 	{
 		PipelineBarrierImageInfo image_transitions[1]{};
@@ -1370,8 +1097,6 @@ void BB::RenderEndFrame(const RCommandList a_list, const ShaderEffectHandle a_im
 		pipeline_info.image_infos = image_transitions;
 		Vulkan::PipelineBarriers(a_list, pipeline_info);
 	}
-
-	s_render_inst->texture_manager.TransitionTextures(a_list);
 
 	const int2 swapchain_size(static_cast<int>(s_render_inst->render_io.screen_width), static_cast<int>(s_render_inst->render_io.screen_height));
 
@@ -1828,7 +1553,7 @@ const BB::DescriptorAllocation& BB::GetGlobalDescriptorAllocation()
 
 RDescriptorIndex BB::GetDebugTexture()
 {
-	return s_render_inst->texture_manager.GetDebugImageViewDescriptorIndex();
+	return s_render_inst->debug_descriptor_index;
 }
 
 RDescriptorLayout BB::GetStaticSamplerDescriptorLayout()

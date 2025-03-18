@@ -115,7 +115,10 @@ namespace BB
 		struct TextureLoadFromMemory
 		{
 			StringView name;
-			BBImage* image;
+			uint32_t width;
+			uint32_t height;
+			void* pixels;
+			uint32_t bytes_per_pixel;
 		};
 
 		struct TextureLoadFromDisk
@@ -167,7 +170,7 @@ namespace BB
 		void LoadAssets(MemoryArena& a_temp_arena, const Slice<AsyncAsset> a_asyn_assets);
 
 		const Image& LoadImageDisk(MemoryArena& a_temp_arena, const StringView& a_path, const IMAGE_FORMAT a_format);
-		const Image& LoadImageMemory(MemoryArena& a_temp_arena, const BB::BBImage& a_image, const StringView& a_name);
+		const Image& LoadImageMemory(MemoryArena& a_temp_arena, const TextureLoadFromMemory& a_info);
 		const Model& LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op);
 		const Model& LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoadFromMemory& a_mesh_op);
 
