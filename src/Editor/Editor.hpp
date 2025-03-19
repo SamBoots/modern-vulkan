@@ -77,9 +77,11 @@ namespace BB
 		uint2 m_app_window_extent;
 		Console m_console;
 
+		RImage m_render_target;
+		FixedArray<RDescriptorIndex, 3> m_render_target_descs;
+
 		struct PerFrameInfo
 		{
-			uint32_t back_buffer_index;
 			FixedArray<CommandPool, 8> pools;
 			FixedArray<RCommandList, 8> lists;
 			FixedArray<SceneHierarchy*, 8> scene_hierachies;
@@ -89,6 +91,7 @@ namespace BB
 			FixedArray<SceneFrame, 8> frame_results;
 
 			std::atomic<uint32_t> current_count = 0;
+			uint32_t back_buffer_index;
 		};
 		PerFrameInfo m_per_frame;
 

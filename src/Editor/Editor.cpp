@@ -185,11 +185,44 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 	Material::InitMaterialSystem(a_arena, material_system_init);
 
 	m_imgui_material = Material::GetDefaultMasterMaterial(PASS_TYPE::GLOBAL, MATERIAL_TYPE::MATERIAL_2D);
+
+	const uint32_t frame_count = GetRenderIO().frame_count;
+
+	ImageCreateInfo render_target_info;
+	render_target_info.name = "image before transfer to swapchain";
+	render_target_info.width = a_window_extent.x;
+	render_target_info.height = a_window_extent.y;
+	render_target_info.depth = 1;
+	render_target_info.array_layers = static_cast<uint16_t>(frame_count);
+	render_target_info.mip_levels = 1;
+	render_target_info.type = IMAGE_TYPE::TYPE_2D;
+	render_target_info.use_optimal_tiling = true;
+	render_target_info.is_cube_map = false;
+	render_target_info.format = IMAGE_FORMAT::RGBA16_SFLOAT;
+	render_target_info.usage = IMAGE_USAGE::SWAPCHAIN_COPY_IMG;
+
+	m_render_target = CreateImage(render_target_info);
+
+	for (size_t i = 0; i < frame_count; i++)
+	{
+		ImageViewCreateInfo view_info;
+		view_info.name = "editor window";
+		view_info.image = m_render_target;
+		view_info.array_layers = 1;
+		view_info.base_array_layer = static_cast<uint16_t>(i);
+		view_info.mip_levels = 1;
+		view_info.base_mip_level = 0;
+		view_info.aspects = IMAGE_ASPECT::COLOR;
+		view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
+		view_info.format = IMAGE_FORMAT::RGBA16_SFLOAT;
+
+		m_render_target_descs[i] = CreateImageView(view_info);
+	}
 }
 
 void Editor::Destroy()
 {
-	DestroyImGuiInput();
+	ImShutdown();
 	DestroyRenderer();
 	DirectDestroyOSWindow(m_main_window);
 }
@@ -236,7 +269,7 @@ void Editor::StartFrame(MemoryArena& a_arena, const Slice<InputEvent> a_input_ev
 	start_info.delta_time = a_delta_time;
 	start_info.mouse_pos = m_previous_mouse_pos;
 
-	RenderStartFrame(list, start_info, m_per_frame.back_buffer_index);
+	RenderStartFrame(list, start_info);
 
 	ImGuiShowProfiler(a_arena);
 	m_console.ImGuiShowConsole(a_arena, m_app_window_extent);

@@ -72,8 +72,8 @@ namespace BB
 		float delta_time;
 	};
 
-	void RenderStartFrame(const RCommandList a_list, const RenderStartFrameInfo& a_info, uint32_t& a_out_back_buffer_index);
-	void RenderEndFrame(const RCommandList a_list, const uint32_t a_back_buffer_index, bool a_skip = false);
+	void RenderStartFrame(const RCommandList a_list, const RenderStartFrameInfo& a_info, uint32_t& a_back_buffer_index);
+	void RenderEndFrame(const RCommandList a_list, const RImage a_image, const uint32_t a_render_target_layer, bool a_skip);
 
 	void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info);
 	void EndRenderPass(const RCommandList a_list);

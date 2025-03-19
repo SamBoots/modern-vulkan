@@ -406,11 +406,8 @@ struct RenderInterface_inst
 
 	RenderIO render_io;
 
-	RImage render_target_image;
 	struct Frame
 	{
-		RImageView render_target_view;
-		RDescriptorIndex render_target_descriptor;
 		uint64_t graphics_queue_fence_value;
 	};
 	Frame* frames;
@@ -893,41 +890,6 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 
 	const GPUBuffer startup_buffer = UploadStartupResources();
 
-	{
-		ImageCreateInfo render_target_info;
-		render_target_info.name = "image before transfer to swapchain";
-		render_target_info.width = s_render_inst->render_io.screen_width;
-		render_target_info.height = s_render_inst->render_io.screen_height;
-		render_target_info.depth = 1;
-		render_target_info.array_layers = static_cast<uint16_t>(s_render_inst->render_io.frame_count);
-		render_target_info.mip_levels = 1;
-		render_target_info.type = IMAGE_TYPE::TYPE_2D;
-		render_target_info.use_optimal_tiling = true;
-		render_target_info.is_cube_map = false;
-		render_target_info.format = IMAGE_FORMAT::RGBA16_SFLOAT;
-		render_target_info.usage = IMAGE_USAGE::SWAPCHAIN_COPY_IMG;
-
-		s_render_inst->render_target_image = CreateImage(render_target_info);
-
-		s_render_inst->frames = ArenaAllocArr(a_arena, RenderInterface_inst::Frame, s_render_inst->render_io.frame_count);
-		for (size_t i = 0; i < s_render_inst->render_io.frame_count; i++)
-		{
-			ImageViewCreateInfo view_info;
-			view_info.name = "image before transfer to swapchain";
-			view_info.image = s_render_inst->render_target_image;
-			view_info.array_layers = 1;
-			view_info.base_array_layer = static_cast<uint16_t>(i);
-			view_info.mip_levels = 1;
-			view_info.base_mip_level = 0;
-			view_info.aspects = IMAGE_ASPECT::COLOR;
-			view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
-			view_info.format = IMAGE_FORMAT::RGBA16_SFLOAT;
-
-			s_render_inst->frames[i].render_target_descriptor = CreateImageView(view_info);
-			s_render_inst->frames[i].render_target_view = GetImageView(s_render_inst->frames[i].render_target_descriptor);
-		}
-	}
-
 	GPUWaitIdle();
 
 	FreeGPUBuffer(startup_buffer);
@@ -995,7 +957,6 @@ static void ResizeRendererSwapchain(const uint32_t a_width, const uint32_t a_hei
 		view_info.format = IMAGE_FORMAT::RGBA16_SFLOAT;
 
 		s_render_inst->frames[i].render_target_descriptor = CreateImageView(view_info);
-		s_render_inst->frames[i].render_target_view = GetImageView(s_render_inst->frames[i].render_target_descriptor);
 	}
 
 	s_render_inst->global_buffer.data.swapchain_resolution = uint2(a_width, a_height);
@@ -1011,7 +972,7 @@ GPUDeviceInfo BB::GetGPUInfo(MemoryArena& a_arena)
 	return Vulkan::GetGPUDeviceInfo(a_arena);
 }
 
-void BB::RenderStartFrame(const RCommandList a_list, const RenderStartFrameInfo& a_info, uint32_t& a_out_back_buffer_index)
+void BB::RenderStartFrame(const RCommandList a_list, const RenderStartFrameInfo& a_info, uint32_t& a_back_buffer_index)
 {
 	// check if we need to resize
 	if (s_render_inst->render_io.resizing_request)
@@ -1062,11 +1023,10 @@ void BB::RenderStartFrame(const RCommandList a_list, const RenderStartFrameInfo&
 	}
 
 	ImguiDisplayRenderer();
-
-	a_out_back_buffer_index = frame_index;
+	a_back_buffer_index = frame_index;
 }
 
-void BB::RenderEndFrame(const RCommandList a_list, const uint32_t a_back_buffer_index, bool a_skip)
+void BB::RenderEndFrame(const RCommandList a_list, const RImage a_image, const uint32_t a_render_target_layer, bool a_skip)
 {
 	BB_ASSERT(s_render_inst->render_io.frame_started == true, "did not call RenderStartFrame before a RenderEndFrame");
 
@@ -1074,19 +1034,17 @@ void BB::RenderEndFrame(const RCommandList a_list, const uint32_t a_back_buffer_
 	{
 		return;
 	}
-	const uint32_t frame_index = a_back_buffer_index;
-	const RenderInterface_inst::Frame& cur_frame = s_render_inst->frames[frame_index];
 
 	{
 		PipelineBarrierImageInfo image_transitions[1]{};
 		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
 		image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
-		image_transitions[0].image = s_render_inst->render_target_image;
+		image_transitions[0].image = a_image;
 		image_transitions[0].old_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 		image_transitions[0].new_layout = IMAGE_LAYOUT::TRANSFER_SRC;
 		image_transitions[0].layer_count = 1;
 		image_transitions[0].level_count = 1;
-		image_transitions[0].base_array_layer = a_back_buffer_index;
+		image_transitions[0].base_array_layer = a_render_target_layer;
 		image_transitions[0].base_mip_level = 0;
 		image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
 		image_transitions[0].dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
@@ -1100,7 +1058,7 @@ void BB::RenderEndFrame(const RCommandList a_list, const uint32_t a_back_buffer_
 
 	const int2 swapchain_size(static_cast<int>(s_render_inst->render_io.screen_width), static_cast<int>(s_render_inst->render_io.screen_height));
 
-	const PRESENT_IMAGE_RESULT result = Vulkan::UploadImageToSwapchain(a_list, s_render_inst->render_target_image, swapchain_size, swapchain_size, a_back_buffer_index);
+	const PRESENT_IMAGE_RESULT result = Vulkan::UploadImageToSwapchain(a_list, s_render_inst->render_target_image, swapchain_size, swapchain_size, s_render_inst->render_io.frame_index);
 	if (result == PRESENT_IMAGE_RESULT::SWAPCHAIN_OUT_OF_DATE)
 		s_render_inst->render_io.resizing_request = true;
 	s_render_inst->render_io.frame_ended = true;
