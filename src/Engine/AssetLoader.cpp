@@ -955,14 +955,14 @@ void Asset::LoadAssets(MemoryArena& a_temp_arena, const Slice<AsyncAsset> a_asyn
 	}
 }
 
-static inline void CreateImage_func(const StringView& a_name, const uint32_t a_width, const uint32_t a_height, const IMAGE_FORMAT a_format, RImage& a_out_image, RDescriptorIndex& a_out_index)
+static inline void CreateImage_func(const StringView& a_name, const uint32_t a_width, const uint32_t a_height, const uint32_t a_array_layers, const IMAGE_FORMAT a_format, RImage& a_out_image, RDescriptorIndex& a_out_index)
 {
 	ImageCreateInfo create_image_info;
 	create_image_info.name = a_name.c_str();
 	create_image_info.width = static_cast<uint32_t>(a_width);
 	create_image_info.height = static_cast<uint32_t>(a_height);
 	create_image_info.depth = 1;
-	create_image_info.array_layers = 1;
+	create_image_info.array_layers = a_array_layers;
 	create_image_info.mip_levels = 1;
 	create_image_info.type = IMAGE_TYPE::TYPE_2D;
 	create_image_info.format = a_format;
@@ -975,7 +975,7 @@ static inline void CreateImage_func(const StringView& a_name, const uint32_t a_w
 	create_view_info.name = a_name.c_str();
 	create_view_info.image = a_out_image;
 	create_view_info.base_array_layer = 0;
-	create_view_info.array_layers = 1;
+	create_view_info.array_layers = a_array_layers;
 	create_view_info.mip_levels = 1;
 	create_view_info.base_mip_level = 0;
 	create_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
@@ -1000,7 +1000,7 @@ const Image& Asset::LoadImageDisk(MemoryArena& a_temp_arena, const StringView& a
 	const IMAGE_FORMAT format = a_format;
 	const uint32_t uwidth = static_cast<uint32_t>(width);
 	const uint32_t uheight = static_cast<uint32_t>(height);
-	CreateImage_func(asset.name.GetView(), uwidth, uheight, format, gpu_image, descriptor_index);
+	CreateImage_func(asset.name.GetView(), uwidth, uheight, 1, format, gpu_image, descriptor_index);
 
 	WriteImageInfo write_info{};
 	write_info.image_info.image = gpu_image;
@@ -1018,6 +1018,89 @@ const Image& Asset::LoadImageDisk(MemoryArena& a_temp_arena, const StringView& a
 
 	asset.image->width = uwidth;
 	asset.image->height = uheight;
+	asset.image->array_layers = 1;
+	asset.image->gpu_image = gpu_image;
+	asset.image->descriptor_index = descriptor_index;
+	asset.image->asset_handle = AssetHandle(asset.hash.full_hash);
+
+	const PathString icon_path = GetIconPathFromAssetName(asset.name.GetView());
+	if (OSFileExist(icon_path.c_str()))
+	{
+		asset.icon = LoadIconFromPath(a_temp_arena, icon_path.GetView(), true);
+	}
+	else
+	{
+		const void* icon_write = pixels;
+		if (uwidth != ICON_EXTENT.x || uheight != ICON_EXTENT.y)
+		{
+			icon_write = ResizeImage(a_temp_arena, pixels, width, height, static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
+		}
+		asset.icon = LoadIconFromPixels(icon_write, true);
+		WriteImage(icon_path.GetView(), uint2(ICON_EXTENT.x, ICON_EXTENT.y), 4, icon_write);
+	}
+
+	STBI_FREE(pixels);
+	asset.finished_loading = true;
+	return *asset.image;
+}
+
+const Image& Asset::LoadImageArrayDisk(MemoryArena& a_temp_arena, const StringView& a_name, const Slice<StringView> a_paths, const IMAGE_FORMAT a_format)
+{
+	BB_ASSERT(a_paths.size() == 0, "no paths are given");
+	uint64_t hash = 0;
+	for (size_t i = 0; i < a_paths.size(); i++)
+	{
+		hash += StringHash(a_paths[i]);
+	}
+	const AssetHash path_hash = CreateAssetHash(hash, ASSET_TYPE::IMAGE);
+	bool exists = false;
+	AssetSlot& asset = FindElementOrCreateElement(path_hash, exists);
+	if (exists)
+		return *asset.image;
+	asset.name = a_name;
+
+	int width = 0, height = 0, channels = 0;
+	stbi_uc* pixels = stbi_load(a_paths[0].c_str(), &width, &height, &channels, 4);
+	RImage gpu_image;
+	RDescriptorIndex descriptor_index;
+	const uint32_t uwidth = static_cast<uint32_t>(width);
+	const uint32_t uheight = static_cast<uint32_t>(height);
+	const uint32_t array_layers = static_cast<uint32_t>(a_paths.size());
+	CreateImage_func(asset.name.GetView(), uwidth, uheight, array_layers, a_format, gpu_image, descriptor_index);
+
+	WriteImageInfo write_info{};
+	write_info.image_info.image = gpu_image;
+	write_info.image_info.extent = { uwidth, uheight };
+	write_info.image_info.mip_layer = 1;
+	write_info.image_info.array_layers = 1;
+	write_info.image_info.base_array_layer = 0;
+	write_info.format = a_format;
+	write_info.pixels = pixels;
+	write_info.set_shader_visible = true;
+	WriteTexture(write_info);
+
+	for (uint32_t i = 1; i < array_layers; i++)
+	{
+		STBI_FREE(pixels);
+		stbi_uc* pixels = stbi_load(a_paths[0].c_str(), &width, &height, &channels, 4);
+
+		BB_ASSERT(uwidth == static_cast<uint32_t>(width) && uheight == static_cast<uint32_t>(height), "image array are not the same dimensions");
+
+		WriteImageInfo write_info{};
+		write_info.image_info.mip_layer = 1;
+		write_info.image_info.array_layers = 1;
+		write_info.image_info.base_array_layer = static_cast<uint16_t>(i);
+		write_info.pixels = pixels;
+		write_info.set_shader_visible = true;
+		WriteTexture(write_info);
+	}
+
+	asset.hash = path_hash;
+	asset.path = nullptr;
+
+	asset.image->width = uwidth;
+	asset.image->height = uheight;
+	asset.image->array_layers = array_layers;
 	asset.image->gpu_image = gpu_image;
 	asset.image->descriptor_index = descriptor_index;
 	asset.image->asset_handle = AssetHandle(asset.hash.full_hash);
@@ -1142,6 +1225,7 @@ const Image& Asset::LoadImageMemory(MemoryArena& a_temp_arena, const TextureLoad
 
 	asset.image->width = a_info.width;
 	asset.image->height = a_info.height;
+	asset.image->array_layers = 1;
 	asset.image->gpu_image = gpu_image;
 	asset.image->descriptor_index = descriptor_index;
 	asset.image->asset_handle = AssetHandle(path_hash.full_hash);

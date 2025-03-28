@@ -39,10 +39,11 @@ namespace BB
 	{
 		uint32_t width;		//4
 		uint32_t height;	//8
+		uint32_t array_layers; // 12
+		RDescriptorIndex descriptor_index; // 16
 
-		RImage gpu_image;   //16
-		AssetHandle asset_handle; //24
-		RDescriptorIndex descriptor_index;
+		RImage gpu_image;   //24
+		AssetHandle asset_handle; //32
 	};
 
 	struct Model
@@ -170,6 +171,7 @@ namespace BB
 		void LoadAssets(MemoryArena& a_temp_arena, const Slice<AsyncAsset> a_asyn_assets);
 
 		const Image& LoadImageDisk(MemoryArena& a_temp_arena, const StringView& a_path, const IMAGE_FORMAT a_format);
+		const Image& LoadImageArrayDisk(MemoryArena& a_temp_arena, const StringView& a_name, const Slice<StringView> a_paths, const IMAGE_FORMAT a_format);
 		const Image& LoadImageMemory(MemoryArena& a_temp_arena, const TextureLoadFromMemory& a_info);
 		const Model& LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op);
 		const Model& LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoadFromMemory& a_mesh_op);

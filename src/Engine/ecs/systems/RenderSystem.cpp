@@ -125,7 +125,7 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 
 		MemoryArenaScope(a_arena)
 		{
-			constexpr const char* SKY_BOX_NAME[6]
+			constexpr StringView SKY_BOX_NAME[6]
 			{
 				"../../resources/textures/skybox/0.jpg",
 				"../../resources/textures/skybox/1.jpg",
@@ -143,7 +143,7 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 				skybox_textures[i].texture_disk.format = IMAGE_FORMAT::RGBA8_SRGB;
 				skybox_textures[i].texture_disk.path = SKY_BOX_NAME[i];
 			}
-
+			Asset::LoadImageArrayDisk(a_)
 			Asset::LoadAssets(a_arena, skybox_textures.slice());
 		}
 
