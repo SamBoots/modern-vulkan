@@ -2503,7 +2503,7 @@ void Vulkan::DrawIndexed(const RCommandList a_list, const uint32_t a_index_count
 	vkCmdDrawIndexed(cmd_buffer, a_index_count, a_instance_count, a_first_index, a_vertex_offset, a_first_instance);
 }
 
-PRESENT_IMAGE_RESULT Vulkan::UploadImageToSwapchain(const RCommandList a_list, const RImage a_src_image, const int2 a_src_image_size, const int2 a_swapchain_size, const uint32_t a_backbuffer_index)
+PRESENT_IMAGE_RESULT Vulkan::UploadImageToSwapchain(const RCommandList a_list, const RImage a_src_image, const uint32_t a_array_layer, const int2 a_src_image_size, const int2 a_swapchain_size, const uint32_t a_backbuffer_index)
 {
 	uint32_t image_index;
 	const VkResult result = vkAcquireNextImageKHR(s_vulkan_inst->device,
@@ -2569,7 +2569,7 @@ PRESENT_IMAGE_RESULT Vulkan::UploadImageToSwapchain(const RCommandList a_list, c
 		image_blit.srcSubresource.mipLevel = 0;
 
 		image_blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		image_blit.dstSubresource.baseArrayLayer = 0;
+		image_blit.dstSubresource.baseArrayLayer = a_array_layer;
 		image_blit.dstSubresource.layerCount = 1;
 		image_blit.dstSubresource.mipLevel = 0;
 

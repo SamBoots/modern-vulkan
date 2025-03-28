@@ -231,7 +231,6 @@ void Editor::StartFrame(MemoryArena& a_arena, const Slice<InputEvent> a_input_ev
 {
 	ImNewFrame(m_app_window_extent);
 
-	m_per_frame.current_count = 0;
 	m_swallow_input = false;
 	for (size_t i = 0; i < a_input_events.size(); i++)
 	{
@@ -269,7 +268,8 @@ void Editor::StartFrame(MemoryArena& a_arena, const Slice<InputEvent> a_input_ev
 	start_info.delta_time = a_delta_time;
 	start_info.mouse_pos = m_previous_mouse_pos;
 
-	RenderStartFrame(list, start_info);
+	RenderStartFrame(list, start_info, m_per_frame.back_buffer_index);
+	m_per_frame.current_count = 0;
 
 	ImGuiShowProfiler(a_arena);
 	m_console.ImGuiShowConsole(a_arena, m_app_window_extent);
@@ -297,10 +297,10 @@ void Editor::EndFrame(MemoryArena& a_arena)
 		const Slice imgui_shaders = Material::GetMaterialShaders(m_imgui_material);
 
 		// CURFRAME = the render internal frame
-		ImRenderFrame(m_per_frame.lists[0], cur_frame.render_target_view, true, imgui_shaders[0], imgui_shaders[1]);
+		ImRenderFrame(m_per_frame.lists[0], GetImageView(m_render_target_descs[m_per_frame.back_buffer_index]), true, imgui_shaders[0], imgui_shaders[1]);
 		ImGui::EndFrame();
 
-		RenderEndFrame(m_per_frame.lists[0], m_per_frame.back_buffer_index);
+		RenderEndFrame(m_per_frame.lists[0], m_render_target, m_per_frame.back_buffer_index, false);
 
 		for (size_t i = 0; i < m_per_frame.current_count; i++)
 		{
@@ -316,6 +316,11 @@ void Editor::EndFrame(MemoryArena& a_arena)
 			m_per_frame.current_count,
 			present_queue_value);
 	}
+}
+
+void Editor::ResizeWindow(const uint2 a_window)
+{
+
 }
 
 bool Editor::DrawImgui(const RDescriptorIndex a_render_target, SceneHierarchy& a_hierarchy, Viewport& a_viewport)

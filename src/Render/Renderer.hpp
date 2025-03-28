@@ -60,7 +60,6 @@ namespace BB
 
 	bool InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_render_create_info);
 	bool DestroyRenderer();
-	void RequestResize();
 
 	void GPUWaitIdle();
 
@@ -73,7 +72,7 @@ namespace BB
 	};
 
 	void RenderStartFrame(const RCommandList a_list, const RenderStartFrameInfo& a_info, uint32_t& a_back_buffer_index);
-	void RenderEndFrame(const RCommandList a_list, const RImage a_image, const uint32_t a_render_target_layer, bool a_skip);
+	void RenderEndFrame(const RCommandList a_list, const RImage a_render_target, const uint32_t a_render_target_layer, bool a_skip);
 
 	void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info);
 	void EndRenderPass(const RCommandList a_list);

@@ -904,11 +904,6 @@ bool BB::DestroyRenderer()
 	return true;
 }
 
-void BB::RequestResize()
-{
-	s_render_inst->render_io.resizing_request = true;
-}
-
 void BB::GPUWaitIdle()
 {
 	s_render_inst->transfer_queue.WaitIdle();
@@ -1026,7 +1021,7 @@ void BB::RenderStartFrame(const RCommandList a_list, const RenderStartFrameInfo&
 	a_back_buffer_index = frame_index;
 }
 
-void BB::RenderEndFrame(const RCommandList a_list, const RImage a_image, const uint32_t a_render_target_layer, bool a_skip)
+void BB::RenderEndFrame(const RCommandList a_list, const RImage a_render_target, const uint32_t a_render_target_layer, bool a_skip)
 {
 	BB_ASSERT(s_render_inst->render_io.frame_started == true, "did not call RenderStartFrame before a RenderEndFrame");
 
@@ -1039,7 +1034,7 @@ void BB::RenderEndFrame(const RCommandList a_list, const RImage a_image, const u
 		PipelineBarrierImageInfo image_transitions[1]{};
 		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
 		image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
-		image_transitions[0].image = a_image;
+		image_transitions[0].image = a_render_target;
 		image_transitions[0].old_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 		image_transitions[0].new_layout = IMAGE_LAYOUT::TRANSFER_SRC;
 		image_transitions[0].layer_count = 1;
@@ -1058,7 +1053,7 @@ void BB::RenderEndFrame(const RCommandList a_list, const RImage a_image, const u
 
 	const int2 swapchain_size(static_cast<int>(s_render_inst->render_io.screen_width), static_cast<int>(s_render_inst->render_io.screen_height));
 
-	const PRESENT_IMAGE_RESULT result = Vulkan::UploadImageToSwapchain(a_list, s_render_inst->render_target_image, swapchain_size, swapchain_size, s_render_inst->render_io.frame_index);
+	const PRESENT_IMAGE_RESULT result = Vulkan::UploadImageToSwapchain(a_list, a_image, a_render_target_layer, swapchain_size, swapchain_size, s_render_inst->render_io.frame_index);
 	if (result == PRESENT_IMAGE_RESULT::SWAPCHAIN_OUT_OF_DATE)
 		s_render_inst->render_io.resizing_request = true;
 	s_render_inst->render_io.frame_ended = true;

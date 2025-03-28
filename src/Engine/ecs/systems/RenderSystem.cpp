@@ -123,15 +123,30 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 		skybox_image_view_info.aspects = IMAGE_ASPECT::COLOR;
 		m_skybox_descriptor_index = CreateImageView(skybox_image_view_info);
 
-		constexpr const char* SKY_BOX_NAME[6]
+		MemoryArenaScope(a_arena)
 		{
-			"../../resources/textures/skybox/0.jpg",
-			"../../resources/textures/skybox/1.jpg",
-			"../../resources/textures/skybox/2.jpg",
-			"../../resources/textures/skybox/3.jpg",
-			"../../resources/textures/skybox/4.jpg",
-			"../../resources/textures/skybox/5.jpg",
-		};
+			constexpr const char* SKY_BOX_NAME[6]
+			{
+				"../../resources/textures/skybox/0.jpg",
+				"../../resources/textures/skybox/1.jpg",
+				"../../resources/textures/skybox/2.jpg",
+				"../../resources/textures/skybox/3.jpg",
+				"../../resources/textures/skybox/4.jpg",
+				"../../resources/textures/skybox/5.jpg",
+			};
+
+			FixedArray<Asset::AsyncAsset, 6> skybox_textures;
+			for (size_t i = 0; i < skybox_textures.size(); i++)
+			{
+				skybox_textures[i].asset_type = Asset::ASYNC_ASSET_TYPE::TEXTURE;
+				skybox_textures[i].load_type = Asset::ASYNC_LOAD_TYPE::MEMORY;
+				skybox_textures[i].texture_disk.format = IMAGE_FORMAT::RGBA8_SRGB;
+				skybox_textures[i].texture_disk.path = SKY_BOX_NAME[i];
+			}
+
+			Asset::LoadAssets(a_arena, skybox_textures.slice());
+		}
+
 
 		for (size_t i = 0; i < 6; i++)
 		{
@@ -426,7 +441,6 @@ void RenderSystem::Screenshot(const PathString& a_path) const
 	image_info.array_layers = 1;
 	image_info.base_array_layer = static_cast<uint16_t>(prev_frame);
 	image_info.mip_layer = 0;
-	image_info.layout = IMAGE_LAYOUT::TRANSFER_SRC;
 
 	const bool success = Asset::ReadWriteTextureDeferred(a_path.GetView(), image_info);
 	BB_ASSERT(success, "failed to write screenshot image to disk");

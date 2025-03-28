@@ -75,7 +75,7 @@ namespace BB
 
 		void DrawVertices(const RCommandList a_list, const uint32_t a_vertex_count, const uint32_t a_instance_count, const uint32_t a_first_vertex, const uint32_t a_first_instance);
 		void DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance);
-		PRESENT_IMAGE_RESULT UploadImageToSwapchain(const RCommandList a_list, const RImage a_src_image, const int2 a_src_image_size, const int2 a_swapchain_size, const uint32_t a_backbuffer_index);
+		PRESENT_IMAGE_RESULT UploadImageToSwapchain(const RCommandList a_list, const RImage a_src_image, const uint32_t a_array_layer, const int2 a_src_image_size, const int2 a_swapchain_size, const uint32_t a_backbuffer_index);
 
 		void ExecuteCommandLists(const RQueue a_queue, const ExecuteCommandsInfo* a_execute_infos, const uint32_t a_execute_info_count);
 		PRESENT_IMAGE_RESULT ExecutePresentCommandList(const RQueue a_queue, const ExecuteCommandsInfo& a_execute_info, const uint32_t a_backbuffer_index);
