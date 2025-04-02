@@ -241,27 +241,6 @@ static float3 RotatePointOnPoint(const float3x3& a_rotation_matrix, const float3
 	return a_middle + res;
 }
 
-static QuadVerticesPos MakeWallSegment(const int a_x, const int a_y, const float3 a_offset, const float3 a_rotation)
-{
-	const float fx = static_cast<float>(a_x);
-	const float fz = static_cast<float>(a_y);
-	const float3 middle = float3(fx, 0.5f, fz);
-	const float3x3 rotation_matrix = Float3x3FromRotation(Float3ToRadians(a_rotation));
-
-	// rotate these
-	const float3 pos_top_left = RotatePointOnPoint(rotation_matrix, float3(fx - 0.5f, 0.5f, fz + 0.5f), middle);
-	const float3 pos_top_right = RotatePointOnPoint(rotation_matrix, float3(fx + 0.5f, 0.5f, fz + 0.5f), middle);
-	const float3 pos_bot_right = RotatePointOnPoint(rotation_matrix, float3(fx + 0.5f, 0.5f, fz - 0.5f), middle);
-	const float3 pos_bot_left = RotatePointOnPoint(rotation_matrix, float3(fx - 0.5f, 0.5f, fz - 0.5f), middle);
-
-	QuadVerticesPos pos;
-	pos[0] = pos_top_left + a_offset;
-	pos[1] = pos_top_right + a_offset;
-	pos[2] = pos_bot_right + a_offset;
-	pos[3] = pos_bot_left + a_offset;
-	return pos;
-}
-
 ECSEntity DungeonMap::CreateEntityWalls(MemoryArena& a_temp_arena, SceneHierarchy& a_scene_hierarchy, const ECSEntity a_parent)
 {
 	QuadVerticesNormals quad_norms;
@@ -282,6 +261,8 @@ ECSEntity DungeonMap::CreateEntityWalls(MemoryArena& a_temp_arena, SceneHierarch
 	quad_colors[2] = float4(1.f, 1.f, 1.f, 1.f);
 	quad_colors[3] = float4(1.f, 1.f, 1.f, 1.f);
 
+
+
 	ECSEntity map_obj{};
 	MemoryArenaScope(a_temp_arena)
 	{
@@ -296,6 +277,41 @@ ECSEntity DungeonMap::CreateEntityWalls(MemoryArena& a_temp_arena, SceneHierarch
 		StaticArray<uint32_t> indices;
 		indices.Init(a_temp_arena, m_map.size() * 6);
 
+		auto MakeWallSegment = [&](const int a_x, const int a_y, const float3 a_offset, const float3 a_rotation)
+			{
+				const float fx = static_cast<float>(a_x);
+				const float fz = static_cast<float>(a_y);
+				const float3 middle = float3(fx, 0.5f, fz);
+				const float3x3 rotation_matrix = Float3x3FromRotation(Float3ToRadians(a_rotation));
+
+				// rotate these
+				const float3 pos_top_left = RotatePointOnPoint(rotation_matrix, float3(fx - 0.5f, 0.5f, fz + 0.5f), middle);
+				const float3 pos_top_right = RotatePointOnPoint(rotation_matrix, float3(fx + 0.5f, 0.5f, fz + 0.5f), middle);
+				const float3 pos_bot_right = RotatePointOnPoint(rotation_matrix, float3(fx + 0.5f, 0.5f, fz - 0.5f), middle);
+				const float3 pos_bot_left = RotatePointOnPoint(rotation_matrix, float3(fx - 0.5f, 0.5f, fz - 0.5f), middle);
+
+				QuadVerticesPos pos;
+				pos[0] = pos_top_left + a_offset;
+				pos[1] = pos_top_right + a_offset;
+				pos[2] = pos_bot_right + a_offset;
+				pos[3] = pos_bot_left + a_offset;
+
+				const uint32_t current_index = positions.size();
+				const uint32_t quad_indices[] = {
+					current_index,
+					current_index + 1,
+					current_index + 2,
+					current_index + 2,
+					current_index + 3,
+					current_index
+				};
+				positions.push_back(pos.const_slice());
+				normals.push_back(quad_norms.const_slice());
+				uvs.push_back(quad_uvs.const_slice());
+				colors.push_back(quad_colors.const_slice());
+				indices.push_back(quad_indices, _countof(quad_indices));
+			};
+
 		for (int y = 0; y < m_map_size_y; y++)
 		{
 			for (int x = 0; x < m_map_size_x; x++)
@@ -303,38 +319,14 @@ ECSEntity DungeonMap::CreateEntityWalls(MemoryArena& a_temp_arena, SceneHierarch
 				const DungeonTile& tile = GetTile(x, y);
 				if (tile.walkable)
 				{
-					QuadVerticesPos quad_pos;
 					if (!IsTileWalkable(x + 1, y))
-					{
-						quad_pos = MakeWallSegment(x, y, float3(0.5f, 0.f, 0.f), float3(0.f, 0.f, 90.f));
-					}
+						MakeWallSegment(x, y, float3(0.5f, 0.f, 0.f), float3(0.f, 0.f, 90.f));
 					if (!IsTileWalkable(x - 1, y))
-					{
-						quad_pos = MakeWallSegment(x, y, float3(-0.5f, 0.f, 0.f), float3(0.f, 0.f, -90.f));
-					}
+						MakeWallSegment(x, y, float3(-0.5f, 0.f, 0.f), float3(0.f, 0.f, -90.f));
 					if (!IsTileWalkable(x, y + 1))
-					{
-						quad_pos = MakeWallSegment(x, y, float3(0.f, 0.f, 0.5f), float3(-90.f, 0.f, 00.f));
-					}
+						MakeWallSegment(x, y, float3(0.f, 0.f, 0.5f), float3(-90.f, 0.f, 0.f));
 					if (!IsTileWalkable(x, y - 1))
-					{
-						quad_pos = MakeWallSegment(x, y, float3(0.f, 0.f, -0.5f), float3(90.f, 0.f, 0.f));
-					}
-
-					const uint32_t current_index = positions.size();
-					const uint32_t quad_indices[] = {
-						current_index,
-						current_index + 1,
-						current_index + 2,
-						current_index + 2,
-						current_index + 3,
-						current_index
-					};
-					positions.push_back(quad_pos.const_slice());
-					normals.push_back(quad_norms.const_slice());
-					uvs.push_back(quad_uvs.const_slice());
-					colors.push_back(quad_colors.const_slice());
-					indices.push_back(quad_indices, _countof(quad_indices));
+						MakeWallSegment(x, y, float3(0.f, 0.f, -0.5f), float3(90.f, 0.f, 0.f));
 				}
 			}
 		}
