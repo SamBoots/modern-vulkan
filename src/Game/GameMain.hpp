@@ -71,8 +71,8 @@ namespace BB
 	private:
 		inline int GetMapIndexFromXY(const int a_x, const int a_y) const
 		{
-			BB_ASSERT(a_x < m_map_size_x, "a_x is higher then m_map_size_x");
-			BB_ASSERT(a_y < m_map_size_y, "a_y is higher then m_map_size_y");
+			BB_ASSERT(a_x <= m_map_size_x, "a_x is higher then m_map_size_x");
+			BB_ASSERT(a_y <= m_map_size_y, "a_y is higher then m_map_size_y");
 			return a_x + a_y * m_map_size_x;
 		}
 		inline void GetMapXYFromIndex(const int a_index, int& a_x, int& a_y)

@@ -268,7 +268,7 @@ void Editor::StartFrame(MemoryArena& a_arena, const Slice<InputEvent> a_input_ev
 	start_info.delta_time = a_delta_time;
 	start_info.mouse_pos = m_previous_mouse_pos;
 
-	RenderStartFrame(list, start_info, m_per_frame.back_buffer_index);
+	RenderStartFrame(list, start_info, m_render_target, m_per_frame.back_buffer_index);
 	m_per_frame.current_count = 0;
 
 	ImGuiShowProfiler(a_arena);
@@ -277,6 +277,7 @@ void Editor::StartFrame(MemoryArena& a_arena, const Slice<InputEvent> a_input_ev
 
 void Editor::EndFrame(MemoryArena& a_arena)
 {
+	bool skip = false;
 	MemoryArenaScope(a_arena)
 	{
 		if (ImGui::Begin("Editor - Renderer"))
@@ -300,7 +301,16 @@ void Editor::EndFrame(MemoryArena& a_arena)
 		ImRenderFrame(m_per_frame.lists[0], GetImageView(m_render_target_descs[m_per_frame.back_buffer_index]), true, imgui_shaders[0], imgui_shaders[1]);
 		ImGui::EndFrame();
 
-		RenderEndFrame(m_per_frame.lists[0], m_render_target, m_per_frame.back_buffer_index, false);
+		PRESENT_IMAGE_RESULT result = RenderEndFrame(m_per_frame.lists[0], m_render_target, m_per_frame.back_buffer_index);
+		if (result == PRESENT_IMAGE_RESULT::SWAPCHAIN_OUT_OF_DATE)
+		{
+			int x, y;
+			OSGetWindowSize(m_main_window, x, y);
+			const uint2 new_extent = uint2(static_cast<uint32_t>(x), static_cast<uint32_t>(y));
+			ResizeWindow(new_extent);
+			skip = true;
+		}
+
 
 		for (size_t i = 0; i < m_per_frame.current_count; i++)
 		{
@@ -310,17 +320,64 @@ void Editor::EndFrame(MemoryArena& a_arena)
 		const uint32_t command_list_count = Max(m_per_frame.current_count.load(), 1u);
 		uint64_t present_queue_value;
 		// TODO: fence values could bug if no scenes are being rendered.
-		PresentFrame(m_per_frame.pools.slice(command_list_count),
+		result = PresentFrame(m_per_frame.pools.slice(command_list_count),
 			m_per_frame.fences.data(), 
 			m_per_frame.fence_values.data(), 
 			m_per_frame.current_count,
-			present_queue_value);
+			present_queue_value, 
+			skip);
+
+		if (result == PRESENT_IMAGE_RESULT::SWAPCHAIN_OUT_OF_DATE)
+		{
+			int x, y;
+			OSGetWindowSize(m_main_window, x, y);
+			const uint2 new_extent = uint2(static_cast<uint32_t>(x), static_cast<uint32_t>(y));
+			ResizeWindow(new_extent);
+		}
 	}
 }
 
-void Editor::ResizeWindow(const uint2 a_window)
+bool Editor::ResizeWindow(const uint2 a_window)
 {
+	GPUWaitIdle();
 
+	m_app_window_extent = a_window;
+	FreeImage(m_render_target);
+
+	ImageCreateInfo render_target_info;
+	render_target_info.name = "image before transfer to swapchain";
+	render_target_info.width = m_app_window_extent.x;
+	render_target_info.height = m_app_window_extent.y;
+	render_target_info.depth = 1;
+	render_target_info.array_layers = static_cast<uint16_t>(m_render_target_descs.size());
+	render_target_info.mip_levels = 1;
+	render_target_info.type = IMAGE_TYPE::TYPE_2D;
+	render_target_info.use_optimal_tiling = true;
+	render_target_info.is_cube_map = false;
+	render_target_info.format = IMAGE_FORMAT::RGBA16_SFLOAT;
+	render_target_info.usage = IMAGE_USAGE::SWAPCHAIN_COPY_IMG;
+
+	m_render_target = CreateImage(render_target_info);
+
+	for (size_t i = 0; i < m_render_target_descs.size(); i++)
+	{
+		FreeImageView(m_render_target_descs[i]);
+
+		ImageViewCreateInfo view_info;
+		view_info.name = "image before transfer to swapchain";
+		view_info.image = m_render_target;
+		view_info.array_layers = 1;
+		view_info.base_array_layer = static_cast<uint16_t>(i);
+		view_info.mip_levels = 1;
+		view_info.base_mip_level = 0;
+		view_info.aspects = IMAGE_ASPECT::COLOR;
+		view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
+		view_info.format = IMAGE_FORMAT::RGBA16_SFLOAT;
+
+		m_render_target_descs[i] = CreateImageView(view_info);
+	}
+
+	return true;
 }
 
 bool Editor::DrawImgui(const RDescriptorIndex a_render_target, SceneHierarchy& a_hierarchy, Viewport& a_viewport)

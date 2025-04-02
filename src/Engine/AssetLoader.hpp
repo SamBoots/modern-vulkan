@@ -22,7 +22,7 @@ namespace BB
 		int2 offset;
 		uint16_t array_layers;
 		uint16_t base_array_layer;
-		uint32_t mip_layer;
+		uint32_t mip_level;
 	};
 
 	constexpr size_t MAX_ASSET_NAME_SIZE = 64;
@@ -97,7 +97,7 @@ namespace BB
 			uint32_t asset_count = ASSET_COUNT_STANDARD;
 			uint32_t string_entry_count = STRING_ENTRY_COUNT_STANDARD;
 
-			size_t asset_upload_buffer_size = mbSize * 32;
+			size_t asset_upload_buffer_size = gbSize * 2;
 			size_t max_textures = 1024;
 		};
 
@@ -134,11 +134,10 @@ namespace BB
 			// material def here....
 			struct MeshLoad
 			{
-				size_t vertex_count;
-				float3* positions;
-				float3* normals;
-				float2* uvs;
-				float4* colors;
+				ConstSlice<float3> positions;
+				ConstSlice<float3> normals;
+				ConstSlice<float2> uvs;
+				ConstSlice<float4> colors;
 			} mesh_load;
 			ConstSlice<uint32_t> indices;
 			RDescriptorIndex base_albedo;
@@ -162,7 +161,7 @@ namespace BB
 			};
 		};
 
-		void InitializeAssetManager(const AssetManagerInitInfo& a_init_info);
+		void InitializeAssetManager(MemoryArena& a_temp_arena, const AssetManagerInitInfo& a_init_info);
 
 		void Update();
 
@@ -171,7 +170,7 @@ namespace BB
 		void LoadAssets(MemoryArena& a_temp_arena, const Slice<AsyncAsset> a_asyn_assets);
 
 		const Image& LoadImageDisk(MemoryArena& a_temp_arena, const StringView& a_path, const IMAGE_FORMAT a_format);
-		const Image& LoadImageArrayDisk(MemoryArena& a_temp_arena, const StringView& a_name, const Slice<StringView> a_paths, const IMAGE_FORMAT a_format);
+		const Image& LoadImageArrayDisk(MemoryArena& a_temp_arena, const StringView& a_name, const ConstSlice<StringView> a_paths, const IMAGE_FORMAT a_format, const bool a_is_cube_map = false);
 		const Image& LoadImageMemory(MemoryArena& a_temp_arena, const TextureLoadFromMemory& a_info);
 		const Model& LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromDisk& a_mesh_op);
 		const Model& LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoadFromMemory& a_mesh_op);
@@ -190,5 +189,9 @@ namespace BB
 
 		RDescriptorIndex GetWhiteTexture();
 		RDescriptorIndex GetBlackTexture();
+		RDescriptorIndex GetRedTexture();
+		RDescriptorIndex GetGreenTexture();
+		RDescriptorIndex GetBlueTexture();
+		RDescriptorIndex GetCheckerBoardTexture();
 	};
 }

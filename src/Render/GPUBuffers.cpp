@@ -92,7 +92,7 @@ void GPUUploadRingAllocator::Init(MemoryArena& a_arena, const size_t a_ring_buff
 	m_locked_queue.Init(a_arena, RING_BUFFER_QUEUE_ELEMENT_COUNT);
 }
 
-uint64_t GPUUploadRingAllocator::AllocateUploadMemory(const size_t a_byte_amount, const GPUFenceValue a_fence_value, const bool a_retry)
+uint64_t GPUUploadRingAllocator::AllocateUploadMemory(const size_t a_byte_amount, const GPUFenceValue a_fence_value)
 {
 	BB_ASSERT(a_byte_amount < Capacity(), "trying to upload more memory then the ringbuffer size");
 	BBRWLockScopeWrite scope_lock(m_lock);
@@ -180,7 +180,7 @@ void GPUUploadRingAllocator::FreeElements()
 
 	while (const LockedRegions* locked_region = m_locked_queue.Peek())
 	{
-		if (locked_region->fence_value.handle <= fence_value.handle)
+		if (locked_region->fence_value <= fence_value)
 		{
 			m_size -= locked_region->size;
 			m_head = locked_region->begin;

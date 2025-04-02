@@ -31,12 +31,6 @@ namespace BB
 		ENUM_SIZE
 	};
 
-	enum class PRESENT_IMAGE_RESULT
-	{
-		SWAPCHAIN_OUT_OF_DATE,
-		SUCCESS
-	};
-
 	enum class SAMPLER_ADDRESS_MODE : uint32_t
 	{
 		REPEAT,

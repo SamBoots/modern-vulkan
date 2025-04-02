@@ -2564,12 +2564,12 @@ PRESENT_IMAGE_RESULT Vulkan::UploadImageToSwapchain(const RCommandList a_list, c
 		image_blit.dstOffsets[1].z = 1;
 
 		image_blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		image_blit.srcSubresource.baseArrayLayer = 0;
+		image_blit.srcSubresource.baseArrayLayer = a_array_layer;
 		image_blit.srcSubresource.layerCount = 1;
 		image_blit.srcSubresource.mipLevel = 0;
 
 		image_blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		image_blit.dstSubresource.baseArrayLayer = a_array_layer;
+		image_blit.dstSubresource.baseArrayLayer = 0;
 		image_blit.dstSubresource.layerCount = 1;
 		image_blit.dstSubresource.mipLevel = 0;
 
@@ -2743,7 +2743,7 @@ void Vulkan::FreeFence(const RFence a_fence)
 	vkDestroySemaphore(s_vulkan_inst->device, reinterpret_cast<VkSemaphore>(a_fence.handle), nullptr);
 }
 
-void Vulkan::WaitFence(const RFence a_fence, const uint64_t a_fence_value)
+void Vulkan::WaitFence(const RFence a_fence, const GPUFenceValue a_fence_value)
 {
 	VkSemaphoreWaitInfo wait_info{ VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO };
 	wait_info.semaphoreCount = 1;
@@ -2753,7 +2753,7 @@ void Vulkan::WaitFence(const RFence a_fence, const uint64_t a_fence_value)
 	vkWaitSemaphores(s_vulkan_inst->device, &wait_info, 1000000000);
 }
 
-void Vulkan::WaitFences(const RFence* a_fences, const uint64_t* a_fence_values, const uint32_t a_fence_count)
+void Vulkan::WaitFences(const RFence* a_fences, const GPUFenceValue* a_fence_values, const uint32_t a_fence_count)
 {
 	VkSemaphoreWaitInfo wait_info{ VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO };
 	wait_info.semaphoreCount = a_fence_count;
@@ -2768,7 +2768,7 @@ GPUFenceValue Vulkan::GetCurrentFenceValue(const RFence a_fence)
 	GPUFenceValue value;
 	vkGetSemaphoreCounterValue(s_vulkan_inst->device,
 		reinterpret_cast<const VkSemaphore>(a_fence.handle),
-		&value.handle);
+		&value);
 	return value;
 }
 

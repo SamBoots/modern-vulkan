@@ -23,6 +23,7 @@ using namespace BB;
 
 static EngineConfig engine_config;
 static bool end_app = false;
+static bool resize_app = false;
 
 static void CustomCloseWindow(const BB::WindowHandle a_window_handle)
 {
@@ -31,12 +32,10 @@ static void CustomCloseWindow(const BB::WindowHandle a_window_handle)
 	end_app = true;
 }
 
-static void CustomResizeWindow(const BB::WindowHandle a_window_handle, const uint32_t a_x, const uint32_t a_y)
+static void CustomResizeWindow(const BB::WindowHandle a_window_handle, const uint32_t, const uint32_t)
 {
 	(void)a_window_handle;
-	BB::RequestResize();
-	engine_config.window_size_x = a_x;
-	engine_config.window_size_y = a_y;
+	resize_app = true;
 }
 
 static void CustomMoveWindow(const BB::WindowHandle a_window_handle, const uint32_t a_x, const uint32_t a_y)
@@ -102,9 +101,10 @@ int main(int argc, char** argv)
 	InitializeRenderer(main_arena, render_create_info);
 	const uint32_t back_buffer_count = GetRenderIO().frame_count;
 
+	MemoryArenaScope(main_arena)
 	{
 		const Asset::AssetManagerInitInfo asset_manager_info = {};
-		Asset::InitializeAssetManager(asset_manager_info);
+		Asset::InitializeAssetManager(main_arena, asset_manager_info);
 	}
 	Editor editor{};
 	editor.Init(main_arena, window_handle, window_extent);
@@ -127,6 +127,15 @@ int main(int argc, char** argv)
 
 	while (!end_app)
 	{
+		if (resize_app)
+		{
+			int x, y;
+			OSGetWindowSize(window_handle, x, y);
+			const uint2 new_extent = uint2(static_cast<uint32_t>(x), static_cast<uint32_t>(y));
+			editor.ResizeWindow(new_extent);
+			resize_app = false;
+		}
+
 		BB_START_PROFILE("frame time");
 		Asset::Update();
 

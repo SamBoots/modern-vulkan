@@ -3,6 +3,7 @@
 #include "MemoryArena.hpp"
 
 #include "Utils/Utils.h"
+#include <string>
 
 namespace BB
 {
@@ -17,7 +18,7 @@ namespace BB
 	{
 	public:
 		String_View() = default;
-		constexpr String_View(const CharT* a_string) : String_View(a_string, Memory::StrLength(a_string)) { BB_WARNING(false, "creating string view via raw string, this can be expensive and unsafe", WarningType::OPTIMIZATION); }
+		constexpr String_View(const CharT* a_string) : String_View(a_string, std::char_traits<CharT>::length(a_string)) {}
 		constexpr String_View(const CharT* a_string, const size_t a_size) : m_string_view(a_string), m_size(a_size) {}
 
 		bool operator==(const String_View<CharT>& a_rhs) const

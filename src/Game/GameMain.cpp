@@ -206,19 +206,23 @@ ECSEntity DungeonMap::CreateEntityFloor(MemoryArena& a_temp_arena, SceneHierarch
 				}
 			}
 		}
-		CreateMeshInfo create_mesh_info;
-		create_mesh_info.positions = positions.const_slice();
-		create_mesh_info.normals = normals.const_slice();
-		create_mesh_info.uvs = uvs.const_slice();
-		create_mesh_info.colors = colors.const_slice();
-		create_mesh_info.indices = ConstSlice<uint32_t>(indices.data(), indices.size());
-		Mesh mesh = CreateMesh(create_mesh_info);
+
+		Asset::MeshLoadFromMemory load_mesh_info;
+		load_mesh_info.name = "dungeon floor";
+		load_mesh_info.indices = indices.const_slice();
+		load_mesh_info.base_albedo = Asset::GetCheckerBoardTexture();
+		load_mesh_info.mesh_load.positions = positions.const_slice();
+		load_mesh_info.mesh_load.normals = normals.const_slice();
+		load_mesh_info.mesh_load.uvs = uvs.const_slice();
+		load_mesh_info.mesh_load.colors = colors.const_slice();
+		Mesh mesh = Asset::LoadMeshFromMemory(a_temp_arena, load_mesh_info).meshes[0].mesh;
 		MeshMetallic material_info;
 		material_info.metallic_factor = 1.0f;
 		material_info.roughness_factor = 0.0f;
 		material_info.base_color_factor = float4(1.f);
-		material_info.albedo_texture = GetDebugTexture();
-		material_info.normal_texture = GetWhiteTexture();
+		material_info.albedo_texture = Asset::GetCheckerBoardTexture();
+		material_info.normal_texture = Asset::GetBlueTexture();
+		material_info.orm_texture = Asset::GetWhiteTexture();
 
 		SceneMeshCreateInfo mesh_info;
 		mesh_info.mesh = mesh;
@@ -335,19 +339,22 @@ ECSEntity DungeonMap::CreateEntityWalls(MemoryArena& a_temp_arena, SceneHierarch
 			}
 		}
 
-		CreateMeshInfo create_mesh_info;
-		create_mesh_info.positions = positions.const_slice();
-		create_mesh_info.normals = normals.const_slice();
-		create_mesh_info.uvs = uvs.const_slice();
-		create_mesh_info.colors = colors.const_slice();
-		create_mesh_info.indices = ConstSlice<uint32_t>(indices.data(), indices.size());
-		Mesh mesh = CreateMesh(create_mesh_info);
+		Asset::MeshLoadFromMemory load_mesh_info;
+		load_mesh_info.name = "dungeon wall";
+		load_mesh_info.indices = indices.const_slice();
+		load_mesh_info.base_albedo = Asset::GetCheckerBoardTexture();
+		load_mesh_info.mesh_load.positions = positions.const_slice();
+		load_mesh_info.mesh_load.normals = normals.const_slice();
+		load_mesh_info.mesh_load.uvs = uvs.const_slice();
+		load_mesh_info.mesh_load.colors = colors.const_slice();
+		Mesh mesh = Asset::LoadMeshFromMemory(a_temp_arena, load_mesh_info).meshes[0].mesh;
 		MeshMetallic material_info;
 		material_info.metallic_factor = 1.0f;
 		material_info.roughness_factor = 0.0f;
 		material_info.base_color_factor = float4(1.f);
-		material_info.albedo_texture = GetWhiteTexture();
-		material_info.normal_texture = GetWhiteTexture();
+		material_info.albedo_texture = Asset::GetCheckerBoardTexture();
+		material_info.normal_texture = Asset::GetBlueTexture();
+		material_info.orm_texture = RDescriptorIndex(0);
 
 		SceneMeshCreateInfo mesh_info;
 		mesh_info.mesh = mesh;

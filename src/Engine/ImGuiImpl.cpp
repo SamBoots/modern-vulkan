@@ -27,6 +27,27 @@ static ImInputData* ImGetInputData()
 	return ImGui::GetCurrentContext() ? reinterpret_cast<ImInputData*>(ImGui::GetIO().BackendPlatformUserData) : nullptr;
 }
 
+struct ImRenderBuffer
+{
+	WriteableGPUBufferView vertex_buffer;
+	WriteableGPUBufferView index_buffer;
+};
+
+struct ImRenderData
+{
+	AssetHandle font;				 // 8
+	RDescriptorIndex font_descriptor;// 12
+
+	// Render buffers for main window
+	uint32_t frame_index;            // 16
+	ImRenderBuffer* frame_buffers;	 // 24
+};
+
+inline static ImRenderData* ImGetRenderData()
+{
+	return ImGui::GetCurrentContext() ? reinterpret_cast<ImRenderData*>(ImGui::GetIO().BackendRendererUserData) : nullptr;
+}
+
 //BB FRAMEWORK TEMPLATE, MAY CHANGE THIS.
 static ImGuiKey ImBBKeyToImGuiKey(const KEYBOARD_KEY a_Key)
 {
@@ -157,7 +178,7 @@ static inline void SetupImGuiRender(MemoryArena& a_arena)
 		Asset::TextureLoadFromMemory load_image_memory;
 		load_image_memory.name = "imgui font";
 		load_image_memory.width = static_cast<uint32_t>(width);
-		load_image_memory.width = static_cast<uint32_t>(height);
+		load_image_memory.height = static_cast<uint32_t>(height);
 		load_image_memory.pixels = pixels;
 		load_image_memory.bytes_per_pixel = 4;
 		const Image& image = Asset::LoadImageMemory(a_arena, load_image_memory);
@@ -168,32 +189,11 @@ static inline void SetupImGuiRender(MemoryArena& a_arena)
 	io.Fonts->SetTexID(bd->font_descriptor.handle);
 }
 
-struct ImRenderBuffer
-{
-	WriteableGPUBufferView vertex_buffer;
-	WriteableGPUBufferView index_buffer;
-};
-
-struct ImRenderData
-{
-	AssetHandle font;				 // 8
-	RDescriptorIndex font_descriptor;// 12
-
-	// Render buffers for main window
-	uint32_t frame_index;            // 16
-	ImRenderBuffer* frame_buffers;	 // 24
-};
-
-inline static ImRenderData* ImGetRenderData()
-{
-	return ImGui::GetCurrentContext() ? reinterpret_cast<ImRenderData*>(ImGui::GetIO().BackendRendererUserData) : nullptr;
-}
-
 inline static RPipelineLayout ImSetRenderState(const ImDrawData& a_draw_data, const RCommandList a_cmd_list, const uint32_t a_vert_pos, const ShaderEffectHandle* a_vertex_and_fragment)
 {
 	ImRenderData* bd = ImGetRenderData();
 
-	const RPipelineLayout layout = BindShaders(a_cmd_list, ConstSlice(a_vertex_and_fragment, 2));
+	const RPipelineLayout layout = BindShaders(a_cmd_list, ConstSlice<ShaderEffectHandle>(a_vertex_and_fragment, 2));
 
 	{
 		SetFrontFace(a_cmd_list, true);
@@ -349,7 +349,7 @@ void BB::ImRenderFrame(const RCommandList a_cmd_list, const RImageView render_ta
 	uint32_t global_idx_offset = 0;
 	uint32_t vertex_offset = static_cast<uint32_t>(rb.vertex_buffer.offset);
 
-	BindIndexBuffer(a_cmd_list, rb.index_buffer.buffer, rb.index_buffer.offset);
+	BindIndexBuffer(a_cmd_list, rb.index_buffer.offset, true);
 
 	ImTextureID last_texture = bd->font_descriptor.handle;
 	for (int n = 0; n < draw_data.CmdListsCount; n++)

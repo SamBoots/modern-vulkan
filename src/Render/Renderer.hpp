@@ -24,16 +24,6 @@ namespace BB
 		float gamma;
 	};
 
-	struct CreateMeshInfo
-	{
-		ConstSlice<float3> positions;
-		ConstSlice<float3> normals;
-		ConstSlice<float2> uvs;
-		ConstSlice<float4> colors;
-		ConstSlice<float3> tangents;
-		ConstSlice<uint32_t> indices;
-	};
-
 	// get one pool per thread
 	class CommandPool : public LinkedListNode<CommandPool>
 	{
@@ -71,12 +61,15 @@ namespace BB
 		float delta_time;
 	};
 
-	void RenderStartFrame(const RCommandList a_list, const RenderStartFrameInfo& a_info, uint32_t& a_back_buffer_index);
-	void RenderEndFrame(const RCommandList a_list, const RImage a_render_target, const uint32_t a_render_target_layer, bool a_skip);
+	void RenderStartFrame(const RCommandList a_list, const RenderStartFrameInfo& a_info, const RImage a_render_target, uint32_t& a_back_buffer_index);
+	PRESENT_IMAGE_RESULT RenderEndFrame(const RCommandList a_list, const RImage a_render_target, const uint32_t a_render_target_layer);
+
+	bool ResizeSwapchain(const uint2 a_extent);
 
 	void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info);
 	void EndRenderPass(const RCommandList a_list);
 
+	void BindIndexBuffer(const RCommandList a_list, const uint64_t a_offset, const bool a_cpu_readable = false);
 	RPipelineLayout BindShaders(const RCommandList a_list, const ConstSlice<ShaderEffectHandle> a_shader_effects);
 	void SetBlendMode(const RCommandList a_list, const uint32_t a_first_attachment, const Slice<ColorBlendState> a_blend_states);
 
@@ -92,7 +85,7 @@ namespace BB
 	CommandPool& GetGraphicsCommandPool();
 	CommandPool& GetTransferCommandPool();
 
-	bool PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value);
+	PRESENT_IMAGE_RESULT PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value, const bool a_skip);
 	bool ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value);
 	bool ExecuteTransferCommands(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value);
 
@@ -138,8 +131,8 @@ namespace BB
 
 	RFence CreateFence(const uint64_t a_initial_value, const char* a_name);
 	void FreeFence(const RFence a_fence);
-	void WaitFence(const RFence a_fence, const uint64_t a_fence_value);
-	void WaitFences(const RFence* a_fences, const uint64_t* a_fence_values, const uint32_t a_fence_count);
+	void WaitFence(const RFence a_fence, const GPUFenceValue a_fence_value);
+	void WaitFences(const RFence* a_fences, const GPUFenceValue* a_fence_values, const uint32_t a_fence_count);
 	GPUFenceValue GetCurrentFenceValue(const RFence a_fence);
 
 	void SetPushConstants(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_offset, const uint32_t a_size, const void* a_data);

@@ -66,7 +66,7 @@ namespace BB
 			RDescriptorIndex render_target_view;
 
 			uint2 previous_draw_area;
-			uint64_t fence_value;
+			GPUFenceValue fence_value;
 			DescriptorAllocation scene_descriptor;
 
 			// scene data

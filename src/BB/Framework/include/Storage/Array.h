@@ -337,11 +337,18 @@ namespace BB
 
 		void Init(MemoryArena& a_arena, const uint32_t a_size)
 		{
+			Init(a_arena, a_size, 0);
+		}
+
+		void Init(MemoryArena& a_arena, const uint32_t a_size, const uint32_t a_initial_size)
+		{
 			BB_ASSERT(a_size != 0, "StaticArray size is specified to be 0");
+			BB_ASSERT(a_size >= a_initial_size, "initial size is larger then array size");
 			m_capacity = a_size;
-			m_size = 0;
+			m_size = a_initial_size;
 			m_arr = reinterpret_cast<T*>(ArenaAllocArr(a_arena, T, m_capacity));
 		}
+
 
 		void Init(void* a_mem, const uint32_t a_size)
 		{

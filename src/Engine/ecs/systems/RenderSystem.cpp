@@ -76,27 +76,7 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 		m_gaussian_material = Material::CreateMasterMaterial(a_arena, gaussian_material, "shadow map material");
 	}
 
-	// skybox stuff
-
-	MaterialCreateInfo skybox_material;
-	skybox_material.pass_type = PASS_TYPE::SCENE;
-	skybox_material.material_type = MATERIAL_TYPE::NONE;
-	FixedArray<MaterialShaderCreateInfo, 2> skybox_shaders;
-	skybox_shaders[0].path = "../../resources/shaders/hlsl/skybox.hlsl";
-	skybox_shaders[0].entry = "VertexMain";
-	skybox_shaders[0].stage = SHADER_STAGE::VERTEX;
-	skybox_shaders[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
-	skybox_shaders[1].path = "../../resources/shaders/hlsl/skybox.hlsl";
-	skybox_shaders[1].entry = "FragmentMain";
-	skybox_shaders[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
-	skybox_shaders[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
-	skybox_material.shader_infos = Slice(skybox_shaders.slice());
-	MemoryArenaScope(a_arena)
-	{
-		m_skybox_material = Material::CreateMasterMaterial(a_arena, skybox_material, "skybox material");
-	}
-
-	{
+	{ // skybox stuff
 		ImageCreateInfo skybox_image_info;
 		skybox_image_info.name = "skybox image";
 		skybox_image_info.width = 2048;
@@ -125,46 +105,36 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 
 		MemoryArenaScope(a_arena)
 		{
-			constexpr StringView SKY_BOX_NAME[6]
+			constexpr StringView SKYBOX_NAMES[6]
 			{
-				"../../resources/textures/skybox/0.jpg",
-				"../../resources/textures/skybox/1.jpg",
-				"../../resources/textures/skybox/2.jpg",
-				"../../resources/textures/skybox/3.jpg",
-				"../../resources/textures/skybox/4.jpg",
-				"../../resources/textures/skybox/5.jpg",
+				StringView("../../resources/textures/skybox/0.jpg"),
+				StringView("../../resources/textures/skybox/1.jpg"),
+				StringView("../../resources/textures/skybox/2.jpg"),
+				StringView("../../resources/textures/skybox/3.jpg"),
+				StringView("../../resources/textures/skybox/4.jpg"),
+				StringView("../../resources/textures/skybox/5.jpg")
 			};
-
+			
 			FixedArray<Asset::AsyncAsset, 6> skybox_textures;
-			for (size_t i = 0; i < skybox_textures.size(); i++)
-			{
-				skybox_textures[i].asset_type = Asset::ASYNC_ASSET_TYPE::TEXTURE;
-				skybox_textures[i].load_type = Asset::ASYNC_LOAD_TYPE::MEMORY;
-				skybox_textures[i].texture_disk.format = IMAGE_FORMAT::RGBA8_SRGB;
-				skybox_textures[i].texture_disk.path = SKY_BOX_NAME[i];
-			}
-			Asset::LoadImageArrayDisk(a_)
-			Asset::LoadAssets(a_arena, skybox_textures.slice());
-		}
 
+			MaterialCreateInfo skybox_material;
+			skybox_material.pass_type = PASS_TYPE::SCENE;
+			skybox_material.material_type = MATERIAL_TYPE::NONE;
+			FixedArray<MaterialShaderCreateInfo, 2> skybox_shaders;
+			skybox_shaders[0].path = "../../resources/shaders/hlsl/skybox.hlsl";
+			skybox_shaders[0].entry = "VertexMain";
+			skybox_shaders[0].stage = SHADER_STAGE::VERTEX;
+			skybox_shaders[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
+			skybox_shaders[1].path = "../../resources/shaders/hlsl/skybox.hlsl";
+			skybox_shaders[1].entry = "FragmentMain";
+			skybox_shaders[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
+			skybox_shaders[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
+			skybox_material.shader_infos = Slice(skybox_shaders.slice());
 
-		for (size_t i = 0; i < 6; i++)
-		{
-			int dummy_x, dummy_y, dummy_bytes_per;
-			unsigned char* pixels = Asset::LoadImageCPU(SKY_BOX_NAME[i], dummy_x, dummy_y, dummy_bytes_per);
-			BB_ASSERT(static_cast<uint32_t>(dummy_x) == skybox_image_info.width && static_cast<uint32_t>(dummy_y) == skybox_image_info.height && dummy_bytes_per == 4, "skybox dimentions wrong");
-			WriteImageInfo write_info{};
-			write_info.image = m_skybox;
-			write_info.format = IMAGE_FORMAT::RGBA8_SRGB;
-			write_info.extent = { skybox_image_info.width, skybox_image_info.height };
-			write_info.offset = {};
-			write_info.layer_count = 1;
-			write_info.base_array_layer = static_cast<uint16_t>(i);
-			write_info.set_shader_visible = true;
-			write_info.pixels = pixels;
-			WriteTexture(write_info);
-
-			Asset::FreeImageCPU(pixels);
+			const Image& skybox_image = Asset::LoadImageArrayDisk(a_arena, "default skybox", ConstSlice<StringView>(SKYBOX_NAMES, _countof(SKYBOX_NAMES)), IMAGE_FORMAT::RGBA8_SRGB, true);
+			m_skybox = skybox_image.gpu_image;
+			m_skybox_descriptor_index = skybox_image.descriptor_index;
+			m_skybox_material = Material::CreateMasterMaterial(a_arena, skybox_material, "skybox material");
 		}
 	}
 
@@ -370,9 +340,9 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 
 		if (comp.material_dirty)
 		{
-			const UploadBuffer upload = m_upload_allocator.AllocateUploadMemory(sizeof(comp.material_data), pfd.fence_value);
-			upload.SafeMemcpy(0, &comp.material_data, sizeof(comp.material_data));
-			Material::WriteMaterial(comp.material, a_list, upload.buffer, upload.base_offset);
+			const uint64_t upload_offset = m_upload_allocator.AllocateUploadMemory(sizeof(comp.material_data), pfd.fence_value);
+			m_upload_allocator.MemcpyIntoBuffer(upload_offset, &comp.material_data, sizeof(comp.material_data));
+			Material::WriteMaterial(comp.material, a_list, m_upload_allocator.GetBuffer(), upload_offset);
 			comp.material_dirty = false;
 		}
 
@@ -390,7 +360,7 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 		draw_list.draw_entries.push_back(entry);
 		draw_list.transforms.push_back(shader_transform);
 	}
-
+	BindIndexBuffer(a_list, 0);
 	UpdateConstantBuffer(pfd, a_list, a_draw_area, a_lights);
 
 	SkyboxPass(pfd, a_list, a_draw_area);
@@ -440,7 +410,7 @@ void RenderSystem::Screenshot(const PathString& a_path) const
 	image_info.offset = int2(0);
 	image_info.array_layers = 1;
 	image_info.base_array_layer = static_cast<uint16_t>(prev_frame);
-	image_info.mip_layer = 0;
+	image_info.mip_level = 0;
 
 	const bool success = Asset::ReadWriteTextureDeferred(a_path.GetView(), image_info);
 	BB_ASSERT(success, "failed to write screenshot image to disk");
@@ -652,28 +622,29 @@ void RenderSystem::ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list
 	const size_t light_upload_size = a_lights.size() * sizeof(Light);
 	const size_t light_projection_view_size = a_lights.size() * sizeof(float4x4);
 
+	auto memcpy_and_advance = [](const GPUUploadRingAllocator& a_buffer, const size_t a_dst_offset, const void* a_src_data, const size_t a_src_size)
+		{
+			const bool success = a_buffer.MemcpyIntoBuffer(a_dst_offset, a_src_data, a_src_size);
+			BB_ASSERT(success, "failed to memcpy mesh data into gpu visible buffer");
+			return a_dst_offset + a_src_size;
+		};
+
 	// optimize this
 	const size_t total_size = matrices_upload_size + light_upload_size + light_projection_view_size;
 
-	const UploadBuffer upload_buffer = m_upload_allocator.AllocateUploadMemory(total_size, a_pfd.fence_value);
-	BB_ASSERT(upload_buffer.begin, "upload memory failed");
-	size_t bytes_uploaded = 0;
+	uint64_t upload_offset = m_upload_allocator.AllocateUploadMemory(total_size, a_pfd.fence_value);
+	BB_ASSERT(upload_offset != uint64_t(-1), "upload offset invalid");
 
-	upload_buffer.SafeMemcpy(bytes_uploaded, a_draw_list.transforms.data(), matrices_upload_size);
-	const size_t matrix_offset = bytes_uploaded + upload_buffer.base_offset;
-	bytes_uploaded += matrices_upload_size;
+	const uint64_t matrix_offset = upload_offset;
+	upload_offset = memcpy_and_advance(m_upload_allocator, upload_offset, a_draw_list.transforms.data(), matrices_upload_size);
 
-
+	const uint64_t light_offset = upload_offset;
 	for (uint32_t i = 0; i < a_lights.size(); i++)
-		upload_buffer.SafeMemcpy(bytes_uploaded + i * sizeof(Light), &a_lights[i].light, sizeof(Light));
+		upload_offset = memcpy_and_advance(m_upload_allocator, upload_offset, &a_lights[i].light, sizeof(Light));
 
-	const size_t light_offset = bytes_uploaded + upload_buffer.base_offset;
-	bytes_uploaded += light_upload_size;
-
+	const uint64_t light_projection_view_offset = upload_offset;
 	for (uint32_t i = 0; i < a_lights.size(); i++)
-		upload_buffer.SafeMemcpy(bytes_uploaded + i * sizeof(float4x4), &a_lights[i].projection_view, sizeof(float4x4));
-	const size_t light_projection_view_offset = bytes_uploaded + upload_buffer.base_offset;
-	bytes_uploaded += light_projection_view_size;
+		upload_offset = memcpy_and_advance(m_upload_allocator, upload_offset, &a_lights[i].projection_view, sizeof(float4x4));
 
 	GPUBufferView transform_view;
 	bool success = cur_scene_buffer.Allocate(matrices_upload_size, transform_view);
@@ -687,7 +658,7 @@ void RenderSystem::ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list
 
 	//upload to some GPU buffer here.
 	RenderCopyBuffer matrix_buffer_copy;
-	matrix_buffer_copy.src = upload_buffer.buffer;
+	matrix_buffer_copy.src = m_upload_allocator.GetBuffer();
 	matrix_buffer_copy.dst = cur_scene_buffer.GetBuffer();
 	size_t copy_region_count = 0;
 	FixedArray<RenderCopyBufferRegion, 3> buffer_regions; //0 = matrix, 1 = lights, 2 = light projection view
@@ -929,7 +900,7 @@ void RenderSystem::GeometryPass(const PerFrame& a_pfd, const RCommandList a_list
 		return;
 	}
 	SetFrontFace(a_list, false);
-	SetCullMode(a_list, CULL_MODE::BACK);
+	SetCullMode(a_list, CULL_MODE::NONE);
 
 	for (uint32_t i = 0; i < a_draw_list.draw_entries.size(); i++)
 	{
@@ -948,7 +919,7 @@ void RenderSystem::GeometryPass(const PerFrame& a_pfd, const RCommandList a_list
 				buffer_indices,
 				buffer_offsets);
 		}
-
+		
 		ShaderIndices shader_indices;
 		shader_indices.transform_index = i;
 		shader_indices.position_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_position_offset);

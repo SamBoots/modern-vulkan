@@ -175,6 +175,16 @@ enum class UPLOAD_TEXTURE_TYPE
 	READ
 };
 
+struct CreateMeshInfo
+{
+	ConstSlice<float3> positions;
+	ConstSlice<float3> normals;
+	ConstSlice<float2> uvs;
+	ConstSlice<float4> colors;
+	ConstSlice<float3> tangents;
+	ConstSlice<uint32_t> indices;
+};
+
 struct UploadDataTexture
 {
 	RImage image;
@@ -235,6 +245,10 @@ struct AssetManager
 		};
 		BasicColorImage white;
 		BasicColorImage black;
+		BasicColorImage red;
+		BasicColorImage green;
+		BasicColorImage blue;
+		BasicColorImage checkerboard;
 	} pre_loaded;
 
 	struct IconGigaTexture
@@ -253,14 +267,142 @@ struct AssetManager
 };
 static AssetManager* s_asset_manager;
 
-static GPUFenceValue CreateMesh(const CreateMeshInfo& a_create_info, Mesh& a_out_mesh)
+static std::atomic<bool> uploading_assets = false;
+// TODO, fix this to be lower
+constexpr uint32_t MAX_MESH_UPLOAD_QUEUE = 1024;
+constexpr uint32_t MAX_TEXTURE_UPLOAD_QUEUE = 1024;
+
+static void UploadAndWaitAssets(MemoryArena& a_thread_arena, void*)
+{
+	bool expected = false;
+	if (uploading_assets.compare_exchange_strong(expected, true))
+	{
+		CommandPool& cmd_pool = GetTransferCommandPool();
+		const RCommandList list = cmd_pool.StartCommandList("upload asset list");
+		GPUUploader& uploader = s_asset_manager->gpu_uploader;
+
+		if (!uploader.upload_meshes.IsEmpty())
+		{
+			MemoryArenaScope(a_thread_arena)
+			{
+				StaticArray<RenderCopyBufferRegion> vertex_regions{};
+				StaticArray<RenderCopyBufferRegion> index_regions{};
+				vertex_regions.Init(a_thread_arena, MAX_MESH_UPLOAD_QUEUE);
+				index_regions.Init(a_thread_arena, MAX_MESH_UPLOAD_QUEUE);
+
+				UploadDataMesh upload_data;
+				while (uploader.upload_meshes.DeQueue(upload_data) && vertex_regions.size() < MAX_MESH_UPLOAD_QUEUE)
+				{
+					vertex_regions.push_back(upload_data.vertex_region);
+					if (upload_data.index_region.size)
+						index_regions.push_back(upload_data.index_region);
+				}
+
+				CopyToVertexBuffer(list, uploader.upload_buffer.GetBuffer(), vertex_regions.slice());
+
+				if (index_regions.size())
+				{
+					CopyToIndexBuffer(list, uploader.upload_buffer.GetBuffer(), index_regions.slice());
+				}
+			}
+		}
+
+		if (!uploader.upload_textures.IsEmpty())
+		{
+			MemoryArenaScope(a_thread_arena)
+			{
+				uint32_t write_info_count = 0;
+				RenderCopyBufferToImageInfo* write_infos = ArenaAllocArr(a_thread_arena, RenderCopyBufferToImageInfo, MAX_TEXTURE_UPLOAD_QUEUE);
+				uint32_t read_info_count = 0;
+				RenderCopyImageToBufferInfo* read_infos = ArenaAllocArr(a_thread_arena, RenderCopyImageToBufferInfo, MAX_TEXTURE_UPLOAD_QUEUE);
+				uint32_t before_trans_count = 0;
+				PipelineBarrierImageInfo* before_transition = ArenaAllocArr(a_thread_arena, PipelineBarrierImageInfo, MAX_TEXTURE_UPLOAD_QUEUE);
+
+				size_t index = 0;
+				uint16_t base_layer = 0;
+				uint16_t layer_count = 0;
+				UploadDataTexture upload_data{};
+				while (uploader.upload_textures.DeQueue(upload_data) &&
+					index++ < MAX_TEXTURE_UPLOAD_QUEUE)
+				{
+					IMAGE_LAYOUT layout;
+					BARRIER_ACCESS_MASK mask;
+					switch (upload_data.upload_type)
+					{
+					case UPLOAD_TEXTURE_TYPE::WRITE:
+						write_infos[write_info_count++] = upload_data.write_info;
+						base_layer = upload_data.write_info.dst_image_info.base_array_layer;
+						layer_count = upload_data.write_info.dst_image_info.layer_count;
+						layout = IMAGE_LAYOUT::TRANSFER_DST;
+						mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
+						break;
+					case UPLOAD_TEXTURE_TYPE::READ:
+						read_infos[read_info_count++] = upload_data.read_info;
+						base_layer = upload_data.read_info.src_image_info.base_array_layer;
+						layer_count = upload_data.read_info.src_image_info.layer_count;
+						layout = IMAGE_LAYOUT::TRANSFER_SRC;
+						mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
+						break;
+					default:
+						BB_ASSERT(false, "invalid upload UPLOAD_TEXTURE_TYPE value or unimplemented switch statement");
+						break;
+					}
+
+					if (upload_data.start_layout != layout)
+					{
+						PipelineBarrierImageInfo& pi = before_transition[before_trans_count++];
+						pi.src_mask = BARRIER_ACCESS_MASK::NONE;
+						pi.dst_mask = mask;
+						pi.image = upload_data.image;
+						pi.old_layout = upload_data.start_layout;
+						pi.new_layout = layout;
+						pi.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
+						pi.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
+						pi.layer_count = layer_count;
+						pi.level_count = 1;
+						pi.base_array_layer = base_layer;
+						pi.base_mip_level = 0;
+						pi.src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
+						pi.dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
+						pi.aspects = IMAGE_ASPECT::COLOR;
+					}
+				}
+
+				PipelineBarrierInfo pipeline_info{};
+				pipeline_info.image_info_count = before_trans_count;
+				pipeline_info.image_infos = before_transition;
+				PipelineBarriers(list, pipeline_info);
+
+				for (size_t i = 0; i < write_info_count; i++)
+				{
+					CopyBufferToImage(list, write_infos[i]);
+				}
+
+				for (size_t i = 0; i < read_info_count; i++)
+				{
+					CopyImageToBuffer(list, read_infos[i]);
+				}
+			}
+		}
+		const uint64_t asset_fence_value = uploader.next_fence_value.fetch_add(1);
+		cmd_pool.EndCommandList(list);
+		uint64_t mock_fence;	// TODO, remove this
+		bool success = ExecuteTransferCommands(Slice(&cmd_pool, 1), &uploader.fence, &asset_fence_value, 1, mock_fence);
+		BB_ASSERT(success, "failed to execute transfer commands");
+	}
+	else
+	{
+		while (uploading_assets) {}
+	}
+
+	uploading_assets = false;
+}
+
+static GPUFenceValue CreateMesh(MemoryArena& a_temp_arena, const CreateMeshInfo& a_create_info, Mesh& a_out_mesh)
 {
 	GPUUploader& uploader = s_asset_manager->gpu_uploader;
 
 	const size_t vertex_buffer_size = a_create_info.positions.sizeInBytes() + a_create_info.normals.sizeInBytes() + a_create_info.uvs.sizeInBytes() + a_create_info.colors.sizeInBytes() + a_create_info.tangents.sizeInBytes();
-
-	const GPUBufferView vertex_buffer = AllocateFromVertexBuffer(vertex_buffer_size);
-	const GPUBufferView index_buffer = a_create_info.indices.size() ? AllocateFromIndexBuffer(a_create_info.indices.sizeInBytes()) : GPUBufferView();
 
 	auto memcpy_and_advance = [](const GPUUploadRingAllocator& a_buffer, const size_t a_dst_offset, const void* a_src_data, const size_t a_src_size)
 		{
@@ -271,6 +413,11 @@ static GPUFenceValue CreateMesh(const CreateMeshInfo& a_create_info, Mesh& a_out
 
 	const GPUFenceValue fence_value = GPUFenceValue(uploader.next_fence_value.load());
 	const size_t vertex_start_offset = uploader.upload_buffer.AllocateUploadMemory(vertex_buffer_size + a_create_info.indices.sizeInBytes(), fence_value);
+	if (vertex_start_offset == size_t(-1))
+	{
+		UploadAndWaitAssets(a_temp_arena, nullptr);
+		return CreateMesh(a_temp_arena, a_create_info, a_out_mesh);
+	}
 
 	const size_t normal_offset = memcpy_and_advance(uploader.upload_buffer, vertex_start_offset, a_create_info.positions.data(), a_create_info.positions.sizeInBytes());
 	const size_t uv_offset = memcpy_and_advance(uploader.upload_buffer, normal_offset, a_create_info.normals.data(), a_create_info.normals.sizeInBytes());
@@ -280,6 +427,9 @@ static GPUFenceValue CreateMesh(const CreateMeshInfo& a_create_info, Mesh& a_out
 
 	// now the indices
 	memcpy_and_advance(uploader.upload_buffer, index_offset, a_create_info.indices.data(), a_create_info.indices.sizeInBytes());
+
+	const GPUBufferView vertex_buffer = AllocateFromVertexBuffer(vertex_buffer_size);
+	const GPUBufferView index_buffer = a_create_info.indices.size() ? AllocateFromIndexBuffer(a_create_info.indices.sizeInBytes()) : GPUBufferView();
 
 	UploadDataMesh task{};
 	task.vertex_region.size = vertex_buffer.size;
@@ -292,23 +442,23 @@ static GPUFenceValue CreateMesh(const CreateMeshInfo& a_create_info, Mesh& a_out
 	BB_ASSERT(success, "failed to add mesh to uploadmesh tasks");
 
 	Mesh mesh{};
-	mesh.vertex_position_offset = vertex_buffer.offset + vertex_start_offset;
-	mesh.vertex_normal_offset = mesh.vertex_position_offset + a_create_info.positions.sizeInBytes();
-	mesh.vertex_uv_offset = mesh.vertex_normal_offset + a_create_info.normals.sizeInBytes();
-	mesh.vertex_color_offset = mesh.vertex_uv_offset + a_create_info.uvs.sizeInBytes();
-	mesh.vertex_tangent_offset = mesh.vertex_color_offset + a_create_info.colors.sizeInBytes();
-	mesh.index_buffer_offset = mesh.vertex_tangent_offset + a_create_info.tangents.sizeInBytes();
+	mesh.vertex_position_offset = vertex_buffer.offset;
+	mesh.vertex_normal_offset = vertex_buffer.offset + normal_offset - vertex_start_offset;
+	mesh.vertex_uv_offset = vertex_buffer.offset + uv_offset - vertex_start_offset;
+	mesh.vertex_color_offset = vertex_buffer.offset + color_offset - vertex_start_offset;
+	mesh.vertex_tangent_offset = vertex_buffer.offset + tangent_offset - vertex_start_offset;
+	mesh.index_buffer_offset = index_buffer.offset;
 
 	a_out_mesh = mesh;
 	return fence_value;
 }
 
-static GPUFenceValue WriteTexture(const WriteImageInfo& a_write_info)
+static GPUFenceValue WriteTexture(MemoryArena& a_temp_arena, const WriteImageInfo& a_write_info)
 {
 	BB_ASSERT(a_write_info.image_info.extent.x != 0 && a_write_info.image_info.extent.y != 0, "one extent value is 0");
 	GPUUploader& uploader = s_asset_manager->gpu_uploader;
 
-	auto format_byte_size = [](const IMAGE_FORMAT a_format)
+	auto format_byte_size = [](const IMAGE_FORMAT a_format) -> size_t
 		{
 			switch (a_format)
 			{
@@ -331,6 +481,11 @@ static GPUFenceValue WriteTexture(const WriteImageInfo& a_write_info)
 	const size_t write_size = format_byte_size(a_write_info.format) * a_write_info.image_info.extent.x * a_write_info.image_info.extent.y;
 	const GPUFenceValue fence_value = GPUFenceValue(uploader.next_fence_value.load());
 	const size_t upload_start = uploader.upload_buffer.AllocateUploadMemory(write_size, fence_value);
+	if (upload_start == size_t(-1))
+	{ 
+		UploadAndWaitAssets(a_temp_arena, nullptr);
+		return WriteTexture(a_temp_arena, a_write_info);
+	}
 	bool success = uploader.upload_buffer.MemcpyIntoBuffer(upload_start, a_write_info.pixels, write_size);
 	BB_ASSERT(success, "failed to upload data into upload buffer");
 
@@ -344,8 +499,8 @@ static GPUFenceValue WriteTexture(const WriteImageInfo& a_write_info)
 	buffer_to_image.dst_image_info.extent.z = 1;
 	buffer_to_image.dst_image_info.offset.x = a_write_info.image_info.offset.x;
 	buffer_to_image.dst_image_info.offset.y = a_write_info.image_info.offset.y;
-	buffer_to_image.dst_image_info.offset.z = 1;
-	buffer_to_image.dst_image_info.mip_level = 0;
+	buffer_to_image.dst_image_info.offset.z = 0;
+	buffer_to_image.dst_image_info.mip_level = a_write_info.image_info.mip_level;
 	buffer_to_image.dst_image_info.layer_count = a_write_info.image_info.array_layers;
 	buffer_to_image.dst_image_info.base_array_layer = a_write_info.image_info.base_array_layer;
 	buffer_to_image.dst_aspects = IMAGE_ASPECT::COLOR;
@@ -386,7 +541,7 @@ static GPUFenceValue ReadTexture(const ReadImageInfo& a_image_info)
 	image_to_buffer.src_image_info.offset.x = a_image_info.image_info.offset.x;
 	image_to_buffer.src_image_info.offset.y = a_image_info.image_info.offset.y;
 	image_to_buffer.src_image_info.offset.z = 0;
-	image_to_buffer.src_image_info.mip_level = a_image_info.image_info.mip_layer;
+	image_to_buffer.src_image_info.mip_level = a_image_info.image_info.mip_level;
 	image_to_buffer.src_image_info.layer_count = a_image_info.image_info.array_layers;
 	image_to_buffer.src_image_info.base_array_layer = a_image_info.image_info.base_array_layer;
 
@@ -404,12 +559,12 @@ static GPUFenceValue ReadTexture(const ReadImageInfo& a_image_info)
 	return fence_value;
 }
 
-static void CreateBasicColorImage(RImage& a_image, RDescriptorIndex& a_index, const char* a_name, const uint32_t a_color)
+static void CreateBasicColorImage(MemoryArena& a_temp_arena, RImage& a_image, RDescriptorIndex& a_index, const char* a_name, const uint32_t a_width_height, const uint32_t* a_colors)
 {
 	ImageCreateInfo image_info;
 	image_info.name = a_name;
-	image_info.width = 1;
-	image_info.height = 1;
+	image_info.width = a_width_height;
+	image_info.height = a_width_height;
 	image_info.depth = 1;
 	image_info.array_layers = 1;
 	image_info.mip_levels = 1;
@@ -420,29 +575,29 @@ static void CreateBasicColorImage(RImage& a_image, RDescriptorIndex& a_index, co
 	image_info.is_cube_map = false;
 	a_image = CreateImage(image_info);
 
-	ImageViewCreateInfo debug_view_info;
-	debug_view_info.name = a_name;
-	debug_view_info.base_array_layer = 0;
-	debug_view_info.mip_levels = 1;
-	debug_view_info.array_layers = 1;
-	debug_view_info.base_mip_level = 0;
-	debug_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
-	debug_view_info.format = IMAGE_FORMAT::RGBA8_SRGB;
-	debug_view_info.image = a_image;
-	debug_view_info.aspects = IMAGE_ASPECT::COLOR;
-	a_index = CreateImageView(debug_view_info);
+	ImageViewCreateInfo view_info;
+	view_info.name = a_name;
+	view_info.base_array_layer = 0;
+	view_info.mip_levels = 1;
+	view_info.array_layers = 1;
+	view_info.base_mip_level = 0;
+	view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
+	view_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+	view_info.image = a_image;
+	view_info.aspects = IMAGE_ASPECT::COLOR;
+	a_index = CreateImageView(view_info);
 
-	WriteImageInfo debug_write_info;
-	debug_write_info.image_info.image = a_image;
-	debug_write_info.image_info.extent = uint2(1, 1);
-	debug_write_info.image_info.offset = int2(0, 0);
-	debug_write_info.image_info.array_layers = 1;
-	debug_write_info.image_info.mip_layer = 0;
-	debug_write_info.image_info.base_array_layer = 0;
-	debug_write_info.format = IMAGE_FORMAT::RGBA8_SRGB;
-	debug_write_info.pixels = &a_color;
-	debug_write_info.set_shader_visible = true;
-	WriteTexture(debug_write_info);
+	WriteImageInfo write_info;
+	write_info.image_info.image = a_image;
+	write_info.image_info.extent = uint2(a_width_height, a_width_height);
+	write_info.image_info.offset = int2(0, 0);
+	write_info.image_info.array_layers = 1;
+	write_info.image_info.mip_level = 0;
+	write_info.image_info.base_array_layer = 0;
+	write_info.format = IMAGE_FORMAT::RGBA8_SRGB;
+	write_info.pixels = a_colors;
+	write_info.set_shader_visible = true;
+	WriteTexture(a_temp_arena, write_info);
 }
 
 template<typename T>
@@ -467,7 +622,7 @@ static void ExecuteGPUTasks()
 
 	OSAcquireSRWLockWrite(&s_asset_manager->gpu_task_lock);
 	const GPUTask* task = s_asset_manager->gpu_tasks_queue.Peek();
-	while (task && task->transfer_value.handle <= fence_value.handle)
+	while (task && task->transfer_value <= fence_value)
 	{
 		task->callback(task->params);
 		// free the param memory
@@ -565,7 +720,7 @@ static inline bool IconWriteToDisk(const IconSlot a_slot, const PathString& a_wr
 	read_info.image_info.offset = read_offset;
 	read_info.image_info.array_layers = 1;
 	read_info.image_info.base_array_layer = 0;
-	read_info.image_info.mip_layer = 0;
+	read_info.image_info.mip_level = 0;
 	read_info.layout = IMAGE_LAYOUT::TRANSFER_DST;
 	read_info.readback_size = readback_size;
 	read_info.readback = readback;
@@ -598,17 +753,17 @@ static inline IconSlot LoadIconFromPath(MemoryArena& a_temp_arena, const StringV
 	write_icon_info.image_info.image = s_asset_manager->icons_storage.image;
 	write_icon_info.image_info.extent = ICON_EXTENT;
 	write_icon_info.image_info.offset = int2(static_cast<int>(slot.slot_index * ICON_EXTENT.x), 0);
-	write_icon_info.image_info.mip_layer = 0;
+	write_icon_info.image_info.mip_level = 0;
 	write_icon_info.image_info.array_layers = 1;
 	write_icon_info.image_info.base_array_layer = 0;
 	write_icon_info.pixels = write_pixels;
 	write_icon_info.set_shader_visible = a_set_icons_shader_visible;
-	WriteTexture(write_icon_info);
+	WriteTexture(a_temp_arena, write_icon_info);
 
 	return slot;
 }
 
-static inline IconSlot LoadIconFromPixels(const void* a_pixels, const bool a_set_icons_shader_visible)
+static inline IconSlot LoadIconFromPixels(MemoryArena& a_temp_arena, const void* a_pixels, const bool a_set_icons_shader_visible)
 {
 	const IconSlot slot = GetIconSlotSpace();
 
@@ -616,13 +771,13 @@ static inline IconSlot LoadIconFromPixels(const void* a_pixels, const bool a_set
 	write_icon_info.image_info.image = s_asset_manager->icons_storage.image;
 	write_icon_info.image_info.extent = ICON_EXTENT;
 	write_icon_info.image_info.offset = int2(static_cast<int>(slot.slot_index * ICON_EXTENT.x), 0);
-	write_icon_info.image_info.mip_layer = 0;
+	write_icon_info.image_info.mip_level = 0;
 	write_icon_info.image_info.array_layers = 1;
 	write_icon_info.image_info.base_array_layer = 0;
 	write_icon_info.format = ICON_IMAGE_FORMAT;
 	write_icon_info.pixels = a_pixels;
 	write_icon_info.set_shader_visible = a_set_icons_shader_visible;
-	WriteTexture(write_icon_info);
+	WriteTexture(a_temp_arena, write_icon_info);
 
 	return slot;
 }
@@ -662,11 +817,7 @@ static inline AssetSlot& FindElementOrCreateElement(const AssetHash a_hash, bool
 
 using namespace BB;
 
-// TODO, fix this to be lower
-constexpr uint32_t MAX_MESH_UPLOAD_QUEUE = 1024;
-constexpr uint32_t MAX_TEXTURE_UPLOAD_QUEUE = 1024;
-
-void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
+void Asset::InitializeAssetManager(MemoryArena& a_temp_arena, const AssetManagerInitInfo& a_init_info)
 {
 	BB_ASSERT(!s_asset_manager, "Asset Manager already initialized");
 
@@ -745,143 +896,27 @@ void Asset::InitializeAssetManager(const AssetManagerInitInfo& a_init_info)
 	}
 
 	//some basic colors
-	const uint32_t white = UINT32_MAX;
-	CreateBasicColorImage(s_asset_manager->pre_loaded.white.image, s_asset_manager->pre_loaded.white.index, "white", white);
-	const uint32_t black = 0x000000FF;
-	CreateBasicColorImage(s_asset_manager->pre_loaded.black.image, s_asset_manager->pre_loaded.black.index, "black", black);
-}
+	uint32_t white = UINT32_MAX;
+	CreateBasicColorImage(a_temp_arena, s_asset_manager->pre_loaded.white.image, s_asset_manager->pre_loaded.white.index, "white", 1, &white);
+	uint32_t black = 0x000000FF;
+	CreateBasicColorImage(a_temp_arena, s_asset_manager->pre_loaded.black.image, s_asset_manager->pre_loaded.black.index, "black", 1, &black);
+	uint32_t red = 0xFF0000FF;
+	CreateBasicColorImage(a_temp_arena, s_asset_manager->pre_loaded.red.image, s_asset_manager->pre_loaded.red.index, "red", 1, &red);
+	uint32_t green = 0x00FF00FF;
+	CreateBasicColorImage(a_temp_arena, s_asset_manager->pre_loaded.green.image, s_asset_manager->pre_loaded.green.index, "green", 1, &green);
+	uint32_t blue = 0x0000FFFF;
+	CreateBasicColorImage(a_temp_arena, s_asset_manager->pre_loaded.blue.image, s_asset_manager->pre_loaded.blue.index, "blue", 1, &blue);
+	uint32_t checkerboard[4] = {white, black, black, white};
+	CreateBasicColorImage(a_temp_arena, s_asset_manager->pre_loaded.blue.image, s_asset_manager->pre_loaded.checkerboard.index, "checkerboard", 2, checkerboard);
 
-static std::atomic<bool> uploading_assets = false;
-
-static void UploadAndWaitAssets(MemoryArena& a_thread_arena, void*)
-{
-	bool expected = false;
-	if (uploading_assets.compare_exchange_strong(expected, true))
-	{
-		CommandPool& cmd_pool = GetTransferCommandPool();
-		const RCommandList list = cmd_pool.StartCommandList("upload asset list");
-		GPUUploader& uploader = s_asset_manager->gpu_uploader;
-		const uint64_t asset_fence_value = uploader.next_fence_value.fetch_add(1);
-
-		if (!uploader.upload_meshes.IsEmpty())
-		{
-			MemoryArenaScope(a_thread_arena)
-			{
-				StaticArray<RenderCopyBufferRegion> vertex_regions{};
-				StaticArray<RenderCopyBufferRegion> index_regions{};
-				vertex_regions.Init(a_thread_arena, MAX_MESH_UPLOAD_QUEUE);
-				index_regions.Init(a_thread_arena, MAX_MESH_UPLOAD_QUEUE);
-
-				UploadDataMesh upload_data;
-				while (uploader.upload_meshes.DeQueue(upload_data) && vertex_regions.size() < MAX_MESH_UPLOAD_QUEUE)
-				{
-					vertex_regions.push_back(upload_data.vertex_region);
-					if (upload_data.index_region.size)
-						index_regions.push_back(upload_data.index_region);
-				}
-
-				CopyToVertexBuffer(list, uploader.upload_buffer.GetBuffer(), vertex_regions.slice());
-			
-				if (index_regions.size())
-				{
-					CopyToIndexBuffer(list, uploader.upload_buffer.GetBuffer(), index_regions.slice());
-				}
-			}
-		}
-
-		if (!uploader.upload_textures.IsEmpty())
-		{
-			MemoryArenaScope(a_thread_arena)
-			{
-				uint32_t write_info_count = 0;
-				RenderCopyBufferToImageInfo* write_infos = ArenaAllocArr(a_thread_arena, RenderCopyBufferToImageInfo, MAX_TEXTURE_UPLOAD_QUEUE);
-				uint32_t read_info_count = 0;
-				RenderCopyImageToBufferInfo* read_infos = ArenaAllocArr(a_thread_arena, RenderCopyImageToBufferInfo, MAX_TEXTURE_UPLOAD_QUEUE);
-				uint32_t before_trans_count = 0;
-				PipelineBarrierImageInfo* before_transition = ArenaAllocArr(a_thread_arena, PipelineBarrierImageInfo, MAX_TEXTURE_UPLOAD_QUEUE);
-
-				size_t index = 0;
-				uint16_t base_layer = 0;
-				uint16_t layer_count = 0;
-				UploadDataTexture upload_data{};
-				while (uploader.upload_textures.DeQueue(upload_data) &&
-					index++ < MAX_TEXTURE_UPLOAD_QUEUE)
-				{
-					IMAGE_LAYOUT layout;
-					BARRIER_ACCESS_MASK mask;
-					switch (upload_data.upload_type)
-					{
-					case UPLOAD_TEXTURE_TYPE::WRITE:
-						write_infos[write_info_count++] = upload_data.write_info;
-						base_layer = upload_data.write_info.dst_image_info.base_array_layer;
-						layer_count = upload_data.write_info.dst_image_info.layer_count;
-						layout = IMAGE_LAYOUT::TRANSFER_DST;
-						mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
-						break;
-					case UPLOAD_TEXTURE_TYPE::READ:
-						read_infos[read_info_count++] = upload_data.read_info;
-						base_layer = upload_data.read_info.src_image_info.base_array_layer;
-						layer_count = upload_data.read_info.src_image_info.layer_count;
-						layout = IMAGE_LAYOUT::TRANSFER_SRC;
-						mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
-						break;
-					default:
-						BB_ASSERT(false, "invalid upload UPLOAD_TEXTURE_TYPE value or unimplemented switch statement");
-						break;
-					}
-
-					if (upload_data.start_layout != layout)
-					{
-						PipelineBarrierImageInfo& pi = before_transition[before_trans_count++];
-						pi.src_mask = BARRIER_ACCESS_MASK::NONE;
-						pi.dst_mask = mask;
-						pi.image = upload_data.image;
-						pi.old_layout = upload_data.start_layout;
-						pi.new_layout = layout;
-						pi.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
-						pi.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
-						pi.layer_count = layer_count;
-						pi.level_count = 1;
-						pi.base_array_layer = base_layer;
-						pi.base_mip_level = 0;
-						pi.src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
-						pi.dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
-						pi.aspects = IMAGE_ASPECT::COLOR;
-					}
-				}
-
-				PipelineBarrierInfo pipeline_info{};
-				pipeline_info.image_info_count = before_trans_count;
-				pipeline_info.image_infos = before_transition;
-				PipelineBarriers(list, pipeline_info);
-
-				for (size_t i = 0; i < write_info_count; i++)
-				{
-					CopyBufferToImage(list, write_infos[i]);
-				}
-
-				for (size_t i = 0; i < read_info_count; i++)
-				{
-					CopyImageToBuffer(list, read_infos[i]);
-				}
-			}
-		}
-
-		cmd_pool.EndCommandList(list);
-		uint64_t mock_fence;	// TODO, remove this
-		bool success = ExecuteTransferCommands(Slice(&cmd_pool, 1), &uploader.fence, &asset_fence_value, 1, mock_fence);
-		BB_ASSERT(success, "failed to execute transfer commands");
-	}
-	else
-	{
-		while (uploading_assets) {}
-	}
-
-	uploading_assets = false;
 }
 
 void Asset::Update()
 {
+	if (!uploading_assets)
+	{
+		Threads::StartTaskThread(UploadAndWaitAssets, L"upload assets");
+	}
 	ExecuteGPUTasks();
 }
 
@@ -955,7 +990,7 @@ void Asset::LoadAssets(MemoryArena& a_temp_arena, const Slice<AsyncAsset> a_asyn
 	}
 }
 
-static inline void CreateImage_func(const StringView& a_name, const uint32_t a_width, const uint32_t a_height, const uint32_t a_array_layers, const IMAGE_FORMAT a_format, RImage& a_out_image, RDescriptorIndex& a_out_index)
+static inline void CreateImage_func(const StringView& a_name, const uint32_t a_width, const uint32_t a_height, const uint16_t a_array_layers, const IMAGE_FORMAT a_format, const IMAGE_VIEW_TYPE a_view_type, RImage& a_out_image, RDescriptorIndex& a_out_index)
 {
 	ImageCreateInfo create_image_info;
 	create_image_info.name = a_name.c_str();
@@ -968,7 +1003,7 @@ static inline void CreateImage_func(const StringView& a_name, const uint32_t a_w
 	create_image_info.format = a_format;
 	create_image_info.usage = IMAGE_USAGE::TEXTURE;
 	create_image_info.use_optimal_tiling = true;
-	create_image_info.is_cube_map = false;
+	create_image_info.is_cube_map = a_view_type == IMAGE_VIEW_TYPE::CUBE ? true : false;
 	a_out_image = CreateImage(create_image_info);
 
 	ImageViewCreateInfo create_view_info;
@@ -978,7 +1013,7 @@ static inline void CreateImage_func(const StringView& a_name, const uint32_t a_w
 	create_view_info.array_layers = a_array_layers;
 	create_view_info.mip_levels = 1;
 	create_view_info.base_mip_level = 0;
-	create_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
+	create_view_info.type = a_view_type;
 	create_view_info.format = a_format;
 	create_view_info.aspects = IMAGE_ASPECT::COLOR;
 	a_out_index = CreateImageView(create_view_info);
@@ -1000,18 +1035,18 @@ const Image& Asset::LoadImageDisk(MemoryArena& a_temp_arena, const StringView& a
 	const IMAGE_FORMAT format = a_format;
 	const uint32_t uwidth = static_cast<uint32_t>(width);
 	const uint32_t uheight = static_cast<uint32_t>(height);
-	CreateImage_func(asset.name.GetView(), uwidth, uheight, 1, format, gpu_image, descriptor_index);
+	CreateImage_func(asset.name.GetView(), uwidth, uheight, 1, format, IMAGE_VIEW_TYPE::TYPE_2D, gpu_image, descriptor_index);
 
 	WriteImageInfo write_info{};
 	write_info.image_info.image = gpu_image;
 	write_info.image_info.extent = { uwidth, uheight };
-	write_info.image_info.mip_layer = 1;
+	write_info.image_info.mip_level = 0;
 	write_info.image_info.array_layers = 1;
 	write_info.image_info.base_array_layer = 0;
 	write_info.format = format;
 	write_info.pixels = pixels;
 	write_info.set_shader_visible = true;
-	WriteTexture(write_info);
+	WriteTexture(a_temp_arena, write_info);
 	
 	asset.hash = path_hash;
 	asset.path = a_path;
@@ -1035,7 +1070,7 @@ const Image& Asset::LoadImageDisk(MemoryArena& a_temp_arena, const StringView& a
 		{
 			icon_write = ResizeImage(a_temp_arena, pixels, width, height, static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
 		}
-		asset.icon = LoadIconFromPixels(icon_write, true);
+		asset.icon = LoadIconFromPixels(a_temp_arena, icon_write, true);
 		WriteImage(icon_path.GetView(), uint2(ICON_EXTENT.x, ICON_EXTENT.y), 4, icon_write);
 	}
 
@@ -1044,9 +1079,13 @@ const Image& Asset::LoadImageDisk(MemoryArena& a_temp_arena, const StringView& a
 	return *asset.image;
 }
 
-const Image& Asset::LoadImageArrayDisk(MemoryArena& a_temp_arena, const StringView& a_name, const Slice<StringView> a_paths, const IMAGE_FORMAT a_format)
+const Image& Asset::LoadImageArrayDisk(MemoryArena& a_temp_arena, const StringView& a_name, const ConstSlice<StringView> a_paths, const IMAGE_FORMAT a_format, const bool a_is_cube_map)
 {
-	BB_ASSERT(a_paths.size() == 0, "no paths are given");
+	BB_ASSERT(a_paths.size() != 0, "no paths are given");
+	if (a_is_cube_map)
+	{
+		BB_ASSERT(a_paths.size() == 6, "trying to create a cubemap but not sending 6 paths");
+	}
 	uint64_t hash = 0;
 	for (size_t i = 0; i < a_paths.size(); i++)
 	{
@@ -1066,37 +1105,36 @@ const Image& Asset::LoadImageArrayDisk(MemoryArena& a_temp_arena, const StringVi
 	const uint32_t uwidth = static_cast<uint32_t>(width);
 	const uint32_t uheight = static_cast<uint32_t>(height);
 	const uint32_t array_layers = static_cast<uint32_t>(a_paths.size());
-	CreateImage_func(asset.name.GetView(), uwidth, uheight, array_layers, a_format, gpu_image, descriptor_index);
+	CreateImage_func(asset.name.GetView(), uwidth, uheight, static_cast<uint16_t>(array_layers), a_format, a_is_cube_map ? IMAGE_VIEW_TYPE::CUBE : IMAGE_VIEW_TYPE::TYPE_2D_ARRAY, gpu_image, descriptor_index);
 
 	WriteImageInfo write_info{};
 	write_info.image_info.image = gpu_image;
 	write_info.image_info.extent = { uwidth, uheight };
-	write_info.image_info.mip_layer = 1;
+	write_info.image_info.mip_level = 0;
 	write_info.image_info.array_layers = 1;
 	write_info.image_info.base_array_layer = 0;
 	write_info.format = a_format;
 	write_info.pixels = pixels;
 	write_info.set_shader_visible = true;
-	WriteTexture(write_info);
+	WriteTexture(a_temp_arena, write_info);
 
 	for (uint32_t i = 1; i < array_layers; i++)
 	{
 		STBI_FREE(pixels);
-		stbi_uc* pixels = stbi_load(a_paths[0].c_str(), &width, &height, &channels, 4);
+		pixels = stbi_load(a_paths[i].c_str(), &width, &height, &channels, 4);
 
 		BB_ASSERT(uwidth == static_cast<uint32_t>(width) && uheight == static_cast<uint32_t>(height), "image array are not the same dimensions");
 
-		WriteImageInfo write_info{};
-		write_info.image_info.mip_layer = 1;
+		write_info.image_info.mip_level = 0;
 		write_info.image_info.array_layers = 1;
 		write_info.image_info.base_array_layer = static_cast<uint16_t>(i);
 		write_info.pixels = pixels;
 		write_info.set_shader_visible = true;
-		WriteTexture(write_info);
+		WriteTexture(a_temp_arena, write_info);
 	}
 
 	asset.hash = path_hash;
-	asset.path = nullptr;
+	asset.path = {};
 
 	asset.image->width = uwidth;
 	asset.image->height = uheight;
@@ -1117,7 +1155,7 @@ const Image& Asset::LoadImageArrayDisk(MemoryArena& a_temp_arena, const StringVi
 		{
 			icon_write = ResizeImage(a_temp_arena, pixels, width, height, static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
 		}
-		asset.icon = LoadIconFromPixels(icon_write, true);
+		asset.icon = LoadIconFromPixels(a_temp_arena, icon_write, true);
 		WriteImage(icon_path.GetView(), uint2(ICON_EXTENT.x, ICON_EXTENT.y), 4, icon_write);
 	}
 
@@ -1207,21 +1245,21 @@ const Image& Asset::LoadImageMemory(MemoryArena& a_temp_arena, const TextureLoad
 
 	RImage gpu_image;
 	RDescriptorIndex descriptor_index;
-	CreateImage_func(asset.name.GetView(), a_info.width, a_info.height, format, gpu_image, descriptor_index);
+	CreateImage_func(asset.name.GetView(), a_info.width, a_info.height, 1, format, IMAGE_VIEW_TYPE::TYPE_2D, gpu_image, descriptor_index);
 
 	WriteImageInfo write_info{};
 	write_info.image_info.image = gpu_image;
 	write_info.image_info.extent = { a_info.width, a_info.height };
-	write_info.image_info.mip_layer = 1;
+	write_info.image_info.mip_level = 0;
 	write_info.image_info.array_layers = 1;
 	write_info.image_info.base_array_layer = 0;
 	write_info.format = format;
 	write_info.pixels = a_info.pixels;
 	write_info.set_shader_visible = true;
-	WriteTexture(write_info);
+	WriteTexture(a_temp_arena, write_info);
 
 	asset.hash = path_hash;
-	asset.path = nullptr; // memory loads have nullptr has path.
+	asset.path = {};
 
 	asset.image->width = a_info.width;
 	asset.image->height = a_info.height;
@@ -1242,7 +1280,7 @@ const Image& Asset::LoadImageMemory(MemoryArena& a_temp_arena, const TextureLoad
 		{
 			icon_write = ResizeImage(a_temp_arena, a_info.pixels, static_cast<int>(a_info.width), static_cast<int>(a_info.height), static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
 		}
-		asset.icon = LoadIconFromPixels(icon_write, true);
+		asset.icon = LoadIconFromPixels(a_temp_arena, icon_write, true);
 		const bool success = Asset::WriteImage(icon_path.GetView(), uint2(ICON_EXTENT.x, ICON_EXTENT.y), 4, icon_write);
 		BB_WARNING(success, "failed to write icon to disk", WarningType::MEDIUM);
 	}
@@ -1713,7 +1751,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 		}
 	}
 
-	CreateMesh(create_mesh, a_mesh.mesh);
+	CreateMesh(a_temp_arena, create_mesh, a_mesh.mesh);
 }
 
 struct LoadgltfMeshBatch_params
@@ -1857,36 +1895,36 @@ const Model& Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoad
 		return *asset.model;
 
 	asset.hash = asset_hash;
-	asset.path = nullptr;
+	asset.path = {};
 	asset.name = a_mesh_op.name;
 
 	CreateMeshInfo create_mesh;
 	create_mesh.indices = a_mesh_op.indices;
-	create_mesh.positions = ConstSlice<float3>(a_mesh_op.mesh_load.positions, a_mesh_op.mesh_load.vertex_count);
-	create_mesh.normals = ConstSlice<float3>(a_mesh_op.mesh_load.normals, a_mesh_op.mesh_load.vertex_count);
-	create_mesh.uvs = ConstSlice<float2>(a_mesh_op.mesh_load.uvs, a_mesh_op.mesh_load.vertex_count);
-	create_mesh.colors = ConstSlice<float4>(a_mesh_op.mesh_load.colors, a_mesh_op.mesh_load.vertex_count);
+	create_mesh.positions = a_mesh_op.mesh_load.positions;
+	create_mesh.normals = a_mesh_op.mesh_load.normals;
+	create_mesh.uvs = a_mesh_op.mesh_load.uvs;
+	create_mesh.colors = a_mesh_op.mesh_load.colors;
 
-	float3* tangents = ArenaAllocArr(a_temp_arena, float3, a_mesh_op.mesh_load.vertex_count);
-	GenerateTangents(Slice(tangents, a_mesh_op.mesh_load.vertex_count), create_mesh.positions, create_mesh.normals, create_mesh.uvs, create_mesh.indices);
-	create_mesh.tangents = ConstSlice<float3>(tangents, a_mesh_op.mesh_load.vertex_count);
+	float3* tangents = ArenaAllocArr(a_temp_arena, float3, a_mesh_op.mesh_load.positions.size());
+	GenerateTangents(Slice(tangents, a_mesh_op.mesh_load.positions.size()), create_mesh.positions, create_mesh.normals, create_mesh.uvs, create_mesh.indices);
+	create_mesh.tangents = ConstSlice<float3>(tangents, a_mesh_op.mesh_load.positions.size());
 
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
 	//hack shit way, but a single mesh just has one primitive to draw.
 	asset.model->linear_nodes = ArenaAllocArr(s_asset_manager->asset_arena, Model::Node, 1);
-	asset.model->meshes.Init(s_asset_manager->asset_arena, 1);
-	asset.model->meshes[0].primitives.Init(s_asset_manager->asset_arena, 1);
+	asset.model->meshes.Init(s_asset_manager->asset_arena, 1, 1);
+	asset.model->meshes[0].primitives.Init(s_asset_manager->asset_arena, 1, 1);
 	asset.model->root_node_indices = ArenaAllocArr(s_asset_manager->asset_arena, uint32_t, 1);
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 	Model::Primitive primitive;
 	primitive.material_data.mesh_metallic.albedo_texture = a_mesh_op.base_albedo;
-	primitive.material_data.mesh_metallic.normal_texture = GetWhiteTexture();
+	primitive.material_data.mesh_metallic.normal_texture = GetBlueTexture();
 	primitive.start_index = 0;
 	primitive.index_count = static_cast<uint32_t>(a_mesh_op.indices.size());
 
 	Model::Mesh& mesh = asset.model->meshes[0];
 	mesh.primitives[0] = primitive;
-	CreateMesh(create_mesh, mesh.mesh);
+	CreateMesh(a_temp_arena, create_mesh, mesh.mesh);
 
 	*asset.model->root_node_indices = 0;
 
@@ -2086,4 +2124,24 @@ RDescriptorIndex Asset::GetWhiteTexture()
 RDescriptorIndex Asset::GetBlackTexture()
 {
 	return s_asset_manager->pre_loaded.black.index;
+}
+
+RDescriptorIndex Asset::GetRedTexture()
+{
+	return s_asset_manager->pre_loaded.red.index;
+}
+
+RDescriptorIndex Asset::GetGreenTexture()
+{
+	return s_asset_manager->pre_loaded.green.index;
+}
+
+RDescriptorIndex Asset::GetBlueTexture()
+{
+	return s_asset_manager->pre_loaded.blue.index;
+}
+
+RDescriptorIndex Asset::GetCheckerBoardTexture()
+{
+	return s_asset_manager->pre_loaded.checkerboard.index;
 }

@@ -50,7 +50,7 @@ namespace BB
 		}
 		void EndFrame(MemoryArena& a_arena);
 
-		void ResizeWindow(const uint2 a_window);
+		bool ResizeWindow(const uint2 a_window);
 
 	private:
 		struct ThreadFuncForDrawing_Params

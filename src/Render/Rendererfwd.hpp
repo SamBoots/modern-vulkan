@@ -27,7 +27,7 @@ namespace BB
 
 	using RPipelineLayout = FrameworkHandle<struct RPipelineLayoutTag>;
 	using RDescriptorLayout = FrameworkHandle<struct RDescriptorLayoutTag>;
-	using GPUFenceValue = FrameworkHandle<struct GPUFenceValueTag>;
+	using GPUFenceValue = uint64_t;
 
 	using GPUBuffer = FrameworkHandle<struct GPUBufferTag>;
 	using RImage = FrameworkHandle<struct RImageTag>;
@@ -551,5 +551,12 @@ namespace BB
 		BLEND_OP alpha_blend_op;
 		BLEND_MODE src_alpha_blend;
 		BLEND_MODE dst_alpha_blend;
+	};
+
+	enum class PRESENT_IMAGE_RESULT
+	{
+		SWAPCHAIN_OUT_OF_DATE,
+		SKIPPED,
+		SUCCESS
 	};
 }

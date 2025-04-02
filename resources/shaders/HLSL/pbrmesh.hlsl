@@ -74,6 +74,7 @@ PixelOutput FragmentMain(VSOutput a_input)
     }
     else
     {
+		orm_data.r = 1.0f;
         orm_data.g = clamp(material.roughness_factor, 0.04, 1.0);
         orm_data.b = clamp(material.metallic_factor, 0.0, 1.0);
     }

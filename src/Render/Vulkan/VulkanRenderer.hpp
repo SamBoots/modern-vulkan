@@ -82,8 +82,8 @@ namespace BB
 
 		RFence CreateFence(const uint64_t a_initial_value, const char* a_name);
 		void FreeFence(const RFence a_fence);
-		void WaitFence(const RFence a_fence, const uint64_t a_fence_value);
-		void WaitFences(const RFence* a_fences, const uint64_t* a_fence_values, const uint32_t a_fence_count);
+		void WaitFence(const RFence a_fence, const GPUFenceValue a_fence_value);
+		void WaitFences(const RFence* a_fences, const GPUFenceValue* a_fence_values, const uint32_t a_fence_count);
 		GPUFenceValue GetCurrentFenceValue(const RFence a_fence);
 
 		RQueue GetQueue(const QUEUE_TYPE a_queue_type, const char* a_name);

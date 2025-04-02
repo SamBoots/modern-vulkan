@@ -48,7 +48,7 @@ namespace BB
 	public:
 		void Init(MemoryArena& a_arena, const size_t a_ring_buffer_size, const RFence a_fence, const char* a_name);
 
-		uint64_t AllocateUploadMemory(const size_t a_byte_amount, const GPUFenceValue a_fence_value, const bool a_retry = true);
+		uint64_t AllocateUploadMemory(const size_t a_byte_amount, const GPUFenceValue a_fence_value);
 
 		bool MemcpyIntoBuffer(const size_t a_offset, const void* a_src_data, const size_t a_src_size) const;
 		size_t Capacity() const
