@@ -124,6 +124,27 @@ namespace BB
 			return true;
 		}
 
+		// thread unsafe
+		bool DeQueueNoGet()
+		{
+			if (m_size == 0)
+				return false;
+
+			m_size.fetch_sub(1, std::memory_order_release);
+			if (++m_tail >= m_capacity)
+				m_tail = 0;
+
+			return true;
+		}
+
+		inline bool PeekTail(T& a_out) const
+		{
+			if (IsEmpty())
+				return false;
+			a_out = m_arr[m_tail].load();
+			return true;
+		}
+
 		inline bool IsEmpty() const
 		{
 			return !m_size;

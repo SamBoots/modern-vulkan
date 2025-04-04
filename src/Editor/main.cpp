@@ -101,11 +101,9 @@ int main(int argc, char** argv)
 	InitializeRenderer(main_arena, render_create_info);
 	const uint32_t back_buffer_count = GetRenderIO().frame_count;
 
-	MemoryArenaScope(main_arena)
-	{
-		const Asset::AssetManagerInitInfo asset_manager_info = {};
-		Asset::InitializeAssetManager(main_arena, asset_manager_info);
-	}
+	const Asset::AssetManagerInitInfo asset_manager_info = {};
+	Asset::InitializeAssetManager(main_arena, asset_manager_info);
+
 	Editor editor{};
 	editor.Init(main_arena, window_handle, window_extent);
 

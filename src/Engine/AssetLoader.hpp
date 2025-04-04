@@ -161,7 +161,7 @@ namespace BB
 			};
 		};
 
-		void InitializeAssetManager(MemoryArena& a_temp_arena, const AssetManagerInitInfo& a_init_info);
+		void InitializeAssetManager(MemoryArena& a_arena, const AssetManagerInitInfo& a_init_info);
 
 		void Update();
 

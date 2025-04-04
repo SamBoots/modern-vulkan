@@ -8,7 +8,7 @@ namespace BB
 		void Initialize(MemoryArena& a_arena, size_t a_memory_size);
 		void Initialize(void* a_memory, size_t a_memory_size);
 		void* Alloc(size_t a_size, size_t a_alignment);
-		void Free(void* a_ptr);
+		void Free(const void* a_ptr);
 		void Clear();
 
 		struct AllocHeader

@@ -68,7 +68,7 @@ void* FreelistInterface::Alloc(size_t a_size, size_t a_alignment)
 	return nullptr;
 }
 
-void FreelistInterface::Free(void* a_ptr)
+void FreelistInterface::Free(const void* a_ptr)
 {
 	BB_ASSERT(a_ptr != nullptr, "Nullptr send to FreelistAllocator::Free!");
 	AllocHeader* header = reinterpret_cast<AllocHeader*>(Pointer::Subtract(a_ptr, sizeof(AllocHeader)));

@@ -226,15 +226,16 @@ struct ReadImageInfo
 
 struct AssetManager
 {
+	BBRWLock allocator_lock;
+	FreelistInterface allocator;
+
 	// asset storage
 	BBRWLock asset_lock;
 	MemoryArena asset_arena;
 	StaticOL_HashMap<uint64_t, AssetSlot> asset_table;
 	StaticArray<AssetSlot*> linear_asset_table;
 
-	BBRWLock gpu_task_lock;
-	FreelistInterface gpu_task_arena;
-	SPSCQueue<GPUTask> gpu_tasks_queue;
+	MPSCQueue<GPUTask> gpu_tasks_queue;
 
 	struct Preloaded
 	{
@@ -266,6 +267,27 @@ struct AssetManager
 	GPUUploader gpu_uploader;
 };
 static AssetManager* s_asset_manager;
+
+template<typename T>
+static T* AssetAlloc()
+{
+	BBRWLockScopeWrite(s_asset_manager->allocator_lock);
+	return reinterpret_cast<T*>(s_asset_manager->allocator.Alloc(sizeof(T), alignof(T)));
+}
+
+template<typename T>
+static T* AssetAllocArr(const size_t a_size)
+{
+	BBRWLockScopeWrite(s_asset_manager->allocator_lock);
+	return reinterpret_cast<T*>(s_asset_manager->allocator.Alloc(sizeof(T) * a_size, alignof(T)));
+}
+
+template<typename T>
+static void AssetFree(const T* a_ptr)
+{
+	BBRWLockScopeWrite(s_asset_manager->allocator_lock);
+	s_asset_manager->allocator.Free(a_ptr);
+}
 
 static std::atomic<bool> uploading_assets = false;
 // TODO, fix this to be lower
@@ -605,14 +627,12 @@ static bool AddGPUTask(const PFN_GPUTaskCallback a_callback, const T& a_params, 
 {
 	if (s_asset_manager->gpu_tasks_queue.IsFull())
 		return false;
-	OSAcquireSRWLockWrite(&s_asset_manager->gpu_task_lock);
 	GPUTask task;
 	task.transfer_value = a_fence_value;
 	task.callback = a_callback;
-	task.params = s_asset_manager->gpu_task_arena.Alloc(sizeof(T), alignof(T));
+	task.params = reinterpret_cast<void*>(AssetAlloc<T>());
 	*reinterpret_cast<T*>(task.params) = a_params;
 	s_asset_manager->gpu_tasks_queue.EnQueue(task);
-	OSReleaseSRWLockWrite(&s_asset_manager->gpu_task_lock);
 	return true;
 }
 
@@ -620,17 +640,17 @@ static void ExecuteGPUTasks()
 {
 	const GPUFenceValue fence_value = GetCurrentFenceValue(s_asset_manager->gpu_uploader.fence);
 
-	OSAcquireSRWLockWrite(&s_asset_manager->gpu_task_lock);
-	const GPUTask* task = s_asset_manager->gpu_tasks_queue.Peek();
-	while (task && task->transfer_value <= fence_value)
+	GPUTask task;
+	bool success = s_asset_manager->gpu_tasks_queue.PeekTail(task);
+	while (success && task.transfer_value <= fence_value)
 	{
-		task->callback(task->params);
+		task.callback(task.params);
 		// free the param memory
-		s_asset_manager->gpu_task_arena.Free(task->params);
-		s_asset_manager->gpu_tasks_queue.DeQueue();
-		task = s_asset_manager->gpu_tasks_queue.Peek();
+		AssetFree(task.params);
+		success = s_asset_manager->gpu_tasks_queue.DeQueueNoGet();
+		BB_ASSERT(success, "failed to dequeue the gputask which should be impossible to fail");
+		success = s_asset_manager->gpu_tasks_queue.PeekTail(task);
 	}
-	OSReleaseSRWLockWrite(&s_asset_manager->gpu_task_lock);
 }
 
 static inline AssetString GetAssetIconName(const StringView& a_asset_name)
@@ -817,7 +837,7 @@ static inline AssetSlot& FindElementOrCreateElement(const AssetHash a_hash, bool
 
 using namespace BB;
 
-void Asset::InitializeAssetManager(MemoryArena& a_temp_arena, const AssetManagerInitInfo& a_init_info)
+void Asset::InitializeAssetManager(MemoryArena& a_arena, const AssetManagerInitInfo& a_init_info)
 {
 	BB_ASSERT(!s_asset_manager, "Asset Manager already initialized");
 
@@ -829,17 +849,18 @@ void Asset::InitializeAssetManager(MemoryArena& a_temp_arena, const AssetManager
 		s_asset_manager->asset_arena = asset_mem_arena;
 	}
 
-	s_asset_manager->asset_lock = OSCreateRWLock();
-	s_asset_manager->asset_table.Init(s_asset_manager->asset_arena, a_init_info.asset_count);
-	s_asset_manager->linear_asset_table.Init(s_asset_manager->asset_arena, a_init_info.asset_count);
+	s_asset_manager->allocator_lock = OSCreateRWLock();
+	s_asset_manager->allocator.Initialize(a_arena, mbSize * 64);
 
-	s_asset_manager->gpu_task_lock = OSCreateRWLock();
-	s_asset_manager->gpu_task_arena.Initialize(s_asset_manager->asset_arena, mbSize * 64);
-	s_asset_manager->gpu_tasks_queue.Init(s_asset_manager->asset_arena, GPU_TASK_QUEUE_SIZE);
+	s_asset_manager->asset_lock = OSCreateRWLock();
+	s_asset_manager->asset_table.Init(a_arena, a_init_info.asset_count);
+	s_asset_manager->linear_asset_table.Init(a_arena, a_init_info.asset_count);
+
+	s_asset_manager->gpu_tasks_queue.Init(a_arena, GPU_TASK_QUEUE_SIZE);
 
 	s_asset_manager->icons_storage.icon_lock = OSCreateRWLock();
 	s_asset_manager->icons_storage.max_slots = a_init_info.asset_count;
-	s_asset_manager->icons_storage.slots = ArenaAllocArr(s_asset_manager->asset_arena, IconSlot, a_init_info.asset_count);
+	s_asset_manager->icons_storage.slots = ArenaAllocArr(a_arena, IconSlot, a_init_info.asset_count);
 	s_asset_manager->icons_storage.next_slot = 1;
 	ImageCreateInfo icons_image_info;
 	icons_image_info.name = "icon mega image";
@@ -885,30 +906,32 @@ void Asset::InitializeAssetManager(MemoryArena& a_temp_arena, const AssetManager
 
 
 	{	// do asset upload allocator here
-		s_asset_manager->gpu_uploader.upload_meshes.Init(s_asset_manager->asset_arena, MAX_MESH_UPLOAD_QUEUE);
-		s_asset_manager->gpu_uploader.upload_textures.Init(s_asset_manager->asset_arena, MAX_TEXTURE_UPLOAD_QUEUE);
+		s_asset_manager->gpu_uploader.upload_meshes.Init(a_arena, MAX_MESH_UPLOAD_QUEUE);
+		s_asset_manager->gpu_uploader.upload_textures.Init(a_arena, MAX_TEXTURE_UPLOAD_QUEUE);
 		s_asset_manager->gpu_uploader.fence = CreateFence(0, "asset upload fence");
-		s_asset_manager->gpu_uploader.upload_buffer.Init(s_asset_manager->asset_arena,
+		s_asset_manager->gpu_uploader.upload_buffer.Init(a_arena,
 			a_init_info.asset_upload_buffer_size,
 			s_asset_manager->gpu_uploader.fence,
 			"asset upload buffer");
 		s_asset_manager->gpu_uploader.next_fence_value = 1;
 	}
 
-	//some basic colors
-	uint32_t white = UINT32_MAX;
-	CreateBasicColorImage(a_temp_arena, s_asset_manager->pre_loaded.white.image, s_asset_manager->pre_loaded.white.index, "white", 1, &white);
-	uint32_t black = 0x000000FF;
-	CreateBasicColorImage(a_temp_arena, s_asset_manager->pre_loaded.black.image, s_asset_manager->pre_loaded.black.index, "black", 1, &black);
-	uint32_t red = 0xFF0000FF;
-	CreateBasicColorImage(a_temp_arena, s_asset_manager->pre_loaded.red.image, s_asset_manager->pre_loaded.red.index, "red", 1, &red);
-	uint32_t green = 0x00FF00FF;
-	CreateBasicColorImage(a_temp_arena, s_asset_manager->pre_loaded.green.image, s_asset_manager->pre_loaded.green.index, "green", 1, &green);
-	uint32_t blue = 0x0000FFFF;
-	CreateBasicColorImage(a_temp_arena, s_asset_manager->pre_loaded.blue.image, s_asset_manager->pre_loaded.blue.index, "blue", 1, &blue);
-	uint32_t checkerboard[4] = {white, black, black, white};
-	CreateBasicColorImage(a_temp_arena, s_asset_manager->pre_loaded.blue.image, s_asset_manager->pre_loaded.checkerboard.index, "checkerboard", 2, checkerboard);
-
+	MemoryArenaScope(a_arena)
+	{ 
+		//some basic colors
+		uint32_t white = UINT32_MAX;
+		CreateBasicColorImage(a_arena, s_asset_manager->pre_loaded.white.image, s_asset_manager->pre_loaded.white.index, "white", 1, &white);
+		uint32_t black = 0x000000FF;
+		CreateBasicColorImage(a_arena, s_asset_manager->pre_loaded.black.image, s_asset_manager->pre_loaded.black.index, "black", 1, &black);
+		uint32_t red = 0xFF0000FF;
+		CreateBasicColorImage(a_arena, s_asset_manager->pre_loaded.red.image, s_asset_manager->pre_loaded.red.index, "red", 1, &red);
+		uint32_t green = 0x00FF00FF;
+		CreateBasicColorImage(a_arena, s_asset_manager->pre_loaded.green.image, s_asset_manager->pre_loaded.green.index, "green", 1, &green);
+		uint32_t blue = 0x0000FFFF;
+		CreateBasicColorImage(a_arena, s_asset_manager->pre_loaded.blue.image, s_asset_manager->pre_loaded.blue.index, "blue", 1, &blue);
+		uint32_t checkerboard[4] = {white, black, black, white};
+		CreateBasicColorImage(a_arena, s_asset_manager->pre_loaded.blue.image, s_asset_manager->pre_loaded.checkerboard.index, "checkerboard", 2, checkerboard);
+	}
 }
 
 void Asset::Update()
