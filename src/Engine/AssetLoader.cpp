@@ -131,18 +131,12 @@ static AssetHash CreateAssetHash(const uint64_t a_hash, const ASSET_TYPE a_type)
 constexpr uint2 ICON_EXTENT = uint2(64, 64);
 constexpr float2 ICON_EXTENT_F = float2(64.f, 64.f);
 
-struct IconSlot
-{
-	uint32_t slot_index;
-	uint32_t next_slot;
-};
-
 struct AssetSlot
 {
 	AssetHash hash;
 	PathString path;
 	AssetString name;
-	IconSlot icon;
+	uint32_t icon_index;
 	union
 	{
 		Model* model;
@@ -254,13 +248,10 @@ struct AssetManager
 
 	struct IconGigaTexture
 	{
-		IconSlot empty_slot;
-		BBRWLock icon_lock;
 		RImage image;
 		RDescriptorIndex image_descriptor_index;
-		IconSlot* slots;
 		uint32_t max_slots;	// a slot is a texture space that is equal to ICON_EXTENT
-		uint32_t next_slot;
+		std::atomic<uint32_t> next_index;
 	};
 
 	IconGigaTexture icons_storage;
@@ -677,19 +668,11 @@ static inline PathString GetIconPathFromAssetName(const StringView& a_asset_name
 	return icon_path;
 }
 
-static inline IconSlot GetEmptyIconSlot()
+static inline uint32_t GetNextIconIndex()
 {
-	return s_asset_manager->icons_storage.empty_slot;
-}
-
-static inline IconSlot GetIconSlotSpace()
-{
-	OSAcquireSRWLockWrite(&s_asset_manager->icons_storage.icon_lock);
-	BB_ASSERT(s_asset_manager->icons_storage.next_slot != UINT32_MAX, "icon storage full");
-	const IconSlot icon_slot = s_asset_manager->icons_storage.slots[s_asset_manager->icons_storage.next_slot];
-	s_asset_manager->icons_storage.next_slot = icon_slot.next_slot;
-	OSReleaseSRWLockWrite(&s_asset_manager->icons_storage.icon_lock);
-	return icon_slot;
+	const uint32_t slot = s_asset_manager->icons_storage.next_index.fetch_add(1, std::memory_order_relaxed);
+	BB_ASSERT(slot <= s_asset_manager->icons_storage.max_slots, "icon storage full");
+	return slot;
 }
 
 static inline void* ResizeImage(MemoryArena& a_arena, const void* a_src_pixels, const int a_src_width, const int a_src_height, const int a_dst_width, const int a_dst_height)
@@ -721,7 +704,7 @@ static inline void WriteToDisk_impl(const void* a_params)
 	FreeGPUBuffer(params->readback);
 }
 #pragma region icon
-static inline bool IconWriteToDisk(const IconSlot a_slot, const PathString& a_write_path)
+static inline bool IconWriteToDisk(const uint32_t a_icon_index, const PathString& a_write_path)
 {
 	const uint32_t readback_size = ICON_EXTENT.x * ICON_EXTENT.y * 4;
 
@@ -732,7 +715,7 @@ static inline bool IconWriteToDisk(const IconSlot a_slot, const PathString& a_wr
 	readback_buff.type = BUFFER_TYPE::READBACK;
 	const GPUBuffer readback = CreateGPUBuffer(readback_buff);
 
-	const int2 read_offset(static_cast<int>(a_slot.slot_index * ICON_EXTENT.x), 0);
+	const int2 read_offset(static_cast<int>(a_icon_index * ICON_EXTENT.x), 0);
 
 	ReadImageInfo read_info;
 	read_info.image_info.image = s_asset_manager->icons_storage.image;
@@ -754,7 +737,7 @@ static inline bool IconWriteToDisk(const IconSlot a_slot, const PathString& a_wr
 	return AddGPUTask(WriteToDisk_impl, params, fence_value);
 }
 
-static inline IconSlot LoadIconFromPath(MemoryArena& a_temp_arena, const StringView a_icon_path, const bool a_set_icons_shader_visible)
+static inline uint32_t LoadIconFromPath(MemoryArena& a_temp_arena, const StringView a_icon_path, const bool a_set_icons_shader_visible)
 {
 	int width = 0, height = 0, channels = 0;
 	stbi_uc* pixels = stbi_load(a_icon_path.c_str(), &width, &height, &channels, 4);
@@ -766,13 +749,13 @@ static inline IconSlot LoadIconFromPath(MemoryArena& a_temp_arena, const StringV
 		write_pixels = ResizeImage(a_temp_arena, pixels, width, height, ICON_EXTENT.x, ICON_EXTENT.y);
 	}
 
-	const IconSlot slot = GetIconSlotSpace();
+	const uint32_t index = GetNextIconIndex();
 
 	WriteImageInfo write_icon_info;
 	write_icon_info.format = ICON_IMAGE_FORMAT;
 	write_icon_info.image_info.image = s_asset_manager->icons_storage.image;
 	write_icon_info.image_info.extent = ICON_EXTENT;
-	write_icon_info.image_info.offset = int2(static_cast<int>(slot.slot_index * ICON_EXTENT.x), 0);
+	write_icon_info.image_info.offset = int2(static_cast<int>(index * ICON_EXTENT.x), 0);
 	write_icon_info.image_info.mip_level = 0;
 	write_icon_info.image_info.array_layers = 1;
 	write_icon_info.image_info.base_array_layer = 0;
@@ -780,17 +763,17 @@ static inline IconSlot LoadIconFromPath(MemoryArena& a_temp_arena, const StringV
 	write_icon_info.set_shader_visible = a_set_icons_shader_visible;
 	WriteTexture(a_temp_arena, write_icon_info);
 
-	return slot;
+	return index;
 }
 
-static inline IconSlot LoadIconFromPixels(MemoryArena& a_temp_arena, const void* a_pixels, const bool a_set_icons_shader_visible)
+static inline uint32_t LoadIconFromPixels(MemoryArena& a_temp_arena, const void* a_pixels, const bool a_set_icons_shader_visible)
 {
-	const IconSlot slot = GetIconSlotSpace();
+	const uint32_t index = GetNextIconIndex();
 
 	WriteImageInfo write_icon_info;
 	write_icon_info.image_info.image = s_asset_manager->icons_storage.image;
 	write_icon_info.image_info.extent = ICON_EXTENT;
-	write_icon_info.image_info.offset = int2(static_cast<int>(slot.slot_index * ICON_EXTENT.x), 0);
+	write_icon_info.image_info.offset = int2(static_cast<int>(index * ICON_EXTENT.x), 0);
 	write_icon_info.image_info.mip_level = 0;
 	write_icon_info.image_info.array_layers = 1;
 	write_icon_info.image_info.base_array_layer = 0;
@@ -799,7 +782,7 @@ static inline IconSlot LoadIconFromPixels(MemoryArena& a_temp_arena, const void*
 	write_icon_info.set_shader_visible = a_set_icons_shader_visible;
 	WriteTexture(a_temp_arena, write_icon_info);
 
-	return slot;
+	return index;
 }
 #pragma endregion icon
 
@@ -858,10 +841,9 @@ void Asset::InitializeAssetManager(MemoryArena& a_arena, const AssetManagerInitI
 
 	s_asset_manager->gpu_tasks_queue.Init(a_arena, GPU_TASK_QUEUE_SIZE);
 
-	s_asset_manager->icons_storage.icon_lock = OSCreateRWLock();
 	s_asset_manager->icons_storage.max_slots = a_init_info.asset_count;
-	s_asset_manager->icons_storage.slots = ArenaAllocArr(a_arena, IconSlot, a_init_info.asset_count);
-	s_asset_manager->icons_storage.next_slot = 1;
+	s_asset_manager->icons_storage.next_index = 0;
+
 	ImageCreateInfo icons_image_info;
 	icons_image_info.name = "icon mega image";
 	icons_image_info.width = ICON_EXTENT.x * s_asset_manager->icons_storage.max_slots;
@@ -888,17 +870,6 @@ void Asset::InitializeAssetManager(MemoryArena& a_arena, const AssetManagerInitI
 	icons_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
 	icons_view_info.aspects = IMAGE_ASPECT::COLOR;
 	s_asset_manager->icons_storage.image_descriptor_index = CreateImageView(icons_view_info);
-
-	//slot 0 is for debug
-	s_asset_manager->icons_storage.empty_slot = { 0, 0 };
-
-	for (uint32_t i = s_asset_manager->icons_storage.next_slot; i < s_asset_manager->icons_storage.max_slots - 1; i++)
-	{
-		s_asset_manager->icons_storage.slots[i].slot_index = i;
-		s_asset_manager->icons_storage.slots[i].next_slot = i + 1;
-	}
-	s_asset_manager->icons_storage.slots[s_asset_manager->icons_storage.max_slots - 1].slot_index = s_asset_manager->icons_storage.max_slots - 1;
-	s_asset_manager->icons_storage.slots[s_asset_manager->icons_storage.max_slots - 1].next_slot = UINT32_MAX;
 
 	// create some directories for files we are going to write
 	if (!OSDirectoryExist(ICON_DIRECTORY))
@@ -1084,7 +1055,7 @@ const Image& Asset::LoadImageDisk(MemoryArena& a_temp_arena, const StringView& a
 	const PathString icon_path = GetIconPathFromAssetName(asset.name.GetView());
 	if (OSFileExist(icon_path.c_str()))
 	{
-		asset.icon = LoadIconFromPath(a_temp_arena, icon_path.GetView(), true);
+		asset.icon_index = LoadIconFromPath(a_temp_arena, icon_path.GetView(), true);
 	}
 	else
 	{
@@ -1093,7 +1064,7 @@ const Image& Asset::LoadImageDisk(MemoryArena& a_temp_arena, const StringView& a
 		{
 			icon_write = ResizeImage(a_temp_arena, pixels, width, height, static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
 		}
-		asset.icon = LoadIconFromPixels(a_temp_arena, icon_write, true);
+		asset.icon_index = LoadIconFromPixels(a_temp_arena, icon_write, true);
 		WriteImage(icon_path.GetView(), uint2(ICON_EXTENT.x, ICON_EXTENT.y), 4, icon_write);
 	}
 
@@ -1169,7 +1140,7 @@ const Image& Asset::LoadImageArrayDisk(MemoryArena& a_temp_arena, const StringVi
 	const PathString icon_path = GetIconPathFromAssetName(asset.name.GetView());
 	if (OSFileExist(icon_path.c_str()))
 	{
-		asset.icon = LoadIconFromPath(a_temp_arena, icon_path.GetView(), true);
+		asset.icon_index = LoadIconFromPath(a_temp_arena, icon_path.GetView(), true);
 	}
 	else
 	{
@@ -1178,7 +1149,7 @@ const Image& Asset::LoadImageArrayDisk(MemoryArena& a_temp_arena, const StringVi
 		{
 			icon_write = ResizeImage(a_temp_arena, pixels, width, height, static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
 		}
-		asset.icon = LoadIconFromPixels(a_temp_arena, icon_write, true);
+		asset.icon_index = LoadIconFromPixels(a_temp_arena, icon_write, true);
 		WriteImage(icon_path.GetView(), uint2(ICON_EXTENT.x, ICON_EXTENT.y), 4, icon_write);
 	}
 
@@ -1294,7 +1265,7 @@ const Image& Asset::LoadImageMemory(MemoryArena& a_temp_arena, const TextureLoad
 	const PathString icon_path = GetIconPathFromAssetName(asset.name.GetView());
 	if (OSFileExist(icon_path.c_str()))
 	{
-		asset.icon = LoadIconFromPath(a_temp_arena, icon_path.GetView(), true);
+		asset.icon_index = LoadIconFromPath(a_temp_arena, icon_path.GetView(), true);
 	}
 	else
 	{
@@ -1303,7 +1274,7 @@ const Image& Asset::LoadImageMemory(MemoryArena& a_temp_arena, const TextureLoad
 		{
 			icon_write = ResizeImage(a_temp_arena, a_info.pixels, static_cast<int>(a_info.width), static_cast<int>(a_info.height), static_cast<int>(ICON_EXTENT.x), static_cast<int>(ICON_EXTENT.y));
 		}
-		asset.icon = LoadIconFromPixels(a_temp_arena, icon_write, true);
+		asset.icon_index = LoadIconFromPixels(a_temp_arena, icon_write, true);
 		const bool success = Asset::WriteImage(icon_path.GetView(), uint2(ICON_EXTENT.x, ICON_EXTENT.y), 4, icon_write);
 		BB_WARNING(success, "failed to write icon to disk", WarningType::MEDIUM);
 	}
@@ -1899,9 +1870,9 @@ const Model& Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 
 	const PathString icon_path = GetIconPathFromAssetName(asset.name.GetView());
 	if (OSFileExist(icon_path.c_str()))
-		asset.icon = LoadIconFromPath(a_temp_arena, icon_path.GetView(), true);
+		asset.icon_index = LoadIconFromPath(a_temp_arena, icon_path.GetView(), true);
 	else
-		asset.icon = GetEmptyIconSlot();
+		asset.icon_index = 0;
 
 	asset.finished_loading = true;
 	return *asset.model;
@@ -1960,9 +1931,9 @@ const Model& Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoad
 
 	const PathString icon_path = GetIconPathFromAssetName(asset.name.c_str());
 	if (OSFileExist(icon_path.c_str()))
-		asset.icon = LoadIconFromPath(a_temp_arena, icon_path.GetView(), true);
+		asset.icon_index = LoadIconFromPath(a_temp_arena, icon_path.GetView(), true);
 	else
-		asset.icon = GetEmptyIconSlot();
+		asset.icon_index = 0;
 
 	return *asset.model;
 }
@@ -2114,8 +2085,8 @@ void Asset::ShowAssetMenu(MemoryArena& a_arena)
 							path_search.RecalculateStringSize();
 							if (IsPathImage(path_search.GetView()))
 							{
-								slot->icon = LoadIconFromPath(a_arena, path_search.GetView(), false);
-								IconWriteToDisk(slot->icon, GetIconPathFromAssetName(slot->name.c_str()));
+								slot->icon_index = LoadIconFromPath(a_arena, path_search.GetView(), false);
+								IconWriteToDisk(slot->icon_index, GetIconPathFromAssetName(slot->name.c_str()));
 							}
 						}
 					}
@@ -2124,7 +2095,7 @@ void Asset::ShowAssetMenu(MemoryArena& a_arena)
 					const float icons_texture_width = static_cast<float>(ICON_EXTENT.x * s_asset_manager->icons_storage.max_slots);
 					const float slot_size_in_float = static_cast<float>(ICON_EXTENT.x) / icons_texture_width;
 
-					const ImVec2 uv0(slot_size_in_float * static_cast<float>(slot->icon.slot_index), 0);
+					const ImVec2 uv0(slot_size_in_float * static_cast<float>(slot->icon_index), 0);
 					const ImVec2 uv1(uv0.x + slot_size_in_float, 1);
 
 					ImGui::Image(s_asset_manager->icons_storage.image_descriptor_index.handle, ImVec2(ICON_EXTENT_F.x, ICON_EXTENT_F.y), uv0, uv1);
