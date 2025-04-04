@@ -335,12 +335,7 @@ namespace BB
 		};
 		StaticArray() = default;
 
-		void Init(MemoryArena& a_arena, const uint32_t a_size)
-		{
-			Init(a_arena, a_size, 0);
-		}
-
-		void Init(MemoryArena& a_arena, const uint32_t a_size, const uint32_t a_initial_size)
+		void Init(MemoryArena& a_arena, const uint32_t a_size, const uint32_t a_initial_size = 0)
 		{
 			BB_ASSERT(a_size != 0, "StaticArray size is specified to be 0");
 			BB_ASSERT(a_size >= a_initial_size, "initial size is larger then array size");
@@ -350,11 +345,11 @@ namespace BB
 		}
 
 
-		void Init(void* a_mem, const uint32_t a_size)
+		void Init(void* a_mem, const uint32_t a_size, const uint32_t a_initial_size = 0)
 		{
 			BB_ASSERT(a_size != 0, "StaticArray size is specified to be 0");
 			m_capacity = a_size;
-			m_size = 0;
+			m_size = a_initial_size;
 			m_arr = reinterpret_cast<T*>(a_mem);
 			memset(m_arr, 0, a_size * sizeof(T));
 		}

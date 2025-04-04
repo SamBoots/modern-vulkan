@@ -225,7 +225,6 @@ struct AssetManager
 
 	// asset storage
 	BBRWLock asset_lock;
-	MemoryArena asset_arena;
 	StaticOL_HashMap<uint64_t, AssetSlot> asset_table;
 	StaticArray<AssetSlot*> linear_asset_table;
 
@@ -273,8 +272,7 @@ static T* AssetAllocArr(const size_t a_size)
 	return reinterpret_cast<T*>(s_asset_manager->allocator.Alloc(sizeof(T) * a_size, alignof(T)));
 }
 
-template<typename T>
-static void AssetFree(const T* a_ptr)
+static void AssetFree(const void* a_ptr)
 {
 	BBRWLockScopeWrite(s_asset_manager->allocator_lock);
 	s_asset_manager->allocator.Free(a_ptr);
@@ -804,10 +802,10 @@ static inline AssetSlot& FindElementOrCreateElement(const AssetHash a_hash, bool
 	switch (a_hash.type)
 	{
 	case ASSET_TYPE::MODEL:
-		slot->model = ArenaAllocType(s_asset_manager->asset_arena, Model);
+		slot->model = AssetAlloc<Model>();
 		break;
 	case ASSET_TYPE::IMAGE:
-		slot->image = ArenaAllocType(s_asset_manager->asset_arena, Image);
+		slot->image = AssetAlloc<Image>();
 		break;
 	default:
 		BB_ASSERT(false, "unknown ASSET_TYPE");
@@ -823,15 +821,7 @@ using namespace BB;
 void Asset::InitializeAssetManager(MemoryArena& a_arena, const AssetManagerInitInfo& a_init_info)
 {
 	BB_ASSERT(!s_asset_manager, "Asset Manager already initialized");
-
-	{	//initialize the memory arena and place it into the struct itself.
-		MemoryArena asset_mem_arena = MemoryArenaCreate();
-
-		s_asset_manager = ArenaAllocType(asset_mem_arena, AssetManager);
-	
-		s_asset_manager->asset_arena = asset_mem_arena;
-	}
-
+	s_asset_manager = ArenaAllocType(a_arena, AssetManager);
 	s_asset_manager->allocator_lock = OSCreateRWLock();
 	s_asset_manager->allocator.Initialize(a_arena, mbSize * 64);
 
@@ -1808,20 +1798,20 @@ const Model& Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 
 	// JANK :( VERY UNHAPPY
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
-	asset.model->meshes.Init(s_asset_manager->asset_arena, static_cast<uint32_t>(gltf_data->meshes_count));
+	asset.model->meshes.Init(AssetAllocArr<Model::Mesh>(gltf_data->meshes_count), static_cast<uint32_t>(gltf_data->meshes_count));
 	asset.model->meshes.resize(asset.model->meshes.capacity());
 	for (size_t mesh_index = 0; mesh_index < asset.model->meshes.size(); mesh_index++)
 	{
 		const cgltf_mesh& cgltf_mesh = gltf_data->meshes[mesh_index];
 		Model::Mesh& mesh = asset.model->meshes[mesh_index];
 
-		mesh.primitives.Init(s_asset_manager->asset_arena, static_cast<uint32_t>(cgltf_mesh.primitives_count));
+		mesh.primitives.Init(AssetAllocArr<Model::Primitive>(cgltf_mesh.primitives_count), static_cast<uint32_t>(cgltf_mesh.primitives_count));
 		mesh.primitives.resize(mesh.primitives.capacity());
 	}
 
-	asset.model->linear_nodes = ArenaAllocArr(s_asset_manager->asset_arena, Model::Node, linear_node_count);
+	asset.model->linear_nodes = AssetAllocArr<Model::Node>(linear_node_count);
 	asset.model->root_node_count = static_cast<uint32_t>(gltf_data->scene->nodes_count);
-	asset.model->root_node_indices = ArenaAllocArr(s_asset_manager->asset_arena, uint32_t, asset.model->root_node_count);
+	asset.model->root_node_indices = AssetAllocArr<uint32_t>(asset.model->root_node_count);
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 
 	// for every 5 meshes create a thread;
@@ -1905,10 +1895,10 @@ const Model& Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoad
 
 	OSAcquireSRWLockWrite(&s_asset_manager->asset_lock);
 	//hack shit way, but a single mesh just has one primitive to draw.
-	asset.model->linear_nodes = ArenaAllocArr(s_asset_manager->asset_arena, Model::Node, 1);
-	asset.model->meshes.Init(s_asset_manager->asset_arena, 1, 1);
-	asset.model->meshes[0].primitives.Init(s_asset_manager->asset_arena, 1, 1);
-	asset.model->root_node_indices = ArenaAllocArr(s_asset_manager->asset_arena, uint32_t, 1);
+	asset.model->linear_nodes = AssetAlloc<Model::Node>();
+	asset.model->meshes.Init(AssetAlloc<Model::Mesh>(), 1, 1);
+	asset.model->meshes[0].primitives.Init(AssetAlloc<Model::Primitive>(), 1, 1);
+	asset.model->root_node_indices = AssetAlloc<uint32_t>();
 	OSReleaseSRWLockWrite(&s_asset_manager->asset_lock);
 	Model::Primitive primitive;
 	primitive.material_data.mesh_metallic.albedo_texture = a_mesh_op.base_albedo;
@@ -1968,11 +1958,15 @@ void Asset::FreeAsset(const AssetHandle a_asset_handle)
 	switch (slot->hash.type)
 	{
 	case ASSET_TYPE::MODEL:
-		//BBfreeArr(s_asset_manager->allocator, slot->model->linear_nodes);
-		//BBfree(s_asset_manager->allocator, slot->model);
+
+		for (size_t i = 0; i < slot->model->meshes.size(); i++)
+			AssetFree(slot->model->meshes[i].primitives.data());
+		AssetFree(slot->model->linear_nodes);
+		AssetFree(slot->model->meshes.data());
+		AssetFree(slot->model);
 		break;
 	case ASSET_TYPE::IMAGE:
-		//BBfree(s_asset_manager->allocator, slot->image);
+		AssetFree(slot->image);
 		break;
 	default:
 		BB_ASSERT(false, "default hit while it shouldn't");
