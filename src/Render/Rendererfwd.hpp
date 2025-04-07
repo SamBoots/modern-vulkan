@@ -469,6 +469,64 @@ namespace BB
 		const PipelineBarrierImageInfo* image_infos;
 	};
 
+	struct PipelineBarrierGlobalInfo2
+	{
+		uint32_t todo;
+		// TODO
+	};
+
+	struct PipelineBarrierBufferInfo2
+	{
+		GPUBuffer buffer{};
+		uint32_t size = 0;
+		uint32_t offset = 0;
+
+		// todo
+	};
+
+	enum class IMAGE_PIPELINE_USAGE : uint32_t
+	{
+		NONE,
+
+		RO_GEOMETRY,
+		RO_FRAGMENT,
+		RO_COMPUTE,
+
+		RW_GEOMETRY,
+		RW_FRAGMENT,
+		RW_COMPUTE,
+
+		RO_DEPTH,
+		RT_DEPTH,
+		RT_COLOR,
+
+		COPY_SRC,
+		COPY_DST,
+
+		PRESENT,
+
+		ENUM_SIZE
+	};
+
+	struct PipelineBarrierImageInfo2
+	{
+		RImage image{};						// 8
+		IMAGE_PIPELINE_USAGE prev;		    // 12
+		IMAGE_PIPELINE_USAGE next;			// 16
+
+		uint32_t layer_count = 0;			// 20
+		uint32_t level_count = 0;			// 24
+		uint32_t base_array_layer = 0;		// 28
+		uint32_t base_mip_level = 0;		// 32
+	};
+
+	struct PipelineBarrierInfo2
+	{
+		ConstSlice<PipelineBarrierGlobalInfo2> global_barriers;
+		ConstSlice<PipelineBarrierBufferInfo2> buffer_barriers;
+		ConstSlice<PipelineBarrierImageInfo2> image_barriers;
+	};
+
 	struct ImageCreateInfo
 	{
 		const char* name;

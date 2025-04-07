@@ -53,7 +53,6 @@ BB_PRAGMA(clang diagnostic ignored "-Wcast-function-type-strict")
 //for performance reasons this can be turned off. I need to profile this.
 #define ENUM_CONVERSATION_BY_ARRAY
 
-
 struct VulkanQueuesIndices
 {
 	uint32_t present; //Is currently always same as graphics.
@@ -2271,6 +2270,134 @@ void Vulkan::PipelineBarriers(const RCommandList a_list, const PipelineBarrierIn
 	dependency_info.bufferMemoryBarrierCount = a_barrier_info.buffer_info_count;
 	dependency_info.pBufferMemoryBarriers = buffer_barriers;
 	dependency_info.imageMemoryBarrierCount = a_barrier_info.image_info_count;
+	dependency_info.pImageMemoryBarriers = image_barriers;
+
+	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+	vkCmdPipelineBarrier2(cmd_buffer, &dependency_info);
+}
+
+static void _PipelineBarrierFillStages(const IMAGE_PIPELINE_USAGE a_usage, VkPipelineStageFlags2& a_stage_flags, VkAccessFlags2& a_access_flags, VkImageLayout& a_image_layout)
+{
+	switch (a_usage)
+	{
+	case IMAGE_PIPELINE_USAGE::NONE:
+		a_stage_flags = VK_PIPELINE_STAGE_2_NONE;
+		a_access_flags = VK_ACCESS_2_NONE;
+		a_image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
+		break;
+	case IMAGE_PIPELINE_USAGE::RO_GEOMETRY:
+		a_stage_flags = VK_PIPELINE_STAGE_2_GEOMETRY_SHADER_BIT | VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
+		a_access_flags = VK_ACCESS_2_SHADER_READ_BIT;
+		a_image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		break;
+	case IMAGE_PIPELINE_USAGE::RO_FRAGMENT:
+		a_stage_flags = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+		a_access_flags = VK_ACCESS_2_SHADER_READ_BIT;
+		a_image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		break;
+	case IMAGE_PIPELINE_USAGE::RO_COMPUTE:
+		a_stage_flags = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+		a_access_flags = VK_ACCESS_2_SHADER_READ_BIT;
+		a_access_flags = VK_IMAGE_ASPECT_COLOR_BIT;
+		a_image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		break;
+	case IMAGE_PIPELINE_USAGE::RW_GEOMETRY:
+		a_stage_flags = VK_PIPELINE_STAGE_2_GEOMETRY_SHADER_BIT | VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
+		a_access_flags = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+		a_image_layout = VK_IMAGE_LAYOUT_GENERAL;
+		break;
+	case IMAGE_PIPELINE_USAGE::RW_FRAGMENT:
+		a_stage_flags = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+		a_access_flags = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+		a_image_layout = VK_IMAGE_LAYOUT_GENERAL;
+		break;
+	case IMAGE_PIPELINE_USAGE::RW_COMPUTE:
+		a_stage_flags = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+		a_access_flags = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
+		a_image_layout = VK_IMAGE_LAYOUT_GENERAL;
+		break;
+	case IMAGE_PIPELINE_USAGE::RO_DEPTH:
+		a_stage_flags = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
+		a_access_flags = VK_ACCESS_2_SHADER_READ_BIT;
+		a_image_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+		break;
+	case IMAGE_PIPELINE_USAGE::RT_DEPTH:
+		a_stage_flags = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+		a_access_flags = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		a_image_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		break;
+	case IMAGE_PIPELINE_USAGE::RT_COLOR:
+		a_stage_flags = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+		a_access_flags = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR;
+		a_image_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		break;
+	case IMAGE_PIPELINE_USAGE::COPY_SRC:
+		a_stage_flags = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+		a_access_flags = VK_ACCESS_2_TRANSFER_READ_BIT;
+		a_image_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		break;
+	case IMAGE_PIPELINE_USAGE::COPY_DST:
+		a_stage_flags = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+		a_access_flags = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+		a_image_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		break;
+	case IMAGE_PIPELINE_USAGE::PRESENT:
+		a_stage_flags = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
+		a_access_flags = VK_ACCESS_2_NONE;
+		a_image_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		break;
+	default:
+		BB_ASSERT(false, "default case hit");
+		break;
+	}
+}
+
+void Vulkan::PipelineBarriers(const RCommandList a_list, const PipelineBarrierInfo2& a_barriers)
+{
+	VkMemoryBarrier2* global_barriers = BBstackAlloc(a_barriers.global_barriers.size(), VkMemoryBarrier2);
+	VkBufferMemoryBarrier2* buffer_barriers = BBstackAlloc(a_barriers.buffer_barriers.size(), VkBufferMemoryBarrier2);
+	VkImageMemoryBarrier2* image_barriers = BBstackAlloc(a_barriers.image_barriers.size(), VkImageMemoryBarrier2);
+
+	for (size_t i = 0; i < a_barriers.global_barriers.size(); i++)
+	{
+		BB_UNIMPLEMENTED("implement global barriers");
+	}
+
+	for (size_t i = 0; i < a_barriers.buffer_barriers.size(); i++)
+	{
+		BB_UNIMPLEMENTED("implement buffer barriers");
+	}
+
+	for (size_t i = 0; i < a_barriers.image_barriers.size(); i++)
+	{
+		const PipelineBarrierImageInfo2& barrier_info = a_barriers.image_barriers[i];
+		VkImageMemoryBarrier2& wr_b = image_barriers[i];
+
+		wr_b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		wr_b.pNext = nullptr;
+		wr_b.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		wr_b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		wr_b.image = reinterpret_cast<VkImage>(barrier_info.image.handle);
+		if (barrier_info.prev == IMAGE_PIPELINE_USAGE::RO_DEPTH || barrier_info.prev == IMAGE_PIPELINE_USAGE::RT_DEPTH ||
+			barrier_info.next == IMAGE_PIPELINE_USAGE::RO_DEPTH || barrier_info.next == IMAGE_PIPELINE_USAGE::RT_DEPTH)
+			wr_b.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+		else
+			wr_b.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		wr_b.subresourceRange.baseMipLevel = barrier_info.base_mip_level;
+		wr_b.subresourceRange.levelCount = barrier_info.level_count;
+		wr_b.subresourceRange.baseArrayLayer = barrier_info.base_array_layer;
+		wr_b.subresourceRange.layerCount = barrier_info.layer_count;
+
+		_PipelineBarrierFillStages(barrier_info.prev, wr_b.srcStageMask, wr_b.srcAccessMask, wr_b.oldLayout);
+		_PipelineBarrierFillStages(barrier_info.next, wr_b.dstStageMask, wr_b.dstAccessMask, wr_b.newLayout);
+	}
+
+	VkDependencyInfo dependency_info{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+	dependency_info.memoryBarrierCount = static_cast<uint32_t>(a_barriers.global_barriers.size());
+	dependency_info.pMemoryBarriers = global_barriers;
+	dependency_info.bufferMemoryBarrierCount = static_cast<uint32_t>(a_barriers.buffer_barriers.size());
+	dependency_info.pBufferMemoryBarriers = buffer_barriers;
+	dependency_info.imageMemoryBarrierCount = static_cast<uint32_t>(a_barriers.image_barriers.size());
 	dependency_info.pImageMemoryBarriers = image_barriers;
 
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);

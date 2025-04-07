@@ -648,24 +648,17 @@ static GPUBuffer UploadStartupResources()
 		s_render_inst->debug_descriptor_index = CreateImageView(debug_view_info);
 
 		{
-			PipelineBarrierImageInfo default_to_upload;
-			default_to_upload.src_mask = BARRIER_ACCESS_MASK::NONE;
-			default_to_upload.dst_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
-			default_to_upload.image = s_render_inst->debug_texture;
-			default_to_upload.old_layout = IMAGE_LAYOUT::UNDEFINED;
-			default_to_upload.new_layout = IMAGE_LAYOUT::TRANSFER_DST;
-			default_to_upload.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
-			default_to_upload.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
-			default_to_upload.layer_count = 1;
-			default_to_upload.level_count = 1;
-			default_to_upload.base_array_layer = 0;
-			default_to_upload.base_mip_level = 0;
-			default_to_upload.src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
-			default_to_upload.dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
-			default_to_upload.aspects = IMAGE_ASPECT::COLOR;
-			PipelineBarrierInfo pipeline_info{};
-			pipeline_info.image_info_count = 1;
-			pipeline_info.image_infos = &default_to_upload;
+			PipelineBarrierImageInfo2 def_to_up;
+			def_to_up.prev = IMAGE_PIPELINE_USAGE::NONE;
+			def_to_up.next = IMAGE_PIPELINE_USAGE::COPY_DST;
+			def_to_up.image = s_render_inst->debug_texture;
+			def_to_up.layer_count = 1;
+			def_to_up.level_count = 1;
+			def_to_up.base_array_layer = 0;
+			def_to_up.base_mip_level = 0;
+
+			PipelineBarrierInfo2 pipeline_info{};
+			pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo2>(&def_to_up, 1);
 			PipelineBarriers(list, pipeline_info);
 		}
 
@@ -682,24 +675,17 @@ static GPUBuffer UploadStartupResources()
 		Vulkan::CopyBufferToImage(list, write_to_image);
 
 		{
-			PipelineBarrierImageInfo upload_to_shader;
-			upload_to_shader.src_mask = BARRIER_ACCESS_MASK::TRANSFER_WRITE;
-			upload_to_shader.dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
-			upload_to_shader.image = s_render_inst->debug_texture;
-			upload_to_shader.old_layout = IMAGE_LAYOUT::TRANSFER_DST;
-			upload_to_shader.new_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
-			upload_to_shader.src_queue = QUEUE_TRANSITION::NO_TRANSITION;
-			upload_to_shader.dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
-			upload_to_shader.layer_count = 1;
-			upload_to_shader.level_count = 1;
-			upload_to_shader.base_array_layer = 0;
-			upload_to_shader.base_mip_level = 0;
-			upload_to_shader.src_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
-			upload_to_shader.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
-			upload_to_shader.aspects = IMAGE_ASPECT::COLOR;
-			PipelineBarrierInfo pipeline_info{};
-			pipeline_info.image_info_count = 1;
-			pipeline_info.image_infos = &upload_to_shader;
+			PipelineBarrierImageInfo2 upl_to_shad;
+			upl_to_shad.prev = IMAGE_PIPELINE_USAGE::COPY_DST;
+			upl_to_shad.next = IMAGE_PIPELINE_USAGE::RO_FRAGMENT;
+			upl_to_shad.image = s_render_inst->debug_texture;
+			upl_to_shad.layer_count = 1;
+			upl_to_shad.level_count = 1;
+			upl_to_shad.base_array_layer = 0;
+			upl_to_shad.base_mip_level = 0;
+
+			PipelineBarrierInfo2 pipeline_info{};
+			pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo2>(&upl_to_shad, 1);
 			PipelineBarriers(list, pipeline_info);
 		}
 	}
@@ -887,10 +873,10 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		s_render_inst->cpu_index_buffer.start_mapped = Vulkan::MapBufferMemory(s_render_inst->cpu_index_buffer.buffer);
 	}
 
+
 	s_render_inst->texture_manager.Init(a_arena);
 	const GPUBuffer startup_buffer = UploadStartupResources();
 	s_render_inst->texture_manager.SetAllTextures(s_render_inst->debug_descriptor_index, s_render_inst->global_descriptor_set, s_render_inst->global_descriptor_allocation);
-
 	GPUWaitIdle();
 
 	FreeGPUBuffer(startup_buffer);
@@ -1438,6 +1424,11 @@ void BB::SetPushConstants(const RCommandList a_list, const RPipelineLayout a_pip
 }
 
 void BB::PipelineBarriers(const RCommandList a_list, const PipelineBarrierInfo& a_barrier_info)
+{
+	Vulkan::PipelineBarriers(a_list, a_barrier_info);
+}
+
+void BB::PipelineBarriers(const RCommandList a_list, const PipelineBarrierInfo2& a_barrier_info)
 {
 	Vulkan::PipelineBarriers(a_list, a_barrier_info);
 }

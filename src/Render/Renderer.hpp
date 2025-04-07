@@ -137,6 +137,7 @@ namespace BB
 
 	void SetPushConstants(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_offset, const uint32_t a_size, const void* a_data);
 	void PipelineBarriers(const RCommandList a_list, const struct PipelineBarrierInfo& a_barrier_info);
+	void PipelineBarriers(const RCommandList a_list, const struct PipelineBarrierInfo2& a_barrier_info);
 	void SetDescriptorBufferOffset(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_first_set, const uint32_t a_set_count, const uint32_t* a_buffer_indices, const size_t* a_offsets);
 	const DescriptorAllocation& GetGlobalDescriptorAllocation();
 

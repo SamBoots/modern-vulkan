@@ -272,45 +272,33 @@ void RenderSystem::StartFrame(const RCommandList a_list)
 	WaitFence(m_fence, pfd.fence_value);
 	pfd.fence_value = m_next_fence_value;
 
-	PipelineBarrierImageInfo render_target_transition;
-	render_target_transition.src_mask = BARRIER_ACCESS_MASK::NONE;
-	render_target_transition.dst_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
+	PipelineBarrierImageInfo2 render_target_transition;
+	render_target_transition.prev = IMAGE_PIPELINE_USAGE::NONE;
+	render_target_transition.next = IMAGE_PIPELINE_USAGE::RT_COLOR;
 	render_target_transition.image = m_render_target.image;
-	render_target_transition.old_layout = IMAGE_LAYOUT::UNDEFINED;
-	render_target_transition.new_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 	render_target_transition.layer_count = 1;
 	render_target_transition.level_count = 1;
 	render_target_transition.base_array_layer = m_current_frame;
 	render_target_transition.base_mip_level = 0;
-	render_target_transition.src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
-	render_target_transition.dst_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
-	render_target_transition.aspects = IMAGE_ASPECT::COLOR;
 
-	PipelineBarrierInfo pipeline_info{};
-	pipeline_info.image_info_count = 1;
-	pipeline_info.image_infos = &render_target_transition;
+	PipelineBarrierInfo2 pipeline_info{};
+	pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo2>(&render_target_transition, 1);
 	PipelineBarriers(a_list, pipeline_info);
 }
 
 RenderSystemFrame RenderSystem::EndFrame(const RCommandList a_list, const IMAGE_LAYOUT a_current_layout)
 {
-	PipelineBarrierImageInfo render_target_transition;
-	render_target_transition.src_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
-	render_target_transition.dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
+	PipelineBarrierImageInfo2 render_target_transition;
+	render_target_transition.prev = IMAGE_PIPELINE_USAGE::RT_COLOR;
+	render_target_transition.next = IMAGE_PIPELINE_USAGE::RO_FRAGMENT;
 	render_target_transition.image = m_render_target.image;
-	render_target_transition.old_layout = a_current_layout;
-	render_target_transition.new_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
 	render_target_transition.layer_count = 1;
 	render_target_transition.level_count = 1;
 	render_target_transition.base_array_layer = m_current_frame;
 	render_target_transition.base_mip_level = 0;
-	render_target_transition.src_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
-	render_target_transition.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
-	render_target_transition.aspects = IMAGE_ASPECT::COLOR;
 
-	PipelineBarrierInfo pipeline_info{};
-	pipeline_info.image_info_count = 1;
-	pipeline_info.image_infos = &render_target_transition;
+	PipelineBarrierInfo2 pipeline_info{};
+	pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo2>(&render_target_transition, 1);
 	PipelineBarriers(a_list, pipeline_info);
 
 	RenderSystemFrame frame;
@@ -519,37 +507,25 @@ void RenderSystem::UpdateConstantBuffer(PerFrame& a_pfd, const RCommandList a_li
 			bloom_img_view_info.base_array_layer = 1;
 			a_pfd.bloom.descriptor_index_1 = CreateImageView(bloom_img_view_info);
 
-			FixedArray<PipelineBarrierImageInfo, 2> bloom_initial_stages;
-			bloom_initial_stages[0].src_mask = BARRIER_ACCESS_MASK::NONE;
-			bloom_initial_stages[0].dst_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
+			FixedArray<PipelineBarrierImageInfo2, 2> bloom_initial_stages;
+			bloom_initial_stages[0].prev = IMAGE_PIPELINE_USAGE::NONE;
+			bloom_initial_stages[0].next = IMAGE_PIPELINE_USAGE::RT_COLOR;
 			bloom_initial_stages[0].image = a_pfd.bloom.image;
-			bloom_initial_stages[0].old_layout = IMAGE_LAYOUT::UNDEFINED;
-			bloom_initial_stages[0].new_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 			bloom_initial_stages[0].layer_count = 1;
 			bloom_initial_stages[0].level_count = 1;
 			bloom_initial_stages[0].base_array_layer = 0;
 			bloom_initial_stages[0].base_mip_level = 0;
-			bloom_initial_stages[0].src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
-			bloom_initial_stages[0].dst_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
-			bloom_initial_stages[0].aspects = IMAGE_ASPECT::COLOR;
 
-			bloom_initial_stages[1].src_mask = BARRIER_ACCESS_MASK::NONE;
-			bloom_initial_stages[1].dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
+			bloom_initial_stages[1].prev = IMAGE_PIPELINE_USAGE::NONE;
+			bloom_initial_stages[1].next = IMAGE_PIPELINE_USAGE::RO_FRAGMENT;
 			bloom_initial_stages[1].image = a_pfd.bloom.image;
-			bloom_initial_stages[1].old_layout = IMAGE_LAYOUT::UNDEFINED;
-			bloom_initial_stages[1].new_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
 			bloom_initial_stages[1].layer_count = 1;
 			bloom_initial_stages[1].level_count = 1;
 			bloom_initial_stages[1].base_array_layer = 1;
 			bloom_initial_stages[1].base_mip_level = 0;
-			bloom_initial_stages[1].src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
-			bloom_initial_stages[1].dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
-			bloom_initial_stages[1].aspects = IMAGE_ASPECT::COLOR;
 
-			PipelineBarrierInfo barriers{};
-			barriers.image_infos = bloom_initial_stages.data();
-			barriers.image_info_count = bloom_initial_stages.size();
-			PipelineBarriers(a_list, barriers);
+			PipelineBarrierInfo2 barriers{};
+			barriers.image_barriers = bloom_initial_stages.const_slice();
 		}
 
 		a_pfd.previous_draw_area = a_draw_area_size;
@@ -724,24 +700,19 @@ void RenderSystem::ShadowMapPass(const PerFrame& a_pfd, const RCommandList a_lis
 
 	const RPipelineLayout pipe_layout = BindShaders(a_list, Material::GetMaterialShaders(m_shadowmap_material));
 
-	PipelineBarrierImageInfo shadow_map_write_transition = {};
-	shadow_map_write_transition.src_mask = BARRIER_ACCESS_MASK::NONE;
-	shadow_map_write_transition.dst_mask = BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE;
+	
+	PipelineBarrierImageInfo2 shadow_map_write_transition = {};
+	shadow_map_write_transition.prev = IMAGE_PIPELINE_USAGE::NONE;
+	shadow_map_write_transition.next = IMAGE_PIPELINE_USAGE::RT_DEPTH;
 	shadow_map_write_transition.image = a_pfd.shadow_map.image;
-	shadow_map_write_transition.old_layout = IMAGE_LAYOUT::UNDEFINED;
-	shadow_map_write_transition.new_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
 	shadow_map_write_transition.layer_count = shadow_map_count;
 	shadow_map_write_transition.level_count = 1;
 	shadow_map_write_transition.base_array_layer = 0;
 	shadow_map_write_transition.base_mip_level = 0;
-	shadow_map_write_transition.src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
-	shadow_map_write_transition.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
-	shadow_map_write_transition.aspects = IMAGE_ASPECT::DEPTH;
 
-	PipelineBarrierInfo pipeline_info{};
-	pipeline_info.image_info_count = 1;
-	pipeline_info.image_infos = &shadow_map_write_transition;
-	PipelineBarriers(a_list, pipeline_info);
+	PipelineBarrierInfo2 write_pipeline{};
+	write_pipeline.image_barriers = ConstSlice<PipelineBarrierImageInfo2>(&shadow_map_write_transition, 1);
+	PipelineBarriers(a_list, write_pipeline);
 
 	RenderingAttachmentDepth depth_attach{};
 	depth_attach.load_depth = false;
@@ -815,45 +786,33 @@ void RenderSystem::ShadowMapPass(const PerFrame& a_pfd, const RCommandList a_lis
 		}
 	}
 
-	PipelineBarrierImageInfo shadow_map_read_transition = {};
-	shadow_map_read_transition.src_mask = BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE;
-	shadow_map_read_transition.dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
+	PipelineBarrierImageInfo2 shadow_map_read_transition = {};
+	shadow_map_read_transition.prev = IMAGE_PIPELINE_USAGE::RT_DEPTH;
+	shadow_map_read_transition.next = IMAGE_PIPELINE_USAGE::RO_DEPTH;
 	shadow_map_read_transition.image = a_pfd.shadow_map.image;
-	shadow_map_read_transition.old_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
-	shadow_map_read_transition.new_layout = IMAGE_LAYOUT::DEPTH_STENCIL_READ_ONLY;
 	shadow_map_read_transition.layer_count = shadow_map_count;
 	shadow_map_read_transition.level_count = 1;
 	shadow_map_read_transition.base_array_layer = 0;
 	shadow_map_read_transition.base_mip_level = 0;
-	shadow_map_read_transition.src_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
-	shadow_map_read_transition.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
-	shadow_map_read_transition.aspects = IMAGE_ASPECT::DEPTH;
 
-	pipeline_info = {};
-	pipeline_info.image_info_count = 1;
-	pipeline_info.image_infos = &shadow_map_read_transition;
+	PipelineBarrierInfo2 pipeline_info = {};
+	pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo2>(&shadow_map_read_transition, 1);
 	PipelineBarriers(a_list, pipeline_info);
 }
 
 void RenderSystem::GeometryPass(const PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size, const DrawList& a_draw_list)
 {
-	PipelineBarrierImageInfo image_transitions[1]{};
-	image_transitions[0].src_mask = BARRIER_ACCESS_MASK::NONE;
-	image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE;
+	PipelineBarrierImageInfo2 image_transitions[1]{};
+	image_transitions[0].prev = IMAGE_PIPELINE_USAGE::NONE;
+	image_transitions[0].next =IMAGE_PIPELINE_USAGE::RT_DEPTH;
 	image_transitions[0].image = a_pfd.depth_image;
-	image_transitions[0].old_layout = IMAGE_LAYOUT::UNDEFINED;
-	image_transitions[0].new_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
 	image_transitions[0].layer_count = 1;
 	image_transitions[0].level_count = 1;
 	image_transitions[0].base_array_layer = 0;
 	image_transitions[0].base_mip_level = 0;
-	image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
-	image_transitions[0].dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_TEST;
-	image_transitions[0].aspects = IMAGE_ASPECT::DEPTH_STENCIL;
 
-	PipelineBarrierInfo pipeline_info{};
-	pipeline_info.image_info_count = _countof(image_transitions);
-	pipeline_info.image_infos = image_transitions;
+	PipelineBarrierInfo2 pipeline_info = {};
+	pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo2>(image_transitions, 1);
 	PipelineBarriers(a_list, pipeline_info);
 
 	FixedArray<RenderingAttachmentColor, 2> color_attachs;
@@ -948,38 +907,27 @@ void RenderSystem::BloomPass(const PerFrame& a_pfd, const RCommandList a_list, c
 	Slice<const ShaderEffectHandle> shader_effects = Material::GetMaterialShaders(m_gaussian_material);
 	const RPipelineLayout pipe_layout = BindShaders(a_list, shader_effects);
 
-	FixedArray<PipelineBarrierImageInfo, 2> transitions{};
-	PipelineBarrierImageInfo& to_shader_read = transitions[0];
-	to_shader_read.src_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
-	to_shader_read.dst_mask = BARRIER_ACCESS_MASK::SHADER_READ;
+	FixedArray<PipelineBarrierImageInfo2, 2> transitions{};
+	PipelineBarrierImageInfo2& to_shader_read = transitions[0];
+	to_shader_read.prev = IMAGE_PIPELINE_USAGE::RT_COLOR;
+	to_shader_read.next = IMAGE_PIPELINE_USAGE::RO_FRAGMENT;
 	to_shader_read.image = a_pfd.bloom.image;
-	to_shader_read.old_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-	to_shader_read.new_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
 	to_shader_read.layer_count = 1;
 	to_shader_read.level_count = 1;
 	to_shader_read.base_array_layer = 0;
 	to_shader_read.base_mip_level = 0;
-	to_shader_read.src_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
-	to_shader_read.dst_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
-	to_shader_read.aspects = IMAGE_ASPECT::COLOR;
 
-	PipelineBarrierImageInfo& to_render_target = transitions[1];
-	to_render_target.src_mask = BARRIER_ACCESS_MASK::SHADER_READ;
-	to_render_target.dst_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
+	PipelineBarrierImageInfo2& to_render_target = transitions[1];
+	to_render_target.prev = IMAGE_PIPELINE_USAGE::RO_FRAGMENT;
+	to_render_target.next = IMAGE_PIPELINE_USAGE::RT_COLOR;
 	to_render_target.image = a_pfd.bloom.image;
-	to_render_target.old_layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
-	to_render_target.new_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 	to_render_target.layer_count = 1;
 	to_render_target.level_count = 1;
 	to_render_target.base_array_layer = 1;
 	to_render_target.base_mip_level = 0;
-	to_render_target.src_stage = BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER;
-	to_render_target.dst_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
-	to_render_target.aspects = IMAGE_ASPECT::COLOR;
 
-	PipelineBarrierInfo barrier_info{};
-	barrier_info.image_infos = transitions.data();
-	barrier_info.image_info_count = transitions.size();
+	PipelineBarrierInfo2 barrier_info{};
+	barrier_info.image_barriers = transitions.const_slice();
 
 	SetFrontFace(a_list, false);
 	SetCullMode(a_list, CULL_MODE::NONE);
