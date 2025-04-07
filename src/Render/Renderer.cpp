@@ -648,7 +648,7 @@ static GPUBuffer UploadStartupResources()
 		s_render_inst->debug_descriptor_index = CreateImageView(debug_view_info);
 
 		{
-			PipelineBarrierImageInfo2 def_to_up;
+			PipelineBarrierImageInfo def_to_up;
 			def_to_up.prev = IMAGE_PIPELINE_USAGE::NONE;
 			def_to_up.next = IMAGE_PIPELINE_USAGE::COPY_DST;
 			def_to_up.image = s_render_inst->debug_texture;
@@ -656,9 +656,10 @@ static GPUBuffer UploadStartupResources()
 			def_to_up.level_count = 1;
 			def_to_up.base_array_layer = 0;
 			def_to_up.base_mip_level = 0;
+			def_to_up.image_aspect = IMAGE_ASPECT::COLOR;
 
-			PipelineBarrierInfo2 pipeline_info{};
-			pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo2>(&def_to_up, 1);
+			PipelineBarrierInfo pipeline_info{};
+			pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo>(&def_to_up, 1);
 			PipelineBarriers(list, pipeline_info);
 		}
 
@@ -675,7 +676,7 @@ static GPUBuffer UploadStartupResources()
 		Vulkan::CopyBufferToImage(list, write_to_image);
 
 		{
-			PipelineBarrierImageInfo2 upl_to_shad;
+			PipelineBarrierImageInfo upl_to_shad;
 			upl_to_shad.prev = IMAGE_PIPELINE_USAGE::COPY_DST;
 			upl_to_shad.next = IMAGE_PIPELINE_USAGE::RO_FRAGMENT;
 			upl_to_shad.image = s_render_inst->debug_texture;
@@ -683,9 +684,10 @@ static GPUBuffer UploadStartupResources()
 			upl_to_shad.level_count = 1;
 			upl_to_shad.base_array_layer = 0;
 			upl_to_shad.base_mip_level = 0;
+			upl_to_shad.image_aspect = IMAGE_ASPECT::COLOR;
 
-			PipelineBarrierInfo2 pipeline_info{};
-			pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo2>(&upl_to_shad, 1);
+			PipelineBarrierInfo pipeline_info{};
+			pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo>(&upl_to_shad, 1);
 			PipelineBarriers(list, pipeline_info);
 		}
 	}
@@ -916,22 +918,17 @@ void BB::RenderStartFrame(const RCommandList a_list, const RenderStartFrameInfo&
 
 	{
 		PipelineBarrierImageInfo image_transitions[1]{};
-		image_transitions[0].src_mask = BARRIER_ACCESS_MASK::NONE;
-		image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
+		image_transitions[0].prev = IMAGE_PIPELINE_USAGE::NONE;
+		image_transitions[0].next = IMAGE_PIPELINE_USAGE::RT_COLOR;
 		image_transitions[0].image = a_render_target;
-		image_transitions[0].old_layout = IMAGE_LAYOUT::UNDEFINED;
-		image_transitions[0].new_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
 		image_transitions[0].layer_count = 1;
 		image_transitions[0].level_count = 1;
 		image_transitions[0].base_array_layer = frame_index;
 		image_transitions[0].base_mip_level = 0;
-		image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE;
-		image_transitions[0].dst_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
-		image_transitions[0].aspects = IMAGE_ASPECT::COLOR;
+		image_transitions[0].image_aspect = IMAGE_ASPECT::COLOR;
 
 		PipelineBarrierInfo pipeline_info{};
-		pipeline_info.image_info_count = _countof(image_transitions);
-		pipeline_info.image_infos = image_transitions;
+		pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo>(image_transitions, 1);
 		Vulkan::PipelineBarriers(a_list, pipeline_info);
 	}
 
@@ -955,22 +952,17 @@ PRESENT_IMAGE_RESULT BB::RenderEndFrame(const RCommandList a_list, const RImage 
 	BB_ASSERT(s_render_inst->render_io.frame_started == true, "did not call RenderStartFrame before a RenderEndFrame");
 
 	PipelineBarrierImageInfo image_transitions[1]{};
-	image_transitions[0].src_mask = BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE;
-	image_transitions[0].dst_mask = BARRIER_ACCESS_MASK::TRANSFER_READ;
+	image_transitions[0].prev = IMAGE_PIPELINE_USAGE::RT_COLOR;
+	image_transitions[0].next = IMAGE_PIPELINE_USAGE::COPY_SRC;
 	image_transitions[0].image = a_render_target;
-	image_transitions[0].old_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
-	image_transitions[0].new_layout = IMAGE_LAYOUT::TRANSFER_SRC;
 	image_transitions[0].layer_count = 1;
 	image_transitions[0].level_count = 1;
 	image_transitions[0].base_array_layer = a_render_target_layer;
 	image_transitions[0].base_mip_level = 0;
-	image_transitions[0].src_stage = BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT;
-	image_transitions[0].dst_stage = BARRIER_PIPELINE_STAGE::TRANSFER;
-	image_transitions[0].aspects = IMAGE_ASPECT::COLOR;
+	image_transitions[0].image_aspect = IMAGE_ASPECT::COLOR;
 
 	PipelineBarrierInfo pipeline_info{};
-	pipeline_info.image_info_count = _countof(image_transitions);
-	pipeline_info.image_infos = image_transitions;
+	pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo>(image_transitions, 1);
 	Vulkan::PipelineBarriers(a_list, pipeline_info);
 
 	const int2 swapchain_size(static_cast<int>(s_render_inst->render_io.screen_width), static_cast<int>(s_render_inst->render_io.screen_height));
@@ -1424,11 +1416,6 @@ void BB::SetPushConstants(const RCommandList a_list, const RPipelineLayout a_pip
 }
 
 void BB::PipelineBarriers(const RCommandList a_list, const PipelineBarrierInfo& a_barrier_info)
-{
-	Vulkan::PipelineBarriers(a_list, a_barrier_info);
-}
-
-void BB::PipelineBarriers(const RCommandList a_list, const PipelineBarrierInfo2& a_barrier_info)
 {
 	Vulkan::PipelineBarriers(a_list, a_barrier_info);
 }

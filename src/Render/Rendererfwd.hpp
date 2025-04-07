@@ -126,44 +126,6 @@ namespace BB
 		ENUM_SIZE
 	};
 
-	enum class QUEUE_TRANSITION : uint32_t
-	{
-		NO_TRANSITION,
-		GRAPHICS,
-		TRANSFER,
-		COMPUTE,
-
-		ENUM_SIZE
-	};
-
-	enum class BARRIER_PIPELINE_STAGE : uint32_t
-	{
-		TOP_OF_PIPELINE,
-		TRANSFER,
-		VERTEX_INPUT,
-		VERTEX_SHADER,
-		FRAGMENT_TEST,
-		FRAGMENT_SHADER,
-		COLOR_ATTACH_OUTPUT,
-		HOST_READABLE,
-		END_OF_PIPELINE,
-
-		ENUM_SIZE
-	};
-
-	enum class BARRIER_ACCESS_MASK : uint32_t
-	{
-		NONE = 0,
-		TRANSFER_READ,
-		TRANSFER_WRITE,
-		DEPTH_STENCIL_READ_WRITE,
-		SHADER_READ,
-		COLOR_ATTACHMENT_WRITE,
-		HOST_READABLE,
-
-		ENUM_SIZE
-	};
-
 	enum class CULL_MODE : uint32_t
 	{
 		NONE,
@@ -403,14 +365,6 @@ namespace BB
 		uint64_t index_buffer_offset;
 	};
 
-	struct PipelineBarrierGlobalInfo
-	{
-		BARRIER_PIPELINE_STAGE src_stage{};
-		BARRIER_PIPELINE_STAGE dst_stage{};
-		BARRIER_ACCESS_MASK src_mask{};
-		BARRIER_ACCESS_MASK dst_mask{};
-	};
-
 	using ShaderDescriptorLayouts = FixedArray<RDescriptorLayout, SPACE_AMOUNT>;
 	struct CreateShaderEffectInfo
 	{
@@ -425,57 +379,13 @@ namespace BB
 		uint32_t desc_layout_count;
 	};
 
-	struct PipelineBarrierBufferInfo
-	{
-		GPUBuffer buffer{};
-		uint32_t size = 0;
-		uint32_t offset = 0;
-		BARRIER_PIPELINE_STAGE src_stage{};
-		BARRIER_PIPELINE_STAGE dst_stage{};
-		BARRIER_ACCESS_MASK src_mask{};
-		BARRIER_ACCESS_MASK dst_mask{};
-
-		QUEUE_TRANSITION src_queue = QUEUE_TRANSITION::NO_TRANSITION;
-		QUEUE_TRANSITION dst_queue = QUEUE_TRANSITION::NO_TRANSITION;
-	};
-
-	struct PipelineBarrierImageInfo
-	{
-		RImage image{};						// 8
-		IMAGE_LAYOUT old_layout{};			// 12
-		IMAGE_LAYOUT new_layout{};			// 16
-		BARRIER_PIPELINE_STAGE src_stage{};	// 20
-		BARRIER_PIPELINE_STAGE dst_stage{};	// 24
-		BARRIER_ACCESS_MASK src_mask{};		// 28
-		BARRIER_ACCESS_MASK dst_mask{};		// 32
-
-		QUEUE_TRANSITION src_queue{};		// 36
-		QUEUE_TRANSITION dst_queue{};		// 40
-
-		uint32_t base_mip_level = 0;		// 44
-		uint32_t level_count = 0;			// 48
-		uint32_t base_array_layer = 0;		// 52
-		uint32_t layer_count = 0;			// 56
-		IMAGE_ASPECT aspects;				// 60
-	};
-
-	struct PipelineBarrierInfo
-	{
-		uint32_t global_info_count;
-		const PipelineBarrierGlobalInfo* global_infos;
-		uint32_t buffer_info_count;
-		const PipelineBarrierBufferInfo* buffer_infos;
-		uint32_t image_info_count;
-		const PipelineBarrierImageInfo* image_infos;
-	};
-
-	struct PipelineBarrierGlobalInfo2
+	struct PipelineBarrierGlobalInfo
 	{
 		uint32_t todo;
 		// TODO
 	};
 
-	struct PipelineBarrierBufferInfo2
+	struct PipelineBarrierBufferInfo
 	{
 		GPUBuffer buffer{};
 		uint32_t size = 0;
@@ -508,7 +418,7 @@ namespace BB
 		ENUM_SIZE
 	};
 
-	struct PipelineBarrierImageInfo2
+	struct PipelineBarrierImageInfo
 	{
 		RImage image{};						// 8
 		IMAGE_PIPELINE_USAGE prev;		    // 12
@@ -516,15 +426,16 @@ namespace BB
 
 		uint32_t layer_count = 0;			// 20
 		uint32_t level_count = 0;			// 24
-		uint32_t base_array_layer = 0;		// 28
-		uint32_t base_mip_level = 0;		// 32
+		uint16_t base_array_layer = 0;		// 26
+		uint16_t base_mip_level = 0;		// 28
+		IMAGE_ASPECT image_aspect;			// 32
 	};
 
-	struct PipelineBarrierInfo2
+	struct PipelineBarrierInfo
 	{
-		ConstSlice<PipelineBarrierGlobalInfo2> global_barriers;
-		ConstSlice<PipelineBarrierBufferInfo2> buffer_barriers;
-		ConstSlice<PipelineBarrierImageInfo2> image_barriers;
+		ConstSlice<PipelineBarrierGlobalInfo> global_barriers;
+		ConstSlice<PipelineBarrierBufferInfo> buffer_barriers;
+		ConstSlice<PipelineBarrierImageInfo> image_barriers;
 	};
 
 	struct ImageCreateInfo

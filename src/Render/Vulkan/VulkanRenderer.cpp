@@ -518,24 +518,6 @@ struct Vulkan_inst
 		enum_conv.border_colors[static_cast<uint32_t>(SAMPLER_BORDER_COLOR::COLOR_FLOAT_OPAQUE_WHITE)] = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
 		enum_conv.border_colors[static_cast<uint32_t>(SAMPLER_BORDER_COLOR::COLOR_INT_OPAQUE_WHITE)] = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
 
-		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE)] = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
-		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::TRANSFER)] = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::VERTEX_INPUT)] = VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT;
-		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::VERTEX_SHADER)] = VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
-		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::FRAGMENT_TEST)] = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
-		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER)] = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
-		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT)] = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::HOST_READABLE)] = VK_PIPELINE_STAGE_2_HOST_BIT;
-		enum_conv.pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::END_OF_PIPELINE)] = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
-
-		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::NONE)] = VK_ACCESS_2_NONE;
-		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::TRANSFER_READ)] = VK_ACCESS_2_TRANSFER_READ_BIT;
-		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::TRANSFER_WRITE)] = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE)] = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::SHADER_READ)] = VK_ACCESS_2_SHADER_READ_BIT;
-		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE)] = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-		enum_conv.access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::HOST_READABLE)] = VK_ACCESS_2_HOST_READ_BIT;
-
 		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::DEPTH)] = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
 		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::SHADOW_MAP)] = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
 		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::TEXTURE)] = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
@@ -599,8 +581,6 @@ struct Vulkan_inst
 		VkImageViewType image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::ENUM_SIZE)];
 		VkSamplerAddressMode sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::ENUM_SIZE)];
 		VkBorderColor border_colors[static_cast<uint32_t>(SAMPLER_BORDER_COLOR::ENUM_SIZE)];
-		VkPipelineStageFlags2 pipeline_stage_flags[static_cast<uint32_t>(BARRIER_PIPELINE_STAGE::ENUM_SIZE)];
-		VkAccessFlags2 access_flags[static_cast<uint32_t>(BARRIER_ACCESS_MASK::ENUM_SIZE)];
 		VkImageUsageFlags image_usages[static_cast<uint32_t>(IMAGE_USAGE::ENUM_SIZE)];
 		VkCullModeFlags cull_modes[static_cast<uint32_t>(CULL_MODE::ENUM_SIZE)];
 		VkBlendOp blend_op[static_cast<uint32_t>(BLEND_OP::ENUM_SIZE)];
@@ -862,52 +842,6 @@ static inline VkBorderColor SamplerBorderColor(const SAMPLER_BORDER_COLOR a_colo
 	default:
 		BB_ASSERT(false, "Vulkan: SAMPLER_BORDER_COLOR failed to convert to a VkBorderColor.");
 		return VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
-		break;
-	}
-#endif //ENUM_CONVERSATION_BY_ARRAY
-}
-
-static inline VkPipelineStageFlags2 PipelineStage(const BARRIER_PIPELINE_STAGE a_stage)
-{
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.pipeline_stage_flags[static_cast<uint32_t>(a_stage)];
-#else
-	switch (a_stage)
-	{
-	case BARRIER_PIPELINE_STAGE::TOP_OF_PIPELINE:		return VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
-	case BARRIER_PIPELINE_STAGE::TRANSFER:				return VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-	case BARRIER_PIPELINE_STAGE::VERTEX_INPUT:			return VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT;
-	case BARRIER_PIPELINE_STAGE::VERTEX_SHADER:			return VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
-	case BARRIER_PIPELINE_STAGE::FRAGMENT_TEST:			return VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
-	case BARRIER_PIPELINE_STAGE::FRAGMENT_SHADER:		return VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
-	case BARRIER_PIPELINE_STAGE::COLOR_ATTACH_OUTPUT:	return VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-	case BARRIER_PIPELINE_STAGE::HOST_READABLE:			return VK_PIPELINE_STAGE_2_HOST_BIT;
-	case BARRIER_PIPELINE_STAGE::END_OF_PIPELINE:		return VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
-	default:
-		BB_ASSERT(false, "Vulkan: RENDER_PIPELINE_STAGE failed to convert to a VkPipelineStageFlags2.");
-		return VK_PIPELINE_STAGE_2_NONE;
-		break;
-	}
-#endif //ENUM_CONVERSATION_BY_ARRAY
-}
-
-static inline VkAccessFlags2 AccessMask(const BARRIER_ACCESS_MASK a_type)
-{
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.access_flags[static_cast<uint32_t>(a_type)];
-#else
-	switch (a_type)
-	{
-	case BARRIER_ACCESS_MASK::NONE:						return VK_ACCESS_2_NONE;
-	case BARRIER_ACCESS_MASK::TRANSFER_READ:			return VK_ACCESS_2_TRANSFER_READ_BIT;
-	case BARRIER_ACCESS_MASK::TRANSFER_WRITE:			return VK_ACCESS_2_TRANSFER_WRITE_BIT;
-	case BARRIER_ACCESS_MASK::DEPTH_STENCIL_READ_WRITE:	return VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-	case BARRIER_ACCESS_MASK::SHADER_READ:				return VK_ACCESS_2_SHADER_READ_BIT;
-	case BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE:	return VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-	case BARRIER_ACCESS_MASK::COLOR_ATTACHMENT_WRITE:	return VK_ACCESS_2_HOST_READ_BIT;
-	default:
-		BB_ASSERT(false, "Vulkan: RENDER_ACCESS_MASK failed to convert to a VkAccessFlags2.");
-		return VK_ACCESS_2_NONE;
 		break;
 	}
 #endif //ENUM_CONVERSATION_BY_ARRAY
@@ -2192,90 +2126,6 @@ void Vulkan::BlitImage(const RCommandList a_list, const BlitImageInfo& a_info)
 		VK_FILTER_NEAREST);
 }
 
-static inline uint32_t QueueTransitionIndex(const QUEUE_TRANSITION a_Transition)
-{
-	switch (a_Transition)
-	{
-	case QUEUE_TRANSITION::NO_TRANSITION:	return VK_QUEUE_FAMILY_IGNORED;
-	case QUEUE_TRANSITION::GRAPHICS:		return s_vulkan_inst->queue_indices.graphics;
-	case QUEUE_TRANSITION::TRANSFER:		return s_vulkan_inst->queue_indices.transfer;
-	case QUEUE_TRANSITION::COMPUTE:			return s_vulkan_inst->queue_indices.compute;
-	default:
-		BB_ASSERT(false, "Vulkan: queue transition not supported!");
-		return VK_QUEUE_FAMILY_IGNORED;
-	}
-}
-
-void Vulkan::PipelineBarriers(const RCommandList a_list, const PipelineBarrierInfo& a_barrier_info)
-{
-	VkMemoryBarrier2* global_barriers = BBstackAlloc(a_barrier_info.global_info_count, VkMemoryBarrier2);
-	VkBufferMemoryBarrier2* buffer_barriers = BBstackAlloc(a_barrier_info.buffer_info_count, VkBufferMemoryBarrier2);
-	VkImageMemoryBarrier2* image_barriers = BBstackAlloc(a_barrier_info.image_info_count, VkImageMemoryBarrier2);
-
-	for (size_t i = 0; i < a_barrier_info.global_info_count; i++)
-	{
-		const PipelineBarrierGlobalInfo& barrier_info = a_barrier_info.global_infos[i];
-
-		global_barriers[i].sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
-		global_barriers[i].pNext = nullptr;
-		global_barriers[i].srcAccessMask = AccessMask(barrier_info.src_mask);
-		global_barriers[i].dstAccessMask = AccessMask(barrier_info.dst_mask);
-		global_barriers[i].srcStageMask = PipelineStage(barrier_info.src_stage);
-		global_barriers[i].dstStageMask = PipelineStage(barrier_info.dst_stage);
-	}
-
-	for (size_t i = 0; i < a_barrier_info.buffer_info_count; i++)
-	{
-		const PipelineBarrierBufferInfo& barrier_info = a_barrier_info.buffer_infos[i];
-
-		buffer_barriers[i].sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
-		buffer_barriers[i].pNext = nullptr;
-		buffer_barriers[i].srcAccessMask = AccessMask(barrier_info.src_mask);
-		buffer_barriers[i].dstAccessMask = AccessMask(barrier_info.dst_mask);
-		buffer_barriers[i].srcStageMask = PipelineStage(barrier_info.src_stage);
-		buffer_barriers[i].dstStageMask = PipelineStage(barrier_info.dst_stage);
-		buffer_barriers[i].srcQueueFamilyIndex = QueueTransitionIndex(barrier_info.src_queue);
-		buffer_barriers[i].dstQueueFamilyIndex = QueueTransitionIndex(barrier_info.dst_queue);
-		buffer_barriers[i].buffer = reinterpret_cast<VkBuffer>(barrier_info.buffer.handle);
-		buffer_barriers[i].offset = barrier_info.offset;
-		buffer_barriers[i].size = barrier_info.size;
-	}
-
-	for (size_t i = 0; i < a_barrier_info.image_info_count; i++)
-	{
-		const PipelineBarrierImageInfo& barrier_info = a_barrier_info.image_infos[i];
-
-		image_barriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-		image_barriers[i].pNext = nullptr;
-		image_barriers[i].srcAccessMask = AccessMask(barrier_info.src_mask);
-		image_barriers[i].dstAccessMask = AccessMask(barrier_info.dst_mask);
-		image_barriers[i].srcStageMask = PipelineStage(barrier_info.src_stage);
-		image_barriers[i].dstStageMask = PipelineStage(barrier_info.dst_stage);
-		//if we do no transition on the source queue. Then set it all to false.
-		image_barriers[i].srcQueueFamilyIndex = QueueTransitionIndex(barrier_info.src_queue);
-		image_barriers[i].dstQueueFamilyIndex = QueueTransitionIndex(barrier_info.dst_queue);
-		image_barriers[i].oldLayout = ImageLayout(barrier_info.old_layout);
-		image_barriers[i].newLayout = ImageLayout(barrier_info.new_layout);
-		image_barriers[i].image = reinterpret_cast<VkImage>(barrier_info.image.handle);
-		image_barriers[i].subresourceRange.aspectMask = ImageAspect(barrier_info.aspects);
-		image_barriers[i].subresourceRange.baseMipLevel = barrier_info.base_mip_level;
-		image_barriers[i].subresourceRange.levelCount = barrier_info.level_count;
-		image_barriers[i].subresourceRange.baseArrayLayer = barrier_info.base_array_layer;
-		image_barriers[i].subresourceRange.layerCount = barrier_info.layer_count;
-	}
-
-	VkDependencyInfo dependency_info{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
-	dependency_info.memoryBarrierCount = a_barrier_info.global_info_count;
-	dependency_info.pMemoryBarriers = global_barriers;
-	dependency_info.bufferMemoryBarrierCount = a_barrier_info.buffer_info_count;
-	dependency_info.pBufferMemoryBarriers = buffer_barriers;
-	dependency_info.imageMemoryBarrierCount = a_barrier_info.image_info_count;
-	dependency_info.pImageMemoryBarriers = image_barriers;
-
-	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
-	vkCmdPipelineBarrier2(cmd_buffer, &dependency_info);
-}
-
 static void _PipelineBarrierFillStages(const IMAGE_PIPELINE_USAGE a_usage, VkPipelineStageFlags2& a_stage_flags, VkAccessFlags2& a_access_flags, VkImageLayout& a_image_layout)
 {
 	switch (a_usage)
@@ -2352,7 +2202,7 @@ static void _PipelineBarrierFillStages(const IMAGE_PIPELINE_USAGE a_usage, VkPip
 	}
 }
 
-void Vulkan::PipelineBarriers(const RCommandList a_list, const PipelineBarrierInfo2& a_barriers)
+void Vulkan::PipelineBarriers(const RCommandList a_list, const PipelineBarrierInfo& a_barriers)
 {
 	VkMemoryBarrier2* global_barriers = BBstackAlloc(a_barriers.global_barriers.size(), VkMemoryBarrier2);
 	VkBufferMemoryBarrier2* buffer_barriers = BBstackAlloc(a_barriers.buffer_barriers.size(), VkBufferMemoryBarrier2);
@@ -2370,7 +2220,7 @@ void Vulkan::PipelineBarriers(const RCommandList a_list, const PipelineBarrierIn
 
 	for (size_t i = 0; i < a_barriers.image_barriers.size(); i++)
 	{
-		const PipelineBarrierImageInfo2& barrier_info = a_barriers.image_barriers[i];
+		const PipelineBarrierImageInfo& barrier_info = a_barriers.image_barriers[i];
 		VkImageMemoryBarrier2& wr_b = image_barriers[i];
 
 		wr_b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
@@ -2378,11 +2228,7 @@ void Vulkan::PipelineBarriers(const RCommandList a_list, const PipelineBarrierIn
 		wr_b.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		wr_b.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		wr_b.image = reinterpret_cast<VkImage>(barrier_info.image.handle);
-		if (barrier_info.prev == IMAGE_PIPELINE_USAGE::RO_DEPTH || barrier_info.prev == IMAGE_PIPELINE_USAGE::RT_DEPTH ||
-			barrier_info.next == IMAGE_PIPELINE_USAGE::RO_DEPTH || barrier_info.next == IMAGE_PIPELINE_USAGE::RT_DEPTH)
-			wr_b.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-		else
-			wr_b.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		wr_b.subresourceRange.aspectMask = ImageAspect(barrier_info.image_aspect);
 		wr_b.subresourceRange.baseMipLevel = barrier_info.base_mip_level;
 		wr_b.subresourceRange.levelCount = barrier_info.level_count;
 		wr_b.subresourceRange.baseArrayLayer = barrier_info.base_array_layer;
