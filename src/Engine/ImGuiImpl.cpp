@@ -317,7 +317,7 @@ void BB::ImRenderFrame(const RCommandList a_cmd_list, const RImageView render_ta
 	RenderingAttachmentColor color_attach{};
 	color_attach.load_color = !a_clear_image;
 	color_attach.store_color = true;
-	color_attach.image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+	color_attach.image_layout = IMAGE_LAYOUT::RT_COLOR;
 	color_attach.image_view = render_target_view;
 
 	StartRenderingInfo imgui_pass_start{};

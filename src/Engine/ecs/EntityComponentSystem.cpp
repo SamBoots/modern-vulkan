@@ -111,7 +111,7 @@ RenderSystemFrame EntityComponentSystem::RenderSystemUpdate(const RCommandList a
 	m_render_system.UpdateRenderSystem(m_per_frame[m_current_frame].arena, a_list, a_draw_area_size, m_world_matrices, m_render_mesh_pool, m_light_pool.GetAllComponents());
 	BB_END_PROFILE(rendering_name);
 
-	return m_render_system.EndFrame(a_list, IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL);
+	return m_render_system.EndFrame(a_list, IMAGE_LAYOUT::RT_COLOR);
 }
 
 float3 EntityComponentSystem::Translate(const ECSEntity a_entity, const float3 a_translate)

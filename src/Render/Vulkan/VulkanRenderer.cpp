@@ -465,16 +465,6 @@ struct Vulkan_inst
 		enum_conv.descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::IMAGE)] = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
 		enum_conv.descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::SAMPLER)] = VK_DESCRIPTOR_TYPE_SAMPLER;
 
-		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::UNDEFINED)] = VK_IMAGE_LAYOUT_UNDEFINED;
-		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::GENERAL)] = VK_IMAGE_LAYOUT_GENERAL;
-		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::TRANSFER_SRC)] = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::TRANSFER_DST)] = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL)] = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT)] = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::DEPTH_STENCIL_READ_ONLY)] = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::SHADER_READ_ONLY)] = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		enum_conv.image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::PRESENT)] = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
 		enum_conv.image_aspects[static_cast<uint32_t>(IMAGE_ASPECT::COLOR)] = VK_IMAGE_ASPECT_COLOR_BIT;
 		enum_conv.image_aspects[static_cast<uint32_t>(IMAGE_ASPECT::DEPTH)] = VK_IMAGE_ASPECT_DEPTH_BIT;
 		enum_conv.image_aspects[static_cast<uint32_t>(IMAGE_ASPECT::DEPTH_STENCIL)] = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
@@ -574,7 +564,6 @@ struct Vulkan_inst
 	struct EnumConversions
 	{
 		VkDescriptorType descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::ENUM_SIZE)];
-		VkImageLayout image_layouts[static_cast<uint32_t>(IMAGE_LAYOUT::ENUM_SIZE)];
 		VkImageAspectFlags image_aspects[static_cast<uint32_t>(IMAGE_ASPECT::ENUM_SIZE)];
 		VkFormat image_formats[static_cast<uint32_t>(IMAGE_FORMAT::ENUM_SIZE)];
 		VkImageType image_types[static_cast<uint32_t>(IMAGE_TYPE::ENUM_SIZE)];
@@ -724,25 +713,25 @@ static inline VkImageAspectFlags ImageAspect(const IMAGE_ASPECT a_aspects)
 
 static inline VkImageLayout ImageLayout(const IMAGE_LAYOUT a_image_layout)
 {
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.image_layouts[static_cast<uint32_t>(a_image_layout)];
-#else
 	switch (a_image_layout)
 	{
-	case IMAGE_LAYOUT::UNDEFINED:				return VK_IMAGE_LAYOUT_UNDEFINED;
-	case IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL:return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-	case IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT:return VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-	case IMAGE_LAYOUT::GENERAL:					return VK_IMAGE_LAYOUT_GENERAL;
-	case IMAGE_LAYOUT::TRANSFER_SRC:			return VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-	case IMAGE_LAYOUT::TRANSFER_DST:			return VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-	case IMAGE_LAYOUT::SHADER_READ_ONLY:		return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-	case IMAGE_LAYOUT::PRESENT:					return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+	case IMAGE_LAYOUT::NONE:        return VK_IMAGE_LAYOUT_UNDEFINED;
+	case IMAGE_LAYOUT::RO_GEOMETRY: return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	case IMAGE_LAYOUT::RO_FRAGMENT: return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	case IMAGE_LAYOUT::RO_COMPUTE:  return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+	case IMAGE_LAYOUT::RW_GEOMETRY: return VK_IMAGE_LAYOUT_GENERAL;
+	case IMAGE_LAYOUT::RW_FRAGMENT: return VK_IMAGE_LAYOUT_GENERAL;
+	case IMAGE_LAYOUT::RW_COMPUTE:  return VK_IMAGE_LAYOUT_GENERAL;
+	case IMAGE_LAYOUT::RO_DEPTH:    return VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+	case IMAGE_LAYOUT::RT_DEPTH:    return VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	case IMAGE_LAYOUT::RT_COLOR:    return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	case IMAGE_LAYOUT::COPY_SRC:    return VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+	case IMAGE_LAYOUT::COPY_DST:    return VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+	case IMAGE_LAYOUT::PRESENT:     return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 	default:
 		BB_ASSERT(false, "Vulkan: IMAGE_LAYOUT failed to convert to a VkImageLayout.");
 		return VK_IMAGE_LAYOUT_UNDEFINED;
-		break;
 	}
-#endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
 static inline VkFormat ImageFormats(const IMAGE_FORMAT a_image_format)
@@ -2126,72 +2115,72 @@ void Vulkan::BlitImage(const RCommandList a_list, const BlitImageInfo& a_info)
 		VK_FILTER_NEAREST);
 }
 
-static void _PipelineBarrierFillStages(const IMAGE_PIPELINE_USAGE a_usage, VkPipelineStageFlags2& a_stage_flags, VkAccessFlags2& a_access_flags, VkImageLayout& a_image_layout)
+static void _PipelineBarrierFillStages(const IMAGE_LAYOUT a_usage, VkPipelineStageFlags2& a_stage_flags, VkAccessFlags2& a_access_flags, VkImageLayout& a_image_layout)
 {
 	switch (a_usage)
 	{
-	case IMAGE_PIPELINE_USAGE::NONE:
+	case IMAGE_LAYOUT::NONE:
 		a_stage_flags = VK_PIPELINE_STAGE_2_NONE;
 		a_access_flags = VK_ACCESS_2_NONE;
 		a_image_layout = VK_IMAGE_LAYOUT_UNDEFINED;
 		break;
-	case IMAGE_PIPELINE_USAGE::RO_GEOMETRY:
+	case IMAGE_LAYOUT::RO_GEOMETRY:
 		a_stage_flags = VK_PIPELINE_STAGE_2_GEOMETRY_SHADER_BIT | VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
 		a_access_flags = VK_ACCESS_2_SHADER_READ_BIT;
 		a_image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		break;
-	case IMAGE_PIPELINE_USAGE::RO_FRAGMENT:
+	case IMAGE_LAYOUT::RO_FRAGMENT:
 		a_stage_flags = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
 		a_access_flags = VK_ACCESS_2_SHADER_READ_BIT;
 		a_image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		break;
-	case IMAGE_PIPELINE_USAGE::RO_COMPUTE:
+	case IMAGE_LAYOUT::RO_COMPUTE:
 		a_stage_flags = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
 		a_access_flags = VK_ACCESS_2_SHADER_READ_BIT;
 		a_access_flags = VK_IMAGE_ASPECT_COLOR_BIT;
 		a_image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		break;
-	case IMAGE_PIPELINE_USAGE::RW_GEOMETRY:
+	case IMAGE_LAYOUT::RW_GEOMETRY:
 		a_stage_flags = VK_PIPELINE_STAGE_2_GEOMETRY_SHADER_BIT | VK_PIPELINE_STAGE_2_VERTEX_SHADER_BIT;
 		a_access_flags = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
 		a_image_layout = VK_IMAGE_LAYOUT_GENERAL;
 		break;
-	case IMAGE_PIPELINE_USAGE::RW_FRAGMENT:
+	case IMAGE_LAYOUT::RW_FRAGMENT:
 		a_stage_flags = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
 		a_access_flags = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
 		a_image_layout = VK_IMAGE_LAYOUT_GENERAL;
 		break;
-	case IMAGE_PIPELINE_USAGE::RW_COMPUTE:
+	case IMAGE_LAYOUT::RW_COMPUTE:
 		a_stage_flags = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
 		a_access_flags = VK_ACCESS_2_SHADER_READ_BIT | VK_ACCESS_2_SHADER_WRITE_BIT;
 		a_image_layout = VK_IMAGE_LAYOUT_GENERAL;
 		break;
-	case IMAGE_PIPELINE_USAGE::RO_DEPTH:
+	case IMAGE_LAYOUT::RO_DEPTH:
 		a_stage_flags = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT;
 		a_access_flags = VK_ACCESS_2_SHADER_READ_BIT;
 		a_image_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
 		break;
-	case IMAGE_PIPELINE_USAGE::RT_DEPTH:
+	case IMAGE_LAYOUT::RT_DEPTH:
 		a_stage_flags = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
 		a_access_flags = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 		a_image_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 		break;
-	case IMAGE_PIPELINE_USAGE::RT_COLOR:
+	case IMAGE_LAYOUT::RT_COLOR:
 		a_stage_flags = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
 		a_access_flags = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT_KHR;
 		a_image_layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		break;
-	case IMAGE_PIPELINE_USAGE::COPY_SRC:
+	case IMAGE_LAYOUT::COPY_SRC:
 		a_stage_flags = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
 		a_access_flags = VK_ACCESS_2_TRANSFER_READ_BIT;
 		a_image_layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 		break;
-	case IMAGE_PIPELINE_USAGE::COPY_DST:
+	case IMAGE_LAYOUT::COPY_DST:
 		a_stage_flags = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
 		a_access_flags = VK_ACCESS_2_TRANSFER_WRITE_BIT;
 		a_image_layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 		break;
-	case IMAGE_PIPELINE_USAGE::PRESENT:
+	case IMAGE_LAYOUT::PRESENT:
 		a_stage_flags = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
 		a_access_flags = VK_ACCESS_2_NONE;
 		a_image_layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;

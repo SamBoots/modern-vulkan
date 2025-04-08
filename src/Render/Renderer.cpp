@@ -120,7 +120,7 @@ public:
 		write_info.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
 		write_info.descriptor_index = descriptor_index;
 		write_info.view = m_views[descriptor_index];
-		write_info.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+		write_info.layout = IMAGE_LAYOUT::RO_FRAGMENT;
 		write_info.allocation = a_allocation;
 		write_info.descriptor_layout = a_global_layout;
 
@@ -488,7 +488,7 @@ void GPUTextureManager::SetAllTextures(const RDescriptorIndex a_descriptor_index
 	image_write.descriptor_layout = a_global_layout;
 	image_write.allocation = a_allocation;
 	image_write.view = GetImageView(a_descriptor_index);
-	image_write.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+	image_write.layout = IMAGE_LAYOUT::RO_FRAGMENT;
 	image_write.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
 	for (uint32_t i = 0; i < MAX_TEXTURES; i++)
 	{
@@ -509,7 +509,7 @@ void GPUTextureManager::FreeImageView(const RDescriptorIndex a_descriptor_index,
 	write_info.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
 	write_info.descriptor_index = a_descriptor_index.handle;
 	write_info.view = GetImageView(s_render_inst->debug_descriptor_index);
-	write_info.layout = IMAGE_LAYOUT::SHADER_READ_ONLY;
+	write_info.layout = IMAGE_LAYOUT::RO_FRAGMENT;
 	write_info.allocation = a_allocation;
 	write_info.descriptor_layout = a_global_layout;
 
@@ -649,8 +649,8 @@ static GPUBuffer UploadStartupResources()
 
 		{
 			PipelineBarrierImageInfo def_to_up;
-			def_to_up.prev = IMAGE_PIPELINE_USAGE::NONE;
-			def_to_up.next = IMAGE_PIPELINE_USAGE::COPY_DST;
+			def_to_up.prev = IMAGE_LAYOUT::NONE;
+			def_to_up.next = IMAGE_LAYOUT::COPY_DST;
 			def_to_up.image = s_render_inst->debug_texture;
 			def_to_up.layer_count = 1;
 			def_to_up.level_count = 1;
@@ -677,8 +677,8 @@ static GPUBuffer UploadStartupResources()
 
 		{
 			PipelineBarrierImageInfo upl_to_shad;
-			upl_to_shad.prev = IMAGE_PIPELINE_USAGE::COPY_DST;
-			upl_to_shad.next = IMAGE_PIPELINE_USAGE::RO_FRAGMENT;
+			upl_to_shad.prev = IMAGE_LAYOUT::COPY_DST;
+			upl_to_shad.next = IMAGE_LAYOUT::RO_FRAGMENT;
 			upl_to_shad.image = s_render_inst->debug_texture;
 			upl_to_shad.layer_count = 1;
 			upl_to_shad.level_count = 1;
@@ -918,12 +918,12 @@ void BB::RenderStartFrame(const RCommandList a_list, const RenderStartFrameInfo&
 
 	{
 		PipelineBarrierImageInfo image_transitions[1]{};
-		image_transitions[0].prev = IMAGE_PIPELINE_USAGE::NONE;
-		image_transitions[0].next = IMAGE_PIPELINE_USAGE::RT_COLOR;
+		image_transitions[0].prev = IMAGE_LAYOUT::NONE;
+		image_transitions[0].next = IMAGE_LAYOUT::RT_COLOR;
 		image_transitions[0].image = a_render_target;
 		image_transitions[0].layer_count = 1;
 		image_transitions[0].level_count = 1;
-		image_transitions[0].base_array_layer = frame_index;
+		image_transitions[0].base_array_layer = static_cast<uint16_t>(frame_index);
 		image_transitions[0].base_mip_level = 0;
 		image_transitions[0].image_aspect = IMAGE_ASPECT::COLOR;
 
@@ -952,12 +952,12 @@ PRESENT_IMAGE_RESULT BB::RenderEndFrame(const RCommandList a_list, const RImage 
 	BB_ASSERT(s_render_inst->render_io.frame_started == true, "did not call RenderStartFrame before a RenderEndFrame");
 
 	PipelineBarrierImageInfo image_transitions[1]{};
-	image_transitions[0].prev = IMAGE_PIPELINE_USAGE::RT_COLOR;
-	image_transitions[0].next = IMAGE_PIPELINE_USAGE::COPY_SRC;
+	image_transitions[0].prev = IMAGE_LAYOUT::RT_COLOR;
+	image_transitions[0].next = IMAGE_LAYOUT::COPY_SRC;
 	image_transitions[0].image = a_render_target;
 	image_transitions[0].layer_count = 1;
 	image_transitions[0].level_count = 1;
-	image_transitions[0].base_array_layer = a_render_target_layer;
+	image_transitions[0].base_array_layer = static_cast<uint16_t>(a_render_target_layer);
 	image_transitions[0].base_mip_level = 0;
 	image_transitions[0].image_aspect = IMAGE_ASPECT::COLOR;
 

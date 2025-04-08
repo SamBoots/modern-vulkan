@@ -273,12 +273,12 @@ void RenderSystem::StartFrame(const RCommandList a_list)
 	pfd.fence_value = m_next_fence_value;
 
 	PipelineBarrierImageInfo render_target_transition;
-	render_target_transition.prev = IMAGE_PIPELINE_USAGE::NONE;
-	render_target_transition.next = IMAGE_PIPELINE_USAGE::RT_COLOR;
+	render_target_transition.prev = IMAGE_LAYOUT::NONE;
+	render_target_transition.next = IMAGE_LAYOUT::RT_COLOR;
 	render_target_transition.image = m_render_target.image;
 	render_target_transition.layer_count = 1;
 	render_target_transition.level_count = 1;
-	render_target_transition.base_array_layer = m_current_frame;
+	render_target_transition.base_array_layer = static_cast<uint16_t>(m_current_frame);
 	render_target_transition.base_mip_level = 0;
 	render_target_transition.image_aspect = IMAGE_ASPECT::COLOR;
 
@@ -290,12 +290,12 @@ void RenderSystem::StartFrame(const RCommandList a_list)
 RenderSystemFrame RenderSystem::EndFrame(const RCommandList a_list, const IMAGE_LAYOUT a_current_layout)
 {
 	PipelineBarrierImageInfo render_target_transition;
-	render_target_transition.prev = IMAGE_PIPELINE_USAGE::RT_COLOR;
-	render_target_transition.next = IMAGE_PIPELINE_USAGE::RO_FRAGMENT;
+	render_target_transition.prev = a_current_layout;
+	render_target_transition.next = IMAGE_LAYOUT::RO_FRAGMENT;
 	render_target_transition.image = m_render_target.image;
 	render_target_transition.layer_count = 1;
 	render_target_transition.level_count = 1;
-	render_target_transition.base_array_layer = m_current_frame;
+	render_target_transition.base_array_layer = static_cast<uint16_t>(m_current_frame);
 	render_target_transition.base_mip_level = 0;
 	render_target_transition.image_aspect = IMAGE_ASPECT::COLOR;
 
@@ -510,8 +510,8 @@ void RenderSystem::UpdateConstantBuffer(PerFrame& a_pfd, const RCommandList a_li
 			a_pfd.bloom.descriptor_index_1 = CreateImageView(bloom_img_view_info);
 
 			FixedArray<PipelineBarrierImageInfo, 2> bloom_initial_stages;
-			bloom_initial_stages[0].prev = IMAGE_PIPELINE_USAGE::NONE;
-			bloom_initial_stages[0].next = IMAGE_PIPELINE_USAGE::RT_COLOR;
+			bloom_initial_stages[0].prev = IMAGE_LAYOUT::NONE;
+			bloom_initial_stages[0].next = IMAGE_LAYOUT::RT_COLOR;
 			bloom_initial_stages[0].image = a_pfd.bloom.image;
 			bloom_initial_stages[0].layer_count = 1;
 			bloom_initial_stages[0].level_count = 1;
@@ -519,8 +519,8 @@ void RenderSystem::UpdateConstantBuffer(PerFrame& a_pfd, const RCommandList a_li
 			bloom_initial_stages[0].base_mip_level = 0;
 			bloom_initial_stages[0].image_aspect = IMAGE_ASPECT::COLOR;
 
-			bloom_initial_stages[1].prev = IMAGE_PIPELINE_USAGE::NONE;
-			bloom_initial_stages[1].next = IMAGE_PIPELINE_USAGE::RO_FRAGMENT;
+			bloom_initial_stages[1].prev = IMAGE_LAYOUT::NONE;
+			bloom_initial_stages[1].next = IMAGE_LAYOUT::RO_FRAGMENT;
 			bloom_initial_stages[1].image = a_pfd.bloom.image;
 			bloom_initial_stages[1].layer_count = 1;
 			bloom_initial_stages[1].level_count = 1;
@@ -556,7 +556,7 @@ void RenderSystem::SkyboxPass(const PerFrame& a_pfd, const RCommandList a_list, 
 	RenderingAttachmentColor color_attach;
 	color_attach.load_color = false;
 	color_attach.store_color = true;
-	color_attach.image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+	color_attach.image_layout = IMAGE_LAYOUT::RT_COLOR;
 	color_attach.image_view = GetImageView(a_pfd.render_target_view);
 
 	StartRenderingInfo start_rendering_info;
@@ -707,8 +707,8 @@ void RenderSystem::ShadowMapPass(const PerFrame& a_pfd, const RCommandList a_lis
 
 	
 	PipelineBarrierImageInfo shadow_map_write_transition = {};
-	shadow_map_write_transition.prev = IMAGE_PIPELINE_USAGE::NONE;
-	shadow_map_write_transition.next = IMAGE_PIPELINE_USAGE::RT_DEPTH;
+	shadow_map_write_transition.prev = IMAGE_LAYOUT::NONE;
+	shadow_map_write_transition.next = IMAGE_LAYOUT::RT_DEPTH;
 	shadow_map_write_transition.image = a_pfd.shadow_map.image;
 	shadow_map_write_transition.layer_count = shadow_map_count;
 	shadow_map_write_transition.level_count = 1;
@@ -723,7 +723,7 @@ void RenderSystem::ShadowMapPass(const PerFrame& a_pfd, const RCommandList a_lis
 	RenderingAttachmentDepth depth_attach{};
 	depth_attach.load_depth = false;
 	depth_attach.store_depth = true;
-	depth_attach.image_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
+	depth_attach.image_layout = IMAGE_LAYOUT::RT_DEPTH;
 
 	StartRenderingInfo rendering_info;
 	rendering_info.color_attachments = {};	// null
@@ -751,7 +751,7 @@ void RenderSystem::ShadowMapPass(const PerFrame& a_pfd, const RCommandList a_lis
 		ClearDepthImageInfo depth_clear;
 		depth_clear.image = a_pfd.shadow_map.image;
 		depth_clear.clear_depth = 1;
-		depth_clear.layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
+		depth_clear.layout = IMAGE_LAYOUT::RT_DEPTH;
 		depth_clear.depth_aspects = IMAGE_ASPECT::DEPTH;
 		depth_clear.layer_count = shadow_map_count;
 		depth_clear.base_array_layer = 0;
@@ -793,8 +793,8 @@ void RenderSystem::ShadowMapPass(const PerFrame& a_pfd, const RCommandList a_lis
 	}
 
 	PipelineBarrierImageInfo shadow_map_read_transition = {};
-	shadow_map_read_transition.prev = IMAGE_PIPELINE_USAGE::RT_DEPTH;
-	shadow_map_read_transition.next = IMAGE_PIPELINE_USAGE::RO_DEPTH;
+	shadow_map_read_transition.prev = IMAGE_LAYOUT::RT_DEPTH;
+	shadow_map_read_transition.next = IMAGE_LAYOUT::RO_DEPTH;
 	shadow_map_read_transition.image = a_pfd.shadow_map.image;
 	shadow_map_read_transition.layer_count = shadow_map_count;
 	shadow_map_read_transition.level_count = 1;
@@ -810,8 +810,8 @@ void RenderSystem::ShadowMapPass(const PerFrame& a_pfd, const RCommandList a_lis
 void RenderSystem::GeometryPass(const PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size, const DrawList& a_draw_list)
 {
 	PipelineBarrierImageInfo image_transitions[1]{};
-	image_transitions[0].prev = IMAGE_PIPELINE_USAGE::NONE;
-	image_transitions[0].next =IMAGE_PIPELINE_USAGE::RT_DEPTH;
+	image_transitions[0].prev = IMAGE_LAYOUT::NONE;
+	image_transitions[0].next =IMAGE_LAYOUT::RT_DEPTH;
 	image_transitions[0].image = a_pfd.depth_image;
 	image_transitions[0].layer_count = 1;
 	image_transitions[0].level_count = 1;
@@ -826,19 +826,19 @@ void RenderSystem::GeometryPass(const PerFrame& a_pfd, const RCommandList a_list
 	FixedArray<RenderingAttachmentColor, 2> color_attachs;
 	color_attachs[0].load_color = true;
 	color_attachs[0].store_color = true;
-	color_attachs[0].image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+	color_attachs[0].image_layout = IMAGE_LAYOUT::RT_COLOR;
 	color_attachs[0].image_view = GetImageView(a_pfd.render_target_view);
 
 	color_attachs[1].load_color = false;
 	color_attachs[1].store_color = true;
-	color_attachs[1].image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+	color_attachs[1].image_layout = IMAGE_LAYOUT::RT_COLOR;
 	color_attachs[1].image_view = GetImageView(a_pfd.bloom.descriptor_index_0);
 	const uint32_t color_attach_count = 2;
 
 	RenderingAttachmentDepth depth_attach{};
 	depth_attach.load_depth = false;
 	depth_attach.store_depth = true;
-	depth_attach.image_layout = IMAGE_LAYOUT::DEPTH_STENCIL_ATTACHMENT;
+	depth_attach.image_layout = IMAGE_LAYOUT::RT_DEPTH;
 	depth_attach.image_view = a_pfd.depth_image_view;
 
 	StartRenderingInfo rendering_info;
@@ -917,8 +917,8 @@ void RenderSystem::BloomPass(const PerFrame& a_pfd, const RCommandList a_list, c
 
 	FixedArray<PipelineBarrierImageInfo, 2> transitions{};
 	PipelineBarrierImageInfo& to_shader_read = transitions[0];
-	to_shader_read.prev = IMAGE_PIPELINE_USAGE::RT_COLOR;
-	to_shader_read.next = IMAGE_PIPELINE_USAGE::RO_FRAGMENT;
+	to_shader_read.prev = IMAGE_LAYOUT::RT_COLOR;
+	to_shader_read.next = IMAGE_LAYOUT::RO_FRAGMENT;
 	to_shader_read.image = a_pfd.bloom.image;
 	to_shader_read.layer_count = 1;
 	to_shader_read.level_count = 1;
@@ -927,8 +927,8 @@ void RenderSystem::BloomPass(const PerFrame& a_pfd, const RCommandList a_list, c
 	to_shader_read.image_aspect = IMAGE_ASPECT::COLOR;
 
 	PipelineBarrierImageInfo& to_render_target = transitions[1];
-	to_render_target.prev = IMAGE_PIPELINE_USAGE::RO_FRAGMENT;
-	to_render_target.next = IMAGE_PIPELINE_USAGE::RT_COLOR;
+	to_render_target.prev = IMAGE_LAYOUT::RO_FRAGMENT;
+	to_render_target.next = IMAGE_LAYOUT::RT_COLOR;
 	to_render_target.image = a_pfd.bloom.image;
 	to_render_target.layer_count = 1;
 	to_render_target.level_count = 1;
@@ -948,7 +948,7 @@ void RenderSystem::BloomPass(const PerFrame& a_pfd, const RCommandList a_list, c
 		RenderingAttachmentColor color_attach;
 		color_attach.load_color = false;
 		color_attach.store_color = true;
-		color_attach.image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+		color_attach.image_layout = IMAGE_LAYOUT::RT_COLOR;
 		color_attach.image_view = GetImageView(a_pfd.bloom.descriptor_index_1);
 		StartRenderingInfo rendering_info;
 		rendering_info.color_attachments = Slice(&color_attach, 1);
@@ -991,7 +991,7 @@ void RenderSystem::BloomPass(const PerFrame& a_pfd, const RCommandList a_list, c
 		RenderingAttachmentColor color_attach;
 		color_attach.load_color = true;
 		color_attach.store_color = true;
-		color_attach.image_layout = IMAGE_LAYOUT::COLOR_ATTACHMENT_OPTIMAL;
+		color_attach.image_layout = IMAGE_LAYOUT::RT_COLOR;
 		color_attach.image_view = GetImageView(a_pfd.render_target_view);
 		StartRenderingInfo rendering_info;
 		rendering_info.color_attachments = Slice(&color_attach, 1);

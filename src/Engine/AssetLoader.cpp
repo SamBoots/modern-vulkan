@@ -188,8 +188,8 @@ struct UploadDataTexture
 		RenderCopyBufferToImageInfo write_info;
 		RenderCopyImageToBufferInfo read_info;
 	};
-	IMAGE_PIPELINE_USAGE start;
-	IMAGE_PIPELINE_USAGE end;
+	IMAGE_LAYOUT start;
+	IMAGE_LAYOUT end;
 };
 
 struct GPUUploader
@@ -212,7 +212,7 @@ struct WriteImageInfo
 struct ReadImageInfo
 {
 	ImageInfo image_info;
-	IMAGE_PIPELINE_USAGE layout;
+	IMAGE_LAYOUT layout;
 
 	uint32_t readback_size;
 	GPUBuffer readback;
@@ -336,20 +336,20 @@ static void UploadAndWaitAssets(MemoryArena& a_thread_arena, void*)
 				while (uploader.upload_textures.DeQueue(upload_data) &&
 					index++ < MAX_TEXTURE_UPLOAD_QUEUE)
 				{
-					IMAGE_PIPELINE_USAGE layout;
+					IMAGE_LAYOUT layout;
 					switch (upload_data.upload_type)
 					{
 					case UPLOAD_TEXTURE_TYPE::WRITE:
 						write_infos[write_info_count++] = upload_data.write_info;
 						base_layer = upload_data.write_info.dst_image_info.base_array_layer;
 						layer_count = upload_data.write_info.dst_image_info.layer_count;
-						layout = IMAGE_PIPELINE_USAGE::COPY_DST;
+						layout = IMAGE_LAYOUT::COPY_DST;
 						break;
 					case UPLOAD_TEXTURE_TYPE::READ:
 						read_infos[read_info_count++] = upload_data.read_info;
 						base_layer = upload_data.read_info.src_image_info.base_array_layer;
 						layer_count = upload_data.read_info.src_image_info.layer_count;
-						layout = IMAGE_PIPELINE_USAGE::COPY_SRC;
+						layout = IMAGE_LAYOUT::COPY_SRC;
 						break;
 					default:
 						BB_ASSERT(false, "invalid upload UPLOAD_TEXTURE_TYPE value or unimplemented switch statement");
@@ -359,7 +359,7 @@ static void UploadAndWaitAssets(MemoryArena& a_thread_arena, void*)
 					if (upload_data.start != layout)
 					{
 						PipelineBarrierImageInfo& pi = before_transition[before_trans_count++];
-						pi.prev = IMAGE_PIPELINE_USAGE::NONE;
+						pi.prev = IMAGE_LAYOUT::NONE;
 						pi.next = layout;
 						pi.image = upload_data.image;
 						pi.layer_count = layer_count;
@@ -510,8 +510,8 @@ static GPUFenceValue WriteTexture(MemoryArena& a_temp_arena, const WriteImageInf
 	upload_texture.image = a_write_info.image_info.image;
 	upload_texture.upload_type = UPLOAD_TEXTURE_TYPE::WRITE;
 	upload_texture.write_info = buffer_to_image;
-	upload_texture.start = IMAGE_PIPELINE_USAGE::NONE;
-	upload_texture.end = a_write_info.set_shader_visible ? IMAGE_PIPELINE_USAGE::RO_FRAGMENT : IMAGE_PIPELINE_USAGE::COPY_DST;
+	upload_texture.start = IMAGE_LAYOUT::NONE;
+	upload_texture.end = a_write_info.set_shader_visible ? IMAGE_LAYOUT::RO_FRAGMENT : IMAGE_LAYOUT::COPY_DST;
 	success = uploader.upload_textures.EnQueue(upload_texture);
 	BB_ASSERT(success, "failed to add mesh to upload_textures tasks");
 
@@ -712,7 +712,7 @@ static inline bool IconWriteToDisk(const uint32_t a_icon_index, const PathString
 	read_info.image_info.array_layers = 1;
 	read_info.image_info.base_array_layer = 0;
 	read_info.image_info.mip_level = 0;
-	read_info.layout = IMAGE_PIPELINE_USAGE::COPY_DST;
+	read_info.layout = IMAGE_LAYOUT::COPY_DST;
 	read_info.readback_size = readback_size;
 	read_info.readback = readback;
 	const GPUFenceValue fence_value = ReadTexture(read_info);

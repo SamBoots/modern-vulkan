@@ -99,21 +99,6 @@ namespace BB
 		ENUM_SIZE
 	};
 
-	enum class IMAGE_LAYOUT : uint32_t
-	{
-		UNDEFINED,
-		GENERAL,
-		TRANSFER_SRC,
-		TRANSFER_DST,
-		COLOR_ATTACHMENT_OPTIMAL,
-		DEPTH_STENCIL_ATTACHMENT,
-		DEPTH_STENCIL_READ_ONLY,
-		SHADER_READ_ONLY,
-		PRESENT,
-
-		ENUM_SIZE
-	};
-
 	enum class IMAGE_USAGE : uint32_t
 	{
 		DEPTH,
@@ -132,6 +117,30 @@ namespace BB
 		FRONT,
 		BACK,
 		FRONT_AND_BACK,
+
+		ENUM_SIZE
+	};
+
+	enum class IMAGE_LAYOUT : uint32_t
+	{
+		NONE,
+
+		RO_GEOMETRY,
+		RO_FRAGMENT,
+		RO_COMPUTE,
+
+		RW_GEOMETRY,
+		RW_FRAGMENT,
+		RW_COMPUTE,
+
+		RO_DEPTH,
+		RT_DEPTH,
+		RT_COLOR,
+
+		COPY_SRC,
+		COPY_DST,
+
+		PRESENT,
 
 		ENUM_SIZE
 	};
@@ -394,35 +403,11 @@ namespace BB
 		// todo
 	};
 
-	enum class IMAGE_PIPELINE_USAGE : uint32_t
-	{
-		NONE,
-
-		RO_GEOMETRY,
-		RO_FRAGMENT,
-		RO_COMPUTE,
-
-		RW_GEOMETRY,
-		RW_FRAGMENT,
-		RW_COMPUTE,
-
-		RO_DEPTH,
-		RT_DEPTH,
-		RT_COLOR,
-
-		COPY_SRC,
-		COPY_DST,
-
-		PRESENT,
-
-		ENUM_SIZE
-	};
-
 	struct PipelineBarrierImageInfo
 	{
 		RImage image{};						// 8
-		IMAGE_PIPELINE_USAGE prev;		    // 12
-		IMAGE_PIPELINE_USAGE next;			// 16
+		IMAGE_LAYOUT prev;		    // 12
+		IMAGE_LAYOUT next;			// 16
 
 		uint32_t layer_count = 0;			// 20
 		uint32_t level_count = 0;			// 24
