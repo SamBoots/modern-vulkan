@@ -30,6 +30,7 @@ namespace BB
 	using GPUFenceValue = uint64_t;
 
 	using GPUBuffer = FrameworkHandle<struct GPUBufferTag>;
+	using GPUAddress = uint64_t;
 	using RImage = FrameworkHandle<struct RImageTag>;
 	using RImageView = FrameworkHandle<struct RImageViewTag>;
 
@@ -145,6 +146,18 @@ namespace BB
 		ENUM_SIZE
 	};
 
+	struct RendererCreateInfo
+	{
+		WindowHandle window_handle;
+		const char* app_name;
+		const char* engine_name;
+		uint32_t swapchain_width;
+		uint32_t swapchain_height;
+		float gamma;
+		bool use_raytracing;
+		bool debug;
+	};
+
 	struct RenderingAttachmentDepth
 	{
 		bool load_depth;
@@ -190,6 +203,7 @@ namespace BB
 		UNIFORM,
 		VERTEX,
 		INDEX,
+		RT_ACCELERATION,
 
 		ENUM_SIZE
 	};

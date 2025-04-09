@@ -13,17 +13,6 @@ class RenderQueue;
 
 namespace BB
 {
-	struct RendererCreateInfo
-	{
-		WindowHandle window_handle;
-		const char* app_name;
-		const char* engine_name;
-		uint32_t swapchain_width;
-		uint32_t swapchain_height;
-		bool debug;
-		float gamma;
-	};
-
 	// get one pool per thread
 	class CommandPool : public LinkedListNode<CommandPool>
 	{

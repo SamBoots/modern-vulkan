@@ -598,7 +598,20 @@ struct Vulkan_inst
 		PFN_vkCmdSetColorBlendEquationEXT CmdSetColorBlendEquationEXT;
 		PFN_vkCmdSetAlphaToCoverageEnableEXT CmdSetAlphaToCoverageEnableEXT;
 		PFN_vkCmdSetSampleMaskEXT CmdSetSampleMaskEXT;
+
+		PFN_vkCreateAccelerationStructureKHR CreateAccelerationStructureKHR;
+		PFN_vkDestroyAccelerationStructureKHR DestroyAccelerationStructureKHR;
+		PFN_vkGetAccelerationStructureBuildSizesKHR GetAccelerationStructureBuildSizesKHR;
+		PFN_vkGetAccelerationStructureDeviceAddressKHR GetAccelerationStructureDeviceAddressKHR;
+		PFN_vkCmdBuildAccelerationStructuresKHR CmdBuildAccelerationStructuresKHR;
+		PFN_vkBuildAccelerationStructuresKHR BuildAccelerationStructuresKHR;
+		PFN_vkCmdTraceRaysKHR CmdTraceRaysKHR;
+		PFN_vkGetRayTracingShaderGroupHandlesKHR GetRayTracingShaderGroupHandlesKHR;
+		PFN_vkCreateRayTracingPipelinesKHR CreateRayTracingPipelinesKHR;
 	} pfn;
+
+	bool use_debug;
+	bool use_raytracing;
 };
 
 struct Vulkan_swapchain
@@ -980,10 +993,12 @@ DescriptorAllocation VulkanDescriptorLinearBuffer::AllocateDescriptor(const RDes
 	return allocation;
 }
 
-bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, const char* a_engine_name, const bool a_debug)
+bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const RendererCreateInfo a_create_info)
 {
 	BB_ASSERT(s_vulkan_inst == nullptr, "trying to initialize vulkan while it's already initialized");
 	s_vulkan_inst = ArenaAllocType(a_arena, Vulkan_inst) {};
+	s_vulkan_inst->use_debug = a_create_info.debug;
+	s_vulkan_inst->use_raytracing = a_create_info.use_raytracing;
 
 	//just enable then all, no fallback layer for now lol.
 	const char* instance_extensions[] = {
@@ -993,7 +1008,7 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, cons
 		VK_EXT_DEBUG_UTILS_EXTENSION_NAME
 	};
 
-	const char* device_extensions[] = {
+	constexpr const char* device_extensions[] = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 		VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME,
 		VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
@@ -1005,6 +1020,28 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, cons
 		VK_EXT_SHADER_OBJECT_EXTENSION_NAME
 	};
 
+	constexpr const char* device_raytracing[] = {
+		VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
+		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
+		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME
+	};
+
+	const char* chosen_extensions[_countof(device_extensions) + _countof(device_raytracing)]{};
+	uint32_t extension_count = 0;
+	for (size_t i = 0; i < _countof(device_extensions); i++)
+	{
+		chosen_extensions[i] = device_extensions[i];
+		++extension_count;
+	}
+
+	if (a_create_info.use_raytracing)
+	{
+		chosen_extensions[_countof(device_extensions)] = device_raytracing[0];
+		chosen_extensions[_countof(device_extensions) + 1] = device_raytracing[1];
+		chosen_extensions[_countof(device_extensions) + 2] = device_raytracing[2];
+		extension_count += 3;
+	}
+
 	MemoryArenaScope(a_arena)
 	{
 		//Check if the extensions and layers work.
@@ -1013,12 +1050,12 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, cons
 			"Vulkan: extension(s) not supported.");
 
 		BB_ASSERT(CheckExtensionSupport(a_arena,
-			Slice(device_extensions, _countof(device_extensions))),
+			Slice(chosen_extensions, extension_count)),
 			"Vulkan: extension(s) not supported.");
 
 		VkApplicationInfo app_info{ VK_STRUCTURE_TYPE_APPLICATION_INFO };
-		app_info.pApplicationName = a_app_name;
-		app_info.pEngineName = a_engine_name;
+		app_info.pApplicationName = a_create_info.app_name;
+		app_info.pEngineName = a_create_info.engine_name;
 		app_info.applicationVersion = VK_MAKE_API_VERSION(0, 1, VULKAN_VERSION, 0);
 		app_info.engineVersion = VK_MAKE_API_VERSION(0, 1, VULKAN_VERSION, 0);
 		app_info.apiVersion = VK_MAKE_API_VERSION(0, 1, VULKAN_VERSION, 0);
@@ -1027,7 +1064,7 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, cons
 		instance_create_info.pApplicationInfo = &app_info;
 		VkDebugUtilsMessengerCreateInfoEXT debug_create_info;
 		const char* validation_layer = "VK_LAYER_KHRONOS_validation";
-		if (a_debug)
+		if (a_create_info.debug)
 		{
 			BB_WARNING(CheckValidationLayerSupport(a_arena, Slice(&validation_layer, 1)), "Vulkan: Validation layer(s) not available.", WarningType::MEDIUM);
 			debug_create_info = CreateDebugCallbackCreateInfo();
@@ -1048,7 +1085,7 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, cons
 			&s_vulkan_inst->instance), "Failed to create Vulkan Instance!");
 
 		// create debug messenger
-		if (a_debug)
+		if (a_create_info.debug)
 		{
 			PFN_vkCreateDebugUtilsMessengerEXT debug_msgr_create = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCreateDebugUtilsMessengerEXT"));
 			if (debug_msgr_create != nullptr)
@@ -1076,6 +1113,19 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, cons
 		s_vulkan_inst->pfn.CmdSetAlphaToCoverageEnableEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkCmdSetAlphaToCoverageEnableEXT);
 		s_vulkan_inst->pfn.CmdSetSampleMaskEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkCmdSetSampleMaskEXT);
 
+		if (s_vulkan_inst->use_raytracing)
+		{ 
+			s_vulkan_inst->pfn.CreateAccelerationStructureKHR = VkGetFuncPtr(s_vulkan_inst->instance, vkCreateAccelerationStructureKHR);
+			s_vulkan_inst->pfn.DestroyAccelerationStructureKHR = VkGetFuncPtr(s_vulkan_inst->instance, vkDestroyAccelerationStructureKHR);
+			s_vulkan_inst->pfn.GetAccelerationStructureBuildSizesKHR = VkGetFuncPtr(s_vulkan_inst->instance, vkGetAccelerationStructureBuildSizesKHR);
+			s_vulkan_inst->pfn.GetAccelerationStructureDeviceAddressKHR = VkGetFuncPtr(s_vulkan_inst->instance, vkGetAccelerationStructureDeviceAddressKHR);
+			s_vulkan_inst->pfn.CmdBuildAccelerationStructuresKHR = VkGetFuncPtr(s_vulkan_inst->instance, vkCmdBuildAccelerationStructuresKHR);
+			s_vulkan_inst->pfn.BuildAccelerationStructuresKHR = VkGetFuncPtr(s_vulkan_inst->instance, vkBuildAccelerationStructuresKHR);
+			s_vulkan_inst->pfn.CmdTraceRaysKHR = VkGetFuncPtr(s_vulkan_inst->instance, vkCmdTraceRaysKHR);
+			s_vulkan_inst->pfn.GetRayTracingShaderGroupHandlesKHR = VkGetFuncPtr(s_vulkan_inst->instance, vkGetRayTracingShaderGroupHandlesKHR);
+			s_vulkan_inst->pfn.CreateRayTracingPipelinesKHR = VkGetFuncPtr(s_vulkan_inst->instance, vkCreateRayTracingPipelinesKHR);
+		}
+
 		{	//device & queues
 			s_vulkan_inst->phys_device = FindPhysicalDevice(a_arena, s_vulkan_inst->instance);
 			//do some queue stuff.....
@@ -1085,7 +1135,7 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, cons
 			s_vulkan_inst->device = CreateLogicalDevice(a_arena,
 				s_vulkan_inst->phys_device, 
 				s_vulkan_inst->queue_indices,
-				Slice(device_extensions, _countof(device_extensions)));
+				Slice(chosen_extensions, extension_count));
 		}
 
 		{	//descriptor info & general device properties
@@ -1449,6 +1499,9 @@ const GPUBuffer Vulkan::CreateBuffer(const GPUBufferCreateInfo& a_create_info)
 	case BUFFER_TYPE::INDEX:
 		buffer_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 		break;
+	case BUFFER_TYPE::RT_ACCELERATION:
+		buffer_info.usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+		break;
 	default:
 		BB_ASSERT(false, "unknown buffer type");
 		break;
@@ -1461,7 +1514,7 @@ const GPUBuffer Vulkan::CreateBuffer(const GPUBufferCreateInfo& a_create_info)
 	}
 	else
 		vma_alloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-
+	
 	VkBuffer buffer;
 	VmaAllocation allocation;
 	VKASSERT(vmaCreateBuffer(s_vulkan_inst->vma,
@@ -1483,6 +1536,39 @@ void Vulkan::FreeBuffer(const GPUBuffer a_buffer)
 		allocation);
 
 	s_vulkan_inst->allocation_map.erase(a_buffer.handle);
+}
+
+GPUAddress Vulkan::GetBufferAddress(const GPUBuffer a_buffer)
+{
+	return GetBufferDeviceAddress(s_vulkan_inst->device, reinterpret_cast<VkBuffer>(a_buffer.handle));
+}
+
+struct BLASCreateInfo
+{
+	uint32_t vertex_count;
+	uint32_t vertex_stride;
+	GPUBuffer transform_buffer;
+	GPUAddress transform_address;
+	uint64_t index_offset;
+	uint64_t vertex_offset;
+};
+
+void CreateBLAS(const BLASCreateInfo& a_blas_create_info, const uint64_t a_vertex_device_address, const uint64_t a_index_device_address)
+{
+	VkAccelerationStructureGeometryKHR geometry{};
+	geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+	geometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+	geometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+	geometry.geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
+	geometry.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+	geometry.geometry.triangles.vertexData.deviceAddress = a_vertex_device_address + a_blas_create_info.vertex_offset;
+	geometry.geometry.triangles.maxVertex = a_blas_create_info.vertex_count;
+	geometry.geometry.triangles.vertexStride = a_blas_create_info.vertex_stride;
+	geometry.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
+	geometry.geometry.triangles.indexData.deviceAddress = a_index_device_address + a_blas_create_info.index_offset;
+	geometry.geometry.triangles.transformData.deviceAddress = a_blas_create_info.transform_address;
+
+
 }
 
 const RImage Vulkan::CreateImage(const ImageCreateInfo& a_create_info)
