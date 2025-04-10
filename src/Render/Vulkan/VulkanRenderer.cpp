@@ -1543,32 +1543,111 @@ GPUAddress Vulkan::GetBufferAddress(const GPUBuffer a_buffer)
 	return GetBufferDeviceAddress(s_vulkan_inst->device, reinterpret_cast<VkBuffer>(a_buffer.handle));
 }
 
-struct BLASCreateInfo
+static ConstSlice<VkAccelerationStructureGeometryKHR> CreateGeometryInfo(MemoryArena& a_arena, const ConstSlice<AccelerationStructGeometrySize> a_geometry_sizes, const GPUAddress a_vertex_device_address, const GPUAddress a_index_device_address)
 {
-	uint32_t vertex_count;
-	uint32_t vertex_stride;
-	GPUBuffer transform_buffer;
-	GPUAddress transform_address;
-	uint64_t index_offset;
-	uint64_t vertex_offset;
-};
+	VkAccelerationStructureGeometryKHR* geometry_infos = ArenaAllocArr(a_arena, VkAccelerationStructureGeometryKHR, a_geometry_sizes.size());
 
-void CreateBLAS(const BLASCreateInfo& a_blas_create_info, const uint64_t a_vertex_device_address, const uint64_t a_index_device_address)
+	for (size_t i = 0; i < a_geometry_sizes.size(); i++)
+	{
+		const AccelerationStructGeometrySize& size_info = a_geometry_sizes[i];
+		VkAccelerationStructureGeometryKHR& geo = geometry_infos[i];
+		geo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+		geo.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+		geo.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+		geo.geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
+		geo.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+		geo.geometry.triangles.vertexData.deviceAddress = a_vertex_device_address + size_info.vertex_offset;
+		geo.geometry.triangles.maxVertex = size_info.vertex_count;
+		geo.geometry.triangles.vertexStride = size_info.vertex_stride;
+		geo.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
+		geo.geometry.triangles.indexData.deviceAddress = a_index_device_address + size_info.index_offset;
+		geo.geometry.triangles.transformData.deviceAddress = size_info.transform_address;
+	}
+
+	return ConstSlice<VkAccelerationStructureGeometryKHR>(geometry_infos, a_geometry_sizes.size());
+}
+
+AccelerationStructSizeInfo Vulkan::GetAccelerationStructSizeInfo(MemoryArena& a_temp_arena, const ConstSlice<AccelerationStructGeometrySize> a_geometry_sizes, const ConstSlice<uint32_t> a_primitive_counts, const GPUAddress a_vertex_device_address, const GPUAddress a_index_device_address)
 {
-	VkAccelerationStructureGeometryKHR geometry{};
-	geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
-	geometry.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
-	geometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
-	geometry.geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
-	geometry.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
-	geometry.geometry.triangles.vertexData.deviceAddress = a_vertex_device_address + a_blas_create_info.vertex_offset;
-	geometry.geometry.triangles.maxVertex = a_blas_create_info.vertex_count;
-	geometry.geometry.triangles.vertexStride = a_blas_create_info.vertex_stride;
-	geometry.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
-	geometry.geometry.triangles.indexData.deviceAddress = a_index_device_address + a_blas_create_info.index_offset;
-	geometry.geometry.triangles.transformData.deviceAddress = a_blas_create_info.transform_address;
+	BB_ASSERT(a_geometry_sizes.size() == a_primitive_counts.size(), "geometry and primitive must have the same size");
+	const ConstSlice<VkAccelerationStructureGeometryKHR> geometry_infos = CreateGeometryInfo(a_temp_arena, a_geometry_sizes, a_vertex_device_address, a_index_device_address);
 
+	VkAccelerationStructureBuildGeometryInfoKHR geometry_sizes{};
+	geometry_sizes.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+	geometry_sizes.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+	geometry_sizes.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+	geometry_sizes.geometryCount = static_cast<uint32_t>(geometry_infos.size());
+	geometry_sizes.pGeometries = geometry_infos.data();
 
+	uint32_t primitive_count;
+	VkAccelerationStructureBuildSizesInfoKHR size_info_get{};
+	size_info_get.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
+	vkGetAccelerationStructureBuildSizesKHR(
+		s_vulkan_inst->device,
+		VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+		&geometry_sizes,
+		a_primitive_counts.data(),
+		&size_info_get);
+
+	AccelerationStructSizeInfo size_info;
+	size_info.acceleration_structure_size = static_cast<uint32_t>(size_info_get.accelerationStructureSize);
+	size_info.scratch_build_size = static_cast<uint32_t>(size_info_get.buildScratchSize);
+	size_info.scratch_update_size = static_cast<uint32_t>(size_info_get.updateScratchSize);
+	size_info.primitive_count = primitive_count;
+	return size_info;
+}
+
+RAccelerationStruct Vulkan::CreateAccelerationStruct(const uint32_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset)
+{
+	VkAccelerationStructureKHR acc;
+
+	VkAccelerationStructureCreateInfoKHR create_acc_struct{};
+	create_acc_struct.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
+	create_acc_struct.buffer = reinterpret_cast<VkBuffer>(a_dst_buffer.handle);
+	create_acc_struct.size = a_acceleration_structure_size;
+	create_acc_struct.offset = a_dst_offset;
+	create_acc_struct.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+	VKASSERT(vkCreateAccelerationStructureKHR(s_vulkan_inst->device, &create_acc_struct, nullptr, &acc), 
+		"VULKAN: failed to create acceleration structure");
+
+	return RAccelerationStruct(reinterpret_cast<uintptr_t>(acc));
+}
+
+void Vulkan::BuildAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildAccelerationStructInfo& a_build_info, GPUAddress a_vertex_device_address, GPUAddress a_index_device_address)
+{
+	BB_ASSERT(a_build_info.geometry_sizes.size() == a_build_info.primitive_counts.size(), "geometry and primitive must have the same size");
+	const ConstSlice<VkAccelerationStructureGeometryKHR> geometry_infos = CreateGeometryInfo(a_temp_arena, a_build_info.geometry_sizes, a_vertex_device_address, a_index_device_address);
+	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+
+	VkAccelerationStructureBuildRangeInfoKHR* ranges = ArenaAllocArr(a_temp_arena, VkAccelerationStructureBuildRangeInfoKHR, a_build_info.primitive_counts.size());
+	for (size_t i = 0; i < a_build_info.primitive_counts.size(); i++)
+	{
+		VkAccelerationStructureBuildRangeInfoKHR& range = ranges[i];
+		range.primitiveCount = a_build_info.primitive_counts[i];
+		range.primitiveOffset = 0;
+		range.firstVertex = 0;
+		range.transformOffset = 0;
+	}
+
+	VkAccelerationStructureBuildGeometryInfoKHR accelerationBuildGeometryInfo{};
+	accelerationBuildGeometryInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+	accelerationBuildGeometryInfo.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+	accelerationBuildGeometryInfo.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+	accelerationBuildGeometryInfo.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+	accelerationBuildGeometryInfo.dstAccelerationStructure = reinterpret_cast<VkAccelerationStructureKHR>(a_build_info.acc_struct.handle);
+	accelerationBuildGeometryInfo.geometryCount = static_cast<uint32_t>(geometry_infos.size());
+	accelerationBuildGeometryInfo.pGeometries = geometry_infos.data();
+	accelerationBuildGeometryInfo.scratchData.deviceAddress = a_build_info.scratch_buffer_address;
+
+	VkAccelerationStructureBuildGeometryInfoKHR geometry_sizes{};
+	geometry_sizes.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+	geometry_sizes.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+	geometry_sizes.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+	geometry_sizes.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+	geometry_sizes.geometryCount = static_cast<uint32_t>(geometry_infos.size());
+	geometry_sizes.pGeometries = geometry_infos.data();
+
+	vkCmdBuildAccelerationStructuresKHR(cmd_list, 1, &geometry_sizes, &ranges);
 }
 
 const RImage Vulkan::CreateImage(const ImageCreateInfo& a_create_info)

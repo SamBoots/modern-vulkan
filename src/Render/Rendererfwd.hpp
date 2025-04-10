@@ -33,6 +33,7 @@ namespace BB
 	using GPUAddress = uint64_t;
 	using RImage = FrameworkHandle<struct RImageTag>;
 	using RImageView = FrameworkHandle<struct RImageViewTag>;
+	using RAccelerationStruct = FrameworkHandle<struct RAccelerationStuctTag>;
 
 	using RFence = FrameworkHandle<struct RFenceTag>;
 	

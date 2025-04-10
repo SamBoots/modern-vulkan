@@ -24,6 +24,10 @@ namespace BB
 		void FreeBuffer(const GPUBuffer a_buffer);
 		GPUAddress GetBufferAddress(const GPUBuffer a_buffer);
 
+		AccelerationStructSizeInfo GetAccelerationStructSizeInfo(MemoryArena& a_temp_arena, const ConstSlice<AccelerationStructGeometrySize> a_geometry_sizes, const ConstSlice<uint32_t> a_primitive_counts, const GPUAddress a_vertex_device_address, const GPUAddress a_index_device_address);
+		RAccelerationStruct CreateAccelerationStruct(const uint32_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset);
+		void BuildAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildAccelerationStructInfo& a_build_info, GPUAddress a_vertex_device_address, GPUAddress a_index_device_address);
+
 		const RImage CreateImage(const ImageCreateInfo& a_create_info);
 		void FreeImage(const RImage a_image);
 
