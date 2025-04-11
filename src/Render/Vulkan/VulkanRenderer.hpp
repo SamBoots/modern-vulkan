@@ -24,9 +24,10 @@ namespace BB
 		void FreeBuffer(const GPUBuffer a_buffer);
 		GPUAddress GetBufferAddress(const GPUBuffer a_buffer);
 
-		AccelerationStructSizeInfo GetAccelerationStructSizeInfo(MemoryArena& a_temp_arena, const ConstSlice<AccelerationStructGeometrySize> a_geometry_sizes, const ConstSlice<uint32_t> a_primitive_counts, const GPUAddress a_vertex_device_address, const GPUAddress a_index_device_address);
+		AccelerationStructSizeInfo GetBottomLevelAccelerationStructSizeInfo(MemoryArena& a_temp_arena, const ConstSlice<AccelerationStructGeometrySize> a_geometry_sizes, const ConstSlice<uint32_t> a_primitive_counts, const GPUAddress a_vertex_device_address, const GPUAddress a_index_device_address);
+		AccelerationStructSizeInfo GetTopLevelAccelerationStructSizeInfo(MemoryArena& a_temp_arena, const uint32_t a_instance_count);
 		RAccelerationStruct CreateAccelerationStruct(const uint32_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset);
-		void BuildAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildAccelerationStructInfo& a_build_info, GPUAddress a_vertex_device_address, GPUAddress a_index_device_address);
+		GPUAddress GetAccelerationStructureAddress(const RAccelerationStruct a_acc_struct);
 
 		const RImage CreateImage(const ImageCreateInfo& a_create_info);
 		void FreeImage(const RImage a_image);
@@ -64,6 +65,9 @@ namespace BB
 		void ClearDepthImage(const RCommandList a_list, const ClearDepthImageInfo& a_clear_info);
 		void BlitImage(const RCommandList a_list, const BlitImageInfo& a_info);
 		
+		void BuildBottomLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildAccelerationStructInfo& a_build_info, GPUAddress a_vertex_device_address, GPUAddress a_index_device_address);
+		void TopLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildTopLevelAccelerationStructInfo& a_build_info);
+
 		void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info);
 		void EndRenderPass(const RCommandList a_list);
 		void SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor);

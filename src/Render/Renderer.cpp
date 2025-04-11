@@ -724,7 +724,7 @@ static GPUBuffer UploadStartupResources()
 
 bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_render_create_info)
 {
-	Vulkan::InitializeVulkan(a_arena, a_render_create_info.app_name, a_render_create_info.engine_name, a_render_create_info.debug);
+	Vulkan::InitializeVulkan(a_arena, a_render_create_info);
 	s_render_inst = ArenaAllocType(a_arena, RenderInterface_inst)(a_arena);
 	s_render_inst->render_io.frame_count = BACK_BUFFER_MAX;
 	s_render_inst->render_io.frame_index = 0;

@@ -133,4 +133,22 @@ namespace BB
 		ConstSlice<AccelerationStructGeometrySize> geometry_sizes;
 		ConstSlice<uint32_t> primitive_counts;
 	};
+
+	struct BottomLevelAccelerationStructInstance
+	{
+		float4x4& transform;
+		GPUAddress acceleration_structure_address;
+	};
+
+	struct BuildTopLevelAccelerationStructInfo
+	{
+		RAccelerationStruct acc_struct;
+		GPUAddress scratch_buffer_address;
+		ConstSlice<BottomLevelAccelerationStructInstance> instances;
+		ConstSlice<uint32_t> primitive_counts;
+
+		GPUAddress acceleration_build_address;
+		void* acceleration_build_mapped;
+		uint64_t mapped_size;
+	};
 }

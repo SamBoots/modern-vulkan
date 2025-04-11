@@ -97,6 +97,7 @@ int main(int argc, char** argv)
 	render_create_info.swapchain_height = window_extent.y;
 	render_create_info.gamma = 2.2f;
 	render_create_info.debug = true;
+	render_create_info.use_raytracing = true;
 
 	InitializeRenderer(main_arena, render_create_info);
 	const uint32_t back_buffer_count = GetRenderIO().frame_count;
