@@ -32,9 +32,11 @@ static void CustomCloseWindow(const BB::WindowHandle a_window_handle)
 	end_app = true;
 }
 
-static void CustomResizeWindow(const BB::WindowHandle a_window_handle, const uint32_t, const uint32_t)
+static void CustomResizeWindow(const BB::WindowHandle a_window_handle, const uint32_t a_x, const uint32_t a_y)
 {
 	(void)a_window_handle;
+	engine_config.window_size_x = a_x;
+	engine_config.window_size_y = a_y;
 	resize_app = true;
 }
 
