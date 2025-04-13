@@ -2321,10 +2321,28 @@ void Vulkan::BuildBottomLevelAccelerationStruct(MemoryArena& a_temp_arena, const
 	acceleration_build_info.geometryCount = static_cast<uint32_t>(geometry_infos.size());
 	acceleration_build_info.pGeometries = geometry_infos.data();
 	acceleration_build_info.scratchData.deviceAddress = a_build_info.scratch_buffer_address;
-
 	s_vulkan_inst->pfn.CmdBuildAccelerationStructuresKHR(cmd_list, 1, &acceleration_build_info, &ranges);
 }
 
+static inline VkTransformMatrixKHR Float4x4ToVkTransformMatrixKHR(const float4x4 a_mat)
+{
+	VkTransformMatrixKHR matrix;
+	matrix.matrix[0][0] = a_mat.e[0][0];
+	matrix.matrix[0][1] = a_mat.e[0][1];
+	matrix.matrix[0][2] = a_mat.e[0][2];
+	matrix.matrix[0][3] = a_mat.e[0][3];
+
+	matrix.matrix[1][0] = a_mat.e[1][0];
+	matrix.matrix[1][1] = a_mat.e[1][1];
+	matrix.matrix[1][2] = a_mat.e[1][2];
+	matrix.matrix[1][3] = a_mat.e[1][3];
+
+	matrix.matrix[2][0] = a_mat.e[2][0];
+	matrix.matrix[2][1] = a_mat.e[2][1];
+	matrix.matrix[2][2] = a_mat.e[2][2];
+	matrix.matrix[2][3] = a_mat.e[2][3];
+	return matrix;
+}
 
 void Vulkan::TopLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildTopLevelAccelerationStructInfo& a_build_info)
 {
@@ -2338,10 +2356,7 @@ void Vulkan::TopLevelAccelerationStruct(MemoryArena& a_temp_arena, const RComman
 	{
 		const BottomLevelAccelerationStructInstance& racl = a_build_info.instances[i];
 		VkAccelerationStructureInstanceKHR& wacl = instances[i];
-		wacl.transform = {
-			racl.transform.r0.x, racl.transform.r0.y, racl.transform.r0.z, racl.transform.r0.w,
-			racl.transform.r1.x, racl.transform.r1.y, racl.transform.r1.z, racl.transform.r1.w,
-			racl.transform.r2.x, racl.transform.r2.y, racl.transform.r2.z, racl.transform.r2.w };
+		wacl.transform = Float4x4ToVkTransformMatrixKHR(racl.transform);
 		wacl.instanceCustomIndex = 0;
 		wacl.mask = 0xFF;
 		wacl.instanceShaderBindingTableRecordOffset = 0;

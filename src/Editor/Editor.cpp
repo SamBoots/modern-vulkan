@@ -186,7 +186,7 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 
 	m_imgui_material = Material::GetDefaultMasterMaterial(PASS_TYPE::GLOBAL, MATERIAL_TYPE::MATERIAL_2D);
 
-	const uint32_t frame_count = GetRenderIO().frame_count;
+	const uint32_t frame_count = GetBackBufferCount();
 
 	ImageCreateInfo render_target_info;
 	render_target_info.name = "image before transfer to swapchain";
@@ -298,16 +298,12 @@ void Editor::EndFrame(MemoryArena& a_arena)
 		const Slice imgui_shaders = Material::GetMaterialShaders(m_imgui_material);
 
 		// CURFRAME = the render internal frame
-		ImRenderFrame(m_per_frame.lists[0], GetImageView(m_render_target_descs[m_per_frame.back_buffer_index]), true, imgui_shaders[0], imgui_shaders[1]);
+		ImRenderFrame(m_per_frame.lists[0], GetImageView(m_render_target_descs[m_per_frame.back_buffer_index]), m_app_window_extent, true, imgui_shaders[0], imgui_shaders[1]);
 		ImGui::EndFrame();
 
 		PRESENT_IMAGE_RESULT result = RenderEndFrame(m_per_frame.lists[0], m_render_target, m_per_frame.back_buffer_index);
 		if (result == PRESENT_IMAGE_RESULT::SWAPCHAIN_OUT_OF_DATE)
 		{
-			int x, y;
-			OSGetWindowSize(m_main_window, x, y);
-			const uint2 new_extent = uint2(static_cast<uint32_t>(x), static_cast<uint32_t>(y));
-			ResizeWindow(new_extent);
 			skip = true;
 		}
 
@@ -326,14 +322,6 @@ void Editor::EndFrame(MemoryArena& a_arena)
 			m_per_frame.current_count,
 			present_queue_value, 
 			skip);
-
-		if (result == PRESENT_IMAGE_RESULT::SWAPCHAIN_OUT_OF_DATE)
-		{
-			int x, y;
-			OSGetWindowSize(m_main_window, x, y);
-			const uint2 new_extent = uint2(static_cast<uint32_t>(x), static_cast<uint32_t>(y));
-			ResizeWindow(new_extent);
-		}
 	}
 }
 
@@ -376,6 +364,8 @@ bool Editor::ResizeWindow(const uint2 a_window)
 
 		m_render_target_descs[i] = CreateImageView(view_info);
 	}
+
+	ResizeSwapchain(m_app_window_extent);
 
 	return true;
 }

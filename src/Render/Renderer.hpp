@@ -35,14 +35,13 @@ namespace BB
 		void EndCommandList(RCommandList a_list);
 	};
 
-	const RenderIO& GetRenderIO();
-
 	bool InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_render_create_info);
 	bool DestroyRenderer();
 
 	void GPUWaitIdle();
 
 	GPUDeviceInfo GetGPUInfo(MemoryArena& a_arena);
+	uint32_t GetBackBufferCount();
 
 	struct RenderStartFrameInfo
 	{
@@ -73,10 +72,13 @@ namespace BB
 
 	CommandPool& GetGraphicsCommandPool();
 	CommandPool& GetTransferCommandPool();
+	CommandPool& GetCommandCommandPool();
 
 	PRESENT_IMAGE_RESULT PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value, const bool a_skip);
 	bool ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value);
 	bool ExecuteTransferCommands(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value);
+	bool ExecuteComputeCommands(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value);
+
 
 	GPUBufferView AllocateFromVertexBuffer(const size_t a_size_in_bytes);
 	GPUBufferView AllocateFromIndexBuffer(const size_t a_size_in_bytes);

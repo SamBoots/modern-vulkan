@@ -6,20 +6,6 @@
 
 namespace BB
 {
-	struct RenderIO
-	{
-		WindowHandle window_handle;
-		uint32_t screen_width;
-		uint32_t screen_height;
-
-		uint32_t frame_index;
-		uint32_t frame_count;
-
-		//these will be set to false when an image is presented
-		bool frame_started = false;
-		bool frame_ended = false;
-	};
-
 	struct GPUBufferView;
 
 	using RCommandPool = FrameworkHandle<struct RCommandPoolTag>;

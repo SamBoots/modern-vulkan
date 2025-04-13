@@ -100,7 +100,7 @@ int main(int argc, char** argv)
 	render_create_info.use_raytracing = true;
 
 	InitializeRenderer(main_arena, render_create_info);
-	const uint32_t back_buffer_count = GetRenderIO().frame_count;
+	const uint32_t back_buffer_count = GetBackBufferCount();
 
 	const Asset::AssetManagerInitInfo asset_manager_info = {};
 	Asset::InitializeAssetManager(main_arena, asset_manager_info);
