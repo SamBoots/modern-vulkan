@@ -79,7 +79,6 @@ namespace BB
 	bool ExecuteTransferCommands(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value);
 	bool ExecuteComputeCommands(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value);
 
-
 	GPUBufferView AllocateFromVertexBuffer(const size_t a_size_in_bytes);
 	GPUBufferView AllocateFromIndexBuffer(const size_t a_size_in_bytes);
 	void CopyToVertexBuffer(const RCommandList a_list, const GPUBuffer a_src, const Slice<RenderCopyBufferRegion> a_regions);
@@ -115,6 +114,11 @@ namespace BB
 	void* MapGPUBuffer(const GPUBuffer a_buffer);
 	void UnmapGPUBuffer(const GPUBuffer a_buffer);
 	void CopyBuffer(const RCommandList a_list, const RenderCopyBuffer& a_copy_buffer);
+
+    AccelerationStructSizeInfo GetBottomLevelAccelerationStructSizeInfo(MemoryArena& a_temp_arena, const ConstSlice<AccelerationStructGeometrySize> a_geometry_sizes, const ConstSlice<uint32_t> a_primitive_counts);
+    AccelerationStructSizeInfo GetTopLevelAccelerationStructSizeInfo(MemoryArena& a_temp_arena, const uint32_t a_instance_count);
+    RAccelerationStruct CreateAccelerationStruct(const uint32_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset);
+    GPUAddress GetAccelerationStructureAddress(const RAccelerationStruct a_acc_struct);
 
 	void DescriptorWriteUniformBuffer(const DescriptorWriteBufferInfo& a_write_info);
 	void DescriptorWriteStorageBuffer(const DescriptorWriteBufferInfo& a_write_info);

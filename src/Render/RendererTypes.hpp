@@ -108,47 +108,4 @@ namespace BB
 		FixedArray<RDescriptorLayout, SPACE_AMOUNT> descriptor_layouts;
 		PushConstantRange push_constant_range;
 	};
-
-	struct AccelerationStructGeometrySize
-	{
-		uint32_t vertex_count;
-		uint32_t vertex_stride;
-		GPUAddress transform_address;
-		uint64_t index_offset;
-		uint64_t vertex_offset;
-	};
-
-	struct AccelerationStructSizeInfo
-	{
-		uint32_t acceleration_structure_size;
-		uint32_t scratch_build_size;
-		uint32_t scratch_update_size;
-		uint32_t primitive_count;
-	};
-
-	struct BuildAccelerationStructInfo
-	{
-		RAccelerationStruct acc_struct;
-		GPUAddress scratch_buffer_address;
-		ConstSlice<AccelerationStructGeometrySize> geometry_sizes;
-		ConstSlice<uint32_t> primitive_counts;
-	};
-
-	struct BottomLevelAccelerationStructInstance
-	{
-		float4x4& transform;
-		GPUAddress acceleration_structure_address;
-	};
-
-	struct BuildTopLevelAccelerationStructInfo
-	{
-		RAccelerationStruct acc_struct;
-		GPUAddress scratch_buffer_address;
-		ConstSlice<BottomLevelAccelerationStructInstance> instances;
-		ConstSlice<uint32_t> primitive_counts;
-
-		GPUAddress acceleration_build_address;
-		void* acceleration_build_mapped;
-		uint64_t mapped_size;
-	};
 }

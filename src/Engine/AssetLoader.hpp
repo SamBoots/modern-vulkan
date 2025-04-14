@@ -50,22 +50,24 @@ namespace BB
 	{
 		struct MaterialData
 		{
-			MasterMaterialHandle material;      // 8
-			MeshMetallic mesh_metallic;			// 40
+			MasterMaterialHandle material;
+			MeshMetallic mesh_metallic;
 		};
 		struct Primitive
 		{
+            MaterialData material_data;
 			//change this with material.
-			uint32_t start_index;				// 4
-			uint32_t index_count;				// 8
-
-			MaterialData material_data;			// 32
+			uint32_t start_index;
+			uint32_t index_count;
 		};
 
 		struct Mesh
 		{
-			BB::Mesh mesh;						// 16
-			StaticArray<Primitive> primitives;	// 32
+			BB::Mesh mesh;
+			StaticArray<Primitive> primitives;
+
+            RAccelerationStruct acceleration_structure;
+            uint32_t scratch_update_size;
 		};
 
 		struct Node

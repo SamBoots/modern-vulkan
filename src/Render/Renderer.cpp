@@ -460,12 +460,14 @@ struct RenderInterface_inst
 	struct VertexBuffer
 	{
 		GPUBuffer buffer;
+        GPUAddress address;
 		uint64_t size;
 		std::atomic<uint64_t> used;
 	} vertex_buffer;
 	struct CPUVertexBuffer
 	{
 		GPUBuffer buffer;
+        GPUAddress address;
 		uint64_t size;
 		std::atomic<uint64_t> used;
 		void* start_mapped;
@@ -474,12 +476,14 @@ struct RenderInterface_inst
 	struct IndexBuffer
 	{
 		GPUBuffer buffer;
+        GPUAddress address;
 		uint64_t size;
 		std::atomic<uint64_t> used;
 	} index_buffer;
 	struct CPUIndexBuffer
 	{
 		GPUBuffer buffer;
+        GPUAddress address;
 		uint64_t size;
 		std::atomic<uint64_t> used;
 		void* start_mapped;
@@ -814,11 +818,13 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		vertex_buffer.host_writable = false;
 
 		s_render_inst->vertex_buffer.buffer = Vulkan::CreateBuffer(vertex_buffer);
+        s_render_inst->vertex_buffer.address = Vulkan::GetBufferAddress(s_render_inst->vertex_buffer.buffer);
 		s_render_inst->vertex_buffer.size = static_cast<uint32_t>(vertex_buffer.size);
 		s_render_inst->vertex_buffer.used = 0;
 
 		vertex_buffer.host_writable = true;
 		s_render_inst->cpu_vertex_buffer.buffer = Vulkan::CreateBuffer(vertex_buffer);
+        s_render_inst->cpu_vertex_buffer.address = Vulkan::GetBufferAddress(s_render_inst->cpu_vertex_buffer.buffer);
 		s_render_inst->cpu_vertex_buffer.size = static_cast<uint32_t>(vertex_buffer.size);
 		s_render_inst->cpu_vertex_buffer.used = 0;
 		s_render_inst->cpu_vertex_buffer.start_mapped = Vulkan::MapBufferMemory(s_render_inst->cpu_vertex_buffer.buffer);
@@ -865,11 +871,13 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		index_buffer.host_writable = false;
 
 		s_render_inst->index_buffer.buffer = Vulkan::CreateBuffer(index_buffer);
+        s_render_inst->index_buffer.address = Vulkan::GetBufferAddress(s_render_inst->index_buffer.buffer);
 		s_render_inst->index_buffer.size = static_cast<uint32_t>(index_buffer.size);
 		s_render_inst->index_buffer.used = 0;
 
 		index_buffer.host_writable = true;
 		s_render_inst->cpu_index_buffer.buffer = Vulkan::CreateBuffer(index_buffer);
+        s_render_inst->cpu_index_buffer.address = Vulkan::GetBufferAddress(s_render_inst->cpu_index_buffer.buffer);
 		s_render_inst->cpu_index_buffer.size = static_cast<uint32_t>(index_buffer.size);
 		s_render_inst->cpu_index_buffer.used = 0;
 		s_render_inst->cpu_index_buffer.start_mapped = Vulkan::MapBufferMemory(s_render_inst->cpu_index_buffer.buffer);
@@ -1380,6 +1388,26 @@ void BB::UnmapGPUBuffer(const GPUBuffer a_buffer)
 void BB::CopyBuffer(const RCommandList a_list, const RenderCopyBuffer& a_copy_buffer)
 {
 	Vulkan::CopyBuffer(a_list, a_copy_buffer);
+}
+
+AccelerationStructSizeInfo BB::GetBottomLevelAccelerationStructSizeInfo(MemoryArena& a_temp_arena, const ConstSlice<AccelerationStructGeometrySize> a_geometry_sizes, const ConstSlice<uint32_t> a_primitive_counts)
+{
+    return Vulkan::GetBottomLevelAccelerationStructSizeInfo(a_temp_arena, a_geometry_sizes, a_primitive_counts, s_render_inst->vertex_buffer.address, s_render_inst->index_buffer.address);
+}
+
+AccelerationStructSizeInfo BB::GetTopLevelAccelerationStructSizeInfo(MemoryArena& a_temp_arena, const uint32_t a_instance_count)
+{
+    return GetTopLevelAccelerationStructSizeInfo(a_temp_arena, a_instance_count);
+}
+
+RAccelerationStruct BB::CreateAccelerationStruct(const uint32_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset)
+{
+    return CreateAccelerationStruct(a_acceleration_structure_size, a_dst_buffer, a_dst_offset);
+}
+
+GPUAddress BB::GetAccelerationStructureAddress(const RAccelerationStruct a_acc_struct)
+{
+    return GetAccelerationStructureAddress(a_acc_struct);
 }
 
 void BB::DescriptorWriteUniformBuffer(const DescriptorWriteBufferInfo& a_write_info)
