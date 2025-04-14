@@ -50,9 +50,6 @@ BB_PRAGMA(clang diagnostic ignored "-Wcast-function-type-strict")
 //vulkan's function pointers all have the prefix PFN_<functionname>, so this works perfectly.
 #define VkGetFuncPtr(inst, func) reinterpret_cast<BB_CONCAT(PFN_, func)>(vkGetInstanceProcAddr(inst, #func))
 
-//for performance reasons this can be turned off. I need to profile this.
-#define ENUM_CONVERSATION_BY_ARRAY
-
 struct VulkanQueuesIndices
 {
 	uint32_t present; //Is currently always same as graphics.
@@ -456,81 +453,6 @@ static VkDevice CreateLogicalDevice(MemoryArena& a_temp_arena, const VkPhysicalD
 
 struct Vulkan_inst
 {
-	Vulkan_inst()
-	{
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-		enum_conv.descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::READONLY_CONSTANT)] = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		enum_conv.descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::READONLY_BUFFER)] = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		enum_conv.descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::READWRITE)] = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		enum_conv.descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::IMAGE)] = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-		enum_conv.descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::SAMPLER)] = VK_DESCRIPTOR_TYPE_SAMPLER;
-
-		enum_conv.image_aspects[static_cast<uint32_t>(IMAGE_ASPECT::COLOR)] = VK_IMAGE_ASPECT_COLOR_BIT;
-		enum_conv.image_aspects[static_cast<uint32_t>(IMAGE_ASPECT::DEPTH)] = VK_IMAGE_ASPECT_DEPTH_BIT;
-		enum_conv.image_aspects[static_cast<uint32_t>(IMAGE_ASPECT::DEPTH_STENCIL)] = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-
-		// 64 bit images
-		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::RGBA16_UNORM)] = VK_FORMAT_R16G16B16A16_UNORM;
-		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::RGBA16_SFLOAT)] = VK_FORMAT_R16G16B16A16_SFLOAT;
-		// 32 bit images
-		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::RGBA8_SRGB)] = VK_FORMAT_R8G8B8A8_SRGB;
-		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::RGBA8_UNORM)] = VK_FORMAT_R8G8B8A8_UNORM;
-		// 24 bit images
-		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::RGB8_SRGB)] = VK_FORMAT_R8G8B8_SRGB;
-		// 8 bit images
-		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::A8_UNORM)] = VK_FORMAT_R8_UNORM;
-		// depth images
-		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::D16_UNORM)] = VK_FORMAT_D16_UNORM;
-		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::D32_SFLOAT)] = VK_FORMAT_D32_SFLOAT;
-		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::D32_SFLOAT_S8_UINT)] = VK_FORMAT_D32_SFLOAT_S8_UINT;
-		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::D24_UNORM_S8_UINT)] = VK_FORMAT_D24_UNORM_S8_UINT;
-
-		enum_conv.image_types[static_cast<uint32_t>(IMAGE_TYPE::TYPE_1D)] = VK_IMAGE_TYPE_1D;
-		enum_conv.image_types[static_cast<uint32_t>(IMAGE_TYPE::TYPE_2D)] = VK_IMAGE_TYPE_2D;
-		enum_conv.image_types[static_cast<uint32_t>(IMAGE_TYPE::TYPE_3D)] = VK_IMAGE_TYPE_3D;
-
-		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_1D)] = VK_IMAGE_VIEW_TYPE_1D;
-		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_2D)] = VK_IMAGE_VIEW_TYPE_2D;
-		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_3D)] = VK_IMAGE_VIEW_TYPE_3D;
-		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_1D_ARRAY)] = VK_IMAGE_VIEW_TYPE_1D_ARRAY;
-		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_2D_ARRAY)] = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
-		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::CUBE)] = VK_IMAGE_VIEW_TYPE_CUBE;
-
-		enum_conv.sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::REPEAT)] = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		enum_conv.sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::MIRROR)] = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
-		enum_conv.sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::BORDER)] = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-		enum_conv.sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::CLAMP)] = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-
-		enum_conv.border_colors[static_cast<uint32_t>(SAMPLER_BORDER_COLOR::COLOR_FLOAT_TRANSPARENT_BLACK)] = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
-		enum_conv.border_colors[static_cast<uint32_t>(SAMPLER_BORDER_COLOR::COLOR_INT_TRANSPARENT_BLACK)] = VK_BORDER_COLOR_INT_TRANSPARENT_BLACK;
-		enum_conv.border_colors[static_cast<uint32_t>(SAMPLER_BORDER_COLOR::COLOR_FLOAT_OPAQUE_BLACK)] = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
-		enum_conv.border_colors[static_cast<uint32_t>(SAMPLER_BORDER_COLOR::COLOR_INT_OPAQUE_BLACK)] = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-		enum_conv.border_colors[static_cast<uint32_t>(SAMPLER_BORDER_COLOR::COLOR_FLOAT_OPAQUE_WHITE)] = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-		enum_conv.border_colors[static_cast<uint32_t>(SAMPLER_BORDER_COLOR::COLOR_INT_OPAQUE_WHITE)] = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
-
-		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::DEPTH)] = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
-		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::SHADOW_MAP)] = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
-		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::TEXTURE)] = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
-		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::SWAPCHAIN_COPY_IMG)] = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
-		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::RENDER_TARGET)] = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
-		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::COPY_SRC_DST)] =  VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-
-		enum_conv.cull_modes[static_cast<uint32_t>(CULL_MODE::NONE)] = VK_CULL_MODE_NONE;
-		enum_conv.cull_modes[static_cast<uint32_t>(CULL_MODE::FRONT)] = VK_CULL_MODE_FRONT_BIT;
-		enum_conv.cull_modes[static_cast<uint32_t>(CULL_MODE::BACK)] = VK_CULL_MODE_BACK_BIT;
-		enum_conv.cull_modes[static_cast<uint32_t>(CULL_MODE::FRONT_AND_BACK)] = VK_CULL_MODE_FRONT_AND_BACK;
-
-		enum_conv.blend_op[static_cast<uint32_t>(BLEND_OP::ADD)] = VK_BLEND_OP_ADD;
-		enum_conv.blend_op[static_cast<uint32_t>(BLEND_OP::SUBTRACT)] = VK_BLEND_OP_SUBTRACT;
-
-		enum_conv.blend_factor[static_cast<uint32_t>(BLEND_MODE::FACTOR_ZERO)] = VK_BLEND_FACTOR_ZERO;
-		enum_conv.blend_factor[static_cast<uint32_t>(BLEND_MODE::FACTOR_ONE)] = VK_BLEND_FACTOR_ONE;
-		enum_conv.blend_factor[static_cast<uint32_t>(BLEND_MODE::FACTOR_SRC_ALPHA)] = VK_BLEND_FACTOR_SRC_ALPHA;
-		enum_conv.blend_factor[static_cast<uint32_t>(BLEND_MODE::FACTOR_ONE_MINUS_SRC_ALPHA)] = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-		enum_conv.blend_factor[static_cast<uint32_t>(BLEND_MODE::FACTOR_DST_ALPHA)] = VK_BLEND_FACTOR_DST_ALPHA;
-#endif //ENUM_CONVERSATION_BY_ARRAY
-	}
-
 	VkInstance instance;
 	VkDebugUtilsMessengerEXT debug_msgr;
 	VkPhysicalDevice phys_device;
@@ -557,25 +479,8 @@ struct Vulkan_inst
 		uint32_t storage_buffer;
 		uint32_t sampled_image;
 		uint32_t sampler;
+		uint32_t acceleration_structure;
 	} descriptor_sizes;
-
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	//maybe faster then a switch... profile!
-	struct EnumConversions
-	{
-		VkDescriptorType descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::ENUM_SIZE)];
-		VkImageAspectFlags image_aspects[static_cast<uint32_t>(IMAGE_ASPECT::ENUM_SIZE)];
-		VkFormat image_formats[static_cast<uint32_t>(IMAGE_FORMAT::ENUM_SIZE)];
-		VkImageType image_types[static_cast<uint32_t>(IMAGE_TYPE::ENUM_SIZE)];
-		VkImageViewType image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::ENUM_SIZE)];
-		VkSamplerAddressMode sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::ENUM_SIZE)];
-		VkBorderColor border_colors[static_cast<uint32_t>(SAMPLER_BORDER_COLOR::ENUM_SIZE)];
-		VkImageUsageFlags image_usages[static_cast<uint32_t>(IMAGE_USAGE::ENUM_SIZE)];
-		VkCullModeFlags cull_modes[static_cast<uint32_t>(CULL_MODE::ENUM_SIZE)];
-		VkBlendOp blend_op[static_cast<uint32_t>(BLEND_OP::ENUM_SIZE)];
-		VkBlendFactor blend_factor[static_cast<uint32_t>(BLEND_MODE::ENUM_SIZE)];
-	} enum_conv;
-#endif //ENUM_CONVERSATION_BY_ARRAY
 
 	struct Pfn
 	{
@@ -661,22 +566,18 @@ static inline void SetDebugName_f(const char* a_name, const uint64_t a_object_ha
 
 static inline VkDescriptorType DescriptorBufferType(const DESCRIPTOR_TYPE a_type)
 {
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.descriptor_types[static_cast<uint32_t>(a_type)];
-#else
 	switch (a_type)
 	{
-	case DESCRIPTOR_TYPE::READONLY_CONSTANT:	return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	case DESCRIPTOR_TYPE::READONLY_BUFFER:		return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	case DESCRIPTOR_TYPE::READWRITE:			return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	case DESCRIPTOR_TYPE::IMAGE:				return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-	case DESCRIPTOR_TYPE::SAMPLER:				return VK_DESCRIPTOR_TYPE_SAMPLER;
+	case DESCRIPTOR_TYPE::READONLY_CONSTANT:	    return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	case DESCRIPTOR_TYPE::READONLY_BUFFER:		    return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	case DESCRIPTOR_TYPE::READWRITE:			    return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	case DESCRIPTOR_TYPE::IMAGE:				    return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+	case DESCRIPTOR_TYPE::SAMPLER:				    return VK_DESCRIPTOR_TYPE_SAMPLER;
+	case DESCRIPTOR_TYPE::ACCELERATION_STRUCTURE:   return VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
 	default:
 		BB_ASSERT(false, "Vulkan: DESCRIPTOR_TYPE failed to convert to a VkDescriptorType.");
 		return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		break;
 	}
-#endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
 static inline VkShaderStageFlags ShaderStageFlags(const SHADER_STAGE a_stage)
@@ -714,9 +615,6 @@ static inline VkShaderStageFlags ShaderStageFlagsFromFlags(const SHADER_STAGE_FL
 
 static inline VkImageAspectFlags ImageAspect(const IMAGE_ASPECT a_aspects)
 {
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.image_aspects[static_cast<uint32_t>(a_aspects)];
-#else
 	switch (a_aspects)
 	{
 	case IMAGE_ASPECT::COLOR:         return VK_IMAGE_ASPECT_COLOR_BIT;
@@ -725,9 +623,7 @@ static inline VkImageAspectFlags ImageAspect(const IMAGE_ASPECT a_aspects)
 	default:
 		BB_ASSERT(false, "Vulkan: IMAGE_ASPECT failed to convert to a VkImageAspectFlags.");
 		return 0;
-		break;
 	}
-#endif // ENUM_CONVERSATION_BY_ARRAY
 }
 
 static inline VkImageLayout ImageLayout(const IMAGE_LAYOUT a_image_layout)
@@ -755,17 +651,14 @@ static inline VkImageLayout ImageLayout(const IMAGE_LAYOUT a_image_layout)
 
 static inline VkFormat ImageFormats(const IMAGE_FORMAT a_image_format)
 {
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.image_formats[static_cast<uint32_t>(a_image_format)];
-#else
 	switch (a_image_format)
 	{
-	case IMAGE_FORMAT::RGBA16_UNORM:	return VK_FORMAT_R16G16B16A16_UNORM;
-	case IMAGE_FORMAT::RGBA16_SFLOAT:	return VK_FORMAT_R16G16B16A16_SFLOAT;
-	case IMAGE_FORMAT::RGBA8_SRGB:		return VK_FORMAT_R8G8B8A8_SRGB;
-	case IMAGE_FORMAT::RGBA8_UNORM:		return VK_FORMAT_R8G8B8A8_UNORM;
-	case IMAGE_FORMAT::RGB8_SRGB:		return VK_FORMAT_R8G8B8_SRGB;
-	case IMAGE_FORMAT::A8_UNORM:		return VK_FORMAT_R8_UNORM;
+	case IMAGE_FORMAT::RGBA16_UNORM:	        return VK_FORMAT_R16G16B16A16_UNORM;
+	case IMAGE_FORMAT::RGBA16_SFLOAT:	        return VK_FORMAT_R16G16B16A16_SFLOAT;
+	case IMAGE_FORMAT::RGBA8_SRGB:		        return VK_FORMAT_R8G8B8A8_SRGB;
+	case IMAGE_FORMAT::RGBA8_UNORM:		        return VK_FORMAT_R8G8B8A8_UNORM;
+	case IMAGE_FORMAT::RGB8_SRGB:		        return VK_FORMAT_R8G8B8_SRGB;
+	case IMAGE_FORMAT::A8_UNORM:		        return VK_FORMAT_R8_UNORM;
 	case IMAGE_FORMAT::D16_UNORM:				return VK_FORMAT_D16_UNORM;
 	case IMAGE_FORMAT::D32_SFLOAT:				return VK_FORMAT_D32_SFLOAT;
 	case IMAGE_FORMAT::D32_SFLOAT_S8_UINT:		return VK_FORMAT_D32_SFLOAT_S8_UINT;
@@ -773,16 +666,11 @@ static inline VkFormat ImageFormats(const IMAGE_FORMAT a_image_format)
 	default:
 		BB_ASSERT(false, "Vulkan: IMAGE_FORMAT failed to convert to a VkFormat.");
 		return VK_FORMAT_R8G8B8A8_SRGB;
-		break;
 	}
-#endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
 static inline VkImageType ImageTypes(const IMAGE_TYPE a_image_types)
 {
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.image_types[static_cast<uint32_t>(a_image_types)];
-#else
 	switch (a_image_types)
 	{
 	case IMAGE_TYPE::TYPE_1D:		return VK_IMAGE_TYPE_1D;
@@ -791,55 +679,56 @@ static inline VkImageType ImageTypes(const IMAGE_TYPE a_image_types)
 	default:
 		BB_ASSERT(false, "Vulkan: IMAGE_TYPE failed to convert to a VkImageType.");
 		return VK_IMAGE_TYPE_1D;
-		break;
 	}
-#endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
 static inline VkImageViewType ImageViewTypes(const IMAGE_VIEW_TYPE a_image_types)
 {
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.image_view_types[static_cast<uint32_t>(a_image_types)];
-#else
 	switch (a_image_types)
 	{
-	case IMAGE_TYPE::TYPE_1D:		return VK_IMAGE_VIEW_TYPE_1D;
-	case IMAGE_TYPE::TYPE_2D:		return VK_IMAGE_VIEW_TYPE_2D;
-	case IMAGE_TYPE::TYPE_3D:		return VK_IMAGE_VIEW_TYPE_3D;
-	case IMAGE_TYPE::CUBE:			return VK_IMAGE_VIEW_TYPE_CUBE;
+	case IMAGE_VIEW_TYPE::TYPE_1D:		    return VK_IMAGE_VIEW_TYPE_1D;
+	case IMAGE_VIEW_TYPE::TYPE_2D:		    return VK_IMAGE_VIEW_TYPE_2D;
+	case IMAGE_VIEW_TYPE::TYPE_3D:		    return VK_IMAGE_VIEW_TYPE_3D;
+	case IMAGE_VIEW_TYPE::TYPE_1D_ARRAY:    return VK_IMAGE_VIEW_TYPE_1D_ARRAY;
+	case IMAGE_VIEW_TYPE::TYPE_2D_ARRAY:	return VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+	case IMAGE_VIEW_TYPE::CUBE:			    return VK_IMAGE_VIEW_TYPE_CUBE;
 	default:
-		BB_ASSERT(false, "Vulkan: IMAGE_TYPE failed to convert to a VkImageViewType.");
-		return VK_IMAGE_TYPE_1D;
-		break;
+		BB_ASSERT(false, "Vulkan: IMAGE_VIEW_TYPE failed to convert to a VkImageViewType.");
+		return VK_IMAGE_VIEW_TYPE_1D;
 	}
-#endif //ENUM_CONVERSATION_BY_ARRAY
+}
+
+static inline VkCullModeFlags CullMode(const CULL_MODE a_cull_mode)
+{
+	switch (a_cull_mode)
+	{
+	case CULL_MODE::NONE:		        return VK_CULL_MODE_NONE;
+	case CULL_MODE::FRONT:		        return VK_CULL_MODE_FRONT_BIT;
+	case CULL_MODE::BACK:		        return VK_CULL_MODE_BACK_BIT;
+	case CULL_MODE::FRONT_AND_BACK:		return VK_CULL_MODE_FRONT_AND_BACK;
+	default:
+		BB_ASSERT(false, "Vulkan: CULL_MODE failed to convert to a VkCullModeFlags.");
+		return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	}
 }
 
 static inline VkSamplerAddressMode SamplerAddressModes(const SAMPLER_ADDRESS_MODE a_address_mode)
 {
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.sampler_address_modes[static_cast<uint32_t>(a_address_mode)];
-#else
 	switch (a_address_mode)
 	{
 	case SAMPLER_ADDRESS_MODE::REPEAT:		return VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	case SAMPLER_ADDRESS_MODE::MIRROR:		return VK_SAMPLER_ADDRESS_MODE_MIRROR;
+	case SAMPLER_ADDRESS_MODE::MIRROR:		return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
 	case SAMPLER_ADDRESS_MODE::BORDER:		return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 	case SAMPLER_ADDRESS_MODE::CLAMP:		return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 	default:
 		BB_ASSERT(false, "Vulkan: SAMPLER_ADDRESS_MODE failed to convert to a VkSamplerAddressMode.");
 		return VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		break;
 	}
-#endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
 static inline VkBorderColor SamplerBorderColor(const SAMPLER_BORDER_COLOR a_color)
 {
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.border_colors[static_cast<uint32_t>(a_color)];
-#else
-	switch (a_address_mode)
+	switch (a_color)
 	{
 	case SAMPLER_BORDER_COLOR::COLOR_FLOAT_TRANSPARENT_BLACK:	return VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
 	case SAMPLER_BORDER_COLOR::COLOR_INT_TRANSPARENT_BLACK:		return VK_BORDER_COLOR_INT_TRANSPARENT_BLACK;
@@ -850,47 +739,50 @@ static inline VkBorderColor SamplerBorderColor(const SAMPLER_BORDER_COLOR a_colo
 	default:
 		BB_ASSERT(false, "Vulkan: SAMPLER_BORDER_COLOR failed to convert to a VkBorderColor.");
 		return VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
-		break;
 	}
-#endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
 static inline VkImageUsageFlags ImageUsage(const IMAGE_USAGE a_usage)
 {
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.image_usages[static_cast<uint32_t>(a_usage)];
-#else
 	switch (a_usage)
 	{
-	case IMAGE_USAGE::DEPTH:			return VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT; 
-	case IMAGE_USAGE::TEXTURE:			return VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-	case IMAGE_USAGE::UPLOAD_SRC_DST	return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-	case IMAGE_USAGE::RENDER_TARGET:	return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-	case IMAGE_USAGE::COPY_SRC_DST:		return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	case IMAGE_USAGE::DEPTH:			    return VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
+	case IMAGE_USAGE::SHADOW_MAP:			return VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
+	case IMAGE_USAGE::TEXTURE:			    return VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
+	case IMAGE_USAGE::SWAPCHAIN_COPY_IMG:	return  VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
+	case IMAGE_USAGE::RENDER_TARGET:    	return VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
+	case IMAGE_USAGE::COPY_SRC_DST: 		return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	default:
 		BB_ASSERT(false, "Vulkan: IMAGE_USAGE failed to convert to a VkImageUsageFlags.");
 		return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-		break;
 	}
-#endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
 static inline VkBlendOp BlendOp(const BLEND_OP a_blend_op)
 {
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.blend_op[static_cast<uint32_t>(a_blend_op)];
-#else
-	BB_UNIMPLEMENTED();
-#endif //ENUM_CONVERSATION_BY_ARRAY
+	switch (a_blend_op)
+	{
+	case BLEND_OP::ADD:         return VK_BLEND_OP_ADD;
+	case BLEND_OP::SUBTRACT:    return VK_BLEND_OP_SUBTRACT;
+	default:
+		BB_ASSERT(false, "Vulkan: BLEND_OP failed to convert to a VkBlendOp");
+		return VK_BLEND_OP_ADD;
+	}
 }
 
 static inline VkBlendFactor BlendFactor(const BLEND_MODE a_blend_mode)
 {
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.blend_factor[static_cast<uint32_t>(a_blend_mode)];
-#else
-	BB_UNIMPLEMENTED();
-#endif //ENUM_CONVERSATION_BY_ARRAY
+	switch (a_blend_mode)
+	{
+	case BLEND_MODE::FACTOR_ZERO:			        return VK_BLEND_FACTOR_ZERO;
+	case BLEND_MODE::FACTOR_ONE:			        return VK_BLEND_FACTOR_ONE;
+	case BLEND_MODE::FACTOR_SRC_ALPHA:	            return VK_BLEND_FACTOR_SRC_ALPHA;
+	case BLEND_MODE::FACTOR_ONE_MINUS_SRC_ALPHA:	return VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	case BLEND_MODE::FACTOR_DST_ALPHA:		        return VK_BLEND_FACTOR_DST_ALPHA;
+	default:
+		BB_ASSERT(false, "Vulkan: BLEND_MODE failed to convert to a VkBlendFactor");
+		return VK_BLEND_FACTOR_ZERO;
+	}
 }
 
 // temp to figure out 
@@ -1157,6 +1049,7 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const RendererCreateInfo a_c
 			s_vulkan_inst->descriptor_sizes.storage_buffer = static_cast<uint32_t>(desc_info.storageBufferDescriptorSize);
 			s_vulkan_inst->descriptor_sizes.sampled_image = static_cast<uint32_t>(desc_info.sampledImageDescriptorSize);
 			s_vulkan_inst->descriptor_sizes.sampler = static_cast<uint32_t>(desc_info.samplerDescriptorSize);
+			s_vulkan_inst->descriptor_sizes.acceleration_structure = static_cast<uint32_t>(desc_info.accelerationStructureDescriptorSize);
 		}
 
 		{	//VMA stuff
@@ -2688,7 +2581,7 @@ void Vulkan::SetFrontFace(const RCommandList a_list, const bool a_is_clockwise)
 void Vulkan::SetCullMode(const RCommandList a_list, const CULL_MODE a_cull_mode)
 {
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
-	vkCmdSetCullMode(cmd_buffer, s_vulkan_inst->enum_conv.cull_modes[static_cast<uint32_t>(a_cull_mode)]);
+	vkCmdSetCullMode(cmd_buffer, CullMode(a_cull_mode));
 }
 
 void Vulkan::SetDepthBias(const RCommandList a_list, const float a_bias_constant_factor, const float a_bias_clamp, const float a_bias_slope_factor)

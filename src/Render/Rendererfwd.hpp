@@ -226,6 +226,7 @@ namespace BB
 		READWRITE, //UAV or readwrite storage buffer(?)
 		IMAGE,
 		SAMPLER,
+		ACCELERATION_STRUCTURE,
 
 		ENUM_SIZE
 	};
