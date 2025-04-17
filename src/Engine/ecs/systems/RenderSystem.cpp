@@ -76,7 +76,8 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 		m_gaussian_material = Material::CreateMasterMaterial(a_arena, gaussian_material, "shadow map material");
 	}
 
-	{ // skybox stuff
+	MemoryArenaScope(a_arena)
+	{	// skybox stuff
 		ImageCreateInfo skybox_image_info;
 		skybox_image_info.name = "skybox image";
 		skybox_image_info.width = 2048;
@@ -103,39 +104,36 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 		skybox_image_view_info.aspects = IMAGE_ASPECT::COLOR;
 		m_skybox_descriptor_index = CreateImageView(skybox_image_view_info);
 
-		MemoryArenaScope(a_arena)
+		constexpr StringView SKYBOX_NAMES[6]
 		{
-			constexpr StringView SKYBOX_NAMES[6]
-			{
-				StringView("../../resources/textures/skybox/0.jpg"),
-				StringView("../../resources/textures/skybox/1.jpg"),
-				StringView("../../resources/textures/skybox/2.jpg"),
-				StringView("../../resources/textures/skybox/3.jpg"),
-				StringView("../../resources/textures/skybox/4.jpg"),
-				StringView("../../resources/textures/skybox/5.jpg")
-			};
-			
-			FixedArray<Asset::AsyncAsset, 6> skybox_textures;
+			StringView("../../resources/textures/skybox/0.jpg"),
+			StringView("../../resources/textures/skybox/1.jpg"),
+			StringView("../../resources/textures/skybox/2.jpg"),
+			StringView("../../resources/textures/skybox/3.jpg"),
+			StringView("../../resources/textures/skybox/4.jpg"),
+			StringView("../../resources/textures/skybox/5.jpg")
+		};
 
-			MaterialCreateInfo skybox_material;
-			skybox_material.pass_type = PASS_TYPE::SCENE;
-			skybox_material.material_type = MATERIAL_TYPE::NONE;
-			FixedArray<MaterialShaderCreateInfo, 2> skybox_shaders;
-			skybox_shaders[0].path = "../../resources/shaders/hlsl/skybox.hlsl";
-			skybox_shaders[0].entry = "VertexMain";
-			skybox_shaders[0].stage = SHADER_STAGE::VERTEX;
-			skybox_shaders[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
-			skybox_shaders[1].path = "../../resources/shaders/hlsl/skybox.hlsl";
-			skybox_shaders[1].entry = "FragmentMain";
-			skybox_shaders[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
-			skybox_shaders[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
-			skybox_material.shader_infos = Slice(skybox_shaders.slice());
+		FixedArray<Asset::AsyncAsset, 6> skybox_textures;
 
-			const Image& skybox_image = Asset::LoadImageArrayDisk(a_arena, "default skybox", ConstSlice<StringView>(SKYBOX_NAMES, _countof(SKYBOX_NAMES)), IMAGE_FORMAT::RGBA8_SRGB, true);
-			m_skybox = skybox_image.gpu_image;
-			m_skybox_descriptor_index = skybox_image.descriptor_index;
-			m_skybox_material = Material::CreateMasterMaterial(a_arena, skybox_material, "skybox material");
-		}
+		MaterialCreateInfo skybox_material;
+		skybox_material.pass_type = PASS_TYPE::SCENE;
+		skybox_material.material_type = MATERIAL_TYPE::NONE;
+		FixedArray<MaterialShaderCreateInfo, 2> skybox_shaders;
+		skybox_shaders[0].path = "../../resources/shaders/hlsl/skybox.hlsl";
+		skybox_shaders[0].entry = "VertexMain";
+		skybox_shaders[0].stage = SHADER_STAGE::VERTEX;
+		skybox_shaders[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
+		skybox_shaders[1].path = "../../resources/shaders/hlsl/skybox.hlsl";
+		skybox_shaders[1].entry = "FragmentMain";
+		skybox_shaders[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
+		skybox_shaders[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
+		skybox_material.shader_infos = Slice(skybox_shaders.slice());
+
+		const Image& skybox_image = Asset::LoadImageArrayDisk(a_arena, "default skybox", ConstSlice<StringView>(SKYBOX_NAMES, _countof(SKYBOX_NAMES)), IMAGE_FORMAT::RGBA8_SRGB, true);
+		m_skybox = skybox_image.gpu_image;
+		m_skybox_descriptor_index = skybox_image.descriptor_index;
+		m_skybox_material = Material::CreateMasterMaterial(a_arena, skybox_material, "skybox material");
 	}
 
 	// postfx
@@ -330,7 +328,7 @@ RenderSystemFrame RenderSystem::EndFrame(const RCommandList a_list, const IMAGE_
 	return frame;
 }
 
-void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCommandList a_list, const uint2 a_draw_area, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const ConstSlice<LightComponent> a_lights)
+void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCommandList a_list, const uint2 a_draw_area, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const RaytraceComponentPool& a_raytrace_pool, const ConstSlice<LightComponent> a_lights)
 {
 	PerFrame& pfd = m_per_frame[m_current_frame];
 
@@ -345,6 +343,7 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 	{
 		RenderComponent& comp = a_render_pool.GetComponent(render_entities[i]);
 		const float4x4& transform = a_world_matrices.GetComponent(render_entities[i]);
+		RaytraceComponent& ray_comp = a_raytrace_pool.GetComponent(render_entities[i]);
 
 		if (comp.material_dirty)
 		{
@@ -352,6 +351,17 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 			m_upload_allocator.MemcpyIntoBuffer(upload_offset, &comp.material_data, sizeof(comp.material_data));
 			Material::WriteMaterial(comp.material, a_list, m_upload_allocator.GetBuffer(), upload_offset);
 			comp.material_dirty = false;
+		}
+
+		// raytrace stuff
+		if (ray_comp.needs_build)
+		{
+			GPUBufferView view;
+			bool success = m_raytrace_data.acceleration_structure_buffer.Allocate(ray_comp.build_size, view);
+			BB_ASSERT(success, "failed to allocate acceleration structure data");
+			ray_comp.acceleration_structure = CreateAccelerationStruct(ray_comp.build_size, view.buffer, view.offset);
+			ray_comp.acceleration_buffer_offset = view.offset;
+			ray_comp.needs_build = false;
 		}
 
 		DrawList::DrawEntry entry;

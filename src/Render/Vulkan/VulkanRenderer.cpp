@@ -401,6 +401,10 @@ static VkDevice CreateLogicalDevice(MemoryArena& a_temp_arena, const VkPhysicalD
 	shader_objects.shaderObject = true;
 	shader_objects.pNext = &sync_features;
 
+	VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_struct{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR };
+	acceleration_struct.accelerationStructure = true;
+	acceleration_struct.pNext = &shader_objects;
+
 	VkDeviceQueueCreateInfo* queue_create_infos = ArenaAllocArr(a_temp_arena, VkDeviceQueueCreateInfo, 3);
 	float standard_queue_prios[16] = { 1.0f }; // just put it all to 1 for multiple queues;
 	uint32_t unique_queue_pos = 0;
@@ -439,7 +443,7 @@ static VkDevice CreateLogicalDevice(MemoryArena& a_temp_arena, const VkPhysicalD
 	device_create_info.pEnabledFeatures = &device_features;
 	device_create_info.ppEnabledExtensionNames = a_device_extensions.data();
 	device_create_info.enabledExtensionCount = static_cast<uint32_t>(a_device_extensions.size());
-	device_create_info.pNext = &shader_objects;
+	device_create_info.pNext = &acceleration_struct;
 
 	VkDevice return_device;
 	VKASSERT(vkCreateDevice(a_phys_device,
