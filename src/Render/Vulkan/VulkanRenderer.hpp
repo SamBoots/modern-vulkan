@@ -65,7 +65,7 @@ namespace BB
 		void ClearDepthImage(const RCommandList a_list, const ClearDepthImageInfo& a_clear_info);
 		void BlitImage(const RCommandList a_list, const BlitImageInfo& a_info);
 		
-		void BuildBottomLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildAccelerationStructInfo& a_build_info, GPUAddress a_vertex_device_address, GPUAddress a_index_device_address);
+		void BuildBottomLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildAccelerationStructInfo& a_build_info, const GPUAddress a_vertex_device_address, const GPUAddress a_index_device_address);
 		void TopLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildTopLevelAccelerationStructInfo& a_build_info);
 
 		void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info);

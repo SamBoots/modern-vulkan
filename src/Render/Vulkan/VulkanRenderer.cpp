@@ -1481,13 +1481,12 @@ AccelerationStructSizeInfo Vulkan::GetBottomLevelAccelerationStructSizeInfo(Memo
 	geometry_sizes.geometryCount = static_cast<uint32_t>(geometry_infos.size());
 	geometry_sizes.pGeometries = geometry_infos.data();
 
-	uint32_t primitive_count = 1;
 	VkAccelerationStructureBuildSizesInfoKHR size_info_get{};
 	size_info_get.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
 	s_vulkan_inst->pfn.GetAccelerationStructureBuildSizesKHR(
 		s_vulkan_inst->device,
 		VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
-		&geometry_sizes,
+        &geometry_sizes,
 		a_primitive_counts.data(),
 		&size_info_get);
 
@@ -1495,7 +1494,6 @@ AccelerationStructSizeInfo Vulkan::GetBottomLevelAccelerationStructSizeInfo(Memo
 	size_info.acceleration_structure_size = static_cast<uint32_t>(size_info_get.accelerationStructureSize);
 	size_info.scratch_build_size = static_cast<uint32_t>(size_info_get.buildScratchSize);
 	size_info.scratch_update_size = static_cast<uint32_t>(size_info_get.updateScratchSize);
-	size_info.primitive_count = primitive_count;
 	return size_info;
 }
 
@@ -1522,19 +1520,17 @@ AccelerationStructSizeInfo Vulkan::GetTopLevelAccelerationStructSizeInfo(MemoryA
 	geometry_sizes.pGeometries = instance_infos;
 
 	VkAccelerationStructureBuildSizesInfoKHR size_info_get{};
-	uint32_t primitive_count = 1;
 	s_vulkan_inst->pfn.GetAccelerationStructureBuildSizesKHR(
 		s_vulkan_inst->device,
 		VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
 		&geometry_sizes,
-		&primitive_count,
+		nullptr,
 		&size_info_get);
 
 	AccelerationStructSizeInfo size_info;
 	size_info.acceleration_structure_size = static_cast<uint32_t>(size_info_get.accelerationStructureSize);
 	size_info.scratch_build_size = static_cast<uint32_t>(size_info_get.buildScratchSize);
 	size_info.scratch_update_size = static_cast<uint32_t>(size_info_get.updateScratchSize);
-	size_info.primitive_count = primitive_count;
 	return size_info;
 }
 
@@ -2189,7 +2185,7 @@ void Vulkan::BlitImage(const RCommandList a_list, const BlitImageInfo& a_info)
 		VK_FILTER_NEAREST);
 }
 
-void Vulkan::BuildBottomLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildAccelerationStructInfo& a_build_info, GPUAddress a_vertex_device_address, GPUAddress a_index_device_address)
+void Vulkan::BuildBottomLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildAccelerationStructInfo& a_build_info, const GPUAddress a_vertex_device_address, const GPUAddress a_index_device_address)
 {
 	BB_ASSERT(a_build_info.geometry_sizes.size() == a_build_info.primitive_counts.size(), "geometry and primitive must have the same size");
 	const ConstSlice<VkAccelerationStructureGeometryKHR> geometry_infos = CreateGeometryInfo(a_temp_arena, a_build_info.geometry_sizes, a_vertex_device_address, a_index_device_address);

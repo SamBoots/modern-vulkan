@@ -54,15 +54,16 @@ namespace BB
 		SceneFrame UpdateScene(const RCommandList a_list, class Viewport& a_viewport);
 
 		ECSEntity CreateEntity(const float3 a_position, const NameComponent& a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
-		ECSEntity CreateEntityMesh(const float3 a_position, const SceneMeshCreateInfo& a_mesh_info, const char* a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
-		ECSEntity CreateEntityViaModel(const Model& a_model, const float3 a_position, const char* a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
+		ECSEntity CreateEntityMesh(MemoryArena& a_temp_arena, const float3 a_position, const SceneMeshCreateInfo& a_mesh_info, const char* a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
+		ECSEntity CreateEntityViaModel(MemoryArena& a_temp_arena, const Model& a_model, const float3 a_position, const char* a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
 		ECSEntity CreateEntityAsLight(const LightCreateInfo& a_light_create_info, const char* a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
 
 		static float4x4 CalculateLightProjectionView(const float3 a_pos, const float a_near, const float a_far);
 
 		EntityComponentSystem& GetECS() { return m_ecs; }
 	private:
-		ECSEntity CreateEntityViaModelNode(const Model::Node& a_node, const ECSEntity a_parent);
+		ECSEntity CreateEntityViaModelNode(MemoryArena& a_temp_arena, const Model::Node& a_node, const ECSEntity a_parent);
+        bool CreateRaytraceComponent(MemoryArena& a_temp_arena, const ECSEntity a_entity, const RenderComponent& a_render);
 
 		bool CreateLight(const ECSEntity a_entity, const LightCreateInfo& a_light_info);
 

@@ -531,7 +531,6 @@ namespace BB
         uint32_t acceleration_structure_size;
         uint32_t scratch_build_size;
         uint32_t scratch_update_size;
-        uint32_t primitive_count;
     };
 
     struct BuildAccelerationStructInfo

@@ -5,6 +5,7 @@
 #include "ecs/components/RenderComponent.hpp"
 #include "ecs/components/TransformComponents.hpp"
 #include "ecs/components/LightComponent.hpp"
+#include "ecs/components/RaytraceComponent.hpp"
 
 namespace BB
 {
@@ -106,6 +107,12 @@ namespace BB
 			StaticArray<DrawEntry> draw_entries;
 			StaticArray<ShaderTransform> transforms;
 		};
+
+        struct RaytraceData
+        {
+            GPULinearBuffer acceleration_structure_buffer;
+            GPULinearBuffer top_level_build_buffer;
+        } m_raytrace_data;
 
 		struct RenderTarget
 		{

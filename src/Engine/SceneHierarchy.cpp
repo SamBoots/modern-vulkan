@@ -93,7 +93,7 @@ SceneFrame SceneHierarchy::UpdateScene(const RCommandList a_list, Viewport& a_vi
 	return scene_frame;
 }
 
-ECSEntity SceneHierarchy::CreateEntityViaModelNode(const Model::Node& a_node, const ECSEntity a_parent)
+ECSEntity SceneHierarchy::CreateEntityViaModelNode(MemoryArena& a_temp_arena, const Model::Node& a_node, const ECSEntity a_parent)
 {
 	const ECSEntity ecs_obj = m_ecs.CreateEntity(a_node.name, a_parent, a_node.translation, a_node.rotation, a_node.scale);
 
@@ -113,15 +113,37 @@ ECSEntity SceneHierarchy::CreateEntityViaModelNode(const Model::Node& a_node, co
 			mesh_info.material_dirty = true;
 			bool success = m_ecs.EntityAssignRenderComponent(prim_obj, mesh_info);
 			BB_ASSERT(success, "failed to create RenderComponent");
+            success = CreateRaytraceComponent(a_temp_arena, prim_obj, mesh_info);
+            BB_ASSERT(success, "failed to create RaytraceComponent");
 		}
 	}
 
 	for (uint32_t i = 0; i < a_node.child_count; i++)
 	{
-		CreateEntityViaModelNode(a_node.childeren[i], ecs_obj);
+		CreateEntityViaModelNode(a_temp_arena, a_node.childeren[i], ecs_obj);
 	}
 
 	return ecs_obj;
+}
+
+bool SceneHierarchy::CreateRaytraceComponent(MemoryArena& a_temp_arena, const ECSEntity a_entity, const RenderComponent& a_render)
+{
+    AccelerationStructGeometrySize geometry_size{};
+    geometry_size.vertex_count = a_render.index_count * 3;
+    geometry_size.vertex_stride = sizeof(float3);
+    const uint32_t max_primitives = a_render.index_count / 3;
+    AccelerationStructSizeInfo sizes = GetBottomLevelAccelerationStructSizeInfo(a_temp_arena, ConstSlice<AccelerationStructGeometrySize>(&geometry_size, 1), ConstSlice<uint32_t>(&max_primitives, 1));
+    
+    RaytraceComponent component;
+    component.build_size = sizes.acceleration_structure_size;
+    component.scratch_size = sizes.scratch_build_size;
+    component.scratch_update = sizes.scratch_update_size;
+    component.needs_build = true;
+    component.needs_rebuild = false;
+
+    bool success = m_ecs.EntityAssignRaytraceComponent(a_entity, component);
+	BB_ASSERT(success, "failed to create RenderComponent");
+    return true;
 }
 
 ECSEntity SceneHierarchy::CreateEntity(const float3 a_position, const NameComponent& a_name, const ECSEntity a_parent)
@@ -129,7 +151,7 @@ ECSEntity SceneHierarchy::CreateEntity(const float3 a_position, const NameCompon
 	return m_ecs.CreateEntity(a_name, a_parent, a_position);
 }
 
-ECSEntity SceneHierarchy::CreateEntityMesh(const float3 a_position, const SceneMeshCreateInfo& a_mesh_info, const char* a_name, const ECSEntity a_parent)
+ECSEntity SceneHierarchy::CreateEntityMesh(MemoryArena& a_temp_arena, const float3 a_position, const SceneMeshCreateInfo& a_mesh_info, const char* a_name, const ECSEntity a_parent)
 {
 	RenderComponent mesh_info;
 	mesh_info.mesh = a_mesh_info.mesh;
@@ -151,17 +173,18 @@ ECSEntity SceneHierarchy::CreateEntityMesh(const float3 a_position, const SceneM
 	const ECSEntity ecs_obj = m_ecs.CreateEntity(a_name, a_parent, a_position);
 	bool success = m_ecs.EntityAssignRenderComponent(ecs_obj, mesh_info);
 	BB_ASSERT(success, "failed to create RenderComponent");
-
+    success = CreateRaytraceComponent(a_temp_arena, ecs_obj, mesh_info);
+    BB_ASSERT(success, "failed to create RaytraceComponent");
 	return ecs_obj;
 }
 
-ECSEntity SceneHierarchy::CreateEntityViaModel(const Model& a_model, const float3 a_position, const char* a_name, const ECSEntity a_parent)
+ECSEntity SceneHierarchy::CreateEntityViaModel(MemoryArena& a_temp_arena, const Model& a_model, const float3 a_position, const char* a_name, const ECSEntity a_parent)
 {
 	const ECSEntity ecs_obj = m_ecs.CreateEntity(a_name, a_parent, a_position);
 
 	for (uint32_t i = 0; i < a_model.root_node_count; i++)
 	{
-		CreateEntityViaModelNode(a_model.linear_nodes[a_model.root_node_indices[i]], ecs_obj);
+		CreateEntityViaModelNode(a_temp_arena, a_model.linear_nodes[a_model.root_node_indices[i]], ecs_obj);
 	}
 
 	return ecs_obj;

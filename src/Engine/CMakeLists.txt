@@ -9,6 +9,7 @@ add_library(Engine
 	"ecs/components/RenderComponent.cpp" 
 	"ecs/components/LightComponent.cpp" 
 	"ecs/components/NameComponent.cpp" 
+    "ecs/components/RaytraceComponent.cpp"
 	"ecs/systems/RenderSystem.cpp"  
 	"AssetLoader.cpp"
 	"SceneHierarchy.cpp" 
@@ -16,8 +17,7 @@ add_library(Engine
 	"EngineConfig.cpp"
 	"Viewport.cpp"
 	"Profiler.cpp"
-	"ImGuiImpl.cpp"
-	)
+	"ImGuiImpl.cpp")
 	
 target_include_directories(Engine PUBLIC "")
 

@@ -1397,17 +1397,27 @@ AccelerationStructSizeInfo BB::GetBottomLevelAccelerationStructSizeInfo(MemoryAr
 
 AccelerationStructSizeInfo BB::GetTopLevelAccelerationStructSizeInfo(MemoryArena& a_temp_arena, const uint32_t a_instance_count)
 {
-    return GetTopLevelAccelerationStructSizeInfo(a_temp_arena, a_instance_count);
+    return Vulkan::GetTopLevelAccelerationStructSizeInfo(a_temp_arena, a_instance_count);
 }
 
 RAccelerationStruct BB::CreateAccelerationStruct(const uint32_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset)
 {
-    return CreateAccelerationStruct(a_acceleration_structure_size, a_dst_buffer, a_dst_offset);
+    return Vulkan::CreateAccelerationStruct(a_acceleration_structure_size, a_dst_buffer, a_dst_offset);
 }
 
 GPUAddress BB::GetAccelerationStructureAddress(const RAccelerationStruct a_acc_struct)
 {
-    return GetAccelerationStructureAddress(a_acc_struct);
+    return Vulkan::GetAccelerationStructureAddress(a_acc_struct);
+}
+
+void BB::BuildBottomLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildAccelerationStructInfo& a_build_info)
+{
+    Vulkan::BuildBottomLevelAccelerationStruct(a_temp_arena, a_list, a_build_info, s_render_inst->vertex_buffer.address, s_render_inst->index_buffer.address);
+}
+
+void BB::TopLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildTopLevelAccelerationStructInfo& a_build_info)
+{
+    Vulkan::TopLevelAccelerationStruct(a_temp_arena, a_list, a_build_info);
 }
 
 void BB::DescriptorWriteUniformBuffer(const DescriptorWriteBufferInfo& a_write_info)

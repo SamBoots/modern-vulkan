@@ -1,8 +1,6 @@
 #pragma once
-#include "BBMemory.h"
 #include "ecs/ECSBase.hpp"
 #include "Rendererfwd.hpp"
-#include "Storage/SparseSet.hpp"
 
 namespace BB
 {
@@ -20,7 +18,7 @@ namespace BB
 	class RenderComponentPool
 	{
 	public:
-		void Init(struct MemoryArena& a_arena, const uint32_t a_render_mesh_countm, const uint32_t a_entity_count);
+		void Init(struct MemoryArena& a_arena, const uint32_t a_render_mesh_count, const uint32_t a_entity_count);
 
 		bool CreateComponent(const ECSEntity a_entity);
 		bool CreateComponent(const ECSEntity a_entity, const RenderComponent& a_component);

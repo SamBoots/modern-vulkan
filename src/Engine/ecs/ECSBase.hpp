@@ -16,6 +16,7 @@ namespace BB
 	constexpr ECSSignatureIndex NAME_ECS_SIGNATURE = ECSSignatureIndex(6);
 	constexpr ECSSignatureIndex RENDER_ECS_SIGNATURE = ECSSignatureIndex(7);
 	constexpr ECSSignatureIndex LIGHT_ECS_SIGNATURE = ECSSignatureIndex(8);
+    constexpr ECSSignatureIndex RAYTRACE_ECS_SIGNATURE = ECSSignatureIndex(9);
 
 	class EntitySparseSet
 	{

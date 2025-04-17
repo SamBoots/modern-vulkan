@@ -226,6 +226,24 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 	}
 	m_render_target.format = IMAGE_FORMAT::RGBA8_SRGB;
 	CreateRenderTarget(a_render_target_size);
+
+    // IF USING RAYTRACING
+    if (true)
+    {
+        GPUBufferCreateInfo accel_create_info;
+        accel_create_info.name = "acceleration structure buffer";
+        accel_create_info.size = mbSize * 256;
+        accel_create_info.type = BUFFER_TYPE::RT_ACCELERATION;
+        accel_create_info.host_writable = false;
+        m_raytrace_data.acceleration_structure_buffer.Init(accel_create_info);
+
+        GPUBufferCreateInfo top_level_instance_buffer;
+        top_level_instance_buffer.name = "acceleration structure host visible build buffer";
+        top_level_instance_buffer.size = mbSize * 64;
+        top_level_instance_buffer.type = BUFFER_TYPE::RT_BUILD_ACCELERATION;
+        top_level_instance_buffer.host_writable = true;
+        m_raytrace_data.top_level_build_buffer.Init(top_level_instance_buffer);
+    }
 }
 
 RDescriptorLayout RenderSystem::GetSceneDescriptorLayout()

@@ -120,6 +120,9 @@ namespace BB
     RAccelerationStruct CreateAccelerationStruct(const uint32_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset);
     GPUAddress GetAccelerationStructureAddress(const RAccelerationStruct a_acc_struct);
 
+    void BuildBottomLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildAccelerationStructInfo& a_build_info);
+    void TopLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildTopLevelAccelerationStructInfo& a_build_info);
+
 	void DescriptorWriteUniformBuffer(const DescriptorWriteBufferInfo& a_write_info);
 	void DescriptorWriteStorageBuffer(const DescriptorWriteBufferInfo& a_write_info);
 	void DescriptorWriteImage(const DescriptorWriteImageInfo& a_write_info);

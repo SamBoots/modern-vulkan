@@ -65,9 +65,6 @@ namespace BB
 		{
 			BB::Mesh mesh;
 			StaticArray<Primitive> primitives;
-
-            RAccelerationStruct acceleration_structure;
-            uint32_t scratch_update_size;
 		};
 
 		struct Node

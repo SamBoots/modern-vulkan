@@ -46,6 +46,7 @@ namespace BB
 		bool EntityAssignName(const ECSEntity a_entity, const NameComponent& a_name);
 		bool EntityAssignRenderComponent(const ECSEntity a_entity, const RenderComponent& a_draw_info);
 		bool EntityAssignLight(const ECSEntity a_entity, const LightComponent& a_light);
+        bool EntityAssignRaytraceComponent(const ECSEntity a_entity, const RaytraceComponent& a_raytrace);
 		bool EntityFreeLight(const ECSEntity a_entity);
 
 		RenderSystem& GetRenderSystem()
@@ -80,6 +81,7 @@ namespace BB
 		NameComponentPool m_name_pool;
 		RenderComponentPool m_render_mesh_pool;
 		LightComponentPool m_light_pool;
+        RaytraceComponentPool m_raytrace_pool;
 
 		// systems
 		RenderSystem m_render_system;

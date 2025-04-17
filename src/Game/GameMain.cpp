@@ -230,7 +230,7 @@ ECSEntity DungeonMap::CreateEntityFloor(MemoryArena& a_temp_arena, SceneHierarch
 		mesh_info.index_count = indices.size();
 		mesh_info.master_material = Material::GetDefaultMasterMaterial(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D);
 		mesh_info.material_data = material_info;
-		map_obj = a_scene_hierarchy.CreateEntityMesh(float3(), mesh_info, "dungeon map floor", a_parent);
+		map_obj = a_scene_hierarchy.CreateEntityMesh(a_temp_arena, float3(), mesh_info, "dungeon map floor", a_parent);
 	}
 	return map_obj;
 }
@@ -354,7 +354,7 @@ ECSEntity DungeonMap::CreateEntityWalls(MemoryArena& a_temp_arena, SceneHierarch
 		mesh_info.index_count = indices.size();
 		mesh_info.master_material = Material::GetDefaultMasterMaterial(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D);
 		mesh_info.material_data = material_info;
-		map_obj = a_scene_hierarchy.CreateEntityMesh(float3(), mesh_info, "dungeon map wall", a_parent);
+		map_obj = a_scene_hierarchy.CreateEntityMesh(a_temp_arena, float3(), mesh_info, "dungeon map wall", a_parent);
 	}
 
 	return map_obj;
