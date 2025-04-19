@@ -111,7 +111,25 @@ namespace BB
         struct RaytraceData
         {
             GPULinearBuffer acceleration_structure_buffer;
-            GPULinearBuffer top_level_build_buffer;
+
+			struct TopLevel
+			{
+				struct BuildInfo
+				{
+					GPULinearBuffer build_buffer;
+					GPUAddress build_address;
+					void* build_mapped;
+				} build_info;
+
+				RAccelerationStruct accel_struct;
+				GPUBufferView accel_buffer_view;
+				uint32_t build_size;
+				uint32_t scratch_size;
+				uint32_t scratch_update;
+				bool must_update;
+				bool must_rebuild;
+			} top_level;
+
         } m_raytrace_data;
 
 		struct RenderTarget
@@ -121,6 +139,7 @@ namespace BB
 			IMAGE_FORMAT format;
 		};
 
+		void BuildTopLevelAccelerationStructure(MemoryArena& a_per_frame_arena, const RCommandList a_list, const ConstSlice<AccelerationStructureInstanceInfo> a_instances);
 		void UpdateConstantBuffer(PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size, const ConstSlice<LightComponent> a_lights);
 		void SkyboxPass(const PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size);
 		void ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list, const DrawList& a_draw_list, const ConstSlice<LightComponent> a_lights);

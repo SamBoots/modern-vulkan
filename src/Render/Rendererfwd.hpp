@@ -517,6 +517,16 @@ namespace BB
 		SUCCESS
 	};
 
+	struct AccelerationStructureInstanceInfo
+	{
+		float4x4* transform;
+		uint32_t shader_custom_index : 24;
+		uint32_t mask : 8;
+		uint32_t shader_binding_table_offset;
+
+		GPUAddress acceleration_structure_address;
+	};
+
     struct AccelerationStructGeometrySize
     {
         uint32_t vertex_count;
@@ -533,7 +543,7 @@ namespace BB
         uint32_t scratch_update_size;
     };
 
-    struct BuildAccelerationStructInfo
+    struct BuildBottomLevelAccelerationStructInfo
     {
         RAccelerationStruct acc_struct;
         GPUAddress scratch_buffer_address;

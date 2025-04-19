@@ -7,6 +7,8 @@ namespace BB
 	struct RaytraceComponent
 	{
         RAccelerationStruct acceleration_structure;
+		GPUAddress acceleration_struct_address;
+
 		uint64_t acceleration_buffer_offset;
         uint32_t build_size;
         uint32_t scratch_size;

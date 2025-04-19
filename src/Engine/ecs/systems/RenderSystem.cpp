@@ -240,7 +240,12 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
         top_level_instance_buffer.size = mbSize * 64;
         top_level_instance_buffer.type = BUFFER_TYPE::RT_BUILD_ACCELERATION;
         top_level_instance_buffer.host_writable = true;
-        m_raytrace_data.top_level_build_buffer.Init(top_level_instance_buffer);
+
+		m_raytrace_data.top_level.build_info.build_buffer.Init(top_level_instance_buffer);
+		m_raytrace_data.top_level.build_info.build_mapped = MapGPUBuffer(m_raytrace_data.top_level.build_info.build_buffer.GetBuffer());
+		m_raytrace_data.top_level.build_info.build_address = GetGPUBufferAddress(m_raytrace_data.top_level.build_info.build_buffer.GetBuffer());
+		m_raytrace_data.top_level.must_update = false;
+		m_raytrace_data.top_level.must_rebuild = false;
     }
 }
 
@@ -301,6 +306,8 @@ void RenderSystem::StartFrame(const RCommandList a_list)
 	PipelineBarrierInfo pipeline_info{};
 	pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo>(&render_target_transition, 1);
 	PipelineBarriers(a_list, pipeline_info);
+
+
 }
 
 RenderSystemFrame RenderSystem::EndFrame(const RCommandList a_list, const IMAGE_LAYOUT a_current_layout)
@@ -359,9 +366,26 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 			GPUBufferView view;
 			bool success = m_raytrace_data.acceleration_structure_buffer.Allocate(ray_comp.build_size, view);
 			BB_ASSERT(success, "failed to allocate acceleration structure data");
-			ray_comp.acceleration_structure = CreateAccelerationStruct(ray_comp.build_size, view.buffer, view.offset);
+			ray_comp.acceleration_structure = CreateBottomLevelAccelerationStruct(ray_comp.build_size, view.buffer, view.offset);
+			ray_comp.acceleration_struct_address = GetAccelerationStructureAddress(ray_comp.acceleration_structure);
 			ray_comp.acceleration_buffer_offset = view.offset;
 			ray_comp.needs_build = false;
+
+			AccelerationStructGeometrySize geometry_size;
+			geometry_size.vertex_count = comp.index_count * 3;
+			geometry_size.vertex_stride = sizeof(float3);
+			geometry_size.transform_address = 0; // TODO
+			geometry_size.index_offset = comp.index_start;
+			geometry_size.vertex_offset = comp.mesh.vertex_position_offset;
+
+			const uint32_t primitive_count = comp.index_count / 3;
+
+			BuildBottomLevelAccelerationStructInfo acc_build_info;
+			acc_build_info.acc_struct = ray_comp.acceleration_structure;
+			acc_build_info.scratch_buffer_address = 0; // TODO
+			acc_build_info.geometry_sizes = ConstSlice<AccelerationStructGeometrySize>(&geometry_size, 1);
+			acc_build_info.primitive_counts = ConstSlice<uint32_t>(&primitive_count, 1);
+			//BuildBottomLevelAccelerationStruct(a_per_frame_arena, a_list, acc_build_info);
 		}
 
 		DrawList::DrawEntry entry;
@@ -378,6 +402,23 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 		draw_list.draw_entries.push_back(entry);
 		draw_list.transforms.push_back(shader_transform);
 	}
+
+	if (m_raytrace_data.top_level.must_rebuild || !m_raytrace_data.top_level.accel_struct.IsValid())
+	{
+		StaticArray<AccelerationStructureInstanceInfo> instances{};
+		instances.Init(a_per_frame_arena, static_cast<uint32_t>(render_component_count), static_cast<uint32_t>(render_component_count));
+		for (size_t i = 0; i < render_component_count; i++)
+		{
+			instances[i].transform = &draw_list.transforms[i].transform;
+			instances[i].shader_custom_index = 0;
+			instances[i].mask = 0xFF;
+			instances[i].shader_binding_table_offset = 0;
+			instances[i].acceleration_structure_address = a_raytrace_pool.GetComponent(render_entities[i]).acceleration_struct_address;
+		}
+
+		BuildTopLevelAccelerationStructure(a_per_frame_arena, a_list, instances.const_slice());
+	}
+
 	BindIndexBuffer(a_list, 0);
 	UpdateConstantBuffer(pfd, a_list, a_draw_area, a_lights);
 
@@ -448,6 +489,29 @@ void RenderSystem::SetProjection(const float4x4& a_projection)
 void RenderSystem::SetClearColor(const float3 a_clear_color)
 {
 	m_clear_color = a_clear_color;
+}
+
+void RenderSystem::BuildTopLevelAccelerationStructure(MemoryArena& a_per_frame_arena, const RCommandList a_list, const ConstSlice<AccelerationStructureInstanceInfo> a_instances)
+{
+	RaytraceData::TopLevel& tpl = m_raytrace_data.top_level;
+	// TEMP STUFF 
+	GPUBufferView view;
+	bool success = tpl.build_info.build_buffer.Allocate(AccelerationStructureInstanceUploadSize() * a_instances.size(), view);
+	BB_ASSERT(success, "failed to allocate memory for a top level acceleration structure build info");
+	success = UploadAccelerationStructureInstances(Pointer::Add(tpl.build_info.build_mapped, view.offset), view.size, a_instances);
+
+	const AccelerationStructSizeInfo size_info = GetTopLevelAccelerationStructSizeInfo(a_per_frame_arena, ConstSlice<GPUAddress>(&tpl.build_info.build_address, 1));
+	if (tpl.accel_buffer_view.size < size_info.acceleration_structure_size)
+	{
+		success = m_raytrace_data.acceleration_structure_buffer.Allocate(size_info.acceleration_structure_size * 2, tpl.accel_buffer_view);
+		BB_ASSERT(success, "failed to allocate memory for a top level acceleration structure");
+	}
+
+	tpl.build_size = size_info.acceleration_structure_size;
+	tpl.scratch_size = size_info.scratch_build_size;
+	tpl.scratch_update = size_info.scratch_update_size;
+	// not yet, this is wrong
+	tpl.accel_struct = CreateTopLevelAccelerationStruct(size_info.acceleration_structure_size, tpl.accel_buffer_view.buffer, tpl.accel_buffer_view.offset);
 }
 
 void RenderSystem::UpdateConstantBuffer(PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size, const ConstSlice<LightComponent> a_lights)
