@@ -33,7 +33,8 @@ namespace BB
 		bool Allocate(const size_t a_byte_amount, GPUBufferView& a_out_view);
 		void Clear();
 
-		const GPUBuffer GetBuffer() const { return m_buffer; }
+		GPUBuffer GetBuffer() const { return m_buffer; }
+		GPUAddress GetAddress() const;
 	private:
 		GPUBuffer m_buffer;
 		size_t m_capacity;

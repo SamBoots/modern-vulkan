@@ -71,6 +71,11 @@ void GPULinearBuffer::Clear()
 	m_size = 0;
 }
 
+GPUAddress GPULinearBuffer::GetAddress() const
+{
+	return Vulkan::GetBufferAddress(m_buffer);
+}
+
 void GPUUploadRingAllocator::Init(MemoryArena& a_arena, const size_t a_ring_buffer_size, const RFence a_fence, const char* a_name)
 {
 	GPUBufferCreateInfo create_info;

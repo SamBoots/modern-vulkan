@@ -2281,50 +2281,37 @@ void Vulkan::BuildBottomLevelAccelerationStruct(MemoryArena& a_temp_arena, const
 
 void Vulkan::BuildTopLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildTopLevelAccelerationStructInfo& a_build_info)
 {
-	BB_ASSERT(a_build_info.instances.size() == a_build_info.primitive_counts.size(), "geometry and primitive must have the same size");
+	BB_ASSERT(a_build_info.instance_counts.size() == a_build_info.build_addresses.size(), "instance_counts and build_addresses are not the same size");
 	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 
-	const size_t instance_count = a_build_info.primitive_counts.size();
+	const size_t instance_count = a_build_info.build_addresses.size();
+	VkAccelerationStructureGeometryKHR* acceleration_instances = ArenaAllocArr(a_temp_arena, VkAccelerationStructureGeometryKHR, instance_count);
 	VkAccelerationStructureBuildRangeInfoKHR* ranges = ArenaAllocArr(a_temp_arena, VkAccelerationStructureBuildRangeInfoKHR, instance_count);
-	VkAccelerationStructureInstanceKHR* instances = ArenaAllocArr(a_temp_arena, VkAccelerationStructureInstanceKHR, instance_count);
 	for (size_t i = 0; i < instance_count; i++)
 	{
-		const BottomLevelAccelerationStructInstance& racl = a_build_info.instances[i];
-		VkAccelerationStructureInstanceKHR& wacl = instances[i];
-		wacl.transform = Float4x4ToVkTransformMatrixKHR(racl.transform);
-		wacl.instanceCustomIndex = 0;
-		wacl.mask = 0xFF;
-		wacl.instanceShaderBindingTableRecordOffset = 0;
-		wacl.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
-		wacl.accelerationStructureReference = racl.acceleration_structure_address;
+		VkAccelerationStructureGeometryKHR& acc_inst = acceleration_instances[i];
+		acc_inst.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+		acc_inst.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+		acc_inst.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+		acc_inst.geometry.instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
+		acc_inst.geometry.instances.arrayOfPointers = VK_FALSE;
+		acc_inst.geometry.instances.data.deviceAddress = a_build_info.build_addresses[i];
 
 		VkAccelerationStructureBuildRangeInfoKHR& range = ranges[i];
-		range.primitiveCount = a_build_info.primitive_counts[i];
+		range.primitiveCount = a_build_info.instance_counts[i];
 		range.primitiveOffset = 0;
 		range.firstVertex = 0;
 		range.transformOffset = 0;
 	}
 
-	const size_t instance_copy_size = sizeof(BottomLevelAccelerationStructInstance) * instance_count;
-	BB_ASSERT(instance_copy_size == a_build_info.mapped_size, "instance copy size is not the same as mapped_size");
-	memcpy(a_build_info.acceleration_build_mapped, instances, instance_copy_size);
-
-	VkAccelerationStructureGeometryKHR acceleration_instances{};
-	acceleration_instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
-	acceleration_instances.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
-	acceleration_instances.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
-	acceleration_instances.geometry.instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
-	acceleration_instances.geometry.instances.arrayOfPointers = VK_FALSE;
-	acceleration_instances.geometry.instances.data.deviceAddress = a_build_info.acceleration_build_address;
-
 	VkAccelerationStructureBuildGeometryInfoKHR acceleration_build_info{};
 	acceleration_build_info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
-	acceleration_build_info.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+	acceleration_build_info.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
 	acceleration_build_info.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
 	acceleration_build_info.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
 	acceleration_build_info.dstAccelerationStructure = reinterpret_cast<VkAccelerationStructureKHR>(a_build_info.acc_struct.handle);
-	acceleration_build_info.geometryCount = 1;
-	acceleration_build_info.pGeometries = &acceleration_instances;
+	acceleration_build_info.geometryCount = static_cast<uint32_t>(a_build_info.instance_counts.size());
+	acceleration_build_info.pGeometries = acceleration_instances;
 	acceleration_build_info.scratchData.deviceAddress = a_build_info.scratch_buffer_address;
 
 	s_vulkan_inst->pfn.CmdBuildAccelerationStructuresKHR(cmd_list, 1, &acceleration_build_info, &ranges);

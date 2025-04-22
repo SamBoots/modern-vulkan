@@ -167,6 +167,7 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 		buffer_info.type = BUFFER_TYPE::STORAGE;
 		buffer_info.host_writable = false;
 		pfd.storage_buffer.Init(buffer_info);
+		pfd.storage_buffer_address = pfd.storage_buffer.GetAddress();
 
 		pfd.fence_value = 0;
 
@@ -374,15 +375,18 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 			AccelerationStructGeometrySize geometry_size;
 			geometry_size.vertex_count = comp.index_count * 3;
 			geometry_size.vertex_stride = sizeof(float3);
-			geometry_size.transform_address = 0; // TODO
+			geometry_size.transform_address = 0;
 			geometry_size.index_offset = comp.index_start;
 			geometry_size.vertex_offset = comp.mesh.vertex_position_offset;
 
 			const uint32_t primitive_count = comp.index_count / 3;
 
+			GPUBufferView scratch_data;
+			//success = pfd.storage_buffer.Allocate(ray_comp.scratch_size, scratch_data);
+			//BB_ASSERT(success, "failed to allocate scratch data");
 			BuildBottomLevelAccelerationStructInfo acc_build_info;
 			acc_build_info.acc_struct = ray_comp.acceleration_structure;
-			acc_build_info.scratch_buffer_address = 0; // TODO
+			acc_build_info.scratch_buffer_address = pfd.storage_buffer_address + scratch_data.offset;
 			acc_build_info.geometry_sizes = ConstSlice<AccelerationStructGeometrySize>(&geometry_size, 1);
 			acc_build_info.primitive_counts = ConstSlice<uint32_t>(&primitive_count, 1);
 			//BuildBottomLevelAccelerationStruct(a_per_frame_arena, a_list, acc_build_info);
@@ -416,7 +420,7 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 			instances[i].acceleration_structure_address = a_raytrace_pool.GetComponent(render_entities[i]).acceleration_struct_address;
 		}
 
-		BuildTopLevelAccelerationStructure(a_per_frame_arena, a_list, instances.const_slice());
+		BuildTopLevelAccelerationStructure(a_per_frame_arena, pfd, a_list, instances.const_slice());
 	}
 
 	BindIndexBuffer(a_list, 0);
@@ -491,7 +495,7 @@ void RenderSystem::SetClearColor(const float3 a_clear_color)
 	m_clear_color = a_clear_color;
 }
 
-void RenderSystem::BuildTopLevelAccelerationStructure(MemoryArena& a_per_frame_arena, const RCommandList a_list, const ConstSlice<AccelerationStructureInstanceInfo> a_instances)
+void RenderSystem::BuildTopLevelAccelerationStructure(MemoryArena& a_per_frame_arena, PerFrame& a_pfd, const RCommandList a_list, const ConstSlice<AccelerationStructureInstanceInfo> a_instances)
 {
 	RaytraceData::TopLevel& tpl = m_raytrace_data.top_level;
 	// TEMP STUFF 
@@ -500,7 +504,8 @@ void RenderSystem::BuildTopLevelAccelerationStructure(MemoryArena& a_per_frame_a
 	BB_ASSERT(success, "failed to allocate memory for a top level acceleration structure build info");
 	success = UploadAccelerationStructureInstances(Pointer::Add(tpl.build_info.build_mapped, view.offset), view.size, a_instances);
 
-	const AccelerationStructSizeInfo size_info = GetTopLevelAccelerationStructSizeInfo(a_per_frame_arena, ConstSlice<GPUAddress>(&tpl.build_info.build_address, 1));
+	const ConstSlice<GPUAddress> build_addresses(&tpl.build_info.build_address, 1);
+	const AccelerationStructSizeInfo size_info = GetTopLevelAccelerationStructSizeInfo(a_per_frame_arena, build_addresses);
 	if (tpl.accel_buffer_view.size < size_info.acceleration_structure_size)
 	{
 		success = m_raytrace_data.acceleration_structure_buffer.Allocate(size_info.acceleration_structure_size * 2, tpl.accel_buffer_view);
@@ -510,8 +515,19 @@ void RenderSystem::BuildTopLevelAccelerationStructure(MemoryArena& a_per_frame_a
 	tpl.build_size = size_info.acceleration_structure_size;
 	tpl.scratch_size = size_info.scratch_build_size;
 	tpl.scratch_update = size_info.scratch_update_size;
-	// not yet, this is wrong
 	tpl.accel_struct = CreateTopLevelAccelerationStruct(size_info.acceleration_structure_size, tpl.accel_buffer_view.buffer, tpl.accel_buffer_view.offset);
+
+	GPUBufferView scratch_data;
+	success = a_pfd.storage_buffer.Allocate(tpl.scratch_size, scratch_data);
+	BB_ASSERT(success, "failed to allocate scratch data");
+	const uint32_t instance_count = static_cast<uint32_t>(a_instances.size());
+	BuildTopLevelAccelerationStructInfo build_info;
+	build_info.acc_struct = tpl.accel_struct;
+	build_info.scratch_buffer_address = a_pfd.storage_buffer_address + scratch_data.offset;
+	build_info.build_addresses = build_addresses;
+	build_info.instance_counts = ConstSlice<uint32_t>(&instance_count, 1);
+
+	BuildTopLevelAccelerationStruct(a_per_frame_arena, a_list, build_info);
 }
 
 void RenderSystem::UpdateConstantBuffer(PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size, const ConstSlice<LightComponent> a_lights)

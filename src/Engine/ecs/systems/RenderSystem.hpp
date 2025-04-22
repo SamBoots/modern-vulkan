@@ -74,6 +74,7 @@ namespace BB
 			GPUStaticCPUWriteableBuffer scene_buffer;
 			// I want this to be uniform but hlsl is giga cringe
 			GPULinearBuffer storage_buffer;
+			GPUAddress storage_buffer_address;
 
 			struct Bloom
 			{
@@ -111,7 +112,8 @@ namespace BB
         struct RaytraceData
         {
             GPULinearBuffer acceleration_structure_buffer;
-
+			GPULinearBuffer scratch_buffer;
+			GPUAddress scratch_address;
 			struct TopLevel
 			{
 				struct BuildInfo
@@ -139,7 +141,7 @@ namespace BB
 			IMAGE_FORMAT format;
 		};
 
-		void BuildTopLevelAccelerationStructure(MemoryArena& a_per_frame_arena, const RCommandList a_list, const ConstSlice<AccelerationStructureInstanceInfo> a_instances);
+		void BuildTopLevelAccelerationStructure(MemoryArena& a_per_frame_arena, PerFrame& a_pfd, const RCommandList a_list, const ConstSlice<AccelerationStructureInstanceInfo> a_instances);
 		void UpdateConstantBuffer(PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size, const ConstSlice<LightComponent> a_lights);
 		void SkyboxPass(const PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size);
 		void ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list, const DrawList& a_draw_list, const ConstSlice<LightComponent> a_lights);
