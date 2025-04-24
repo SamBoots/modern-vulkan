@@ -20,6 +20,16 @@ bool Viewport::PositionWithinViewport(const uint2 a_pos) const
 	return false;
 }
 
+bool Viewport::ScreenToViewportMousePosition(const float2 a_pos, float2& a_new_pos) const
+{
+    if (!PositionWithinViewport(uint2(static_cast<uint32_t>(a_pos.x), static_cast<uint32_t>(a_pos.y))))
+        return false;
+
+    a_new_pos.x = a_pos.x - static_cast<float>(m_offset.x);
+    a_new_pos.y = a_pos.y - static_cast<float>(m_offset.y);
+    return true;
+}
+
 float4x4 Viewport::CreateProjection(const float a_fov, const float a_near_field, const float a_far_field) const
 {
 	return Float4x4Perspective(ToRadians(a_fov), static_cast<float>(m_extent.x) / static_cast<float>(m_extent.y), a_near_field, a_far_field);

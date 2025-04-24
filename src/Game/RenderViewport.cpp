@@ -188,6 +188,15 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
 			{
 				m_camera.Rotate(mouse_move.x, mouse_move.y);
 			}
+
+            if (mi.left_pressed)
+            {
+                float2 mouse_pos_window;
+                if (m_viewport.ScreenToViewportMousePosition(mi.mouse_pos, mouse_pos_window))
+                {
+                    m_scene_hierarchy.GetECS().SelectEntityByClick(mouse_pos_window, m_camera.CalculateView());
+                }
+            }
 		}
 	}
 

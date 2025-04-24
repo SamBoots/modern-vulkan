@@ -60,6 +60,9 @@ namespace BB
 		void SetProjection(const float4x4& a_projection);
 		void SetClearColor(const float3 a_clear_color);
 
+        float4x4 GetProjection() const {return m_scene_info.proj; }
+        float4x4 GetView() const {return m_scene_info.view; }
+
 	private:
 		struct PerFrame
 		{

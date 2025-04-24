@@ -18,6 +18,7 @@ namespace BB
 		void Init(const uint2 a_extent, const int2 a_offset, const StackString<32>& a_name);
 
 		bool PositionWithinViewport(const uint2 a_pos) const;
+        bool ScreenToViewportMousePosition(const float2 a_pos, float2& a_new_pos) const;
 
 		float4x4 CreateProjection(const float a_fov, const float a_near_field, const float a_far_field) const;
 
