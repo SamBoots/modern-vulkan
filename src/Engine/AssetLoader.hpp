@@ -56,10 +56,11 @@ namespace BB
 		struct Primitive
 		{
 			//change this with material.
-			uint32_t start_index;				// 4
-			uint32_t index_count;				// 8
+			uint32_t start_index;
+			uint32_t index_count;
 
-			MaterialData material_data;			// 32
+			MaterialData material_data;
+            BoundingBox bounding_box;
 		};
 
 		struct Mesh

@@ -17,4 +17,10 @@ namespace BB
 	class PathString;
 
 	constexpr ECSEntity INVALID_ECS_OBJ = ECSEntity(BB_INVALID_HANDLE_64);
+
+    struct BoundingBox
+    {
+        float3 min;
+        float3 max;
+    };
 }

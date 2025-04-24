@@ -173,6 +173,15 @@ void EntityComponentSystem::SetScale(const ECSEntity a_entity, const float3 a_sc
 	m_scales.GetComponent(a_entity) = a_scale;
 }
 
+bool EntityComponentSystem::EntityAssignBoundingBox(const ECSEntity a_entity, const BoundingBox& a_box)
+{
+    if (!m_bounding_box_pool.CreateComponent(a_entity, a_box))
+        return false;
+    if (!m_ecs_entities.RegisterSignature(a_entity, m_bounding_box_pool.GetSignatureIndex()))
+        return false;
+    return true;
+}
+
 bool EntityComponentSystem::EntityAssignName(const ECSEntity a_entity, const NameComponent& a_name)
 {
 	if (!m_name_pool.CreateComponent(a_entity, a_name))

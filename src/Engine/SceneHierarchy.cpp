@@ -113,6 +113,8 @@ ECSEntity SceneHierarchy::CreateEntityViaModelNode(const Model::Node& a_node, co
 			mesh_info.material_dirty = true;
 			bool success = m_ecs.EntityAssignRenderComponent(prim_obj, mesh_info);
 			BB_ASSERT(success, "failed to create RenderComponent");
+            success = m_ecs.EntityAssignBoundingBox(prim_obj, mesh.primitives[i].bounding_box);
+            BB_ASSERT(success, "failed to assign BoundingBox");
 		}
 	}
 
@@ -126,10 +128,10 @@ ECSEntity SceneHierarchy::CreateEntityViaModelNode(const Model::Node& a_node, co
 
 ECSEntity SceneHierarchy::CreateEntity(const float3 a_position, const NameComponent& a_name, const ECSEntity a_parent)
 {
-	return m_ecs.CreateEntity(a_name, a_parent, a_position);
+    return m_ecs.CreateEntity(a_name, a_parent, a_position);
 }
 
-ECSEntity SceneHierarchy::CreateEntityMesh(const float3 a_position, const SceneMeshCreateInfo& a_mesh_info, const char* a_name, const ECSEntity a_parent)
+ECSEntity SceneHierarchy::CreateEntityMesh(const float3 a_position, const SceneMeshCreateInfo& a_mesh_info, const char* a_name, const BoundingBox& a_bounding_box, const ECSEntity a_parent)
 {
 	RenderComponent mesh_info;
 	mesh_info.mesh = a_mesh_info.mesh;
@@ -151,6 +153,8 @@ ECSEntity SceneHierarchy::CreateEntityMesh(const float3 a_position, const SceneM
 	const ECSEntity ecs_obj = m_ecs.CreateEntity(a_name, a_parent, a_position);
 	bool success = m_ecs.EntityAssignRenderComponent(ecs_obj, mesh_info);
 	BB_ASSERT(success, "failed to create RenderComponent");
+    success = m_ecs.EntityAssignBoundingBox(ecs_obj, a_bounding_box);
+    BB_ASSERT(success, "failed to assign BoundingBox");
 
 	return ecs_obj;
 }

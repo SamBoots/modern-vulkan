@@ -28,7 +28,7 @@ namespace BB
 		friend class Editor;
 		bool Init(MemoryArena& a_arena, const EntityComponentSystemCreateInfo& a_create_info, const StackString<32> a_name);
 
-		ECSEntity CreateEntity(const NameComponent& a_name = "#UNNAMED#", const ECSEntity& a_parent = INVALID_ECS_OBJ, const float3 a_position = float3(0.f), const float3x3 a_rotation = Float3x3Identity(), const float3 a_scale = float3(1.f));
+        ECSEntity CreateEntity(const NameComponent& a_name = "#UNNAMED#", const ECSEntity& a_parent = INVALID_ECS_OBJ, const float3 a_position = float3(0.f), const float3x3 a_rotation = Float3x3Identity(), const float3 a_scale = float3(1.f));
         ECSEntity SelectEntityByClick(const float2 a_mouse_pos_viewport, const float4x4& a_view);
 
 		void StartFrame();
@@ -44,6 +44,7 @@ namespace BB
 		void SetRotation(const ECSEntity a_entity, const float3x3 a_rotation);
 		void SetScale(const ECSEntity a_entity, const float3 a_scale);
 
+        bool EntityAssignBoundingBox(const ECSEntity a_entity, const BoundingBox& a_box);
 		bool EntityAssignName(const ECSEntity a_entity, const NameComponent& a_name);
 		bool EntityAssignRenderComponent(const ECSEntity a_entity, const RenderComponent& a_draw_info);
 		bool EntityAssignLight(const ECSEntity a_entity, const LightComponent& a_light);
@@ -76,6 +77,7 @@ namespace BB
 		PositionComponentPool m_positions;
 		RotationComponentPool m_rotations;
 		ScaleComponentPool m_scales;
+        BoundingBoxComponentPool m_bounding_box_pool;
 		LocalMatrixComponentPool m_local_matrices;
 		WorldMatrixComponentPool m_world_matrices;
 		NameComponentPool m_name_pool;

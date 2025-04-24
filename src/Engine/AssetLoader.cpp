@@ -1432,6 +1432,27 @@ static inline void* GetAccessorDataPtr(const cgltf_accessor* a_accessor)
 	return Pointer::Add(a_accessor->buffer_view->buffer->data, accessor_offset);
 }
 
+static inline BoundingBox GetBoundingBoxPrimitive(const ConstSlice<float3> a_vertices, const uint32_t a_index_start, const uint32_t a_index_count)
+{
+    BoundingBox box;
+    box.min = a_vertices[a_index_start];
+    box.max = a_vertices[a_index_start];
+
+    for (uint32_t i = a_index_start; i < a_index_count + a_index_start; i++)
+    {
+        const float3 vert = a_vertices[i];
+        box.min.x = Min(vert.x, box.min.x);
+        box.min.y = Min(vert.y, box.min.y);
+        box.min.z = Min(vert.z, box.min.z);
+
+        box.max.x = Max(vert.x, box.max.x);
+        box.max.y = Max(vert.y, box.max.y);
+        box.max.z = Max(vert.z, box.max.z);
+    }
+
+    return box;
+}
+
 static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_mesh, Model::Mesh& a_mesh)
 {
 	const cgltf_mesh& mesh = a_cgltf_mesh;
@@ -1574,6 +1595,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 			{
 			case cgltf_attribute_type_position:
 			{
+                BB_ASSERT(vertex_pos_offset == 0, "already got position");
 				float3* positions;
 				BB_ASSERT(attrib.data->type == cgltf_type_vec3, "position is not vec3");
 				if (is_interleaved)
@@ -1599,6 +1621,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 				break;
 			case cgltf_attribute_type_normal:
 			{
+                BB_ASSERT(vertex_normal_offset == 0, "already got normals");
 				float3* normals;
 				BB_ASSERT(attrib.data->type == cgltf_type_vec3, "normal is not vec3");
 				if (is_interleaved)
@@ -1624,6 +1647,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 				break;
 			case cgltf_attribute_type_texcoord:
 			{
+                BB_ASSERT(vertex_uv_offset == 0, "already got uvs");
 				float2* uvs;
 				BB_ASSERT(attrib.data->type == cgltf_type_vec2, "uv is not vec3");
 				if (is_interleaved)
@@ -1648,6 +1672,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 				break;
 			case cgltf_attribute_type_color:
 			{
+                BB_ASSERT(vertex_color_offset == 0, "already got colors");
 				float4* colors;
 				BB_ASSERT(attrib.data->type == cgltf_type_vec4, "color is not vec4");
 				if (is_interleaved)
@@ -1674,6 +1699,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 				break;
 			case cgltf_attribute_type_tangent:
 			{
+                BB_ASSERT(vertex_tangent_offset == 0, "already got tangents");
 				float3* tangents;
 				BB_ASSERT(attrib.data->type == cgltf_type_vec3, "tangents is not vec3");
 				if (is_interleaved)
@@ -1724,7 +1750,11 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 			create_mesh.colors = ConstSlice<float4>(colors, vertex_count);
 		}
 	}
-
+    for (size_t prim_index = 0; prim_index < mesh.primitives_count; prim_index++)
+    {
+        Model::Primitive& model_prim = a_mesh.primitives[prim_index];
+        model_prim.bounding_box = GetBoundingBoxPrimitive(create_mesh.positions, model_prim.start_index, model_prim.index_count);
+    }
 	CreateMesh(a_temp_arena, create_mesh, a_mesh.mesh);
 }
 

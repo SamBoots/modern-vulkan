@@ -166,6 +166,9 @@ ECSEntity DungeonMap::CreateEntityFloor(MemoryArena& a_temp_arena, SceneHierarch
 		uvs.Init(a_temp_arena, m_map.size() * 4);
 		colors.Init(a_temp_arena, m_map.size() * 4);
 
+        float max_x = 0;
+        float max_y = 0;
+
 		StaticArray<uint32_t> indices;
 		indices.Init(a_temp_arena, m_map.size() * 6);
 		// optimize this
@@ -183,6 +186,9 @@ ECSEntity DungeonMap::CreateEntityFloor(MemoryArena& a_temp_arena, SceneHierarch
 					const float3 pos_top_right = float3(fx + .5f, 0.f, fy + .5f);
 					const float3 pos_bot_right = float3(fx + .5f, 0.f, fy - .5f);
 					const float3 pos_bot_left = float3(fx - .5f, 0.f, fy - .5f);
+
+                    max_x = Max(max_x, fx);
+                    max_y = Max(max_y, fy);
 
 					quad_pos[0] = pos_top_left;
 					quad_pos[1] = pos_top_right;
@@ -224,13 +230,19 @@ ECSEntity DungeonMap::CreateEntityFloor(MemoryArena& a_temp_arena, SceneHierarch
 		material_info.normal_texture = Asset::GetBlueTexture();
 		material_info.orm_texture = Asset::GetWhiteTexture();
 
+        BoundingBox bounding_box;
+        bounding_box.min = float3(0.f);
+        bounding_box.max.x = max_x;
+        bounding_box.max.y = max_y;
+        bounding_box.max.z = 1.f;
+
 		SceneMeshCreateInfo mesh_info;
 		mesh_info.mesh = mesh;
 		mesh_info.index_start = 0;
 		mesh_info.index_count = indices.size();
 		mesh_info.master_material = Material::GetDefaultMasterMaterial(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D);
 		mesh_info.material_data = material_info;
-		map_obj = a_scene_hierarchy.CreateEntityMesh(float3(), mesh_info, "dungeon map floor", a_parent);
+		map_obj = a_scene_hierarchy.CreateEntityMesh(float3(), mesh_info, "dungeon map floor", bounding_box, a_parent);
 	}
 	return map_obj;
 }
@@ -261,7 +273,8 @@ ECSEntity DungeonMap::CreateEntityWalls(MemoryArena& a_temp_arena, SceneHierarch
 	quad_colors[2] = float4(1.f, 1.f, 1.f, 1.f);
 	quad_colors[3] = float4(1.f, 1.f, 1.f, 1.f);
 
-
+    float max_x = 0;
+    float max_z = 0;
 
 	ECSEntity map_obj{};
 	MemoryArenaScope(a_temp_arena)
@@ -289,6 +302,9 @@ ECSEntity DungeonMap::CreateEntityWalls(MemoryArena& a_temp_arena, SceneHierarch
 				const float3 pos_top_right = RotatePointOnPoint(rotation_matrix, float3(fx + 0.5f, 0.5f, fz + 0.5f), middle);
 				const float3 pos_bot_right = RotatePointOnPoint(rotation_matrix, float3(fx + 0.5f, 0.5f, fz - 0.5f), middle);
 				const float3 pos_bot_left = RotatePointOnPoint(rotation_matrix, float3(fx - 0.5f, 0.5f, fz - 0.5f), middle);
+
+                max_x = Max(max_x, fx);
+                max_z = Max(max_z, fz);
 
 				QuadVerticesPos pos;
 				pos[0] = pos_top_left + a_offset;
@@ -331,6 +347,12 @@ ECSEntity DungeonMap::CreateEntityWalls(MemoryArena& a_temp_arena, SceneHierarch
 			}
 		}
 
+        BoundingBox bounding_box;
+        bounding_box.min = float3(0.f);
+        bounding_box.max.x = max_x;
+        bounding_box.max.y = 1.f;
+        bounding_box.max.z = max_z;
+
 		Asset::MeshLoadFromMemory load_mesh_info;
 		load_mesh_info.name = "dungeon wall";
 		load_mesh_info.indices = indices.const_slice();
@@ -354,7 +376,7 @@ ECSEntity DungeonMap::CreateEntityWalls(MemoryArena& a_temp_arena, SceneHierarch
 		mesh_info.index_count = indices.size();
 		mesh_info.master_material = Material::GetDefaultMasterMaterial(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D);
 		mesh_info.material_data = material_info;
-		map_obj = a_scene_hierarchy.CreateEntityMesh(float3(), mesh_info, "dungeon map wall", a_parent);
+		map_obj = a_scene_hierarchy.CreateEntityMesh(float3(), mesh_info, "dungeon map wall", bounding_box, a_parent);
 	}
 
 	return map_obj;
