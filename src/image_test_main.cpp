@@ -60,7 +60,7 @@ constexpr float gaussian3x3_filter[3 * 3]
 	1.f, 2.f, 1.f,
 };
 
-#include "Math.inl"
+#include "Math/Math.inl"
 
 int main(int argc, char** argv)
 {

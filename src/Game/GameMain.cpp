@@ -6,7 +6,7 @@
 #include "SceneHierarchy.hpp"
 #include "HID.h"
 
-#include "Math.inl"
+#include "Math/Math.inl"
 
 using namespace BB;
 

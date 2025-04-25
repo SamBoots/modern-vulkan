@@ -5,7 +5,7 @@
 #include "HID.h"
 #include "AssetLoader.hpp"
 
-#include "Math.inl"
+#include "Math/Math.inl"
 
 using namespace BB;
 
@@ -194,7 +194,7 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
                 float2 mouse_pos_window;
                 if (m_viewport.ScreenToViewportMousePosition(mi.mouse_pos, mouse_pos_window))
                 {
-                    m_scene_hierarchy.GetECS().SelectEntityByClick(mouse_pos_window, m_camera.CalculateView());
+                    const ECSEntity clicked_entity = m_scene_hierarchy.GetECS().SelectEntityByClick(mouse_pos_window, m_camera.CalculateView(), m_camera.GetPosition());
                 }
             }
 		}

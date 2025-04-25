@@ -2,7 +2,7 @@
 #include "OS/Program.h"
 #include "BBThreadScheduler.hpp"
 
-#include "Math.inl"
+#include "Math/Math.inl"
 
 #include "MemoryArena.hpp"
 

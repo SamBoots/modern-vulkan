@@ -9,7 +9,7 @@
 
 #include "shared_common.hlsl.h"
 
-#include "Math.inl"
+#include "Math/Math.inl"
 #include "BBjson.hpp"
 #include "Editor.hpp"
 #include "GameMain.hpp"

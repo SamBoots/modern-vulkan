@@ -1,6 +1,6 @@
 #include "RenderSystem.hpp"
 #include "MaterialSystem.hpp"
-#include "Math.inl"
+#include "Math/Math.inl"
 #include "Renderer.hpp"
 
 #include "AssetLoader.hpp"

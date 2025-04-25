@@ -7,7 +7,7 @@
 
 #include "ShaderCompiler.h"
 
-#include "Math.inl"
+#include "Math/Math.inl"
 
 #include "imgui.h"
 #include "implot.h"

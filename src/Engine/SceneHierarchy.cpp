@@ -1,5 +1,5 @@
 #include "SceneHierarchy.hpp"
-#include "Math.inl"
+#include "Math/Math.inl"
 #include "BBjson.hpp"
 #include "BBThreadScheduler.hpp"
 #include "RendererTypes.hpp"

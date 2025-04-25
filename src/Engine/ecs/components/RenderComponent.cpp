@@ -1,5 +1,5 @@
 #include "RenderComponent.hpp"
-#include "Math.inl"
+#include "Math/Math.inl"
 
 #include "MemoryArena.hpp"
 

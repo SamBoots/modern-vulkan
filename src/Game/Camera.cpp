@@ -1,5 +1,5 @@
 #include "Camera.hpp"
-#include "Math.inl"
+#include "Math/Math.inl"
 
 #include "Utils.h"
 

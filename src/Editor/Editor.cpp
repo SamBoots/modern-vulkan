@@ -2,7 +2,7 @@
 
 #include "Program.h"
 #include "BBThreadScheduler.hpp"
-#include "Math.inl"
+#include "Math/Math.inl"
 
 #include "ProfilerWindow.hpp"
 

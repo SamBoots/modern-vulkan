@@ -4,7 +4,8 @@
 
 #include "Profiler.hpp"
 
-#include "Math.inl"
+#include "Math/Math.inl"
+#include "Math/Collision.inl"
 
 using namespace BB;
 
@@ -24,6 +25,7 @@ bool EntityComponentSystem::Init(MemoryArena& a_arena, const EntityComponentSyst
 	m_ecs_entities.Init(a_arena, a_create_info.entity_count);
 	m_relations.Init(a_arena, a_create_info.entity_count);
 	m_name_pool.Init(a_arena, a_create_info.entity_count);
+    m_bounding_box_pool.Init(a_arena, a_create_info.entity_count);
 	m_positions.Init(a_arena, a_create_info.entity_count);
 	m_rotations.Init(a_arena, a_create_info.entity_count);
 	m_scales.Init(a_arena, a_create_info.entity_count);
@@ -82,7 +84,41 @@ ECSEntity EntityComponentSystem::CreateEntity(const NameComponent& a_name, const
 	return entity;
 }
 
-ECSEntity EntityComponentSystem::SelectEntityByClick(const float2 a_mouse_pos_viewport, const float4x4& a_view)
+ECSEntity EntityComponentSystem::FindECSEntityClickTraverse(const ECSEntity a_entity, const float3& a_ray_origin, const float3& a_ray_dir) const
+{
+    if (m_ecs_entities.HasSignature(a_entity, BOUNDING_BOX_ECS_SIGNATURE)) // intersects
+    {
+        const float4x4& world_mat = m_world_matrices.GetComponent(a_entity);
+        const float3& scale = m_scales.GetComponent(a_entity);
+        const BoundingBox box = m_bounding_box_pool.GetComponent(a_entity);
+        const float3 world_pos = Float4x4ExtractTranslation(world_mat);
+
+        float3 box_min, box_max;
+        ScaleBoundingBox(box.min, box.max, scale, box_min, box_max);
+
+        if (BoxRayIntersect(box_min + world_pos, box_max + world_pos, a_ray_origin, a_ray_dir))
+            return a_entity;
+    }
+
+    const EntityRelation relation = m_relations.GetComponent(a_entity);
+
+    if (relation.child_count == 0)
+        return INVALID_ECS_OBJ;
+
+    ECSEntity child = relation.first_child;
+    for (size_t i = 0; i < relation.child_count; i++)
+    {
+        const ECSEntity found_child = FindECSEntityClickTraverse(child, a_ray_origin, a_ray_dir);
+        if (found_child != INVALID_ECS_OBJ)
+            return found_child;
+        const EntityRelation child_relation = m_relations.GetComponent(child);
+        child = child_relation.next;
+    }
+
+    return INVALID_ECS_OBJ;
+}
+
+ECSEntity EntityComponentSystem::SelectEntityByClick(const float2 a_mouse_pos_viewport, const float4x4& a_view, const float3& a_ray_origin) const
 {
     const float3 ndc
     {
@@ -91,15 +127,25 @@ ECSEntity EntityComponentSystem::SelectEntityByClick(const float2 a_mouse_pos_vi
         1.f
     };
 
-    const float4 ray_clip = float4(ndc.x, ndc.y, -1.f, 1.f);
-    const float4 ray_inverse = Float4x4Inverse(GetRenderSystem().GetProjection()) * ray_clip;
+    const float4 ray_clip = float4(ndc.x, ndc.y, 1.f, 1.f);
+    const float4 ray_inverse = Float4x4Inverse(m_render_system.GetProjection()) * ray_clip;
     const float4 ray_eye = float4(ray_inverse.x, ray_inverse.y, -1.0f, 1.0f);
     const float4 ray_world = Float4x4Inverse(a_view) * ray_eye;
     const float3 ray_world_norm = Float3Normalize(float3(ray_world.x, ray_world.y, ray_world.z));
 
+    for (size_t i = 0; i < m_root_entity_system.root_entities.GetDense().size(); i++)
+    {
+        const ECSEntity found_child = FindECSEntityClickTraverse(m_root_entity_system.root_entities.GetDense()[i], a_ray_origin, ray_world_norm);
+        if (found_child != INVALID_ECS_OBJ)
+        {
+            const NameComponent& name = m_name_pool.GetComponent(found_child);
+            BB_LOG(name.c_str());
+            return found_child;
+        }
 
-
-    return ECSEntity();
+    }
+    BB_LOG("hit nothing");
+    return INVALID_ECS_OBJ;
 }
 
 void EntityComponentSystem::StartFrame()

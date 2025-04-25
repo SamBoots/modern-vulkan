@@ -4,7 +4,7 @@
 #include "Storage/Array.h"
 #include "BBIntrin.h"
 #include "BBImage.hpp"
-#include "Math.inl"
+#include "Math/Math.inl"
 #include "Program.h"
 
 #include "shared_common.hlsl.h"
@@ -1432,7 +1432,7 @@ static inline void* GetAccessorDataPtr(const cgltf_accessor* a_accessor)
 	return Pointer::Add(a_accessor->buffer_view->buffer->data, accessor_offset);
 }
 
-static inline BoundingBox GetBoundingBoxPrimitive(const ConstSlice<float3> a_vertices, const uint32_t a_index_start, const uint32_t a_index_count)
+static inline BoundingBox GetBoundingBoxPrimitive(const ConstSlice<float3> a_vertices, const ConstSlice<uint32_t> a_indices, const uint32_t a_index_start, const uint32_t a_index_count)
 {
     BoundingBox box;
     box.min = a_vertices[a_index_start];
@@ -1440,7 +1440,8 @@ static inline BoundingBox GetBoundingBoxPrimitive(const ConstSlice<float3> a_ver
 
     for (uint32_t i = a_index_start; i < a_index_count + a_index_start; i++)
     {
-        const float3 vert = a_vertices[i];
+        const uint32_t index = a_indices[i];
+        const float3 vert = a_vertices[index];
         box.min.x = Min(vert.x, box.min.x);
         box.min.y = Min(vert.y, box.min.y);
         box.min.z = Min(vert.z, box.min.z);
@@ -1753,7 +1754,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
     for (size_t prim_index = 0; prim_index < mesh.primitives_count; prim_index++)
     {
         Model::Primitive& model_prim = a_mesh.primitives[prim_index];
-        model_prim.bounding_box = GetBoundingBoxPrimitive(create_mesh.positions, model_prim.start_index, model_prim.index_count);
+        model_prim.bounding_box = GetBoundingBoxPrimitive(create_mesh.positions, create_mesh.indices, model_prim.start_index, model_prim.index_count);
     }
 	CreateMesh(a_temp_arena, create_mesh, a_mesh.mesh);
 }

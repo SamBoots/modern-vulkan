@@ -1,5 +1,5 @@
 #include "ViewportInterface.hpp"
-#include "Math.inl"
+#include "Math/Math.inl"
 
 using namespace BB;
 

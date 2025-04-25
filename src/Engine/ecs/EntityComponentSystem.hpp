@@ -7,7 +7,7 @@
 
 #include "GPUBuffers.hpp"
 
-#include "Math.inl"
+#include "Math/Math.inl"
 
 namespace BB
 {
@@ -29,7 +29,7 @@ namespace BB
 		bool Init(MemoryArena& a_arena, const EntityComponentSystemCreateInfo& a_create_info, const StackString<32> a_name);
 
         ECSEntity CreateEntity(const NameComponent& a_name = "#UNNAMED#", const ECSEntity& a_parent = INVALID_ECS_OBJ, const float3 a_position = float3(0.f), const float3x3 a_rotation = Float3x3Identity(), const float3 a_scale = float3(1.f));
-        ECSEntity SelectEntityByClick(const float2 a_mouse_pos_viewport, const float4x4& a_view);
+        ECSEntity SelectEntityByClick(const float2 a_mouse_pos_viewport, const float4x4& a_view, const float3& a_ray_origin) const;
 
 		void StartFrame();
 		void EndFrame();
@@ -58,6 +58,7 @@ namespace BB
 		StackString<32> GetName() const { return m_name; }
 
 	private:
+        ECSEntity FindECSEntityClickTraverse(const ECSEntity a_entity, const float3& a_ray_origin, const float3& a_ray_dir) const;
 		bool AddEntityRelation(const ECSEntity a_entity, const ECSEntity a_parent);
 		void UpdateTransform(const ECSEntity a_entity);
 

@@ -1,7 +1,7 @@
 #include "BBGlobal.h"
 #include "Program.h"
 #include "HID.inl"
-#include "Math.inl"
+#include "Math/Math.inl"
 #include "Utils/Logger.h"
 #include "RingAllocator.h"
 
