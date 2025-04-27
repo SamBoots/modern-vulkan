@@ -2346,9 +2346,30 @@ void Vulkan::BindIndexBuffer(const RCommandList a_list, const GPUBuffer a_buffer
 		VK_INDEX_TYPE_UINT32);
 }
 
+void Vulkan::SetPrimitiveTopology(const RCommandList a_list, const PRIMITIVE_TOPOLOGY a_topology)
+{
+	const VkCommandBuffer& cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+	VkPrimitiveTopology topology;
+	switch (a_topology)
+	{
+	case PRIMITIVE_TOPOLOGY::TRIANGLE_LIST:
+		topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+		break;
+	case PRIMITIVE_TOPOLOGY::LINE_LIST:
+		topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+		break;
+	default:
+		topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+		BB_ASSERT(false, "Vulkan: PRIMITIVE_TOPOLOGY failed to convert to a VkPrimitiveTopology");
+		break;
+	}
+
+	vkCmdSetPrimitiveTopology(cmd_buffer, topology);
+}
+
 void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stage_count, const SHADER_STAGE* a_shader_stages, const ShaderObject* a_shader_objects)
 {
-	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+	const VkCommandBuffer& cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 
 	VkShaderStageFlagBits* shader_stages = BBstackAlloc(a_shader_stage_count, VkShaderStageFlagBits);
 	for (size_t i = 0; i < a_shader_stage_count; i++)
@@ -2358,7 +2379,6 @@ void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stag
 
 	vkCmdSetRasterizerDiscardEnable(cmd_buffer, VK_FALSE);
 
-	vkCmdSetPrimitiveTopology(cmd_buffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
 	s_vulkan_inst->pfn.CmdSetPolygonModeEXT(cmd_buffer, VK_POLYGON_MODE_FILL);
 	s_vulkan_inst->pfn.CmdSetRasterizationSamplesEXT(cmd_buffer, VK_SAMPLE_COUNT_1_BIT);
 	const uint32_t mask = UINT32_MAX;

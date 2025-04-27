@@ -70,6 +70,7 @@ namespace BB
 	void EndRenderPass(const RCommandList a_list);
 
 	void BindIndexBuffer(const RCommandList a_list, const uint64_t a_offset, const bool a_cpu_readable = false);
+	void SetPrimitiveTopology(const RCommandList a_list, const PRIMITIVE_TOPOLOGY a_topology);
 	RPipelineLayout BindShaders(const RCommandList a_list, const ConstSlice<ShaderEffectHandle> a_shader_effects);
 	void SetBlendMode(const RCommandList a_list, const uint32_t a_first_attachment, const Slice<ColorBlendState> a_blend_states);
 

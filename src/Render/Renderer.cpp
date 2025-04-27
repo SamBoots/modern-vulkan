@@ -1001,6 +1001,11 @@ void BB::BindIndexBuffer(const RCommandList a_list, const uint64_t a_offset, con
 	}
 }
 
+void BB::SetPrimitiveTopology(const RCommandList a_list, const PRIMITIVE_TOPOLOGY a_topology)
+{
+	Vulkan::SetPrimitiveTopology(a_list, a_topology);
+}
+
 RPipelineLayout BB::BindShaders(const RCommandList a_list, const ConstSlice<ShaderEffectHandle> a_shader_effects)
 {
 	constexpr size_t SHADERS_MAX = 5;

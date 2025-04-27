@@ -350,6 +350,7 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 		draw_list.draw_entries.push_back(entry);
 		draw_list.transforms.push_back(shader_transform);
 	}
+	SetPrimitiveTopology(a_list, PRIMITIVE_TOPOLOGY::TRIANGLE_LIST);
 	BindIndexBuffer(a_list, 0);
 	UpdateConstantBuffer(pfd, a_list, a_draw_area, a_lights);
 

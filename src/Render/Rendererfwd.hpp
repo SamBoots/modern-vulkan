@@ -145,6 +145,12 @@ namespace BB
 		ENUM_SIZE
 	};
 
+	enum class PRIMITIVE_TOPOLOGY : uint32_t
+	{
+		TRIANGLE_LIST,
+		LINE_LIST
+	};
+
 	struct RenderingAttachmentDepth
 	{
 		bool load_depth;
