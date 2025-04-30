@@ -8,8 +8,6 @@
 using namespace BB;
 
 constexpr float BLOOM_IMAGE_DOWNSCALE_FACTOR = 1.f;
-constexpr uint32_t DEPTH_IMAGE_SIZE_W_H = 4096;
-constexpr uint32_t INITIAL_DEPTH_ARRAY_COUNT = 8;
 
 void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count, const uint32_t a_max_lights, const uint2 a_render_target_size)
 {
@@ -39,21 +37,8 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 	m_options.skip_object_rendering = false;
 	m_options.skip_bloom = false;
 
-	// shadow map shader
-
-	MaterialCreateInfo shadow_map_material;
-	shadow_map_material.pass_type = PASS_TYPE::SCENE;
-	shadow_map_material.material_type = MATERIAL_TYPE::NONE;
-	MaterialShaderCreateInfo vertex_shadow_map;
-	vertex_shadow_map.path = "../../resources/shaders/hlsl/ShadowMap.hlsl";
-	vertex_shadow_map.entry = "VertexMain";
-	vertex_shadow_map.stage = SHADER_STAGE::VERTEX;
-	vertex_shadow_map.next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
-	shadow_map_material.shader_infos = Slice(&vertex_shadow_map, 1);
-	MemoryArenaScope(a_arena)
-	{
-		m_shadowmap_material = Material::CreateMasterMaterial(a_arena, shadow_map_material, "shadow map material");
-	}
+    m_clear_stage.Init(a_arena);
+    m_shadowmap_stage.Init(a_arena, a_back_buffer_count);
 
 	// bloom stuff
 
@@ -74,68 +59,6 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 	MemoryArenaScope(a_arena)
 	{
 		m_gaussian_material = Material::CreateMasterMaterial(a_arena, gaussian_material, "shadow map material");
-	}
-
-	{ // skybox stuff
-		ImageCreateInfo skybox_image_info;
-		skybox_image_info.name = "skybox image";
-		skybox_image_info.width = 2048;
-		skybox_image_info.height = 2048;
-		skybox_image_info.depth = 1;
-		skybox_image_info.array_layers = 6;
-		skybox_image_info.mip_levels = 1;
-		skybox_image_info.use_optimal_tiling = true;
-		skybox_image_info.type = IMAGE_TYPE::TYPE_2D;
-		skybox_image_info.format = IMAGE_FORMAT::RGBA8_SRGB;
-		skybox_image_info.usage = IMAGE_USAGE::TEXTURE;
-		skybox_image_info.is_cube_map = true;
-		m_skybox = CreateImage(skybox_image_info);
-
-		ImageViewCreateInfo skybox_image_view_info;
-		skybox_image_view_info.name = "skybox image view";
-		skybox_image_view_info.image = m_skybox;
-		skybox_image_view_info.base_array_layer = 0;
-		skybox_image_view_info.mip_levels = 1;
-		skybox_image_view_info.array_layers = 6;
-		skybox_image_view_info.base_mip_level = 0;
-		skybox_image_view_info.format = IMAGE_FORMAT::RGBA8_SRGB;
-		skybox_image_view_info.type = IMAGE_VIEW_TYPE::CUBE;
-		skybox_image_view_info.aspects = IMAGE_ASPECT::COLOR;
-		m_skybox_descriptor_index = CreateImageView(skybox_image_view_info);
-
-		MemoryArenaScope(a_arena)
-		{
-			constexpr StringView SKYBOX_NAMES[6]
-			{
-				StringView("../../resources/textures/skybox/0.jpg"),
-				StringView("../../resources/textures/skybox/1.jpg"),
-				StringView("../../resources/textures/skybox/2.jpg"),
-				StringView("../../resources/textures/skybox/3.jpg"),
-				StringView("../../resources/textures/skybox/4.jpg"),
-				StringView("../../resources/textures/skybox/5.jpg")
-			};
-			
-			FixedArray<Asset::AsyncAsset, 6> skybox_textures;
-
-			MaterialCreateInfo skybox_material;
-			skybox_material.pass_type = PASS_TYPE::SCENE;
-			skybox_material.material_type = MATERIAL_TYPE::NONE;
-			FixedArray<MaterialShaderCreateInfo, 2> skybox_shaders;
-			skybox_shaders[0].path = "../../resources/shaders/hlsl/skybox.hlsl";
-			skybox_shaders[0].entry = "VertexMain";
-			skybox_shaders[0].stage = SHADER_STAGE::VERTEX;
-			skybox_shaders[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
-			skybox_shaders[1].path = "../../resources/shaders/hlsl/skybox.hlsl";
-			skybox_shaders[1].entry = "FragmentMain";
-			skybox_shaders[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
-			skybox_shaders[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
-			skybox_material.shader_infos = Slice(skybox_shaders.slice());
-
-			const Image& skybox_image = Asset::LoadImageArrayDisk(a_arena, "default skybox", ConstSlice<StringView>(SKYBOX_NAMES, _countof(SKYBOX_NAMES)), IMAGE_FORMAT::RGBA8_SRGB, true);
-			m_skybox = skybox_image.gpu_image;
-			m_skybox_descriptor_index = skybox_image.descriptor_index;
-			m_skybox_material = Material::CreateMasterMaterial(a_arena, skybox_material, "skybox material");
-		}
 	}
 
 	// postfx
@@ -174,55 +97,6 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 
 		pfd.depth_image = RImage();
 		pfd.bloom.image = RImage();
-
-		pfd.shadow_map.render_pass_views.Init(a_arena, INITIAL_DEPTH_ARRAY_COUNT);
-		pfd.shadow_map.render_pass_views.resize(INITIAL_DEPTH_ARRAY_COUNT);
-		{
-			ImageCreateInfo shadow_map_img;
-			shadow_map_img.name = "shadow map array";
-			shadow_map_img.width = DEPTH_IMAGE_SIZE_W_H;
-			shadow_map_img.height = DEPTH_IMAGE_SIZE_W_H;
-			shadow_map_img.depth = 1;
-			shadow_map_img.array_layers = static_cast<uint16_t>(pfd.shadow_map.render_pass_views.size());
-			shadow_map_img.mip_levels = 1;
-			shadow_map_img.use_optimal_tiling = true;
-			shadow_map_img.type = IMAGE_TYPE::TYPE_2D;
-			shadow_map_img.format = IMAGE_FORMAT::D16_UNORM;
-			shadow_map_img.usage = IMAGE_USAGE::SHADOW_MAP;
-			shadow_map_img.is_cube_map = false;
-			pfd.shadow_map.image = CreateImage(shadow_map_img);
-		}
-
-		{
-			ImageViewCreateInfo shadow_map_img_view;
-			shadow_map_img_view.name = "shadow map array view";
-			shadow_map_img_view.image = pfd.shadow_map.image;
-			shadow_map_img_view.base_array_layer = 0;
-			shadow_map_img_view.array_layers = static_cast<uint16_t>(pfd.shadow_map.render_pass_views.size());
-			shadow_map_img_view.mip_levels = 1;
-			shadow_map_img_view.base_mip_level = 0;
-			shadow_map_img_view.format = IMAGE_FORMAT::D16_UNORM;
-			shadow_map_img_view.type = IMAGE_VIEW_TYPE::TYPE_2D_ARRAY;
-			shadow_map_img_view.aspects = IMAGE_ASPECT::DEPTH;
-			pfd.shadow_map.descriptor_index = CreateImageView(shadow_map_img_view);
-		}
-
-		{
-			ImageViewCreateInfo render_pass_shadow_view{};
-			render_pass_shadow_view.name = "shadow map renderpass view";
-			render_pass_shadow_view.image = pfd.shadow_map.image;
-			render_pass_shadow_view.array_layers = 1;
-			render_pass_shadow_view.mip_levels = 1;
-			render_pass_shadow_view.base_mip_level = 0;
-			render_pass_shadow_view.format = IMAGE_FORMAT::D16_UNORM;
-			render_pass_shadow_view.type = IMAGE_VIEW_TYPE::TYPE_2D;
-			render_pass_shadow_view.aspects = IMAGE_ASPECT::DEPTH;
-			for (uint32_t shadow_index = 0; shadow_index < pfd.shadow_map.render_pass_views.size(); shadow_index++)
-			{
-				render_pass_shadow_view.base_array_layer = static_cast<uint16_t>(shadow_index);
-				pfd.shadow_map.render_pass_views[shadow_index] = CreateImageViewShaderInaccessible(render_pass_shadow_view);
-			}
-		}
 	}
 	m_render_target.format = IMAGE_FORMAT::RGBA8_SRGB;
 	CreateRenderTarget(a_render_target_size);
@@ -351,13 +225,28 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 		draw_list.transforms.push_back(shader_transform);
 	}
 	BindIndexBuffer(a_list, 0);
-	UpdateConstantBuffer(pfd, a_list, a_draw_area, a_lights);
+	UpdateConstantBuffer(m_current_frame, a_list, a_draw_area, a_lights);
 
-	SkyboxPass(pfd, a_list, a_draw_area);
+    // sam please find a better way
+    const RPipelineLayout pipe_layout = BindShaders(a_list, Material::GetMaterialShaders(draw_list.draw_entries[0].master_material));
+    {
+        const uint32_t buffer_indices[] = { 0, 0 };
+        const DescriptorAllocation& global_desc_alloc = GetGlobalDescriptorAllocation();
+        const size_t buffer_offsets[]{ global_desc_alloc.offset, pfd.scene_descriptor.offset };
+        //set 1-2
+        SetDescriptorBufferOffset(a_list,
+            pipe_layout,
+            SPACE_GLOBAL,
+            _countof(buffer_offsets),
+            buffer_indices,
+            buffer_offsets);
+    }
+	
+    m_clear_stage.ExecutePass(a_list, a_draw_area, GetImageView(pfd.render_target_view));
 
 	ResourceUploadPass(pfd, a_list, draw_list, a_lights);
 
-	ShadowMapPass(pfd, a_list, uint2(DEPTH_IMAGE_SIZE_W_H, DEPTH_IMAGE_SIZE_W_H), draw_list, a_lights);
+    m_shadowmap_stage.ExecutePass(a_list, m_current_frame, uint2(DEPTH_IMAGE_SIZE_W_H, DEPTH_IMAGE_SIZE_W_H), draw_list, a_lights);
 
 	GeometryPass(pfd, a_list, a_draw_area, draw_list);
 
@@ -417,18 +306,14 @@ void RenderSystem::SetProjection(const float4x4& a_projection)
 	m_scene_info.proj = a_projection;
 }
 
-void RenderSystem::SetClearColor(const float3 a_clear_color)
+void RenderSystem::UpdateConstantBuffer(const uint32_t a_frame_index, const RCommandList a_list, const uint2 a_draw_area_size, const ConstSlice<LightComponent> a_lights)
 {
-	m_clear_color = a_clear_color;
-}
-
-void RenderSystem::UpdateConstantBuffer(PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size, const ConstSlice<LightComponent> a_lights)
-{
+    // temp jank
+    PerFrame& a_pfd = m_per_frame[a_frame_index];
+    m_clear_stage.UpdateConstantBuffer(m_scene_info);
+    m_shadowmap_stage.UpdateConstantBuffer(a_frame_index, m_scene_info);
 	m_scene_info.light_count = static_cast<uint32_t>(a_lights.size());
 	m_scene_info.scene_resolution = a_draw_area_size;
-	m_scene_info.shadow_map_count = a_pfd.shadow_map.render_pass_views.size();
-	m_scene_info.shadow_map_array_descriptor = a_pfd.shadow_map.descriptor_index;
-	m_scene_info.skybox_texture = m_skybox_descriptor_index;
 
 	if (a_pfd.previous_draw_area != a_draw_area_size)
 	{
@@ -537,59 +422,6 @@ void RenderSystem::UpdateConstantBuffer(PerFrame& a_pfd, const RCommandList a_li
 	}
 }
 
-void RenderSystem::SkyboxPass(const PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size)
-{
-	const RPipelineLayout pipe_layout = BindShaders(a_list, Material::GetMaterialShaders(m_skybox_material));
-	{
-		const uint32_t buffer_indices[] = { 0, 0 };
-		const DescriptorAllocation& global_desc_alloc = GetGlobalDescriptorAllocation();
-		const size_t buffer_offsets[]{ global_desc_alloc.offset, a_pfd.scene_descriptor.offset };
-		//set 1-2
-		SetDescriptorBufferOffset(a_list,
-			pipe_layout,
-			SPACE_GLOBAL,
-			_countof(buffer_offsets),
-			buffer_indices,
-			buffer_offsets);
-	}
-
-	RenderingAttachmentColor color_attach;
-	color_attach.load_color = false;
-	color_attach.store_color = true;
-	color_attach.image_layout = IMAGE_LAYOUT::RT_COLOR;
-	color_attach.image_view = GetImageView(a_pfd.render_target_view);
-
-	StartRenderingInfo start_rendering_info;
-	start_rendering_info.render_area_extent = a_draw_area_size;
-	start_rendering_info.render_area_offset = int2{0, 0};
-	start_rendering_info.color_attachments = Slice(&color_attach, 1);
-	start_rendering_info.depth_attachment = nullptr;
-
-	FixedArray<ColorBlendState, 1> blend_state;
-	blend_state[0].blend_enable = true;
-	blend_state[0].color_flags = 0xF;
-	blend_state[0].color_blend_op = BLEND_OP::ADD;
-	blend_state[0].src_blend = BLEND_MODE::FACTOR_SRC_ALPHA;
-	blend_state[0].dst_blend = BLEND_MODE::FACTOR_ONE_MINUS_SRC_ALPHA;
-	blend_state[0].alpha_blend_op = BLEND_OP::ADD;
-	blend_state[0].src_alpha_blend = BLEND_MODE::FACTOR_ONE;
-	blend_state[0].dst_alpha_blend = BLEND_MODE::FACTOR_ZERO;
-	SetBlendMode(a_list, 0, blend_state.slice());
-	StartRenderPass(a_list, start_rendering_info);
-	if (m_options.skip_skybox)
-	{
-		EndRenderPass(a_list);
-		return;
-	}
-
-	SetFrontFace(a_list, false);
-	SetCullMode(a_list, CULL_MODE::NONE);
-
-	DrawCubemap(a_list, 1, 0);
-
-	EndRenderPass(a_list);
-}
-
 void RenderSystem::ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list, const DrawList& a_draw_list, const ConstSlice<LightComponent> a_lights)
 {
 	GPULinearBuffer& cur_scene_buffer = a_pfd.storage_buffer;
@@ -692,119 +524,6 @@ void RenderSystem::ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list
 			DescriptorWriteStorageBuffer(desc_write);
 		}
 	}
-}
-
-void RenderSystem::ShadowMapPass(const PerFrame& a_pfd, const RCommandList a_list, const uint2 a_shadow_map_resolution, const DrawList& a_draw_list, const ConstSlice<LightComponent> a_lights)
-{
-	const uint32_t shadow_map_count = static_cast<uint32_t>(a_lights.size());
-	if (shadow_map_count == 0)
-	{
-		return;
-	}
-	BB_ASSERT(shadow_map_count <= a_pfd.shadow_map.render_pass_views.size(), "too many lights! Make a dynamic shadow mapping array");
-
-	const RPipelineLayout pipe_layout = BindShaders(a_list, Material::GetMaterialShaders(m_shadowmap_material));
-
-	
-	PipelineBarrierImageInfo shadow_map_write_transition = {};
-	shadow_map_write_transition.prev = IMAGE_LAYOUT::NONE;
-	shadow_map_write_transition.next = IMAGE_LAYOUT::RT_DEPTH;
-	shadow_map_write_transition.image = a_pfd.shadow_map.image;
-	shadow_map_write_transition.layer_count = shadow_map_count;
-	shadow_map_write_transition.level_count = 1;
-	shadow_map_write_transition.base_array_layer = 0;
-	shadow_map_write_transition.base_mip_level = 0;
-	shadow_map_write_transition.image_aspect = IMAGE_ASPECT::DEPTH;
-
-	PipelineBarrierInfo write_pipeline{};
-	write_pipeline.image_barriers = ConstSlice<PipelineBarrierImageInfo>(&shadow_map_write_transition, 1);
-	PipelineBarriers(a_list, write_pipeline);
-
-	RenderingAttachmentDepth depth_attach{};
-	depth_attach.load_depth = false;
-	depth_attach.store_depth = true;
-	depth_attach.image_layout = IMAGE_LAYOUT::RT_DEPTH;
-
-	StartRenderingInfo rendering_info;
-	rendering_info.color_attachments = {};	// null
-	rendering_info.depth_attachment = &depth_attach;
-	rendering_info.render_area_extent = a_shadow_map_resolution;
-	rendering_info.render_area_offset = int2(0, 0);
-
-	SetCullMode(a_list, CULL_MODE::FRONT);
-	SetFrontFace(a_list, true);
-	SetDepthBias(a_list, 1.25f, 0.f, 1.75f);
-	FixedArray<ColorBlendState, 1> blend_state;
-	blend_state[0].blend_enable = true;
-	blend_state[0].color_flags = 0xF;
-	blend_state[0].color_blend_op = BLEND_OP::ADD;
-	blend_state[0].src_blend = BLEND_MODE::FACTOR_SRC_ALPHA;
-	blend_state[0].dst_blend = BLEND_MODE::FACTOR_ONE_MINUS_SRC_ALPHA;
-	blend_state[0].alpha_blend_op = BLEND_OP::ADD;
-	blend_state[0].src_alpha_blend = BLEND_MODE::FACTOR_ONE;
-	blend_state[0].dst_alpha_blend = BLEND_MODE::FACTOR_ZERO;
-	SetBlendMode(a_list, 0, blend_state.slice());
-
-	if (m_options.skip_shadow_mapping)
-	{
-		// validation issues, not nice to use but works for now.
-		ClearDepthImageInfo depth_clear;
-		depth_clear.image = a_pfd.shadow_map.image;
-		depth_clear.clear_depth = 1;
-		depth_clear.layout = IMAGE_LAYOUT::RT_DEPTH;
-		depth_clear.depth_aspects = IMAGE_ASPECT::DEPTH;
-		depth_clear.layer_count = shadow_map_count;
-		depth_clear.base_array_layer = 0;
-		depth_clear.level_count = 1;
-		depth_clear.base_mip_level = 0;
-
-		ClearDepthImage(a_list, depth_clear);
-	}
-	else
-	{
-		for (uint32_t shadow_map_index = 0; shadow_map_index < shadow_map_count; shadow_map_index++)
-		{
-			depth_attach.image_view = a_pfd.shadow_map.render_pass_views[shadow_map_index];
-
-			StartRenderPass(a_list, rendering_info);
-
-			if (!m_options.skip_shadow_mapping)
-			{
-				for (uint32_t draw_index = 0; draw_index < a_draw_list.draw_entries.size(); draw_index++)
-				{
-					const DrawList::DrawEntry& mesh_draw_call = a_draw_list.draw_entries[draw_index];
-
-					ShaderIndicesShadowMapping shader_indices;
-					shader_indices.position_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_position_offset);
-					shader_indices.transform_index = draw_index;
-					shader_indices.light_projection_view_index = shadow_map_index;
-					SetPushConstants(a_list, pipe_layout, 0, sizeof(shader_indices), &shader_indices);
-					DrawIndexed(a_list,
-						mesh_draw_call.index_count,
-						1,
-						static_cast<uint32_t>(mesh_draw_call.mesh.index_buffer_offset / sizeof(uint32_t)) + mesh_draw_call.index_start,
-						0,
-						0);
-				}
-			}
-
-			EndRenderPass(a_list);
-		}
-	}
-
-	PipelineBarrierImageInfo shadow_map_read_transition = {};
-	shadow_map_read_transition.prev = IMAGE_LAYOUT::RT_DEPTH;
-	shadow_map_read_transition.next = IMAGE_LAYOUT::RO_DEPTH;
-	shadow_map_read_transition.image = a_pfd.shadow_map.image;
-	shadow_map_read_transition.layer_count = shadow_map_count;
-	shadow_map_read_transition.level_count = 1;
-	shadow_map_read_transition.base_array_layer = 0;
-	shadow_map_read_transition.base_mip_level = 0;
-	shadow_map_read_transition.image_aspect = IMAGE_ASPECT::DEPTH;
-
-	PipelineBarrierInfo pipeline_info = {};
-	pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo>(&shadow_map_read_transition, 1);
-	PipelineBarriers(a_list, pipeline_info);
 }
 
 void RenderSystem::GeometryPass(const PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size, const DrawList& a_draw_list)

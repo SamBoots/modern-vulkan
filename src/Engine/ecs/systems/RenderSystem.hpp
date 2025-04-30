@@ -1,10 +1,10 @@
 #pragma once
 #include "GPUBuffers.hpp"
 #include "Rendererfwd.hpp"
-
 #include "ecs/components/RenderComponent.hpp"
-#include "ecs/components/TransformComponents.hpp"
-#include "ecs/components/LightComponent.hpp"
+
+#include "ShadowMapStage.hpp"
+#include "ClearStage.hpp"
 
 namespace BB
 {
@@ -58,7 +58,6 @@ namespace BB
 
 		void SetView(const float4x4& a_view, const float3& a_view_position);
 		void SetProjection(const float4x4& a_projection);
-		void SetClearColor(const float3 a_clear_color);
 
         float4x4 GetProjection() const {return m_scene_info.proj; }
         float4x4 GetView() const {return m_scene_info.view; }
@@ -87,27 +86,6 @@ namespace BB
 
 			RImage depth_image;
 			RImageView depth_image_view;
-			struct ShadowMap
-			{
-				RImage image;
-				RDescriptorIndex descriptor_index;
-				StaticArray<RImageView> render_pass_views;
-			} shadow_map;
-		};
-
-		struct DrawList
-		{
-			struct DrawEntry
-			{
-				Mesh mesh;
-				MasterMaterialHandle master_material;
-				MaterialHandle material;
-				uint32_t index_start;
-				uint32_t index_count;
-			};
-
-			StaticArray<DrawEntry> draw_entries;
-			StaticArray<ShaderTransform> transforms;
 		};
 
 		struct RenderTarget
@@ -117,10 +95,8 @@ namespace BB
 			IMAGE_FORMAT format;
 		};
 
-		void UpdateConstantBuffer(PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size, const ConstSlice<LightComponent> a_lights);
-		void SkyboxPass(const PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size);
+		void UpdateConstantBuffer(const uint32_t a_frame_index, const RCommandList a_list, const uint2 a_draw_area_size, const ConstSlice<LightComponent> a_lights);
 		void ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list, const DrawList& a_draw_list, const ConstSlice<LightComponent> a_lights);
-		void ShadowMapPass(const PerFrame& a_pfd, const RCommandList a_list, const uint2 a_shadow_map_resolution, const DrawList& a_draw_list, const ConstSlice<LightComponent> a_lights);
 		void GeometryPass(const PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size, const DrawList& a_draw_list);
 		void BloomPass(const PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size);
 
@@ -158,11 +134,9 @@ namespace BB
 		uint64_t m_last_completed_fence_value;
 		GPUUploadRingAllocator m_upload_allocator;
 
-		float3 m_clear_color;
-		RDescriptorIndex m_skybox_descriptor_index;
-		RImage m_skybox;
-		MasterMaterialHandle m_skybox_material;
-		MasterMaterialHandle m_shadowmap_material;
 		MasterMaterialHandle m_gaussian_material;
+
+        ClearStage m_clear_stage;
+        ShadowMapStage m_shadowmap_stage;
 	};
 }
