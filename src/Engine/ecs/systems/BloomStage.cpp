@@ -25,8 +25,8 @@ void BloomStage::Init(MemoryArena& a_arena)
         m_gaussian_material = Material::CreateMasterMaterial(a_arena, gaussian_material, "shadow map material");
     }
 
-    m_bloom_scale = 2.0f;
-    m_bloom_strength = 2.5f;
+    m_bloom_scale = 1.0f;
+    m_bloom_strength = 1.5f;
 }
 
 void BloomStage::ExecutePass(const RCommandList a_list, const uint2 a_resolution, const RImage a_render_target_image, const RDescriptorIndex a_render_target_0, const RDescriptorIndex a_render_target_1, const uint2 a_draw_area, const RImageView a_render_target)

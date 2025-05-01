@@ -97,18 +97,19 @@ PixelOutput FragmentMain(VSOutput a_input)
     const float3 ambient = scene_data.ambient_light.xyz * albedo * orm_data.r;
     float3 color = ambient + lo;
 
+    PixelOutput output;
+
+    // bloom
+    const float brightness = dot(color.rgb, float3(0.2126, 0.7152, 0.0722));
+    if (brightness > 1.0)
+        output.bloom = float4(color.rgb, 1.0);
+    else
+        output.bloom = float4(0.0, 0.0, 0.0, 1.0);
+
     color = color / (color + float3(1.0, 1.0, 1.0));
     color = pow(color, 1.0f/2.2f);
     color = ExposureToneMapping(color, scene_data.exposure);
-    PixelOutput output;
     output.color = float4(color, 1.0);
-    
-    // bloom
-    const float brightness = dot(output.color.rgb, float3(0.2126, 0.7152, 0.0722));
-    if (brightness > 1.0)
-        output.bloom = float4(output.color.rgb, 1.0);
-    else
-        output.bloom = float4(0.0, 0.0, 0.0, 1.0);
     
     return output;
 }
