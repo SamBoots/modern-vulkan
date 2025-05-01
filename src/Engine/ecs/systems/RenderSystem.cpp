@@ -200,7 +200,7 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 	{
 		RenderComponent& comp = a_render_pool.GetComponent(render_entities[i]);
 		const float4x4& transform = a_world_matrices.GetComponent(render_entities[i]);
-		RaytraceComponent& ray_comp = a_raytrace_pool.GetComponent(render_entities[i]);
+		//RaytraceComponent& ray_comp = a_raytrace_pool.GetComponent(render_entities[i]);
 
 		if (comp.material_dirty)
 		{
@@ -211,32 +211,32 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 		}
 
 		// raytrace stuff
-		if (ray_comp.needs_build)
-		{
-			GPUBufferView view;
-			bool success = m_raytrace_data.acceleration_structure_buffer.Allocate(ray_comp.build_size, view);
-			BB_ASSERT(success, "failed to allocate acceleration structure data");
-			ray_comp.acceleration_structure = CreateBottomLevelAccelerationStruct(ray_comp.build_size, view.buffer, view.offset);
-			ray_comp.acceleration_struct_address = GetAccelerationStructureAddress(ray_comp.acceleration_structure);
-			ray_comp.acceleration_buffer_offset = view.offset;
-			ray_comp.needs_build = false;
+		//if (ray_comp.needs_build)
+		//{
+		//	GPUBufferView view;
+		//	bool success = m_raytrace_data.acceleration_structure_buffer.Allocate(ray_comp.build_size, view);
+		//	BB_ASSERT(success, "failed to allocate acceleration structure data");
+		//	ray_comp.acceleration_structure = CreateBottomLevelAccelerationStruct(ray_comp.build_size, view.buffer, view.offset);
+		//	ray_comp.acceleration_struct_address = GetAccelerationStructureAddress(ray_comp.acceleration_structure);
+		//	ray_comp.acceleration_buffer_offset = view.offset;
+		//	ray_comp.needs_build = false;
 
-			AccelerationStructGeometrySize geometry_size;
-			geometry_size.vertex_count = comp.index_count * 3;
-			geometry_size.vertex_stride = sizeof(float3);
-			geometry_size.transform_address = 0; // TODO
-			geometry_size.index_offset = comp.index_start;
-			geometry_size.vertex_offset = comp.mesh.vertex_position_offset;
+		//	AccelerationStructGeometrySize geometry_size;
+		//	geometry_size.vertex_count = comp.index_count * 3;
+		//	geometry_size.vertex_stride = sizeof(float3);
+		//	geometry_size.transform_address = 0; // TODO
+		//	geometry_size.index_offset = comp.index_start;
+		//	geometry_size.vertex_offset = comp.mesh.vertex_position_offset;
 
-			const uint32_t primitive_count = comp.index_count / 3;
+		//	const uint32_t primitive_count = comp.index_count / 3;
 
-			BuildBottomLevelAccelerationStructInfo acc_build_info;
-			acc_build_info.acc_struct = ray_comp.acceleration_structure;
-			acc_build_info.scratch_buffer_address = 0; // TODO
-			acc_build_info.geometry_sizes = ConstSlice<AccelerationStructGeometrySize>(&geometry_size, 1);
-			acc_build_info.primitive_counts = ConstSlice<uint32_t>(&primitive_count, 1);
-			//BuildBottomLevelAccelerationStruct(a_per_frame_arena, a_list, acc_build_info);
-		}
+		//	BuildBottomLevelAccelerationStructInfo acc_build_info;
+		//	acc_build_info.acc_struct = ray_comp.acceleration_structure;
+		//	acc_build_info.scratch_buffer_address = 0; // TODO
+		//	acc_build_info.geometry_sizes = ConstSlice<AccelerationStructGeometrySize>(&geometry_size, 1);
+		//	acc_build_info.primitive_counts = ConstSlice<uint32_t>(&primitive_count, 1);
+		//	//BuildBottomLevelAccelerationStruct(a_per_frame_arena, a_list, acc_build_info);
+		//}
 
 		DrawList::DrawEntry entry;
 		entry.mesh = comp.mesh;
@@ -253,7 +253,8 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 		draw_list.transforms.push_back(shader_transform);
 	}
 
-	if (m_raytrace_data.top_level.must_rebuild || !m_raytrace_data.top_level.accel_struct.IsValid())
+	//if (m_raytrace_data.top_level.must_rebuild || !m_raytrace_data.top_level.accel_struct.IsValid())
+    if (false)
 	{
 		StaticArray<AccelerationStructureInstanceInfo> instances{};
 		instances.Init(a_per_frame_arena, static_cast<uint32_t>(render_component_count), static_cast<uint32_t>(render_component_count));

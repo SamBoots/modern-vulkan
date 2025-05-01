@@ -819,9 +819,14 @@ bool BB::UnfreezeMouseOnWindow()
 	return ClipCursor(nullptr);
 }
 
+void BB::OSMessageBoxOk(const char* a_box_title, const char* a_message)
+{
+    MessageBoxA(nullptr, a_message, a_box_title, MB_OK);
+}
+
 bool BB::OSMessageBoxYesNo(const char* a_box_title, const char* a_message)
 {
-	if (MessageBoxA(nullptr, a_box_title, a_message, MB_YESNO) == IDYES)
+	if (MessageBoxA(nullptr, a_message, a_box_title, MB_YESNO) == IDYES)
 		return true;
 	return false;
 }

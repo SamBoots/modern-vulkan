@@ -14,6 +14,7 @@ namespace BB
 
 		void LogToConsole(const char* a_file_name, int a_line, const WarningType a_warning_type, const char* a_message);
 		void LogMessage(const char* a_file_name, const int a_line, const WarningType a_type, const char* a_formats, ...);
+        void LogToMessageBox(const char* a_title, const char* a_string);
 	}
 }
 
@@ -39,7 +40,7 @@ namespace BB
 	do												\
 	{												\
 		__pragma(message("implement: " text))	    \
-		BB_ASSERT(false, "unimplemented code hit");	\
+		BB::Logger::LogToMessageBox("unimplemented code", text);	\
 	} while (0) 
 
 	// Check for unintented behaviour at runtime, if a_check is false the program will post a warning message.

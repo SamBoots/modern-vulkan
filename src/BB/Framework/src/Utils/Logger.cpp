@@ -114,3 +114,8 @@ void Logger::LogMessage(const char* a_file_name, const int a_line, const Warning
 	logger_callback(a_file_name, a_line, a_type, a_formats, logger_userdata, vl);
 	va_end(vl);
 }
+
+void Logger::LogToMessageBox(const char* a_title, const char* a_string)
+{
+    OSMessageBoxOk(a_title, a_string);
+}
