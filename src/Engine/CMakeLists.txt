@@ -9,17 +9,19 @@ add_library(Engine
 	"ecs/components/RenderComponent.cpp" 
 	"ecs/components/LightComponent.cpp" 
 	"ecs/components/NameComponent.cpp" 
-	"ecs/systems/RenderSystem.cpp"  
+    "ecs/components/RaytraceComponent.cpp"
+	"ecs/systems/RenderSystem.cpp"
+    "ecs/systems/ClearStage.cpp"
     "ecs/systems/ShadowMapStage.cpp"
     "ecs/systems/RasterMeshStage.cpp"
-    "ecs/systems/ClearStage.cpp"
+    "ecs/systems/BloomStage.cpp"
 	"AssetLoader.cpp"
 	"SceneHierarchy.cpp" 
 	"MaterialSystem.cpp" 
 	"EngineConfig.cpp"
 	"Viewport.cpp"
 	"Profiler.cpp"
-	"ImGuiImpl.cpp" "ecs/systems/BloomStage.cpp")
+	"ImGuiImpl.cpp")
 	
 target_include_directories(Engine PUBLIC "")
 

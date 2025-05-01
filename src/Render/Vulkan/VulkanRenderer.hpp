@@ -11,7 +11,7 @@ namespace BB
 {
 	namespace Vulkan //annoying, but many function names actually overlap.
 	{
-		bool InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, const char* a_engine_name, const bool a_debug);
+		bool InitializeVulkan(MemoryArena& a_arena, const RendererCreateInfo a_create_info);
 		GPUDeviceInfo GetGPUDeviceInfo(MemoryArena& a_arena);
 
 		bool CreateSwapchain(MemoryArena& a_arena, const WindowHandle a_window_handle, const uint32_t a_width, const uint32_t a_height, uint32_t& a_backbuffer_count);
@@ -22,6 +22,15 @@ namespace BB
 
 		const GPUBuffer CreateBuffer(const GPUBufferCreateInfo& a_create_info);
 		void FreeBuffer(const GPUBuffer a_buffer);
+		GPUAddress GetBufferAddress(const GPUBuffer a_buffer);
+
+		size_t AccelerationStructureInstanceUploadSize();
+		bool UploadAccelerationStructureInstances(void* a_mapped, const size_t a_mapped_size, const ConstSlice<AccelerationStructureInstanceInfo> a_instances);
+		AccelerationStructSizeInfo GetBottomLevelAccelerationStructSizeInfo(MemoryArena& a_temp_arena, const ConstSlice<AccelerationStructGeometrySize> a_geometry_sizes, const ConstSlice<uint32_t> a_primitive_counts, const GPUAddress a_vertex_device_address, const GPUAddress a_index_device_address);
+		AccelerationStructSizeInfo GetTopLevelAccelerationStructSizeInfo(MemoryArena& a_temp_arena, const ConstSlice<GPUAddress> a_instances);
+		RAccelerationStruct CreateBottomLevelAccelerationStruct(const uint32_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset);
+		RAccelerationStruct CreateTopLevelAccelerationStruct(const uint32_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset);
+		GPUAddress GetAccelerationStructureAddress(const RAccelerationStruct a_acc_struct);
 
 		const RImage CreateImage(const ImageCreateInfo& a_create_info);
 		void FreeImage(const RImage a_image);
@@ -59,6 +68,9 @@ namespace BB
 		void ClearDepthImage(const RCommandList a_list, const ClearDepthImageInfo& a_clear_info);
 		void BlitImage(const RCommandList a_list, const BlitImageInfo& a_info);
 		
+		void BuildBottomLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildBottomLevelAccelerationStructInfo& a_build_info, const GPUAddress a_vertex_device_address, const GPUAddress a_index_device_address);
+		void BuildTopLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildTopLevelAccelerationStructInfo& a_build_info);
+
 		void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info);
 		void EndRenderPass(const RCommandList a_list);
 		void SetScissor(const RCommandList a_list, const ScissorInfo& a_scissor);

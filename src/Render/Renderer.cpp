@@ -415,15 +415,22 @@ struct RenderInterface_inst
 {
 	RenderInterface_inst(MemoryArena& a_arena)
 		: graphics_queue(a_arena, QUEUE_TYPE::GRAPHICS, "graphics queue", 32, 32),
-		  transfer_queue(a_arena, QUEUE_TYPE::TRANSFER, "transfer queue", 8, 8)
+		  transfer_queue(a_arena, QUEUE_TYPE::TRANSFER, "transfer queue", 8, 8),
+		  compute_queue(a_arena, QUEUE_TYPE::COMPUTE, "compute queue", 8, 8)
 	{}
 
-	RenderIO render_io;
+	struct Status
+	{
+		uint32_t frame_index;
+		bool frame_started;
+		bool frame_ended;
+	} status;
 
 	struct Frame
 	{
 		uint64_t graphics_queue_fence_value;
 	};
+	uint32_t frame_count;
 	Frame* frames;
 	bool debug;
 
@@ -431,6 +438,7 @@ struct RenderInterface_inst
 
 	RenderQueue graphics_queue;
 	RenderQueue transfer_queue;
+	RenderQueue compute_queue;
 
 	GPUTextureManager texture_manager;
 
@@ -452,12 +460,14 @@ struct RenderInterface_inst
 	struct VertexBuffer
 	{
 		GPUBuffer buffer;
+        GPUAddress address;
 		uint64_t size;
 		std::atomic<uint64_t> used;
 	} vertex_buffer;
 	struct CPUVertexBuffer
 	{
 		GPUBuffer buffer;
+        GPUAddress address;
 		uint64_t size;
 		std::atomic<uint64_t> used;
 		void* start_mapped;
@@ -466,12 +476,14 @@ struct RenderInterface_inst
 	struct IndexBuffer
 	{
 		GPUBuffer buffer;
+        GPUAddress address;
 		uint64_t size;
 		std::atomic<uint64_t> used;
 	} index_buffer;
 	struct CPUIndexBuffer
 	{
 		GPUBuffer buffer;
+        GPUAddress address;
 		uint64_t size;
 		std::atomic<uint64_t> used;
 		void* start_mapped;
@@ -592,11 +604,6 @@ WriteableGPUBufferView BB::AllocateFromWritableIndexBuffer(const size_t a_size_i
 	BB_ASSERT(s_render_inst->cpu_index_buffer.size > view.offset + a_size_in_bytes, "out of index buffer space!");
 
 	return view;
-}
-
-const RenderIO& BB::GetRenderIO()
-{
-	return s_render_inst->render_io;
 }
 
 static GPUBuffer UploadStartupResources()
@@ -724,16 +731,13 @@ static GPUBuffer UploadStartupResources()
 
 bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_render_create_info)
 {
-	Vulkan::InitializeVulkan(a_arena, a_render_create_info.app_name, a_render_create_info.engine_name, a_render_create_info.debug);
+	Vulkan::InitializeVulkan(a_arena, a_render_create_info);
 	s_render_inst = ArenaAllocType(a_arena, RenderInterface_inst)(a_arena);
-	s_render_inst->render_io.frame_count = BACK_BUFFER_MAX;
-	s_render_inst->render_io.frame_index = 0;
+	s_render_inst->frame_count = BACK_BUFFER_MAX;
+	s_render_inst->status.frame_index = 0;
 	s_render_inst->frames = ArenaAllocArr(a_arena, RenderInterface_inst::Frame, BACK_BUFFER_MAX);
-	Vulkan::CreateSwapchain(a_arena, a_render_create_info.window_handle, a_render_create_info.swapchain_width, a_render_create_info.swapchain_height, s_render_inst->render_io.frame_count);
+	Vulkan::CreateSwapchain(a_arena, a_render_create_info.window_handle, a_render_create_info.swapchain_width, a_render_create_info.swapchain_height, s_render_inst->frame_count);
 
-	s_render_inst->render_io.window_handle = a_render_create_info.window_handle;
-	s_render_inst->render_io.screen_width = a_render_create_info.swapchain_width;
-	s_render_inst->render_io.screen_height = a_render_create_info.swapchain_height;
 	s_render_inst->debug = a_render_create_info.debug;
 
 	s_render_inst->shader_effects.Init(a_arena, 64);
@@ -814,11 +818,13 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		vertex_buffer.host_writable = false;
 
 		s_render_inst->vertex_buffer.buffer = Vulkan::CreateBuffer(vertex_buffer);
+        s_render_inst->vertex_buffer.address = Vulkan::GetBufferAddress(s_render_inst->vertex_buffer.buffer);
 		s_render_inst->vertex_buffer.size = static_cast<uint32_t>(vertex_buffer.size);
 		s_render_inst->vertex_buffer.used = 0;
 
 		vertex_buffer.host_writable = true;
 		s_render_inst->cpu_vertex_buffer.buffer = Vulkan::CreateBuffer(vertex_buffer);
+        s_render_inst->cpu_vertex_buffer.address = Vulkan::GetBufferAddress(s_render_inst->cpu_vertex_buffer.buffer);
 		s_render_inst->cpu_vertex_buffer.size = static_cast<uint32_t>(vertex_buffer.size);
 		s_render_inst->cpu_vertex_buffer.used = 0;
 		s_render_inst->cpu_vertex_buffer.start_mapped = Vulkan::MapBufferMemory(s_render_inst->cpu_vertex_buffer.buffer);
@@ -865,11 +871,13 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		index_buffer.host_writable = false;
 
 		s_render_inst->index_buffer.buffer = Vulkan::CreateBuffer(index_buffer);
+        s_render_inst->index_buffer.address = Vulkan::GetBufferAddress(s_render_inst->index_buffer.buffer);
 		s_render_inst->index_buffer.size = static_cast<uint32_t>(index_buffer.size);
 		s_render_inst->index_buffer.used = 0;
 
 		index_buffer.host_writable = true;
 		s_render_inst->cpu_index_buffer.buffer = Vulkan::CreateBuffer(index_buffer);
+        s_render_inst->cpu_index_buffer.address = Vulkan::GetBufferAddress(s_render_inst->cpu_index_buffer.buffer);
 		s_render_inst->cpu_index_buffer.size = static_cast<uint32_t>(index_buffer.size);
 		s_render_inst->cpu_index_buffer.used = 0;
 		s_render_inst->cpu_index_buffer.start_mapped = Vulkan::MapBufferMemory(s_render_inst->cpu_index_buffer.buffer);
@@ -897,8 +905,7 @@ void BB::GPUWaitIdle()
 {
 	s_render_inst->transfer_queue.WaitIdle();
 	s_render_inst->graphics_queue.WaitIdle();
-	// TODO, compute queue wait idle
-	// s_render_inst->compute_queue.WaitIdle();
+	s_render_inst->compute_queue.WaitIdle();
 }
 
 GPUDeviceInfo BB::GetGPUInfo(MemoryArena& a_arena)
@@ -906,12 +913,17 @@ GPUDeviceInfo BB::GetGPUInfo(MemoryArena& a_arena)
 	return Vulkan::GetGPUDeviceInfo(a_arena);
 }
 
+uint32_t BB::GetBackBufferCount()
+{
+	return s_render_inst->frame_count;
+}
+
 void BB::RenderStartFrame(const RCommandList a_list, const RenderStartFrameInfo& a_info, const RImage a_render_target, uint32_t& a_back_buffer_index)
 {
-	BB_ASSERT(s_render_inst->render_io.frame_started == false, "did not call RenderEndFrame before a new RenderStartFrame");
-	s_render_inst->render_io.frame_started = true;
+	BB_ASSERT(s_render_inst->status.frame_started == false, "did not call RenderEndFrame before a new RenderStartFrame");
+	s_render_inst->status.frame_started = true;
 
-	const uint32_t frame_index = s_render_inst->render_io.frame_index;
+	const uint32_t frame_index = s_render_inst->status.frame_index;
 	const RenderInterface_inst::Frame& cur_frame = s_render_inst->frames[frame_index];
 
 	s_render_inst->graphics_queue.WaitFenceValue(cur_frame.graphics_queue_fence_value);
@@ -935,7 +947,7 @@ void BB::RenderStartFrame(const RCommandList a_list, const RenderStartFrameInfo&
 	{
 		s_render_inst->global_buffer.data.frame_count += 1;
 		s_render_inst->global_buffer.data.mouse_pos = a_info.mouse_pos;
-		s_render_inst->global_buffer.data.frame_index = s_render_inst->render_io.frame_index;
+		s_render_inst->global_buffer.data.frame_index = s_render_inst->status.frame_index;
 		s_render_inst->global_buffer.data.delta_time = a_info.delta_time;
 		s_render_inst->global_buffer.data.total_time += a_info.delta_time;
 		memcpy(s_render_inst->global_buffer.mapped,
@@ -949,7 +961,7 @@ void BB::RenderStartFrame(const RCommandList a_list, const RenderStartFrameInfo&
 
 PRESENT_IMAGE_RESULT BB::RenderEndFrame(const RCommandList a_list, const RImage a_render_target, const uint32_t a_render_target_layer)
 {
-	BB_ASSERT(s_render_inst->render_io.frame_started == true, "did not call RenderStartFrame before a RenderEndFrame");
+	BB_ASSERT(s_render_inst->status.frame_started == true, "did not call RenderStartFrame before a RenderEndFrame");
 
 	PipelineBarrierImageInfo image_transitions[1]{};
 	image_transitions[0].prev = IMAGE_LAYOUT::RT_COLOR;
@@ -965,10 +977,10 @@ PRESENT_IMAGE_RESULT BB::RenderEndFrame(const RCommandList a_list, const RImage 
 	pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo>(image_transitions, 1);
 	Vulkan::PipelineBarriers(a_list, pipeline_info);
 
-	const int2 swapchain_size(static_cast<int>(s_render_inst->render_io.screen_width), static_cast<int>(s_render_inst->render_io.screen_height));
+	const int2 swapchain_size(static_cast<int>(s_render_inst->global_buffer.data.swapchain_resolution.x), static_cast<int>(s_render_inst->global_buffer.data.swapchain_resolution.y));
 
-	const PRESENT_IMAGE_RESULT result = Vulkan::UploadImageToSwapchain(a_list, a_render_target, a_render_target_layer, swapchain_size, swapchain_size, s_render_inst->render_io.frame_index);
-	s_render_inst->render_io.frame_ended = true;
+	const PRESENT_IMAGE_RESULT result = Vulkan::UploadImageToSwapchain(a_list, a_render_target, a_render_target_layer, swapchain_size, swapchain_size, s_render_inst->status.frame_index);
+	s_render_inst->status.frame_ended = true;
 
 	return result;
 }
@@ -1085,18 +1097,23 @@ CommandPool& BB::GetTransferCommandPool()
 	return s_render_inst->transfer_queue.GetCommandPool();
 }
 
+CommandPool& BB::GetCommandCommandPool()
+{
+	return s_render_inst->compute_queue.GetCommandPool();
+}
+
 PRESENT_IMAGE_RESULT BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value, const bool a_skip)
 {
 	if (a_skip)
 	{
 		s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
+		s_render_inst->status.frame_ended = false;
+		s_render_inst->status.frame_started = false;
 		return PRESENT_IMAGE_RESULT::SKIPPED;
 	}
 
-	BB_ASSERT(s_render_inst->render_io.frame_started == true, "did not call RenderStartFrame before a presenting");
-	BB_ASSERT(s_render_inst->render_io.frame_ended == true, "did not call RenderEndFrame before a presenting");
-
-	s_render_inst->render_io.frame_started = true;
+	BB_ASSERT(s_render_inst->status.frame_started == true, "did not call RenderStartFrame before a presenting");
+	BB_ASSERT(s_render_inst->status.frame_ended == true, "did not call RenderEndFrame before a presenting");
 
 	uint32_t list_count = 0;
 	for (size_t i = 0; i < a_cmd_pools.size(); i++)
@@ -1113,15 +1130,13 @@ PRESENT_IMAGE_RESULT BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, 
 	}
 
 	//set the next fence value for the frame
-
-
 	s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
-	const PRESENT_IMAGE_RESULT result = s_render_inst->graphics_queue.ExecutePresentCommands(lists, list_count, a_signal_fences, a_signal_values, a_signal_count, nullptr, nullptr, 0, s_render_inst->render_io.frame_index, a_out_present_fence_value);
-	s_render_inst->render_io.frame_index = (s_render_inst->render_io.frame_index + 1) % s_render_inst->render_io.frame_count;
-	s_render_inst->frames[s_render_inst->render_io.frame_index].graphics_queue_fence_value = a_out_present_fence_value;
+	const PRESENT_IMAGE_RESULT result = s_render_inst->graphics_queue.ExecutePresentCommands(lists, list_count, a_signal_fences, a_signal_values, a_signal_count, nullptr, nullptr, 0, s_render_inst->status.frame_index, a_out_present_fence_value);
+	s_render_inst->status.frame_index = (s_render_inst->status.frame_index + 1) % s_render_inst->frame_count;
+	s_render_inst->frames[s_render_inst->status.frame_index].graphics_queue_fence_value = a_out_present_fence_value;
 
-	s_render_inst->render_io.frame_ended = false;
-	s_render_inst->render_io.frame_started = false;
+	s_render_inst->status.frame_ended = false;
+	s_render_inst->status.frame_started = false;
 
 	return result;
 }
@@ -1155,6 +1170,11 @@ bool BB::ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const 
 bool BB::ExecuteTransferCommands(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value)
 {
 	return ExecuteQueueCommands(s_render_inst->transfer_queue, a_cmd_pools, a_signal_fences, a_signal_values, a_signal_count, a_out_present_fence_value);
+}
+
+bool BB::ExecuteComputeCommands(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value)
+{
+	return ExecuteQueueCommands(s_render_inst->compute_queue, a_cmd_pools, a_signal_fences, a_signal_values, a_signal_count, a_out_present_fence_value);
 }
 
 RDescriptorLayout BB::CreateDescriptorLayout(MemoryArena& a_temp_arena, const ConstSlice<DescriptorBindingInfo> a_bindings)
@@ -1365,9 +1385,59 @@ void BB::UnmapGPUBuffer(const GPUBuffer a_buffer)
 	Vulkan::UnmapBufferMemory(a_buffer);
 }
 
+GPUAddress BB::GetGPUBufferAddress(const GPUBuffer a_buffer)
+{
+	return Vulkan::GetBufferAddress(a_buffer);
+}
+
 void BB::CopyBuffer(const RCommandList a_list, const RenderCopyBuffer& a_copy_buffer)
 {
 	Vulkan::CopyBuffer(a_list, a_copy_buffer);
+}
+
+size_t BB::AccelerationStructureInstanceUploadSize()
+{
+	return Vulkan::AccelerationStructureInstanceUploadSize();
+}
+
+bool BB::UploadAccelerationStructureInstances(void* a_mapped, const size_t a_mapped_size, const ConstSlice<AccelerationStructureInstanceInfo> a_instances)
+{
+	return Vulkan::UploadAccelerationStructureInstances(a_mapped, a_mapped_size, a_instances);
+}
+
+AccelerationStructSizeInfo BB::GetBottomLevelAccelerationStructSizeInfo(MemoryArena& a_temp_arena, const ConstSlice<AccelerationStructGeometrySize> a_geometry_sizes, const ConstSlice<uint32_t> a_primitive_counts)
+{
+    return Vulkan::GetBottomLevelAccelerationStructSizeInfo(a_temp_arena, a_geometry_sizes, a_primitive_counts, s_render_inst->vertex_buffer.address, s_render_inst->index_buffer.address);
+}
+
+AccelerationStructSizeInfo BB::GetTopLevelAccelerationStructSizeInfo(MemoryArena& a_temp_arena, const ConstSlice<GPUAddress> a_instances)
+{
+    return Vulkan::GetTopLevelAccelerationStructSizeInfo(a_temp_arena, a_instances);
+}
+
+RAccelerationStruct BB::CreateBottomLevelAccelerationStruct(const uint32_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset)
+{
+	return Vulkan::CreateBottomLevelAccelerationStruct(a_acceleration_structure_size, a_dst_buffer, a_dst_offset);
+}
+
+RAccelerationStruct BB::CreateTopLevelAccelerationStruct(const uint32_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset)
+{
+	return Vulkan::CreateTopLevelAccelerationStruct(a_acceleration_structure_size, a_dst_buffer, a_dst_offset);
+}
+
+GPUAddress BB::GetAccelerationStructureAddress(const RAccelerationStruct a_acc_struct)
+{
+    return Vulkan::GetAccelerationStructureAddress(a_acc_struct);
+}
+
+void BB::BuildBottomLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildBottomLevelAccelerationStructInfo& a_build_info)
+{
+    Vulkan::BuildBottomLevelAccelerationStruct(a_temp_arena, a_list, a_build_info, s_render_inst->vertex_buffer.address, s_render_inst->index_buffer.address);
+}
+
+void BB::BuildTopLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildTopLevelAccelerationStructInfo& a_build_info)
+{
+    Vulkan::BuildTopLevelAccelerationStruct(a_temp_arena, a_list, a_build_info);
 }
 
 void BB::DescriptorWriteUniformBuffer(const DescriptorWriteBufferInfo& a_write_info)

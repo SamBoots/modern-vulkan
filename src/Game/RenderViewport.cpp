@@ -38,7 +38,6 @@ static void CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_
 		position.x = position_list.nodes[0]->GetNumber();
 		position.y = position_list.nodes[1]->GetNumber();
 		position.z = position_list.nodes[2]->GetNumber();
-
 		a_hierarchy.CreateEntityViaModel(*model, position, obj_name);
 	}
 

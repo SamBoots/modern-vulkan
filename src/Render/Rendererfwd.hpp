@@ -6,20 +6,6 @@
 
 namespace BB
 {
-	struct RenderIO
-	{
-		WindowHandle window_handle;
-		uint32_t screen_width;
-		uint32_t screen_height;
-
-		uint32_t frame_index;
-		uint32_t frame_count;
-
-		//these will be set to false when an image is presented
-		bool frame_started = false;
-		bool frame_ended = false;
-	};
-
 	struct GPUBufferView;
 
 	using RCommandPool = FrameworkHandle<struct RCommandPoolTag>;
@@ -30,8 +16,10 @@ namespace BB
 	using GPUFenceValue = uint64_t;
 
 	using GPUBuffer = FrameworkHandle<struct GPUBufferTag>;
+	using GPUAddress = uint64_t;
 	using RImage = FrameworkHandle<struct RImageTag>;
 	using RImageView = FrameworkHandle<struct RImageViewTag>;
+	using RAccelerationStruct = FrameworkHandle<struct RAccelerationStuctTag>;
 
 	using RFence = FrameworkHandle<struct RFenceTag>;
 	
@@ -145,6 +133,18 @@ namespace BB
 		ENUM_SIZE
 	};
 
+	struct RendererCreateInfo
+	{
+		WindowHandle window_handle;
+		const char* app_name;
+		const char* engine_name;
+		uint32_t swapchain_width;
+		uint32_t swapchain_height;
+		float gamma;
+		bool use_raytracing;
+		bool debug;
+	};
+
 	struct RenderingAttachmentDepth
 	{
 		bool load_depth;
@@ -190,6 +190,8 @@ namespace BB
 		UNIFORM,
 		VERTEX,
 		INDEX,
+		RT_ACCELERATION,
+		RT_BUILD_ACCELERATION,
 
 		ENUM_SIZE
 	};
@@ -224,6 +226,7 @@ namespace BB
 		READWRITE, //UAV or readwrite storage buffer(?)
 		IMAGE,
 		SAMPLER,
+		ACCELERATION_STRUCTURE,
 
 		ENUM_SIZE
 	};
@@ -513,4 +516,56 @@ namespace BB
 		SKIPPED,
 		SUCCESS
 	};
+
+	struct AccelerationStructureInstanceInfo
+	{
+		float4x4* transform;
+		uint32_t shader_custom_index : 24;
+		uint32_t mask : 8;
+		uint32_t shader_binding_table_offset;
+
+		GPUAddress acceleration_structure_address;
+	};
+
+    struct AccelerationStructGeometrySize
+    {
+        uint32_t vertex_count;
+        uint32_t vertex_stride;
+        GPUAddress transform_address;
+        uint64_t index_offset;
+        uint64_t vertex_offset;
+    };
+
+    struct AccelerationStructSizeInfo
+    {
+        uint32_t acceleration_structure_size;
+        uint32_t scratch_build_size;
+        uint32_t scratch_update_size;
+    };
+
+    struct BuildBottomLevelAccelerationStructInfo
+    {
+        RAccelerationStruct acc_struct;
+        GPUAddress scratch_buffer_address;
+        ConstSlice<AccelerationStructGeometrySize> geometry_sizes;
+        ConstSlice<uint32_t> primitive_counts;
+    };
+
+    struct BottomLevelAccelerationStructInstance
+    {
+        float4x4& transform;
+        GPUAddress acceleration_structure_address;
+    };
+
+    struct BuildTopLevelAccelerationStructInfo
+    {
+        RAccelerationStruct acc_struct;
+        GPUAddress scratch_buffer_address;
+        ConstSlice<BottomLevelAccelerationStructInstance> instances;
+        ConstSlice<uint32_t> primitive_counts;
+
+        GPUAddress acceleration_build_address;
+        void* acceleration_build_mapped;
+        uint64_t mapped_size;
+    };
 }

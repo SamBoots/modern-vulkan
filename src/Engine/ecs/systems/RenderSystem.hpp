@@ -2,6 +2,7 @@
 #include "GPUBuffers.hpp"
 #include "Rendererfwd.hpp"
 #include "ecs/components/RenderComponent.hpp"
+#include "ecs/components/RaytraceComponent.hpp"
 
 #include "ClearStage.hpp"
 #include "ShadowMapStage.hpp"
@@ -25,7 +26,7 @@ namespace BB
 
 		void StartFrame(const RCommandList a_list);
 		RenderSystemFrame EndFrame(const RCommandList a_list, const IMAGE_LAYOUT a_current_layout);
-		void UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCommandList a_list, const uint2 a_draw_area, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const ConstSlice<LightComponent> a_lights);
+		void UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCommandList a_list, const uint2 a_draw_area, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const RaytraceComponentPool& a_raytrace_pool, const ConstSlice<LightComponent> a_lights);
 		
 		void Resize(const uint2 a_new_extent, const bool a_force = false);
 		void ResizeNewFormat(const uint2 a_render_target_size, const IMAGE_FORMAT a_render_target_format);
@@ -87,6 +88,30 @@ namespace BB
 			} bloom;
 		};
 
+        struct RaytraceData
+        {
+            GPULinearBuffer acceleration_structure_buffer;
+
+			struct TopLevel
+			{
+				struct BuildInfo
+				{
+					GPULinearBuffer build_buffer;
+					GPUAddress build_address;
+					void* build_mapped;
+				} build_info;
+
+				RAccelerationStruct accel_struct;
+				GPUBufferView accel_buffer_view;
+				uint32_t build_size;
+				uint32_t scratch_size;
+				uint32_t scratch_update;
+				bool must_update;
+				bool must_rebuild;
+			} top_level;
+
+        } m_raytrace_data;
+
 		struct RenderTarget
 		{
 			RImage image;
@@ -95,6 +120,8 @@ namespace BB
 		};
 
 		void UpdateConstantBuffer(const uint32_t a_frame_index, const RCommandList a_list, const uint2 a_draw_area_size, const ConstSlice<LightComponent> a_lights);
+		void BuildTopLevelAccelerationStructure(MemoryArena& a_per_frame_arena, const RCommandList a_list, const ConstSlice<AccelerationStructureInstanceInfo> a_instances);
+		void UpdateConstantBuffer(PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size, const ConstSlice<LightComponent> a_lights);
 		void ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list, const DrawList& a_draw_list, const ConstSlice<LightComponent> a_lights);
 
 		void CreateRenderTarget(const uint2 a_render_target_size);

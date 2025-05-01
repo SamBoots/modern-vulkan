@@ -13,17 +13,6 @@ class RenderQueue;
 
 namespace BB
 {
-	struct RendererCreateInfo
-	{
-		WindowHandle window_handle;
-		const char* app_name;
-		const char* engine_name;
-		uint32_t swapchain_width;
-		uint32_t swapchain_height;
-		bool debug;
-		float gamma;
-	};
-
 	// get one pool per thread
 	class CommandPool : public LinkedListNode<CommandPool>
 	{
@@ -46,14 +35,13 @@ namespace BB
 		void EndCommandList(RCommandList a_list);
 	};
 
-	const RenderIO& GetRenderIO();
-
 	bool InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_render_create_info);
 	bool DestroyRenderer();
 
 	void GPUWaitIdle();
 
 	GPUDeviceInfo GetGPUInfo(MemoryArena& a_arena);
+	uint32_t GetBackBufferCount();
 
 	struct RenderStartFrameInfo
 	{
@@ -84,10 +72,12 @@ namespace BB
 
 	CommandPool& GetGraphicsCommandPool();
 	CommandPool& GetTransferCommandPool();
+	CommandPool& GetCommandCommandPool();
 
 	PRESENT_IMAGE_RESULT PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value, const bool a_skip);
 	bool ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value);
 	bool ExecuteTransferCommands(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value);
+	bool ExecuteComputeCommands(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value);
 
 	GPUBufferView AllocateFromVertexBuffer(const size_t a_size_in_bytes);
 	GPUBufferView AllocateFromIndexBuffer(const size_t a_size_in_bytes);
@@ -123,7 +113,19 @@ namespace BB
 	void FreeGPUBuffer(const GPUBuffer a_buffer);
 	void* MapGPUBuffer(const GPUBuffer a_buffer);
 	void UnmapGPUBuffer(const GPUBuffer a_buffer);
+	GPUAddress GetGPUBufferAddress(const GPUBuffer a_buffer);
 	void CopyBuffer(const RCommandList a_list, const RenderCopyBuffer& a_copy_buffer);
+
+	size_t AccelerationStructureInstanceUploadSize();
+	bool UploadAccelerationStructureInstances(void* a_mapped, const size_t a_mapped_size, const ConstSlice<AccelerationStructureInstanceInfo> a_instances);
+    AccelerationStructSizeInfo GetBottomLevelAccelerationStructSizeInfo(MemoryArena& a_temp_arena, const ConstSlice<AccelerationStructGeometrySize> a_geometry_sizes, const ConstSlice<uint32_t> a_primitive_counts);
+    AccelerationStructSizeInfo GetTopLevelAccelerationStructSizeInfo(MemoryArena& a_temp_arena, const ConstSlice<GPUAddress> a_instances);
+	RAccelerationStruct CreateBottomLevelAccelerationStruct(const uint32_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset);
+	RAccelerationStruct CreateTopLevelAccelerationStruct(const uint32_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset);
+    GPUAddress GetAccelerationStructureAddress(const RAccelerationStruct a_acc_struct);
+
+    void BuildBottomLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildBottomLevelAccelerationStructInfo& a_build_info);
+    void BuildTopLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildTopLevelAccelerationStructInfo& a_build_info);
 
 	void DescriptorWriteUniformBuffer(const DescriptorWriteBufferInfo& a_write_info);
 	void DescriptorWriteStorageBuffer(const DescriptorWriteBufferInfo& a_write_info);

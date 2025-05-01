@@ -33,6 +33,7 @@ bool EntityComponentSystem::Init(MemoryArena& a_arena, const EntityComponentSyst
 	m_world_matrices.Init(a_arena, a_create_info.entity_count);
 	m_render_mesh_pool.Init(a_arena, a_create_info.render_mesh_count, a_create_info.entity_count);
 	m_light_pool.Init(a_arena, a_create_info.light_count, a_create_info.entity_count);
+    m_raytrace_pool.Init(a_arena, a_create_info.render_mesh_count, a_create_info.entity_count);
 
 	// maybe better system for this?
 	m_transform_system.dirty_transforms.Init(a_arena, a_create_info.entity_count, a_create_info.entity_count);
@@ -174,7 +175,7 @@ RenderSystemFrame EntityComponentSystem::RenderSystemUpdate(const RCommandList a
 	StackString<32> rendering_name = m_name;
 	rendering_name.append(" - render");
 	BB_START_PROFILE(rendering_name);
-	m_render_system.UpdateRenderSystem(m_per_frame[m_current_frame].arena, a_list, a_draw_area_size, m_world_matrices, m_render_mesh_pool, m_light_pool.GetAllComponents());
+	m_render_system.UpdateRenderSystem(m_per_frame[m_current_frame].arena, a_list, a_draw_area_size, m_world_matrices, m_render_mesh_pool, m_raytrace_pool, m_light_pool.GetAllComponents());
 	BB_END_PROFILE(rendering_name);
 
 	return m_render_system.EndFrame(a_list, IMAGE_LAYOUT::RT_COLOR);
@@ -251,6 +252,15 @@ bool EntityComponentSystem::EntityAssignLight(const ECSEntity a_entity, const Li
 	if (!m_light_pool.CreateComponent(a_entity, a_light))
 		return false;
 	if (!m_ecs_entities.RegisterSignature(a_entity, m_light_pool.GetSignatureIndex()))
+		return false;
+	return true;
+}
+
+bool EntityComponentSystem::EntityAssignRaytraceComponent(const ECSEntity a_entity, const RaytraceComponent& a_raytrace)
+{
+    if (!m_raytrace_pool.CreateComponent(a_entity, a_raytrace))
+		return false;
+	if (!m_ecs_entities.RegisterSignature(a_entity, m_raytrace_pool.GetSignatureIndex()))
 		return false;
 	return true;
 }

@@ -1,17 +1,17 @@
-#include "RenderComponent.hpp"
+#include "RaytraceComponent.hpp"
 #include "Math/Math.inl"
 
 using namespace BB;
 
-void RenderComponentPool::Init(struct MemoryArena& a_arena, const uint32_t a_render_mesh_count, const uint32_t a_entity_count)
+void RaytraceComponentPool::Init(struct MemoryArena& a_arena, const uint32_t a_component_count, const uint32_t a_entity_count)
 {
-	m_components.Init(a_arena, a_render_mesh_count);
-	m_components.resize(a_render_mesh_count);
+	m_components.Init(a_arena, a_component_count);
+	m_components.resize(a_component_count);
 
-	m_sparse_set.Init(a_arena, a_entity_count, a_render_mesh_count);
+	m_sparse_set.Init(a_arena, a_entity_count, a_component_count);
 }
 
-bool RenderComponentPool::CreateComponent(const ECSEntity a_entity)
+bool RaytraceComponentPool::CreateComponent(const ECSEntity a_entity)
 {
 	if (m_components.capacity() == m_sparse_set.Size())
 		return false;
@@ -24,7 +24,7 @@ bool RenderComponentPool::CreateComponent(const ECSEntity a_entity)
 	return true;
 }
 
-bool RenderComponentPool::CreateComponent(const ECSEntity a_entity, const RenderComponent& a_component)
+bool RaytraceComponentPool::CreateComponent(const ECSEntity a_entity, const RaytraceComponent& a_component)
 {
 	if (m_components.capacity() == m_sparse_set.Size())
 		return false;
@@ -37,7 +37,7 @@ bool RenderComponentPool::CreateComponent(const ECSEntity a_entity, const Render
 	return true;
 }
 
-bool RenderComponentPool::FreeComponent(const ECSEntity a_entity)
+bool RaytraceComponentPool::FreeComponent(const ECSEntity a_entity)
 {
 	if (m_sparse_set.Size() == 0)
 		return false;
@@ -45,14 +45,14 @@ bool RenderComponentPool::FreeComponent(const ECSEntity a_entity)
 	return m_sparse_set.Erase(a_entity);
 }
 
-RenderComponent& RenderComponentPool::GetComponent(const ECSEntity a_entity) const
+RaytraceComponent& RaytraceComponentPool::GetComponent(const ECSEntity a_entity) const
 {
 	const uint32_t dense_index = m_sparse_set.Find(a_entity.index);
 	BB_ASSERT(dense_index != SPARSE_SET_INVALID, "invalid sparse set index returned");
 	return m_components[dense_index];
 }
 
-ConstSlice<ECSEntity> RenderComponentPool::GetEntityComponents() const
+ConstSlice<ECSEntity> RaytraceComponentPool::GetEntityComponents() const
 {
 	return m_sparse_set.GetDense();
 }

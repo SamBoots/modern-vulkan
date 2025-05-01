@@ -32,9 +32,11 @@ static void CustomCloseWindow(const BB::WindowHandle a_window_handle)
 	end_app = true;
 }
 
-static void CustomResizeWindow(const BB::WindowHandle a_window_handle, const uint32_t, const uint32_t)
+static void CustomResizeWindow(const BB::WindowHandle a_window_handle, const uint32_t a_x, const uint32_t a_y)
 {
 	(void)a_window_handle;
+	engine_config.window_size_x = a_x;
+	engine_config.window_size_y = a_y;
 	resize_app = true;
 }
 
@@ -97,9 +99,10 @@ int main(int argc, char** argv)
 	render_create_info.swapchain_height = window_extent.y;
 	render_create_info.gamma = 2.2f;
 	render_create_info.debug = true;
+	render_create_info.use_raytracing = true;
 
 	InitializeRenderer(main_arena, render_create_info);
-	const uint32_t back_buffer_count = GetRenderIO().frame_count;
+	const uint32_t back_buffer_count = GetBackBufferCount();
 
 	const Asset::AssetManagerInitInfo asset_manager_info = {};
 	Asset::InitializeAssetManager(main_arena, asset_manager_info);

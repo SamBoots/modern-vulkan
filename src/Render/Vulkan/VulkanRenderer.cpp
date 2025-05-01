@@ -50,9 +50,6 @@ BB_PRAGMA(clang diagnostic ignored "-Wcast-function-type-strict")
 //vulkan's function pointers all have the prefix PFN_<functionname>, so this works perfectly.
 #define VkGetFuncPtr(inst, func) reinterpret_cast<BB_CONCAT(PFN_, func)>(vkGetInstanceProcAddr(inst, #func))
 
-//for performance reasons this can be turned off. I need to profile this.
-#define ENUM_CONVERSATION_BY_ARRAY
-
 struct VulkanQueuesIndices
 {
 	uint32_t present; //Is currently always same as graphics.
@@ -404,6 +401,10 @@ static VkDevice CreateLogicalDevice(MemoryArena& a_temp_arena, const VkPhysicalD
 	shader_objects.shaderObject = true;
 	shader_objects.pNext = &sync_features;
 
+	VkPhysicalDeviceAccelerationStructureFeaturesKHR acceleration_struct{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR };
+	acceleration_struct.accelerationStructure = true;
+	acceleration_struct.pNext = &shader_objects;
+
 	VkDeviceQueueCreateInfo* queue_create_infos = ArenaAllocArr(a_temp_arena, VkDeviceQueueCreateInfo, 3);
 	float standard_queue_prios[16] = { 1.0f }; // just put it all to 1 for multiple queues;
 	uint32_t unique_queue_pos = 0;
@@ -442,7 +443,7 @@ static VkDevice CreateLogicalDevice(MemoryArena& a_temp_arena, const VkPhysicalD
 	device_create_info.pEnabledFeatures = &device_features;
 	device_create_info.ppEnabledExtensionNames = a_device_extensions.data();
 	device_create_info.enabledExtensionCount = static_cast<uint32_t>(a_device_extensions.size());
-	device_create_info.pNext = &shader_objects;
+	device_create_info.pNext = &acceleration_struct;
 
 	VkDevice return_device;
 	VKASSERT(vkCreateDevice(a_phys_device,
@@ -456,81 +457,6 @@ static VkDevice CreateLogicalDevice(MemoryArena& a_temp_arena, const VkPhysicalD
 
 struct Vulkan_inst
 {
-	Vulkan_inst()
-	{
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-		enum_conv.descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::READONLY_CONSTANT)] = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		enum_conv.descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::READONLY_BUFFER)] = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		enum_conv.descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::READWRITE)] = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-		enum_conv.descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::IMAGE)] = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-		enum_conv.descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::SAMPLER)] = VK_DESCRIPTOR_TYPE_SAMPLER;
-
-		enum_conv.image_aspects[static_cast<uint32_t>(IMAGE_ASPECT::COLOR)] = VK_IMAGE_ASPECT_COLOR_BIT;
-		enum_conv.image_aspects[static_cast<uint32_t>(IMAGE_ASPECT::DEPTH)] = VK_IMAGE_ASPECT_DEPTH_BIT;
-		enum_conv.image_aspects[static_cast<uint32_t>(IMAGE_ASPECT::DEPTH_STENCIL)] = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-
-		// 64 bit images
-		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::RGBA16_UNORM)] = VK_FORMAT_R16G16B16A16_UNORM;
-		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::RGBA16_SFLOAT)] = VK_FORMAT_R16G16B16A16_SFLOAT;
-		// 32 bit images
-		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::RGBA8_SRGB)] = VK_FORMAT_R8G8B8A8_SRGB;
-		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::RGBA8_UNORM)] = VK_FORMAT_R8G8B8A8_UNORM;
-		// 24 bit images
-		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::RGB8_SRGB)] = VK_FORMAT_R8G8B8_SRGB;
-		// 8 bit images
-		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::A8_UNORM)] = VK_FORMAT_R8_UNORM;
-		// depth images
-		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::D16_UNORM)] = VK_FORMAT_D16_UNORM;
-		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::D32_SFLOAT)] = VK_FORMAT_D32_SFLOAT;
-		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::D32_SFLOAT_S8_UINT)] = VK_FORMAT_D32_SFLOAT_S8_UINT;
-		enum_conv.image_formats[static_cast<uint32_t>(IMAGE_FORMAT::D24_UNORM_S8_UINT)] = VK_FORMAT_D24_UNORM_S8_UINT;
-
-		enum_conv.image_types[static_cast<uint32_t>(IMAGE_TYPE::TYPE_1D)] = VK_IMAGE_TYPE_1D;
-		enum_conv.image_types[static_cast<uint32_t>(IMAGE_TYPE::TYPE_2D)] = VK_IMAGE_TYPE_2D;
-		enum_conv.image_types[static_cast<uint32_t>(IMAGE_TYPE::TYPE_3D)] = VK_IMAGE_TYPE_3D;
-
-		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_1D)] = VK_IMAGE_VIEW_TYPE_1D;
-		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_2D)] = VK_IMAGE_VIEW_TYPE_2D;
-		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_3D)] = VK_IMAGE_VIEW_TYPE_3D;
-		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_1D_ARRAY)] = VK_IMAGE_VIEW_TYPE_1D_ARRAY;
-		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::TYPE_2D_ARRAY)] = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
-		enum_conv.image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::CUBE)] = VK_IMAGE_VIEW_TYPE_CUBE;
-
-		enum_conv.sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::REPEAT)] = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		enum_conv.sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::MIRROR)] = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
-		enum_conv.sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::BORDER)] = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-		enum_conv.sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::CLAMP)] = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-
-		enum_conv.border_colors[static_cast<uint32_t>(SAMPLER_BORDER_COLOR::COLOR_FLOAT_TRANSPARENT_BLACK)] = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
-		enum_conv.border_colors[static_cast<uint32_t>(SAMPLER_BORDER_COLOR::COLOR_INT_TRANSPARENT_BLACK)] = VK_BORDER_COLOR_INT_TRANSPARENT_BLACK;
-		enum_conv.border_colors[static_cast<uint32_t>(SAMPLER_BORDER_COLOR::COLOR_FLOAT_OPAQUE_BLACK)] = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
-		enum_conv.border_colors[static_cast<uint32_t>(SAMPLER_BORDER_COLOR::COLOR_INT_OPAQUE_BLACK)] = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-		enum_conv.border_colors[static_cast<uint32_t>(SAMPLER_BORDER_COLOR::COLOR_FLOAT_OPAQUE_WHITE)] = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-		enum_conv.border_colors[static_cast<uint32_t>(SAMPLER_BORDER_COLOR::COLOR_INT_OPAQUE_WHITE)] = VK_BORDER_COLOR_INT_OPAQUE_WHITE;
-
-		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::DEPTH)] = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
-		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::SHADOW_MAP)] = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
-		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::TEXTURE)] = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
-		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::SWAPCHAIN_COPY_IMG)] = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
-		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::RENDER_TARGET)] = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
-		enum_conv.image_usages[static_cast<uint32_t>(IMAGE_USAGE::COPY_SRC_DST)] =  VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-
-		enum_conv.cull_modes[static_cast<uint32_t>(CULL_MODE::NONE)] = VK_CULL_MODE_NONE;
-		enum_conv.cull_modes[static_cast<uint32_t>(CULL_MODE::FRONT)] = VK_CULL_MODE_FRONT_BIT;
-		enum_conv.cull_modes[static_cast<uint32_t>(CULL_MODE::BACK)] = VK_CULL_MODE_BACK_BIT;
-		enum_conv.cull_modes[static_cast<uint32_t>(CULL_MODE::FRONT_AND_BACK)] = VK_CULL_MODE_FRONT_AND_BACK;
-
-		enum_conv.blend_op[static_cast<uint32_t>(BLEND_OP::ADD)] = VK_BLEND_OP_ADD;
-		enum_conv.blend_op[static_cast<uint32_t>(BLEND_OP::SUBTRACT)] = VK_BLEND_OP_SUBTRACT;
-
-		enum_conv.blend_factor[static_cast<uint32_t>(BLEND_MODE::FACTOR_ZERO)] = VK_BLEND_FACTOR_ZERO;
-		enum_conv.blend_factor[static_cast<uint32_t>(BLEND_MODE::FACTOR_ONE)] = VK_BLEND_FACTOR_ONE;
-		enum_conv.blend_factor[static_cast<uint32_t>(BLEND_MODE::FACTOR_SRC_ALPHA)] = VK_BLEND_FACTOR_SRC_ALPHA;
-		enum_conv.blend_factor[static_cast<uint32_t>(BLEND_MODE::FACTOR_ONE_MINUS_SRC_ALPHA)] = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-		enum_conv.blend_factor[static_cast<uint32_t>(BLEND_MODE::FACTOR_DST_ALPHA)] = VK_BLEND_FACTOR_DST_ALPHA;
-#endif //ENUM_CONVERSATION_BY_ARRAY
-	}
-
 	VkInstance instance;
 	VkDebugUtilsMessengerEXT debug_msgr;
 	VkPhysicalDevice phys_device;
@@ -557,25 +483,8 @@ struct Vulkan_inst
 		uint32_t storage_buffer;
 		uint32_t sampled_image;
 		uint32_t sampler;
+		uint32_t acceleration_structure;
 	} descriptor_sizes;
-
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	//maybe faster then a switch... profile!
-	struct EnumConversions
-	{
-		VkDescriptorType descriptor_types[static_cast<uint32_t>(DESCRIPTOR_TYPE::ENUM_SIZE)];
-		VkImageAspectFlags image_aspects[static_cast<uint32_t>(IMAGE_ASPECT::ENUM_SIZE)];
-		VkFormat image_formats[static_cast<uint32_t>(IMAGE_FORMAT::ENUM_SIZE)];
-		VkImageType image_types[static_cast<uint32_t>(IMAGE_TYPE::ENUM_SIZE)];
-		VkImageViewType image_view_types[static_cast<uint32_t>(IMAGE_VIEW_TYPE::ENUM_SIZE)];
-		VkSamplerAddressMode sampler_address_modes[static_cast<uint32_t>(SAMPLER_ADDRESS_MODE::ENUM_SIZE)];
-		VkBorderColor border_colors[static_cast<uint32_t>(SAMPLER_BORDER_COLOR::ENUM_SIZE)];
-		VkImageUsageFlags image_usages[static_cast<uint32_t>(IMAGE_USAGE::ENUM_SIZE)];
-		VkCullModeFlags cull_modes[static_cast<uint32_t>(CULL_MODE::ENUM_SIZE)];
-		VkBlendOp blend_op[static_cast<uint32_t>(BLEND_OP::ENUM_SIZE)];
-		VkBlendFactor blend_factor[static_cast<uint32_t>(BLEND_MODE::ENUM_SIZE)];
-	} enum_conv;
-#endif //ENUM_CONVERSATION_BY_ARRAY
 
 	struct Pfn
 	{
@@ -598,7 +507,20 @@ struct Vulkan_inst
 		PFN_vkCmdSetColorBlendEquationEXT CmdSetColorBlendEquationEXT;
 		PFN_vkCmdSetAlphaToCoverageEnableEXT CmdSetAlphaToCoverageEnableEXT;
 		PFN_vkCmdSetSampleMaskEXT CmdSetSampleMaskEXT;
+
+		PFN_vkCreateAccelerationStructureKHR CreateAccelerationStructureKHR;
+		PFN_vkDestroyAccelerationStructureKHR DestroyAccelerationStructureKHR;
+		PFN_vkGetAccelerationStructureBuildSizesKHR GetAccelerationStructureBuildSizesKHR;
+		PFN_vkGetAccelerationStructureDeviceAddressKHR GetAccelerationStructureDeviceAddressKHR;
+		PFN_vkCmdBuildAccelerationStructuresKHR CmdBuildAccelerationStructuresKHR;
+		PFN_vkBuildAccelerationStructuresKHR BuildAccelerationStructuresKHR;
+		PFN_vkCmdTraceRaysKHR CmdTraceRaysKHR;
+		PFN_vkGetRayTracingShaderGroupHandlesKHR GetRayTracingShaderGroupHandlesKHR;
+		PFN_vkCreateRayTracingPipelinesKHR CreateRayTracingPipelinesKHR;
 	} pfn;
+
+	bool use_debug;
+	bool use_raytracing;
 };
 
 struct Vulkan_swapchain
@@ -624,6 +546,12 @@ struct Vulkan_swapchain
 static Vulkan_inst* s_vulkan_inst = nullptr;
 static Vulkan_swapchain* s_vulkan_swapchain = nullptr;
 
+static inline VkDeviceSize GetAccelerationStructureAddress(const VkDevice a_device, const VkAccelerationStructureKHR a_acc_struct)
+{
+	VkAccelerationStructureDeviceAddressInfoKHR info{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR, nullptr, a_acc_struct };
+	return s_vulkan_inst->pfn.GetAccelerationStructureDeviceAddressKHR(a_device, &info);
+}
+
 #ifdef _DEBUG
 static inline void SetDebugName_f(const char* a_name, const uint64_t a_object_handle, const VkObjectType a_obj_type)
 {
@@ -642,22 +570,18 @@ static inline void SetDebugName_f(const char* a_name, const uint64_t a_object_ha
 
 static inline VkDescriptorType DescriptorBufferType(const DESCRIPTOR_TYPE a_type)
 {
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.descriptor_types[static_cast<uint32_t>(a_type)];
-#else
 	switch (a_type)
 	{
-	case DESCRIPTOR_TYPE::READONLY_CONSTANT:	return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	case DESCRIPTOR_TYPE::READONLY_BUFFER:		return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	case DESCRIPTOR_TYPE::READWRITE:			return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	case DESCRIPTOR_TYPE::IMAGE:				return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-	case DESCRIPTOR_TYPE::SAMPLER:				return VK_DESCRIPTOR_TYPE_SAMPLER;
+	case DESCRIPTOR_TYPE::READONLY_CONSTANT:	    return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	case DESCRIPTOR_TYPE::READONLY_BUFFER:		    return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	case DESCRIPTOR_TYPE::READWRITE:			    return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+	case DESCRIPTOR_TYPE::IMAGE:				    return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+	case DESCRIPTOR_TYPE::SAMPLER:				    return VK_DESCRIPTOR_TYPE_SAMPLER;
+	case DESCRIPTOR_TYPE::ACCELERATION_STRUCTURE:   return VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
 	default:
 		BB_ASSERT(false, "Vulkan: DESCRIPTOR_TYPE failed to convert to a VkDescriptorType.");
 		return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		break;
 	}
-#endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
 static inline VkShaderStageFlags ShaderStageFlags(const SHADER_STAGE a_stage)
@@ -695,9 +619,6 @@ static inline VkShaderStageFlags ShaderStageFlagsFromFlags(const SHADER_STAGE_FL
 
 static inline VkImageAspectFlags ImageAspect(const IMAGE_ASPECT a_aspects)
 {
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.image_aspects[static_cast<uint32_t>(a_aspects)];
-#else
 	switch (a_aspects)
 	{
 	case IMAGE_ASPECT::COLOR:         return VK_IMAGE_ASPECT_COLOR_BIT;
@@ -706,9 +627,7 @@ static inline VkImageAspectFlags ImageAspect(const IMAGE_ASPECT a_aspects)
 	default:
 		BB_ASSERT(false, "Vulkan: IMAGE_ASPECT failed to convert to a VkImageAspectFlags.");
 		return 0;
-		break;
 	}
-#endif // ENUM_CONVERSATION_BY_ARRAY
 }
 
 static inline VkImageLayout ImageLayout(const IMAGE_LAYOUT a_image_layout)
@@ -736,17 +655,14 @@ static inline VkImageLayout ImageLayout(const IMAGE_LAYOUT a_image_layout)
 
 static inline VkFormat ImageFormats(const IMAGE_FORMAT a_image_format)
 {
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.image_formats[static_cast<uint32_t>(a_image_format)];
-#else
 	switch (a_image_format)
 	{
-	case IMAGE_FORMAT::RGBA16_UNORM:	return VK_FORMAT_R16G16B16A16_UNORM;
-	case IMAGE_FORMAT::RGBA16_SFLOAT:	return VK_FORMAT_R16G16B16A16_SFLOAT;
-	case IMAGE_FORMAT::RGBA8_SRGB:		return VK_FORMAT_R8G8B8A8_SRGB;
-	case IMAGE_FORMAT::RGBA8_UNORM:		return VK_FORMAT_R8G8B8A8_UNORM;
-	case IMAGE_FORMAT::RGB8_SRGB:		return VK_FORMAT_R8G8B8_SRGB;
-	case IMAGE_FORMAT::A8_UNORM:		return VK_FORMAT_R8_UNORM;
+	case IMAGE_FORMAT::RGBA16_UNORM:	        return VK_FORMAT_R16G16B16A16_UNORM;
+	case IMAGE_FORMAT::RGBA16_SFLOAT:	        return VK_FORMAT_R16G16B16A16_SFLOAT;
+	case IMAGE_FORMAT::RGBA8_SRGB:		        return VK_FORMAT_R8G8B8A8_SRGB;
+	case IMAGE_FORMAT::RGBA8_UNORM:		        return VK_FORMAT_R8G8B8A8_UNORM;
+	case IMAGE_FORMAT::RGB8_SRGB:		        return VK_FORMAT_R8G8B8_SRGB;
+	case IMAGE_FORMAT::A8_UNORM:		        return VK_FORMAT_R8_UNORM;
 	case IMAGE_FORMAT::D16_UNORM:				return VK_FORMAT_D16_UNORM;
 	case IMAGE_FORMAT::D32_SFLOAT:				return VK_FORMAT_D32_SFLOAT;
 	case IMAGE_FORMAT::D32_SFLOAT_S8_UINT:		return VK_FORMAT_D32_SFLOAT_S8_UINT;
@@ -754,16 +670,11 @@ static inline VkFormat ImageFormats(const IMAGE_FORMAT a_image_format)
 	default:
 		BB_ASSERT(false, "Vulkan: IMAGE_FORMAT failed to convert to a VkFormat.");
 		return VK_FORMAT_R8G8B8A8_SRGB;
-		break;
 	}
-#endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
 static inline VkImageType ImageTypes(const IMAGE_TYPE a_image_types)
 {
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.image_types[static_cast<uint32_t>(a_image_types)];
-#else
 	switch (a_image_types)
 	{
 	case IMAGE_TYPE::TYPE_1D:		return VK_IMAGE_TYPE_1D;
@@ -772,55 +683,56 @@ static inline VkImageType ImageTypes(const IMAGE_TYPE a_image_types)
 	default:
 		BB_ASSERT(false, "Vulkan: IMAGE_TYPE failed to convert to a VkImageType.");
 		return VK_IMAGE_TYPE_1D;
-		break;
 	}
-#endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
 static inline VkImageViewType ImageViewTypes(const IMAGE_VIEW_TYPE a_image_types)
 {
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.image_view_types[static_cast<uint32_t>(a_image_types)];
-#else
 	switch (a_image_types)
 	{
-	case IMAGE_TYPE::TYPE_1D:		return VK_IMAGE_VIEW_TYPE_1D;
-	case IMAGE_TYPE::TYPE_2D:		return VK_IMAGE_VIEW_TYPE_2D;
-	case IMAGE_TYPE::TYPE_3D:		return VK_IMAGE_VIEW_TYPE_3D;
-	case IMAGE_TYPE::CUBE:			return VK_IMAGE_VIEW_TYPE_CUBE;
+	case IMAGE_VIEW_TYPE::TYPE_1D:		    return VK_IMAGE_VIEW_TYPE_1D;
+	case IMAGE_VIEW_TYPE::TYPE_2D:		    return VK_IMAGE_VIEW_TYPE_2D;
+	case IMAGE_VIEW_TYPE::TYPE_3D:		    return VK_IMAGE_VIEW_TYPE_3D;
+	case IMAGE_VIEW_TYPE::TYPE_1D_ARRAY:    return VK_IMAGE_VIEW_TYPE_1D_ARRAY;
+	case IMAGE_VIEW_TYPE::TYPE_2D_ARRAY:	return VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+	case IMAGE_VIEW_TYPE::CUBE:			    return VK_IMAGE_VIEW_TYPE_CUBE;
 	default:
-		BB_ASSERT(false, "Vulkan: IMAGE_TYPE failed to convert to a VkImageViewType.");
-		return VK_IMAGE_TYPE_1D;
-		break;
+		BB_ASSERT(false, "Vulkan: IMAGE_VIEW_TYPE failed to convert to a VkImageViewType.");
+		return VK_IMAGE_VIEW_TYPE_1D;
 	}
-#endif //ENUM_CONVERSATION_BY_ARRAY
+}
+
+static inline VkCullModeFlags CullMode(const CULL_MODE a_cull_mode)
+{
+	switch (a_cull_mode)
+	{
+	case CULL_MODE::NONE:		        return VK_CULL_MODE_NONE;
+	case CULL_MODE::FRONT:		        return VK_CULL_MODE_FRONT_BIT;
+	case CULL_MODE::BACK:		        return VK_CULL_MODE_BACK_BIT;
+	case CULL_MODE::FRONT_AND_BACK:		return VK_CULL_MODE_FRONT_AND_BACK;
+	default:
+		BB_ASSERT(false, "Vulkan: CULL_MODE failed to convert to a VkCullModeFlags.");
+		return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	}
 }
 
 static inline VkSamplerAddressMode SamplerAddressModes(const SAMPLER_ADDRESS_MODE a_address_mode)
 {
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.sampler_address_modes[static_cast<uint32_t>(a_address_mode)];
-#else
 	switch (a_address_mode)
 	{
 	case SAMPLER_ADDRESS_MODE::REPEAT:		return VK_SAMPLER_ADDRESS_MODE_REPEAT;
-	case SAMPLER_ADDRESS_MODE::MIRROR:		return VK_SAMPLER_ADDRESS_MODE_MIRROR;
+	case SAMPLER_ADDRESS_MODE::MIRROR:		return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
 	case SAMPLER_ADDRESS_MODE::BORDER:		return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
 	case SAMPLER_ADDRESS_MODE::CLAMP:		return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
 	default:
 		BB_ASSERT(false, "Vulkan: SAMPLER_ADDRESS_MODE failed to convert to a VkSamplerAddressMode.");
 		return VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		break;
 	}
-#endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
 static inline VkBorderColor SamplerBorderColor(const SAMPLER_BORDER_COLOR a_color)
 {
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.border_colors[static_cast<uint32_t>(a_color)];
-#else
-	switch (a_address_mode)
+	switch (a_color)
 	{
 	case SAMPLER_BORDER_COLOR::COLOR_FLOAT_TRANSPARENT_BLACK:	return VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
 	case SAMPLER_BORDER_COLOR::COLOR_INT_TRANSPARENT_BLACK:		return VK_BORDER_COLOR_INT_TRANSPARENT_BLACK;
@@ -831,47 +743,50 @@ static inline VkBorderColor SamplerBorderColor(const SAMPLER_BORDER_COLOR a_colo
 	default:
 		BB_ASSERT(false, "Vulkan: SAMPLER_BORDER_COLOR failed to convert to a VkBorderColor.");
 		return VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
-		break;
 	}
-#endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
 static inline VkImageUsageFlags ImageUsage(const IMAGE_USAGE a_usage)
 {
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.image_usages[static_cast<uint32_t>(a_usage)];
-#else
 	switch (a_usage)
 	{
-	case IMAGE_USAGE::DEPTH:			return VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT; 
-	case IMAGE_USAGE::TEXTURE:			return VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-	case IMAGE_USAGE::UPLOAD_SRC_DST	return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-	case IMAGE_USAGE::RENDER_TARGET:	return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-	case IMAGE_USAGE::COPY_SRC_DST:		return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	case IMAGE_USAGE::DEPTH:			    return VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
+	case IMAGE_USAGE::SHADOW_MAP:			return VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
+	case IMAGE_USAGE::TEXTURE:			    return VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
+	case IMAGE_USAGE::SWAPCHAIN_COPY_IMG:	return  VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
+	case IMAGE_USAGE::RENDER_TARGET:    	return VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
+	case IMAGE_USAGE::COPY_SRC_DST: 		return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	default:
 		BB_ASSERT(false, "Vulkan: IMAGE_USAGE failed to convert to a VkImageUsageFlags.");
 		return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-		break;
 	}
-#endif //ENUM_CONVERSATION_BY_ARRAY
 }
 
 static inline VkBlendOp BlendOp(const BLEND_OP a_blend_op)
 {
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.blend_op[static_cast<uint32_t>(a_blend_op)];
-#else
-	BB_UNIMPLEMENTED();
-#endif //ENUM_CONVERSATION_BY_ARRAY
+	switch (a_blend_op)
+	{
+	case BLEND_OP::ADD:         return VK_BLEND_OP_ADD;
+	case BLEND_OP::SUBTRACT:    return VK_BLEND_OP_SUBTRACT;
+	default:
+		BB_ASSERT(false, "Vulkan: BLEND_OP failed to convert to a VkBlendOp");
+		return VK_BLEND_OP_ADD;
+	}
 }
 
 static inline VkBlendFactor BlendFactor(const BLEND_MODE a_blend_mode)
 {
-#ifdef ENUM_CONVERSATION_BY_ARRAY
-	return s_vulkan_inst->enum_conv.blend_factor[static_cast<uint32_t>(a_blend_mode)];
-#else
-	BB_UNIMPLEMENTED();
-#endif //ENUM_CONVERSATION_BY_ARRAY
+	switch (a_blend_mode)
+	{
+	case BLEND_MODE::FACTOR_ZERO:			        return VK_BLEND_FACTOR_ZERO;
+	case BLEND_MODE::FACTOR_ONE:			        return VK_BLEND_FACTOR_ONE;
+	case BLEND_MODE::FACTOR_SRC_ALPHA:	            return VK_BLEND_FACTOR_SRC_ALPHA;
+	case BLEND_MODE::FACTOR_ONE_MINUS_SRC_ALPHA:	return VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	case BLEND_MODE::FACTOR_DST_ALPHA:		        return VK_BLEND_FACTOR_DST_ALPHA;
+	default:
+		BB_ASSERT(false, "Vulkan: BLEND_MODE failed to convert to a VkBlendFactor");
+		return VK_BLEND_FACTOR_ZERO;
+	}
 }
 
 // temp to figure out 
@@ -980,10 +895,12 @@ DescriptorAllocation VulkanDescriptorLinearBuffer::AllocateDescriptor(const RDes
 	return allocation;
 }
 
-bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, const char* a_engine_name, const bool a_debug)
+bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const RendererCreateInfo a_create_info)
 {
 	BB_ASSERT(s_vulkan_inst == nullptr, "trying to initialize vulkan while it's already initialized");
 	s_vulkan_inst = ArenaAllocType(a_arena, Vulkan_inst) {};
+	s_vulkan_inst->use_debug = a_create_info.debug;
+	s_vulkan_inst->use_raytracing = a_create_info.use_raytracing;
 
 	//just enable then all, no fallback layer for now lol.
 	const char* instance_extensions[] = {
@@ -993,7 +910,7 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, cons
 		VK_EXT_DEBUG_UTILS_EXTENSION_NAME
 	};
 
-	const char* device_extensions[] = {
+	constexpr const char* device_extensions[] = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 		VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME,
 		VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
@@ -1005,6 +922,28 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, cons
 		VK_EXT_SHADER_OBJECT_EXTENSION_NAME
 	};
 
+	constexpr const char* device_raytracing[] = {
+		VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
+		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
+		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME
+	};
+
+	const char* chosen_extensions[_countof(device_extensions) + _countof(device_raytracing)]{};
+	uint32_t extension_count = 0;
+	for (size_t i = 0; i < _countof(device_extensions); i++)
+	{
+		chosen_extensions[i] = device_extensions[i];
+		++extension_count;
+	}
+
+	if (a_create_info.use_raytracing)
+	{
+		chosen_extensions[_countof(device_extensions)] = device_raytracing[0];
+		chosen_extensions[_countof(device_extensions) + 1] = device_raytracing[1];
+		chosen_extensions[_countof(device_extensions) + 2] = device_raytracing[2];
+		extension_count += 3;
+	}
+
 	MemoryArenaScope(a_arena)
 	{
 		//Check if the extensions and layers work.
@@ -1013,12 +952,12 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, cons
 			"Vulkan: extension(s) not supported.");
 
 		BB_ASSERT(CheckExtensionSupport(a_arena,
-			Slice(device_extensions, _countof(device_extensions))),
+			Slice(chosen_extensions, extension_count)),
 			"Vulkan: extension(s) not supported.");
 
 		VkApplicationInfo app_info{ VK_STRUCTURE_TYPE_APPLICATION_INFO };
-		app_info.pApplicationName = a_app_name;
-		app_info.pEngineName = a_engine_name;
+		app_info.pApplicationName = a_create_info.app_name;
+		app_info.pEngineName = a_create_info.engine_name;
 		app_info.applicationVersion = VK_MAKE_API_VERSION(0, 1, VULKAN_VERSION, 0);
 		app_info.engineVersion = VK_MAKE_API_VERSION(0, 1, VULKAN_VERSION, 0);
 		app_info.apiVersion = VK_MAKE_API_VERSION(0, 1, VULKAN_VERSION, 0);
@@ -1027,7 +966,7 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, cons
 		instance_create_info.pApplicationInfo = &app_info;
 		VkDebugUtilsMessengerCreateInfoEXT debug_create_info;
 		const char* validation_layer = "VK_LAYER_KHRONOS_validation";
-		if (a_debug)
+		if (a_create_info.debug)
 		{
 			BB_WARNING(CheckValidationLayerSupport(a_arena, Slice(&validation_layer, 1)), "Vulkan: Validation layer(s) not available.", WarningType::MEDIUM);
 			debug_create_info = CreateDebugCallbackCreateInfo();
@@ -1048,7 +987,7 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, cons
 			&s_vulkan_inst->instance), "Failed to create Vulkan Instance!");
 
 		// create debug messenger
-		if (a_debug)
+		if (a_create_info.debug)
 		{
 			PFN_vkCreateDebugUtilsMessengerEXT debug_msgr_create = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(s_vulkan_inst->instance, "vkCreateDebugUtilsMessengerEXT"));
 			if (debug_msgr_create != nullptr)
@@ -1076,6 +1015,19 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, cons
 		s_vulkan_inst->pfn.CmdSetAlphaToCoverageEnableEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkCmdSetAlphaToCoverageEnableEXT);
 		s_vulkan_inst->pfn.CmdSetSampleMaskEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkCmdSetSampleMaskEXT);
 
+		if (s_vulkan_inst->use_raytracing)
+		{ 
+			s_vulkan_inst->pfn.CreateAccelerationStructureKHR = VkGetFuncPtr(s_vulkan_inst->instance, vkCreateAccelerationStructureKHR);
+			s_vulkan_inst->pfn.DestroyAccelerationStructureKHR = VkGetFuncPtr(s_vulkan_inst->instance, vkDestroyAccelerationStructureKHR);
+			s_vulkan_inst->pfn.GetAccelerationStructureBuildSizesKHR = VkGetFuncPtr(s_vulkan_inst->instance, vkGetAccelerationStructureBuildSizesKHR);
+			s_vulkan_inst->pfn.GetAccelerationStructureDeviceAddressKHR = VkGetFuncPtr(s_vulkan_inst->instance, vkGetAccelerationStructureDeviceAddressKHR);
+			s_vulkan_inst->pfn.CmdBuildAccelerationStructuresKHR = VkGetFuncPtr(s_vulkan_inst->instance, vkCmdBuildAccelerationStructuresKHR);
+			s_vulkan_inst->pfn.BuildAccelerationStructuresKHR = VkGetFuncPtr(s_vulkan_inst->instance, vkBuildAccelerationStructuresKHR);
+			s_vulkan_inst->pfn.CmdTraceRaysKHR = VkGetFuncPtr(s_vulkan_inst->instance, vkCmdTraceRaysKHR);
+			s_vulkan_inst->pfn.GetRayTracingShaderGroupHandlesKHR = VkGetFuncPtr(s_vulkan_inst->instance, vkGetRayTracingShaderGroupHandlesKHR);
+			s_vulkan_inst->pfn.CreateRayTracingPipelinesKHR = VkGetFuncPtr(s_vulkan_inst->instance, vkCreateRayTracingPipelinesKHR);
+		}
+
 		{	//device & queues
 			s_vulkan_inst->phys_device = FindPhysicalDevice(a_arena, s_vulkan_inst->instance);
 			//do some queue stuff.....
@@ -1085,7 +1037,7 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, cons
 			s_vulkan_inst->device = CreateLogicalDevice(a_arena,
 				s_vulkan_inst->phys_device, 
 				s_vulkan_inst->queue_indices,
-				Slice(device_extensions, _countof(device_extensions)));
+				Slice(chosen_extensions, extension_count));
 		}
 
 		{	//descriptor info & general device properties
@@ -1101,6 +1053,7 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const char* a_app_name, cons
 			s_vulkan_inst->descriptor_sizes.storage_buffer = static_cast<uint32_t>(desc_info.storageBufferDescriptorSize);
 			s_vulkan_inst->descriptor_sizes.sampled_image = static_cast<uint32_t>(desc_info.sampledImageDescriptorSize);
 			s_vulkan_inst->descriptor_sizes.sampler = static_cast<uint32_t>(desc_info.samplerDescriptorSize);
+			s_vulkan_inst->descriptor_sizes.acceleration_structure = static_cast<uint32_t>(desc_info.accelerationStructureDescriptorSize);
 		}
 
 		{	//VMA stuff
@@ -1444,10 +1397,16 @@ const GPUBuffer Vulkan::CreateBuffer(const GPUBufferCreateInfo& a_create_info)
 		buffer_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 		break;
 	case BUFFER_TYPE::VERTEX:
-		buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+		buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 		break;
 	case BUFFER_TYPE::INDEX:
-		buffer_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+		buffer_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+		break;
+	case BUFFER_TYPE::RT_ACCELERATION:
+		buffer_info.usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+		break;
+	case BUFFER_TYPE::RT_BUILD_ACCELERATION:
+		buffer_info.usage = VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 		break;
 	default:
 		BB_ASSERT(false, "unknown buffer type");
@@ -1461,7 +1420,7 @@ const GPUBuffer Vulkan::CreateBuffer(const GPUBufferCreateInfo& a_create_info)
 	}
 	else
 		vma_alloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-
+	
 	VkBuffer buffer;
 	VmaAllocation allocation;
 	VKASSERT(vmaCreateBuffer(s_vulkan_inst->vma,
@@ -1483,6 +1442,183 @@ void Vulkan::FreeBuffer(const GPUBuffer a_buffer)
 		allocation);
 
 	s_vulkan_inst->allocation_map.erase(a_buffer.handle);
+}
+
+GPUAddress Vulkan::GetBufferAddress(const GPUBuffer a_buffer)
+{
+	return GetBufferDeviceAddress(s_vulkan_inst->device, reinterpret_cast<VkBuffer>(a_buffer.handle));
+}
+
+static ConstSlice<VkAccelerationStructureGeometryKHR> CreateGeometryInfo(MemoryArena& a_arena, const ConstSlice<AccelerationStructGeometrySize> a_geometry_sizes, const GPUAddress a_vertex_device_address, const GPUAddress a_index_device_address)
+{
+	VkAccelerationStructureGeometryKHR* geometry_infos = ArenaAllocArr(a_arena, VkAccelerationStructureGeometryKHR, a_geometry_sizes.size());
+
+	for (size_t i = 0; i < a_geometry_sizes.size(); i++)
+	{
+		const AccelerationStructGeometrySize& size_info = a_geometry_sizes[i];
+		VkAccelerationStructureGeometryKHR& geo = geometry_infos[i];
+		geo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+		geo.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+		geo.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+		geo.geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
+		geo.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+		geo.geometry.triangles.vertexData.deviceAddress = a_vertex_device_address + size_info.vertex_offset;
+		geo.geometry.triangles.maxVertex = size_info.vertex_count;
+		geo.geometry.triangles.vertexStride = size_info.vertex_stride;
+		geo.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
+		geo.geometry.triangles.indexData.deviceAddress = a_index_device_address + size_info.index_offset;
+		geo.geometry.triangles.transformData.deviceAddress = size_info.transform_address;
+	}
+
+	return ConstSlice<VkAccelerationStructureGeometryKHR>(geometry_infos, a_geometry_sizes.size());
+}
+
+size_t Vulkan::AccelerationStructureInstanceUploadSize()
+{
+	return sizeof(VkAccelerationStructureInstanceKHR);
+}
+
+static inline VkTransformMatrixKHR Float4x4ToVkTransformMatrixKHR(const float4x4& a_mat)
+{
+	VkTransformMatrixKHR matrix;
+	matrix.matrix[0][0] = a_mat.e[0][0];
+	matrix.matrix[0][1] = a_mat.e[0][1];
+	matrix.matrix[0][2] = a_mat.e[0][2];
+	matrix.matrix[0][3] = a_mat.e[0][3];
+
+	matrix.matrix[1][0] = a_mat.e[1][0];
+	matrix.matrix[1][1] = a_mat.e[1][1];
+	matrix.matrix[1][2] = a_mat.e[1][2];
+	matrix.matrix[1][3] = a_mat.e[1][3];
+
+	matrix.matrix[2][0] = a_mat.e[2][0];
+	matrix.matrix[2][1] = a_mat.e[2][1];
+	matrix.matrix[2][2] = a_mat.e[2][2];
+	matrix.matrix[2][3] = a_mat.e[2][3];
+	return matrix;
+}
+
+bool Vulkan::UploadAccelerationStructureInstances(void* a_mapped, const size_t a_mapped_size, const ConstSlice<AccelerationStructureInstanceInfo> a_instances)
+{
+	if (a_mapped_size < sizeof(VkAccelerationStructureInstanceKHR) * a_instances.size())
+		return false;
+
+	VkAccelerationStructureInstanceKHR* cpy_dst = reinterpret_cast<VkAccelerationStructureInstanceKHR*>(a_mapped);
+	for (size_t i = 0; i < a_instances.size(); i++)
+	{
+		const AccelerationStructureInstanceInfo& rinst = a_instances[i];
+		cpy_dst[i].transform = Float4x4ToVkTransformMatrixKHR(*rinst.transform);
+		cpy_dst[i].instanceCustomIndex = rinst.shader_custom_index;
+		cpy_dst[i].mask = rinst.mask;
+		cpy_dst[i].instanceShaderBindingTableRecordOffset = rinst.shader_binding_table_offset;
+		cpy_dst[i].flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+		cpy_dst[i].accelerationStructureReference = rinst.acceleration_structure_address;
+	}
+	return true;
+}
+
+AccelerationStructSizeInfo Vulkan::GetBottomLevelAccelerationStructSizeInfo(MemoryArena& a_temp_arena, const ConstSlice<AccelerationStructGeometrySize> a_geometry_sizes, const ConstSlice<uint32_t> a_primitive_counts, const GPUAddress a_vertex_device_address, const GPUAddress a_index_device_address)
+{
+	BB_ASSERT(a_geometry_sizes.size() == a_primitive_counts.size(), "geometry and primitive must have the same size");
+	const ConstSlice<VkAccelerationStructureGeometryKHR> geometry_infos = CreateGeometryInfo(a_temp_arena, a_geometry_sizes, a_vertex_device_address, a_index_device_address);
+
+	VkAccelerationStructureBuildGeometryInfoKHR geometry_sizes{};
+	geometry_sizes.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+	geometry_sizes.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+	geometry_sizes.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+	geometry_sizes.geometryCount = static_cast<uint32_t>(geometry_infos.size());
+	geometry_sizes.pGeometries = geometry_infos.data();
+
+	VkAccelerationStructureBuildSizesInfoKHR size_info_get{};
+	size_info_get.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
+	s_vulkan_inst->pfn.GetAccelerationStructureBuildSizesKHR(
+		s_vulkan_inst->device,
+		VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+        &geometry_sizes,
+		a_primitive_counts.data(),
+		&size_info_get);
+
+	AccelerationStructSizeInfo size_info;
+	size_info.acceleration_structure_size = static_cast<uint32_t>(size_info_get.accelerationStructureSize);
+	size_info.scratch_build_size = static_cast<uint32_t>(size_info_get.buildScratchSize);
+	size_info.scratch_update_size = static_cast<uint32_t>(size_info_get.updateScratchSize);
+	return size_info;
+}
+
+AccelerationStructSizeInfo Vulkan::GetTopLevelAccelerationStructSizeInfo(MemoryArena& a_temp_arena, const ConstSlice<GPUAddress> a_instances)
+{
+	VkAccelerationStructureGeometryKHR* instance_infos = ArenaAllocArr(a_temp_arena, VkAccelerationStructureGeometryKHR, a_instances.size());
+
+	for (size_t i = 0; i < a_instances.size(); i++)
+	{
+		instance_infos[i].sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+		instance_infos[i].flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+		instance_infos[i].geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+		instance_infos[i].geometry.instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
+		instance_infos[i].geometry.instances.data.deviceAddress = a_instances[i];
+		instance_infos[i].geometry.instances.arrayOfPointers = VK_FALSE;
+		instance_infos[i].geometry.instances.pNext = nullptr;
+	}
+
+	VkAccelerationStructureBuildGeometryInfoKHR geometry_sizes{};
+	geometry_sizes.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+	geometry_sizes.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+	geometry_sizes.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+	geometry_sizes.geometryCount = static_cast<uint32_t>(a_instances.size());
+	geometry_sizes.pGeometries = instance_infos;
+
+	uint32_t primitive;
+	VkAccelerationStructureBuildSizesInfoKHR size_info_get{};
+	size_info_get.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
+	s_vulkan_inst->pfn.GetAccelerationStructureBuildSizesKHR(
+		s_vulkan_inst->device,
+		VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR,
+		&geometry_sizes,
+		&primitive,
+		&size_info_get);
+
+	AccelerationStructSizeInfo size_info;
+	size_info.acceleration_structure_size = static_cast<uint32_t>(size_info_get.accelerationStructureSize);
+	size_info.scratch_build_size = static_cast<uint32_t>(size_info_get.buildScratchSize);
+	size_info.scratch_update_size = static_cast<uint32_t>(size_info_get.updateScratchSize);
+	return size_info;
+}
+
+RAccelerationStruct Vulkan::CreateBottomLevelAccelerationStruct(const uint32_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset)
+{
+	VkAccelerationStructureKHR acc;
+
+	VkAccelerationStructureCreateInfoKHR create_acc_struct{};
+	create_acc_struct.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
+	create_acc_struct.buffer = reinterpret_cast<VkBuffer>(a_dst_buffer.handle);
+	create_acc_struct.size = a_acceleration_structure_size;
+	create_acc_struct.offset = a_dst_offset;
+	create_acc_struct.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+	VKASSERT(s_vulkan_inst->pfn.CreateAccelerationStructureKHR(s_vulkan_inst->device, &create_acc_struct, nullptr, &acc),
+		"VULKAN: failed to create acceleration structure");
+
+	return RAccelerationStruct(reinterpret_cast<uintptr_t>(acc));
+}
+
+RAccelerationStruct Vulkan::CreateTopLevelAccelerationStruct(const uint32_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset)
+{
+	VkAccelerationStructureKHR acc;
+
+	VkAccelerationStructureCreateInfoKHR create_acc_struct{};
+	create_acc_struct.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
+	create_acc_struct.buffer = reinterpret_cast<VkBuffer>(a_dst_buffer.handle);
+	create_acc_struct.size = a_acceleration_structure_size;
+	create_acc_struct.offset = a_dst_offset;
+	create_acc_struct.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+	VKASSERT(s_vulkan_inst->pfn.CreateAccelerationStructureKHR(s_vulkan_inst->device, &create_acc_struct, nullptr, &acc), 
+		"VULKAN: failed to create acceleration structure");
+
+	return RAccelerationStruct(reinterpret_cast<uintptr_t>(acc));
+}
+
+GPUAddress Vulkan::GetAccelerationStructureAddress(const RAccelerationStruct a_acc_struct)
+{
+	return GetAccelerationStructureAddress(s_vulkan_inst->device, reinterpret_cast<VkAccelerationStructureKHR>(a_acc_struct.handle));
 }
 
 const RImage Vulkan::CreateImage(const ImageCreateInfo& a_create_info)
@@ -2115,6 +2251,85 @@ void Vulkan::BlitImage(const RCommandList a_list, const BlitImageInfo& a_info)
 		VK_FILTER_NEAREST);
 }
 
+void Vulkan::BuildBottomLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildBottomLevelAccelerationStructInfo& a_build_info, const GPUAddress a_vertex_device_address, const GPUAddress a_index_device_address)
+{
+	BB_ASSERT(a_build_info.geometry_sizes.size() == a_build_info.primitive_counts.size(), "geometry and primitive must have the same size");
+	const ConstSlice<VkAccelerationStructureGeometryKHR> geometry_infos = CreateGeometryInfo(a_temp_arena, a_build_info.geometry_sizes, a_vertex_device_address, a_index_device_address);
+	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+
+	VkAccelerationStructureBuildRangeInfoKHR* ranges = ArenaAllocArr(a_temp_arena, VkAccelerationStructureBuildRangeInfoKHR, a_build_info.primitive_counts.size());
+	for (size_t i = 0; i < a_build_info.primitive_counts.size(); i++)
+	{
+		VkAccelerationStructureBuildRangeInfoKHR& range = ranges[i];
+		range.primitiveCount = a_build_info.primitive_counts[i];
+		range.primitiveOffset = 0;
+		range.firstVertex = 0;
+		range.transformOffset = 0;
+	}
+
+	VkAccelerationStructureBuildGeometryInfoKHR acceleration_build_info{};
+	acceleration_build_info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+	acceleration_build_info.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+	acceleration_build_info.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+	acceleration_build_info.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+	acceleration_build_info.dstAccelerationStructure = reinterpret_cast<VkAccelerationStructureKHR>(a_build_info.acc_struct.handle);
+	acceleration_build_info.geometryCount = static_cast<uint32_t>(geometry_infos.size());
+	acceleration_build_info.pGeometries = geometry_infos.data();
+	acceleration_build_info.scratchData.deviceAddress = a_build_info.scratch_buffer_address;
+	s_vulkan_inst->pfn.CmdBuildAccelerationStructuresKHR(cmd_list, 1, &acceleration_build_info, &ranges);
+}
+
+void Vulkan::BuildTopLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildTopLevelAccelerationStructInfo& a_build_info)
+{
+	BB_ASSERT(a_build_info.instances.size() == a_build_info.primitive_counts.size(), "geometry and primitive must have the same size");
+	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+
+	const size_t instance_count = a_build_info.primitive_counts.size();
+	VkAccelerationStructureBuildRangeInfoKHR* ranges = ArenaAllocArr(a_temp_arena, VkAccelerationStructureBuildRangeInfoKHR, instance_count);
+	VkAccelerationStructureInstanceKHR* instances = ArenaAllocArr(a_temp_arena, VkAccelerationStructureInstanceKHR, instance_count);
+	for (size_t i = 0; i < instance_count; i++)
+	{
+		const BottomLevelAccelerationStructInstance& racl = a_build_info.instances[i];
+		VkAccelerationStructureInstanceKHR& wacl = instances[i];
+		wacl.transform = Float4x4ToVkTransformMatrixKHR(racl.transform);
+		wacl.instanceCustomIndex = 0;
+		wacl.mask = 0xFF;
+		wacl.instanceShaderBindingTableRecordOffset = 0;
+		wacl.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+		wacl.accelerationStructureReference = racl.acceleration_structure_address;
+
+		VkAccelerationStructureBuildRangeInfoKHR& range = ranges[i];
+		range.primitiveCount = a_build_info.primitive_counts[i];
+		range.primitiveOffset = 0;
+		range.firstVertex = 0;
+		range.transformOffset = 0;
+	}
+
+	const size_t instance_copy_size = sizeof(BottomLevelAccelerationStructInstance) * instance_count;
+	BB_ASSERT(instance_copy_size == a_build_info.mapped_size, "instance copy size is not the same as mapped_size");
+	memcpy(a_build_info.acceleration_build_mapped, instances, instance_copy_size);
+
+	VkAccelerationStructureGeometryKHR acceleration_instances{};
+	acceleration_instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+	acceleration_instances.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+	acceleration_instances.flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+	acceleration_instances.geometry.instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
+	acceleration_instances.geometry.instances.arrayOfPointers = VK_FALSE;
+	acceleration_instances.geometry.instances.data.deviceAddress = a_build_info.acceleration_build_address;
+
+	VkAccelerationStructureBuildGeometryInfoKHR acceleration_build_info{};
+	acceleration_build_info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+	acceleration_build_info.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+	acceleration_build_info.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+	acceleration_build_info.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+	acceleration_build_info.dstAccelerationStructure = reinterpret_cast<VkAccelerationStructureKHR>(a_build_info.acc_struct.handle);
+	acceleration_build_info.geometryCount = 1;
+	acceleration_build_info.pGeometries = &acceleration_instances;
+	acceleration_build_info.scratchData.deviceAddress = a_build_info.scratch_buffer_address;
+
+	s_vulkan_inst->pfn.CmdBuildAccelerationStructuresKHR(cmd_list, 1, &acceleration_build_info, &ranges);
+}
+
 static void _PipelineBarrierFillStages(const IMAGE_LAYOUT a_usage, VkPipelineStageFlags2& a_stage_flags, VkAccessFlags2& a_access_flags, VkImageLayout& a_image_layout)
 {
 	switch (a_usage)
@@ -2408,7 +2623,7 @@ void Vulkan::SetFrontFace(const RCommandList a_list, const bool a_is_clockwise)
 void Vulkan::SetCullMode(const RCommandList a_list, const CULL_MODE a_cull_mode)
 {
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
-	vkCmdSetCullMode(cmd_buffer, s_vulkan_inst->enum_conv.cull_modes[static_cast<uint32_t>(a_cull_mode)]);
+	vkCmdSetCullMode(cmd_buffer, CullMode(a_cull_mode));
 }
 
 void Vulkan::SetDepthBias(const RCommandList a_list, const float a_bias_constant_factor, const float a_bias_clamp, const float a_bias_slope_factor)

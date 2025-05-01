@@ -126,6 +126,26 @@ ECSEntity SceneHierarchy::CreateEntityViaModelNode(const Model::Node& a_node, co
 	return ecs_obj;
 }
 
+bool SceneHierarchy::CreateRaytraceComponent(MemoryArena& a_temp_arena, const ECSEntity a_entity, const RenderComponent& a_render)
+{
+    AccelerationStructGeometrySize geometry_size{};
+    geometry_size.vertex_count = a_render.index_count * 3;
+    geometry_size.vertex_stride = sizeof(float3);
+    const uint32_t max_primitives = a_render.index_count / 3;
+    AccelerationStructSizeInfo sizes = GetBottomLevelAccelerationStructSizeInfo(a_temp_arena, ConstSlice<AccelerationStructGeometrySize>(&geometry_size, 1), ConstSlice<uint32_t>(&max_primitives, 1));
+    
+    RaytraceComponent component;
+    component.build_size =  static_cast<uint32_t>(RoundUp(sizes.acceleration_structure_size, 256)); // remove magic number :)
+    component.scratch_size = sizes.scratch_build_size;
+    component.scratch_update = sizes.scratch_update_size;
+    component.needs_build = true;
+    component.needs_rebuild = false;
+
+    bool success = m_ecs.EntityAssignRaytraceComponent(a_entity, component);
+	BB_ASSERT(success, "failed to create RenderComponent");
+    return true;
+}
+
 ECSEntity SceneHierarchy::CreateEntity(const float3 a_position, const NameComponent& a_name, const ECSEntity a_parent)
 {
     return m_ecs.CreateEntity(a_name, a_parent, a_position);
@@ -155,7 +175,6 @@ ECSEntity SceneHierarchy::CreateEntityMesh(const float3 a_position, const SceneM
 	BB_ASSERT(success, "failed to create RenderComponent");
     success = m_ecs.EntityAssignBoundingBox(ecs_obj, a_bounding_box);
     BB_ASSERT(success, "failed to assign BoundingBox");
-
 	return ecs_obj;
 }
 

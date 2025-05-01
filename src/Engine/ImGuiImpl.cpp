@@ -154,11 +154,11 @@ static inline void SetupImGuiRender(MemoryArena& a_arena)
 
 	//create framebuffers.
 	{
-		const RenderIO render_io = GetRenderIO();
+		const uint32_t frame_count = GetBackBufferCount();
 		bd->frame_index = 0;
-		bd->frame_buffers = ArenaAllocArr(a_arena, ImRenderBuffer, render_io.frame_count);
+		bd->frame_buffers = ArenaAllocArr(a_arena, ImRenderBuffer, frame_count);
 
-		for (size_t i = 0; i < render_io.frame_count; i++)
+		for (size_t i = 0; i < frame_count; i++)
 		{
 			//I love C++
 			new (&bd->frame_buffers[i])(ImRenderBuffer);
@@ -269,7 +269,7 @@ void BB::ImNewFrame(const uint2 a_screen_extent)
 	ImGui::NewFrame();
 }
 
-void BB::ImRenderFrame(const RCommandList a_cmd_list, const RImageView render_target_view, const bool a_clear_image, const ShaderEffectHandle a_vertex, const ShaderEffectHandle a_fragment)
+void BB::ImRenderFrame(const RCommandList a_cmd_list, const RImageView a_render_target_view, const uint2 a_render_target_extent, const bool a_clear_image, const ShaderEffectHandle a_vertex, const ShaderEffectHandle a_fragment)
 {
 	ImGui::Render();
 	const ImDrawData& draw_data = *ImGui::GetDrawData();
@@ -280,10 +280,10 @@ void BB::ImRenderFrame(const RCommandList a_cmd_list, const RImageView render_ta
 		return;
 
 	ImRenderData* bd = ImGetRenderData();
-	const RenderIO& render_io = GetRenderIO();
+	const uint32_t frame_count = GetBackBufferCount();
 
-	BB_ASSERT(bd->frame_index < render_io.frame_count, "Frame index is higher then the framebuffer amount! Forgot to resize the imgui window info.");
-	bd->frame_index = (bd->frame_index + 1) % render_io.frame_count;
+	BB_ASSERT(bd->frame_index < frame_count, "Frame index is higher then the framebuffer amount! Forgot to resize the imgui window info.");
+	bd->frame_index = (bd->frame_index + 1) % frame_count;
 	ImRenderBuffer& rb = bd->frame_buffers[bd->frame_index];
 
 	if (draw_data.TotalVtxCount > 0)
@@ -318,10 +318,10 @@ void BB::ImRenderFrame(const RCommandList a_cmd_list, const RImageView render_ta
 	color_attach.load_color = !a_clear_image;
 	color_attach.store_color = true;
 	color_attach.image_layout = IMAGE_LAYOUT::RT_COLOR;
-	color_attach.image_view = render_target_view;
+	color_attach.image_view = a_render_target_view;
 
 	StartRenderingInfo imgui_pass_start{};
-	imgui_pass_start.render_area_extent = { render_io.screen_width, render_io.screen_height };
+	imgui_pass_start.render_area_extent = a_render_target_extent;
 	imgui_pass_start.render_area_offset = {};
 	imgui_pass_start.color_attachments = Slice(&color_attach, 1);
 	imgui_pass_start.depth_attachment = nullptr;

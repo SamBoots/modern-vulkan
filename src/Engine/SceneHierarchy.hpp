@@ -63,6 +63,7 @@ namespace BB
 		EntityComponentSystem& GetECS() { return m_ecs; }
 	private:
 		ECSEntity CreateEntityViaModelNode(const Model::Node& a_node, const ECSEntity a_parent);
+        bool CreateRaytraceComponent(MemoryArena& a_temp_arena, const ECSEntity a_entity, const RenderComponent& a_render);
 
 		bool CreateLight(const ECSEntity a_entity, const LightCreateInfo& a_light_info);
 
