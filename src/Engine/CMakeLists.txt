@@ -19,7 +19,7 @@ add_library(Engine
 	"EngineConfig.cpp"
 	"Viewport.cpp"
 	"Profiler.cpp"
-	"ImGuiImpl.cpp")
+	"ImGuiImpl.cpp" "ecs/systems/BloomStage.cpp")
 	
 target_include_directories(Engine PUBLIC "")
 

@@ -40,31 +40,7 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
     m_clear_stage.Init(a_arena);
     m_shadowmap_stage.Init(a_arena, a_back_buffer_count);
     m_raster_mesh_stage.Init(a_arena, a_render_target_size, a_back_buffer_count);
-
-	// bloom stuff
-
-	MaterialCreateInfo gaussian_material;
-	gaussian_material.pass_type = PASS_TYPE::SCENE;
-	gaussian_material.material_type = MATERIAL_TYPE::NONE;
-	FixedArray<MaterialShaderCreateInfo, 2> gaussian_shaders;
-	gaussian_shaders[0].path = "../../resources/shaders/hlsl/GaussianBlur.hlsl";
-	gaussian_shaders[0].entry = "VertexMain";
-	gaussian_shaders[0].stage = SHADER_STAGE::VERTEX;
-	gaussian_shaders[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
-	gaussian_shaders[1].path = "../../resources/shaders/hlsl/GaussianBlur.hlsl";
-	gaussian_shaders[1].entry = "FragmentMain";
-	gaussian_shaders[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
-	gaussian_shaders[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
-	gaussian_material.shader_infos = Slice(gaussian_shaders.slice());
-
-	MemoryArenaScope(a_arena)
-	{
-		m_gaussian_material = Material::CreateMasterMaterial(a_arena, gaussian_material, "shadow map material");
-	}
-
-	// postfx
-	m_postfx.bloom_scale = 1.0f;
-	m_postfx.bloom_strength = 1.5f;
+    m_bloom_stage.Init(a_arena);
 
 	// per frame
 	m_per_frame.Init(a_arena, a_back_buffer_count);
@@ -245,10 +221,9 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 	ResourceUploadPass(pfd, a_list, draw_list, a_lights);
 
     m_shadowmap_stage.ExecutePass(a_list, m_current_frame, uint2(DEPTH_IMAGE_SIZE_W_H, DEPTH_IMAGE_SIZE_W_H), draw_list, a_lights);
-
     m_raster_mesh_stage.ExecutePass(a_list, m_current_frame, a_draw_area, draw_list, GetImageView(pfd.render_target_view), GetImageView(pfd.bloom.descriptor_index_0));
-
-	BloomPass(pfd, a_list, a_draw_area);
+    if (!m_options.skip_bloom)
+	    m_bloom_stage.ExecutePass(a_list, pfd.bloom.resolution, pfd.bloom.image, pfd.bloom.descriptor_index_0, pfd.bloom.descriptor_index_1, a_draw_area, GetImageView(pfd.render_target_view));
 }
 
 void RenderSystem::Resize(const uint2 a_new_extent, const bool a_force)
@@ -488,112 +463,6 @@ void RenderSystem::ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list
 			desc_write.buffer_view = light_projection_view;
 			DescriptorWriteStorageBuffer(desc_write);
 		}
-	}
-}
-
-void RenderSystem::BloomPass(const PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size)
-{
-	if (m_options.skip_bloom)
-		return;
-
-	Slice<const ShaderEffectHandle> shader_effects = Material::GetMaterialShaders(m_gaussian_material);
-	const RPipelineLayout pipe_layout = BindShaders(a_list, shader_effects);
-
-	FixedArray<PipelineBarrierImageInfo, 2> transitions{};
-	PipelineBarrierImageInfo& to_shader_read = transitions[0];
-	to_shader_read.prev = IMAGE_LAYOUT::RT_COLOR;
-	to_shader_read.next = IMAGE_LAYOUT::RO_FRAGMENT;
-	to_shader_read.image = a_pfd.bloom.image;
-	to_shader_read.layer_count = 1;
-	to_shader_read.level_count = 1;
-	to_shader_read.base_array_layer = 0;
-	to_shader_read.base_mip_level = 0;
-	to_shader_read.image_aspect = IMAGE_ASPECT::COLOR;
-
-	PipelineBarrierImageInfo& to_render_target = transitions[1];
-	to_render_target.prev = IMAGE_LAYOUT::RO_FRAGMENT;
-	to_render_target.next = IMAGE_LAYOUT::RT_COLOR;
-	to_render_target.image = a_pfd.bloom.image;
-	to_render_target.layer_count = 1;
-	to_render_target.level_count = 1;
-	to_render_target.base_array_layer = 1;
-	to_render_target.base_mip_level = 0;
-	to_render_target.image_aspect = IMAGE_ASPECT::COLOR;
-
-	PipelineBarrierInfo barrier_info{};
-	barrier_info.image_barriers = transitions.const_slice();
-
-	SetFrontFace(a_list, false);
-	SetCullMode(a_list, CULL_MODE::NONE);
-	// horizontal bloom slice
-	{
-		PipelineBarriers(a_list, barrier_info);
-
-		RenderingAttachmentColor color_attach;
-		color_attach.load_color = false;
-		color_attach.store_color = true;
-		color_attach.image_layout = IMAGE_LAYOUT::RT_COLOR;
-		color_attach.image_view = GetImageView(a_pfd.bloom.descriptor_index_1);
-		StartRenderingInfo rendering_info;
-		rendering_info.color_attachments = Slice(&color_attach, 1);
-		rendering_info.depth_attachment = nullptr;
-		rendering_info.render_area_extent = a_pfd.bloom.resolution;
-		rendering_info.render_area_offset = int2();
-
-		ShaderGaussianBlur push_constant;
-		push_constant.horizontal_enable = false;
-		push_constant.src_texture = a_pfd.bloom.descriptor_index_0;
-		push_constant.src_resolution = a_pfd.bloom.resolution;
-		push_constant.blur_strength = m_postfx.bloom_strength;
-		push_constant.blur_scale = m_postfx.bloom_scale;
-
-		SetPushConstants(a_list, pipe_layout, 0, sizeof(push_constant), &push_constant);
-
-		StartRenderPass(a_list, rendering_info);
-		DrawVertices(a_list, 3, 1, 0, 0);
-		EndRenderPass(a_list);
-
-		// ping pong
-		to_render_target.base_array_layer = 0;
-		to_shader_read.base_array_layer = 1;
-		PipelineBarriers(a_list, barrier_info);
-	}
-
-	// vertical slice
-	{
-		FixedArray<ColorBlendState, 1> blend_state;
-		blend_state[0].blend_enable = true;
-		blend_state[0].color_flags = 0xF;
-		blend_state[0].color_blend_op = BLEND_OP::ADD;
-		blend_state[0].src_blend = BLEND_MODE::FACTOR_ONE;
-		blend_state[0].dst_blend = BLEND_MODE::FACTOR_ONE;
-		blend_state[0].alpha_blend_op = BLEND_OP::ADD;
-		blend_state[0].src_alpha_blend = BLEND_MODE::FACTOR_SRC_ALPHA;
-		blend_state[0].dst_alpha_blend = BLEND_MODE::FACTOR_DST_ALPHA;
-		SetBlendMode(a_list, 0, blend_state.slice());
-
-		RenderingAttachmentColor color_attach;
-		color_attach.load_color = true;
-		color_attach.store_color = true;
-		color_attach.image_layout = IMAGE_LAYOUT::RT_COLOR;
-		color_attach.image_view = GetImageView(a_pfd.render_target_view);
-		StartRenderingInfo rendering_info;
-		rendering_info.color_attachments = Slice(&color_attach, 1);
-		rendering_info.depth_attachment = nullptr;
-		rendering_info.render_area_extent = a_draw_area_size;
-		rendering_info.render_area_offset = int2{ 0, 0 };
-
-		ShaderGaussianBlur push_constant;
-		push_constant.horizontal_enable = true;
-		push_constant.src_texture = a_pfd.bloom.descriptor_index_1;
-		push_constant.src_resolution = a_pfd.bloom.resolution;
-		push_constant.blur_strength = m_postfx.bloom_strength;
-		push_constant.blur_scale = m_postfx.bloom_scale;
-		SetPushConstants(a_list, pipe_layout, 0, sizeof(push_constant), &push_constant);
-
-		StartRenderPass(a_list, rendering_info);
-		DrawVertices(a_list, 3, 1, 0, 0);
-		EndRenderPass(a_list);
 	}
 }
 

@@ -6,6 +6,7 @@
 #include "ClearStage.hpp"
 #include "ShadowMapStage.hpp"
 #include "RasterMeshStage.hpp"
+#include "BloomStage.hpp"
 
 namespace BB
 {
@@ -95,7 +96,6 @@ namespace BB
 
 		void UpdateConstantBuffer(const uint32_t a_frame_index, const RCommandList a_list, const uint2 a_draw_area_size, const ConstSlice<LightComponent> a_lights);
 		void ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list, const DrawList& a_draw_list, const ConstSlice<LightComponent> a_lights);
-		void BloomPass(const PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size);
 
 		void CreateRenderTarget(const uint2 a_render_target_size);
 
@@ -120,21 +120,14 @@ namespace BB
 			GPUBufferView light_viewproj_view;
 		} m_global_buffer;
 
-		struct PostFX
-		{
-			float bloom_strength;
-			float bloom_scale;
-		} m_postfx;
-
 		RFence m_fence;
 		uint64_t m_next_fence_value;
 		uint64_t m_last_completed_fence_value;
 		GPUUploadRingAllocator m_upload_allocator;
 
-		MasterMaterialHandle m_gaussian_material;
-
         ClearStage m_clear_stage;
         ShadowMapStage m_shadowmap_stage;
         RasterMeshStage m_raster_mesh_stage;
+        BloomStage m_bloom_stage;
 	};
 }

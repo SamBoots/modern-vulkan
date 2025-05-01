@@ -440,9 +440,10 @@ void Editor::ImguiDisplayECS(EntityComponentSystem& a_ecs)
 
 		if (ImGui::Button("GAMER MODE"))
 		{
-			auto& postfx_options = render_sys.m_postfx;
-			postfx_options.bloom_strength = 5.f;
-			postfx_options.bloom_scale = 10.5f;
+            BB_UNIMPLEMENTED();
+			//auto& postfx_options = render_sys.m_postfx;
+			//postfx_options.bloom_strength = 5.f;
+			//postfx_options.bloom_scale = 10.5f;
 		}
 
 		if (render_sys.m_render_target.format == IMAGE_FORMAT::RGBA16_SFLOAT)
@@ -464,9 +465,10 @@ void Editor::ImguiDisplayECS(EntityComponentSystem& a_ecs)
 
 		if (ImGui::CollapsingHeader("post fx option"))
 		{
-			auto& postfx_options = render_sys.m_postfx;
-			ImGui::InputFloat("bloom strength", &postfx_options.bloom_strength);
-			ImGui::InputFloat("bloom scale", &postfx_options.bloom_scale);
+            BB_UNIMPLEMENTED();
+			//auto& postfx_options = render_sys.m_postfx;
+			//ImGui::InputFloat("bloom strength", &postfx_options.bloom_strength);
+			//ImGui::InputFloat("bloom scale", &postfx_options.bloom_scale);
 		}
 
 		if (ImGui::CollapsingHeader("skip render pass option"))
