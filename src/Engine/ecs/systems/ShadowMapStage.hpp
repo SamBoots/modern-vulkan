@@ -1,28 +1,11 @@
 #pragma once
-#include "GPUBuffers.hpp"
-#include "Rendererfwd.hpp"
+#include "RenderStagesfwd.hpp"
 
 #include "ecs/components/TransformComponents.hpp"
 #include "ecs/components/LightComponent.hpp"
 
-
 namespace BB
 {
-    struct DrawList
-    {
-        struct DrawEntry
-        {
-            Mesh mesh;
-            MasterMaterialHandle master_material;
-            MaterialHandle material;
-            uint32_t index_start;
-            uint32_t index_count;
-        };
-
-        StaticArray<DrawEntry> draw_entries;
-        StaticArray<ShaderTransform> transforms;
-    };
-
     constexpr uint32_t DEPTH_IMAGE_SIZE_W_H = 4096;
 
     class ShadowMapStage

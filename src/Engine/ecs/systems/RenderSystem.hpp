@@ -3,8 +3,9 @@
 #include "Rendererfwd.hpp"
 #include "ecs/components/RenderComponent.hpp"
 
-#include "ShadowMapStage.hpp"
 #include "ClearStage.hpp"
+#include "ShadowMapStage.hpp"
+#include "RasterMeshStage.hpp"
 
 namespace BB
 {
@@ -83,9 +84,6 @@ namespace BB
 				RDescriptorIndex descriptor_index_1;
 				uint2 resolution;
 			} bloom;
-
-			RImage depth_image;
-			RImageView depth_image_view;
 		};
 
 		struct RenderTarget
@@ -97,7 +95,6 @@ namespace BB
 
 		void UpdateConstantBuffer(const uint32_t a_frame_index, const RCommandList a_list, const uint2 a_draw_area_size, const ConstSlice<LightComponent> a_lights);
 		void ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list, const DrawList& a_draw_list, const ConstSlice<LightComponent> a_lights);
-		void GeometryPass(const PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size, const DrawList& a_draw_list);
 		void BloomPass(const PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size);
 
 		void CreateRenderTarget(const uint2 a_render_target_size);
@@ -138,5 +135,6 @@ namespace BB
 
         ClearStage m_clear_stage;
         ShadowMapStage m_shadowmap_stage;
+        RasterMeshStage m_raster_mesh_stage;
 	};
 }

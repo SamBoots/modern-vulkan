@@ -39,6 +39,7 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 
     m_clear_stage.Init(a_arena);
     m_shadowmap_stage.Init(a_arena, a_back_buffer_count);
+    m_raster_mesh_stage.Init(a_arena, a_render_target_size, a_back_buffer_count);
 
 	// bloom stuff
 
@@ -75,16 +76,14 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 		pfd.scene_descriptor = AllocateDescriptor(GetSceneDescriptorLayout());
 
 		pfd.scene_buffer.Init(BUFFER_TYPE::UNIFORM, sizeof(m_scene_info), "scene info buffer");
-		{
-			DescriptorWriteBufferInfo desc_write;
-			desc_write.descriptor_layout = GetSceneDescriptorLayout();
-			desc_write.allocation = pfd.scene_descriptor;
-			desc_write.descriptor_index = 0;
+		DescriptorWriteBufferInfo desc_write;
+		desc_write.descriptor_layout = GetSceneDescriptorLayout();
+		desc_write.allocation = pfd.scene_descriptor;
+		desc_write.descriptor_index = 0;
 
-			desc_write.binding = PER_SCENE_SCENE_DATA_BINDING;
-			desc_write.buffer_view = pfd.scene_buffer.GetView();
-			DescriptorWriteUniformBuffer(desc_write);
-		}
+		desc_write.binding = PER_SCENE_SCENE_DATA_BINDING;
+		desc_write.buffer_view = pfd.scene_buffer.GetView();
+		DescriptorWriteUniformBuffer(desc_write);
 
 		GPUBufferCreateInfo buffer_info;
 		buffer_info.name = "scene STORAGE buffer";
@@ -95,7 +94,6 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 
 		pfd.fence_value = 0;
 
-		pfd.depth_image = RImage();
 		pfd.bloom.image = RImage();
 	}
 	m_render_target.format = IMAGE_FORMAT::RGBA8_SRGB;
@@ -248,7 +246,7 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 
     m_shadowmap_stage.ExecutePass(a_list, m_current_frame, uint2(DEPTH_IMAGE_SIZE_W_H, DEPTH_IMAGE_SIZE_W_H), draw_list, a_lights);
 
-	GeometryPass(pfd, a_list, a_draw_area, draw_list);
+    m_raster_mesh_stage.ExecutePass(a_list, m_current_frame, a_draw_area, draw_list, GetImageView(pfd.render_target_view), GetImageView(pfd.bloom.descriptor_index_0));
 
 	BloomPass(pfd, a_list, a_draw_area);
 }
@@ -317,39 +315,6 @@ void RenderSystem::UpdateConstantBuffer(const uint32_t a_frame_index, const RCom
 
 	if (a_pfd.previous_draw_area != a_draw_area_size)
 	{
-		if (a_pfd.depth_image.IsValid())
-		{
-			FreeImage(a_pfd.depth_image);
-			FreeImageViewShaderInaccessible(a_pfd.depth_image_view);
-		}
-		{
-			ImageCreateInfo depth_img_info;
-			depth_img_info.name = "scene depth buffer";
-			depth_img_info.width = a_draw_area_size.x;
-			depth_img_info.height = a_draw_area_size.y;
-			depth_img_info.depth = 1;
-			depth_img_info.mip_levels = 1;
-			depth_img_info.array_layers = 1;
-			depth_img_info.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
-			depth_img_info.usage = IMAGE_USAGE::DEPTH;
-			depth_img_info.type = IMAGE_TYPE::TYPE_2D;
-			depth_img_info.use_optimal_tiling = true;
-			depth_img_info.is_cube_map = false;
-			a_pfd.depth_image = CreateImage(depth_img_info);
-
-			ImageViewCreateInfo depth_img_view_info;
-			depth_img_view_info.name = "scene depth view";
-			depth_img_view_info.image = a_pfd.depth_image;
-			depth_img_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
-			depth_img_view_info.base_array_layer = 0;
-			depth_img_view_info.array_layers = 1;
-			depth_img_view_info.mip_levels = 1;
-			depth_img_view_info.base_mip_level = 0;
-			depth_img_view_info.format = IMAGE_FORMAT::D24_UNORM_S8_UINT;
-			depth_img_view_info.aspects = IMAGE_ASPECT::DEPTH_STENCIL;
-			a_pfd.depth_image_view = CreateImageViewShaderInaccessible(depth_img_view_info);
-		}
-
 		if (a_pfd.bloom.image.IsValid())
 		{
 			FreeImage(a_pfd.bloom.image);
@@ -524,106 +489,6 @@ void RenderSystem::ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list
 			DescriptorWriteStorageBuffer(desc_write);
 		}
 	}
-}
-
-void RenderSystem::GeometryPass(const PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size, const DrawList& a_draw_list)
-{
-	PipelineBarrierImageInfo image_transitions[1]{};
-	image_transitions[0].prev = IMAGE_LAYOUT::NONE;
-	image_transitions[0].next =IMAGE_LAYOUT::RT_DEPTH;
-	image_transitions[0].image = a_pfd.depth_image;
-	image_transitions[0].layer_count = 1;
-	image_transitions[0].level_count = 1;
-	image_transitions[0].base_array_layer = 0;
-	image_transitions[0].base_mip_level = 0;
-	image_transitions[0].image_aspect = IMAGE_ASPECT::DEPTH_STENCIL;
-
-	PipelineBarrierInfo pipeline_info = {};
-	pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo>(image_transitions, 1);
-	PipelineBarriers(a_list, pipeline_info);
-
-	FixedArray<RenderingAttachmentColor, 2> color_attachs;
-	color_attachs[0].load_color = true;
-	color_attachs[0].store_color = true;
-	color_attachs[0].image_layout = IMAGE_LAYOUT::RT_COLOR;
-	color_attachs[0].image_view = GetImageView(a_pfd.render_target_view);
-
-	color_attachs[1].load_color = false;
-	color_attachs[1].store_color = true;
-	color_attachs[1].image_layout = IMAGE_LAYOUT::RT_COLOR;
-	color_attachs[1].image_view = GetImageView(a_pfd.bloom.descriptor_index_0);
-	const uint32_t color_attach_count = 2;
-
-	RenderingAttachmentDepth depth_attach{};
-	depth_attach.load_depth = false;
-	depth_attach.store_depth = true;
-	depth_attach.image_layout = IMAGE_LAYOUT::RT_DEPTH;
-	depth_attach.image_view = a_pfd.depth_image_view;
-
-	StartRenderingInfo rendering_info;
-	rendering_info.color_attachments = color_attachs.slice(color_attach_count);
-	rendering_info.depth_attachment = &depth_attach;
-	rendering_info.render_area_extent = a_draw_area_size;
-	rendering_info.render_area_offset = int2{ 0, 0 };
-
-	StartRenderPass(a_list, rendering_info);
-	SetDepthBias(a_list, 0.f, 0.f, 0.f);
-	FixedArray<ColorBlendState, 2> blend_state;
-	blend_state[0].blend_enable = true;
-	blend_state[0].color_flags = 0xF;
-	blend_state[0].color_blend_op = BLEND_OP::ADD;
-	blend_state[0].src_blend = BLEND_MODE::FACTOR_SRC_ALPHA;
-	blend_state[0].dst_blend = BLEND_MODE::FACTOR_ONE_MINUS_SRC_ALPHA;
-	blend_state[0].alpha_blend_op = BLEND_OP::ADD;
-	blend_state[0].src_alpha_blend = BLEND_MODE::FACTOR_ONE;
-	blend_state[0].dst_alpha_blend = BLEND_MODE::FACTOR_ZERO;
-	blend_state[1] = blend_state[0];
-	SetBlendMode(a_list, 0, blend_state.slice(color_attach_count));
-
-	if (m_options.skip_object_rendering)
-	{
-		EndRenderPass(a_list);
-		return;
-	}
-	SetFrontFace(a_list, false);
-	SetCullMode(a_list, CULL_MODE::NONE);
-
-	for (uint32_t i = 0; i < a_draw_list.draw_entries.size(); i++)
-	{
-		const DrawList::DrawEntry& mesh_draw_call = a_draw_list.draw_entries[i];
-
-		const ConstSlice<ShaderEffectHandle> shader_effects = Material::GetMaterialShaders(mesh_draw_call.master_material);
-		const RPipelineLayout pipe_layout = BindShaders(a_list, shader_effects);
-		{
-			const uint32_t buffer_indices[] = { 0 };
-			const size_t buffer_offsets[]{ Material::GetMaterialDescAllocation().offset };
-			//set 3
-			SetDescriptorBufferOffset(a_list,
-				pipe_layout,
-				SPACE_PER_MATERIAL,
-				_countof(buffer_offsets),
-				buffer_indices,
-				buffer_offsets);
-		}
-		
-		ShaderIndices shader_indices;
-		shader_indices.transform_index = i;
-		shader_indices.position_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_position_offset);
-		shader_indices.normal_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_normal_offset);
-		shader_indices.uv_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_uv_offset);
-		shader_indices.color_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_color_offset);
-		shader_indices.tangent_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_tangent_offset);
-		shader_indices.material_index = RDescriptorIndex(mesh_draw_call.material.index);
-		SetPushConstants(a_list, pipe_layout, 0, sizeof(shader_indices), &shader_indices);
-		DrawIndexed(a_list,
-			mesh_draw_call.index_count,
-			1,
-			static_cast<uint32_t>(mesh_draw_call.mesh.index_buffer_offset / sizeof(uint32_t)) + mesh_draw_call.index_start,
-			0,
-			0);
-	}
-
-	EndRenderPass(a_list);
 }
 
 void RenderSystem::BloomPass(const PerFrame& a_pfd, const RCommandList a_list, const uint2 a_draw_area_size)
