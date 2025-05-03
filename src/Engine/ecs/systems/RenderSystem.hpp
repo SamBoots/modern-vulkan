@@ -8,6 +8,7 @@
 #include "ShadowMapStage.hpp"
 #include "RasterMeshStage.hpp"
 #include "BloomStage.hpp"
+#include "LineStage.hpp"
 
 namespace BB
 {
@@ -156,5 +157,6 @@ namespace BB
         ShadowMapStage m_shadowmap_stage;
         RasterMeshStage m_raster_mesh_stage;
         BloomStage m_bloom_stage;
+		LineStage m_line_stage;
 	};
 }

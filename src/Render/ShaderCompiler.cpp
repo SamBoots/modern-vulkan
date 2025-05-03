@@ -56,6 +56,9 @@ bool BB::CompileShader(const ShaderCompiler a_shader_compiler, const Buffer& a_b
 	case SHADER_STAGE::FRAGMENT_PIXEL:
 		shader_type = L"ps_6_4";
 		break;
+	case SHADER_STAGE::GEOMETRY:
+		shader_type = L"gs_6_4";
+		break;
 	default:
 		shader_type = L"ERROR_NO_STAGE";
 		BB_ASSERT(false, "not yet supported shader stage");

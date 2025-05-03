@@ -365,6 +365,7 @@ static VulkanQueuesIndices GetQueueIndices(MemoryArena& a_temp_arena, const VkPh
 static VkDevice CreateLogicalDevice(MemoryArena& a_temp_arena, const VkPhysicalDevice a_phys_device, const VulkanQueuesIndices& a_queue_indices, const BB::Slice<const char*>& a_device_extensions)
 {
 	VkPhysicalDeviceFeatures device_features{};
+	device_features.geometryShader = VK_TRUE;
 	device_features.samplerAnisotropy = VK_TRUE;
 	VkPhysicalDeviceTimelineSemaphoreFeatures timeline_sem_features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_FEATURES };
 	timeline_sem_features.timelineSemaphore = VK_TRUE;
@@ -591,6 +592,7 @@ static inline VkShaderStageFlags ShaderStageFlags(const SHADER_STAGE a_stage)
 	case SHADER_STAGE::ALL:					return VK_SHADER_STAGE_ALL;
 	case SHADER_STAGE::VERTEX:				return VK_SHADER_STAGE_VERTEX_BIT;
 	case SHADER_STAGE::FRAGMENT_PIXEL:		return VK_SHADER_STAGE_FRAGMENT_BIT;
+	case SHADER_STAGE::GEOMETRY:		    return VK_SHADER_STAGE_GEOMETRY_BIT;
 	default:
 		BB_ASSERT(false, "Vulkan: SHADER_STAGE failed to convert to a VkShaderStageFlagBits.");
 		return VK_SHADER_STAGE_ALL;
@@ -614,6 +616,8 @@ static inline VkShaderStageFlags ShaderStageFlagsFromFlags(const SHADER_STAGE_FL
 		return stage_flags |= VK_SHADER_STAGE_VERTEX_BIT;
 	if ((static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::FRAGMENT_PIXEL) & a_stages) == a_stages)
 		return stage_flags |= VK_SHADER_STAGE_FRAGMENT_BIT;
+	if ((static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::GEOMETRY) & a_stages) == a_stages)
+		return stage_flags |= VK_SHADER_STAGE_GEOMETRY_BIT;
 	return stage_flags;
 }
 

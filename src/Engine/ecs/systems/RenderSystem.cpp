@@ -41,6 +41,7 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
     m_shadowmap_stage.Init(a_arena, a_back_buffer_count);
     m_raster_mesh_stage.Init(a_arena, a_render_target_size, a_back_buffer_count);
     m_bloom_stage.Init(a_arena);
+	m_line_stage.Init(a_arena, a_back_buffer_count, LINE_MAX);
 
 	// per frame
 	m_per_frame.Init(a_arena, a_back_buffer_count);
