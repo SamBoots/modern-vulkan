@@ -4,6 +4,12 @@
 
 namespace BB
 {
+    struct Line
+    {
+        float3 p0;
+        float3 p1;
+    };
+
     struct DrawList
     {
         struct DrawEntry
