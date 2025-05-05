@@ -62,16 +62,19 @@ namespace BB
 		SHADER_STAGE_FLAGS next_stages;
 	};
 
-	constexpr size_t MAX_SHADER_EFFECTS_PER_MATERIAL = 4;
-	using MaterialShaderEffects = FixedArray<ShaderEffectHandle, MAX_SHADER_EFFECTS_PER_MATERIAL>;
-	using MaterialShaderEffectsInfo = FixedArray<CachedShaderInfo*, MAX_SHADER_EFFECTS_PER_MATERIAL>;
-
 	struct MasterMaterial
 	{
 		StringView name;
-		MaterialShaderEffects shader_effects;
-		MaterialShaderEffectsInfo shader_effect_indices;
-		uint32_t shader_effect_count;
+		struct Shaders
+		{
+			ShaderEffectHandle vertex;
+			ShaderEffectHandle fragment_pixel;
+			ShaderEffectHandle geometry;
+			CachedShaderInfo* vertex_info;
+			CachedShaderInfo* fragment_pixel_info;
+			CachedShaderInfo* geometry_info;
+		} shaders;
+
 		PASS_TYPE pass_type;
 		MATERIAL_TYPE material_type;
 		
@@ -125,10 +128,11 @@ namespace BB
 		void WriteMaterial(const MaterialHandle a_material, const RCommandList a_list, const GPUBuffer a_src_buffer, const size_t a_src_offset);
 		void WriteMaterialCPU(const MaterialHandle a_material, const void* a_memory, const size_t a_memory_size);
 
+		RPipelineLayout BindMaterial(const MaterialHandle a_material);
+
 		const DescriptorAllocation& GetMaterialDescAllocation();
 		MasterMaterialHandle GetDefaultMasterMaterial(const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type);
 		const MasterMaterial& GetMasterMaterial(const MasterMaterialHandle a_master_material);
- 		ConstSlice<ShaderEffectHandle> GetMaterialShaders(const MasterMaterialHandle a_master_material);
 		ConstSlice<CachedShaderInfo> GetAllCachedShaders();
 		ConstSlice<MasterMaterial> GetAllMasterMaterials();
 	};

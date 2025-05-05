@@ -26,7 +26,6 @@ namespace BB
 	using ShaderCode = FrameworkHandle<struct ShaderCodeTag>;
 	using ShaderEffectHandle = FrameworkHandle<struct ShaderEffectHandleTag>;
 
-	constexpr uint32_t UNIQUE_SHADER_STAGE_COUNT = 2;
 	using SHADER_STAGE_FLAGS = uint32_t;
 	enum class SHADER_STAGE : SHADER_STAGE_FLAGS
 	{
@@ -37,6 +36,8 @@ namespace BB
 		GEOMETRY		= 1 << 3,
 		ENUM_SIZE		= 5
 	};
+	constexpr uint32_t UNIQUE_SHADER_STAGE_COUNT = 3;
+	constexpr SHADER_STAGE CONSEQUTIVE_SHADER_STAGES[] = { SHADER_STAGE::VERTEX, SHADER_STAGE::FRAGMENT_PIXEL, SHADER_STAGE::GEOMETRY };
 
 	enum class IMAGE_FORMAT : uint32_t
 	{

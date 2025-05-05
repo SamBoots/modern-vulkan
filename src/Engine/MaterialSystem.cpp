@@ -53,16 +53,14 @@ static inline MasterMaterialHandle& GetDefaultMasterMaterial_impl(const PASS_TYP
 	return s_material_inst->default_materials[static_cast<uint32_t>(a_pass_type)][static_cast<uint32_t>(a_material_type)];
 }
 
-static inline MasterMaterialHandle CreateMaterial_impl(const Slice<ShaderEffectHandle> a_shaders, const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type, const uint32_t a_user_data_size, const bool a_cpu_writeable, const StringView name = "default")
+static inline MasterMaterialHandle CreateMaterial_impl(const ShaderEffectHandle a_vertex, const ShaderEffectHandle a_fragment, const ShaderEffectHandle a_geometry, const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type, const uint32_t a_user_data_size, const bool a_cpu_writeable, const StringView name = "default")
 {
 	const MasterMaterialHandle material = s_material_inst->material_map.emplace();
 	MasterMaterial& inst = s_material_inst->material_map.find(material);
 	inst.name = name;
-	inst.shader_effect_count = static_cast<uint32_t>(a_shaders.size());
-	for (size_t i = 0; i < a_shaders.size(); i++)
-	{
-		inst.shader_effects[i] = a_shaders[i];
-	}
+	inst.shaders.vertex = a_vertex;
+	inst.shaders.fragment_pixel = a_fragment;
+	inst.shaders.geometry = a_geometry;
 	inst.pass_type = a_pass_type;
 	inst.material_type = a_material_type;
 	inst.user_data_size = a_user_data_size;
@@ -329,6 +327,11 @@ void Material::WriteMaterialCPU(const MaterialHandle a_material, const void* a_m
 	memcpy(mat.mapper_ptr, a_memory, a_memory_size);
 }
 
+RPipelineLayout Material::BindMaterial(const MaterialHandle a_material)
+{
+	return BindShaders();
+}
+
 const DescriptorAllocation& Material::GetMaterialDescAllocation()
 {
 	return s_material_inst->material_desc_allocation;
@@ -342,13 +345,6 @@ MasterMaterialHandle Material::GetDefaultMasterMaterial(const PASS_TYPE a_pass_t
 const MasterMaterial& Material::GetMasterMaterial(const MasterMaterialHandle a_master_material)
 {
 	return s_material_inst->material_map.find(a_master_material);
-}
-
-ConstSlice<ShaderEffectHandle> Material::GetMaterialShaders(const MasterMaterialHandle a_master_material)
-{
-	BB_ASSERT(a_master_material.IsValid(), "invalid material send!");
-	const MasterMaterial& mat = s_material_inst->material_map.find(a_master_material);
-	return mat.shader_effects.const_slice(mat.shader_effect_count);
 }
 
 ConstSlice<CachedShaderInfo> Material::GetAllCachedShaders()

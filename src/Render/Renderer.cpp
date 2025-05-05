@@ -1013,34 +1013,35 @@ void BB::BindIndexBuffer(const RCommandList a_list, const uint64_t a_offset, con
 	}
 }
 
-RPipelineLayout BB::BindShaders(const RCommandList a_list, const ConstSlice<ShaderEffectHandle> a_shader_effects)
+RPipelineLayout BB::BindShaders(const RCommandList a_list, const ShaderEffectHandle a_vertex, const ShaderEffectHandle a_fragment_pixel, const ShaderEffectHandle a_geometry)
 {
-	constexpr size_t SHADERS_MAX = 5;
-	BB_ASSERT(SHADERS_MAX >= a_shader_effects.size(), "binding more then 5 shaders at a time, this is wrong or increase SHADERS_MAX");
-
-	ShaderObject shader_objects[SHADERS_MAX]{};
-	SHADER_STAGE shader_stages[SHADERS_MAX]{};
-
-	SHADER_STAGE_FLAGS next_supported_stages = static_cast<uint32_t>(SHADER_STAGE::ALL);
+	ShaderObject shader_objects[UNIQUE_SHADER_STAGE_COUNT]{};
 	RPipelineLayout layout{};
-	for (size_t eff_index = 0; eff_index < a_shader_effects.size(); eff_index++)
-	{
-		const ShaderEffect& effect = s_render_inst->shader_effects[a_shader_effects[eff_index]];
-		shader_objects[eff_index] = effect.shader_object;
-		shader_stages[eff_index] = effect.shader_stage;
-		
-		BB_ASSERT((next_supported_stages & static_cast<SHADER_STAGE_FLAGS>(effect.shader_stage)) == static_cast<SHADER_STAGE_FLAGS>(effect.shader_stage),
-			"shader does not support the next stage");
 
-		if (layout.IsValid())
-			BB_ASSERT(layout == effect.pipeline_layout, "pipeline layout is wrong");
-		else
-			layout = effect.pipeline_layout;
+	auto SetShaderEffect = [&](const ShaderEffectHandle a_effect, const uint32_t a_index)
+		{
+			if (a_effect.handle)
+			{
+				const ShaderEffect& effect = s_render_inst->shader_effects[a_effect.handle];
+				shader_objects[a_index] = effect.shader_object;
 
-		next_supported_stages = effect.shader_stages_next;
-	}
+				if (layout.IsValid())
+				{
+					BB_ASSERT(layout == effect.pipeline_layout, "pipeline layout is wrong");
+					return RPipelineLayout();
+				}
+				else
+					layout = effect.pipeline_layout;
+			}
+			else
+				shader_objects[a_index] = ShaderObject(0); // has to be null
+		};
 
-	Vulkan::BindShaders(a_list, static_cast<uint32_t>(a_shader_effects.size()), shader_stages, shader_objects);
+	SetShaderEffect(a_vertex, 0);
+	SetShaderEffect(a_fragment_pixel, 1);
+	SetShaderEffect(a_geometry, 2);
+
+	Vulkan::BindShaders(a_list, UNIQUE_SHADER_STAGE_COUNT, CONSEQUTIVE_SHADER_STAGES, shader_objects);
 	// set the samplers
 	Vulkan::SetDescriptorImmutableSamplers(a_list, layout);
 

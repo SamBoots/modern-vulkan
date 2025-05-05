@@ -58,7 +58,7 @@ namespace BB
 	void EndRenderPass(const RCommandList a_list);
 
 	void BindIndexBuffer(const RCommandList a_list, const uint64_t a_offset, const bool a_cpu_readable = false);
-	RPipelineLayout BindShaders(const RCommandList a_list, const ConstSlice<ShaderEffectHandle> a_shader_effects);
+	RPipelineLayout BindShaders(const RCommandList a_list, const ShaderEffectHandle a_vertex, const ShaderEffectHandle a_fragment_pixel, const ShaderEffectHandle a_geometry);
 	void SetBlendMode(const RCommandList a_list, const uint32_t a_first_attachment, const Slice<ColorBlendState> a_blend_states);
 
 	void SetFrontFace(const RCommandList a_list, const bool a_is_clockwise);
