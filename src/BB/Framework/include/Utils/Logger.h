@@ -39,7 +39,6 @@ namespace BB
 #define BB_UNIMPLEMENTED(text)						\
 	do												\
 	{												\
-		__pragma(message("implement: " text))	    \
 		BB::Logger::LogToMessageBox("unimplemented code", text);	\
 	} while (0) 
 

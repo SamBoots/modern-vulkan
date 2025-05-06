@@ -295,10 +295,8 @@ void Editor::EndFrame(MemoryArena& a_arena)
 			DrawImgui(m_per_frame.frame_results[i].render_frame.render_target, *m_per_frame.scene_hierachies[i], *m_per_frame.viewports[i]);
 		}
 
-		const Slice imgui_shaders = Material::GetMaterialShaders(m_imgui_material);
-
 		// CURFRAME = the render internal frame
-		ImRenderFrame(m_per_frame.lists[0], GetImageView(m_render_target_descs[m_per_frame.back_buffer_index]), m_app_window_extent, true, imgui_shaders[0], imgui_shaders[1]);
+		ImRenderFrame(m_per_frame.lists[0], GetImageView(m_render_target_descs[m_per_frame.back_buffer_index]), m_app_window_extent, true, m_imgui_material);
 		ImGui::EndFrame();
 
 		PRESENT_IMAGE_RESULT result = RenderEndFrame(m_per_frame.lists[0], m_render_target, m_per_frame.back_buffer_index);
@@ -789,18 +787,23 @@ void Editor::ImGuiDisplayShaderEffects(MemoryArena& a_arena)
 		reload_status = RELOAD_STATUS_OK;
 }
 
+static void DisplayShader(const ShaderEffectHandle a_handle, const char* a_shader_name)
+{
+    if (a_handle.IsValid())
+    {
+        ImGui::TextUnformatted(a_shader_name);
+    }
+}
+
 void Editor::ImGuiDisplayMaterial(const MasterMaterial& a_material) const
 {
 	if (ImGui::CollapsingHeader(a_material.name.c_str()))
 	{
 		ImGui::Indent();
 
-		for (size_t eff_index = 0; eff_index < a_material.shader_effect_count; eff_index++)
-		{
-			ImGui::PushID(static_cast<int>(eff_index));
-
-			ImGui::PopID();
-		}
+        DisplayShader(a_material.shaders.vertex, "vertex");
+        DisplayShader(a_material.shaders.fragment_pixel, "fragment_pixel");
+        DisplayShader(a_material.shaders.geometry, "geometry");
 
 		ImGui::Text("Material CPU writeable: %d", a_material.cpu_writeable);
 		ImGui::Separator();

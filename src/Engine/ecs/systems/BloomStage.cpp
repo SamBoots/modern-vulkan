@@ -31,8 +31,7 @@ void BloomStage::Init(MemoryArena& a_arena)
 
 void BloomStage::ExecutePass(const RCommandList a_list, const uint2 a_resolution, const RImage a_render_target_image, const RDescriptorIndex a_render_target_0, const RDescriptorIndex a_render_target_1, const uint2 a_draw_area, const RImageView a_render_target)
 {
-    Slice<const ShaderEffectHandle> shader_effects = Material::GetMaterialShaders(m_gaussian_material);
-    const RPipelineLayout pipe_layout = BindShaders(a_list, shader_effects);
+    const RPipelineLayout pipe_layout = Material::BindMaterial(a_list, m_gaussian_material);
 
     FixedArray<PipelineBarrierImageInfo, 2> transitions{};
     PipelineBarrierImageInfo& to_shader_read = transitions[0];

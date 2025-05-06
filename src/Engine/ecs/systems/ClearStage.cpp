@@ -70,7 +70,7 @@ void ClearStage::Init(MemoryArena& a_arena)
 
 void ClearStage::ExecutePass(const RCommandList a_list, const uint2 a_draw_area_size, const RImageView a_render_target)
 {
-    BindShaders(a_list, Material::GetMaterialShaders(m_skybox_material));
+    Material::BindMaterial(a_list, m_skybox_material);
 
     RenderingAttachmentColor color_attach;
     color_attach.load_color = false;

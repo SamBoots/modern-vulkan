@@ -10,7 +10,7 @@ namespace BB
 	
 	void ImNewFrame(const uint2 a_screen_extent);
 
-	void ImRenderFrame(const RCommandList a_cmd_list, const RImageView a_render_target_view, const uint2 a_render_target_extent, const bool a_clear_image, const ShaderEffectHandle a_vertex, const ShaderEffectHandle a_fragment);
+	void ImRenderFrame(const RCommandList a_cmd_list, const RImageView a_render_target_view, const uint2 a_render_target_extent, const bool a_clear_image, const MasterMaterialHandle a_material);
 	//On true means that imgui takes the input and doesn't give it to the engine.
 	bool ImProcessInput(const struct BB::InputEvent& a_input_event);
 }

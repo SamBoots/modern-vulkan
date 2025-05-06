@@ -76,7 +76,7 @@ void LineStage::ExecutePass(const RCommandList a_list, const uint32_t a_frame_in
     }
     memcpy(pfd.vertex_view.mapped, a_lines.data(), upload_size);
 
-    BindShaders(a_list, Material::GetMaterialShaders(m_line_material));
+    Material::BindMaterial(a_list, m_line_material);
     DrawVertices(a_list, static_cast<uint32_t>(a_lines.size()), 1, static_cast<uint32_t>(pfd.vertex_view.offset), 0);
 
     EndRenderPass(a_list);

@@ -1,6 +1,7 @@
 #include "ImGuiImpl.hpp"
 #include "Renderer.hpp"
 #include "AssetLoader.hpp"
+#include "MaterialSystem.hpp"
 
 #include "imgui.h"
 #include "implot.h"
@@ -189,30 +190,25 @@ static inline void SetupImGuiRender(MemoryArena& a_arena)
 	io.Fonts->SetTexID(bd->font_descriptor.handle);
 }
 
-inline static RPipelineLayout ImSetRenderState(const ImDrawData& a_draw_data, const RCommandList a_cmd_list, const uint32_t a_vert_pos, const ShaderEffectHandle* a_vertex_and_fragment)
+inline static RPipelineLayout ImSetRenderState(const ImDrawData& a_draw_data, const RCommandList a_cmd_list, const uint32_t a_vert_pos, const MasterMaterialHandle a_material)
 {
 	ImRenderData* bd = ImGetRenderData();
 
-	const RPipelineLayout layout = BindShaders(a_cmd_list, ConstSlice<ShaderEffectHandle>(a_vertex_and_fragment, 2));
-
-	{
-		SetFrontFace(a_cmd_list, true);
-		SetCullMode(a_cmd_list, CULL_MODE::NONE);
-	}
+	const RPipelineLayout layout = Material::BindMaterial(a_cmd_list, a_material);
+	SetFrontFace(a_cmd_list, true);
+	SetCullMode(a_cmd_list, CULL_MODE::NONE);
 
 	// Setup scale and translation:
 	// Our visible imgui space lies from draw_data->DisplayPps (top left) to draw_data->DisplayPos+data_data->DisplaySize (bottom right). DisplayPos is (0,0) for single viewport apps.
-	{
-		ShaderIndices2D shader_indices;
-		shader_indices.vertex_buffer_offset = a_vert_pos;
-		shader_indices.albedo_texture = bd->font_descriptor;
-		shader_indices.rect_scale.x = 2.0f / a_draw_data.DisplaySize.x;
-		shader_indices.rect_scale.y = 2.0f / a_draw_data.DisplaySize.y;
-		shader_indices.translate.x = -1.0f - a_draw_data.DisplayPos.x * shader_indices.rect_scale.x;
-		shader_indices.translate.y = -1.0f - a_draw_data.DisplayPos.y * shader_indices.rect_scale.y;
+	ShaderIndices2D shader_indices;
+	shader_indices.vertex_buffer_offset = a_vert_pos;
+	shader_indices.albedo_texture = bd->font_descriptor;
+	shader_indices.rect_scale.x = 2.0f / a_draw_data.DisplaySize.x;
+	shader_indices.rect_scale.y = 2.0f / a_draw_data.DisplaySize.y;
+	shader_indices.translate.x = -1.0f - a_draw_data.DisplayPos.x * shader_indices.rect_scale.x;
+	shader_indices.translate.y = -1.0f - a_draw_data.DisplayPos.y * shader_indices.rect_scale.y;
 
-		SetPushConstants(a_cmd_list, layout, 0, sizeof(shader_indices), &shader_indices);
-	}
+	SetPushConstants(a_cmd_list, layout, 0, sizeof(shader_indices), &shader_indices);
 
 	return layout;
 }
@@ -269,7 +265,7 @@ void BB::ImNewFrame(const uint2 a_screen_extent)
 	ImGui::NewFrame();
 }
 
-void BB::ImRenderFrame(const RCommandList a_cmd_list, const RImageView a_render_target_view, const uint2 a_render_target_extent, const bool a_clear_image, const ShaderEffectHandle a_vertex, const ShaderEffectHandle a_fragment)
+void BB::ImRenderFrame(const RCommandList a_cmd_list, const RImageView a_render_target_view, const uint2 a_render_target_extent, const bool a_clear_image, const MasterMaterialHandle a_material)
 {
 	ImGui::Render();
 	const ImDrawData& draw_data = *ImGui::GetDrawData();
@@ -338,8 +334,7 @@ void BB::ImRenderFrame(const RCommandList a_cmd_list, const RImageView a_render_
 	SetBlendMode(a_cmd_list, 0, blend_state.slice());
 
 	// Setup desired CrossRenderer state
-	const ShaderEffectHandle shader_effects[]{ a_vertex, a_fragment };
-	const RPipelineLayout pipeline_layout = ImSetRenderState(draw_data, a_cmd_list, 0, shader_effects);
+	const RPipelineLayout pipeline_layout = ImSetRenderState(draw_data, a_cmd_list, 0, a_material);
 
 	// Will project scissor/clipping rectangles into framebuffer space
 	const ImVec2 clip_off = draw_data.DisplayPos;    // (0,0) unless using multi-viewports
@@ -365,7 +360,7 @@ void BB::ImRenderFrame(const RCommandList a_cmd_list, const RImageView a_render_
 				// User callback, registered via ImDrawList::AddCallback()
 				// (ImDrawCallback_ResetRenderState is a special callback value used by the user to request the renderer to reset render state.)
 				if (pcmd->UserCallback == ImDrawCallback_ResetRenderState)
-					ImSetRenderState(draw_data, a_cmd_list, vertex_offset, shader_effects);
+					ImSetRenderState(draw_data, a_cmd_list, vertex_offset, a_material);
 				else
 					pcmd->UserCallback(cmd_list, pcmd);
 			}

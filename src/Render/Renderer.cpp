@@ -1020,15 +1020,14 @@ RPipelineLayout BB::BindShaders(const RCommandList a_list, const ShaderEffectHan
 
 	auto SetShaderEffect = [&](const ShaderEffectHandle a_effect, const uint32_t a_index)
 		{
-			if (a_effect.handle)
+			if (a_effect.IsValid())
 			{
-				const ShaderEffect& effect = s_render_inst->shader_effects[a_effect.handle];
+				const ShaderEffect& effect = s_render_inst->shader_effects[a_effect];
 				shader_objects[a_index] = effect.shader_object;
 
 				if (layout.IsValid())
 				{
 					BB_ASSERT(layout == effect.pipeline_layout, "pipeline layout is wrong");
-					return RPipelineLayout();
 				}
 				else
 					layout = effect.pipeline_layout;

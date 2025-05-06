@@ -90,8 +90,7 @@ void RasterMeshStage::ExecutePass(const RCommandList a_list, const uint32_t a_fr
     {
         const DrawList::DrawEntry& mesh_draw_call = a_draw_list.draw_entries[i];
 
-        const ConstSlice<ShaderEffectHandle> shader_effects = Material::GetMaterialShaders(mesh_draw_call.master_material);
-        const RPipelineLayout pipe_layout = BindShaders(a_list, shader_effects);
+        const RPipelineLayout pipe_layout = Material::BindMaterial(a_list, mesh_draw_call.master_material);
         {
             const uint32_t buffer_indices[] = { 0 };
             const size_t buffer_offsets[]{ Material::GetMaterialDescAllocation().offset };

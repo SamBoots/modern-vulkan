@@ -89,7 +89,7 @@ void ShadowMapStage::ExecutePass(const RCommandList a_list, const uint32_t a_fra
     }
     BB_ASSERT(shadow_map_count <= pfd.render_pass_views.size(), "too many lights! Make a dynamic shadow mapping array");
 
-    const RPipelineLayout pipe_layout = BindShaders(a_list, Material::GetMaterialShaders(m_shadowmap_material));
+    const RPipelineLayout pipe_layout = Material::BindMaterial(a_list, m_shadowmap_material);
 
     PipelineBarrierImageInfo shadow_map_write_transition = {};
     shadow_map_write_transition.prev = IMAGE_LAYOUT::NONE;

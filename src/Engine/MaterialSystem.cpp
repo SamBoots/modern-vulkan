@@ -69,9 +69,42 @@ static inline MasterMaterialHandle CreateMaterial_impl(const ShaderEffectHandle 
 	return material;
 }
 
-static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_arena, const Slice<MaterialShaderCreateInfo> a_shader_effects_info, const ShaderDescriptorLayouts& a_desc_layouts, const uint32_t a_desc_layout_count)
+struct ShaderEffectList
 {
-	ShaderEffectHandle* return_handles = ArenaAllocArr(a_temp_arena, ShaderEffectHandle, a_shader_effects_info.size());
+    ShaderEffectHandle vertex;
+    ShaderEffectHandle fragment;
+    ShaderEffectHandle geometry;
+};
+
+static ShaderEffectList CreateShaderEffects_impl(MemoryArena& a_temp_arena, const Slice<MaterialShaderCreateInfo> a_shader_effects_info, const ShaderDescriptorLayouts& a_desc_layouts, const uint32_t a_desc_layout_count)
+{
+    auto place_shader = [](ShaderEffectList& a_list, const SHADER_STAGE a_stage, const ShaderEffectHandle a_effect) -> bool
+        {
+            switch (a_stage)
+            {
+            case SHADER_STAGE::VERTEX:
+                if (a_list.vertex.IsValid())
+                    return false;
+                a_list.vertex = a_effect;
+                break;
+            case SHADER_STAGE::FRAGMENT_PIXEL:
+                if (a_list.fragment.IsValid())
+                    return false;
+                a_list.fragment = a_effect;
+                break;
+            case SHADER_STAGE::GEOMETRY:
+                if (a_list.geometry.IsValid())
+                    return false;
+                a_list.geometry = a_effect;
+                break;
+            default:
+                BB_ASSERT(false, "something went wrong in creating shaders");
+                return false;
+            }
+            return true;
+        };
+
+    ShaderEffectList return_list;
 	CreateShaderEffectInfo* shader_effects = ArenaAllocArr(a_temp_arena, CreateShaderEffectInfo, a_shader_effects_info.size());
 	size_t created_shader_effect_count = 0;
 
@@ -85,11 +118,11 @@ static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_ar
 
 		if (const ShaderEffectHandle* found_shader = s_material_inst->shader_effect_cache.find(ShaderEffectHash(info)))
 		{
-			return_handles[i] = *found_shader;
+            if (!place_shader(return_list, info.stage, *found_shader))
+                return ShaderEffectList();
 		}
 		else
 		{
-			return_handles[i] = {};
 			if (previous_shader_path != info.path)
 			{
 				MemoryArenaSetMemoryMarker(a_temp_arena, memory_pos_before_shader_read);
@@ -114,7 +147,7 @@ static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_ar
 	// all shaders already exist, return them.
 	if (created_shader_effect_count == 0)
 	{
-		return Slice(return_handles, a_shader_effects_info.size());
+		return return_list;
 	}
 
 	ShaderEffectHandle* created_handles = ArenaAllocArr(a_temp_arena, ShaderEffectHandle, created_shader_effect_count);
@@ -122,7 +155,7 @@ static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_ar
 	if (!success)
 	{
 		BB_WARNING(false, "Material created failed due to failing to create shader effects", WarningType::MEDIUM);
-		return Slice<ShaderEffectHandle>();
+		return ShaderEffectList();
 	}
 	else
 	{
@@ -139,30 +172,33 @@ static Slice<ShaderEffectHandle> CreateShaderEffects_impl(MemoryArena& a_temp_ar
 				shader_info.next_stages = a_shader_effects_info[i].next_stages;
 				s_material_inst->shader_effects.emplace_back(shader_info);
 				s_material_inst->shader_effect_cache.insert(ShaderEffectHash(a_shader_effects_info[i]), shader_info.handle);
+
+                if (!place_shader(return_list, shader_info.stage, created_handles[i]))
+                    return ShaderEffectList();
 			}
-			return Slice(created_handles, a_shader_effects_info.size());
+
+
+			return return_list;
 		}
 
 		// some are created and some are found. Sort them inside the empty slots in found_handles
-		int created_shader_i = 0;
-		for (size_t i = 0; i < a_shader_effects_info.size(); i++)
+		for (size_t i = 0; i < created_shader_effect_count; i++)
 		{
-			if (!return_handles[i].IsValid())
-			{
-				CachedShaderInfo shader_info{};
-				shader_info.handle = created_handles[created_shader_i++];
-				shader_info.path.append(a_shader_effects_info[i].path);
-				shader_info.entry.append(a_shader_effects_info[i].entry);
-				shader_info.stage = a_shader_effects_info[i].stage;
-				shader_info.next_stages = a_shader_effects_info[i].next_stages;
-				s_material_inst->shader_effects.emplace_back(shader_info);
-				s_material_inst->shader_effect_cache.insert(ShaderEffectHash(a_shader_effects_info[i]), shader_info.handle);
-				return_handles[i] = shader_info.handle;
-			}
+            CachedShaderInfo shader_info{};
+            shader_info.handle = created_handles[i];
+            shader_info.path.append(a_shader_effects_info[i].path);
+            shader_info.entry.append(a_shader_effects_info[i].entry);
+            shader_info.stage = a_shader_effects_info[i].stage;
+            shader_info.next_stages = a_shader_effects_info[i].next_stages;
+            s_material_inst->shader_effects.emplace_back(shader_info);
+            s_material_inst->shader_effect_cache.insert(ShaderEffectHash(a_shader_effects_info[i]), shader_info.handle);
+
+            if (!place_shader(return_list, shader_info.stage, created_handles[i]))
+                return ShaderEffectList();
 		}
 
 	}
-	return Slice(return_handles, a_shader_effects_info.size());
+	return return_list;
 }
 
 void Material::InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCreateInfo& a_create_info)
@@ -258,9 +294,9 @@ MasterMaterialHandle Material::CreateMasterMaterial(MemoryArena& a_temp_arena, c
 		break;
 	}
 
-	const Slice<ShaderEffectHandle> shader_effects = CreateShaderEffects_impl(a_temp_arena, a_create_info.shader_infos, desc_layouts, layouts);
+	const ShaderEffectList shader_effects = CreateShaderEffects_impl(a_temp_arena, a_create_info.shader_infos, desc_layouts, layouts);
 
-	return CreateMaterial_impl(shader_effects, a_create_info.pass_type, a_create_info.material_type, a_create_info.user_data_size, a_create_info.cpu_writeable, a_name);
+	return CreateMaterial_impl(shader_effects.vertex, shader_effects.fragment, shader_effects.geometry, a_create_info.pass_type, a_create_info.material_type, a_create_info.user_data_size, a_create_info.cpu_writeable, a_name);
 }
 
 MaterialHandle Material::CreateMaterialInstance(const MasterMaterialHandle a_master_material)
@@ -327,9 +363,10 @@ void Material::WriteMaterialCPU(const MaterialHandle a_material, const void* a_m
 	memcpy(mat.mapper_ptr, a_memory, a_memory_size);
 }
 
-RPipelineLayout Material::BindMaterial(const MaterialHandle a_material)
+RPipelineLayout Material::BindMaterial(const RCommandList a_list, const MasterMaterialHandle a_material)
 {
-	return BindShaders();
+    const MasterMaterial& inst = s_material_inst->material_map.find(a_material);
+	return BindShaders(a_list, inst.shaders.vertex, inst.shaders.fragment_pixel, inst.shaders.geometry);
 }
 
 const DescriptorAllocation& Material::GetMaterialDescAllocation()
