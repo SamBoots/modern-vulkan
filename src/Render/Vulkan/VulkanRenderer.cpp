@@ -2576,8 +2576,11 @@ void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stag
 	s_vulkan_inst->pfn.CmdBindShadersEXT(cmd_buffer, a_shader_stage_count, shader_stages, reinterpret_cast<const VkShaderEXT*>(a_shader_objects));
 
 	vkCmdSetRasterizerDiscardEnable(cmd_buffer, VK_FALSE);
-
-	vkCmdSetPrimitiveTopology(cmd_buffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+    if (a_shader_objects[2].handle == 0)
+        vkCmdSetPrimitiveTopology(cmd_buffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+    else
+	    vkCmdSetPrimitiveTopology(cmd_buffer, VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
+    vkCmdSetLineWidth(cmd_buffer, 1.f);
 	s_vulkan_inst->pfn.CmdSetPolygonModeEXT(cmd_buffer, VK_POLYGON_MODE_FILL);
 	s_vulkan_inst->pfn.CmdSetRasterizationSamplesEXT(cmd_buffer, VK_SAMPLE_COUNT_1_BIT);
 	const uint32_t mask = UINT32_MAX;

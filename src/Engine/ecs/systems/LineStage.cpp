@@ -25,7 +25,7 @@ void LineStage::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count, c
     line_material.shader_infos = Slice(line_shaders.slice());
     MemoryArenaScope(a_arena)
     {
-        //m_line_material = Material::CreateMasterMaterial(a_arena, line_material, "line material");
+        m_line_material = Material::CreateMasterMaterial(a_arena, line_material, "line material");
     }
 
     m_per_frame.Init(a_arena, a_back_buffer_count);
@@ -76,8 +76,15 @@ void LineStage::ExecutePass(const RCommandList a_list, const uint32_t a_frame_in
     }
     memcpy(pfd.vertex_view.mapped, a_lines.data(), upload_size);
 
-    Material::BindMaterial(a_list, m_line_material);
-    DrawVertices(a_list, static_cast<uint32_t>(a_lines.size()), 1, static_cast<uint32_t>(pfd.vertex_view.offset), 0);
+    const RPipelineLayout pipe_layout = Material::BindMaterial(a_list, m_line_material);
+
+    ShaderLine push_constant;
+    push_constant.line_width = 1;
+    push_constant.vertex_start = static_cast<uint32_t>(pfd.vertex_view.offset);
+
+    SetPushConstants(a_list, pipe_layout, 0, sizeof(push_constant), &push_constant);
+
+    DrawVertices(a_list, static_cast<uint32_t>(a_lines.size()), 1, 0, 0);
 
     EndRenderPass(a_list);
 }

@@ -7,9 +7,11 @@ struct VSOutput
     float4 pos  : SV_POSITION;
 };
 
+_BBCONSTANT(BB::ShaderLine) shader_indices;
+
 VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 {
-    const uint vertex_offset = a_vertex_index;
+    const uint vertex_offset = shader_indices.vertex_start + a_vertex_index * sizeof(float3);
     const float3 pos = asfloat(cpu_writable_vertex_data.Load3(vertex_offset));
 
     VSOutput output = (VSOutput) 0;
@@ -22,7 +24,7 @@ struct GSOutput
 	float4 pos : SV_Position;
 };
 
-[maxvertexcount(2)]
+[maxvertexcount(4)]
 void GeometryMain(line VSOutput a_in[2], inout TriangleStream<GSOutput> a_out) : SV_Target
 {
     float4 p0 = a_in[0].pos;
@@ -51,6 +53,7 @@ void GeometryMain(line VSOutput a_in[2], inout TriangleStream<GSOutput> a_out) :
 	a_out.Append(g1);
 	a_out.Append(g2);
 	a_out.Append(g3);
+    a_out.RestartStrip();
 }
 
 float4 FragmentMain(GSOutput a_input) : SV_Target

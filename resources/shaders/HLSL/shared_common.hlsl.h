@@ -158,10 +158,19 @@ namespace BB
         float2 pad0;                  // 32
     };
 
+    struct ShaderLine
+    {
+        uint line_width;
+        uint vertex_start;
+        uint2 pad0;
+        uint4 pad1;
+    };
+
 #ifndef __HLSL_VERSION // C++ version
     static_assert(
         sizeof(ShaderIndices) == sizeof(ShaderIndices2D) &&
         sizeof(ShaderIndices) == sizeof(ShaderIndicesShadowMapping) &&
-        sizeof(ShaderIndices) == sizeof(ShaderGaussianBlur));
+        sizeof(ShaderIndices) == sizeof(ShaderGaussianBlur) &&
+        sizeof(ShaderIndices) == sizeof(ShaderLine));
 #endif // __HLSL_VERSION
 }

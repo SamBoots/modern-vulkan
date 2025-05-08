@@ -13,7 +13,7 @@ bool EntityComponentSystem::Init(MemoryArena& a_arena, const EntityComponentSyst
 {
 	m_name = a_name;
 
-
+    m_lines.Init(a_arena, 200);
 	m_per_frame.Init(a_arena, a_create_info.render_frame_count);
 	m_per_frame.resize(a_create_info.render_frame_count);
 	for (uint32_t i = 0; i < a_create_info.render_frame_count; i++)
@@ -85,7 +85,7 @@ ECSEntity EntityComponentSystem::CreateEntity(const NameComponent& a_name, const
 	return entity;
 }
 
-ECSEntity EntityComponentSystem::FindECSEntityClickTraverse(const ECSEntity a_entity, const float3& a_ray_origin, const float3& a_ray_dir) const
+ECSEntity EntityComponentSystem::FindECSEntityClickTraverse(const ECSEntity a_entity, const float3& a_ray_origin, const float3& a_ray_dir)
 {
     if (m_ecs_entities.HasSignature(a_entity, BOUNDING_BOX_ECS_SIGNATURE)) // intersects
     {
@@ -96,9 +96,19 @@ ECSEntity EntityComponentSystem::FindECSEntityClickTraverse(const ECSEntity a_en
 
         float3 box_min, box_max;
         ScaleBoundingBox(box.min, box.max, scale, box_min, box_max);
-
-        if (BoxRayIntersect(box_min + world_pos, box_max + world_pos, a_ray_origin, a_ray_dir))
+        box_min = box_min + world_pos;
+        box_max = box_max + world_pos;
+        if (BoxRayIntersect(box_min, box_max, a_ray_origin, a_ray_dir))
+        {
+            // add to line array
+            Line line;
+            const float4 p0 = (world_mat * float4(box.min.x, box.min.y, box.min.z, 1.0));
+            const float4 p1 = (world_mat * float4(box.max.x, box.max.y, box.max.z, 1.0));
+            line.p0 = float3(p0.x, p0.y, p0.z);
+            line.p1 = float3(p1.x, p1.y, p1.z);
+            m_lines.emplace_back(line);
             return a_entity;
+        }
     }
 
     const EntityRelation relation = m_relations.GetComponent(a_entity);
@@ -119,7 +129,7 @@ ECSEntity EntityComponentSystem::FindECSEntityClickTraverse(const ECSEntity a_en
     return INVALID_ECS_OBJ;
 }
 
-ECSEntity EntityComponentSystem::SelectEntityByClick(const float2 a_mouse_pos_viewport, const float4x4& a_view, const float3& a_ray_origin) const
+ECSEntity EntityComponentSystem::SelectEntityByClick(const float2 a_mouse_pos_viewport, const float4x4& a_view, const float3& a_ray_origin)
 {
     const float3 ndc
     {
@@ -141,6 +151,7 @@ ECSEntity EntityComponentSystem::SelectEntityByClick(const float2 a_mouse_pos_vi
         {
             const NameComponent& name = m_name_pool.GetComponent(found_child);
             BB_LOG(name.c_str());
+
             return found_child;
         }
 
@@ -177,6 +188,8 @@ RenderSystemFrame EntityComponentSystem::RenderSystemUpdate(const RCommandList a
 	BB_START_PROFILE(rendering_name);
 	m_render_system.UpdateRenderSystem(m_per_frame[m_current_frame].arena, a_list, a_draw_area_size, m_world_matrices, m_render_mesh_pool, m_raytrace_pool, m_light_pool.GetAllComponents());
 	BB_END_PROFILE(rendering_name);
+
+    m_render_system.DebugDraw(a_list, a_draw_area_size, m_lines.const_slice());
 
 	return m_render_system.EndFrame(a_list, IMAGE_LAYOUT::RT_COLOR);
 }

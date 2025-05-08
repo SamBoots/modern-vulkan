@@ -299,6 +299,12 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 	    m_bloom_stage.ExecutePass(a_list, pfd.bloom.resolution, pfd.bloom.image, pfd.bloom.descriptor_index_0, pfd.bloom.descriptor_index_1, a_draw_area, GetImageView(pfd.render_target_view));
 }
 
+void RenderSystem::DebugDraw(const RCommandList a_list, const uint2 a_draw_area, const ConstSlice<Line> a_lines)
+{
+    PerFrame& pfd = m_per_frame[m_current_frame];
+    m_line_stage.ExecutePass(a_list, m_current_frame, a_lines, a_draw_area, GetImageView(pfd.render_target_view));
+}
+
 void RenderSystem::Resize(const uint2 a_new_extent, const bool a_force)
 {
 	if (m_render_target.extent == a_new_extent && !a_force)
