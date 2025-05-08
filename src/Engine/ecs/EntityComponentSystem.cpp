@@ -170,13 +170,13 @@ ECSEntity EntityComponentSystem::SelectEntityByClick(const float2 a_mouse_pos_vi
     const float3 ndc
     {
         (2.f * a_mouse_pos_viewport.x) / static_cast<float>(m_render_system.GetRenderTargetExtent().x) - 1.f,
-        1.0f - (2.0f * a_mouse_pos_viewport.y) / static_cast<float>(m_render_system.GetRenderTargetExtent().y),
+        1.0f - (2.0f * (m_render_system.GetRenderTargetExtent().y -a_mouse_pos_viewport.y)) / static_cast<float>(m_render_system.GetRenderTargetExtent().y),
         1.f
     };
 
     const float4 ray_clip = float4(ndc.x, ndc.y, -1.f, 1.f);
     const float4 ray_inverse = Float4x4Inverse(m_render_system.GetProjection()) * ray_clip;
-    const float4 ray_eye = float4(ray_inverse.x, ray_inverse.y, ray_inverse.z, 0.0f);
+    const float4 ray_eye = float4(ray_inverse.x, ray_inverse.y, -1.0, 0.0f);
     const float4 ray_world = Float4x4Inverse(a_view) * ray_eye;
     const float3 ray_world_norm = Float3Normalize(float3(ray_world.x, ray_world.y, ray_world.z));
 
