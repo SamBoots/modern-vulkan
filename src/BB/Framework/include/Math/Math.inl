@@ -155,6 +155,12 @@ namespace BB
 		return Float3Abs(a_p0 - a_p1);
 	}
 
+    static inline float FloatDistance(const float3 a_p0, const float3 a_p1)
+    {
+        const float3 abs = Float3Abs(a_p0 - a_p1);
+        return abs.x + abs.y + abs.z;
+    }
+
 	static inline float3 Float3Cross(const float3 a, const float3 b)
 	{
 		float3 result;

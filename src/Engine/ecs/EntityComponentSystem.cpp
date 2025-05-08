@@ -131,7 +131,7 @@ void EntityComponentSystem::AddAABBBoxToLines(const float3 a_world_min, const fl
     m_lines.emplace_back(line);
 }
 
-ECSEntity EntityComponentSystem::FindECSEntityClickTraverse(const ECSEntity a_entity, const float3& a_ray_origin, const float3& a_ray_dir)
+void EntityComponentSystem::FindECSEntityClickTraverse(const ECSEntity a_entity, const float3& a_ray_origin, const float3& a_ray_dir, ECSEntity& a_found, float& a_found_dist)
 {
     if (m_ecs_entities.HasSignature(a_entity, BOUNDING_BOX_ECS_SIGNATURE)) // intersects
     {
@@ -140,29 +140,31 @@ ECSEntity EntityComponentSystem::FindECSEntityClickTraverse(const ECSEntity a_en
 
         const float4 p0 = (world_mat * float4(box.min.x, box.min.y, box.min.z, 1.0));
         const float4 p1 = (world_mat * float4(box.max.x, box.max.y, box.max.z, 1.0));
-        if (BoxRayIntersect(float3(p0.x, p0.y, p0.z), float3(p1.x, p1.y, p1.z), a_ray_origin, a_ray_dir))
-        {
-            AddAABBBoxToLines(float3(p0.x, p0.y, p0.z), float3(p1.x, p1.y, p1.z));
-            return a_entity;
+        float distance;
+        if (BoxRayIntersectLength(float3(p0.x, p0.y, p0.z), float3(p1.x, p1.y, p1.z), a_ray_origin, a_ray_dir, distance))
+        {   
+            if (a_found_dist > distance)
+            {
+                a_found_dist = distance;
+                a_found = a_entity;
+            }
         }
     }
 
     const EntityRelation relation = m_relations.GetComponent(a_entity);
 
     if (relation.child_count == 0)
-        return INVALID_ECS_OBJ;
+        return;
 
     ECSEntity child = relation.first_child;
     for (size_t i = 0; i < relation.child_count; i++)
     {
-        const ECSEntity found_child = FindECSEntityClickTraverse(child, a_ray_origin, a_ray_dir);
-        if (found_child != INVALID_ECS_OBJ)
-            return found_child;
+        FindECSEntityClickTraverse(child, a_ray_origin, a_ray_dir, a_found, a_found_dist);
         const EntityRelation child_relation = m_relations.GetComponent(child);
         child = child_relation.next;
     }
 
-    return INVALID_ECS_OBJ;
+    return;
 }
 
 ECSEntity EntityComponentSystem::SelectEntityByClick(const float2 a_mouse_pos_viewport, const float4x4& a_view, const float3& a_ray_origin)
@@ -187,14 +189,24 @@ ECSEntity EntityComponentSystem::SelectEntityByClick(const float2 a_mouse_pos_vi
     line.p1 = ray_world_norm * 10 + a_ray_origin;
     m_lines.emplace_back(line);
 
+    ECSEntity found = ECSEntity(INVALID_ECS_OBJ);
+    float distance = FLT_MAX;
     for (size_t i = 0; i < m_root_entity_system.root_entities.GetDense().size(); i++)
     {
-        const ECSEntity found_child = FindECSEntityClickTraverse(m_root_entity_system.root_entities.GetDense()[i], a_ray_origin, ray_world_norm);
-        if (found_child != INVALID_ECS_OBJ)
-            return found_child;
+        FindECSEntityClickTraverse(m_root_entity_system.root_entities.GetDense()[i], a_ray_origin, ray_world_norm, found, distance);
     }
 
-    return INVALID_ECS_OBJ;
+    if (found.IsValid())
+    {
+        const float4x4& world_mat = m_world_matrices.GetComponent(found);
+        const BoundingBox box = m_bounding_box_pool.GetComponent(found);
+
+        const float4 p0 = (world_mat * float4(box.min.x, box.min.y, box.min.z, 1.0));
+        const float4 p1 = (world_mat * float4(box.max.x, box.max.y, box.max.z, 1.0));
+        AddAABBBoxToLines(float3(p0.x, p0.y, p0.z), float3(p1.x, p1.y, p1.z));
+    }
+
+    return found;
 }
 
 void EntityComponentSystem::StartFrame()
