@@ -59,6 +59,7 @@ namespace BB
 		StackString<32> GetName() const { return m_name; }
 
 	private:
+        void AddAABBBoxToLines(const float3 a_world_min, const float3 a_world_max);
         ECSEntity FindECSEntityClickTraverse(const ECSEntity a_entity, const float3& a_ray_origin, const float3& a_ray_dir);
 		bool AddEntityRelation(const ECSEntity a_entity, const ECSEntity a_parent);
 		void UpdateTransform(const ECSEntity a_entity);

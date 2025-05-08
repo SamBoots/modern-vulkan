@@ -84,7 +84,7 @@ void LineStage::ExecutePass(const RCommandList a_list, const uint32_t a_frame_in
 
     SetPushConstants(a_list, pipe_layout, 0, sizeof(push_constant), &push_constant);
 
-    DrawVertices(a_list, static_cast<uint32_t>(a_lines.size()), 1, 0, 0);
+    DrawVertices(a_list, static_cast<uint32_t>(a_lines.size()) * 2, 1, 0, 0);
 
     EndRenderPass(a_list);
 }

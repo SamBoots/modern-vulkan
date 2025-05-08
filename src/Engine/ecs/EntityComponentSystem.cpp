@@ -85,28 +85,62 @@ ECSEntity EntityComponentSystem::CreateEntity(const NameComponent& a_name, const
 	return entity;
 }
 
+void EntityComponentSystem::AddAABBBoxToLines(const float3 a_world_min, const float3 a_world_max)
+{
+    Line line;
+    // min
+    line.p0 = a_world_min;
+    line.p1 = float3(a_world_max.x, a_world_min.y, a_world_min.z);
+    m_lines.emplace_back(line);
+    line.p1 = float3(a_world_min.x, a_world_max.y, a_world_min.z);
+    m_lines.emplace_back(line);
+    line.p1 = float3(a_world_min.x, a_world_min.y, a_world_max.z);
+    m_lines.emplace_back(line);
+
+    // max
+    line.p0 = a_world_max;
+    line.p1 = float3(a_world_min.x, a_world_max.y, a_world_max.z);
+    m_lines.emplace_back(line);
+    line.p1 = float3(a_world_max.x, a_world_min.y, a_world_max.z);
+    m_lines.emplace_back(line);
+    line.p1 = float3(a_world_max.x, a_world_max.y, a_world_min.z);
+    m_lines.emplace_back(line);
+
+    // top min
+    line.p0 = float3(a_world_min.x, a_world_max.y, a_world_min.z);
+    line.p1 = float3(a_world_min.x, a_world_max.y, a_world_max.z);
+    m_lines.emplace_back(line);
+    line.p1 = float3(a_world_max.x, a_world_max.y, a_world_min.z);
+    m_lines.emplace_back(line);
+
+    // bot max
+    line.p0 = float3(a_world_max.x, a_world_min.y, a_world_max.z);
+    line.p1 = float3(a_world_max.x, a_world_min.y, a_world_min.z);
+    m_lines.emplace_back(line);
+    line.p1 = float3(a_world_min.x, a_world_min.y, a_world_max.z);
+    m_lines.emplace_back(line);
+
+    // sides
+    line.p0 = float3(a_world_min.x, a_world_max.y, a_world_max.z);
+    line.p1 = float3(a_world_min.x, a_world_min.y, a_world_max.z);
+    m_lines.emplace_back(line);
+    line.p0 = float3(a_world_max.x, a_world_max.y, a_world_min.z);
+    line.p1 = float3(a_world_max.x, a_world_min.y, a_world_min.z);
+    m_lines.emplace_back(line);
+}
+
 ECSEntity EntityComponentSystem::FindECSEntityClickTraverse(const ECSEntity a_entity, const float3& a_ray_origin, const float3& a_ray_dir)
 {
     if (m_ecs_entities.HasSignature(a_entity, BOUNDING_BOX_ECS_SIGNATURE)) // intersects
     {
         const float4x4& world_mat = m_world_matrices.GetComponent(a_entity);
-        const float3& scale = m_scales.GetComponent(a_entity);
         const BoundingBox box = m_bounding_box_pool.GetComponent(a_entity);
-        const float3 world_pos = Float4x4ExtractTranslation(world_mat);
 
-        float3 box_min, box_max;
-        ScaleBoundingBox(box.min, box.max, scale, box_min, box_max);
-        box_min = box_min + world_pos;
-        box_max = box_max + world_pos;
-        if (BoxRayIntersect(box_min, box_max, a_ray_origin, a_ray_dir))
+        const float4 p0 = (world_mat * float4(box.min.x, box.min.y, box.min.z, 1.0));
+        const float4 p1 = (world_mat * float4(box.max.x, box.max.y, box.max.z, 1.0));
+        if (BoxRayIntersect(float3(p0.x, p0.y, p0.x), float3(p1.x, p1.y, p1.x), a_ray_origin, a_ray_dir))
         {
-            // add to line array
-            Line line;
-            const float4 p0 = (world_mat * float4(box.min.x, box.min.y, box.min.z, 1.0));
-            const float4 p1 = (world_mat * float4(box.max.x, box.max.y, box.max.z, 1.0));
-            line.p0 = float3(p0.x, p0.y, p0.z);
-            line.p1 = float3(p1.x, p1.y, p1.z);
-            m_lines.emplace_back(line);
+            AddAABBBoxToLines(float3(p0.x, p0.y, p0.z), float3(p1.x, p1.y, p1.z));
             return a_entity;
         }
     }
@@ -138,9 +172,9 @@ ECSEntity EntityComponentSystem::SelectEntityByClick(const float2 a_mouse_pos_vi
         1.f
     };
 
-    const float4 ray_clip = float4(ndc.x, ndc.y, 1.f, 1.f);
+    const float4 ray_clip = float4(ndc.x, ndc.y, -1.f, 1.f);
     const float4 ray_inverse = Float4x4Inverse(m_render_system.GetProjection()) * ray_clip;
-    const float4 ray_eye = float4(ray_inverse.x, ray_inverse.y, -1.0f, 1.0f);
+    const float4 ray_eye = float4(ray_inverse.x, ray_inverse.y, ray_inverse.z, 0.0f);
     const float4 ray_world = Float4x4Inverse(a_view) * ray_eye;
     const float3 ray_world_norm = Float3Normalize(float3(ray_world.x, ray_world.y, ray_world.z));
 
@@ -148,15 +182,9 @@ ECSEntity EntityComponentSystem::SelectEntityByClick(const float2 a_mouse_pos_vi
     {
         const ECSEntity found_child = FindECSEntityClickTraverse(m_root_entity_system.root_entities.GetDense()[i], a_ray_origin, ray_world_norm);
         if (found_child != INVALID_ECS_OBJ)
-        {
-            const NameComponent& name = m_name_pool.GetComponent(found_child);
-            BB_LOG(name.c_str());
-
             return found_child;
-        }
-
     }
-    BB_LOG("hit nothing");
+
     return INVALID_ECS_OBJ;
 }
 
