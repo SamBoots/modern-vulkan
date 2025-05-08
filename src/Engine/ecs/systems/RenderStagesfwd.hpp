@@ -7,7 +7,9 @@ namespace BB
     struct Line
     {
         float3 p0;
+        Color p0_color;
         float3 p1;
+        Color p1_color;
     };
 
     struct DrawList

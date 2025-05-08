@@ -83,7 +83,7 @@ SceneFrame SceneHierarchy::UpdateScene(const RCommandList a_list, Viewport& a_vi
 	if (render_sys.GetRenderTargetExtent() != a_viewport.GetExtent())
 	{
 		render_sys.Resize(a_viewport.GetExtent());
-		render_sys.SetProjection(a_viewport.CreateProjection(60.f, 0.001f, 10000.0f));
+		render_sys.SetProjection(a_viewport.CreateProjection(60.f, 0.001f, 10000.0f), 0.001f);
 	}
 
 	m_ecs.StartFrame();

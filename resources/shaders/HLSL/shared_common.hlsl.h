@@ -71,6 +71,8 @@ namespace BB
         RDescriptorIndex shadow_map_array_descriptor; // 184
         uint light_count;                // 188
         RDescriptorIndex skybox_texture; // 192
+        float near_plane;                // 196
+        float3 pad;                      // 208
     };
 
     struct ALIGN_STRUCT(16) MeshMetallic
@@ -160,7 +162,7 @@ namespace BB
 
     struct ShaderLine
     {
-        uint line_width;
+        float line_width;
         uint vertex_start;
         uint2 pad0;
         uint4 pad1;

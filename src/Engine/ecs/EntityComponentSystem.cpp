@@ -88,6 +88,8 @@ ECSEntity EntityComponentSystem::CreateEntity(const NameComponent& a_name, const
 void EntityComponentSystem::AddAABBBoxToLines(const float3 a_world_min, const float3 a_world_max)
 {
     Line line;
+    line.p0_color = Color(255, 0, 0, 255);
+    line.p1_color = Color(255, 0, 0, 255);
     // min
     line.p0 = a_world_min;
     line.p1 = float3(a_world_max.x, a_world_min.y, a_world_min.z);
@@ -138,7 +140,7 @@ ECSEntity EntityComponentSystem::FindECSEntityClickTraverse(const ECSEntity a_en
 
         const float4 p0 = (world_mat * float4(box.min.x, box.min.y, box.min.z, 1.0));
         const float4 p1 = (world_mat * float4(box.max.x, box.max.y, box.max.z, 1.0));
-        if (BoxRayIntersect(float3(p0.x, p0.y, p0.x), float3(p1.x, p1.y, p1.x), a_ray_origin, a_ray_dir))
+        if (BoxRayIntersect(float3(p0.x, p0.y, p0.z), float3(p1.x, p1.y, p1.z), a_ray_origin, a_ray_dir))
         {
             AddAABBBoxToLines(float3(p0.x, p0.y, p0.z), float3(p1.x, p1.y, p1.z));
             return a_entity;
@@ -177,6 +179,13 @@ ECSEntity EntityComponentSystem::SelectEntityByClick(const float2 a_mouse_pos_vi
     const float4 ray_eye = float4(ray_inverse.x, ray_inverse.y, ray_inverse.z, 0.0f);
     const float4 ray_world = Float4x4Inverse(a_view) * ray_eye;
     const float3 ray_world_norm = Float3Normalize(float3(ray_world.x, ray_world.y, ray_world.z));
+
+    Line line;
+    line.p0_color = Color(0, 255, 0, 255);
+    line.p1_color = Color(0, 255, 0, 255);
+    line.p0 = a_ray_origin;
+    line.p1 = ray_world_norm * 10 + a_ray_origin;
+    m_lines.emplace_back(line);
 
     for (size_t i = 0; i < m_root_entity_system.root_entities.GetDense().size(); i++)
     {

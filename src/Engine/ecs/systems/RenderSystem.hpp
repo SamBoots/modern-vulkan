@@ -62,7 +62,7 @@ namespace BB
 		}
 
 		void SetView(const float4x4& a_view, const float3& a_view_position);
-		void SetProjection(const float4x4& a_projection);
+		void SetProjection(const float4x4& a_projection, const float a_near_plane);
 
         float4x4 GetProjection() const {return m_scene_info.proj; }
         float4x4 GetView() const {return m_scene_info.view; }

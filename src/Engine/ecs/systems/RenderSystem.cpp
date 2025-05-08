@@ -353,9 +353,10 @@ void RenderSystem::SetView(const float4x4& a_view, const float3& a_view_position
 	m_scene_info.view_pos = float3(a_view_position.x, a_view_position.y, a_view_position.z);
 }
 
-void RenderSystem::SetProjection(const float4x4& a_projection)
+void RenderSystem::SetProjection(const float4x4& a_projection, const float a_near_plane)
 {
 	m_scene_info.proj = a_projection;
+    m_scene_info.near_plane = a_near_plane;
 }
 
 void RenderSystem::BuildTopLevelAccelerationStructure(MemoryArena& a_per_frame_arena, const RCommandList a_list, const ConstSlice<AccelerationStructureInstanceInfo> a_instances)
