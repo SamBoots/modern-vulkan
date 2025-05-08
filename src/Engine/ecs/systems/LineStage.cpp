@@ -76,6 +76,7 @@ void LineStage::ExecutePass(const RCommandList a_list, const uint32_t a_frame_in
     }
     memcpy(pfd.vertex_view.mapped, a_lines.data(), upload_size);
 
+    SetPrimitiveTopology(a_list, PRIMITIVE_TOPOLOGY::LINE_LIST);
     const RPipelineLayout pipe_layout = Material::BindMaterial(a_list, m_line_material);
 
     ShaderLine push_constant;

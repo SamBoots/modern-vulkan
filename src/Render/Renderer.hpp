@@ -60,7 +60,7 @@ namespace BB
 	void BindIndexBuffer(const RCommandList a_list, const uint64_t a_offset, const bool a_cpu_readable = false);
 	RPipelineLayout BindShaders(const RCommandList a_list, const ShaderEffectHandle a_vertex, const ShaderEffectHandle a_fragment_pixel, const ShaderEffectHandle a_geometry);
 	void SetBlendMode(const RCommandList a_list, const uint32_t a_first_attachment, const Slice<ColorBlendState> a_blend_states);
-
+    void SetPrimitiveTopology(const RCommandList a_list, const PRIMITIVE_TOPOLOGY a_topology);
 	void SetFrontFace(const RCommandList a_list, const bool a_is_clockwise);
 	void SetCullMode(const RCommandList a_list, const CULL_MODE a_cull_mode);
 	void SetDepthBias(const RCommandList a_list, const float a_bias_constant_factor, const float a_bias_clamp, const float a_bias_slope_factor);

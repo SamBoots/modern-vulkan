@@ -194,6 +194,7 @@ inline static RPipelineLayout ImSetRenderState(const ImDrawData& a_draw_data, co
 {
 	ImRenderData* bd = ImGetRenderData();
 
+    SetPrimitiveTopology(a_cmd_list, PRIMITIVE_TOPOLOGY::TRIANGLE_LIST);
 	const RPipelineLayout layout = Material::BindMaterial(a_cmd_list, a_material);
 	SetFrontFace(a_cmd_list, true);
 	SetCullMode(a_cmd_list, CULL_MODE::NONE);

@@ -1052,6 +1052,11 @@ void BB::SetBlendMode(const RCommandList a_list, const uint32_t a_first_attachme
 	Vulkan::SetBlendMode(a_list, a_first_attachment, a_blend_states);
 }
 
+void BB::SetPrimitiveTopology(const RCommandList a_list, const PRIMITIVE_TOPOLOGY a_topology)
+{
+    Vulkan::SetPrimitiveTopology(a_list, a_topology);
+}
+
 void BB::SetFrontFace(const RCommandList a_list, const bool a_is_clockwise)
 {
 	Vulkan::SetFrontFace(a_list, a_is_clockwise);

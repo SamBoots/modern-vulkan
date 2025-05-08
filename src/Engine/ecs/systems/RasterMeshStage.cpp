@@ -90,6 +90,7 @@ void RasterMeshStage::ExecutePass(const RCommandList a_list, const uint32_t a_fr
     {
         const DrawList::DrawEntry& mesh_draw_call = a_draw_list.draw_entries[i];
 
+        SetPrimitiveTopology(a_list, PRIMITIVE_TOPOLOGY::TRIANGLE_LIST);
         const RPipelineLayout pipe_layout = Material::BindMaterial(a_list, mesh_draw_call.master_material);
         {
             const uint32_t buffer_indices[] = { 0 };

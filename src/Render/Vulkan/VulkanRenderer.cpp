@@ -2564,7 +2564,6 @@ void Vulkan::BindIndexBuffer(const RCommandList a_list, const GPUBuffer a_buffer
 		a_offset,
 		VK_INDEX_TYPE_UINT32);
 }
-
 void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stage_count, const SHADER_STAGE* a_shader_stages, const ShaderObject* a_shader_objects)
 {
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
@@ -2576,11 +2575,6 @@ void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stag
 	s_vulkan_inst->pfn.CmdBindShadersEXT(cmd_buffer, a_shader_stage_count, shader_stages, reinterpret_cast<const VkShaderEXT*>(a_shader_objects));
 
 	vkCmdSetRasterizerDiscardEnable(cmd_buffer, VK_FALSE);
-    if (a_shader_objects[2].handle == 0)
-        vkCmdSetPrimitiveTopology(cmd_buffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-    else
-	    vkCmdSetPrimitiveTopology(cmd_buffer, VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
-    vkCmdSetLineWidth(cmd_buffer, 1.f);
 	s_vulkan_inst->pfn.CmdSetPolygonModeEXT(cmd_buffer, VK_POLYGON_MODE_FILL);
 	s_vulkan_inst->pfn.CmdSetRasterizationSamplesEXT(cmd_buffer, VK_SAMPLE_COUNT_1_BIT);
 	const uint32_t mask = UINT32_MAX;
@@ -2619,6 +2613,24 @@ void Vulkan::SetBlendMode(const RCommandList a_list, const uint32_t a_first_atta
 	s_vulkan_inst->pfn.CmdSetColorBlendEnableEXT(cmd_buffer, a_first_attachment, blend_state_count, color_enables.data());
 	s_vulkan_inst->pfn.CmdSetColorWriteMaskEXT(cmd_buffer, a_first_attachment, blend_state_count, color_flags.data());
 	s_vulkan_inst->pfn.CmdSetColorBlendEquationEXT(cmd_buffer, a_first_attachment, blend_state_count, blend_eq.data());
+}
+
+void Vulkan::SetPrimitiveTopology(const RCommandList a_list, const PRIMITIVE_TOPOLOGY a_topology)
+{
+    const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+    switch (a_topology)
+    {
+    case PRIMITIVE_TOPOLOGY::LINE_LIST:
+        vkCmdSetPrimitiveTopology(cmd_buffer, VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
+        vkCmdSetLineWidth(cmd_buffer, 1.f);
+        break;
+    case PRIMITIVE_TOPOLOGY::TRIANGLE_LIST:
+        vkCmdSetPrimitiveTopology(cmd_buffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+        break;
+    default:
+        BB_ASSERT(false, "PRIMITIVE_TOPOLOGY unknown entry");
+        break;
+    }
 }
 
 void Vulkan::SetFrontFace(const RCommandList a_list, const bool a_is_clockwise)

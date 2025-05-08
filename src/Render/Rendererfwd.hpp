@@ -101,6 +101,15 @@ namespace BB
 		ENUM_SIZE
 	};
 
+    enum class PRIMITIVE_TOPOLOGY : uint32_t
+    {
+        LINE_LIST,
+        TRIANGLE_LIST,
+
+        ENUM_SIZE
+    };
+
+
 	enum class CULL_MODE : uint32_t
 	{
 		NONE,

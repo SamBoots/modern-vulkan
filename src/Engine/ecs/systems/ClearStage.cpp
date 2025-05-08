@@ -70,6 +70,7 @@ void ClearStage::Init(MemoryArena& a_arena)
 
 void ClearStage::ExecutePass(const RCommandList a_list, const uint2 a_draw_area_size, const RImageView a_render_target)
 {
+    SetPrimitiveTopology(a_list, PRIMITIVE_TOPOLOGY::TRIANGLE_LIST);
     Material::BindMaterial(a_list, m_skybox_material);
 
     RenderingAttachmentColor color_attach;

@@ -275,6 +275,7 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 	UpdateConstantBuffer(m_current_frame, a_list, a_draw_area, a_lights);
 
     // sam please find a better way
+    SetPrimitiveTopology(a_list, PRIMITIVE_TOPOLOGY::TRIANGLE_LIST);
     const RPipelineLayout pipe_layout = Material::BindMaterial(a_list, draw_list.draw_entries[0].master_material);
     {
         const uint32_t buffer_indices[] = { 0, 0 };

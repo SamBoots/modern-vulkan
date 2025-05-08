@@ -31,6 +31,7 @@ void BloomStage::Init(MemoryArena& a_arena)
 
 void BloomStage::ExecutePass(const RCommandList a_list, const uint2 a_resolution, const RImage a_render_target_image, const RDescriptorIndex a_render_target_0, const RDescriptorIndex a_render_target_1, const uint2 a_draw_area, const RImageView a_render_target)
 {
+    SetPrimitiveTopology(a_list, PRIMITIVE_TOPOLOGY::TRIANGLE_LIST);
     const RPipelineLayout pipe_layout = Material::BindMaterial(a_list, m_gaussian_material);
 
     FixedArray<PipelineBarrierImageInfo, 2> transitions{};

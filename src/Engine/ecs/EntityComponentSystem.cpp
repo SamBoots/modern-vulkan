@@ -88,8 +88,8 @@ ECSEntity EntityComponentSystem::CreateEntity(const NameComponent& a_name, const
 void EntityComponentSystem::AddAABBBoxToLines(const float3 a_world_min, const float3 a_world_max)
 {
     Line line;
-    line.p0_color = Color(255, 0, 0, 255);
-    line.p1_color = Color(255, 0, 0, 255);
+    line.p0_color = Color{255, 0, 0, 255};
+    line.p1_color = Color{255, 0, 0, 255};
     // min
     line.p0 = a_world_min;
     line.p1 = float3(a_world_max.x, a_world_min.y, a_world_min.z);
@@ -181,8 +181,8 @@ ECSEntity EntityComponentSystem::SelectEntityByClick(const float2 a_mouse_pos_vi
     const float3 ray_world_norm = Float3Normalize(float3(ray_world.x, ray_world.y, ray_world.z));
 
     Line line;
-    line.p0_color = Color(0, 255, 0, 255);
-    line.p1_color = Color(0, 255, 0, 255);
+    line.p0_color = Color{0, 255, 0, 255};
+    line.p1_color = Color{0, 255, 0, 255};
     line.p0 = a_ray_origin;
     line.p1 = ray_world_norm * 10 + a_ray_origin;
     m_lines.emplace_back(line);
