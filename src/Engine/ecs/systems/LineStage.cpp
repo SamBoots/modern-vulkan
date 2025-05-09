@@ -37,7 +37,7 @@ void LineStage::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count, c
     }
 }
 
-void LineStage::ExecutePass(const RCommandList a_list, const uint32_t a_frame_index, const uint2 a_draw_area, const RImageView a_render_target)
+void LineStage::ExecutePass(const RCommandList a_list, const uint32_t a_frame_index, const uint2 a_draw_area, const RImageView a_render_target, const RImageView a_depth_buffer)
 {
     PerFrame& pfd = m_per_frame[a_frame_index];
     if (pfd.lines == 0)
@@ -49,11 +49,23 @@ void LineStage::ExecutePass(const RCommandList a_list, const uint32_t a_frame_in
     color_attach.image_layout = IMAGE_LAYOUT::RT_COLOR;
     color_attach.image_view = a_render_target;
 
+    RenderingAttachmentDepth* pdepth = nullptr;
+    RenderingAttachmentDepth depth;
+    if (a_depth_buffer.IsValid())
+    {
+        depth = {};
+        depth.load_depth = true;
+        depth.store_depth = false;
+        depth.image_layout = IMAGE_LAYOUT::RT_DEPTH;
+        depth.image_view = a_depth_buffer;
+        pdepth = &depth;
+    }
+
     StartRenderingInfo start_rendering_info;
     start_rendering_info.render_area_extent = a_draw_area;
     start_rendering_info.render_area_offset = int2{ 0, 0 };
     start_rendering_info.color_attachments = Slice(&color_attach, 1);
-    start_rendering_info.depth_attachment = nullptr;
+    start_rendering_info.depth_attachment = pdepth;
 
     FixedArray<ColorBlendState, 1> blend_state;
     blend_state[0].blend_enable = true;

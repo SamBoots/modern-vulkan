@@ -12,7 +12,10 @@ namespace BB
     public:
         void Init(MemoryArena& a_arena, const uint2 a_render_target_extent, const uint32_t a_back_buffer_count);
         void ExecutePass(const RCommandList a_list, const uint32_t a_frame_index, const uint2 a_draw_area_size, const DrawList& a_draw_list, const RImageView a_render_target, const RImageView a_render_target_bright);
-        //void UpdateConstantBuffer(const uint32_t a_frame_index, Scene3DInfo& a_scene_3d_info) const;
+        RImageView GetDepth(const uint32_t a_frame_index) const
+        {
+            return m_per_frame[a_frame_index].depth_image_view;
+        }
     private:
         struct PerFrame
         {

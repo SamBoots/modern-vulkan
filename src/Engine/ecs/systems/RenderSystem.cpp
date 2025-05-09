@@ -303,7 +303,7 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 void RenderSystem::DebugDraw(const RCommandList a_list, const uint2 a_draw_area)
 {
     PerFrame& pfd = m_per_frame[m_current_frame];
-    m_line_stage.ExecutePass(a_list, m_current_frame, a_draw_area, GetImageView(pfd.render_target_view));
+    m_line_stage.ExecutePass(a_list, m_current_frame, a_draw_area, GetImageView(pfd.render_target_view), m_raster_mesh_stage.GetDepth(m_current_frame));
 }
 
 void RenderSystem::Resize(const uint2 a_new_extent, const bool a_force)
