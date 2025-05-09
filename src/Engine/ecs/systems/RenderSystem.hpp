@@ -22,13 +22,15 @@ namespace BB
 	class RenderSystem
 	{
 	public:
-		friend class Editor;
+        friend class Editor;
+        // temporary
+        friend class EntityComponentSystem;
 		void Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count, const uint32_t a_max_lights, const uint2 a_render_target_size);
 
 		void StartFrame(const RCommandList a_list);
 		RenderSystemFrame EndFrame(const RCommandList a_list, const IMAGE_LAYOUT a_current_layout);
 		void UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCommandList a_list, const uint2 a_draw_area, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const RaytraceComponentPool& a_raytrace_pool, const ConstSlice<LightComponent> a_lights);
-        void DebugDraw(const RCommandList a_list, const uint2 a_draw_area, const ConstSlice<Line> a_lines);
+        void DebugDraw(const RCommandList a_list, const uint2 a_draw_area);
 
 		void Resize(const uint2 a_new_extent, const bool a_force = false);
 		void ResizeNewFormat(const uint2 a_render_target_size, const IMAGE_FORMAT a_render_target_format);

@@ -26,7 +26,8 @@ bool Viewport::ScreenToViewportMousePosition(const float2 a_pos, float2& a_new_p
         return false;
 
     a_new_pos.x = a_pos.x - static_cast<float>(m_offset.x);
-    a_new_pos.y = a_pos.y - static_cast<float>(m_offset.y);
+    // y's top is reversed on windows
+    a_new_pos.y = static_cast<float>(m_extent.y) - (a_pos.y - static_cast<float>(m_offset.y));
     return true;
 }
 

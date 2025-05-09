@@ -13,7 +13,6 @@ bool EntityComponentSystem::Init(MemoryArena& a_arena, const EntityComponentSyst
 {
 	m_name = a_name;
 
-    m_lines.Init(a_arena, 200);
 	m_per_frame.Init(a_arena, a_create_info.render_frame_count);
 	m_per_frame.resize(a_create_info.render_frame_count);
 	for (uint32_t i = 0; i < a_create_info.render_frame_count; i++)
@@ -85,52 +84,6 @@ ECSEntity EntityComponentSystem::CreateEntity(const NameComponent& a_name, const
 	return entity;
 }
 
-void EntityComponentSystem::AddAABBBoxToLines(const float3 a_world_min, const float3 a_world_max)
-{
-    Line line;
-    line.p0_color = Color{255, 0, 0, 255};
-    line.p1_color = Color{255, 0, 0, 255};
-    // min
-    line.p0 = a_world_min;
-    line.p1 = float3(a_world_max.x, a_world_min.y, a_world_min.z);
-    m_lines.emplace_back(line);
-    line.p1 = float3(a_world_min.x, a_world_max.y, a_world_min.z);
-    m_lines.emplace_back(line);
-    line.p1 = float3(a_world_min.x, a_world_min.y, a_world_max.z);
-    m_lines.emplace_back(line);
-
-    // max
-    line.p0 = a_world_max;
-    line.p1 = float3(a_world_min.x, a_world_max.y, a_world_max.z);
-    m_lines.emplace_back(line);
-    line.p1 = float3(a_world_max.x, a_world_min.y, a_world_max.z);
-    m_lines.emplace_back(line);
-    line.p1 = float3(a_world_max.x, a_world_max.y, a_world_min.z);
-    m_lines.emplace_back(line);
-
-    // top min
-    line.p0 = float3(a_world_min.x, a_world_max.y, a_world_min.z);
-    line.p1 = float3(a_world_min.x, a_world_max.y, a_world_max.z);
-    m_lines.emplace_back(line);
-    line.p1 = float3(a_world_max.x, a_world_max.y, a_world_min.z);
-    m_lines.emplace_back(line);
-
-    // bot max
-    line.p0 = float3(a_world_max.x, a_world_min.y, a_world_max.z);
-    line.p1 = float3(a_world_max.x, a_world_min.y, a_world_min.z);
-    m_lines.emplace_back(line);
-    line.p1 = float3(a_world_min.x, a_world_min.y, a_world_max.z);
-    m_lines.emplace_back(line);
-
-    // sides
-    line.p0 = float3(a_world_min.x, a_world_max.y, a_world_max.z);
-    line.p1 = float3(a_world_min.x, a_world_min.y, a_world_max.z);
-    m_lines.emplace_back(line);
-    line.p0 = float3(a_world_max.x, a_world_max.y, a_world_min.z);
-    line.p1 = float3(a_world_max.x, a_world_min.y, a_world_min.z);
-    m_lines.emplace_back(line);
-}
-
 void EntityComponentSystem::FindECSEntityClickTraverse(const ECSEntity a_entity, const float3& a_ray_origin, const float3& a_ray_dir, ECSEntity& a_found, float& a_found_dist)
 {
     if (m_ecs_entities.HasSignature(a_entity, BOUNDING_BOX_ECS_SIGNATURE)) // intersects
@@ -167,46 +120,77 @@ void EntityComponentSystem::FindECSEntityClickTraverse(const ECSEntity a_entity,
     return;
 }
 
-ECSEntity EntityComponentSystem::SelectEntityByClick(const float2 a_mouse_pos_viewport, const float4x4& a_view, const float3& a_ray_origin)
+ECSEntity EntityComponentSystem::SelectEntityByRay(const float3 a_ray_origin, const float3 a_ray_dir)
 {
-    const float3 ndc
-    {
-        (2.f * a_mouse_pos_viewport.x) / static_cast<float>(m_render_system.GetRenderTargetExtent().x) - 1.f,
-        1.0f - (2.0f * (m_render_system.GetRenderTargetExtent().y -a_mouse_pos_viewport.y)) / static_cast<float>(m_render_system.GetRenderTargetExtent().y),
-        1.f
-    };
-
-    const float4 ray_clip = float4(ndc.x, ndc.y, -1.f, 1.f);
-    const float4 ray_inverse = Float4x4Inverse(m_render_system.GetProjection()) * ray_clip;
-    const float4 ray_eye = float4(ray_inverse.x, ray_inverse.y, -1.0, 0.0f);
-    const float4 ray_world = Float4x4Inverse(a_view) * ray_eye;
-    const float3 ray_world_norm = Float3Normalize(float3(ray_world.x, ray_world.y, ray_world.z));
-
-    Line line;
-    line.p0_color = Color{0, 255, 0, 255};
-    line.p1_color = Color{0, 255, 0, 255};
-    line.p0 = a_ray_origin;
-    line.p1 = ray_world_norm * 10 + a_ray_origin;
-    m_lines.emplace_back(line);
-
     ECSEntity found = ECSEntity(INVALID_ECS_OBJ);
     float distance = FLT_MAX;
     for (size_t i = 0; i < m_root_entity_system.root_entities.GetDense().size(); i++)
     {
-        FindECSEntityClickTraverse(m_root_entity_system.root_entities.GetDense()[i], a_ray_origin, ray_world_norm, found, distance);
-    }
-
-    if (found.IsValid())
-    {
-        const float4x4& world_mat = m_world_matrices.GetComponent(found);
-        const BoundingBox box = m_bounding_box_pool.GetComponent(found);
-
-        const float4 p0 = (world_mat * float4(box.min.x, box.min.y, box.min.z, 1.0));
-        const float4 p1 = (world_mat * float4(box.max.x, box.max.y, box.max.z, 1.0));
-        AddAABBBoxToLines(float3(p0.x, p0.y, p0.z), float3(p1.x, p1.y, p1.z));
+        FindECSEntityClickTraverse(m_root_entity_system.root_entities.GetDense()[i], a_ray_origin, a_ray_dir, found, distance);
     }
 
     return found;
+}
+
+void EntityComponentSystem::AddLinesToFrame(const ConstSlice<Line> a_lines)
+{
+    m_render_system.m_line_stage.AddLines(m_current_frame, a_lines);
+}
+
+void EntityComponentSystem::DrawAABB(const ECSEntity a_entity, const Color a_color)
+{
+    const float4x4& world_mat = m_world_matrices.GetComponent(a_entity);
+    const BoundingBox box = m_bounding_box_pool.GetComponent(a_entity);
+
+    const float4 p0 = (world_mat * float4(box.min.x, box.min.y, box.min.z, 1.0));
+    const float4 p1 = (world_mat * float4(box.max.x, box.max.y, box.max.z, 1.0));
+    const float3 world_p0 = float3(p0.x, p0.y, p0.z);
+    const float3 world_p1 = float3(p1.x, p1.y, p1.z);
+
+    FixedArray<Line, 12> lines{};
+    Line line;
+    line.p0_color = a_color;
+    line.p1_color = a_color;
+    // min
+    line.p0 = world_p0;
+    line.p1 = float3(world_p1.x, world_p0.y, world_p0.z);
+    lines[0] = line;
+    line.p1 = float3(world_p0.x, world_p1.y, world_p0.z);
+    lines[1] = line;
+    line.p1 = float3(world_p0.x, world_p0.y, world_p1.z);
+    lines[2] = line;
+
+    // max
+    line.p0 = world_p1;
+    line.p1 = float3(world_p0.x, world_p1.y, world_p1.z);
+    lines[3] = line;
+    line.p1 = float3(world_p1.x, world_p0.y, world_p1.z);
+    lines[4] = line;
+    line.p1 = float3(world_p1.x, world_p1.y, world_p0.z);
+    lines[5] = line;
+
+    // top min
+    line.p0 = float3(world_p0.x, world_p1.y, world_p0.z);
+    line.p1 = float3(world_p0.x, world_p1.y, world_p1.z);
+    lines[6] = line;
+    line.p1 = float3(world_p1.x, world_p1.y, world_p0.z);
+    lines[7] = line;
+
+    // bot max
+    line.p0 = float3(world_p1.x, world_p0.y, world_p1.z);
+    line.p1 = float3(world_p1.x, world_p0.y, world_p0.z);
+    lines[8] = line;
+    line.p1 = float3(world_p0.x, world_p0.y, world_p1.z);
+    lines[9] = line;
+
+    // sides
+    line.p0 = float3(world_p0.x, world_p1.y, world_p1.z);
+    line.p1 = float3(world_p0.x, world_p0.y, world_p1.z);
+    lines[10] = line;
+    line.p0 = float3(world_p1.x, world_p1.y, world_p0.z);
+    line.p1 = float3(world_p1.x, world_p0.y, world_p0.z);
+    lines[11] = line;
+    AddLinesToFrame(lines.const_slice());
 }
 
 void EntityComponentSystem::StartFrame()
@@ -238,7 +222,7 @@ RenderSystemFrame EntityComponentSystem::RenderSystemUpdate(const RCommandList a
 	m_render_system.UpdateRenderSystem(m_per_frame[m_current_frame].arena, a_list, a_draw_area_size, m_world_matrices, m_render_mesh_pool, m_raytrace_pool, m_light_pool.GetAllComponents());
 	BB_END_PROFILE(rendering_name);
 
-    m_render_system.DebugDraw(a_list, a_draw_area_size, m_lines.const_slice());
+    m_render_system.DebugDraw(a_list, a_draw_area_size);
 
 	return m_render_system.EndFrame(a_list, IMAGE_LAYOUT::RT_COLOR);
 }

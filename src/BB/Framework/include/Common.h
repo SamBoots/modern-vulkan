@@ -179,6 +179,9 @@ namespace BB
 
 	struct Color
 	{
+        constexpr Color() : r(0), g(0), b(0), a(0) {}
+        constexpr Color(const uint8_t a_r, const uint8_t a_g, const uint8_t a_b, const uint8_t a_a) : r(a_r), g(a_g), b(a_b), a(a_a) {}
+
 		uint8_t r;
 		uint8_t g;
 		uint8_t b;

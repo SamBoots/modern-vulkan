@@ -6,6 +6,7 @@
 #include "AssetLoader.hpp"
 
 #include "Math/Math.inl"
+#include "Math/Collision.inl"
 
 using namespace BB;
 
@@ -119,6 +120,10 @@ bool RenderViewport::Update(const float a_delta_time)
 	{
 		m_scene_hierarchy.GetECS().GetRenderSystem().SetView(m_camera.CalculateView(), m_camera.GetPosition());
 	}
+    if (m_selected_entity.IsValid())
+    {
+        m_scene_hierarchy.GetECS().DrawAABB(m_selected_entity, Color(255, 0, 255, 255));
+    }
 	DisplayImGuiInfo();
 	return true;
 }
@@ -192,7 +197,9 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
                 float2 mouse_pos_window;
                 if (m_viewport.ScreenToViewportMousePosition(mi.mouse_pos, mouse_pos_window))
                 {
-                    const ECSEntity clicked_entity = m_scene_hierarchy.GetECS().SelectEntityByClick(mouse_pos_window, m_camera.CalculateView(), m_camera.GetPosition());
+                    const float4x4 view = m_scene_hierarchy.GetECS().GetRenderSystem().GetView();
+                    const float3 dir = ScreenToWorldRaycast(mouse_pos_window, m_viewport.GetExtent(), m_scene_hierarchy.GetECS().GetRenderSystem().GetProjection(), view);
+                    m_selected_entity = m_scene_hierarchy.GetECS().SelectEntityByRay(m_camera.GetPosition(), dir);
                 }
             }
 		}

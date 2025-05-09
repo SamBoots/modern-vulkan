@@ -37,9 +37,10 @@ void LineStage::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count, c
     }
 }
 
-void LineStage::ExecutePass(const RCommandList a_list, const uint32_t a_frame_index, const ConstSlice<Line> a_lines, const uint2 a_draw_area, const RImageView a_render_target)
+void LineStage::ExecutePass(const RCommandList a_list, const uint32_t a_frame_index, const uint2 a_draw_area, const RImageView a_render_target)
 {
-    if (a_lines.size() == 0)
+    PerFrame& pfd = m_per_frame[a_frame_index];
+    if (pfd.lines == 0)
         return;
 
     RenderingAttachmentColor color_attach;
@@ -66,16 +67,6 @@ void LineStage::ExecutePass(const RCommandList a_list, const uint32_t a_frame_in
     SetBlendMode(a_list, 0, blend_state.slice());
     StartRenderPass(a_list, start_rendering_info);
 
-    PerFrame& pfd = m_per_frame[a_frame_index];
-
-    size_t upload_size = a_lines.sizeInBytes();
-    if (upload_size > pfd.vertex_view.size)
-    {
-        upload_size = pfd.vertex_view.size;
-        BB_WARNING(false, "uploading too many lines, not all may be shown", WarningType::LOW);
-    }
-    memcpy(pfd.vertex_view.mapped, a_lines.data(), upload_size);
-
     SetPrimitiveTopology(a_list, PRIMITIVE_TOPOLOGY::LINE_LIST);
     const RPipelineLayout pipe_layout = Material::BindMaterial(a_list, m_line_material);
 
@@ -85,7 +76,23 @@ void LineStage::ExecutePass(const RCommandList a_list, const uint32_t a_frame_in
 
     SetPushConstants(a_list, pipe_layout, 0, sizeof(push_constant), &push_constant);
 
-    DrawVertices(a_list, static_cast<uint32_t>(a_lines.size()) * 2, 1, 0, 0);
+    DrawVertices(a_list, pfd.lines * 2, 1, 0, 0);
 
     EndRenderPass(a_list);
+    pfd.lines = 0;
+}
+
+void LineStage::AddLines(const uint32_t a_frame_index, const ConstSlice<Line> a_lines)
+{
+    PerFrame& pfd = m_per_frame[a_frame_index];
+
+    size_t upload_size = a_lines.sizeInBytes();
+    if (upload_size > pfd.vertex_view.size)
+    {
+        upload_size = pfd.vertex_view.size;
+        BB_WARNING(false, "uploading too many lines, not all may be shown", WarningType::LOW);
+    }
+    void* mapped_offset = Pointer::Add(pfd.vertex_view.mapped, sizeof(Line) * pfd.lines);
+    memcpy(mapped_offset, a_lines.data(), upload_size);
+    pfd.lines += static_cast<uint32_t>(a_lines.size());
 }

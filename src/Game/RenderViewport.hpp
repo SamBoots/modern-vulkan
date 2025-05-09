@@ -22,6 +22,7 @@ namespace BB
 		MemoryArena m_memory;
 		Viewport m_viewport;
 		SceneHierarchy m_scene_hierarchy;
+        ECSEntity m_selected_entity;
 
 		FreeCamera m_camera{};
 		float m_speed = 200.f;

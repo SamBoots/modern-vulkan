@@ -67,4 +67,21 @@ namespace BB
         a_new_min = center - new_half_size;
         a_new_max = center + new_half_size;
     }
+
+    static inline float3 ScreenToWorldRaycast(const float2 a_viewport_point, const uint2 a_viewport_extent, const float4x4& a_projection, const float4x4& a_view)
+    {
+        const float3 ndc = float3(
+            (2.f * a_viewport_point.x) / static_cast<float>(a_viewport_extent.x) - 1.f,
+            // Y is reversed on mouse position, this may not be the case on other platforms.
+            1.0f - (2.0f * a_viewport_point.y) / static_cast<float>(a_viewport_extent.y),
+            1.f);
+
+        const float4 ray_clip = float4(ndc.x, ndc.y, -1.f, 1.f);
+        const float4 ray_inverse = Float4x4Inverse(a_projection) * ray_clip;
+        const float4 ray_eye = float4(ray_inverse.x, ray_inverse.y, -1.0, 0.0f);
+        const float4 ray_world = Float4x4Inverse(a_view) * ray_eye;
+        const float3 ray_world_norm = Float3Normalize(float3(ray_world.x, ray_world.y, ray_world.z));
+
+        return ray_world_norm;
+    }
 }
