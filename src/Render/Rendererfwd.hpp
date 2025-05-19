@@ -154,7 +154,7 @@ namespace BB
 		float gamma;
 		bool use_raytracing;
 		bool debug;
-	};
+    };
 
 	struct RenderingAttachmentDepth
 	{

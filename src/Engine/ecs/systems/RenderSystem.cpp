@@ -254,6 +254,9 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 		draw_list.transforms.push_back(shader_transform);
 	}
 
+	BindIndexBuffer(a_list, 0);
+	UpdateConstantBuffer(m_current_frame, a_list, a_draw_area, a_lights);
+
 	//if (m_raytrace_data.top_level.must_rebuild || !m_raytrace_data.top_level.accel_struct.IsValid())
     if (false)
 	{

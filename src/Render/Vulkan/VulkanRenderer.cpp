@@ -2564,9 +2564,10 @@ void Vulkan::BindIndexBuffer(const RCommandList a_list, const GPUBuffer a_buffer
 		a_offset,
 		VK_INDEX_TYPE_UINT32);
 }
+
 void Vulkan::BindShaders(const RCommandList a_list, const uint32_t a_shader_stage_count, const SHADER_STAGE* a_shader_stages, const ShaderObject* a_shader_objects)
 {
-	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+	const VkCommandBuffer& cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 
 	VkShaderStageFlagBits* shader_stages = BBstackAlloc(a_shader_stage_count, VkShaderStageFlagBits);
 	for (size_t i = 0; i < a_shader_stage_count; i++)
