@@ -5,7 +5,7 @@
 struct VSOutput
 {
     float4 pos  : SV_POSITION;
-    _BBEXT(0) float3 color: COLOR0;
+    _BBEXT(0) float4 color: COLOR0;
 };
 
 _BBCONSTANT(BB::ShaderLine) shader_indices;
@@ -18,14 +18,14 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 
     VSOutput output = (VSOutput) 0;
     output.pos = mul(scene_data.proj, mul(scene_data.view, float4(pos, 1.0)));
-    output.color = UnpackR8B8G8A8_UNORMToFloat4(color).xyz;
+    output.color = UnpackR8B8G8A8_UNORMToFloat4(color);
     return output;
 }
 
 struct GSOutput
 {
 	float4 pos : SV_Position;
-     _BBEXT(0) float3 color : COLOR0;
+     _BBEXT(0) float4 color : COLOR0;
      _BBEXT(1) noperspective float2 uv : UV0;
 };
 
@@ -34,8 +34,8 @@ void GeometryMain(line VSOutput a_in[2], inout TriangleStream<GSOutput> a_out) :
 {
     float4 p0 = a_in[0].pos;
 	float4 p1 = a_in[1].pos;
-    float3 p0_color = a_in[0].color;
-    float3 p1_color = a_in[1].color;
+    float4 p0_color = a_in[0].color;
+    float4 p1_color = a_in[1].color;
 	if (p0.w > p1.w)
 	{
 		const float4 temp = p0;
@@ -76,8 +76,24 @@ void GeometryMain(line VSOutput a_in[2], inout TriangleStream<GSOutput> a_out) :
     a_out.RestartStrip();
 }
 
-float4 FragmentMain(GSOutput a_input) : SV_Target
+struct FSOutput
 {
+	float4 pos : SV_Target;
+    float depth : SV_Depth;
+};
+
+FSOutput FragmentMain(GSOutput a_input)
+{
+    FSOutput output;
+    if (a_input.color.w != 0.f)
+    {
+        output.depth = 0.f;
+    }
+    else
+    {
+        output.depth = a_input.pos.z;
+    }
     const float a = exp2(-2.7 * a_input.uv.x * a_input.uv.x);
-    return float4(a_input.color, a);
+    output.pos = float4(a_input.color.xyz, a);
+    return output;
 }

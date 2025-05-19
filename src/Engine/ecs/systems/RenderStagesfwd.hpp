@@ -4,12 +4,23 @@
 
 namespace BB
 {
+    struct LineColor
+    {
+        constexpr LineColor() : r(0), g(0), b(0), ignore_depth(false) {}
+        constexpr explicit LineColor(const uint8_t a_r, const uint8_t a_g, const uint8_t a_b, const bool a_ignore_depth) : r(a_r), g(a_g), b(a_b), ignore_depth(a_ignore_depth) {}
+
+        uint8_t r;
+        uint8_t g;
+        uint8_t b;
+        uint8_t ignore_depth;
+    };
+
     struct Line
     {
         float3 p0;
-        Color p0_color;
+        LineColor p0_color;
         float3 p1;
-        Color p1_color;
+        LineColor p1_color;
     };
 
     struct DrawList

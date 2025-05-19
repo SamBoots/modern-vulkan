@@ -137,7 +137,7 @@ void EntityComponentSystem::AddLinesToFrame(const ConstSlice<Line> a_lines)
     m_render_system.m_line_stage.AddLines(m_current_frame, a_lines);
 }
 
-void EntityComponentSystem::DrawAABB(const ECSEntity a_entity, const Color a_color)
+void EntityComponentSystem::DrawAABB(const ECSEntity a_entity, const LineColor a_color)
 {
     const float4x4& world_mat = m_world_matrices.GetComponent(a_entity);
     const BoundingBox box = m_bounding_box_pool.GetComponent(a_entity);

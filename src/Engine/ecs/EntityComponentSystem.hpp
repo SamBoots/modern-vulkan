@@ -32,7 +32,7 @@ namespace BB
         ECSEntity SelectEntityByRay(const float3 a_ray_origin, const float3 a_ray_dir);
 
         void AddLinesToFrame(const ConstSlice<Line> a_lines);
-        void DrawAABB(const ECSEntity a_entity, const Color a_color);
+        void DrawAABB(const ECSEntity a_entity, const LineColor a_color);
 
 		void StartFrame();
 		void EndFrame();
