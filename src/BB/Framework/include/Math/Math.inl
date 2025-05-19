@@ -644,7 +644,7 @@ namespace BB
 
 	static inline float3 Float4x4ExtractTranslation(const float4x4& a_transform)
 	{
-		return float3(a_transform.r0.w, a_transform.r1.w, a_transform.r2.w);
+		return float3(a_transform.r3.x, a_transform.r3.y, a_transform.r3.z);
 	}
 
 	static inline float3x3 Float3x3ExtractRotationFromFloat4x4(const float4x4& a_transform, const float3 a_scale)

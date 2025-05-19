@@ -113,6 +113,33 @@ bool RenderViewport::Init(const uint2 a_game_viewport_size, const uint32_t a_bac
 	return true;
 }
 
+static void DrawSelectedEntity(EntityComponentSystem& a_sys, const ECSEntity a_entity)
+{
+    a_sys.DrawAABB(a_entity, Color(255, 0, 255, 255));
+    const float4x4& world_mat = a_sys.GetWorldMatrix(a_entity);
+    const float3 pos = Float4x4ExtractTranslation(world_mat);
+    const float3 scale = Float4x4ExtractScale(world_mat);
+    const float3 modified_scale = float3(scale.x * 0.25f, scale.y * 0.25f, scale.z * 0.25f);
+
+    FixedArray<Line, 3> lines;
+    lines[0].p0 = pos;
+    lines[0].p1 = pos + float3(modified_scale.x, 0.f, 0.f);
+    lines[0].p0_color = Color(255.f, 0.f, 0.f, 0.0f);
+    lines[0].p1_color = Color(255.f, 0.f, 0.f, 0.0f);
+
+    lines[1].p0 = pos;
+    lines[1].p1 = pos + float3(0.f, modified_scale.y, 0.f);
+    lines[1].p0_color = Color(0.f, 255.f, 0.f, 0.0f);
+    lines[1].p1_color = Color(0.f, 255.f, 0.f, 0.0f);
+
+    lines[2].p0 = pos;
+    lines[2].p1 = pos + float3(0.f, 0.f, modified_scale.z);
+    lines[2].p0_color = Color(0.f, 0.f, 255.f, 0.0f);
+    lines[2].p1_color = Color(0.f, 0.f, 255.f, 0.0f);
+
+    a_sys.AddLinesToFrame(lines.const_slice());
+}
+
 bool RenderViewport::Update(const float a_delta_time)
 {
 	m_camera.Update(a_delta_time);
@@ -122,7 +149,7 @@ bool RenderViewport::Update(const float a_delta_time)
 	}
     if (m_selected_entity.IsValid())
     {
-        m_scene_hierarchy.GetECS().DrawAABB(m_selected_entity, Color(255, 0, 255, 255));
+        DrawSelectedEntity(m_scene_hierarchy.GetECS(), m_selected_entity);
     }
 	DisplayImGuiInfo();
 	return true;
@@ -201,6 +228,8 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
                     const float3 dir = ScreenToWorldRaycast(mouse_pos_window, m_viewport.GetExtent(), m_scene_hierarchy.GetECS().GetRenderSystem().GetProjection(), view);
                     m_selected_entity = m_scene_hierarchy.GetECS().SelectEntityByRay(m_camera.GetPosition(), dir);
                 }
+                else
+                    m_selected_entity = INVALID_ECS_OBJ;
             }
 		}
 	}
