@@ -115,25 +115,26 @@ bool RenderViewport::Init(const uint2 a_game_viewport_size, const uint32_t a_bac
 
 static void DrawSelectedEntity(EntityComponentSystem& a_sys, const ECSEntity a_entity)
 {
-    a_sys.DrawAABB(a_entity, LineColor(255, 0, 255, false));
+    const BoundingBox box = a_sys.DrawAABB(a_entity, LineColor(255, 0, 255, false));
     const float4x4& world_mat = a_sys.GetWorldMatrix(a_entity);
     const float3 pos = Float4x4ExtractTranslation(world_mat);
     const float3 scale = Float4x4ExtractScale(world_mat);
-    const float3 modified_scale = float3(scale.x * 0.25f, scale.y * 0.25f, scale.z * 0.25f);
+    const float3 mod_scale = scale * Float3Distance(box.min, box.max);
+    const float line_length = (mod_scale.x + mod_scale.y + mod_scale.z) / 3;
 
     FixedArray<Line, 3> lines;
     lines[0].p0 = pos;
-    lines[0].p1 = pos + float3(modified_scale.x, 0.f, 0.f);
+    lines[0].p1 = pos + float3(line_length, 0.f, 0.f);
     lines[0].p0_color = LineColor(255, 0, 0, true);
     lines[0].p1_color = LineColor(255, 0, 0, true);
 
     lines[1].p0 = pos;
-    lines[1].p1 = pos + float3(0.f, modified_scale.y, 0.f);
+    lines[1].p1 = pos + float3(0.f, line_length, 0.f);
     lines[1].p0_color = LineColor(0, 255, 0, true);
     lines[1].p1_color = LineColor(0, 255, 0, true);
 
     lines[2].p0 = pos;
-    lines[2].p1 = pos + float3(0.f, 0.f, modified_scale.z);
+    lines[2].p1 = pos + float3(0.f, 0.f, line_length);
     lines[2].p0_color = LineColor(0, 0, 255, true);
     lines[2].p1_color = LineColor(0, 0, 255, true);
 
