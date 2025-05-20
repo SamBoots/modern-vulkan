@@ -274,6 +274,12 @@ const float4x4& EntityComponentSystem::GetWorldMatrix(const ECSEntity a_entity) 
     return m_world_matrices.GetComponent(a_entity);
 }
 
+const BoundingBox& EntityComponentSystem::GetBoundingBox(const ECSEntity a_entity) const
+{
+    BB_ASSERT(a_entity.IsValid(), "invalid entity");
+    return m_bounding_box_pool.GetComponent(a_entity);
+}
+
 bool EntityComponentSystem::EntityAssignBoundingBox(const ECSEntity a_entity, const BoundingBox& a_box)
 {
     if (!m_bounding_box_pool.CreateComponent(a_entity, a_box))

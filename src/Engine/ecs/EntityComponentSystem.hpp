@@ -48,6 +48,7 @@ namespace BB
 		void SetScale(const ECSEntity a_entity, const float3 a_scale);
 
         const float4x4& GetWorldMatrix(const ECSEntity a_entity) const;
+        const BoundingBox& GetBoundingBox(const ECSEntity a_entity) const;
 
         bool EntityAssignBoundingBox(const ECSEntity a_entity, const BoundingBox& a_box);
 		bool EntityAssignName(const ECSEntity a_entity, const NameComponent& a_name);

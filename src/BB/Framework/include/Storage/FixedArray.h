@@ -23,6 +23,12 @@ namespace BB
 			return *this;
 		}
 
+        const T& operator[](const size_t a_index) const
+        {
+            BB_ASSERT(a_index <= arr_size, "FixedArray, trying to access a index that is out of bounds.");
+            return m_arr[a_index];
+        }
+
 		T& operator[](const size_t a_index)
 		{
 			BB_ASSERT(a_index <= arr_size, "FixedArray, trying to access a index that is out of bounds.");

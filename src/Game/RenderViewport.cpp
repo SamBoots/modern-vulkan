@@ -113,32 +113,128 @@ bool RenderViewport::Init(const uint2 a_game_viewport_size, const uint32_t a_bac
 	return true;
 }
 
-static void DrawSelectedEntity(EntityComponentSystem& a_sys, const ECSEntity a_entity)
+static bool right_hold = false;
+static bool up_hold = false;
+static bool forward_hold = false;
+
+static FixedArray<Line, 3> GetGizmo(EntityComponentSystem& a_sys, const ECSEntity a_entity, const BoundingBox& a_box)
 {
-    const BoundingBox box = a_sys.DrawAABB(a_entity, LineColor(255, 0, 255, false));
     const float4x4& world_mat = a_sys.GetWorldMatrix(a_entity);
-    const float3 pos = Float4x4ExtractTranslation(world_mat);
     const float3 scale = Float4x4ExtractScale(world_mat);
-    const float3 mod_scale = scale * Float3Distance(box.min, box.max);
+    const float3 mod_scale = scale * Float3Distance(a_box.min, a_box.max);
     const float line_length = (mod_scale.x + mod_scale.y + mod_scale.z) / 3;
+
+    const float3 pos = Float4x4ExtractTranslation(world_mat) + float3(0.f, mod_scale.y / 2, 0.f);
+
+    LineColor right_color = LineColor(255, 0, 0, true);
+    LineColor up_color = LineColor(0, 255, 0, true);
+    LineColor forward_color = LineColor(0, 0, 255, true);
+
+    if (right_hold)
+        right_color = LineColor(255, 255, 255, true);
+    if (up_hold)
+        up_color = LineColor(255, 255, 255, true);
+    if (forward_hold)
+        forward_color = LineColor(255, 255, 255, true);
 
     FixedArray<Line, 3> lines;
     lines[0].p0 = pos;
     lines[0].p1 = pos + float3(line_length, 0.f, 0.f);
-    lines[0].p0_color = LineColor(255, 0, 0, true);
-    lines[0].p1_color = LineColor(255, 0, 0, true);
+    lines[0].p0_color = right_color;
+    lines[0].p1_color = right_color;
 
     lines[1].p0 = pos;
     lines[1].p1 = pos + float3(0.f, line_length, 0.f);
-    lines[1].p0_color = LineColor(0, 255, 0, true);
-    lines[1].p1_color = LineColor(0, 255, 0, true);
+    lines[1].p0_color = up_color;
+    lines[1].p1_color = up_color;
 
     lines[2].p0 = pos;
     lines[2].p1 = pos + float3(0.f, 0.f, line_length);
-    lines[2].p0_color = LineColor(0, 0, 255, true);
-    lines[2].p1_color = LineColor(0, 0, 255, true);
+    lines[2].p0_color = forward_color;
+    lines[2].p1_color = forward_color;
+    return lines;
+}
 
+static void DrawSelectedEntity(EntityComponentSystem& a_sys, const ECSEntity a_entity)
+{
+    const BoundingBox box = a_sys.DrawAABB(a_entity, LineColor(255, 0, 255, false));
+    a_sys.AddLinesToFrame(GetGizmo(a_sys, a_entity, box).const_slice());
+}
+
+static void AddLinesBox(EntityComponentSystem& a_sys, const float3 a_min, const float3 a_max, const LineColor a_color)
+{
+    const float4 p0 = float4(a_min.x, a_min.y, a_min.z, 1.0);
+    const float4 p1 = float4(a_max.x, a_max.y, a_max.z, 1.0);
+    const float3 world_p0 = float3(p0.x, p0.y, p0.z);
+    const float3 world_p1 = float3(p1.x, p1.y, p1.z);
+
+    FixedArray<Line, 12> lines{};
+    Line line;
+    line.p0_color = a_color;
+    line.p1_color = a_color;
+    // min
+    line.p0 = world_p0;
+    line.p1 = float3(world_p1.x, world_p0.y, world_p0.z);
+    lines[0] = line;
+    line.p1 = float3(world_p0.x, world_p1.y, world_p0.z);
+    lines[1] = line;
+    line.p1 = float3(world_p0.x, world_p0.y, world_p1.z);
+    lines[2] = line;
+
+    // max
+    line.p0 = world_p1;
+    line.p1 = float3(world_p0.x, world_p1.y, world_p1.z);
+    lines[3] = line;
+    line.p1 = float3(world_p1.x, world_p0.y, world_p1.z);
+    lines[4] = line;
+    line.p1 = float3(world_p1.x, world_p1.y, world_p0.z);
+    lines[5] = line;
+
+    // top min
+    line.p0 = float3(world_p0.x, world_p1.y, world_p0.z);
+    line.p1 = float3(world_p0.x, world_p1.y, world_p1.z);
+    lines[6] = line;
+    line.p1 = float3(world_p1.x, world_p1.y, world_p0.z);
+    lines[7] = line;
+
+    // bot max
+    line.p0 = float3(world_p1.x, world_p0.y, world_p1.z);
+    line.p1 = float3(world_p1.x, world_p0.y, world_p0.z);
+    lines[8] = line;
+    line.p1 = float3(world_p0.x, world_p0.y, world_p1.z);
+    lines[9] = line;
+
+    // sides
+    line.p0 = float3(world_p0.x, world_p1.y, world_p1.z);
+    line.p1 = float3(world_p0.x, world_p0.y, world_p1.z);
+    lines[10] = line;
+    line.p0 = float3(world_p1.x, world_p1.y, world_p0.z);
+    line.p1 = float3(world_p1.x, world_p0.y, world_p0.z);
+    lines[11] = line;
     a_sys.AddLinesToFrame(lines.const_slice());
+}
+
+static bool DetectGizmoHit(EntityComponentSystem& a_sys, const ECSEntity a_entity, const float3 a_ray_origin, const float3 a_ray_dir)
+{
+    const BoundingBox& box = a_sys.GetBoundingBox(a_entity);
+    const FixedArray<Line, 3> lines = GetGizmo(a_sys, a_entity, box);
+    constexpr float box_size = 0.01f;
+    if (BoxRayIntersect(lines[0].p0 + float3(-box_size), lines[0].p1 + float3(box_size), a_ray_origin, a_ray_dir))
+    {
+        right_hold = true;
+        return true;
+    }
+    if (BoxRayIntersect(lines[1].p0 + float3(-box_size), lines[1].p1 + float3(box_size), a_ray_origin, a_ray_dir))
+    {
+        up_hold = true;
+        return true;
+    }
+    if (BoxRayIntersect(lines[2].p0 + float3(-box_size), lines[2].p1 + float3(box_size), a_ray_origin, a_ray_dir))
+    {
+        forward_hold = true;
+        return true;
+    }
+    return false;
 }
 
 bool RenderViewport::Update(const float a_delta_time)
@@ -206,6 +302,13 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
 			const MouseInfo& mi = ip.mouse_info;
 			const float2 mouse_move = (mi.move_offset * a_delta_time);
 
+            if (right_hold)
+                m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(0));
+            if (up_hold)
+                m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(0));
+            if (forward_hold)
+                m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(0));
+
 			if (mi.wheel_move)
 			{
 				m_speed = Clampf(
@@ -227,10 +330,23 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
                 {
                     const float4x4 view = m_scene_hierarchy.GetECS().GetRenderSystem().GetView();
                     const float3 dir = ScreenToWorldRaycast(mouse_pos_window, m_viewport.GetExtent(), m_scene_hierarchy.GetECS().GetRenderSystem().GetProjection(), view);
-                    m_selected_entity = m_scene_hierarchy.GetECS().SelectEntityByRay(m_camera.GetPosition(), dir);
+                    if (m_selected_entity.IsValid())
+                    { 
+                        if (!DetectGizmoHit(m_scene_hierarchy.GetECS(), m_selected_entity, m_camera.GetPosition(), dir))
+                            m_selected_entity = m_scene_hierarchy.GetECS().SelectEntityByRay(m_camera.GetPosition(), dir);
+                    }
+                    else
+                        m_selected_entity = m_scene_hierarchy.GetECS().SelectEntityByRay(m_camera.GetPosition(), dir);
                 }
                 else
                     m_selected_entity = INVALID_ECS_OBJ;
+            }
+
+            if (mi.left_released)
+            { 
+                right_hold = false;
+                up_hold = false;
+                forward_hold = false;
             }
 		}
 	}
