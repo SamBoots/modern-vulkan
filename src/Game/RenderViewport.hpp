@@ -25,10 +25,10 @@ namespace BB
         ECSEntity m_selected_entity;
 
 		FreeCamera m_camera{};
+        bool m_rotate_enable;
 		float m_speed = 200.f;
 		float m_min_speed = 10.f;
 		float m_max_speed = 1000.0f;
-		bool m_freeze_cam = false;
 	};
 	static_assert(is_interactable_viewport_interface<RenderViewport>);
 }

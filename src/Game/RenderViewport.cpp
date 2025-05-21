@@ -161,59 +161,6 @@ static void DrawSelectedEntity(EntityComponentSystem& a_sys, const ECSEntity a_e
     a_sys.AddLinesToFrame(GetGizmo(a_sys, a_entity, box).const_slice());
 }
 
-static void AddLinesBox(EntityComponentSystem& a_sys, const float3 a_min, const float3 a_max, const LineColor a_color)
-{
-    const float4 p0 = float4(a_min.x, a_min.y, a_min.z, 1.0);
-    const float4 p1 = float4(a_max.x, a_max.y, a_max.z, 1.0);
-    const float3 world_p0 = float3(p0.x, p0.y, p0.z);
-    const float3 world_p1 = float3(p1.x, p1.y, p1.z);
-
-    FixedArray<Line, 12> lines{};
-    Line line;
-    line.p0_color = a_color;
-    line.p1_color = a_color;
-    // min
-    line.p0 = world_p0;
-    line.p1 = float3(world_p1.x, world_p0.y, world_p0.z);
-    lines[0] = line;
-    line.p1 = float3(world_p0.x, world_p1.y, world_p0.z);
-    lines[1] = line;
-    line.p1 = float3(world_p0.x, world_p0.y, world_p1.z);
-    lines[2] = line;
-
-    // max
-    line.p0 = world_p1;
-    line.p1 = float3(world_p0.x, world_p1.y, world_p1.z);
-    lines[3] = line;
-    line.p1 = float3(world_p1.x, world_p0.y, world_p1.z);
-    lines[4] = line;
-    line.p1 = float3(world_p1.x, world_p1.y, world_p0.z);
-    lines[5] = line;
-
-    // top min
-    line.p0 = float3(world_p0.x, world_p1.y, world_p0.z);
-    line.p1 = float3(world_p0.x, world_p1.y, world_p1.z);
-    lines[6] = line;
-    line.p1 = float3(world_p1.x, world_p1.y, world_p0.z);
-    lines[7] = line;
-
-    // bot max
-    line.p0 = float3(world_p1.x, world_p0.y, world_p1.z);
-    line.p1 = float3(world_p1.x, world_p0.y, world_p0.z);
-    lines[8] = line;
-    line.p1 = float3(world_p0.x, world_p0.y, world_p1.z);
-    lines[9] = line;
-
-    // sides
-    line.p0 = float3(world_p0.x, world_p1.y, world_p1.z);
-    line.p1 = float3(world_p0.x, world_p0.y, world_p1.z);
-    lines[10] = line;
-    line.p0 = float3(world_p1.x, world_p1.y, world_p0.z);
-    line.p1 = float3(world_p1.x, world_p0.y, world_p0.z);
-    lines[11] = line;
-    a_sys.AddLinesToFrame(lines.const_slice());
-}
-
 static bool DetectGizmoHit(EntityComponentSystem& a_sys, const ECSEntity a_entity, const float3 a_ray_origin, const float3 a_ray_dir)
 {
     const BoundingBox& box = a_sys.GetBoundingBox(a_entity);
@@ -240,10 +187,7 @@ static bool DetectGizmoHit(EntityComponentSystem& a_sys, const ECSEntity a_entit
 bool RenderViewport::Update(const float a_delta_time)
 {
 	m_camera.Update(a_delta_time);
-	if (!m_freeze_cam)
-	{
-		m_scene_hierarchy.GetECS().GetRenderSystem().SetView(m_camera.CalculateView(), m_camera.GetPosition());
-	}
+	m_scene_hierarchy.GetECS().GetRenderSystem().SetView(m_camera.CalculateView(), m_camera.GetPosition());
     if (m_selected_entity.IsValid())
     {
         DrawSelectedEntity(m_scene_hierarchy.GetECS(), m_selected_entity);
@@ -283,19 +227,12 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
 				case KEYBOARD_KEY::Z:
 					player_move.z = -1;
 					break;
-				case KEYBOARD_KEY::F:
-					m_freeze_cam = !m_freeze_cam;
-					m_camera.SetVelocity();
-					break;
 				default:
 					break;
 				}
 				player_move = player_move * a_delta_time;
 			}
-			if (!m_freeze_cam)
-			{
-				m_camera.Move(player_move);
-			}
+			m_camera.Move(player_move);
 		}
 		else if (ip.input_type == INPUT_TYPE::MOUSE)
 		{
@@ -318,10 +255,13 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
 				m_camera.SetSpeed(m_speed);
 			}
 
-			if (!m_freeze_cam)
-			{
-				m_camera.Rotate(mouse_move.x, mouse_move.y);
-			}
+			if (mi.right_pressed)
+                m_rotate_enable = true;
+            if (mi.right_released)
+                m_rotate_enable = false;
+
+            if (m_rotate_enable)
+                m_camera.Rotate(mouse_move.x, mouse_move.y);
 
             if (mi.left_pressed)
             {
@@ -360,12 +300,6 @@ void RenderViewport::DisplayImGuiInfo()
 {
 	if (ImGui::Begin("render viewport info"))
 	{
-		ImGui::Text("Freeze freecam: %s", m_freeze_cam ? "true" : "false");
-		if (ImGui::Button("Toggle freecam freeze"))
-		{
-			m_freeze_cam = !m_freeze_cam;
-		}
-
 		if (ImGui::SliderFloat("Freecam speed", &m_speed, m_min_speed, m_max_speed))
 		{
 			m_camera.SetSpeed(m_max_speed);
