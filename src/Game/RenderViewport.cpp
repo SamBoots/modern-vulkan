@@ -244,7 +244,7 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
             if (up_hold)
                 m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(0.f, -mouse_move.y, 0.f));
             if (forward_hold)
-                m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(mouse_move.x, 0.f, 0.f));
+                m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(0.f, 0.f, mouse_move.x));
 
 			if (mi.wheel_move)
 			{

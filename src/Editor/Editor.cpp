@@ -371,7 +371,8 @@ bool Editor::ResizeWindow(const uint2 a_window)
 bool Editor::DrawImgui(const RDescriptorIndex a_render_target, SceneHierarchy& a_hierarchy, Viewport& a_viewport)
 {
 	bool rendered_image = false;
-	if (ImGui::Begin(a_hierarchy.GetECS().GetName().c_str(), nullptr, ImGuiWindowFlags_MenuBar))
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+	if (ImGui::Begin(a_hierarchy.GetECS().GetName().c_str(), nullptr, ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoScrollbar))
 	{
 		if (ImGui::BeginMenuBar())
 		{
@@ -394,10 +395,13 @@ bool Editor::DrawImgui(const RDescriptorIndex a_render_target, SceneHierarchy& a
 
 		const ImVec2 viewport_offset = ImGui::GetWindowPos();
 		const ImVec2 viewport_draw_area = ImGui::GetContentRegionAvail();
-		const uint2 window_size_u = uint2(static_cast<unsigned int>(viewport_draw_area.x), static_cast<unsigned int>(viewport_draw_area.y));
+        const ImVec2 viewport_size = ImGui::GetWindowSize();
+		const uint2 image_size_u = uint2(static_cast<unsigned int>(viewport_draw_area.x), static_cast<unsigned int>(viewport_draw_area.y));
+        const uint2 window_size_u = uint2(static_cast<unsigned int>(viewport_size.x), static_cast<unsigned int>(viewport_size.y));
 		if (window_size_u.x < MINIMUM_WINDOW_SIZE.x || window_size_u.y < MINIMUM_WINDOW_SIZE.y)
 		{
 			ImGui::End();
+            ImGui::PopStyleVar();
 			return false;
 		}
 		if (window_size_u != a_viewport.GetExtent() && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
@@ -410,6 +414,7 @@ bool Editor::DrawImgui(const RDescriptorIndex a_render_target, SceneHierarchy& a
 		rendered_image = true;
 	}
 	ImGui::End();
+    ImGui::PopStyleVar();
 
 	return rendered_image;
 }
