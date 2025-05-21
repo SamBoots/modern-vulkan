@@ -119,8 +119,9 @@ static ImGuiKey ImBBKeyToImGuiKey(const KEYBOARD_KEY a_Key)
 static inline void SetupImGuiInput(MemoryArena& a_arena, const BB::WindowHandle a_window)
 {
 	ImGuiIO& io = ImGui::GetIO();
-	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
-	io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
+    io.ConfigWindowsMoveFromTitleBarOnly = true;
+    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
 
 	// Setup backend capabilities flags
 	ImInputData* bdWin = ArenaAllocType(a_arena, ImInputData);
@@ -147,6 +148,7 @@ static inline void SetupImGuiRender(MemoryArena& a_arena)
 
 	ImGuiIO& io = ImGui::GetIO();
 	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;         // Enable Docking
+    io.ConfigWindowsMoveFromTitleBarOnly = true;
 	io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;       // Enable Multi-Viewport / Platform Windows
 	IM_ASSERT(io.BackendRendererUserData == nullptr && "Already initialized a renderer backend!");
 

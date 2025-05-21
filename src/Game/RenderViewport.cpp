@@ -240,11 +240,11 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
 			const float2 mouse_move = (mi.move_offset * a_delta_time);
 
             if (right_hold)
-                m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(0));
+                m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(mouse_move.x, 0.f, 0.f));
             if (up_hold)
-                m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(0));
+                m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(0.f, -mouse_move.y, 0.f));
             if (forward_hold)
-                m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(0));
+                m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(mouse_move.x, 0.f, 0.f));
 
 			if (mi.wheel_move)
 			{
