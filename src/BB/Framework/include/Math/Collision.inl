@@ -57,6 +57,26 @@ namespace BB
         else
             return false;
     }
+
+    static inline float3 CalculatePlaneFromPoints(const float3& a_p0, const float3& a_p1, const float3& a_p2)
+    {
+        const float3 v0 = a_p1 - a_p0;
+        const float3 v1 = a_p2 - a_p2;
+        return Float3Normalize(Float3Cross(v0, v1));
+    }
+
+    static inline bool PlaneRayIntersect(const float3& a_normal, const float a_distance, const float3& a_ray_origin, const float3& a_ray_dir)
+    {
+        const float denom = Float3Dot(a_normal, a_ray_dir);
+        if (std::abs(denom) < 1e-6f)
+            return false;
+
+        const float t = a_distance - Float3Dot(a_normal, a_ray_origin) / denom;
+        if (t < 0)
+            return false;
+        
+        return true;
+    }
     
     static inline void ScaleBoundingBox(const float3& a_min, const float3& a_max, const float3& a_scale, float3& a_new_min, float3& a_new_max)
     {

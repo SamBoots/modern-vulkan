@@ -117,7 +117,32 @@ static bool right_hold = false;
 static bool up_hold = false;
 static bool forward_hold = false;
 
-static FixedArray<Line, 3> GetGizmo(EntityComponentSystem& a_sys, const ECSEntity a_entity, const BoundingBox& a_box)
+static bool right_up_hold = false;
+static bool up_forward_hold = false;
+static bool right_forward_hold = false;
+
+struct Gizmo
+{
+    FixedArray<Line, 3> translate_lines;
+    FixedArray<Line, 6> scale_lines;
+};
+
+static void IsLineSelected(Line& a_line, const LineColor a_normal_color, const bool a_selected)
+{
+    constexpr LineColor selected_color = LineColor(255, 255, 255, true);
+    if (a_selected)
+    {
+        a_line.p0_color = selected_color;
+        a_line.p1_color = selected_color;
+    }
+    else
+    {
+        a_line.p0_color = a_normal_color;
+        a_line.p1_color = a_normal_color;
+    }
+}
+
+static Gizmo GetGizmo(EntityComponentSystem& a_sys, const ECSEntity a_entity, const BoundingBox& a_box)
 {
     const float4x4& world_mat = a_sys.GetWorldMatrix(a_entity);
     const float3 scale = Float4x4ExtractScale(world_mat);
@@ -130,57 +155,91 @@ static FixedArray<Line, 3> GetGizmo(EntityComponentSystem& a_sys, const ECSEntit
     LineColor up_color = LineColor(0, 255, 0, true);
     LineColor forward_color = LineColor(0, 0, 255, true);
 
-    if (right_hold)
-        right_color = LineColor(255, 255, 255, true);
-    if (up_hold)
-        up_color = LineColor(255, 255, 255, true);
-    if (forward_hold)
-        forward_color = LineColor(255, 255, 255, true);
+    Gizmo gizmo;
+    gizmo.translate_lines[0].p0 = pos;
+    gizmo.translate_lines[0].p1 = pos + float3(line_length, 0.f, 0.f);
+    IsLineSelected(gizmo.translate_lines[0], right_color, right_hold);
 
-    FixedArray<Line, 3> lines;
-    lines[0].p0 = pos;
-    lines[0].p1 = pos + float3(line_length, 0.f, 0.f);
-    lines[0].p0_color = right_color;
-    lines[0].p1_color = right_color;
+    gizmo.translate_lines[1].p0 = pos;
+    gizmo.translate_lines[1].p1 = pos + float3(0.f, line_length, 0.f);
+    IsLineSelected(gizmo.translate_lines[1], up_color, up_hold);
 
-    lines[1].p0 = pos;
-    lines[1].p1 = pos + float3(0.f, line_length, 0.f);
-    lines[1].p0_color = up_color;
-    lines[1].p1_color = up_color;
+    gizmo.translate_lines[2].p0 = pos;
+    gizmo.translate_lines[2].p1 = pos + float3(0.f, 0.f, line_length);
+    IsLineSelected(gizmo.translate_lines[2], forward_color, forward_hold);
 
-    lines[2].p0 = pos;
-    lines[2].p1 = pos + float3(0.f, 0.f, line_length);
-    lines[2].p0_color = forward_color;
-    lines[2].p1_color = forward_color;
-    return lines;
+    const float scale_size = line_length / 4;
+    gizmo.scale_lines[0].p0 = pos + float3(scale_size, 0.f, 0.f);
+    gizmo.scale_lines[0].p1 = pos + float3(scale_size, scale_size, 0.f);
+    gizmo.scale_lines[1].p0 = pos + float3(0.f, scale_size, 0.f);
+    gizmo.scale_lines[1].p1 = pos + float3(scale_size, scale_size, 0.f);
+    IsLineSelected(gizmo.scale_lines[0], right_color, right_up_hold);
+    IsLineSelected(gizmo.scale_lines[1], right_color, right_up_hold);
+
+    gizmo.scale_lines[2].p0 = pos + float3(0.f, scale_size, 0.f);
+    gizmo.scale_lines[2].p1 = pos + float3(0.f, scale_size, scale_size);
+    gizmo.scale_lines[3].p0 = pos + float3(0.f, 0.f, scale_size);
+    gizmo.scale_lines[3].p1 = pos + float3(0.f, scale_size, scale_size);
+    IsLineSelected(gizmo.scale_lines[2], up_color, up_forward_hold);
+    IsLineSelected(gizmo.scale_lines[3], up_color, up_forward_hold);
+
+    gizmo.scale_lines[4].p0 = pos + float3(0.f, 0.f, scale_size);
+    gizmo.scale_lines[4].p1 = pos + float3(scale_size, 0.f, scale_size);
+    gizmo.scale_lines[5].p0 = pos + float3(scale_size, 0.f, 0.f);
+    gizmo.scale_lines[5].p1 = pos + float3(scale_size, 0.f, scale_size);
+    IsLineSelected(gizmo.scale_lines[4], forward_color, right_forward_hold);
+    IsLineSelected(gizmo.scale_lines[5], forward_color, right_forward_hold);
+
+    return gizmo;
 }
 
 static void DrawSelectedEntity(EntityComponentSystem& a_sys, const ECSEntity a_entity)
 {
     const BoundingBox box = a_sys.DrawAABB(a_entity, LineColor(255, 0, 255, false));
-    a_sys.AddLinesToFrame(GetGizmo(a_sys, a_entity, box).const_slice());
+    const Gizmo gizmo = GetGizmo(a_sys, a_entity, box);
+    a_sys.AddLinesToFrame(gizmo.translate_lines.const_slice());
+    a_sys.AddLinesToFrame(gizmo.scale_lines.const_slice());
 }
 
 static bool DetectGizmoHit(EntityComponentSystem& a_sys, const ECSEntity a_entity, const float3 a_ray_origin, const float3 a_ray_dir)
 {
     const BoundingBox& box = a_sys.GetBoundingBox(a_entity);
-    const FixedArray<Line, 3> lines = GetGizmo(a_sys, a_entity, box);
-    constexpr float box_size = 0.01f;
-    if (BoxRayIntersect(lines[0].p0 + float3(-box_size), lines[0].p1 + float3(box_size), a_ray_origin, a_ray_dir))
+    const Gizmo gizmo = GetGizmo(a_sys, a_entity, box);
+    constexpr float box_size = 0.001f;
+    if (BoxRayIntersect(gizmo.translate_lines[0].p0 + float3(-box_size), gizmo.translate_lines[0].p1 + float3(box_size), a_ray_origin, a_ray_dir))
     {
         right_hold = true;
         return true;
     }
-    if (BoxRayIntersect(lines[1].p0 + float3(-box_size), lines[1].p1 + float3(box_size), a_ray_origin, a_ray_dir))
+    if (BoxRayIntersect(gizmo.translate_lines[1].p0 + float3(-box_size), gizmo.translate_lines[1].p1 + float3(box_size), a_ray_origin, a_ray_dir))
     {
         up_hold = true;
         return true;
     }
-    if (BoxRayIntersect(lines[2].p0 + float3(-box_size), lines[2].p1 + float3(box_size), a_ray_origin, a_ray_dir))
+    if (BoxRayIntersect(gizmo.translate_lines[2].p0 + float3(-box_size), gizmo.translate_lines[2].p1 + float3(box_size), a_ray_origin, a_ray_dir))
     {
         forward_hold = true;
         return true;
     }
+
+    const float3 pos = gizmo.translate_lines[0].p0;
+
+    if (BoxRayIntersect(pos, gizmo.scale_lines[0].p1, a_ray_origin, a_ray_dir))
+    {
+        right_up_hold = true;
+        return true;
+    }
+    if (BoxRayIntersect(pos, gizmo.scale_lines[2].p1, a_ray_origin, a_ray_dir))
+    {
+        up_forward_hold = true;
+        return true;
+    }
+    if (BoxRayIntersect(pos, gizmo.scale_lines[4].p1, a_ray_origin, a_ray_dir))
+    {
+        right_forward_hold = true;
+        return true;
+    }
+
     return false;
 }
 
@@ -239,12 +298,21 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
 			const MouseInfo& mi = ip.mouse_info;
 			const float2 mouse_move = (mi.move_offset * a_delta_time);
 
-            if (right_hold)
-                m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(mouse_move.x, 0.f, 0.f));
-            if (up_hold)
-                m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(0.f, -mouse_move.y, 0.f));
-            if (forward_hold)
-                m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(0.f, 0.f, mouse_move.x));
+            if (m_selected_entity.IsValid())
+            { 
+                if (right_hold)
+                   m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(mouse_move.x, 0.f, 0.f));
+                if (up_hold)
+                    m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(0.f, -mouse_move.y, 0.f));
+                if (forward_hold)
+                    m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(0.f, 0.f, mouse_move.x));
+                if (right_up_hold)
+                    m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(mouse_move.x, mouse_move.y, 0.f));
+                if (up_forward_hold)
+                    m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(0.f, mouse_move.x, mouse_move.y));
+                if (right_forward_hold)
+                    m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(mouse_move.x, 0.f, mouse_move.y));
+            }
 
 			if (mi.wheel_move)
 			{
@@ -287,6 +355,9 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
                 right_hold = false;
                 up_hold = false;
                 forward_hold = false;
+                right_up_hold = false;
+                up_forward_hold = false;
+                right_forward_hold = false;
             }
 		}
 	}

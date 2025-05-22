@@ -396,7 +396,6 @@ bool Editor::DrawImgui(const RDescriptorIndex a_render_target, SceneHierarchy& a
 		const ImVec2 viewport_offset = ImGui::GetWindowPos();
 		const ImVec2 viewport_draw_area = ImGui::GetContentRegionAvail();
         const ImVec2 viewport_size = ImGui::GetWindowSize();
-		const uint2 image_size_u = uint2(static_cast<unsigned int>(viewport_draw_area.x), static_cast<unsigned int>(viewport_draw_area.y));
         const uint2 window_size_u = uint2(static_cast<unsigned int>(viewport_size.x), static_cast<unsigned int>(viewport_size.y));
 		if (window_size_u.x < MINIMUM_WINDOW_SIZE.x || window_size_u.y < MINIMUM_WINDOW_SIZE.y)
 		{
