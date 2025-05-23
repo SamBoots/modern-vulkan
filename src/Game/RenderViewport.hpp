@@ -2,6 +2,7 @@
 #include "ViewportInterface.hpp"
 #include "Camera.hpp"
 #include "SceneHierarchy.hpp"
+#include "Gizmo.hpp"
 
 namespace BB
 {
@@ -12,7 +13,7 @@ namespace BB
 		bool Update(const float a_delta_time);
 		bool HandleInput(const float a_delta_time, const Slice<InputEvent> a_input_events);
 		// maybe ifdef this for editor
-		void DisplayImGuiInfo();
+        void DisplayImGuiInfo();
 		void Destroy();
 
 		Viewport& GetViewport() { return m_viewport; }
@@ -23,6 +24,8 @@ namespace BB
 		Viewport m_viewport;
 		SceneHierarchy m_scene_hierarchy;
         ECSEntity m_selected_entity;
+        Gizmo m_gizmo;
+        GIZMO_HIT_FLAGS m_gizmo_hits;
 
 		FreeCamera m_camera{};
         bool m_rotate_enable;

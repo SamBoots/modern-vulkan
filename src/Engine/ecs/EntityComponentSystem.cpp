@@ -137,7 +137,7 @@ void EntityComponentSystem::AddLinesToFrame(const ConstSlice<Line> a_lines)
     m_render_system.m_line_stage.AddLines(m_current_frame, a_lines);
 }
 
-BoundingBox EntityComponentSystem::DrawAABB(const ECSEntity a_entity, const LineColor a_color)
+void EntityComponentSystem::DrawAABB(const ECSEntity a_entity, const LineColor a_color)
 {
     const float4x4& world_mat = m_world_matrices.GetComponent(a_entity);
     const BoundingBox box = m_bounding_box_pool.GetComponent(a_entity);
@@ -191,8 +191,6 @@ BoundingBox EntityComponentSystem::DrawAABB(const ECSEntity a_entity, const Line
     line.p1 = float3(world_p1.x, world_p0.y, world_p0.z);
     lines[11] = line;
     AddLinesToFrame(lines.const_slice());
-
-    return box;
 }
 
 void EntityComponentSystem::StartFrame()

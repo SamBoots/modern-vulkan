@@ -113,143 +113,14 @@ bool RenderViewport::Init(const uint2 a_game_viewport_size, const uint32_t a_bac
 	return true;
 }
 
-static bool right_hold = false;
-static bool up_hold = false;
-static bool forward_hold = false;
-
-static bool right_up_hold = false;
-static bool up_forward_hold = false;
-static bool right_forward_hold = false;
-
-struct Gizmo
-{
-    FixedArray<Line, 3> translate_lines;
-    FixedArray<Line, 6> scale_lines;
-};
-
-static void IsLineSelected(Line& a_line, const LineColor a_normal_color, const bool a_selected)
-{
-    constexpr LineColor selected_color = LineColor(255, 255, 255, true);
-    if (a_selected)
-    {
-        a_line.p0_color = selected_color;
-        a_line.p1_color = selected_color;
-    }
-    else
-    {
-        a_line.p0_color = a_normal_color;
-        a_line.p1_color = a_normal_color;
-    }
-}
-
-static Gizmo GetGizmo(EntityComponentSystem& a_sys, const ECSEntity a_entity, const BoundingBox& a_box)
-{
-    const float4x4& world_mat = a_sys.GetWorldMatrix(a_entity);
-    const float3 scale = Float4x4ExtractScale(world_mat);
-    const float3 mod_scale = scale * Float3Distance(a_box.min, a_box.max);
-    const float line_length = (mod_scale.x + mod_scale.y + mod_scale.z) / 3;
-
-    const float3 pos = Float4x4ExtractTranslation(world_mat) + float3(0.f, mod_scale.y / 2, 0.f);
-
-    LineColor right_color = LineColor(255, 0, 0, true);
-    LineColor up_color = LineColor(0, 255, 0, true);
-    LineColor forward_color = LineColor(0, 0, 255, true);
-
-    Gizmo gizmo;
-    gizmo.translate_lines[0].p0 = pos;
-    gizmo.translate_lines[0].p1 = pos + float3(line_length, 0.f, 0.f);
-    IsLineSelected(gizmo.translate_lines[0], right_color, right_hold);
-
-    gizmo.translate_lines[1].p0 = pos;
-    gizmo.translate_lines[1].p1 = pos + float3(0.f, line_length, 0.f);
-    IsLineSelected(gizmo.translate_lines[1], up_color, up_hold);
-
-    gizmo.translate_lines[2].p0 = pos;
-    gizmo.translate_lines[2].p1 = pos + float3(0.f, 0.f, line_length);
-    IsLineSelected(gizmo.translate_lines[2], forward_color, forward_hold);
-
-    const float scale_size = line_length / 4;
-    gizmo.scale_lines[0].p0 = pos + float3(scale_size, 0.f, 0.f);
-    gizmo.scale_lines[0].p1 = pos + float3(scale_size, scale_size, 0.f);
-    gizmo.scale_lines[1].p0 = pos + float3(0.f, scale_size, 0.f);
-    gizmo.scale_lines[1].p1 = pos + float3(scale_size, scale_size, 0.f);
-    IsLineSelected(gizmo.scale_lines[0], right_color, right_up_hold);
-    IsLineSelected(gizmo.scale_lines[1], right_color, right_up_hold);
-
-    gizmo.scale_lines[2].p0 = pos + float3(0.f, scale_size, 0.f);
-    gizmo.scale_lines[2].p1 = pos + float3(0.f, scale_size, scale_size);
-    gizmo.scale_lines[3].p0 = pos + float3(0.f, 0.f, scale_size);
-    gizmo.scale_lines[3].p1 = pos + float3(0.f, scale_size, scale_size);
-    IsLineSelected(gizmo.scale_lines[2], up_color, up_forward_hold);
-    IsLineSelected(gizmo.scale_lines[3], up_color, up_forward_hold);
-
-    gizmo.scale_lines[4].p0 = pos + float3(0.f, 0.f, scale_size);
-    gizmo.scale_lines[4].p1 = pos + float3(scale_size, 0.f, scale_size);
-    gizmo.scale_lines[5].p0 = pos + float3(scale_size, 0.f, 0.f);
-    gizmo.scale_lines[5].p1 = pos + float3(scale_size, 0.f, scale_size);
-    IsLineSelected(gizmo.scale_lines[4], forward_color, right_forward_hold);
-    IsLineSelected(gizmo.scale_lines[5], forward_color, right_forward_hold);
-
-    return gizmo;
-}
-
-static void DrawSelectedEntity(EntityComponentSystem& a_sys, const ECSEntity a_entity)
-{
-    const BoundingBox box = a_sys.DrawAABB(a_entity, LineColor(255, 0, 255, false));
-    const Gizmo gizmo = GetGizmo(a_sys, a_entity, box);
-    a_sys.AddLinesToFrame(gizmo.translate_lines.const_slice());
-    a_sys.AddLinesToFrame(gizmo.scale_lines.const_slice());
-}
-
-static bool DetectGizmoHit(EntityComponentSystem& a_sys, const ECSEntity a_entity, const float3 a_ray_origin, const float3 a_ray_dir)
-{
-    const BoundingBox& box = a_sys.GetBoundingBox(a_entity);
-    const Gizmo gizmo = GetGizmo(a_sys, a_entity, box);
-    constexpr float box_size = 0.001f;
-    if (BoxRayIntersect(gizmo.translate_lines[0].p0 + float3(-box_size), gizmo.translate_lines[0].p1 + float3(box_size), a_ray_origin, a_ray_dir))
-    {
-        right_hold = true;
-        return true;
-    }
-    if (BoxRayIntersect(gizmo.translate_lines[1].p0 + float3(-box_size), gizmo.translate_lines[1].p1 + float3(box_size), a_ray_origin, a_ray_dir))
-    {
-        up_hold = true;
-        return true;
-    }
-    if (BoxRayIntersect(gizmo.translate_lines[2].p0 + float3(-box_size), gizmo.translate_lines[2].p1 + float3(box_size), a_ray_origin, a_ray_dir))
-    {
-        forward_hold = true;
-        return true;
-    }
-
-    const float3 pos = gizmo.translate_lines[0].p0;
-
-    if (BoxRayIntersect(pos, gizmo.scale_lines[0].p1, a_ray_origin, a_ray_dir))
-    {
-        right_up_hold = true;
-        return true;
-    }
-    if (BoxRayIntersect(pos, gizmo.scale_lines[2].p1, a_ray_origin, a_ray_dir))
-    {
-        up_forward_hold = true;
-        return true;
-    }
-    if (BoxRayIntersect(pos, gizmo.scale_lines[4].p1, a_ray_origin, a_ray_dir))
-    {
-        right_forward_hold = true;
-        return true;
-    }
-
-    return false;
-}
-
 bool RenderViewport::Update(const float a_delta_time)
 {
 	m_camera.Update(a_delta_time);
 	m_scene_hierarchy.GetECS().GetRenderSystem().SetView(m_camera.CalculateView(), m_camera.GetPosition());
     if (m_selected_entity.IsValid())
     {
-        DrawSelectedEntity(m_scene_hierarchy.GetECS(), m_selected_entity);
+        m_gizmo = CreateGizmo(m_scene_hierarchy.GetECS(), m_selected_entity);
+        DrawGizmo(m_scene_hierarchy.GetECS(), m_gizmo, m_gizmo_hits);
     }
 	DisplayImGuiInfo();
 	return true;
@@ -299,20 +170,7 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
 			const float2 mouse_move = (mi.move_offset * a_delta_time);
 
             if (m_selected_entity.IsValid())
-            { 
-                if (right_hold)
-                   m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(mouse_move.x, 0.f, 0.f));
-                if (up_hold)
-                    m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(0.f, -mouse_move.y, 0.f));
-                if (forward_hold)
-                    m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(0.f, 0.f, mouse_move.x));
-                if (right_up_hold)
-                    m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(mouse_move.x, mouse_move.y, 0.f));
-                if (up_forward_hold)
-                    m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(0.f, mouse_move.x, mouse_move.y));
-                if (right_forward_hold)
-                    m_scene_hierarchy.GetECS().Translate(m_selected_entity, float3(mouse_move.x, 0.f, mouse_move.y));
-            }
+                GizmoManipulateEntity(m_scene_hierarchy.GetECS(), m_selected_entity, m_gizmo_hits, mouse_move);
 
 			if (mi.wheel_move)
 			{
@@ -340,7 +198,8 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
                     const float3 dir = ScreenToWorldRaycast(mouse_pos_window, m_viewport.GetExtent(), m_scene_hierarchy.GetECS().GetRenderSystem().GetProjection(), view);
                     if (m_selected_entity.IsValid())
                     { 
-                        if (!DetectGizmoHit(m_scene_hierarchy.GetECS(), m_selected_entity, m_camera.GetPosition(), dir))
+                        m_gizmo_hits = GizmoCollide(m_gizmo, m_camera.GetPosition(), dir);
+                        if (m_gizmo_hits == 0)
                             m_selected_entity = m_scene_hierarchy.GetECS().SelectEntityByRay(m_camera.GetPosition(), dir);
                     }
                     else
@@ -351,14 +210,7 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
             }
 
             if (mi.left_released)
-            { 
-                right_hold = false;
-                up_hold = false;
-                forward_hold = false;
-                right_up_hold = false;
-                up_forward_hold = false;
-                right_forward_hold = false;
-            }
+                m_gizmo_hits = 0;
 		}
 	}
 
