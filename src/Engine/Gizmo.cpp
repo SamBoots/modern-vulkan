@@ -44,22 +44,29 @@ static GIZMO_HIT_FLAGS _GizmoCollide(EntityComponentSystem& a_ecs, Gizmo& a_gizm
 {
     const GizmoPosAndScale ps = GetGizmoPosAndScale(a_ecs, a_gizmo.selected_entity);
 
-    constexpr float line_box_size = 0.005f;
-    if (BoxRayIntersect(ps.pos + float3(-line_box_size), ps.pos + float3(ps.scale, 0.f, 0.f) + float3(line_box_size), a_ray_origin, a_ray_dir))
-        return static_cast<uint32_t>(GIZMO_HIT::RIGHT);
-    if (BoxRayIntersect(ps.pos + float3(-line_box_size), ps.pos + float3(0.f, ps.scale, 0.f) + float3(line_box_size), a_ray_origin, a_ray_dir))
-        return static_cast<uint32_t>(GIZMO_HIT::UP);
-    if (BoxRayIntersect(ps.pos + float3(-line_box_size), ps.pos + float3(0.f, 0.f, ps.scale) + float3(line_box_size), a_ray_origin, a_ray_dir))
-        return static_cast<uint32_t>(GIZMO_HIT::FORWARD);
+    if (a_gizmo.mode == GIZMO_MODE::TRANSLATE || a_gizmo.mode == GIZMO_MODE::TRANSLATE)
+    { 
+        constexpr float line_box_size = 0.005f;
+        if (BoxRayIntersect(ps.pos + float3(-line_box_size), ps.pos + float3(ps.scale, 0.f, 0.f) + float3(line_box_size), a_ray_origin, a_ray_dir))
+            return static_cast<uint32_t>(GIZMO_HIT::RIGHT);
+        if (BoxRayIntersect(ps.pos + float3(-line_box_size), ps.pos + float3(0.f, ps.scale, 0.f) + float3(line_box_size), a_ray_origin, a_ray_dir))
+            return static_cast<uint32_t>(GIZMO_HIT::UP);
+        if (BoxRayIntersect(ps.pos + float3(-line_box_size), ps.pos + float3(0.f, 0.f, ps.scale) + float3(line_box_size), a_ray_origin, a_ray_dir))
+            return static_cast<uint32_t>(GIZMO_HIT::FORWARD);
 
-    const float scale_size = GetQuadSize(ps.scale);
+        const float scale_size = GetQuadSize(ps.scale);
 
-    if (BoxRayIntersect(ps.pos, ps.pos + float3(scale_size, scale_size, 0.f), a_ray_origin, a_ray_dir))
-        return static_cast<uint32_t>(GIZMO_HIT::RIGHT) | static_cast<uint32_t>(GIZMO_HIT::UP);
-    if (BoxRayIntersect(ps.pos, ps.pos + float3(0.f, scale_size, scale_size), a_ray_origin, a_ray_dir))
-        return static_cast<uint32_t>(GIZMO_HIT::UP) | static_cast<uint32_t>(GIZMO_HIT::FORWARD);
-    if (BoxRayIntersect(ps.pos, ps.pos + float3(scale_size, 0.f, scale_size), a_ray_origin, a_ray_dir))
-        return static_cast<uint32_t>(GIZMO_HIT::FORWARD) | static_cast<uint32_t>(GIZMO_HIT::RIGHT);
+        if (BoxRayIntersect(ps.pos, ps.pos + float3(scale_size, scale_size, 0.f), a_ray_origin, a_ray_dir))
+            return static_cast<uint32_t>(GIZMO_HIT::RIGHT) | static_cast<uint32_t>(GIZMO_HIT::UP);
+        if (BoxRayIntersect(ps.pos, ps.pos + float3(0.f, scale_size, scale_size), a_ray_origin, a_ray_dir))
+            return static_cast<uint32_t>(GIZMO_HIT::UP) | static_cast<uint32_t>(GIZMO_HIT::FORWARD);
+        if (BoxRayIntersect(ps.pos, ps.pos + float3(scale_size, 0.f, scale_size), a_ray_origin, a_ray_dir))
+            return static_cast<uint32_t>(GIZMO_HIT::FORWARD) | static_cast<uint32_t>(GIZMO_HIT::RIGHT);
+    }
+    else
+    {
+        BB_UNIMPLEMENTED("gizmo rotation");
+    }
 
     return 0;
 }
@@ -92,56 +99,67 @@ void BB::DrawGizmo(class EntityComponentSystem& a_ecs, const Gizmo& a_gizmo)
     constexpr LineColor forward_color = LineColor(0, 0, 255, true);
 
     const GizmoPosAndScale ps = GetGizmoPosAndScale(a_ecs, a_gizmo.selected_entity);
+    if (a_gizmo.mode == GIZMO_MODE::TRANSLATE || a_gizmo.mode == GIZMO_MODE::TRANSLATE)
+    {
+        FixedArray<Line, 9> lines;
+        lines[0].p0 = ps.pos;
+        lines[0].p1 = ps.pos + float3(ps.scale, 0.f, 0.f);
+        IsLineSelected(lines[0], right_color, static_cast<GIZMO_HIT_FLAGS>(GIZMO_HIT::RIGHT), a_gizmo.hit_flags);
+        lines[1].p0 = ps.pos;
+        lines[1].p1 = ps.pos + float3(0.f, ps.scale, 0.f);
+        IsLineSelected(lines[1], up_color, static_cast<GIZMO_HIT_FLAGS>(GIZMO_HIT::UP), a_gizmo.hit_flags);
+        lines[2].p0 = ps.pos;
+        lines[2].p1 = ps.pos + float3(0.f, 0.f, ps.scale);
+        IsLineSelected(lines[2], forward_color, static_cast<GIZMO_HIT_FLAGS>(GIZMO_HIT::FORWARD), a_gizmo.hit_flags);
 
-    FixedArray<Line, 9> lines;
-    lines[0].p0 = ps.pos;
-    lines[0].p1 = ps.pos + float3(ps.scale, 0.f, 0.f);
-    IsLineSelected(lines[0], right_color, static_cast<GIZMO_HIT_FLAGS>(GIZMO_HIT::RIGHT), a_gizmo.hit_flags);
-    lines[1].p0 = ps.pos;
-    lines[1].p1 = ps.pos + float3(0.f, ps.scale, 0.f);
-    IsLineSelected(lines[1], up_color, static_cast<GIZMO_HIT_FLAGS>(GIZMO_HIT::UP), a_gizmo.hit_flags);
-    lines[2].p0 = ps.pos;
-    lines[2].p1 = ps.pos + float3(0.f, 0.f, ps.scale);
-    IsLineSelected(lines[2], forward_color, static_cast<GIZMO_HIT_FLAGS>(GIZMO_HIT::FORWARD), a_gizmo.hit_flags);
+        const float scale_size = GetQuadSize(ps.scale);
+        constexpr GIZMO_HIT_FLAGS right_up = static_cast<GIZMO_HIT_FLAGS>(GIZMO_HIT::RIGHT) + static_cast<GIZMO_HIT_FLAGS>(GIZMO_HIT::UP);
+        constexpr GIZMO_HIT_FLAGS up_forward = static_cast<GIZMO_HIT_FLAGS>(GIZMO_HIT::UP) + static_cast<GIZMO_HIT_FLAGS>(GIZMO_HIT::FORWARD);
+        constexpr GIZMO_HIT_FLAGS forward_right = static_cast<GIZMO_HIT_FLAGS>(GIZMO_HIT::FORWARD) + static_cast<GIZMO_HIT_FLAGS>(GIZMO_HIT::RIGHT);
 
-    const float scale_size = GetQuadSize(ps.scale);
-    constexpr GIZMO_HIT_FLAGS right_up = static_cast<GIZMO_HIT_FLAGS>(GIZMO_HIT::RIGHT) + static_cast<GIZMO_HIT_FLAGS>(GIZMO_HIT::UP);
-    constexpr GIZMO_HIT_FLAGS up_forward = static_cast<GIZMO_HIT_FLAGS>(GIZMO_HIT::UP) + static_cast<GIZMO_HIT_FLAGS>(GIZMO_HIT::FORWARD);
-    constexpr GIZMO_HIT_FLAGS forward_right = static_cast<GIZMO_HIT_FLAGS>(GIZMO_HIT::FORWARD) + static_cast<GIZMO_HIT_FLAGS>(GIZMO_HIT::RIGHT);
+        lines[3].p0 = ps.pos + float3(scale_size, 0.f, 0.f);
+        lines[3].p1 = ps.pos + float3(scale_size, scale_size, 0.f);
+        lines[4].p0 = ps.pos + float3(0.f, scale_size, 0.f);
+        lines[4].p1 = ps.pos + float3(scale_size, scale_size, 0.f);
+        IsLineSelected(lines[3], right_color, right_up, a_gizmo.hit_flags);
+        IsLineSelected(lines[4], up_color, right_up, a_gizmo.hit_flags);
 
-    lines[3].p0 = ps.pos + float3(scale_size, 0.f, 0.f);
-    lines[3].p1 = ps.pos + float3(scale_size, scale_size, 0.f);
-    lines[4].p0 = ps.pos + float3(0.f, scale_size, 0.f);
-    lines[4].p1 = ps.pos + float3(scale_size, scale_size, 0.f);
-    IsLineSelected(lines[3], right_color, right_up, a_gizmo.hit_flags);
-    IsLineSelected(lines[4], up_color, right_up, a_gizmo.hit_flags);
+        lines[5].p0 = ps.pos + float3(0.f, scale_size, 0.f);
+        lines[5].p1 = ps.pos + float3(0.f, scale_size, scale_size);
+        lines[6].p0 = ps.pos + float3(0.f, 0.f, scale_size);
+        lines[6].p1 = ps.pos + float3(0.f, scale_size, scale_size);
+        IsLineSelected(lines[5], up_color, up_forward, a_gizmo.hit_flags);
+        IsLineSelected(lines[6], forward_color, up_forward, a_gizmo.hit_flags);
 
-    lines[5].p0 = ps.pos + float3(0.f, scale_size, 0.f);
-    lines[5].p1 = ps.pos + float3(0.f, scale_size, scale_size);
-    lines[6].p0 = ps.pos + float3(0.f, 0.f, scale_size);
-    lines[6].p1 = ps.pos + float3(0.f, scale_size, scale_size);
-    IsLineSelected(lines[5], up_color, up_forward, a_gizmo.hit_flags);
-    IsLineSelected(lines[6], forward_color, up_forward, a_gizmo.hit_flags);
+        lines[7].p0 = ps.pos + float3(0.f, 0.f, scale_size);
+        lines[7].p1 = ps.pos + float3(scale_size, 0.f, scale_size);
+        lines[8].p0 = ps.pos + float3(scale_size, 0.f, 0.f);
+        lines[8].p1 = ps.pos + float3(scale_size, 0.f, scale_size);
+        IsLineSelected(lines[7], forward_color, forward_right, a_gizmo.hit_flags);
+        IsLineSelected(lines[8], right_color, forward_right, a_gizmo.hit_flags);
 
-    lines[7].p0 = ps.pos + float3(0.f, 0.f, scale_size);
-    lines[7].p1 = ps.pos + float3(scale_size, 0.f, scale_size);
-    lines[8].p0 = ps.pos + float3(scale_size, 0.f, 0.f);
-    lines[8].p1 = ps.pos + float3(scale_size, 0.f, scale_size);
-    IsLineSelected(lines[7], forward_color, forward_right, a_gizmo.hit_flags);
-    IsLineSelected(lines[8], right_color, forward_right, a_gizmo.hit_flags);
-
-    a_ecs.AddLinesToFrame(lines.const_slice());
+        a_ecs.AddLinesToFrame(lines.const_slice());
+    }
+    else
+    {
+        BB_UNIMPLEMENTED("gizmo rotation");
+    }
 }
 
 void BB::GizmoManipulateEntity(class EntityComponentSystem& a_ecs, const ECSEntity a_entity, const Gizmo& a_gizmo, const float2 a_mouse_move)
 {
-    float3 translate = float3();
+    float3 change = float3();
     if (a_gizmo.hit_flags & static_cast<GIZMO_HIT_FLAGS>(GIZMO_HIT::RIGHT))
-        translate.x = a_mouse_move.x;
+        change.x = a_mouse_move.x;
     if (a_gizmo.hit_flags & static_cast<GIZMO_HIT_FLAGS>(GIZMO_HIT::UP))
-        translate.y = -a_mouse_move.y;
+        change.y = -a_mouse_move.y;
     if (a_gizmo.hit_flags & static_cast<GIZMO_HIT_FLAGS>(GIZMO_HIT::FORWARD))
-        translate.z = a_mouse_move.x;
+        change.z = a_mouse_move.x;
 
-    a_ecs.Translate(a_entity, translate);
+    if (a_gizmo.mode == GIZMO_MODE::TRANSLATE)
+        a_ecs.Translate(a_entity, change);
+    else if (a_gizmo.mode == GIZMO_MODE::TRANSLATE)
+        a_ecs.Scale(a_entity, change);
+    else
+        BB_UNIMPLEMENTED("gizmo rotation");
 }
