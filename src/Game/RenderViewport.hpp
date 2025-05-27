@@ -25,7 +25,6 @@ namespace BB
 		SceneHierarchy m_scene_hierarchy;
         ECSEntity m_selected_entity;
         Gizmo m_gizmo;
-        GIZMO_HIT_FLAGS m_gizmo_hits;
 
 		FreeCamera m_camera{};
         bool m_rotate_enable;

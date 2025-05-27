@@ -119,8 +119,7 @@ bool RenderViewport::Update(const float a_delta_time)
 	m_scene_hierarchy.GetECS().GetRenderSystem().SetView(m_camera.CalculateView(), m_camera.GetPosition());
     if (m_selected_entity.IsValid())
     {
-        m_gizmo = CreateGizmo(m_scene_hierarchy.GetECS(), m_selected_entity);
-        DrawGizmo(m_scene_hierarchy.GetECS(), m_gizmo, m_gizmo_hits);
+        DrawGizmo(m_scene_hierarchy.GetECS(), m_gizmo);
     }
 	DisplayImGuiInfo();
 	return true;
@@ -170,7 +169,7 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
 			const float2 mouse_move = (mi.move_offset * a_delta_time);
 
             if (m_selected_entity.IsValid())
-                GizmoManipulateEntity(m_scene_hierarchy.GetECS(), m_selected_entity, m_gizmo_hits, mouse_move);
+                GizmoManipulateEntity(m_scene_hierarchy.GetECS(), m_selected_entity, m_gizmo, mouse_move);
 
 			if (mi.wheel_move)
 			{
@@ -198,19 +197,21 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
                     const float3 dir = ScreenToWorldRaycast(mouse_pos_window, m_viewport.GetExtent(), m_scene_hierarchy.GetECS().GetRenderSystem().GetProjection(), view);
                     if (m_selected_entity.IsValid())
                     { 
-                        m_gizmo_hits = GizmoCollide(m_gizmo, m_camera.GetPosition(), dir);
-                        if (m_gizmo_hits == 0)
+                        if (!GizmoCollide(m_scene_hierarchy.GetECS(), m_gizmo, m_camera.GetPosition(), dir))
                             m_selected_entity = m_scene_hierarchy.GetECS().SelectEntityByRay(m_camera.GetPosition(), dir);
                     }
                     else
+                    {
                         m_selected_entity = m_scene_hierarchy.GetECS().SelectEntityByRay(m_camera.GetPosition(), dir);
+                        m_gizmo = CreateGizmo(m_selected_entity, GIZMO_MODE::TRANSLATE);
+                    }
                 }
                 else
                     m_selected_entity = INVALID_ECS_OBJ;
             }
 
             if (mi.left_released)
-                m_gizmo_hits = 0;
+                m_gizmo.hit_flags = 0;
 		}
 	}
 
