@@ -17,7 +17,7 @@ namespace BB
 		void Destroy();
 
 		Viewport& GetViewport() { return m_viewport; }
-		EntityComponentSystem& GetECS() { return m_scene_hierarchy.GetECS(); }
+        SceneHierarchy& GetSceneHierarchy() { return m_scene_hierarchy; }
 
 	private:
 		MemoryArena m_memory;

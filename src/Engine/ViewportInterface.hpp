@@ -40,6 +40,5 @@ namespace BB
 		{ v.HandleInput(a_delta_time, a_input_events) } -> std::same_as<bool>;
 
 		{ v.GetViewport() } -> std::same_as<BB::Viewport&>;
-        { v.GetECS() } -> std::same_as<BB::EntityComponentSystem&>;
 	};
 }

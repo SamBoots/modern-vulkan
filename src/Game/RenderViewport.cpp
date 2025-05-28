@@ -198,7 +198,10 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
                     if (m_selected_entity.IsValid())
                     { 
                         if (!GizmoCollide(m_scene_hierarchy.GetECS(), m_gizmo, m_camera.GetPosition(), dir))
+                        {
                             m_selected_entity = m_scene_hierarchy.GetECS().SelectEntityByRay(m_camera.GetPosition(), dir);
+                            m_gizmo = CreateGizmo(m_selected_entity, GIZMO_MODE::TRANSLATE);
+                        }
                     }
                     else
                     {
