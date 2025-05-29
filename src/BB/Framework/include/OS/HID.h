@@ -68,6 +68,8 @@ namespace BB
 		ALTLEFT = 0x38,
 		SPACEBAR = 0x39,
 		CAPSLOCK = 0x3A,
+
+        ENUM_SIZE,
 	};
 
 	struct MouseInfo

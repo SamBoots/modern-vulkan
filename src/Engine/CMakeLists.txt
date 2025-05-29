@@ -19,6 +19,7 @@ add_library(Engine
 	"AssetLoader.cpp"
 	"SceneHierarchy.cpp" 
 	"MaterialSystem.cpp" 
+    "InputSystem.cpp"
 	"EngineConfig.cpp"
 	"Viewport.cpp"
 	"Profiler.cpp"
