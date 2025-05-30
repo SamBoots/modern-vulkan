@@ -72,9 +72,19 @@ void Input::UpdateInput(const ConstSlice<InputEvent> a_input_events)
         {
             mouse_move = mouse_move + ev.mouse_info.move_offset;
             wheel_move = wheel_move + static_cast<float>(ev.mouse_info.wheel_move);
-            s_input_system->mouse_state.left_pressed = ev.mouse_info.left_pressed;
-            s_input_system->mouse_state.right_pressed = ev.mouse_info.right_pressed;
-            s_input_system->mouse_state.middle_pressed = ev.mouse_info.middle_pressed;
+            if (ev.mouse_info.left_pressed)
+                s_input_system->mouse_state.left_pressed = true;
+            if (ev.mouse_info.right_pressed)
+                s_input_system->mouse_state.right_pressed = true;
+            if (ev.mouse_info.middle_pressed)
+                s_input_system->mouse_state.middle_pressed = true;
+
+            if (ev.mouse_info.left_released)
+                s_input_system->mouse_state.left_pressed = false;
+            if (ev.mouse_info.right_released)
+                s_input_system->mouse_state.right_pressed = false;
+            if (ev.mouse_info.middle_released)
+                s_input_system->mouse_state.middle_pressed = false;
         }
     }
     s_input_system->mouse_state.mouse_move = mouse_move;

@@ -167,14 +167,12 @@ bool RenderViewport::Update(const float a_delta_time, const bool a_selected)
         const float wheel_move = Input::InputActionGetFloat(m_move_speed_slider);
 
         m_speed = Clampf(
-            m_speed + static_cast<float>(wheel_move) * ((m_speed + 2.2f) * 0.022f),
+            m_speed + wheel_move * ((m_speed + 2.2f) * 0.022f),
             m_min_speed,
             m_max_speed);
         m_camera.SetSpeed(m_speed);
 
-        m_rotate_enable = Input::InputActionIsPressed(m_enable_rotate_button);
-
-        if (m_rotate_enable)
+        if (Input::InputActionIsPressed(m_enable_rotate_button))
         {
             const float2 mouse_move = Input::InputActionGetFloat2(m_look_around);
             m_camera.Rotate(mouse_move.x * a_delta_time, mouse_move.y * a_delta_time);

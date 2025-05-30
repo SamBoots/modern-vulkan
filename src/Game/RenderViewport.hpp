@@ -27,7 +27,6 @@ namespace BB
         Gizmo m_gizmo;
 
 		FreeCamera m_camera{};
-        bool m_rotate_enable;
 		float m_speed = 1.f;
 		float m_min_speed = 0.1f;
 		float m_max_speed = 100.0f;

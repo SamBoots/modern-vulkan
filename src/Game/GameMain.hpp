@@ -151,7 +151,6 @@ namespace BB
 		// debug
 		struct FreeCameraOption
 		{
-			bool freeze_free_cam;
 			bool use_free_cam;
 			FreeCamera camera{};
             float speed = 1.f;
@@ -159,6 +158,18 @@ namespace BB
             float max_speed = 100.0f;
 		};
 		FreeCameraOption m_free_cam;
+
+        struct Controls
+        {
+            InputActionHandle player_move;
+            InputActionHandle turn_left;
+            InputActionHandle turn_right;
+            InputActionHandle toggle_freecam;
+
+            InputActionHandle move_speed_slider;
+            InputActionHandle look_around;
+            InputActionHandle enable_rotate_button;
+        } m_input;
 	};
 	static_assert(is_interactable_viewport_interface<DungeonGame>);
 }

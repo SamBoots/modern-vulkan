@@ -7,6 +7,7 @@
 #include "HID.h"
 
 #include "Math/Math.inl"
+#include "InputSystem.hpp"
 
 using namespace BB;
 
@@ -461,11 +462,122 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
 	}
 	m_player.SetPosition(m_dungeon_map.GetSpawnPoint() + map_start_pos + float3(0.f, 1.f, 0.f));
 	m_player.SetLerpSpeed(5.f);
+
+    {   // input
+        InputActionCreateInfo input_create{};
+        input_create.value_type = INPUT_VALUE_TYPE::FLOAT_2;
+        input_create.action_type = INPUT_ACTION_TYPE::BUTTON;
+        input_create.binding_type = INPUT_BINDING_TYPE::COMPOSITE_UP_DOWN_RIGHT_LEFT;
+        input_create.source = INPUT_SOURCE::KEYBOARD;
+        input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::W;
+        input_create.input_keys[1].keyboard_key = KEYBOARD_KEY::S;
+        input_create.input_keys[2].keyboard_key = KEYBOARD_KEY::D;
+        input_create.input_keys[3].keyboard_key = KEYBOARD_KEY::A;
+        m_input.player_move = Input::CreateInputAction("Player move", input_create);
+    }
+    {
+        InputActionCreateInfo input_create{};
+        input_create.value_type = INPUT_VALUE_TYPE::BOOL;
+        input_create.action_type = INPUT_ACTION_TYPE::BUTTON;
+        input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
+        input_create.source = INPUT_SOURCE::KEYBOARD;
+        input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::Q;
+        m_input.turn_left = Input::CreateInputAction("Player turn left", input_create);
+    }
+    {
+        InputActionCreateInfo input_create{};
+        input_create.value_type = INPUT_VALUE_TYPE::BOOL;
+        input_create.action_type = INPUT_ACTION_TYPE::BUTTON;
+        input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
+        input_create.source = INPUT_SOURCE::KEYBOARD;
+        input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::E;
+        m_input.turn_right = Input::CreateInputAction("Player turn right", input_create);
+    }
+    {
+        InputActionCreateInfo input_create{};
+        input_create.value_type = INPUT_VALUE_TYPE::BOOL;
+        input_create.action_type = INPUT_ACTION_TYPE::BUTTON;
+        input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
+        input_create.source = INPUT_SOURCE::KEYBOARD;
+        input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::G;
+        m_input.toggle_freecam = Input::CreateInputAction("Player toggle freecam", input_create);
+    }
+
+    {
+        InputActionCreateInfo input_create{};
+        input_create.value_type = INPUT_VALUE_TYPE::FLOAT;
+        input_create.action_type = INPUT_ACTION_TYPE::VALUE;
+        input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
+        input_create.source = INPUT_SOURCE::MOUSE;
+        input_create.input_keys[0].mouse_input = MOUSE_INPUT::SCROLL_WHEEL;
+        m_input.move_speed_slider = Input::CreateInputAction("GameMain move speed slider", input_create);
+    }
+    {
+        InputActionCreateInfo input_create{};
+        input_create.value_type = INPUT_VALUE_TYPE::FLOAT_2;
+        input_create.action_type = INPUT_ACTION_TYPE::VALUE;
+        input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
+        input_create.source = INPUT_SOURCE::MOUSE;
+        input_create.input_keys[0].mouse_input = MOUSE_INPUT::MOUSE_MOVE;
+        m_input.look_around = Input::CreateInputAction("GameMain look around", input_create);
+    }
+    {
+        InputActionCreateInfo input_create{};
+        input_create.value_type = INPUT_VALUE_TYPE::BOOL;
+        input_create.action_type = INPUT_ACTION_TYPE::VALUE;
+        input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
+        input_create.source = INPUT_SOURCE::MOUSE;
+        input_create.input_keys[0].mouse_input = MOUSE_INPUT::LEFT_BUTTON;
+        m_input.enable_rotate_button = Input::CreateInputAction("GameMain enable rotate", input_create);
+    }
+
 	return true;
 }
 
 bool DungeonGame::Update(const float a_delta_time, const bool a_selected)
 {
+    if (a_selected)
+    {
+        const float2 move_value = Input::InputActionGetFloat2(m_input.player_move);
+        const float3 player_move = float3(move_value.x, 0.f, move_value.y);
+
+        float player_rotate_y = 0;
+        if (Input::InputActionIsPressed(m_input.turn_left))
+            player_rotate_y = ToRadians(90.f);
+        if (Input::InputActionIsPressed(m_input.turn_right))
+            player_rotate_y = ToRadians(-90.f);
+
+        if (m_free_cam.use_free_cam)
+        {
+            m_free_cam.camera.Move(player_move * a_delta_time);
+            
+            const float wheel_move = Input::InputActionGetFloat(m_input.move_speed_slider);
+
+            m_free_cam.speed = Clampf(
+                m_free_cam.speed + static_cast<float>(wheel_move) * ((m_free_cam.speed + 2.2f) * 0.022f),
+                m_free_cam.min_speed,
+                m_free_cam.max_speed);
+            m_free_cam.camera.SetSpeed(m_free_cam.speed);
+
+            if (Input::InputActionIsPressed(m_input.enable_rotate_button))
+            {
+                const float2 mouse_move = Input::InputActionGetFloat2(m_input.look_around);
+                m_free_cam.camera.Rotate(mouse_move.x * a_delta_time, mouse_move.y * a_delta_time);
+            }
+        }
+        else
+        {
+            if (!m_player.IsMoving())
+            {
+                m_player.Move(player_move);
+                m_player.Rotate(float3(0.f, player_rotate_y, 0.f));
+            }
+        }
+
+        if (Input::InputActionIsPressed(m_input.toggle_freecam))
+            ToggleFreeCam();
+    }
+
 	m_player.Update(a_delta_time);
 
 	if (m_free_cam.use_free_cam)
@@ -485,92 +597,6 @@ bool DungeonGame::Update(const float a_delta_time, const bool a_selected)
 
 bool DungeonGame::HandleInput(const float a_delta_time, const Slice<InputEvent> a_input_events)
 {
-	for (size_t i = 0; i < a_input_events.size(); i++)
-	{
-		const InputEvent& ip = a_input_events[i];
-		if (ip.input_type == INPUT_TYPE::KEYBOARD)
-		{
-			const KeyInfo& ki = ip.key_info;
-			float3 player_move{};
-			float player_rotate_y = 0;
-			if (ki.key_pressed)
-			{
-				switch (ki.scan_code)
-				{
-				case KEYBOARD_KEY::W:
-					player_move.z = 1.f;
-					break;
-				case KEYBOARD_KEY::S:
-					player_move.z = -1.f;
-					break;
-				case KEYBOARD_KEY::A:
-					player_move.x = 1.f;
-					break;
-				case KEYBOARD_KEY::D:
-					player_move.x = -1.f;
-					break;
-				case KEYBOARD_KEY::X:
-					player_move.y = 1.f;
-					break;
-				case KEYBOARD_KEY::Z:
-					player_move.y = -1.f;
-					break;
-				case KEYBOARD_KEY::Q:
-					player_rotate_y = ToRadians(90.f);
-					break;
-				case KEYBOARD_KEY::E:
-					player_rotate_y = ToRadians(-90.f);
-					break;
-				case KEYBOARD_KEY::F:
-					m_free_cam.freeze_free_cam = !m_free_cam.freeze_free_cam;
-					m_free_cam.camera.SetVelocity();
-					break;
-				case KEYBOARD_KEY::G:
-					ToggleFreeCam();
-					break;
-				default:
-					break;
-				}
-			}
-			if (m_free_cam.use_free_cam && !m_free_cam.freeze_free_cam)
-			{
-				const float swap_y = player_move.y;
-				player_move.y = player_move.z;
-				player_move.z = swap_y;
-				player_move = player_move * a_delta_time;
-				m_free_cam.camera.Move(player_move);
-			}
-			else
-			{
-				if (!m_player.IsMoving())
-				{
-					player_move.y = 0;
-					m_player.Move(player_move);
-					m_player.Rotate(float3(0.f, player_rotate_y, 0.f));
-				}
-			}
-		}
-		else if (ip.input_type == INPUT_TYPE::MOUSE)
-		{
-			const MouseInfo& mi = ip.mouse_info;
-			const float2 mouse_move = (mi.move_offset * a_delta_time);
-
-			if (mi.wheel_move)
-			{
-				m_free_cam.speed = Clampf(
-					m_free_cam.speed + static_cast<float>(mi.wheel_move) * (m_free_cam.speed * 0.02f),
-					m_free_cam.min_speed,
-					m_free_cam.max_speed);
-				m_free_cam.camera.SetSpeed(m_free_cam.speed);
-			}
-
-			if (m_free_cam.use_free_cam && !m_free_cam.freeze_free_cam)
-			{
-				m_free_cam.camera.Rotate(mouse_move.x, mouse_move.y);
-			}
-		}
-	}
-
 	return true;
 }
 
@@ -583,12 +609,6 @@ void DungeonGame::DisplayImGuiInfo()
 		if (ImGui::Button("Toggle freecam"))
 		{
 			ToggleFreeCam();
-		}
-
-		ImGui::Text("Freeze freecam: %s", m_free_cam.freeze_free_cam ? "true" : "false");
-		if (ImGui::Button("Toggle freecam freeze"))
-		{
-			m_free_cam.freeze_free_cam = !m_free_cam.freeze_free_cam;
 		}
 
 		if (ImGui::SliderFloat("Freecam speed", &m_free_cam.speed, m_free_cam.min_speed, m_free_cam.max_speed))
