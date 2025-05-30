@@ -9,6 +9,8 @@
 #include "ImGuiImpl.hpp"
 #include "imgui.h"
 
+#include "InputSystem.hpp"
+
 using namespace BB;
 
 static inline const char* ShaderStageToCChar(const SHADER_STAGE a_stage)
@@ -192,6 +194,15 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 
 		m_render_target_descs[i] = CreateImageView(view_info);
 	}
+    {
+        InputActionCreateInfo action_info;
+        action_info.action_type = INPUT_ACTION_TYPE::BUTTON;
+        action_info.binding_type = INPUT_BINDING_TYPE::BINDING;
+        action_info.value_type = INPUT_VALUE_TYPE::BOOL;
+        action_info.source = INPUT_SOURCE::MOUSE;
+        action_info.input_keys[0].mouse_input = MOUSE_INPUT::LEFT_BUTTON;
+        m_input.click_on_screen = Input::CreateInputAction("editor click on screen", action_info);
+    }
 }
 
 void Editor::Destroy()
@@ -214,22 +225,6 @@ void Editor::StartFrame(MemoryArena& a_arena, const Slice<InputEvent> a_input_ev
 		{
 			m_swallow_input = true;
 			continue;
-		}
-
-		if (ip.input_type == INPUT_TYPE::KEYBOARD)
-		{
-			const KeyInfo& ki = ip.key_info;
-			(void)ki;
-		}
-		else if (ip.input_type == INPUT_TYPE::MOUSE)
-		{
-			const MouseInfo& mi = ip.mouse_info;
-			m_previous_mouse_pos = mi.mouse_pos;
-
-			if (mi.right_released)
-				FreezeMouseOnWindow(m_main_window);
-			if (mi.left_released)
-				UnfreezeMouseOnWindow();
 		}
 	}
 

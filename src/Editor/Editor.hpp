@@ -109,5 +109,10 @@ namespace BB
 		GPUDeviceInfo m_gpu_info;
 
 		WindowHandle m_main_window;
+
+        struct Controls
+        {
+            InputActionHandle click_on_screen;
+        } m_input;
 	};
 }
