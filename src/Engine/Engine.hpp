@@ -1,6 +1,9 @@
 #pragma once
 #include "Enginefwd.hpp"
 #include "MemoryArena.hpp"
+#include "Slice.h"
+
+#include "HID.h"
 
 namespace BB
 {
@@ -20,6 +23,7 @@ namespace BB
         uint32_t max_materials;
         uint32_t max_shader_effects;
         uint32_t max_material_instances;
+        uint32_t max_input_actions;
         bool enable_debug;
         DebugOptions debug_options;
     };
@@ -31,8 +35,16 @@ namespace BB
         uint32_t backbuffer_count;
     };
 
+    enum class ENGINE_STATUS
+    {
+        RESIZE,
+        CLOSE_APP,
+        RESUME
+    };
+
     EngineInfo InitEngine(MemoryArena& a_arena, const wchar* a_app_name, const EngineOptions& a_engine_options, const GraphicOptions& a_graphic_options);
     bool DestroyEngine();
+    ENGINE_STATUS UpdateEngine(const WindowHandle a_window_handle, const ConstSlice<InputEvent> a_input_events);
 
     bool WindowResized();
     bool WindowClosed();

@@ -9,6 +9,7 @@
 #include "Profiler.hpp"
 #include "Renderer.hpp"
 #include "AssetLoader.hpp"
+#include "InputSystem.hpp"
 
 using namespace BB;
 
@@ -119,6 +120,8 @@ EngineInfo BB::InitEngine(MemoryArena& a_arena, const wchar* a_app_name, const E
     const Asset::AssetManagerInitInfo asset_manager_info = {};
     Asset::InitializeAssetManager(a_arena, asset_manager_info);
 
+    Input::InitInputSystem(a_arena, a_engine_options.max_input_actions);
+
     if (a_engine_options.enable_debug)
     {
         InitializeProfiler(a_arena, a_engine_options.debug_options.max_profiler_entries);
@@ -139,14 +142,23 @@ bool BB::DestroyEngine()
     return true;
 }
 
-bool BB::WindowResized()
+ENGINE_STATUS BB::UpdateEngine(const WindowHandle a_window_handle, const ConstSlice<InputEvent> a_input_events)
 {
-    const bool ret = s_resize_app;
-    s_resize_app = false;
-    return ret;
-}
+    if (s_window_closed)
+        return ENGINE_STATUS::CLOSE_APP;
+    ENGINE_STATUS status = ENGINE_STATUS::RESUME;
+    if (s_resize_app)
+    {
+        s_resize_app = false;
+        status = ENGINE_STATUS::RESIZE;
+    }
+    Asset::Update();
 
-bool BB::WindowClosed()
-{
-    return s_window_closed;
+    //InputEvent input_events[INPUT_EVENT_BUFFER_MAX]{};
+    //size_t input_event_count = 0;
+    //ProcessMessages(a_window_handle);
+    //PollInputEvents(input_events, input_event_count);
+
+    Input::UpdateInput(a_input_events);//  ConstSlice<InputEvent>(input_events, input_event_count));
+    return status;
 }

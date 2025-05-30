@@ -464,7 +464,7 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
 	return true;
 }
 
-bool DungeonGame::Update(const float a_delta_time)
+bool DungeonGame::Update(const float a_delta_time, const bool a_selected)
 {
 	m_player.Update(a_delta_time);
 

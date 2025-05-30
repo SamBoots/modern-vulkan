@@ -53,7 +53,7 @@ bool Input::InitInputSystem(struct MemoryArena& a_arena, const uint32_t a_max_ac
     s_input_system = ArenaAllocType(a_arena, InputSystem);
     s_input_system->input_action_index_map.Init(a_arena, a_max_actions);
     s_input_system->input_actions.Init(a_arena, a_max_actions);
-    s_input_system->keyboard_state.Init(a_arena, static_cast<uint32_t>(KEYBOARD_KEY::ENUM_SIZE) - 1);
+    s_input_system->keyboard_state.Init(a_arena, static_cast<uint32_t>(KEYBOARD_KEY::ENUM_SIZE) - 1, static_cast<uint32_t>(KEYBOARD_KEY::ENUM_SIZE) - 1);
     return true;
 }
 
@@ -72,6 +72,9 @@ void Input::UpdateInput(const ConstSlice<InputEvent> a_input_events)
         {
             mouse_move = mouse_move + ev.mouse_info.move_offset;
             wheel_move = wheel_move + static_cast<float>(ev.mouse_info.wheel_move);
+            s_input_system->mouse_state.left_pressed = ev.mouse_info.left_pressed;
+            s_input_system->mouse_state.right_pressed = ev.mouse_info.right_pressed;
+            s_input_system->mouse_state.middle_pressed = ev.mouse_info.middle_pressed;
         }
     }
     s_input_system->mouse_state.mouse_move = mouse_move;

@@ -8,6 +8,8 @@
 #include "Math/Math.inl"
 #include "Math/Collision.inl"
 
+#include "InputSystem.hpp"
+
 using namespace BB;
 
 struct LoadAssetsAsync_params
@@ -106,6 +108,47 @@ bool RenderViewport::Init(const uint2 a_game_viewport_size, const uint32_t a_bac
 
 	CreateSceneHierarchyViaJson(m_memory, m_scene_hierarchy, a_game_viewport_size, a_back_buffer_count, json_file);
 
+    // create input
+    {
+        InputActionCreateInfo input_create{};
+        input_create.value_type = INPUT_VALUE_TYPE::FLOAT_2;
+        input_create.action_type = INPUT_ACTION_TYPE::BUTTON;
+        input_create.binding_type = INPUT_BINDING_TYPE::COMPOSITE_UP_DOWN_RIGHT_LEFT;
+        input_create.source = INPUT_SOURCE::KEYBOARD;
+        input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::W;
+        input_create.input_keys[1].keyboard_key = KEYBOARD_KEY::S;
+        input_create.input_keys[2].keyboard_key = KEYBOARD_KEY::D;
+        input_create.input_keys[3].keyboard_key = KEYBOARD_KEY::A;
+        m_move_forward_backward_left_right = Input::CreateInputAction("RenderViewport Move", input_create);
+    }
+    {
+        InputActionCreateInfo input_create{};
+        input_create.value_type = INPUT_VALUE_TYPE::FLOAT;
+        input_create.action_type = INPUT_ACTION_TYPE::VALUE;
+        input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
+        input_create.source = INPUT_SOURCE::MOUSE;
+        input_create.input_keys[0].mouse_input = MOUSE_INPUT::SCROLL_WHEEL;
+        m_move_speed_slider = Input::CreateInputAction("RenderViewport move speed slider", input_create);
+    }
+    {
+        InputActionCreateInfo input_create{};
+        input_create.value_type = INPUT_VALUE_TYPE::FLOAT_2;
+        input_create.action_type = INPUT_ACTION_TYPE::VALUE;
+        input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
+        input_create.source = INPUT_SOURCE::MOUSE;
+        input_create.input_keys[0].mouse_input = MOUSE_INPUT::MOUSE_MOVE;
+        m_look_around = Input::CreateInputAction("RenderViewport look around", input_create);
+    }
+    {
+        InputActionCreateInfo input_create{};
+        input_create.value_type = INPUT_VALUE_TYPE::BOOL;
+        input_create.action_type = INPUT_ACTION_TYPE::VALUE;
+        input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
+        input_create.source = INPUT_SOURCE::MOUSE;
+        input_create.input_keys[0].mouse_input = MOUSE_INPUT::LEFT_BUTTON;
+        m_enable_rotate_button = Input::CreateInputAction("RenderViewport enable rotate", input_create);
+    }
+
 	m_viewport.Init(a_game_viewport_size, int2(0, 0), "render viewport");
 	m_camera.SetPosition(float3(0.f, 1.f, -1.f));
 	m_camera.SetUp(float3(0.f, 1.f, 0.f));
@@ -113,8 +156,31 @@ bool RenderViewport::Init(const uint2 a_game_viewport_size, const uint32_t a_bac
 	return true;
 }
 
-bool RenderViewport::Update(const float a_delta_time)
+bool RenderViewport::Update(const float a_delta_time, const bool a_selected)
 {
+    if (a_selected)
+    {
+        const float2 move_value = Input::InputActionGetFloat2(m_move_forward_backward_left_right);
+        const float3 player_move = float3(move_value.x, 0.f, move_value.y) * a_delta_time;
+        m_camera.Move(player_move);
+
+        const float wheel_move = Input::InputActionGetFloat(m_move_speed_slider);
+
+        m_speed = Clampf(
+            m_speed + static_cast<float>(wheel_move) * ((m_speed + 2.2f) * 0.022f),
+            m_min_speed,
+            m_max_speed);
+        m_camera.SetSpeed(m_speed);
+
+        m_rotate_enable = Input::InputActionIsPressed(m_enable_rotate_button);
+
+        if (m_rotate_enable)
+        {
+            const float2 mouse_move = Input::InputActionGetFloat2(m_look_around);
+            m_camera.Rotate(mouse_move.x * a_delta_time, mouse_move.y * a_delta_time);
+        }
+    }
+
 	m_camera.Update(a_delta_time);
 	m_scene_hierarchy.GetECS().GetRenderSystem().SetView(m_camera.CalculateView(), m_camera.GetPosition());
     if (m_selected_entity.IsValid())
@@ -122,6 +188,7 @@ bool RenderViewport::Update(const float a_delta_time)
         DrawGizmo(m_scene_hierarchy.GetECS(), m_gizmo);
     }
 	DisplayImGuiInfo();
+
 	return true;
 }
 
@@ -130,63 +197,13 @@ bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEven
 	for (size_t i = 0; i < a_input_events.size(); i++)
 	{
 		const InputEvent& ip = a_input_events[i];
-		if (ip.input_type == INPUT_TYPE::KEYBOARD)
-		{
-			const KeyInfo& ki = ip.key_info;
-			float3 player_move{};
-			if (ki.key_pressed)
-			{
-				switch (ki.scan_code)
-				{
-				case KEYBOARD_KEY::W:
-					player_move.y = 1;
-					break;
-				case KEYBOARD_KEY::S:
-					player_move.y = -1;
-					break;
-				case KEYBOARD_KEY::A:
-					player_move.x = 1;
-					break;
-				case KEYBOARD_KEY::D:
-					player_move.x = -1;
-					break;
-				case KEYBOARD_KEY::X:
-					player_move.z = 1;
-					break;
-				case KEYBOARD_KEY::Z:
-					player_move.z = -1;
-					break;
-				default:
-					break;
-				}
-				player_move = player_move * a_delta_time;
-			}
-			m_camera.Move(player_move);
-		}
-		else if (ip.input_type == INPUT_TYPE::MOUSE)
+		if (ip.input_type == INPUT_TYPE::MOUSE)
 		{
 			const MouseInfo& mi = ip.mouse_info;
 			const float2 mouse_move = (mi.move_offset * a_delta_time);
 
             if (m_selected_entity.IsValid())
                 GizmoManipulateEntity(m_scene_hierarchy.GetECS(), m_selected_entity, m_gizmo, mouse_move);
-
-			if (mi.wheel_move)
-			{
-				m_speed = Clampf(
-					m_speed + static_cast<float>(mi.wheel_move) * (m_speed * 0.02f),
-					m_min_speed,
-					m_max_speed);
-				m_camera.SetSpeed(m_speed);
-			}
-
-			if (mi.right_pressed)
-                m_rotate_enable = true;
-            if (mi.right_released)
-                m_rotate_enable = false;
-
-            if (m_rotate_enable)
-                m_camera.Rotate(mouse_move.x, mouse_move.y);
 
             if (mi.left_pressed)
             {

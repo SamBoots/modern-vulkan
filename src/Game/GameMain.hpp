@@ -129,7 +129,7 @@ namespace BB
 	{
 	public:
 		bool Init(const uint2 a_game_viewport_size, const uint32_t a_back_buffer_count);
-		bool Update(const float a_delta_time);
+		bool Update(const float a_delta_time, const bool a_selected = true);
 		bool HandleInput(const float a_delta_time, const Slice<InputEvent> a_input_events);
 		// maybe ifdef this for editor
 		void DisplayImGuiInfo();
@@ -154,9 +154,9 @@ namespace BB
 			bool freeze_free_cam;
 			bool use_free_cam;
 			FreeCamera camera{};
-			float speed = 200.f;
-			float min_speed = 100.f;
-			float max_speed = 1000.0f;
+            float speed = 1.f;
+            float min_speed = 0.1f;
+            float max_speed = 100.0f;
 		};
 		FreeCameraOption m_free_cam;
 	};

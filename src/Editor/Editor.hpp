@@ -33,9 +33,12 @@ namespace BB
 			if (!m_swallow_input && viewport.PositionWithinViewport(uint2(static_cast<unsigned int>(m_previous_mouse_pos.x), static_cast<unsigned int>(m_previous_mouse_pos.y))))
 			{
 				a_game_interface.HandleInput(a_delta_time, a_input_events);
+                a_game_interface.Update(a_delta_time, true);
 			}
-
-			a_game_interface.Update(a_delta_time);
+            else
+            {
+                a_game_interface.Update(a_delta_time, false);
+            }
 
 			ImguiDisplayECS(hierarchy.m_ecs);
 

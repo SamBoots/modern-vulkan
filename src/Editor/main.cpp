@@ -31,6 +31,7 @@ int main(int argc, char** argv)
         engine_options.max_materials = 128;
         engine_options.max_shader_effects = 64;
         engine_options.max_material_instances = 256;
+        engine_options.max_input_actions = 64;
         engine_options.enable_debug = true;
         engine_options.debug_options.max_profiler_entries = 64;
 
@@ -52,9 +53,19 @@ int main(int argc, char** argv)
 	RenderViewport render_viewport{};
 	render_viewport.Init(engine_info.window_extent / 2, engine_info.backbuffer_count, "../../resources/scenes/standard_scene.json");
 
-	while (!WindowClosed())
+	while (true)
 	{
-		if (WindowResized())
+        InputEvent input_events[INPUT_EVENT_BUFFER_MAX]{};
+        size_t input_event_count = 0;
+
+        ProcessMessages(engine_info.window_handle);
+        PollInputEvents(input_events, input_event_count);
+        const ENGINE_STATUS status = UpdateEngine(engine_info.window_handle, ConstSlice<InputEvent>(input_events, input_event_count));
+
+        if (status == ENGINE_STATUS::CLOSE_APP)
+            break;
+
+		if (status == ENGINE_STATUS::RESIZE)
 		{
 			int x, y;
 			OSGetWindowSize(engine_info.window_handle, x, y);
@@ -63,13 +74,8 @@ int main(int argc, char** argv)
 		}
 
 		BB_START_PROFILE("frame time");
-		Asset::Update();
 
-		InputEvent input_events[INPUT_EVENT_BUFFER_MAX]{};
-		size_t input_event_count = 0;
 
-		ProcessMessages(engine_info.window_handle);
-		PollInputEvents(input_events, input_event_count);
 		editor.StartFrame(main_arena, Slice(input_events, input_event_count), delta_time);
 		const ThreadTask tasks[2]
 		{

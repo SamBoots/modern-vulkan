@@ -34,11 +34,10 @@ namespace BB
 	};
 
 	template <typename T>
-	concept is_interactable_viewport_interface = requires(T v, const float a_delta_time, Slice<struct InputEvent> a_input_events)
+	concept is_interactable_viewport_interface = requires(T v, const float a_delta_time, const bool a_selected, Slice<struct InputEvent> a_input_events)
 	{
-		{ v.Update(a_delta_time) } -> std::same_as<bool>;
-		{ v.HandleInput(a_delta_time, a_input_events) } -> std::same_as<bool>;
-
+		{ v.Update(a_delta_time, a_selected) } -> std::same_as<bool>;
+        { v.HandleInput(a_delta_time, a_input_events) } -> std::same_as<bool>;
 		{ v.GetViewport() } -> std::same_as<BB::Viewport&>;
 	};
 }
