@@ -158,32 +158,6 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 
 	m_editor_allocator.Initialize(a_arena, a_editor_memory);
 
-	MaterialSystemCreateInfo material_system_init{};
-	material_system_init.max_materials = 128;
-	material_system_init.max_shader_effects = 64;
-	material_system_init.max_material_instances = 256;
-	material_system_init.default_2d_vertex.path = "../../resources/shaders/hlsl/Imgui.hlsl";
-	material_system_init.default_2d_vertex.entry = "VertexMain";
-	material_system_init.default_2d_vertex.stage = SHADER_STAGE::VERTEX;
-	material_system_init.default_2d_vertex.next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::FRAGMENT_PIXEL);
-
-	material_system_init.default_2d_fragment.path = "../../resources/shaders/hlsl/Imgui.hlsl";
-	material_system_init.default_2d_fragment.entry = "FragmentMain";
-	material_system_init.default_2d_fragment.stage = SHADER_STAGE::FRAGMENT_PIXEL;
-	material_system_init.default_2d_fragment.next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::NONE);
-
-	material_system_init.default_3d_vertex.path = "../../resources/shaders/hlsl/pbrmesh.hlsl";
-	material_system_init.default_3d_vertex.entry = "VertexMain";
-	material_system_init.default_3d_vertex.stage = SHADER_STAGE::VERTEX;
-	material_system_init.default_3d_vertex.next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::FRAGMENT_PIXEL);
-
-	material_system_init.default_3d_fragment.path = "../../resources/shaders/hlsl/pbrmesh.hlsl";
-	material_system_init.default_3d_fragment.entry = "FragmentMain";
-	material_system_init.default_3d_fragment.stage = SHADER_STAGE::FRAGMENT_PIXEL;
-	material_system_init.default_3d_fragment.next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::NONE);
-
-	Material::InitMaterialSystem(a_arena, material_system_init);
-
 	m_imgui_material = Material::GetDefaultMasterMaterial(PASS_TYPE::GLOBAL, MATERIAL_TYPE::MATERIAL_2D);
 
 	const uint32_t frame_count = GetBackBufferCount();

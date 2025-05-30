@@ -37,7 +37,6 @@ struct InputSystem
         bool middle_pressed;
         float wheel_move;
     } mouse_state;
-
 };
 
 static InputSystem* s_input_system;
@@ -49,10 +48,13 @@ static inline bool GetKeyboardKeyState(const KEYBOARD_KEY a_key)
 
 bool Input::InitInputSystem(struct MemoryArena& a_arena, const uint32_t a_max_actions)
 {
+    if (s_input_system)
+        return false;
     s_input_system = ArenaAllocType(a_arena, InputSystem);
     s_input_system->input_action_index_map.Init(a_arena, a_max_actions);
     s_input_system->input_actions.Init(a_arena, a_max_actions);
     s_input_system->keyboard_state.Init(a_arena, static_cast<uint32_t>(KEYBOARD_KEY::ENUM_SIZE) - 1);
+    return true;
 }
 
 void Input::UpdateInput(const ConstSlice<InputEvent> a_input_events)

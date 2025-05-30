@@ -2,7 +2,7 @@
 #include "Enginefwd.hpp"
 #include "HID.h"
 #include "Storage/BBString.h"
-#include "Utils/Slice.h"
+#include "Storage/FixedArray.h"
 
 namespace BB
 {
