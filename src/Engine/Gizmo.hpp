@@ -20,14 +20,16 @@ namespace BB
 
     struct Gizmo
     {
+        class EntityComponentSystem* ecs;
         ECSEntity selected_entity;
         GIZMO_MODE mode;
         GIZMO_HIT_FLAGS hit_flags;
     };
 
-    Gizmo CreateGizmo(const ECSEntity a_entity, const GIZMO_MODE a_mode);
+    Gizmo CreateGizmo(const ECSEntity a_entity, class EntityComponentSystem* a_ecs, const GIZMO_MODE a_mode);
+    bool GizmoIsValid(const Gizmo& a_gizmo);
 
-    bool GizmoCollide(class EntityComponentSystem& a_ecs, Gizmo& a_gizmo, const float3 a_ray_origin, const float3 a_ray_dir);
-    void DrawGizmo(class EntityComponentSystem& a_ecs, const Gizmo& a_gizmo);
-    void GizmoManipulateEntity(class EntityComponentSystem& a_ecs, const ECSEntity a_entity, const Gizmo& a_gizmo, const float2 a_mouse_move);
+    bool GizmoCollide(Gizmo& a_gizmo, const float3 a_ray_origin, const float3 a_ray_dir);
+    void DrawGizmo(const Gizmo& a_gizmo);
+    void GizmoManipulateEntity(const Gizmo& a_gizmo, const float2 a_mouse_move);
 }

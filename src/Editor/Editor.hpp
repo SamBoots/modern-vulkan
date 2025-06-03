@@ -6,6 +6,8 @@
 #include "MaterialSystem.hpp"
 #include "BBThreadScheduler.hpp"
 #include "Console.hpp"
+#include "Gizmo.hpp"
+#include "HID.h"
 
 #include <tuple>
 
@@ -24,7 +26,7 @@ namespace BB
 
 		template<typename viewport_interface>
 		requires is_interactable_viewport_interface<viewport_interface>
-		ThreadTask UpdateViewport(MemoryArena& a_arena, const float a_delta_time, viewport_interface& a_game_interface, const Slice<InputEvent> a_input_events)
+		ThreadTask UpdateViewport(MemoryArena& a_arena, const float a_delta_time, viewport_interface& a_game_interface)
 		{
 			(void)a_arena;
 			Viewport& viewport = a_game_interface.GetViewport();
@@ -32,7 +34,7 @@ namespace BB
 
 			if (!m_swallow_input && viewport.PositionWithinViewport(uint2(static_cast<unsigned int>(m_previous_mouse_pos.x), static_cast<unsigned int>(m_previous_mouse_pos.y))))
 			{
-				a_game_interface.HandleInput(a_delta_time, a_input_events);
+                UpdateGizmo(viewport, hierarchy, a_game_interface.GetCameraPos());
                 a_game_interface.Update(a_delta_time, true);
 			}
             else
@@ -78,6 +80,7 @@ namespace BB
 		void MainEditorImGuiInfo(const MemoryArena& a_arena);
 		static void ThreadFuncForDrawing(MemoryArena& a_thread_arena, void* a_param);
 		void DrawScene(Viewport& a_viewport, SceneHierarchy& a_hierarchy);
+        void UpdateGizmo(Viewport& a_viewport, SceneHierarchy& a_hierarchy, const float3 a_cam_pos);
 
 		uint2 m_app_window_extent;
 		Console m_console;
@@ -110,9 +113,12 @@ namespace BB
 
 		WindowHandle m_main_window;
 
+        Gizmo m_gizmo;
+
         struct Controls
         {
             InputActionHandle click_on_screen;
+            InputActionHandle mouse_move;
         } m_input;
 	};
 }

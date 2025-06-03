@@ -79,8 +79,8 @@ int main(int argc, char** argv)
 		editor.StartFrame(main_arena, Slice(input_events, input_event_count), delta_time);
 		const ThreadTask tasks[2]
 		{
-			editor.UpdateViewport(main_arena, delta_time, render_viewport, Slice(input_events, input_event_count)),
-			editor.UpdateViewport(main_arena, delta_time, def_game, Slice(input_events, input_event_count))
+			editor.UpdateViewport(main_arena, delta_time, render_viewport),
+			editor.UpdateViewport(main_arena, delta_time, def_game)
 		};
 
 		for (size_t i = 0; i < _countof(tasks); i++)

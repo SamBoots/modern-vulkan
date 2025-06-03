@@ -527,7 +527,7 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
         input_create.action_type = INPUT_ACTION_TYPE::VALUE;
         input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
         input_create.source = INPUT_SOURCE::MOUSE;
-        input_create.input_keys[0].mouse_input = MOUSE_INPUT::LEFT_BUTTON;
+        input_create.input_keys[0].mouse_input = MOUSE_INPUT::RIGHT_BUTTON;
         m_input.enable_rotate_button = Input::CreateInputAction("GameMain enable rotate", input_create);
     }
 
@@ -595,11 +595,6 @@ bool DungeonGame::Update(const float a_delta_time, const bool a_selected)
 	return true;
 }
 
-bool DungeonGame::HandleInput(const float a_delta_time, const Slice<InputEvent> a_input_events)
-{
-	return true;
-}
-
 // maybe ifdef this for editor
 void DungeonGame::DisplayImGuiInfo()
 {
@@ -631,6 +626,13 @@ void DungeonGame::DisplayImGuiInfo()
 void DungeonGame::Destroy()
 {
 	MemoryArenaFree(m_game_memory);
+}
+
+float3 DungeonGame::GetCameraPos() const
+{
+    if (m_free_cam.use_free_cam)
+        return m_free_cam.camera.GetPosition();
+    return m_player.GetPosition();
 }
 
 void DungeonGame::ToggleFreeCam()

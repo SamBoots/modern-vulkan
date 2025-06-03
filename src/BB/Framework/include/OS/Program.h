@@ -140,6 +140,8 @@ namespace BB
 	bool FreezeMouseOnWindow(const WindowHandle a_handle);
 	bool UnfreezeMouseOnWindow();
 
+    float2 OSGetCursorPos(const WindowHandle a_window);
+
     void OSMessageBoxOk(const char* a_box_title, const char* a_message);
 	bool OSMessageBoxYesNo(const char* a_box_title, const char* a_message);
 

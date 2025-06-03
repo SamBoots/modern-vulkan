@@ -164,13 +164,11 @@ static LRESULT wm_input(HWND a_hwnd, WPARAM a_wparam, LPARAM a_lparam)
 		else
 		{
 			event.mouse_info.move_offset = move_input;
-			POINT point;
-			BB_ASSERT(GetCursorPos(&point), "failed to get cursor pos");
-			ScreenToClient(a_hwnd, &point);
-			event.mouse_info.mouse_pos = { static_cast<float>(point.x), static_cast<float>(point.y) };
 		}
-
-		event.mouse_info.left_pressed = input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN;
+        
+        event.mouse_info.mouse_pos = OSGetCursorPos(WindowHandle(reinterpret_cast<uint64_t>(a_hwnd)));
+		
+        event.mouse_info.left_pressed = input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_DOWN;
 		event.mouse_info.left_released = input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_1_UP;
 		event.mouse_info.right_pressed = input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_DOWN;
 		event.mouse_info.right_released = input.data.mouse.usButtonFlags & RI_MOUSE_BUTTON_2_UP;
@@ -817,6 +815,14 @@ bool BB::FreezeMouseOnWindow(const WindowHandle a_handle)
 bool BB::UnfreezeMouseOnWindow()
 {
 	return ClipCursor(nullptr);
+}
+
+float2 BB::OSGetCursorPos(const WindowHandle a_window)
+{
+    POINT point;
+    BB_ASSERT(GetCursorPos(&point), "failed to get cursor pos");
+    ScreenToClient(reinterpret_cast<HWND>(a_window.handle), &point);
+    return float2(static_cast<float>(point.x), static_cast<float>(point.y));
 }
 
 void BB::OSMessageBoxOk(const char* a_box_title, const char* a_message)

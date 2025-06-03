@@ -266,6 +266,11 @@ void EntityComponentSystem::SetScale(const ECSEntity a_entity, const float3 a_sc
 	m_scales.GetComponent(a_entity) = a_scale;
 }
 
+bool EntityComponentSystem::ValidateEntity(const ECSEntity a_entity) const
+{
+    return m_ecs_entities.ValidateEntity(a_entity);
+}
+
 const float4x4& EntityComponentSystem::GetWorldMatrix(const ECSEntity a_entity) const
 {
     BB_ASSERT(a_entity.IsValid(), "invalid entity");

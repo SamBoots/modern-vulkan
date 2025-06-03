@@ -10,6 +10,7 @@
 #include "imgui.h"
 
 #include "InputSystem.hpp"
+#include "Math/Collision.inl"
 
 using namespace BB;
 
@@ -139,6 +140,50 @@ void Editor::DrawScene(Viewport& a_viewport, SceneHierarchy& a_hierarchy)
 	m_per_frame.frame_results[pool_index] = frame;
 }
 
+void Editor::UpdateGizmo(Viewport& a_viewport, SceneHierarchy& a_scene_hierarchy, const float3 a_cam_pos)
+{
+    if (Input::InputActionIsPressed(m_input.click_on_screen))
+    {
+        float2 mouse_pos_window;
+        if (a_viewport.ScreenToViewportMousePosition(m_previous_mouse_pos, mouse_pos_window))
+        {
+            const float4x4 view = a_scene_hierarchy.GetECS().GetRenderSystem().GetView();
+            const float3 dir = ScreenToWorldRaycast(mouse_pos_window, a_viewport.GetExtent(), a_scene_hierarchy.GetECS().GetRenderSystem().GetProjection(), view);
+            if (GizmoIsValid(m_gizmo))
+            {
+                if (!GizmoCollide(m_gizmo, a_cam_pos, dir))
+                { 
+                    const ECSEntity entity = a_scene_hierarchy.GetECS().SelectEntityByRay(a_cam_pos, dir);
+                    if (entity.IsValid())
+                        m_gizmo = CreateGizmo(entity, &a_scene_hierarchy.GetECS(), GIZMO_MODE::TRANSLATE);
+                    else
+                        m_gizmo = CreateGizmo(INVALID_ECS_OBJ, nullptr, GIZMO_MODE::TRANSLATE);
+                }
+            }
+            else
+            {
+                const ECSEntity entity = a_scene_hierarchy.GetECS().SelectEntityByRay(a_cam_pos, dir);
+                if (entity.IsValid())
+                    m_gizmo = CreateGizmo(entity, &a_scene_hierarchy.GetECS(), GIZMO_MODE::TRANSLATE);
+            }
+        }
+    }
+    else
+    {
+        m_gizmo.hit_flags = 0;
+    }
+
+    if (GizmoIsValid(m_gizmo))
+    { 
+        DrawGizmo(m_gizmo);
+        if (m_gizmo.hit_flags != 0)
+        { 
+            const float2 mouse_move = Input::InputActionGetFloat2(m_input.mouse_move);
+            GizmoManipulateEntity(m_gizmo, mouse_move);
+        }
+    }
+}
+
 void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent, const size_t a_editor_memory)
 {
 	// console stuff
@@ -203,6 +248,15 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
         action_info.input_keys[0].mouse_input = MOUSE_INPUT::LEFT_BUTTON;
         m_input.click_on_screen = Input::CreateInputAction("editor click on screen", action_info);
     }
+    {
+        InputActionCreateInfo input_create{};
+        input_create.value_type = INPUT_VALUE_TYPE::FLOAT_2;
+        input_create.action_type = INPUT_ACTION_TYPE::VALUE;
+        input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
+        input_create.source = INPUT_SOURCE::MOUSE;
+        input_create.input_keys[0].mouse_input = MOUSE_INPUT::MOUSE_MOVE;
+        m_input.mouse_move = Input::CreateInputAction("editor mouse move", input_create);
+    }
 }
 
 void Editor::Destroy()
@@ -236,6 +290,7 @@ void Editor::StartFrame(MemoryArena& a_arena, const Slice<InputEvent> a_input_ev
 	RenderStartFrameInfo start_info;
 	start_info.delta_time = a_delta_time;
 	start_info.mouse_pos = m_previous_mouse_pos;
+    m_previous_mouse_pos = Input::GetMousePos(m_main_window);
 
 	RenderStartFrame(list, start_info, m_render_target, m_per_frame.back_buffer_index);
 	m_per_frame.current_count = 0;

@@ -145,7 +145,7 @@ bool RenderViewport::Init(const uint2 a_game_viewport_size, const uint32_t a_bac
         input_create.action_type = INPUT_ACTION_TYPE::VALUE;
         input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
         input_create.source = INPUT_SOURCE::MOUSE;
-        input_create.input_keys[0].mouse_input = MOUSE_INPUT::LEFT_BUTTON;
+        input_create.input_keys[0].mouse_input = MOUSE_INPUT::RIGHT_BUTTON;
         m_enable_rotate_button = Input::CreateInputAction("RenderViewport enable rotate", input_create);
     }
 
@@ -181,57 +181,7 @@ bool RenderViewport::Update(const float a_delta_time, const bool a_selected)
 
 	m_camera.Update(a_delta_time);
 	m_scene_hierarchy.GetECS().GetRenderSystem().SetView(m_camera.CalculateView(), m_camera.GetPosition());
-    if (m_selected_entity.IsValid())
-    {
-        DrawGizmo(m_scene_hierarchy.GetECS(), m_gizmo);
-    }
 	DisplayImGuiInfo();
-
-	return true;
-}
-
-bool RenderViewport::HandleInput(const float a_delta_time, const Slice<InputEvent> a_input_events)
-{
-	for (size_t i = 0; i < a_input_events.size(); i++)
-	{
-		const InputEvent& ip = a_input_events[i];
-		if (ip.input_type == INPUT_TYPE::MOUSE)
-		{
-			const MouseInfo& mi = ip.mouse_info;
-			const float2 mouse_move = (mi.move_offset * a_delta_time);
-
-            if (m_selected_entity.IsValid())
-                GizmoManipulateEntity(m_scene_hierarchy.GetECS(), m_selected_entity, m_gizmo, mouse_move);
-
-            if (mi.left_pressed)
-            {
-                float2 mouse_pos_window;
-                if (m_viewport.ScreenToViewportMousePosition(mi.mouse_pos, mouse_pos_window))
-                {
-                    const float4x4 view = m_scene_hierarchy.GetECS().GetRenderSystem().GetView();
-                    const float3 dir = ScreenToWorldRaycast(mouse_pos_window, m_viewport.GetExtent(), m_scene_hierarchy.GetECS().GetRenderSystem().GetProjection(), view);
-                    if (m_selected_entity.IsValid())
-                    { 
-                        if (!GizmoCollide(m_scene_hierarchy.GetECS(), m_gizmo, m_camera.GetPosition(), dir))
-                        {
-                            m_selected_entity = m_scene_hierarchy.GetECS().SelectEntityByRay(m_camera.GetPosition(), dir);
-                            m_gizmo = CreateGizmo(m_selected_entity, GIZMO_MODE::TRANSLATE);
-                        }
-                    }
-                    else
-                    {
-                        m_selected_entity = m_scene_hierarchy.GetECS().SelectEntityByRay(m_camera.GetPosition(), dir);
-                        m_gizmo = CreateGizmo(m_selected_entity, GIZMO_MODE::TRANSLATE);
-                    }
-                }
-                else
-                    m_selected_entity = INVALID_ECS_OBJ;
-            }
-
-            if (mi.left_released)
-                m_gizmo.hit_flags = 0;
-		}
-	}
 
 	return true;
 }

@@ -47,6 +47,8 @@ namespace BB
 		void SetRotation(const ECSEntity a_entity, const float3x3 a_rotation);
 		void SetScale(const ECSEntity a_entity, const float3 a_scale);
 
+        bool ValidateEntity(const ECSEntity a_entity) const;
+
         const float4x4& GetWorldMatrix(const ECSEntity a_entity) const;
         const BoundingBox& GetBoundingBox(const ECSEntity a_entity) const;
 

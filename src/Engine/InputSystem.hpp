@@ -67,6 +67,8 @@ namespace BB
         bool InitInputSystem(struct MemoryArena& a_arena, const uint32_t a_max_actions);
         void UpdateInput(const ConstSlice<InputEvent> a_input_events);
 
+        float2 GetMousePos(const WindowHandle a_window_handle);
+
         InputActionHandle CreateInputAction(const InputActionName& a_name, const InputActionCreateInfo& a_create_info);
         InputActionHandle FindInputAction(const InputActionName& a_name);
 

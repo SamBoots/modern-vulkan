@@ -91,6 +91,11 @@ void Input::UpdateInput(const ConstSlice<InputEvent> a_input_events)
     s_input_system->mouse_state.wheel_move = wheel_move;
 }
 
+float2 Input::GetMousePos(const WindowHandle a_window_handle)
+{
+    return OSGetCursorPos(a_window_handle);
+}
+
 InputActionHandle Input::CreateInputAction(const InputActionName& a_name, const InputActionCreateInfo& a_create_info)
 {
     if (s_input_system->input_action_index_map.find(a_name))

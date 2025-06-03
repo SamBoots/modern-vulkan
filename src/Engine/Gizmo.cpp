@@ -30,9 +30,10 @@ static GizmoPosAndScale GetGizmoPosAndScale(EntityComponentSystem& a_ecs, const 
     return posscale;
 }
 
-Gizmo BB::CreateGizmo(const ECSEntity a_entity, const GIZMO_MODE a_mode)
+Gizmo BB::CreateGizmo(const ECSEntity a_entity, EntityComponentSystem* a_ecs, const GIZMO_MODE a_mode)
 {
     Gizmo gizmo;
+    gizmo.ecs = a_ecs;
     gizmo.selected_entity = a_entity;
     gizmo.mode = a_mode;
     gizmo.hit_flags = 0;
@@ -40,9 +41,16 @@ Gizmo BB::CreateGizmo(const ECSEntity a_entity, const GIZMO_MODE a_mode)
     return gizmo;
 }
 
-static GIZMO_HIT_FLAGS _GizmoCollide(EntityComponentSystem& a_ecs, Gizmo& a_gizmo, const float3 a_ray_origin, const float3 a_ray_dir)
+bool BB::GizmoIsValid(const Gizmo& a_gizmo)
 {
-    const GizmoPosAndScale ps = GetGizmoPosAndScale(a_ecs, a_gizmo.selected_entity);
+    if (a_gizmo.ecs == nullptr)
+        return false;
+    return a_gizmo.ecs->ValidateEntity(a_gizmo.selected_entity);
+}
+
+static GIZMO_HIT_FLAGS _GizmoCollide(Gizmo& a_gizmo, const float3 a_ray_origin, const float3 a_ray_dir)
+{
+    const GizmoPosAndScale ps = GetGizmoPosAndScale(*a_gizmo.ecs, a_gizmo.selected_entity);
 
     if (a_gizmo.mode == GIZMO_MODE::TRANSLATE || a_gizmo.mode == GIZMO_MODE::TRANSLATE)
     { 
@@ -71,9 +79,9 @@ static GIZMO_HIT_FLAGS _GizmoCollide(EntityComponentSystem& a_ecs, Gizmo& a_gizm
     return 0;
 }
 
-bool BB::GizmoCollide(EntityComponentSystem& a_ecs, Gizmo& a_gizmo, const float3 a_ray_origin, const float3 a_ray_dir)
+bool BB::GizmoCollide(Gizmo& a_gizmo, const float3 a_ray_origin, const float3 a_ray_dir)
 {
-    a_gizmo.hit_flags = _GizmoCollide(a_ecs, a_gizmo, a_ray_origin, a_ray_dir);
+    a_gizmo.hit_flags = _GizmoCollide(a_gizmo, a_ray_origin, a_ray_dir);
     return a_gizmo.hit_flags != 0;
 }
 
@@ -92,13 +100,13 @@ static void IsLineSelected(Line& a_line, const LineColor a_normal_color, const G
     }
 }
 
-void BB::DrawGizmo(class EntityComponentSystem& a_ecs, const Gizmo& a_gizmo)
+void BB::DrawGizmo(const Gizmo& a_gizmo)
 {
     constexpr LineColor right_color = LineColor(255, 0, 0, true);
     constexpr LineColor up_color = LineColor(0, 255, 0, true);
     constexpr LineColor forward_color = LineColor(0, 0, 255, true);
 
-    const GizmoPosAndScale ps = GetGizmoPosAndScale(a_ecs, a_gizmo.selected_entity);
+    const GizmoPosAndScale ps = GetGizmoPosAndScale(*a_gizmo.ecs, a_gizmo.selected_entity);
     if (a_gizmo.mode == GIZMO_MODE::TRANSLATE || a_gizmo.mode == GIZMO_MODE::TRANSLATE)
     {
         FixedArray<Line, 9> lines;
@@ -138,7 +146,7 @@ void BB::DrawGizmo(class EntityComponentSystem& a_ecs, const Gizmo& a_gizmo)
         IsLineSelected(lines[7], forward_color, forward_right, a_gizmo.hit_flags);
         IsLineSelected(lines[8], right_color, forward_right, a_gizmo.hit_flags);
 
-        a_ecs.AddLinesToFrame(lines.const_slice());
+        a_gizmo.ecs->AddLinesToFrame(lines.const_slice());
     }
     else
     {
@@ -146,7 +154,7 @@ void BB::DrawGizmo(class EntityComponentSystem& a_ecs, const Gizmo& a_gizmo)
     }
 }
 
-void BB::GizmoManipulateEntity(class EntityComponentSystem& a_ecs, const ECSEntity a_entity, const Gizmo& a_gizmo, const float2 a_mouse_move)
+void BB::GizmoManipulateEntity(const Gizmo& a_gizmo, const float2 a_mouse_move)
 {
     float3 change = float3();
     if (a_gizmo.hit_flags & static_cast<GIZMO_HIT_FLAGS>(GIZMO_HIT::RIGHT))
@@ -156,10 +164,12 @@ void BB::GizmoManipulateEntity(class EntityComponentSystem& a_ecs, const ECSEnti
     if (a_gizmo.hit_flags & static_cast<GIZMO_HIT_FLAGS>(GIZMO_HIT::FORWARD))
         change.z = a_mouse_move.x;
 
+    change = change * 0.01f;
+
     if (a_gizmo.mode == GIZMO_MODE::TRANSLATE)
-        a_ecs.Translate(a_entity, change);
+        a_gizmo.ecs->Translate(a_gizmo.selected_entity, change);
     else if (a_gizmo.mode == GIZMO_MODE::TRANSLATE)
-        a_ecs.Scale(a_entity, change);
+        a_gizmo.ecs->Scale(a_gizmo.selected_entity, change);
     else
         BB_UNIMPLEMENTED("gizmo rotation");
 }
