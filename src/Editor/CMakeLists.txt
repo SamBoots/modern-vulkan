@@ -7,6 +7,7 @@ add_executable(Editor
 	"Editor.cpp"
 	"main.cpp" 
 	"Console.cpp" 
+    "Gizmo.cpp"
 	"ProfilerWindow.cpp")
 
 target_link_libraries(Editor

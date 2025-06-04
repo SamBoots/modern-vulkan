@@ -52,7 +52,7 @@ namespace BB
 		s_translate_key[0x1A] = KEYBOARD_KEY::BRACKETLEFT;
 		s_translate_key[0x1B] = KEYBOARD_KEY::BRACKETRIGHT;
 		s_translate_key[0x2B] = KEYBOARD_KEY::BACKSLASH;
-
+        s_translate_key[0x1D] = KEYBOARD_KEY::CONTROLLEFT;
 		s_translate_key[0x27] = KEYBOARD_KEY::SEMICOLON;
 		s_translate_key[0x28] = KEYBOARD_KEY::APOSTROPHE;
 		s_translate_key[0x29] = KEYBOARD_KEY::GRAVE;

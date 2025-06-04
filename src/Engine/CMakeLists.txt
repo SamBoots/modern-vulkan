@@ -24,7 +24,6 @@ add_library(Engine
 	"Viewport.cpp"
 	"Profiler.cpp"
 	"ImGuiImpl.cpp"
-    "Gizmo.cpp" 
     "Engine.cpp")
 	
 target_include_directories(Engine PUBLIC "")

@@ -149,37 +149,39 @@ void Editor::UpdateGizmo(Viewport& a_viewport, SceneHierarchy& a_scene_hierarchy
         {
             const float4x4 view = a_scene_hierarchy.GetECS().GetRenderSystem().GetView();
             const float3 dir = ScreenToWorldRaycast(mouse_pos_window, a_viewport.GetExtent(), a_scene_hierarchy.GetECS().GetRenderSystem().GetProjection(), view);
-            if (GizmoIsValid(m_gizmo))
+            if (m_gizmo.HasValidEntity())
             {
-                if (!GizmoCollide(m_gizmo, a_cam_pos, dir))
+                if (!m_gizmo.RayCollide(a_cam_pos, dir))
                 { 
                     const ECSEntity entity = a_scene_hierarchy.GetECS().SelectEntityByRay(a_cam_pos, dir);
                     if (entity.IsValid())
-                        m_gizmo = CreateGizmo(entity, &a_scene_hierarchy.GetECS(), GIZMO_MODE::TRANSLATE);
+                        m_gizmo.SelectEntity(entity, &a_scene_hierarchy.GetECS());
                     else
-                        m_gizmo = CreateGizmo(INVALID_ECS_OBJ, nullptr, GIZMO_MODE::TRANSLATE);
+                        m_gizmo.UnselectEntity();
                 }
             }
             else
             {
                 const ECSEntity entity = a_scene_hierarchy.GetECS().SelectEntityByRay(a_cam_pos, dir);
                 if (entity.IsValid())
-                    m_gizmo = CreateGizmo(entity, &a_scene_hierarchy.GetECS(), GIZMO_MODE::TRANSLATE);
+                    m_gizmo.SelectEntity(entity, &a_scene_hierarchy.GetECS());
             }
         }
     }
 
     if (Input::InputActionIsReleased(m_input.click_on_screen))
-        m_gizmo.hit_flags = 0;
+        m_gizmo.ClearCollision();
 
-    if (GizmoIsValid(m_gizmo))
+    if (Input::InputActionIsPressed(m_input.gizmo_toggle_scale))
+        m_gizmo.SetMode(GIZMO_MODE::SCALE);
+    if (Input::InputActionIsReleased(m_input.gizmo_toggle_scale))
+        m_gizmo.SetMode(GIZMO_MODE::TRANSLATE);
+
+    if (m_gizmo.HasValidEntity())
     { 
-        DrawGizmo(m_gizmo);
-        if (m_gizmo.hit_flags != 0)
-        { 
-            const float2 mouse_move = Input::InputActionGetFloat2(m_input.mouse_move);
-            GizmoManipulateEntity(m_gizmo, mouse_move);
-        }
+        m_gizmo.Draw();
+        const float2 mouse_move = Input::InputActionGetFloat2(m_input.mouse_move);
+        m_gizmo.ManipulateEntity(mouse_move);
     }
 }
 
@@ -255,6 +257,15 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
         input_create.source = INPUT_SOURCE::MOUSE;
         input_create.input_keys[0].mouse_input = MOUSE_INPUT::MOUSE_MOVE;
         m_input.mouse_move = Input::CreateInputAction("editor mouse move", input_create);
+    }
+    {
+        InputActionCreateInfo input_create{};
+        input_create.value_type = INPUT_VALUE_TYPE::BOOL;
+        input_create.action_type = INPUT_ACTION_TYPE::BUTTON;
+        input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
+        input_create.source = INPUT_SOURCE::KEYBOARD;
+        input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::CONTROLLEFT;
+        m_input.gizmo_toggle_scale = Input::CreateInputAction("editor gizmo toggle scale", input_create);
     }
 }
 

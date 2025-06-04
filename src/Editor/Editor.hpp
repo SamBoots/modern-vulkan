@@ -119,6 +119,7 @@ namespace BB
         {
             InputActionHandle click_on_screen;
             InputActionHandle mouse_move;
+            InputActionHandle gizmo_toggle_scale;
         } m_input;
 	};
 }
