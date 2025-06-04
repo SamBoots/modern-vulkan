@@ -168,10 +168,9 @@ void Editor::UpdateGizmo(Viewport& a_viewport, SceneHierarchy& a_scene_hierarchy
             }
         }
     }
-    else
-    {
+
+    if (Input::InputActionIsReleased(m_input.click_on_screen))
         m_gizmo.hit_flags = 0;
-    }
 
     if (GizmoIsValid(m_gizmo))
     { 

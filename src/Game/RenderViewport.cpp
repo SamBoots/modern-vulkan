@@ -172,7 +172,7 @@ bool RenderViewport::Update(const float a_delta_time, const bool a_selected)
             m_max_speed);
         m_camera.SetSpeed(m_speed);
 
-        if (Input::InputActionIsPressed(m_enable_rotate_button))
+        if (Input::InputActionIsHeld(m_enable_rotate_button))
         {
             const float2 mouse_move = Input::InputActionGetFloat2(m_look_around);
             m_camera.Rotate(mouse_move.x * a_delta_time, mouse_move.y * a_delta_time);

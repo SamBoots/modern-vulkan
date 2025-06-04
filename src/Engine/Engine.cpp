@@ -154,11 +154,6 @@ ENGINE_STATUS BB::UpdateEngine(const WindowHandle a_window_handle, const ConstSl
     }
     Asset::Update();
 
-    //InputEvent input_events[INPUT_EVENT_BUFFER_MAX]{};
-    //size_t input_event_count = 0;
-    //ProcessMessages(a_window_handle);
-    //PollInputEvents(input_events, input_event_count);
-
-    Input::UpdateInput(a_input_events);//  ConstSlice<InputEvent>(input_events, input_event_count));
+    Input::UpdateInput(a_input_events);
     return status;
 }

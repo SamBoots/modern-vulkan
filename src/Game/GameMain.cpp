@@ -559,7 +559,7 @@ bool DungeonGame::Update(const float a_delta_time, const bool a_selected)
                 m_free_cam.max_speed);
             m_free_cam.camera.SetSpeed(m_free_cam.speed);
 
-            if (Input::InputActionIsPressed(m_input.enable_rotate_button))
+            if (Input::InputActionIsHeld(m_input.enable_rotate_button))
             {
                 const float2 mouse_move = Input::InputActionGetFloat2(m_input.look_around);
                 m_free_cam.camera.Rotate(mouse_move.x * a_delta_time, mouse_move.y * a_delta_time);

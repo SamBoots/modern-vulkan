@@ -27,23 +27,86 @@ struct InputSystem
 {
     StaticOL_HashMap<InputActionName, InputActionHandle> input_action_index_map;
     StaticSlotmap<InputAction, InputActionHandle> input_actions;
-    StaticArray<bool> keyboard_state;
 
-    struct Mouse
+    struct State
     {
-        float2 mouse_move;
-        bool left_pressed;
-        bool right_pressed;
-        bool middle_pressed;
-        float wheel_move;
-    } mouse_state;
+        FixedArray<bool, static_cast<uint32_t>(KEYBOARD_KEY::ENUM_SIZE)> keyboard_state;
+        struct Mouse
+        {
+            float2 mouse_move;
+            bool left_pressed;
+            bool right_pressed;
+            bool middle_pressed;
+            float wheel_move;
+        } mouse_state;
+    };
+    State current;
+    State previous;
 };
 
 static InputSystem* s_input_system;
 
-static inline bool GetKeyboardKeyState(const KEYBOARD_KEY a_key)
+enum class KEY_STATE
 {
-    return s_input_system->keyboard_state[static_cast<uint32_t>(a_key)];
+    IDLE,
+    PRESSED,
+    RELEASED,
+    HELD
+};
+
+static inline bool KeyboardKeyDownOrPressed(const KEYBOARD_KEY a_key)
+{
+    const uint32_t key_index = static_cast<uint32_t>(a_key);
+    return s_input_system->current.keyboard_state[key_index];
+}
+
+static inline KEY_STATE GetKeyboardKeyState(const KEYBOARD_KEY a_key)
+{
+    const uint32_t key_index = static_cast<uint32_t>(a_key);
+    if (s_input_system->current.keyboard_state[key_index] && s_input_system->previous.keyboard_state[key_index])
+        return KEY_STATE::HELD;
+    if (s_input_system->current.keyboard_state[key_index])
+        return KEY_STATE::PRESSED;
+    if (s_input_system->previous.keyboard_state[key_index])
+        return KEY_STATE::RELEASED;
+
+    return KEY_STATE::IDLE;
+}
+
+static inline KEY_STATE MouseButtonState(const MOUSE_INPUT a_input)
+{
+    switch (a_input)
+    {
+        case MOUSE_INPUT::LEFT_BUTTON:
+            if (s_input_system->current.mouse_state.left_pressed && s_input_system->previous.mouse_state.left_pressed)
+                return KEY_STATE::HELD;
+            if (s_input_system->current.mouse_state.left_pressed)
+                return KEY_STATE::PRESSED;
+            if (s_input_system->previous.mouse_state.left_pressed)
+                return KEY_STATE::RELEASED;
+        break;
+        case MOUSE_INPUT::MIDDLE_BUTTON:
+            if (s_input_system->current.mouse_state.middle_pressed && s_input_system->previous.mouse_state.middle_pressed)
+                return KEY_STATE::HELD;
+            if (s_input_system->current.mouse_state.middle_pressed)
+                return KEY_STATE::PRESSED;
+            if (s_input_system->previous.mouse_state.middle_pressed)
+                return KEY_STATE::RELEASED;
+            break;
+        case MOUSE_INPUT::RIGHT_BUTTON:
+            if (s_input_system->current.mouse_state.right_pressed && s_input_system->previous.mouse_state.right_pressed)
+                return KEY_STATE::HELD;
+            if (s_input_system->current.mouse_state.right_pressed)
+                return KEY_STATE::PRESSED;
+            if (s_input_system->previous.mouse_state.right_pressed)
+                return KEY_STATE::RELEASED;
+            break;
+    default:
+        BB_WARNING(false, "checking a mouse button state but MOUSE_INPUT is not a button", WarningType::MEDIUM);
+        break;
+    }
+
+    return KEY_STATE::IDLE;
 }
 
 bool Input::InitInputSystem(struct MemoryArena& a_arena, const uint32_t a_max_actions)
@@ -53,12 +116,14 @@ bool Input::InitInputSystem(struct MemoryArena& a_arena, const uint32_t a_max_ac
     s_input_system = ArenaAllocType(a_arena, InputSystem);
     s_input_system->input_action_index_map.Init(a_arena, a_max_actions);
     s_input_system->input_actions.Init(a_arena, a_max_actions);
-    s_input_system->keyboard_state.Init(a_arena, static_cast<uint32_t>(KEYBOARD_KEY::ENUM_SIZE) - 1, static_cast<uint32_t>(KEYBOARD_KEY::ENUM_SIZE) - 1);
     return true;
 }
 
 void Input::UpdateInput(const ConstSlice<InputEvent> a_input_events)
 {
+    // remember the previous frame
+    s_input_system->previous = s_input_system->current;
+
     float2 mouse_move = float2(0);
     float wheel_move = 0.f;
     for (size_t i = 0; i < a_input_events.size(); i++)
@@ -66,29 +131,29 @@ void Input::UpdateInput(const ConstSlice<InputEvent> a_input_events)
         const InputEvent& ev = a_input_events[i];
         if (ev.input_type == INPUT_TYPE::KEYBOARD)
         {
-            s_input_system->keyboard_state[static_cast<uint32_t>(ev.key_info.scan_code)] =  ev.key_info.key_pressed;
+            s_input_system->current.keyboard_state[static_cast<uint32_t>(ev.key_info.scan_code)] =  ev.key_info.key_pressed;
         }
         else if (ev.input_type == INPUT_TYPE::MOUSE)
         {
             mouse_move = mouse_move + ev.mouse_info.move_offset;
             wheel_move = wheel_move + static_cast<float>(ev.mouse_info.wheel_move);
             if (ev.mouse_info.left_pressed)
-                s_input_system->mouse_state.left_pressed = true;
+                s_input_system->current.mouse_state.left_pressed = true;
             if (ev.mouse_info.right_pressed)
-                s_input_system->mouse_state.right_pressed = true;
+                s_input_system->current.mouse_state.right_pressed = true;
             if (ev.mouse_info.middle_pressed)
-                s_input_system->mouse_state.middle_pressed = true;
+                s_input_system->current.mouse_state.middle_pressed = true;
 
             if (ev.mouse_info.left_released)
-                s_input_system->mouse_state.left_pressed = false;
+                s_input_system->current.mouse_state.left_pressed = false;
             if (ev.mouse_info.right_released)
-                s_input_system->mouse_state.right_pressed = false;
+                s_input_system->current.mouse_state.right_pressed = false;
             if (ev.mouse_info.middle_released)
-                s_input_system->mouse_state.middle_pressed = false;
+                s_input_system->current.mouse_state.middle_pressed = false;
         }
     }
-    s_input_system->mouse_state.mouse_move = mouse_move;
-    s_input_system->mouse_state.wheel_move = wheel_move;
+    s_input_system->current.mouse_state.mouse_move = mouse_move;
+    s_input_system->current.mouse_state.wheel_move = wheel_move;
 }
 
 float2 Input::GetMousePos(const WindowHandle a_window_handle)
@@ -122,30 +187,35 @@ InputActionHandle Input::FindInputAction(const InputActionName& a_name)
     return InputActionHandle(); // invalid
 }
 
-bool Input::InputActionIsPressed(const InputActionHandle a_input_action)
+static bool _InputActionCheck(const InputActionHandle a_input_action, const KEY_STATE a_state)
 {
     const InputAction& ia = s_input_system->input_actions.find(a_input_action);
     BB_WARNING(ia.value_type == INPUT_VALUE_TYPE::BOOL, "trying to get bool from an input action that is not made with INPUT_VALUE_TYPE::BOOL", WarningType::HIGH);
 
     if (ia.input_source == INPUT_SOURCE::KEYBOARD)
-        return GetKeyboardKeyState(ia.input_keys[0].keyboard_key);
+        return GetKeyboardKeyState(ia.input_keys[0].keyboard_key) == a_state;
 
     // do mouse keys as well
     if (ia.input_source == INPUT_SOURCE::MOUSE)
-    {
-        switch (ia.input_keys[0].mouse_input)
-        {
-        case MOUSE_INPUT::LEFT_BUTTON:    return s_input_system->mouse_state.left_pressed;
-        case MOUSE_INPUT::RIGHT_BUTTON:   return s_input_system->mouse_state.right_pressed;
-        case MOUSE_INPUT::MIDDLE_BUTTON:  return s_input_system->mouse_state.middle_pressed;
-        default:
-            BB_WARNING(false, "unrecognized mouse input for InputActionIsPressed", WarningType::MEDIUM);
-            break;
-        }
-    }
+        return MouseButtonState(ia.input_keys[0].mouse_input) == a_state;
 
     BB_WARNING(false, "input action returned false as it found no path for a key press", WarningType::MEDIUM);
     return false;
+}
+
+bool Input::InputActionIsPressed(const InputActionHandle a_input_action)
+{
+    return _InputActionCheck(a_input_action, KEY_STATE::PRESSED);
+}
+
+bool Input::InputActionIsHeld(const InputActionHandle a_input_action)
+{
+    return _InputActionCheck(a_input_action, KEY_STATE::HELD);
+}
+
+bool Input::InputActionIsReleased(const InputActionHandle a_input_action)
+{
+    return _InputActionCheck(a_input_action, KEY_STATE::RELEASED);
 }
 
 float Input::InputActionGetFloat(const InputActionHandle a_input_action)
@@ -159,7 +229,7 @@ float Input::InputActionGetFloat(const InputActionHandle a_input_action)
 
     if (ia.input_source == INPUT_SOURCE::MOUSE && ia.input_keys[0].mouse_input == MOUSE_INPUT::SCROLL_WHEEL)
     {
-        return s_input_system->mouse_state.wheel_move;
+        return s_input_system->current.mouse_state.wheel_move;
     }
 
     BB_WARNING(false, "input action returned 0.f as it found no path to get the value", WarningType::MEDIUM);
@@ -178,20 +248,20 @@ float2 Input::InputActionGetFloat2(const InputActionHandle a_input_action)
     if (ia.input_source == INPUT_SOURCE::MOUSE && ia.input_keys[0].mouse_input == MOUSE_INPUT::MOUSE_MOVE)
     {
         // TODO, make sure to reverse the Y axis
-        return s_input_system->mouse_state.mouse_move;
+        return s_input_system->current.mouse_state.mouse_move;
     }
 
     if (ia.input_source == INPUT_SOURCE::KEYBOARD && ia.binding_type == INPUT_BINDING_TYPE::COMPOSITE_UP_DOWN_RIGHT_LEFT)
     {
         float2 value = float2(0);
 
-        if (GetKeyboardKeyState(ia.input_keys[COMPOSITE_UP].keyboard_key))
+        if (KeyboardKeyDownOrPressed(ia.input_keys[COMPOSITE_UP].keyboard_key))
             value.y += 1;
-        if (GetKeyboardKeyState(ia.input_keys[COMPOSITE_DOWN].keyboard_key))
+        if (KeyboardKeyDownOrPressed(ia.input_keys[COMPOSITE_DOWN].keyboard_key))
             value.y -= 1;
-        if (GetKeyboardKeyState(ia.input_keys[COMPOSITE_RIGHT].keyboard_key))
+        if (KeyboardKeyDownOrPressed(ia.input_keys[COMPOSITE_RIGHT].keyboard_key))
             value.x += 1;
-        if (GetKeyboardKeyState(ia.input_keys[COMPOSITE_LEFT].keyboard_key))
+        if (KeyboardKeyDownOrPressed(ia.input_keys[COMPOSITE_LEFT].keyboard_key))
             value.x -= 1;
 
         return value;

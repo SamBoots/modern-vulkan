@@ -73,6 +73,8 @@ namespace BB
         InputActionHandle FindInputAction(const InputActionName& a_name);
 
         bool InputActionIsPressed(const InputActionHandle a_input_action);
+        bool InputActionIsHeld(const InputActionHandle a_input_action);
+        bool InputActionIsReleased(const InputActionHandle a_input_action);
         float InputActionGetFloat(const InputActionHandle a_input_action);
         float2 InputActionGetFloat2(const InputActionHandle a_input_action);
     }
