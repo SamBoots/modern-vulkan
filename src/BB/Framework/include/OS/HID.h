@@ -72,6 +72,73 @@ namespace BB
         ENUM_SIZE,
 	};
 
+    static inline const char* KEYBOARD_KEY_STR(const KEYBOARD_KEY a_key)
+    {
+        switch (a_key)
+        {
+            ENUM_CASE(KEYBOARD_KEY::NOKEY);
+            ENUM_CASE(KEYBOARD_KEY::ESCAPE);
+            ENUM_CASE(KEYBOARD_KEY::KEY_1);
+            ENUM_CASE(KEYBOARD_KEY::KEY_2);
+            ENUM_CASE(KEYBOARD_KEY::KEY_3);
+            ENUM_CASE(KEYBOARD_KEY::KEY_4);
+            ENUM_CASE(KEYBOARD_KEY::KEY_5);
+            ENUM_CASE(KEYBOARD_KEY::KEY_6);
+            ENUM_CASE(KEYBOARD_KEY::KEY_7);
+            ENUM_CASE(KEYBOARD_KEY::KEY_8);
+            ENUM_CASE(KEYBOARD_KEY::KEY_9);
+            ENUM_CASE(KEYBOARD_KEY::KEY_0);
+            ENUM_CASE(KEYBOARD_KEY::MINUS);
+            ENUM_CASE(KEYBOARD_KEY::EQUALS);
+            ENUM_CASE(KEYBOARD_KEY::BACKSPACE);
+            ENUM_CASE(KEYBOARD_KEY::TAB);
+            ENUM_CASE(KEYBOARD_KEY::Q);
+            ENUM_CASE(KEYBOARD_KEY::W);
+            ENUM_CASE(KEYBOARD_KEY::E);
+            ENUM_CASE(KEYBOARD_KEY::R);
+            ENUM_CASE(KEYBOARD_KEY::T);
+            ENUM_CASE(KEYBOARD_KEY::Y);
+            ENUM_CASE(KEYBOARD_KEY::U);
+            ENUM_CASE(KEYBOARD_KEY::I);
+            ENUM_CASE(KEYBOARD_KEY::O);
+            ENUM_CASE(KEYBOARD_KEY::P);
+            ENUM_CASE(KEYBOARD_KEY::BRACKETLEFT);
+            ENUM_CASE(KEYBOARD_KEY::BRACKETRIGHT);
+            ENUM_CASE(KEYBOARD_KEY::RETURN); //I think this is non-numpad enter?
+            ENUM_CASE(KEYBOARD_KEY::CONTROLLEFT);
+            ENUM_CASE(KEYBOARD_KEY::A);
+            ENUM_CASE(KEYBOARD_KEY::S);
+            ENUM_CASE(KEYBOARD_KEY::D);
+            ENUM_CASE(KEYBOARD_KEY::F);
+            ENUM_CASE(KEYBOARD_KEY::G);
+            ENUM_CASE(KEYBOARD_KEY::H);
+            ENUM_CASE(KEYBOARD_KEY::J);
+            ENUM_CASE(KEYBOARD_KEY::K);
+            ENUM_CASE(KEYBOARD_KEY::L);
+            ENUM_CASE(KEYBOARD_KEY::SEMICOLON);
+            ENUM_CASE(KEYBOARD_KEY::APOSTROPHE);
+            ENUM_CASE(KEYBOARD_KEY::GRAVE);
+            ENUM_CASE(KEYBOARD_KEY::SHIFTLEFT);
+            ENUM_CASE(KEYBOARD_KEY::BACKSLASH);
+            ENUM_CASE(KEYBOARD_KEY::Z);
+            ENUM_CASE(KEYBOARD_KEY::X);
+            ENUM_CASE(KEYBOARD_KEY::C);
+            ENUM_CASE(KEYBOARD_KEY::V);
+            ENUM_CASE(KEYBOARD_KEY::B);
+            ENUM_CASE(KEYBOARD_KEY::N);
+            ENUM_CASE(KEYBOARD_KEY::M);
+            ENUM_CASE(KEYBOARD_KEY::COMMA);
+            ENUM_CASE(KEYBOARD_KEY::PERIOD);
+            ENUM_CASE(KEYBOARD_KEY::SLASH);
+            ENUM_CASE(KEYBOARD_KEY::SHIFTRIGHT);
+            ENUM_CASE(KEYBOARD_KEY::NUMPADMULTIPLY);
+            ENUM_CASE(KEYBOARD_KEY::ALTLEFT);
+            ENUM_CASE(KEYBOARD_KEY::SPACEBAR);
+            ENUM_CASE(KEYBOARD_KEY::CAPSLOCK);
+            ENUM_CASE_NOT_FOUND();
+        }
+    };
+
 	struct MouseInfo
 	{
 		float2 move_offset;

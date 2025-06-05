@@ -76,6 +76,7 @@ namespace BB
 		void ImGuiDisplayShaderEffects(MemoryArena& a_arena);
 		void ImGuiDisplayMaterial(const MasterMaterial& a_material) const;
 		void ImGuiDisplayMaterials();
+        void ImGuiDisplayInputSystem();
 
 		void MainEditorImGuiInfo(const MemoryArena& a_arena);
 		static void ThreadFuncForDrawing(MemoryArena& a_thread_arena, void* a_param);

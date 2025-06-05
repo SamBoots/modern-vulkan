@@ -319,7 +319,10 @@ void Editor::EndFrame(MemoryArena& a_arena)
 			ImGuiDisplayShaderEffects(a_arena);
 			ImGuiDisplayMaterials();
 		}
+
 		ImGui::End();
+
+        ImGuiDisplayInputSystem();
 
 		Asset::ShowAssetMenu(a_arena);
 		MainEditorImGuiInfo(a_arena);
@@ -869,4 +872,76 @@ void Editor::ImGuiDisplayMaterials()
 		}
 		ImGui::Unindent();
 	}
+}
+
+static inline KEYBOARD_KEY KeyboardKeyChange(const char* a_text, const KEYBOARD_KEY a_current_key)
+{
+    uint32_t selected = static_cast<uint32_t>(a_current_key);
+
+    if (ImGui::BeginCombo(a_text, KEYBOARD_KEY_STR(a_current_key))) {
+        for (uint32_t i = 0; i < static_cast<uint32_t>(KEYBOARD_KEY::ENUM_SIZE); i++) {
+            const KEYBOARD_KEY key = static_cast<KEYBOARD_KEY>(i);
+            const bool is_selected = a_current_key == key;
+            if (ImGui::Selectable(KEYBOARD_KEY_STR(key), is_selected)) {
+                selected = i;
+            }
+            // Set initial focus when opening combo
+            if (is_selected) {
+                ImGui::SetItemDefaultFocus();
+            }
+        }
+        ImGui::EndCombo();
+    }
+
+    return static_cast<KEYBOARD_KEY>(selected);
+}
+
+void Editor::ImGuiDisplayInputSystem()
+{
+    if (ImGui::Begin("input system"))
+    {
+        Slice ipas = Input::GetAllInputActions();
+        for (uint32_t i = 0; i < ipas.size(); i++)
+        {
+            InputAction& ipa = ipas[i];
+            ImGui::PushID(static_cast<int>(i));
+
+            if (ImGui::CollapsingHeader(ipa.name.c_str()))
+            {
+                ImGui::Indent();
+
+                ImGui::Text("Source: %s", INPUT_SOURCE_STR(ipa.input_source));
+                ImGui::Text("Action Type: %s", INPUT_ACTION_TYPE_STR(ipa.action_type));
+                ImGui::Text("Binding Type: %s", INPUT_BINDING_TYPE_STR(ipa.binding_type));
+                ImGui::Text("Value Type: %s", INPUT_VALUE_TYPE_STR(ipa.value_type));
+
+                if (ImGui::CollapsingHeader("Keybinds"))
+                { 
+                    ImGui::Indent();
+                    if (ipa.input_source == INPUT_SOURCE::KEYBOARD)
+                    {
+                        if (ipa.binding_type == INPUT_BINDING_TYPE::COMPOSITE_UP_DOWN_RIGHT_LEFT)
+                        {
+                            ipa.input_keys[0].keyboard_key = KeyboardKeyChange("UP", ipa.input_keys[0].keyboard_key);
+                            ipa.input_keys[1].keyboard_key = KeyboardKeyChange("DOWN", ipa.input_keys[1].keyboard_key);
+                            ipa.input_keys[2].keyboard_key = KeyboardKeyChange("RIGHT", ipa.input_keys[2].keyboard_key);
+                            ipa.input_keys[3].keyboard_key = KeyboardKeyChange("LEFT", ipa.input_keys[3].keyboard_key);
+                        }
+                        else
+                        {
+                            ipa.input_keys[0].keyboard_key = KeyboardKeyChange("Key", ipa.input_keys[0].keyboard_key);
+                        }
+                    }
+                    if (ipa.input_source == INPUT_SOURCE::MOUSE)
+                    {
+                        ImGui::Text("Mouse input: %s", MOUSE_INPUT_STR(ipa.input_keys[0].mouse_input));
+                    }
+                    ImGui::Unindent();
+                }
+                ImGui::Unindent();
+            }
+            ImGui::PopID();
+        }
+    }
+    ImGui::End();
 }

@@ -97,27 +97,21 @@ namespace BB
 		{
 			switch (a_pass)
 			{
-			case PASS_TYPE::GLOBAL: return "GLOBAL";
-			case PASS_TYPE::SCENE: return "SCENE";
-			default:
-				BB_ASSERT(false, "invalid PASS_TYPE");
-				break;
+                ENUM_CASE(PASS_TYPE::GLOBAL);
+                ENUM_CASE(PASS_TYPE::SCENE);
+                ENUM_CASE_NOT_FOUND();
 			}
-			return "";
 		}
 
 		static inline const char* MATERIAL_TYPE_STR(const MATERIAL_TYPE a_material)
 		{
 			switch (a_material)
 			{
-			case MATERIAL_TYPE::MATERIAL_3D: return "MATERIAL_3D";
-			case MATERIAL_TYPE::MATERIAL_2D: return "MATERIAL_2D";
-			case MATERIAL_TYPE::NONE: return "NONE";
-			default:
-				BB_ASSERT(false, "invalid MATERIAL_TYPE");
-				break;
+                ENUM_CASE(MATERIAL_TYPE::MATERIAL_3D);
+                ENUM_CASE(MATERIAL_TYPE::MATERIAL_2D);
+                ENUM_CASE(MATERIAL_TYPE::NONE);
+                ENUM_CASE_NOT_FOUND();
 			}
-			return "";
 		}
 
 		void InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCreateInfo& a_create_info);

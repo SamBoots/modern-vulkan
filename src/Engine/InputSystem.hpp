@@ -43,6 +43,61 @@ namespace BB
         MOUSE_MOVE
     };
 
+    static inline const char* INPUT_VALUE_TYPE_STR(const INPUT_VALUE_TYPE a_enum)
+    {
+        switch (a_enum)
+        {
+            ENUM_CASE(INPUT_VALUE_TYPE::BOOL);
+            ENUM_CASE(INPUT_VALUE_TYPE::FLOAT);
+            ENUM_CASE(INPUT_VALUE_TYPE::FLOAT_2);
+            ENUM_CASE_NOT_FOUND();
+        }
+    }
+
+    static inline const char* INPUT_ACTION_TYPE_STR(const INPUT_ACTION_TYPE a_enum)
+    {
+        switch (a_enum)
+        {
+            ENUM_CASE(INPUT_ACTION_TYPE::VALUE);
+            ENUM_CASE(INPUT_ACTION_TYPE::BUTTON);
+            ENUM_CASE(INPUT_ACTION_TYPE::DIRECT);
+            ENUM_CASE_NOT_FOUND();
+        }
+    }
+
+    static inline const char* INPUT_BINDING_TYPE_STR(const INPUT_BINDING_TYPE a_enum)
+    {
+        switch (a_enum)
+        {
+            ENUM_CASE(INPUT_BINDING_TYPE::BINDING);
+            ENUM_CASE(INPUT_BINDING_TYPE::COMPOSITE_UP_DOWN_RIGHT_LEFT);
+            ENUM_CASE_NOT_FOUND();
+        }
+    }
+
+    static inline const char* INPUT_SOURCE_STR(const INPUT_SOURCE a_enum)
+    {
+        switch (a_enum)
+        {
+            ENUM_CASE(INPUT_SOURCE::KEYBOARD);
+            ENUM_CASE(INPUT_SOURCE::MOUSE);
+            ENUM_CASE_NOT_FOUND();
+        }
+    }
+
+    static inline const char* MOUSE_INPUT_STR(const MOUSE_INPUT a_enum)
+    {
+        switch (a_enum)
+        {
+            ENUM_CASE(MOUSE_INPUT::LEFT_BUTTON);
+            ENUM_CASE(MOUSE_INPUT::RIGHT_BUTTON);
+            ENUM_CASE(MOUSE_INPUT::MIDDLE_BUTTON);
+            ENUM_CASE(MOUSE_INPUT::SCROLL_WHEEL);
+            ENUM_CASE(MOUSE_INPUT::MOUSE_MOVE);
+            ENUM_CASE_NOT_FOUND();
+        }
+    }
+
     struct InputKey
     {
         union
@@ -62,6 +117,16 @@ namespace BB
         FixedArray<InputKey, 4> input_keys;
     };
 
+    struct InputAction
+    {
+        InputActionName name;
+        INPUT_VALUE_TYPE value_type;
+        INPUT_ACTION_TYPE action_type;
+        INPUT_BINDING_TYPE binding_type;
+        INPUT_SOURCE input_source;
+        FixedArray<InputKey, 4> input_keys;
+    };
+
     namespace Input
     {
         bool InitInputSystem(struct MemoryArena& a_arena, const uint32_t a_max_actions);
@@ -77,5 +142,6 @@ namespace BB
         bool InputActionIsReleased(const InputActionHandle a_input_action);
         float InputActionGetFloat(const InputActionHandle a_input_action);
         float2 InputActionGetFloat2(const InputActionHandle a_input_action);
+        Slice<InputAction> GetAllInputActions();
     }
 }

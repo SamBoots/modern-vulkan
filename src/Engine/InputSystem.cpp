@@ -14,15 +14,6 @@ constexpr uint32_t COMPOSITE_DOWN = 1;
 constexpr uint32_t COMPOSITE_RIGHT = 2;
 constexpr uint32_t COMPOSITE_LEFT = 3;
 
-struct InputAction
-{
-    INPUT_VALUE_TYPE value_type;
-    INPUT_ACTION_TYPE action_type;
-    INPUT_BINDING_TYPE binding_type;
-    INPUT_SOURCE input_source;
-    FixedArray<InputKey, 4> input_keys;
-};
-
 struct InputSystem
 {
     StaticOL_HashMap<InputActionName, InputActionHandle> input_action_index_map;
@@ -34,10 +25,10 @@ struct InputSystem
         struct Mouse
         {
             float2 mouse_move;
+            float wheel_move;
             bool left_pressed;
             bool right_pressed;
             bool middle_pressed;
-            float wheel_move;
         } mouse_state;
     };
     State current;
@@ -167,6 +158,7 @@ InputActionHandle Input::CreateInputAction(const InputActionName& a_name, const 
         return InputActionHandle(); // already found
 
     InputAction action{};
+    action.name = a_name;
     action.value_type = a_create_info.value_type;
     action.action_type = a_create_info.action_type;
     action.binding_type = a_create_info.binding_type;
@@ -269,4 +261,9 @@ float2 Input::InputActionGetFloat2(const InputActionHandle a_input_action)
 
     BB_WARNING(false, "input action returned float2(0, 0) as it found no path to get the value", WarningType::MEDIUM);
     return float2(0);
+}
+
+Slice<InputAction> Input::GetAllInputActions()
+{
+    return s_input_system->input_actions.slice();
 }

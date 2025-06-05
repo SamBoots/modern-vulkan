@@ -32,4 +32,5 @@ target_link_libraries(Engine
 	mikktspace
 	cgltf
 	stb_image
+    magic_enum
 	Renderer)
