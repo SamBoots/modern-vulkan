@@ -28,3 +28,5 @@ add_library(mikktspace STATIC
 target_include_directories(mikktspace SYSTEM PUBLIC mikktspace)
 
 add_subdirectory("imgui")
+
+add_subdirectory("lua")
