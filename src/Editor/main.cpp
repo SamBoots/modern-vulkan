@@ -14,6 +14,7 @@
 #include "Editor.hpp"
 #include "GameMain.hpp"
 #include "RenderViewport.hpp"
+#include "LuaExample.hpp"
 
 #include "Profiler.hpp"
 
@@ -53,6 +54,9 @@ int main(int argc, char** argv)
 	RenderViewport render_viewport{};
 	render_viewport.Init(engine_info.window_extent / 2, engine_info.backbuffer_count, "../../resources/scenes/standard_scene.json");
 
+    LuaExample lua_example{};
+    lua_example.Init(engine_info.window_extent / 2, engine_info.backbuffer_count);
+     
 	while (true)
 	{
         InputEvent input_events[INPUT_EVENT_BUFFER_MAX]{};

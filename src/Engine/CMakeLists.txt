@@ -30,9 +30,8 @@ add_library(Engine
 	
 target_include_directories(Engine PUBLIC "")
 
-target_link_libraries(Engine 
+target_link_libraries(Engine
 	mikktspace
 	cgltf
 	stb_image
-	Renderer
-    LUA)
+	Renderer)

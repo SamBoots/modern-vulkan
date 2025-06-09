@@ -11,10 +11,12 @@ add_library(Renderer
 	"Renderer.cpp" 
 	"GPUBuffers.cpp")
 
-target_link_libraries(Renderer BBFramework 
+target_link_libraries(Renderer 
+    BBFramework 
 	Vulkan::Vulkan
 	VMA
 	IMGUI
+    LUA
 	DXCompiler
     "${CMAKE_SOURCE_DIR}/lib/DXC/lib/${CPU_ARCHITECTURE}/dxcompiler.lib")
 

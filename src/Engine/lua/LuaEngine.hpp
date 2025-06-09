@@ -12,6 +12,8 @@ namespace BB
 
         void Update(const float a_delta_time);
 
+        int GetStackTopIndex() const;
+
     private:
         lua_State* m_state = nullptr;
         FreelistInterface m_allocator;

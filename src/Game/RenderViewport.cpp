@@ -1,6 +1,5 @@
 #include "RenderViewport.hpp"
 #include "BBjson.hpp"
-#include "BBThreadScheduler.hpp"
 #include "Program.h"
 #include "HID.h"
 #include "AssetLoader.hpp"
@@ -11,13 +10,6 @@
 #include "InputSystem.hpp"
 
 using namespace BB;
-
-struct LoadAssetsAsync_params
-{
-	MemoryArena arena;
-	Asset::AsyncAsset* assets;
-	size_t asset_count;
-};
 
 static void CreateSceneHierarchyViaJson(MemoryArena& a_arena, SceneHierarchy& a_hierarchy, const uint2 a_window_size, const uint32_t a_back_buffer_count, const JsonParser& a_parsed_file)
 {
