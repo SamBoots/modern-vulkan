@@ -35,8 +35,11 @@ set(LUA_LIB_SRCS
     "src/ltablib.c"
     "src/lutf8lib.c"
     "src/linit.c"
-)
+    "src/lua.c"
+    "src/luac.c"
 
+)
+set_source_files_properties(${LUA_LIB_SRCS} PROPERTIES LANGUAGE CXX )
 
 add_library(LUA STATIC ${LUA_LIB_SRCS})
 target_include_directories(LUA PUBLIC 

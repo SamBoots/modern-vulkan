@@ -12,7 +12,7 @@ namespace BB
     {
     public:
         bool Init(const uint2 a_game_viewport_size, const uint32_t a_back_buffer_count);
-        bool Update(const float a_delta_time, const bool a_selected) {return false;};
+        bool Update(const float a_delta_time, const bool a_selected) {return false;}
         // maybe ifdef this for editor
         void DisplayImGuiInfo() {}
         void Destroy() {}
