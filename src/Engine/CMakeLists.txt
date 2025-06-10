@@ -17,6 +17,7 @@ add_library(Engine
     "ecs/systems/BloomStage.cpp"
     "ecs/systems/LineStage.cpp"
     "lua/LuaEngine.cpp"
+	"lua/LuaEcsApi.inl"
 	"AssetLoader.cpp"
 	"SceneHierarchy.cpp"
 	"MaterialSystem.cpp"

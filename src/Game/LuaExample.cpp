@@ -17,9 +17,7 @@ bool LuaExample::Init(const uint2 a_game_viewport_size, const uint32_t a_back_bu
     m_scene_hierarchy.Init(m_memory, STANDARD_ECS_OBJ_COUNT, a_game_viewport_size, a_back_buffer_count, "lua example hierarchy");
     m_viewport.Init(a_game_viewport_size, int2(0, 0), "lua example viewport");
 
-    m_context.Init(m_memory, gbSize);
-
-
+    m_context.Init(m_memory, &m_scene_hierarchy.GetECS(), gbSize);
 
     return true;
 }

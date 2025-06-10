@@ -12,7 +12,7 @@ namespace BB
     {
     public:
         bool Init(const uint2 a_game_viewport_size, const uint32_t a_back_buffer_count);
-        bool Update(const float a_delta_time, const bool a_selected) {return false;}
+        bool Update(const float a_delta_time, const bool a_selected) { m_context.Update(a_delta_time); return false; }
         // maybe ifdef this for editor
         void DisplayImGuiInfo() {}
         void Destroy() {}
@@ -26,7 +26,7 @@ namespace BB
         MemoryArena m_memory;
         Viewport m_viewport;
         SceneHierarchy m_scene_hierarchy;
-        LuaContext m_context;
+        LuaECSEngine m_context;
     };
     static_assert(is_interactable_viewport_interface<LuaExample>);
 }

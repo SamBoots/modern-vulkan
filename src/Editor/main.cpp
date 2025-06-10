@@ -81,6 +81,7 @@ int main(int argc, char** argv)
 
 
 		editor.StartFrame(main_arena, Slice(input_events, input_event_count), delta_time);
+		lua_example.Update(delta_time, true);
 		const ThreadTask tasks[2]
 		{
 			editor.UpdateViewport(main_arena, delta_time, render_viewport),
