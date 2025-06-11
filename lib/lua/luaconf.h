@@ -772,7 +772,7 @@
 @@ LUAL_BUFFERSIZE is the initial buffer size used by the lauxlib
 ** buffer system.
 */
-#define LUAL_BUFFERSIZE   ((int)(16 * sizeof(void*) * sizeof(lua_Number)))
+#define LUAL_BUFFERSIZE   (static_cast<lua_Number>(16 * sizeof(void*) * sizeof(lua_Number)))
 
 
 /*

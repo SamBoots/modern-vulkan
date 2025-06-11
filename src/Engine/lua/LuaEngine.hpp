@@ -13,7 +13,7 @@ namespace BB
         void Update(const float a_delta_time);
 
         int GetStackTopIndex() const;
-        lua_State* GetState() const { return m_state; }
+        lua_State*& GetState() { return m_state; }
 
     private:
         lua_State* m_state = nullptr;

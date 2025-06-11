@@ -266,6 +266,21 @@ void EntityComponentSystem::SetScale(const ECSEntity a_entity, const float3 a_sc
 	m_scales.GetComponent(a_entity) = a_scale;
 }
 
+float3 EntityComponentSystem::GetPosition(const ECSEntity a_entity) const
+{
+    return m_positions.GetComponent(a_entity);
+}
+
+float3x3 EntityComponentSystem::GetRotation(const ECSEntity a_entity) const
+{
+    return m_rotations.GetComponent(a_entity);
+}
+
+float3 EntityComponentSystem::GetScale(const ECSEntity a_entity) const
+{
+    return m_positions.GetComponent(a_entity);
+}
+
 bool EntityComponentSystem::ValidateEntity(const ECSEntity a_entity) const
 {
     return m_ecs_entities.ValidateEntity(a_entity);
@@ -337,6 +352,11 @@ bool EntityComponentSystem::EntityFreeLight(const ECSEntity a_entity)
 	if (!m_ecs_entities.UnregisterSignature(a_entity, LIGHT_ECS_SIGNATURE))
 		return false;
 	return true;
+}
+
+void EntityComponentSystem::CalculateView(const float3 a_pos, const float3 a_center, const float3 a_up)
+{
+    m_render_system.SetView(Float4x4Lookat(a_pos, a_center, a_up), a_pos);
 }
 
 bool EntityComponentSystem::AddEntityRelation(const ECSEntity a_entity, const ECSEntity a_parent)

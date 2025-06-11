@@ -47,6 +47,10 @@ namespace BB
 		void SetRotation(const ECSEntity a_entity, const float3x3 a_rotation);
 		void SetScale(const ECSEntity a_entity, const float3 a_scale);
 
+        float3 GetPosition(const ECSEntity a_entity) const;
+        float3x3 GetRotation(const ECSEntity a_entity) const;
+        float3 GetScale(const ECSEntity a_entity) const;
+
         bool ValidateEntity(const ECSEntity a_entity) const;
 
         const float4x4& GetWorldMatrix(const ECSEntity a_entity) const;
@@ -58,6 +62,8 @@ namespace BB
 		bool EntityAssignLight(const ECSEntity a_entity, const LightComponent& a_light);
         bool EntityAssignRaytraceComponent(const ECSEntity a_entity, const RaytraceComponent& a_raytrace);
 		bool EntityFreeLight(const ECSEntity a_entity);
+
+        void CalculateView(const float3 a_pos, const float3 a_center, const float3 a_up);
 
 		RenderSystem& GetRenderSystem()
 		{
