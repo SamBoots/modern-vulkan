@@ -47,6 +47,36 @@ static void* LuaAlloc(void* a_user_data, void* a_ptr, const size_t a_old_size, c
     return nullptr;
 }
 
+static void RegisterFloat3(lua_State* a_state)
+{
+    static const char* FLOAT3_LUA_NAME = "FLOAT_3";
+    lua_newtable(a_state);
+    
+    // Create metatable - only need __index, __newindex, __gc
+    lua_createtable(a_state, 0, 3);
+    int metatable = lua_gettop(a_state);
+
+    // Store metatable in registry
+    lua_pushvalue(L, metatable);
+    lua_setfield(L, LUA_REGISTRYINDEX, FLOAT3_LUA_NAME);
+
+    // Property access
+    lua_pushcfunction(a_state, lua_index);
+    lua_setfield(a_state, metatable, "__index");
+
+    lua_pushcfunction(a_state, lua_newindex);
+    lua_setfield(a_state, metatable, "__newindex");
+
+    lua_setglobal(a_state, "float3");
+
+    lua_pop(a_state, 1); // pop metatable
+}
+
+static void RegisterBuildingBlockTypes(lua_State* a_state)
+{
+
+}
+
 bool LuaContext::Init(MemoryArena& a_arena, const size_t a_lua_mem_size)
 {
     if (m_state != nullptr)
