@@ -12,23 +12,12 @@ function calculate_damage(base_damage, multiplier)
     return result
 end
 
-function spawn_entity_and_move(start_pos_x, start_pos_y, start_pos_z, move_pos_x, move_pos_y, move_pos_z)
-    local entity = ECSCreateEntity("entity", 0, start_pos_x, start_pos_y, start_pos_z)
-    ECSTranslate(entity, move_pos_x, move_pos_y, move_pos_z);
+function spawn_entity_and_move(a_start_pos, a_move)
+    local entity = ECSCreateEntity("entity", 0, a_start_pos)
+    ECSTranslate(entity, a_move);
     return ECSGetPosition(entity);
 end
 )";
-
-class LuaStackScope
-{
-public:
-    LuaStackScope(lua_State*& a_state) : m_state(a_state) { m_stack_index = lua_gettop(m_state); }
-    ~LuaStackScope() { lua_settop(m_state, m_stack_index); }
-
-private:
-    lua_State*& m_state;
-    uint32_t m_stack_index;
-};
 
 static void* LuaAlloc(void* a_user_data, void* a_ptr, const size_t a_old_size, const size_t a_new_size)
 {
@@ -47,36 +36,6 @@ static void* LuaAlloc(void* a_user_data, void* a_ptr, const size_t a_old_size, c
     return nullptr;
 }
 
-static void RegisterFloat3(lua_State* a_state)
-{
-    static const char* FLOAT3_LUA_NAME = "FLOAT_3";
-    lua_newtable(a_state);
-    
-    // Create metatable - only need __index, __newindex, __gc
-    lua_createtable(a_state, 0, 3);
-    int metatable = lua_gettop(a_state);
-
-    // Store metatable in registry
-    lua_pushvalue(L, metatable);
-    lua_setfield(L, LUA_REGISTRYINDEX, FLOAT3_LUA_NAME);
-
-    // Property access
-    lua_pushcfunction(a_state, lua_index);
-    lua_setfield(a_state, metatable, "__index");
-
-    lua_pushcfunction(a_state, lua_newindex);
-    lua_setfield(a_state, metatable, "__newindex");
-
-    lua_setglobal(a_state, "float3");
-
-    lua_pop(a_state, 1); // pop metatable
-}
-
-static void RegisterBuildingBlockTypes(lua_State* a_state)
-{
-
-}
-
 bool LuaContext::Init(MemoryArena& a_arena, const size_t a_lua_mem_size)
 {
     if (m_state != nullptr)
@@ -85,6 +44,7 @@ bool LuaContext::Init(MemoryArena& a_arena, const size_t a_lua_mem_size)
     m_state = luaL_newstate();
 
     luaL_openlibs(m_state);
+    lua_RegisterBBTypes(m_state);
 
     int result = luaL_dostring(m_state, lua_glob);
 
@@ -99,21 +59,19 @@ int LuaContext::GetStackTopIndex() const
 bool LuaECSEngine::Init(MemoryArena& a_arena, EntityComponentSystem* a_psystem, const size_t a_lua_mem_size)
 {
     m_context.Init(a_arena, a_lua_mem_size);
+
     LuaStackScope scope(m_context.GetState());
     LoadECSFunctions(a_psystem);
 
     lua_getglobal(m_context.GetState(), "spawn_entity_and_move");
-    lua_pushnumber(m_context.GetState(), 1.0);
-    lua_pushnumber(m_context.GetState(), 2.0);
-    lua_pushnumber(m_context.GetState(), 3.0);
-    lua_pushnumber(m_context.GetState(), 10.0);
-    lua_pushnumber(m_context.GetState(), 20.0);
-    lua_pushnumber(m_context.GetState(), 30.0);
-    int call_result = lua_pcall(m_context.GetState(), 6, 3, 0);
-
-    float move_x = luaapi::luaGetFloat(m_context.GetState(), -3);
-    float move_y = luaapi::luaGetFloat(m_context.GetState(), -2);
-    float move_z = luaapi::luaGetFloat(m_context.GetState(), -1);
+    const float3 pos = float3(1.f, 2.f, 3.f);
+    const float3 move = float3(10.f, 20.f, 30.f);
+    lua_pushfloat3(m_context.GetState(), pos);
+    lua_pushfloat3(m_context.GetState(), move);
+    int top0 = m_context.GetStackTopIndex();
+    int call_result = lua_pcall(m_context.GetState(), 2, 1, 0);
+    int top1 = m_context.GetStackTopIndex();
+    const float3 new_pos = *lua_getfloat3(m_context.GetState(), -1);
 
     return true;
 }
