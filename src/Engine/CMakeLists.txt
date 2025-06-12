@@ -27,7 +27,7 @@ add_library(Engine
 	"Profiler.cpp"
 	"ImGuiImpl.cpp"
     "Engine.cpp"
-     "lua/LuaTypes.cpp")
+     "lua/LuaTypes.cpp" "lua/LuaTest.cpp")
 	
 target_include_directories(Engine PUBLIC "")
 
