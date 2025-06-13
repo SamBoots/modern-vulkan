@@ -129,6 +129,19 @@ static void RegisterFloat3(lua_State* a_state)
             }
             return 1;
         };
+    static auto lua_normalize = [](lua_State* a_state) -> int
+        {
+            float3* floats = lua_getfloat3(a_state, 1);
+            lua_pushfloat3(a_state, Float3Normalize(*floats));
+            return 1;
+        };
+    static auto lua_cross = [](lua_State* a_state) -> int
+        {
+            float3* floats0 = lua_getfloat3(a_state, 1);
+            float3* floats1 = lua_getfloat3(a_state, 2);
+            lua_pushfloat3(a_state, Float3Cross(*floats0, *floats1));
+            return 1;
+        };
 
     lua_pushcfunction(a_state, lua_index);
     lua_setfield(a_state, metatable, "__index");
@@ -145,12 +158,18 @@ static void RegisterFloat3(lua_State* a_state)
     lua_pushcfunction(a_state, lua_mul);
     lua_setfield(a_state, metatable, "__mul");
 
+    lua_pushcfunction(a_state, lua_normalize);
+    lua_setfield(a_state, metatable, "Normalize");
+
+    lua_pushcfunction(a_state, lua_cross);
+    lua_setfield(a_state, metatable, "Cross");
+
     lua_pushcfunction(a_state, lua_new);
 
     lua_setglobal(a_state, FLOAT3_LUA_NAME);
 }
 
-void BB::lua_RegisterBBTypes(lua_State* a_state)
+void BB::lua_registerbbtypes(lua_State* a_state)
 {
     RegisterFloat3(a_state);
 }

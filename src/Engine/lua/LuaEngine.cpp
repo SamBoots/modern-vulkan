@@ -31,9 +31,7 @@ bool LuaContext::Init(MemoryArena& a_arena, const size_t a_lua_mem_size)
     m_state = luaL_newstate();
 
     luaL_openlibs(m_state);
-    lua_RegisterBBTypes(m_state);
-
-
+    lua_registerbbtypes(m_state);
 
     return true;
 }

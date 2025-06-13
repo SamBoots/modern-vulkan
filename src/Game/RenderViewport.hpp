@@ -2,7 +2,6 @@
 #include "ViewportInterface.hpp"
 #include "Camera.hpp"
 #include "SceneHierarchy.hpp"
-#include "lua/LuaEngine.hpp"
 
 namespace BB
 {
@@ -24,7 +23,6 @@ namespace BB
 		MemoryArena m_memory;
 		Viewport m_viewport;
 		SceneHierarchy m_scene_hierarchy;
-        LuaECSEngine m_lua;
 
 		FreeCamera m_camera{};
 		float m_speed = 1.f;

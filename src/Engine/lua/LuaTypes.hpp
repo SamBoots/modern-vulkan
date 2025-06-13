@@ -16,7 +16,7 @@ namespace BB
         uint32_t m_stack_index;
     };
 
-    void lua_RegisterBBTypes(lua_State* a_state);
+    void lua_registerbbtypes(lua_State* a_state);
 
     bool lua_isfloat3(lua_State* a_state, int a_index);
     void lua_pushfloat3(lua_State* a_state, const float3 a_float3);
