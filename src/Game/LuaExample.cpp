@@ -9,6 +9,11 @@
 
 #include "InputSystem.hpp"
 
+#include "lua.h"
+#include "lauxlib.h"
+
+#include "lua/LuaTypes.hpp"
+
 using namespace BB;
 
 constexpr const char* free_camera = R"(
@@ -18,11 +23,11 @@ constexpr const char* free_camera = R"(
     local camera = 
         {
             m_pos = a_pos or float3(0),
-            m_forward = a_forward or float3(0, 0, -1)
-            m_right = a_right or float3(1, 0, 0)
+            m_forward = a_forward or float3(0, 0, -1),
+            m_right = a_right or float3(1, 0, 0),
             m_up = a_up or float3(0, 1, 0),
             m_speed = a_speed or 1,
-            m_velocity_speed = 25.f
+            m_velocity_speed = 25.0,
             m_yaw = 90,
             m_pitch = 0,
             m_velocity = float3(0)
@@ -32,40 +37,45 @@ constexpr const char* free_camera = R"(
 
     function FreeCamera:Move(a_x, a_y, a_z)
         velocity = float3(0)
-        velocity = velocity + m_forward * a_z
-        local cross = m_forward.Cross(m_up)
+        velocity = velocity + self.m_forward * a_z
+        local cross = self.m_forward.Cross(self.m_up)
         velocity = velocity + cross.normalize() * a_x
-        velocity = velocity + m_up * a_y
-        m_velocity = m_velocity + velocity * speed;
+        velocity = velocity + self.m_up * a_y
+        m_velocity = m_velocity + velocity * self.m_speed;
     end
 
     function FreeCamera:Rotate(a_yaw, a_pitch)
-        m_yaw = m_yaw + a_yaw
-        m_pitch = m_pitch + a_pitch
-        if m_pitch > 90 then
-            m_pitch = 90
-        else if m_pitch < -90.f
-            m_pitch = -90
+        self.m_yaw = self.m_yaw + a_yaw
+        self.m_pitch = self.m_pitch + a_pitch
+        if self.m_pitch > 90.0 then
+            self.m_pitch = 90.0
+        elseif self.m_pitch < -90.0 then
+            self.m_pitch = -90.0
+        end
         
-        dir_x = math.cos(m_yaw) * cosf(m_pitch)
-        dir_y = math.sin(m_pitch)
-        dir_z = math.sin(m_yaw) * cosf(m_pitch)
+        local dir_x = math.cos(self.m_yaw) * cos(self.m_pitch)
+        local dir_y = math.sin(self.m_pitch)
+        local dir_z = math.sin(self.m_yaw) * cos(self.m_pitch)
         local direction = float3(dir_x, dir_y, dir_z)
         
-        m_forward = direction.Normalize()
-        local cross = m_up.Cross(m_forward)
-        m_right = cross.Normalize()
+        self.m_forward = direction.Normalize()
+        local cross = self.m_up.Cross(self.m_forward)
+        self.m_right = cross.Normalize()
     end
     
     function FreeCamera:Update(a_delta_time)
-        local velocity = m_velocity * m_velocity_speed * a_delta_time;
-        m_velocity = m_velocity - velocity;
-        m_pos = m_pos + velocity;
+        local velocity = self.m_velocity * self.m_velocity_speed * a_delta_time;
+        self.m_velocity = self.m_velocity - velocity;
+        self.m_pos = self.m_pos + velocity;
     end
-
 )";
 
 constexpr const char* lua_scene = R"( 
+    camera = FreeCamera(float3(0, 0, 0), float3(1, 0, 0), float3(0, 1, 0), float3(0, 0, -1), 1)
+
+    function GetCameraPos()
+        return camera.m_pos
+    end
 
     function update(a_delta_time, selected)
         
@@ -80,5 +90,21 @@ bool LuaExample::Init(const uint2 a_game_viewport_size, const uint32_t a_back_bu
 
     m_context.Init(m_memory, &m_scene_hierarchy.GetECS(), gbSize);
 
+    luaL_dostring(m_context.GetState(), free_camera);
+    luaL_dostring(m_context.GetState(), lua_scene);
+
     return true;
+}
+
+bool LuaExample::Update(const float a_delta_time, const bool a_selected)
+{ 
+
+    return true;
+}
+
+float3 LuaExample::GetCameraPos() 
+{
+    LuaStackScope scope(m_context.GetState());
+    lua_getglobal(m_context.GetState(), "GetCameraPos");
+    return *lua_getfloat3(m_context.GetState(), -1);
 }

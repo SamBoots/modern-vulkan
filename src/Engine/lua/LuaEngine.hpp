@@ -10,9 +10,6 @@ namespace BB
     public:
         bool Init(MemoryArena& a_arena, const size_t a_lua_mem_size);
 
-        void Update(const float a_delta_time);
-
-        int GetStackTopIndex() const;
         lua_State*& GetState() { return m_state; }
 
     private:
@@ -25,13 +22,12 @@ namespace BB
     public:
         bool Init(MemoryArena& a_arena, class EntityComponentSystem* a_psystem, const size_t a_lua_mem_size);
 
-        void Update(const float a_delta_time);
+        lua_State*& GetState() { return m_context.GetState(); }
 
     private:
         void LoadECSFunctions(class EntityComponentSystem* a_psystem);
         void LoadECSFunction(const lua_CFunction a_function, const char* a_func_name);
 
         LuaContext m_context;
-
     };
 }

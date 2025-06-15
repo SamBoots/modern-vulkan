@@ -36,11 +36,6 @@ bool LuaContext::Init(MemoryArena& a_arena, const size_t a_lua_mem_size)
     return true;
 }
 
-int LuaContext::GetStackTopIndex() const
-{
-    return lua_gettop(m_state);
-}
-
 bool LuaECSEngine::Init(MemoryArena& a_arena, EntityComponentSystem* a_psystem, const size_t a_lua_mem_size)
 {
     m_context.Init(a_arena, a_lua_mem_size);
@@ -49,11 +44,6 @@ bool LuaECSEngine::Init(MemoryArena& a_arena, EntityComponentSystem* a_psystem, 
     LoadECSFunctions(a_psystem);
 
     return true;
-}
-
-void LuaECSEngine::Update(const float a_delta_time)
-{
-
 }
 
 void LuaECSEngine::LoadECSFunctions(EntityComponentSystem* a_psystem)

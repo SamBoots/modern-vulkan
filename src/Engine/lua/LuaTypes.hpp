@@ -13,7 +13,7 @@ namespace BB
 
     private:
         lua_State*& m_state;
-        uint32_t m_stack_index;
+        int m_stack_index;
     };
 
     void lua_registerbbtypes(lua_State* a_state);

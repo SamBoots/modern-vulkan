@@ -10,12 +10,12 @@ namespace BB
     {
     public:
         bool Init(const uint2 a_game_viewport_size, const uint32_t a_back_buffer_count);
-        bool Update(const float a_delta_time, const bool a_selected) { m_context.Update(a_delta_time); return false; }
+        bool Update(const float a_delta_time, const bool a_selected);
         // maybe ifdef this for editor
         void DisplayImGuiInfo() {}
         void Destroy() {}
 
-        float3 GetCameraPos() const { return float3(0.f); }
+        float3 GetCameraPos();
 
         Viewport& GetViewport() { return m_viewport; }
         SceneHierarchy& GetSceneHierarchy() { return m_scene_hierarchy; }
