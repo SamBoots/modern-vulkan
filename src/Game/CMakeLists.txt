@@ -5,7 +5,8 @@ cmake_minimum_required (VERSION 3.8)
 
 add_library(Game 
 	"GameMain.cpp"
-	"Camera.cpp" "RenderViewport.cpp" "LuaExample.cpp")
+	"Camera.cpp" 
+	"RenderViewport.cpp" )
 
 target_include_directories(Game PUBLIC
 	"")	# this gets the current directory

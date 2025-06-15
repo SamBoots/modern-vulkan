@@ -14,7 +14,6 @@
 #include "Editor.hpp"
 #include "GameMain.hpp"
 #include "RenderViewport.hpp"
-#include "LuaExample.hpp"
 
 #include "Profiler.hpp"
 
@@ -53,9 +52,6 @@ int main(int argc, char** argv)
 
 	RenderViewport render_viewport{};
 	render_viewport.Init(engine_info.window_extent / 2, engine_info.backbuffer_count, "../../resources/scenes/standard_scene.json");
-
-    LuaExample lua_example{};
-    lua_example.Init(engine_info.window_extent / 2, engine_info.backbuffer_count);
      
 	while (true)
 	{
@@ -81,7 +77,7 @@ int main(int argc, char** argv)
 
 
 		editor.StartFrame(main_arena, Slice(input_events, input_event_count), delta_time);
-		lua_example.Update(delta_time, true);
+
 		const ThreadTask tasks[2]
 		{
 			editor.UpdateViewport(main_arena, delta_time, render_viewport),

@@ -2,6 +2,7 @@
 #include "ViewportInterface.hpp"
 #include "Camera.hpp"
 #include "SceneHierarchy.hpp"
+#include "lua/LuaEngine.hpp"
 
 namespace BB
 {
@@ -14,7 +15,7 @@ namespace BB
         void DisplayImGuiInfo();
 		void Destroy();
         
-        float3 GetCameraPos() const { return m_camera.GetPosition(); }
+		float3 GetCameraPos();
 
 		Viewport& GetViewport() { return m_viewport; }
         SceneHierarchy& GetSceneHierarchy() { return m_scene_hierarchy; }
@@ -23,11 +24,7 @@ namespace BB
 		MemoryArena m_memory;
 		Viewport m_viewport;
 		SceneHierarchy m_scene_hierarchy;
-
-		FreeCamera m_camera{};
-		float m_speed = 1.f;
-		float m_min_speed = 0.1f;
-		float m_max_speed = 100.0f;
+		LuaECSEngine m_context;
 
         // input
         InputActionHandle m_move_forward_backward_left_right;
