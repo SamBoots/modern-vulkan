@@ -15,7 +15,8 @@ LuaStackScope::~LuaStackScope()
     lua_settop(m_state, m_stack_index); 
 }
 
-static const char* FLOAT3_LUA_NAME = "float3";
+constexpr const char FLOAT3_LUA_NAME[] = "float3";
+constexpr const char BBHANDLE_LUA_NAME[] = "bbhandle";
 
 static void RegisterFloat3(lua_State* a_state)
 {
@@ -35,7 +36,7 @@ static void RegisterFloat3(lua_State* a_state)
                 return 0;
 
             const char* key = lua_tostring(a_pstate, 2);
-            const float value = static_cast<float>(lua_tonumber(a_pstate, 3));
+            const float value = lua_tonumber(a_pstate, 3);
 
             if (strcmp(key, "x") == 0)
                 floats->x = value;
@@ -72,13 +73,13 @@ static void RegisterFloat3(lua_State* a_state)
         {
             float3 dat = float3(0.f);
             if (lua_gettop(a_pstate) >= 1 && lua_isnumber(a_pstate, 1)) {
-                dat = float3(static_cast<float>(lua_tonumber(a_pstate, 1)));
+                dat = float3(lua_tonumber(a_pstate, 1));
             }
             if (lua_gettop(a_pstate) >= 2 && lua_isnumber(a_pstate, 2)) {
-                dat.y = static_cast<float>(lua_tonumber(a_pstate, 2));
+                dat.y = lua_tonumber(a_pstate, 2);
             }
             if (lua_gettop(a_pstate) >= 3 && lua_isnumber(a_pstate, 3)) {
-                dat.z = static_cast<float>(lua_tonumber(a_pstate, 3));
+                dat.z = lua_tonumber(a_pstate, 3);
             }
 
             lua_pushfloat3(a_pstate, dat);
@@ -88,7 +89,7 @@ static void RegisterFloat3(lua_State* a_state)
         {
             float3* floats = lua_getfloat3(a_pstate, 1);
             if (lua_isnumber(a_pstate, 2))
-                lua_pushfloat3(a_pstate, *floats + static_cast<float>(lua_tonumber(a_pstate, 2)));
+                lua_pushfloat3(a_pstate, *floats + lua_tonumber(a_pstate, 2));
             else
             {
                 float3* value = lua_getfloat3(a_pstate, 2);
@@ -103,7 +104,7 @@ static void RegisterFloat3(lua_State* a_state)
         {
             float3* floats = lua_getfloat3(a_pstate, 1);
             if (lua_isnumber(a_pstate, 2))
-                lua_pushfloat3(a_pstate, *floats - static_cast<float>(lua_tonumber(a_pstate, 2)));
+                lua_pushfloat3(a_pstate, *floats - lua_tonumber(a_pstate, 2));
             else
             {
                 float3* value = lua_getfloat3(a_pstate, 2);
@@ -118,7 +119,7 @@ static void RegisterFloat3(lua_State* a_state)
         {
             float3* floats = lua_getfloat3(a_pstate, 1);
             if (lua_isnumber(a_pstate, 2))
-                lua_pushfloat3(a_pstate, *floats * static_cast<float>(lua_tonumber(a_pstate, 2)));
+                lua_pushfloat3(a_pstate, *floats * lua_tonumber(a_pstate, 2));
             else
             {
                 float3* value = lua_getfloat3(a_pstate, 2);
@@ -150,6 +151,29 @@ static void RegisterFloat3(lua_State* a_state)
     lua_setglobal(a_state, FLOAT3_LUA_NAME);
 }
 
+static void RegisterBBHandle(lua_State* a_state)
+{
+    LuaStackScope stack_scope(a_state);
+    lua_newtable(a_state);
+
+    lua_createtable(a_state, 0, 1);
+    int metatable = lua_gettop(a_state);
+
+    lua_pushvalue(a_state, metatable);
+    lua_setfield(a_state, LUA_REGISTRYINDEX, BBHANDLE_LUA_NAME);
+
+    static auto lua_new = [](lua_State* a_pstate) -> int
+        {
+            const uint64_t handle = reinterpret_cast<const uint64_t>(lua_touserdata(a_pstate, 1));
+            lua_pushbbhandle(a_pstate, handle);
+            return 1;
+        };
+
+    lua_pushcfunction(a_state, lua_new);
+
+    lua_setglobal(a_state, BBHANDLE_LUA_NAME);
+}
+
 static int lua_float3Cross(lua_State* a_state)
 {
     float3* floats0 = lua_getfloat3(a_state, 1);
@@ -171,6 +195,7 @@ void BB::lua_registerbbtypes(lua_State* a_state)
 {
     LuaStackScope scope(a_state);
     RegisterFloat3(a_state);
+    RegisterBBHandle(a_state);
 
     // register float3 math
     lua_pushcfunction(a_state, lua_float3Normalize);
@@ -179,7 +204,8 @@ void BB::lua_registerbbtypes(lua_State* a_state)
     lua_setglobal(a_state, "float3Cross");
 }
 
-bool BB::lua_isfloat3(lua_State* a_state, int a_index)
+template<typename T, const char* NAME>
+static bool lua_isTValue(lua_State* a_state, int a_index)
 {
     if (!lua_isuserdata(a_state, a_index))
         return false;
@@ -187,7 +213,7 @@ bool BB::lua_isfloat3(lua_State* a_state, int a_index)
     if (!lua_getmetatable(a_state, a_index))
         return false;
 
-    lua_getfield(a_state, LUA_REGISTRYINDEX, FLOAT3_LUA_NAME);
+    lua_getfield(a_state, LUA_REGISTRYINDEX, NAME);
 
     bool result = lua_rawequal(a_state, -1, -2);
 
@@ -196,19 +222,51 @@ bool BB::lua_isfloat3(lua_State* a_state, int a_index)
     return result;
 }
 
+template<typename T, const char* NAME>
+static void lua_pushTValue(lua_State* a_state, const T a_value)
+{
+    T* userdata = reinterpret_cast<T*>(lua_newuserdata(a_state, sizeof(T)));
+    *userdata = a_value;
+    lua_getfield(a_state, LUA_REGISTRYINDEX, NAME);
+    lua_setmetatable(a_state, -2);
+}
+
+template<typename T, const char* NAME>
+static T* lua_getTValue(lua_State* a_state, const int a_index)
+{
+    if (!lua_isTValue<T, NAME>(a_state, a_index))
+    {
+        return nullptr;
+    }
+    return reinterpret_cast<T*>(lua_touserdata(a_state, a_index));
+}
+
+bool BB::lua_isbbhandle(lua_State* a_state, int a_index)
+{
+    return lua_isTValue<uint64_t, BBHANDLE_LUA_NAME>(a_state, a_index);
+}
+
+void BB::lua_pushbbhandle(lua_State* a_state, const uint64_t a_handle)
+{
+    lua_pushTValue<uint64_t, BBHANDLE_LUA_NAME>(a_state, a_handle);
+}
+
+uint64_t* BB::lua_getbbhandle(lua_State* a_state, const int a_index)
+{
+    return lua_getTValue<uint64_t, BBHANDLE_LUA_NAME>(a_state, a_index);
+}
+
+bool BB::lua_isfloat3(lua_State* a_state, int a_index)
+{
+    return lua_isTValue<float3, FLOAT3_LUA_NAME>(a_state, a_index);
+}
+
 void BB::lua_pushfloat3(lua_State* a_state, const float3 a_float3)
 {
-    float3* userdata = static_cast<float3*>(lua_newuserdata(a_state, sizeof(float3)));
-    *userdata = a_float3;
-    lua_getfield(a_state, LUA_REGISTRYINDEX, FLOAT3_LUA_NAME);
-    lua_setmetatable(a_state, -2);
+    lua_pushTValue<float3, FLOAT3_LUA_NAME>(a_state, a_float3);
 }
 
 float3* BB::lua_getfloat3(lua_State* a_state, const int a_index)
 {
-    if (!lua_isfloat3(a_state, a_index))
-    {
-        return nullptr;
-    }
-    return static_cast<float3*>(lua_touserdata(a_state, a_index));
+    return lua_getTValue<float3, FLOAT3_LUA_NAME>(a_state, a_index);
 }

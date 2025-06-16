@@ -16,8 +16,10 @@ add_library(Engine
     "ecs/systems/RasterMeshStage.cpp"
     "ecs/systems/BloomStage.cpp"
     "ecs/systems/LineStage.cpp"
+    "lua/LuaEcsApi.cpp"
     "lua/LuaEngine.cpp"
-	"lua/LuaEcsApi.inl"
+    "lua/LuaTypes.cpp" 
+    "lua/LuaTest.cpp"
 	"AssetLoader.cpp"
 	"SceneHierarchy.cpp"
 	"MaterialSystem.cpp"
@@ -26,8 +28,7 @@ add_library(Engine
 	"Viewport.cpp"
 	"Profiler.cpp"
 	"ImGuiImpl.cpp"
-    "Engine.cpp"
-     "lua/LuaTypes.cpp" "lua/LuaTest.cpp")
+    "Engine.cpp")
 	
 target_include_directories(Engine PUBLIC "")
 

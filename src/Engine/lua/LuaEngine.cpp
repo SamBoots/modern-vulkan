@@ -1,6 +1,9 @@
 #include "LuaEngine.hpp"
-#include "LuaEcsApi.inl"
+#include "LuaECSApi.hpp"
 
+#include "LuaTypes.hpp"
+#include "lauxlib.h"
+#include "lualib.h"
 #include "Logger.h"
 
 using namespace BB;
@@ -42,25 +45,30 @@ bool LuaECSEngine::Init(MemoryArena& a_arena, EntityComponentSystem* a_psystem, 
 
     LuaStackScope scope(m_context.GetState());
     LoadECSFunctions(a_psystem);
-    luaapi::CreateKeyboardKeyEnumTable(m_context.GetState());
+    LoadInputFunctions();
 
     return true;
 }
+
+#define LUA_FUNC_NAME(func) luaapi::func, #func
 
 void LuaECSEngine::LoadECSFunctions(EntityComponentSystem* a_psystem)
 {
     lua_pushlightuserdata(m_context.GetState(), a_psystem);
 
-    LoadECSFunction(luaapi::ECSCreateEntity, "ECSCreateEntity");
-    LoadECSFunction(luaapi::ECSGetPosition, "ECSGetPosition");
-    LoadECSFunction(luaapi::ECSSetPosition, "ECSSetPosition");
-    LoadECSFunction(luaapi::ECSTranslate, "ECSTranslate");
+    LoadECSFunction(LUA_FUNC_NAME(ECSCreateEntity));
+    LoadECSFunction(LUA_FUNC_NAME(ECSGetPosition));
+    LoadECSFunction(LUA_FUNC_NAME(ECSSetPosition));
+    LoadECSFunction(LUA_FUNC_NAME(ECSTranslate));
 }
 
 void LuaECSEngine::LoadInputFunctions()
 {
-
-
+    LoadInputFunction(LUA_FUNC_NAME(InputActionIsPressed));
+    LoadInputFunction(LUA_FUNC_NAME(InputActionIsHeld));
+    LoadInputFunction(LUA_FUNC_NAME(InputActionIsReleased));
+    LoadInputFunction(LUA_FUNC_NAME(InputActionGetFloat));
+    LoadInputFunction(LUA_FUNC_NAME(InputActionGetFloat2));
 }
 
 void LuaECSEngine::LoadECSFunction(const lua_CFunction a_function, const char* a_func_name)

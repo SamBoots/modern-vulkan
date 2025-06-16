@@ -36,8 +36,8 @@ static bool SimpleFunctionsTest(lua_State* a_state)
         if (lua_pcall(a_state, 2, 1, 0) != LUA_OK)
             return false;
 
-        double damage = lua_tonumber(a_state, -1);
-        if (damage != 75.0)
+        float damage = lua_tonumber(a_state, -1);
+        if (damage != 75.0f)
             return false;
     }
 

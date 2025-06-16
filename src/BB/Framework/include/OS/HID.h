@@ -7,67 +7,67 @@ namespace BB
 
 	//These will be translated, the are already close to their real counterpart.
 	//Translation table: https://download.microsoft.com/download/1/6/1/161ba512-40e2-4cc9-843a-923143f3456c/translate.pdf
-#define KEYBOARD_KEY_D(FUNCT) \
-		FUNCT(NOKEY, 0x00) \
-        FUNCT(ESCAPE, 0x01) \
-        FUNCT(KEY_1, 0x02) \
-        FUNCT(KEY_2, 0x03) \
-        FUNCT(KEY_3, 0x04) \
-        FUNCT(KEY_4, 0x05) \
-        FUNCT(KEY_5, 0x06) \
-        FUNCT(KEY_6, 0x07) \
-        FUNCT(KEY_7, 0x08) \
-        FUNCT(KEY_8, 0x09) \
-        FUNCT(KEY_9, 0x0A) \
-        FUNCT(KEY_0, 0x0B) \
-        FUNCT(MINUS, 0x0C) \
-        FUNCT(EQUALS, 0x0D) \
-        FUNCT(BACKSPACE, 0x0E) \
-        FUNCT(TAB, 0x0F) \
-        FUNCT(Q, 0x10) \
-        FUNCT(W, 0x11) \
-        FUNCT(E, 0x12) \
-        FUNCT(R, 0x13) \
-        FUNCT(T, 0x14) \
-        FUNCT(Y, 0x15) \
-        FUNCT(U, 0x16) \
-        FUNCT(I, 0x17) \
-        FUNCT(O, 0x18) \
-        FUNCT(P, 0x19) \
-        FUNCT(BRACKETLEFT, 0x1A) \
-        FUNCT(BRACKETRIGHT, 0x1B) \
+#define KEYBOARD_KEY_D(FUNC) \
+		FUNC(NOKEY, 0x00) \
+        FUNC(ESCAPE, 0x01) \
+        FUNC(KEY_1, 0x02) \
+        FUNC(KEY_2, 0x03) \
+        FUNC(KEY_3, 0x04) \
+        FUNC(KEY_4, 0x05) \
+        FUNC(KEY_5, 0x06) \
+        FUNC(KEY_6, 0x07) \
+        FUNC(KEY_7, 0x08) \
+        FUNC(KEY_8, 0x09) \
+        FUNC(KEY_9, 0x0A) \
+        FUNC(KEY_0, 0x0B) \
+        FUNC(MINUS, 0x0C) \
+        FUNC(EQUALS, 0x0D) \
+        FUNC(BACKSPACE, 0x0E) \
+        FUNC(TAB, 0x0F) \
+        FUNC(Q, 0x10) \
+        FUNC(W, 0x11) \
+        FUNC(E, 0x12) \
+        FUNC(R, 0x13) \
+        FUNC(T, 0x14) \
+        FUNC(Y, 0x15) \
+        FUNC(U, 0x16) \
+        FUNC(I, 0x17) \
+        FUNC(O, 0x18) \
+        FUNC(P, 0x19) \
+        FUNC(BRACKETLEFT, 0x1A) \
+        FUNC(BRACKETRIGHT, 0x1B) \
         /* I think this is non-numpad enter? */ \
-        FUNCT(RETURN, 0x1C) \
-        FUNCT(CONTROLLEFT, 0x1D) \
-        FUNCT(A, 0x1E) \
-        FUNCT(S, 0x1F) \
-        FUNCT(D, 0x20) \
-        FUNCT(F, 0x21) \
-        FUNCT(G, 0x22) \
-        FUNCT(H, 0x23) \
-        FUNCT(J, 0x24) \
-        FUNCT(K, 0x25) \
-        FUNCT(L, 0x26) \
-        FUNCT(SEMICOLON, 0x27) \
-        FUNCT(APOSTROPHE, 0x28) \
-        FUNCT(GRAVE, 0x29) \
-        FUNCT(SHIFTLEFT, 0x2A) \
-        FUNCT(BACKSLASH, 0x2B) \
-        FUNCT(Z, 0x2C) \
-        FUNCT(X, 0x2D) \
-        FUNCT(C, 0x2E) \
-        FUNCT(V, 0x2F) \
-        FUNCT(B, 0x30) \
-        FUNCT(N, 0x31) \
-        FUNCT(M, 0x32) \
-        FUNCT(COMMA, 0x33) \
-        FUNCT(PERIOD, 0x34) \
-        FUNCT(SLASH, 0x35) \
-        FUNCT(SHIFTRIGHT, 0x36) \
-        FUNCT(NUMPADMULTIPLY, 0x37) \
-        FUNCT(ALTLEFT, 0x38) \
-        FUNCT(SPACEBAR, 0x39) \
-        FUNCT(CAPSLOCK, 0x3A)
+        FUNC(RETURN, 0x1C) \
+        FUNC(CONTROLLEFT, 0x1D) \
+        FUNC(A, 0x1E) \
+        FUNC(S, 0x1F) \
+        FUNC(D, 0x20) \
+        FUNC(F, 0x21) \
+        FUNC(G, 0x22) \
+        FUNC(H, 0x23) \
+        FUNC(J, 0x24) \
+        FUNC(K, 0x25) \
+        FUNC(L, 0x26) \
+        FUNC(SEMICOLON, 0x27) \
+        FUNC(APOSTROPHE, 0x28) \
+        FUNC(GRAVE, 0x29) \
+        FUNC(SHIFTLEFT, 0x2A) \
+        FUNC(BACKSLASH, 0x2B) \
+        FUNC(Z, 0x2C) \
+        FUNC(X, 0x2D) \
+        FUNC(C, 0x2E) \
+        FUNC(V, 0x2F) \
+        FUNC(B, 0x30) \
+        FUNC(N, 0x31) \
+        FUNC(M, 0x32) \
+        FUNC(COMMA, 0x33) \
+        FUNC(PERIOD, 0x34) \
+        FUNC(SLASH, 0x35) \
+        FUNC(SHIFTRIGHT, 0x36) \
+        FUNC(NUMPADMULTIPLY, 0x37) \
+        FUNC(ALTLEFT, 0x38) \
+        FUNC(SPACEBAR, 0x39) \
+        FUNC(CAPSLOCK, 0x3A)
 
 	enum class KEYBOARD_KEY : uint32_t
 	{
