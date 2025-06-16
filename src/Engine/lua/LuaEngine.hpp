@@ -26,7 +26,9 @@ namespace BB
 
     private:
         void LoadECSFunctions(class EntityComponentSystem* a_psystem);
+        void LoadInputFunctions();
         void LoadECSFunction(const lua_CFunction a_function, const char* a_func_name);
+        void LoadInputFunction(const lua_CFunction a_function, const char* a_func_name);
 
         LuaContext m_context;
     };

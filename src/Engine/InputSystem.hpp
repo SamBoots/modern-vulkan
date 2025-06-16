@@ -47,9 +47,9 @@ namespace BB
     {
         switch (a_enum)
         {
-            ENUM_CASE_STR(INPUT_VALUE_TYPE::BOOL);
-            ENUM_CASE_STR(INPUT_VALUE_TYPE::FLOAT);
-            ENUM_CASE_STR(INPUT_VALUE_TYPE::FLOAT_2);
+            ENUM_CASE_STR(INPUT_VALUE_TYPE, BOOL);
+            ENUM_CASE_STR(INPUT_VALUE_TYPE, FLOAT);
+            ENUM_CASE_STR(INPUT_VALUE_TYPE, FLOAT_2);
             ENUM_CASE_STR_NOT_FOUND();
         }
     }
@@ -58,9 +58,9 @@ namespace BB
     {
         switch (a_enum)
         {
-            ENUM_CASE_STR(INPUT_ACTION_TYPE::VALUE);
-            ENUM_CASE_STR(INPUT_ACTION_TYPE::BUTTON);
-            ENUM_CASE_STR(INPUT_ACTION_TYPE::DIRECT);
+            ENUM_CASE_STR(INPUT_ACTION_TYPE, VALUE);
+            ENUM_CASE_STR(INPUT_ACTION_TYPE, BUTTON);
+            ENUM_CASE_STR(INPUT_ACTION_TYPE, DIRECT);
             ENUM_CASE_STR_NOT_FOUND();
         }
     }
@@ -69,8 +69,8 @@ namespace BB
     {
         switch (a_enum)
         {
-            ENUM_CASE_STR(INPUT_BINDING_TYPE::BINDING);
-            ENUM_CASE_STR(INPUT_BINDING_TYPE::COMPOSITE_UP_DOWN_RIGHT_LEFT);
+            ENUM_CASE_STR(INPUT_BINDING_TYPE, BINDING);
+            ENUM_CASE_STR(INPUT_BINDING_TYPE, COMPOSITE_UP_DOWN_RIGHT_LEFT);
             ENUM_CASE_STR_NOT_FOUND();
         }
     }
@@ -79,8 +79,8 @@ namespace BB
     {
         switch (a_enum)
         {
-            ENUM_CASE_STR(INPUT_SOURCE::KEYBOARD);
-            ENUM_CASE_STR(INPUT_SOURCE::MOUSE);
+            ENUM_CASE_STR(INPUT_SOURCE, KEYBOARD);
+            ENUM_CASE_STR(INPUT_SOURCE, MOUSE);
             ENUM_CASE_STR_NOT_FOUND();
         }
     }
@@ -89,11 +89,11 @@ namespace BB
     {
         switch (a_enum)
         {
-            ENUM_CASE_STR(MOUSE_INPUT::LEFT_BUTTON);
-            ENUM_CASE_STR(MOUSE_INPUT::RIGHT_BUTTON);
-            ENUM_CASE_STR(MOUSE_INPUT::MIDDLE_BUTTON);
-            ENUM_CASE_STR(MOUSE_INPUT::SCROLL_WHEEL);
-            ENUM_CASE_STR(MOUSE_INPUT::MOUSE_MOVE);
+            ENUM_CASE_STR(MOUSE_INPUT, LEFT_BUTTON);
+            ENUM_CASE_STR(MOUSE_INPUT, RIGHT_BUTTON);
+            ENUM_CASE_STR(MOUSE_INPUT, MIDDLE_BUTTON);
+            ENUM_CASE_STR(MOUSE_INPUT, SCROLL_WHEEL);
+            ENUM_CASE_STR(MOUSE_INPUT, MOUSE_MOVE);
             ENUM_CASE_STR_NOT_FOUND();
         }
     }

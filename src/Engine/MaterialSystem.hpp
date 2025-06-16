@@ -97,8 +97,8 @@ namespace BB
 		{
 			switch (a_pass)
 			{
-                ENUM_CASE_STR(PASS_TYPE::GLOBAL);
-                ENUM_CASE_STR(PASS_TYPE::SCENE);
+                ENUM_CASE_STR(PASS_TYPE, GLOBAL);
+                ENUM_CASE_STR(PASS_TYPE, SCENE);
                 ENUM_CASE_STR_NOT_FOUND();
 			}
 		}
@@ -107,9 +107,9 @@ namespace BB
 		{
 			switch (a_material)
 			{
-                ENUM_CASE_STR(MATERIAL_TYPE::MATERIAL_3D);
-                ENUM_CASE_STR(MATERIAL_TYPE::MATERIAL_2D);
-                ENUM_CASE_STR(MATERIAL_TYPE::NONE);
+                ENUM_CASE_STR(MATERIAL_TYPE, MATERIAL_3D);
+                ENUM_CASE_STR(MATERIAL_TYPE, MATERIAL_2D);
+                ENUM_CASE_STR(MATERIAL_TYPE, NONE);
                 ENUM_CASE_STR_NOT_FOUND();
 			}
 		}

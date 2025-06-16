@@ -5,7 +5,7 @@
 namespace BB
 {
 #define BB_CONCAT(a, b) a##b
-#define ENUM_CASE_STR(name) case name: return #name
+#define ENUM_CASE_STR(name, entry_name) case name::entry_name: return #entry_name
 #define ENUM_CASE_STR_NOT_FOUND() default: return "ENUM_NAME_NOT_FOUND"
 
 #define BB_PRAGMA(X)			_Pragma(#X)

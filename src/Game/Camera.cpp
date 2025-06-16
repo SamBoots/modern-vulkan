@@ -18,7 +18,7 @@ FreeCamera::FreeCamera()
 void FreeCamera::Move(const float3 a_movement)
 {
 	float3 velocity{0, 0, 0};
-	velocity = velocity + m_forward * static_cast<float>(a_movement.z);
+	velocity = velocity + m_forward * a_movement.z;
 	velocity = velocity + Float3Normalize(Float3Cross(m_forward, m_up)) * a_movement.x;
 	velocity = velocity + UP_VECTOR * a_movement.y;
 

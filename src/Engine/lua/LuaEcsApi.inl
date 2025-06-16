@@ -2,12 +2,31 @@
 #include "lualib.h"
 #include "lauxlib.h"
 
+#include "HID.h"
+
 #include "ecs/EntityComponentSystem.hpp"
 
 namespace BB
 {
     namespace luaapi
     {
+        static void CreateKeyboardKeyEnumTable(lua_State* m_state)
+        {
+            LuaStackScope scope(m_state);
+
+            lua_newtable(m_state);
+
+#define KEY_ENUM_LUA(name, value) \
+            lua_pushinteger(m_state, value); \
+            lua_setfield(m_state, -2, #name);
+
+            KEYBOARD_KEY_D(KEY_ENUM_LUA)
+
+#undef KEY_ENUM_LUA
+
+            lua_setglobal(m_state, "KeyboardKey");
+        }
+
         static EntityComponentSystem* GetECS(lua_State* m_state)
         {
            return reinterpret_cast<EntityComponentSystem*>(lua_touserdata(m_state, lua_upvalueindex(1)));

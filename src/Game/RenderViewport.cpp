@@ -41,8 +41,7 @@ constexpr const char* lua_scene = R"(
     function FreeCamera:Move(a_x, a_y, a_z)
         local velocity = float3(0)
         velocity = velocity + self.m_forward * a_z
-        local cross = self.m_forward:Cross(self.m_up)
-        velocity = velocity + cross:Normalize() * a_x
+        velocity = velocity + float3Normalize(float3Cross(self.m_forward, self.m_up)) * a_x
         velocity = velocity + self.m_up * a_y
         self.m_velocity = self.m_velocity + velocity * self.m_speed;
     end
@@ -61,9 +60,9 @@ constexpr const char* lua_scene = R"(
         local dir_z = math.sin(self.m_yaw) * math.cos(self.m_pitch)
         local direction = float3(dir_x, dir_y, dir_z)
         
-        self.m_forward = direction:Normalize()
-        local cross = self.m_up:Cross(self.m_forward)
-        self.m_right = cross:Normalize()
+        self.m_forward = float3Normalize(direction)
+        local cross = float3Cross(self.m_up, self.m_forward)
+        self.m_right = float3Normalize(cross)
     end
     
     function FreeCamera:Update(a_delta_time)
@@ -73,16 +72,16 @@ constexpr const char* lua_scene = R"(
     end
 
     function FreeCamera:AddSpeed(a_speed)
-        local speed = self.m_speed + a_speed
+        local speed = self.m_speed + a_speed * ((self.m_speed + 2.2) * 0.022)
         if speed > self.m_max_speed then
             speed = self.m_max_speed
         elseif speed < self.m_min_speed then
             speed = self.m_min_speed
         end
-        self.m_speed = 2
+        self.m_speed = speed
     end
 
-    camera = FreeCamera.new(float3(0, 1, -1), float3(0, 0, -1), float3(1, 0, 0), float3(0, 1, 0), 1)
+    camera = FreeCamera.new(float3(0, 0, 0), float3(0, 0, -1), float3(1, 0, 0), float3(0, 1, 0), 1)
 
     function GetCameraPos()
         return camera.m_pos
@@ -261,21 +260,21 @@ bool RenderViewport::Update(const float a_delta_time, const bool a_selected)
         const float2 move_value = Input::InputActionGetFloat2(m_move_forward_backward_left_right);
         const float3 player_move = float3(move_value.x, 0.f, move_value.y) * a_delta_time;
         const float wheel_move = Input::InputActionGetFloat(m_move_speed_slider);
-        const float speed = wheel_move * 0.022f;
+        const float speed = wheel_move;
 
         lua_getglobal(m_context.GetState(), "AddSpeed");
         lua_pushnumber(m_context.GetState(), static_cast<lua_Number>(speed));
         BB_ASSERT(lua_pcall(m_context.GetState(), 1, 0, 0) == LUA_OK, lua_tostring(m_context.GetState(), -1));
 
         lua_getglobal(m_context.GetState(), "MoveCamera");
-        lua_pushnumber(m_context.GetState(), static_cast<lua_Number>(player_move.z));
+        lua_pushnumber(m_context.GetState(), static_cast<lua_Number>(player_move.x));
         lua_pushnumber(m_context.GetState(), static_cast<lua_Number>(player_move.y));
         lua_pushnumber(m_context.GetState(), static_cast<lua_Number>(player_move.z));
         BB_ASSERT(lua_pcall(m_context.GetState(), 3, 0, 0) == LUA_OK, lua_tostring(m_context.GetState(), -1));
 
         if (Input::InputActionIsHeld(m_enable_rotate_button))
         {
-            const float2 mouse_move = Input::InputActionGetFloat2(m_look_around);
+            const float2 mouse_move = Input::InputActionGetFloat2(m_look_around) * a_delta_time;
             lua_getglobal(m_context.GetState(), "RotateCamera");
             lua_pushnumber(m_context.GetState(), static_cast<lua_Number>(mouse_move.x));
             lua_pushnumber(m_context.GetState(), static_cast<lua_Number>(mouse_move.y));

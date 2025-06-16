@@ -42,6 +42,7 @@ bool LuaECSEngine::Init(MemoryArena& a_arena, EntityComponentSystem* a_psystem, 
 
     LuaStackScope scope(m_context.GetState());
     LoadECSFunctions(a_psystem);
+    luaapi::CreateKeyboardKeyEnumTable(m_context.GetState());
 
     return true;
 }
@@ -56,9 +57,21 @@ void LuaECSEngine::LoadECSFunctions(EntityComponentSystem* a_psystem)
     LoadECSFunction(luaapi::ECSTranslate, "ECSTranslate");
 }
 
+void LuaECSEngine::LoadInputFunctions()
+{
+
+
+}
+
 void LuaECSEngine::LoadECSFunction(const lua_CFunction a_function, const char* a_func_name)
 {
     lua_pushvalue(m_context.GetState(), -1);
     lua_pushcclosure(m_context.GetState(), a_function, 1);
+    lua_setglobal(m_context.GetState(), a_func_name);
+}
+
+void LuaECSEngine::LoadInputFunction(const lua_CFunction a_function, const char* a_func_name)
+{
+    lua_pushcfunction(m_context.GetState(), a_function);
     lua_setglobal(m_context.GetState(), a_func_name);
 }
