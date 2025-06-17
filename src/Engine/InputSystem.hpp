@@ -15,13 +15,6 @@ namespace BB
         FLOAT_2
     };
 
-    enum class INPUT_ACTION_TYPE : uint32_t
-    {
-        VALUE,
-        BUTTON,
-        DIRECT
-    };
-
     enum class INPUT_BINDING_TYPE : uint32_t
     {
         BINDING,
@@ -50,17 +43,6 @@ namespace BB
             ENUM_CASE_STR(INPUT_VALUE_TYPE, BOOL);
             ENUM_CASE_STR(INPUT_VALUE_TYPE, FLOAT);
             ENUM_CASE_STR(INPUT_VALUE_TYPE, FLOAT_2);
-            ENUM_CASE_STR_NOT_FOUND();
-        }
-    }
-
-    static inline const char* INPUT_ACTION_TYPE_STR(const INPUT_ACTION_TYPE a_enum)
-    {
-        switch (a_enum)
-        {
-            ENUM_CASE_STR(INPUT_ACTION_TYPE, VALUE);
-            ENUM_CASE_STR(INPUT_ACTION_TYPE, BUTTON);
-            ENUM_CASE_STR(INPUT_ACTION_TYPE, DIRECT);
             ENUM_CASE_STR_NOT_FOUND();
         }
     }
@@ -111,7 +93,6 @@ namespace BB
     struct InputActionCreateInfo
     {
         INPUT_VALUE_TYPE value_type;
-        INPUT_ACTION_TYPE action_type;
         INPUT_BINDING_TYPE binding_type;
         INPUT_SOURCE source;
         FixedArray<InputKey, 4> input_keys;
@@ -121,7 +102,6 @@ namespace BB
     {
         InputActionName name;
         INPUT_VALUE_TYPE value_type;
-        INPUT_ACTION_TYPE action_type;
         INPUT_BINDING_TYPE binding_type;
         INPUT_SOURCE input_source;
         FixedArray<InputKey, 4> input_keys;
@@ -136,6 +116,8 @@ namespace BB
 
         InputActionHandle CreateInputAction(const InputActionName& a_name, const InputActionCreateInfo& a_create_info);
         InputActionHandle FindInputAction(const InputActionName& a_name);
+
+        const InputActionName& GetInputActionName(const InputActionHandle a_input_action);
 
         bool InputActionIsPressed(const InputActionHandle a_input_action);
         bool InputActionIsHeld(const InputActionHandle a_input_action);

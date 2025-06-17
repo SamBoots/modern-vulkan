@@ -1,0 +1,35 @@
+{
+  "input_actions": [
+    {
+      "name": "camera_move",
+      "INPUT_VALUE": "FLOAT_2",
+      "INPUT_BINDING": "COMPOSITE_UP_DOWN_RIGHT_LEFT",
+      "INPUT_SOURCE": "KEYBOARD",
+      "KEY0": "W",
+      "KEY1": "S",
+      "KEY2": "D",
+      "KEY3": "A"
+    },
+    {
+      "name": "move speed slider",
+      "INPUT_VALUE": "FLOAT",
+      "INPUT_BINDING": "BINDING",
+      "INPUT_SOURCE": "MOUSE",
+      "KEY0": "SCROLL_WHEEL"
+    },
+    {
+      "name": "move speed slider",
+      "INPUT_VALUE": "FLOAT_2",
+      "INPUT_BINDING": "BINDING",
+      "INPUT_SOURCE": "MOUSE",
+      "KEY0": "MOUSE_MOVE"
+    },
+    {
+      "name": "enable rotation",
+      "INPUT_VALUE": "BOOL",
+      "INPUT_BINDING": "BINDING",
+      "INPUT_SOURCE": "MOUSE",
+      "KEY0": "RIGHT_BUTTON"
+    }
+  ]
+}

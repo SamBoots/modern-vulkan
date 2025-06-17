@@ -13,6 +13,8 @@
 
 #include "lua/LuaTest.hpp"
 
+#include "BBGlobal.h"
+
 using namespace BB;
 
 static EngineConfig engine_config;
@@ -44,9 +46,6 @@ static void CustomMoveWindow(const BB::WindowHandle a_window_handle, const uint3
 EngineInfo BB::InitEngine(MemoryArena& a_arena, const wchar* a_app_name, const EngineOptions& a_engine_options, const GraphicOptions& a_graphic_options)
 {
     StackString<512> exe_path{};
-
-    bool validate_lua = lua_RunBBTypeTest();
-    BB_ASSERT(validate_lua, "lua validation failed");
 
     const StringView exe_path_manipulator{ a_engine_options.exe_path };
     const size_t path_end = exe_path_manipulator.find_last_of('\\');
@@ -138,6 +137,9 @@ EngineInfo BB::InitEngine(MemoryArena& a_arena, const wchar* a_app_name, const E
     info.window_extent = window_extent;
     info.backbuffer_count = back_buffer_count;
 
+    bool validate_lua = lua_RunBBTypeTest();
+    BB_ASSERT(validate_lua, "lua validation failed");
+
     return info;
 }
 
@@ -161,4 +163,9 @@ ENGINE_STATUS BB::UpdateEngine(const WindowHandle a_window_handle, const ConstSl
 
     Input::UpdateInput(a_input_events);
     return status;
+}
+
+const char* BB::GetExePath()
+{
+    return g_exe_path;
 }

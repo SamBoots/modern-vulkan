@@ -466,7 +466,6 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
     {   // input
         InputActionCreateInfo input_create{};
         input_create.value_type = INPUT_VALUE_TYPE::FLOAT_2;
-        input_create.action_type = INPUT_ACTION_TYPE::BUTTON;
         input_create.binding_type = INPUT_BINDING_TYPE::COMPOSITE_UP_DOWN_RIGHT_LEFT;
         input_create.source = INPUT_SOURCE::KEYBOARD;
         input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::W;
@@ -478,7 +477,6 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
     {
         InputActionCreateInfo input_create{};
         input_create.value_type = INPUT_VALUE_TYPE::BOOL;
-        input_create.action_type = INPUT_ACTION_TYPE::BUTTON;
         input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
         input_create.source = INPUT_SOURCE::KEYBOARD;
         input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::Q;
@@ -487,7 +485,6 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
     {
         InputActionCreateInfo input_create{};
         input_create.value_type = INPUT_VALUE_TYPE::BOOL;
-        input_create.action_type = INPUT_ACTION_TYPE::BUTTON;
         input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
         input_create.source = INPUT_SOURCE::KEYBOARD;
         input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::E;
@@ -496,7 +493,6 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
     {
         InputActionCreateInfo input_create{};
         input_create.value_type = INPUT_VALUE_TYPE::BOOL;
-        input_create.action_type = INPUT_ACTION_TYPE::BUTTON;
         input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
         input_create.source = INPUT_SOURCE::KEYBOARD;
         input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::G;
@@ -506,7 +502,6 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
     {
         InputActionCreateInfo input_create{};
         input_create.value_type = INPUT_VALUE_TYPE::FLOAT;
-        input_create.action_type = INPUT_ACTION_TYPE::VALUE;
         input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
         input_create.source = INPUT_SOURCE::MOUSE;
         input_create.input_keys[0].mouse_input = MOUSE_INPUT::SCROLL_WHEEL;
@@ -515,7 +510,6 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
     {
         InputActionCreateInfo input_create{};
         input_create.value_type = INPUT_VALUE_TYPE::FLOAT_2;
-        input_create.action_type = INPUT_ACTION_TYPE::VALUE;
         input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
         input_create.source = INPUT_SOURCE::MOUSE;
         input_create.input_keys[0].mouse_input = MOUSE_INPUT::MOUSE_MOVE;
@@ -524,7 +518,6 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
     {
         InputActionCreateInfo input_create{};
         input_create.value_type = INPUT_VALUE_TYPE::BOOL;
-        input_create.action_type = INPUT_ACTION_TYPE::VALUE;
         input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
         input_create.source = INPUT_SOURCE::MOUSE;
         input_create.input_keys[0].mouse_input = MOUSE_INPUT::RIGHT_BUTTON;

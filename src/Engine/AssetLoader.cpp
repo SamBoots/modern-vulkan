@@ -22,6 +22,8 @@
 
 #include "mikktspace.h"
 
+#include "Engine.hpp"
+
 BB_WARNINGS_OFF
 #define CGLTF_IMPLEMENTATION
 #include "cgltf.h"
@@ -220,6 +222,8 @@ struct ReadImageInfo
 
 struct AssetManager
 {
+    PathString asset_dir;
+
 	BBRWLock allocator_lock;
 	FreelistInterface allocator;
 
@@ -824,6 +828,13 @@ void Asset::InitializeAssetManager(MemoryArena& a_arena, const AssetManagerInitI
 	s_asset_manager->icons_storage.max_slots = a_init_info.asset_count;
 	s_asset_manager->icons_storage.next_index = 0;
 
+    const StringView exe_path = GetExePath();
+    const size_t first_slash = exe_path.find_last_of_directory_slash();
+    const size_t src_slash = exe_path.SubView(first_slash).find_last_of_directory_slash();
+    
+    s_asset_manager->asset_dir = PathString(exe_path.c_str(), src_slash);
+    s_asset_manager->asset_dir.append("\\resources\\");
+
 	ImageCreateInfo icons_image_info;
 	icons_image_info.name = "icon mega image";
 	icons_image_info.width = ICON_EXTENT.x * s_asset_manager->icons_storage.max_slots;
@@ -962,6 +973,11 @@ void Asset::LoadAssets(MemoryArena& a_temp_arena, const Slice<AsyncAsset> a_asyn
 			break;
 		}
 	}
+}
+
+const PathString& Asset::GetAssetPath()
+{
+    return s_asset_manager->asset_dir;
 }
 
 static inline void CreateImage_func(const StringView& a_name, const uint32_t a_width, const uint32_t a_height, const uint16_t a_array_layers, const IMAGE_FORMAT a_format, const IMAGE_VIEW_TYPE a_view_type, RImage& a_out_image, RDescriptorIndex& a_out_index)

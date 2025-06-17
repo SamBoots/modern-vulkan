@@ -1,7 +1,10 @@
 #pragma once
 #include "Enginefwd.hpp"
 #include "Allocators/MemoryInterfaces.hpp"
+#include "Utils/Slice.h"
 #include "lua.h"
+
+#include "Storage/BBString.h"
 
 namespace BB
 {
@@ -23,6 +26,9 @@ namespace BB
         bool Init(MemoryArena& a_arena, class EntityComponentSystem* a_psystem, const size_t a_lua_mem_size);
 
         lua_State*& GetState() { return m_context.GetState(); }
+        bool LoadLuaFile(const StringView& a_file_name);
+
+        bool RegisterActionHandlesLua(const ConstSlice<InputActionHandle> a_input_actions);
 
     private:
         void LoadECSFunctions(class EntityComponentSystem* a_psystem);

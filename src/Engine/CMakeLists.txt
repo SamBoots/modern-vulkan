@@ -16,7 +16,7 @@ add_library(Engine
     "ecs/systems/RasterMeshStage.cpp"
     "ecs/systems/BloomStage.cpp"
     "ecs/systems/LineStage.cpp"
-    "lua/LuaEcsApi.cpp"
+    "lua/LuaECSApi.cpp"
     "lua/LuaEngine.cpp"
     "lua/LuaTypes.cpp" 
     "lua/LuaTest.cpp"

@@ -160,7 +160,6 @@ InputActionHandle Input::CreateInputAction(const InputActionName& a_name, const 
     InputAction action{};
     action.name = a_name;
     action.value_type = a_create_info.value_type;
-    action.action_type = a_create_info.action_type;
     action.binding_type = a_create_info.binding_type;
     action.input_source = a_create_info.source;
     action.input_keys = a_create_info.input_keys;
@@ -177,6 +176,12 @@ InputActionHandle Input::FindInputAction(const InputActionName& a_name)
         return *found;
 
     return InputActionHandle(); // invalid
+}
+
+const InputActionName& Input::GetInputActionName(const InputActionHandle a_input_action)
+{
+    const InputAction& ia = s_input_system->input_actions.find(a_input_action);
+    return ia.name;
 }
 
 static bool _InputActionCheck(const InputActionHandle a_input_action, const KEY_STATE a_state)

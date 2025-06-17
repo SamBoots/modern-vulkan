@@ -242,7 +242,6 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 	}
     {
         InputActionCreateInfo action_info;
-        action_info.action_type = INPUT_ACTION_TYPE::BUTTON;
         action_info.binding_type = INPUT_BINDING_TYPE::BINDING;
         action_info.value_type = INPUT_VALUE_TYPE::BOOL;
         action_info.source = INPUT_SOURCE::MOUSE;
@@ -252,7 +251,6 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
     {
         InputActionCreateInfo input_create{};
         input_create.value_type = INPUT_VALUE_TYPE::FLOAT_2;
-        input_create.action_type = INPUT_ACTION_TYPE::VALUE;
         input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
         input_create.source = INPUT_SOURCE::MOUSE;
         input_create.input_keys[0].mouse_input = MOUSE_INPUT::MOUSE_MOVE;
@@ -261,7 +259,6 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
     {
         InputActionCreateInfo input_create{};
         input_create.value_type = INPUT_VALUE_TYPE::BOOL;
-        input_create.action_type = INPUT_ACTION_TYPE::BUTTON;
         input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
         input_create.source = INPUT_SOURCE::KEYBOARD;
         input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::CONTROLLEFT;
@@ -911,7 +908,6 @@ void Editor::ImGuiDisplayInputSystem()
                 ImGui::Indent();
 
                 ImGui::Text("Source: %s", INPUT_SOURCE_STR(ipa.input_source));
-                ImGui::Text("Action Type: %s", INPUT_ACTION_TYPE_STR(ipa.action_type));
                 ImGui::Text("Binding Type: %s", INPUT_BINDING_TYPE_STR(ipa.binding_type));
                 ImGui::Text("Value Type: %s", INPUT_VALUE_TYPE_STR(ipa.value_type));
 

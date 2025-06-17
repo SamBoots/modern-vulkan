@@ -95,6 +95,9 @@ namespace BB
 			return true;
 		}
 
+        const String_View<CharT> SubView() const { return SubView(m_size); }
+        const String_View<CharT> SubView(const size_t a_size, const size_t a_start_pos = 0) const { return String_View<CharT>(&m_string_view[a_start_pos], a_size); }
+
 		size_t size() const { return m_size; }
 		const CharT* data() const { return m_string_view; }
 		const CharT* c_str() const { return m_string_view; }
@@ -517,8 +520,8 @@ namespace BB
 		CharT* data() { return m_string; }
 		const CharT* c_str() const { return m_string; }
 
-		const StringView GetView() const { return GetView(m_size); }
-		const StringView GetView(const size_t a_size, const size_t a_start_pos = 0) const { return StringView(&m_string[a_start_pos], a_size); }
+		const String_View<CharT> GetView() const { return GetView(m_size); }
+		const String_View<CharT> GetView(const size_t a_size, const size_t a_start_pos = 0) const { return String_View<CharT>(&m_string[a_start_pos], a_size); }
 
 	private:
 		CharT m_string[STRING_SIZE + 1];

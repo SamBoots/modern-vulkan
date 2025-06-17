@@ -45,6 +45,8 @@ namespace BB
     bool DestroyEngine();
     ENGINE_STATUS UpdateEngine(const WindowHandle a_window_handle, const ConstSlice<InputEvent> a_input_events);
 
+    const char* GetExePath();
+
     bool WindowResized();
     bool WindowClosed();
 }

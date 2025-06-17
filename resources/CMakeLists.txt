@@ -49,10 +49,10 @@ add_custom_target(copy_game_res ALL
 add_dependencies(Game copy_game_res)
 
 #copy models when a change happened.
-add_custom_target(copy_filter_images ALL
+add_custom_target(copy_lua ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_SOURCE_DIR}/resources/filter_textures
-    ${CMAKE_BINARY_DIR}/resources/filter_textures
-    COMMENT "Copying image filter directory")
+    ${CMAKE_SOURCE_DIR}/resources/lua
+    ${CMAKE_BINARY_DIR}/resources/lua
+    COMMENT "Copying lua directory")
 
-add_dependencies(image_filter_test copy_filter_images)
+add_dependencies(Game copy_lua)

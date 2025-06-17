@@ -6,8 +6,11 @@
 #include "lualib.h"
 #include "Logger.h"
 
-using namespace BB;
+#include "InputSystem.hpp"
 
+#include "AssetLoader.hpp"
+
+using namespace BB;
 
 static void* LuaAlloc(void* a_user_data, void* a_ptr, const size_t a_old_size, const size_t a_new_size)
 {
@@ -26,6 +29,26 @@ static void* LuaAlloc(void* a_user_data, void* a_ptr, const size_t a_old_size, c
     return nullptr;
 }
 
+static bool lua_setuppaths(lua_State* a_state)
+{
+    PathString lua_path = Asset::GetAssetPath();
+    lua_path.append("lua\\?.lua");
+
+    StackString<2024> lua_include_paths;
+
+    lua_getglobal(a_state, "package");
+    lua_getfield(a_state, -1, "path");
+    const char* current_path = lua_tostring(a_state, -1);
+    lua_include_paths.append(current_path);
+    lua_include_paths.append(";");
+    lua_include_paths.append(lua_path);
+    lua_pop(a_state, 1);
+
+    lua_pushstring(a_state, lua_include_paths.c_str());
+    lua_setfield(a_state, -2, "path");
+    return true;
+}
+
 bool LuaContext::Init(MemoryArena& a_arena, const size_t a_lua_mem_size)
 {
     if (m_state != nullptr)
@@ -34,7 +57,10 @@ bool LuaContext::Init(MemoryArena& a_arena, const size_t a_lua_mem_size)
     m_state = luaL_newstate();
 
     luaL_openlibs(m_state);
+
+    LuaStackScope scope(m_state);
     lua_registerbbtypes(m_state);
+    lua_setuppaths(m_state);
 
     return true;
 }
@@ -47,6 +73,25 @@ bool LuaECSEngine::Init(MemoryArena& a_arena, EntityComponentSystem* a_psystem, 
     LoadECSFunctions(a_psystem);
     LoadInputFunctions();
 
+    return true;
+}
+
+bool LuaECSEngine::LoadLuaFile(const StringView& a_file_name)
+{
+    PathString lua_path = Asset::GetAssetPath();
+    lua_path.append("lua\\");
+    lua_path.append(a_file_name);
+    return luaL_dofile(m_context.GetState(), lua_path.c_str()) == LUA_OK;
+}
+
+bool LuaECSEngine::RegisterActionHandlesLua(const ConstSlice<InputActionHandle> a_input_actions)
+{
+    LuaStackScope scope(m_context.GetState());
+    for (size_t i = 0; i < a_input_actions.size(); i++)
+    {
+        lua_pushbbhandle(m_context.GetState(), a_input_actions[i].handle);
+        lua_setglobal(m_context.GetState(), Input::GetInputActionName(a_input_actions[i]).c_str());
+    }
     return true;
 }
 

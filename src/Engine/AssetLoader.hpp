@@ -170,6 +170,8 @@ namespace BB
 
 		void LoadAssets(MemoryArena& a_temp_arena, const Slice<AsyncAsset> a_asyn_assets);
 
+        const PathString& GetAssetPath();
+
 		const Image& LoadImageDisk(MemoryArena& a_temp_arena, const StringView& a_path, const IMAGE_FORMAT a_format);
 		const Image& LoadImageArrayDisk(MemoryArena& a_temp_arena, const StringView& a_name, const ConstSlice<StringView> a_paths, const IMAGE_FORMAT a_format, const bool a_is_cube_map = false);
 		const Image& LoadImageMemory(MemoryArena& a_temp_arena, const TextureLoadFromMemory& a_info);
