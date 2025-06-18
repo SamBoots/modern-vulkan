@@ -4,6 +4,7 @@
 #include "Storage/Array.h"
 #include "Enginefwd.hpp"
 #include "SceneHierarchy.hpp"
+#include "lua/LuaEngine.hpp"
 
 namespace BB
 {
@@ -134,42 +135,19 @@ namespace BB
 		void DisplayImGuiInfo();
 		void Destroy();
 
-        float3 GetCameraPos() const;
+        float3 GetCameraPos();
+        float4x4 GetCameraView();
 		Viewport& GetViewport() { return m_viewport; }
         SceneHierarchy& GetSceneHierarchy() { return m_scene_hierarchy; }
 
 	private:
-		void ToggleFreeCam();
 		MemoryArena m_game_memory;
 
-		Player m_player;
 		Viewport m_viewport;
 		SceneHierarchy m_scene_hierarchy;
 		DungeonMap m_dungeon_map;
 		ECSEntity m_dungeon_obj;
-
-		// debug
-		struct FreeCameraOption
-		{
-			bool use_free_cam;
-			FreeCamera camera{};
-            float speed = 1.f;
-            float min_speed = 0.1f;
-            float max_speed = 100.0f;
-		};
-		FreeCameraOption m_free_cam;
-
-        struct Controls
-        {
-            InputActionHandle player_move;
-            InputActionHandle turn_left;
-            InputActionHandle turn_right;
-            InputActionHandle toggle_freecam;
-
-            InputActionHandle move_speed_slider;
-            InputActionHandle look_around;
-            InputActionHandle enable_rotate_button;
-        } m_input;
+        LuaECSEngine m_context;
 	};
 	static_assert(is_interactable_viewport_interface<DungeonGame>);
 }

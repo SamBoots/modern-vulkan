@@ -191,6 +191,15 @@ static int lua_float3Normalize(lua_State* a_state)
     return 1;
 }
 
+static int lua_float3Rotate(lua_State* a_state)
+{
+    float3* floats0 = lua_getfloat3(a_state, 1);
+    float3* floats1 = lua_getfloat3(a_state, 2);
+    const float3 rotated = Float3x3FromRotation(*floats0) * *floats1;
+    lua_pushfloat3(a_state, rotated);
+    return 1;
+}
+
 void BB::lua_registerbbtypes(lua_State* a_state)
 {
     LuaStackScope scope(a_state);
@@ -202,6 +211,8 @@ void BB::lua_registerbbtypes(lua_State* a_state)
     lua_setglobal(a_state, "float3Normalize");
     lua_pushcfunction(a_state, lua_float3Cross);
     lua_setglobal(a_state, "float3Cross");
+    lua_pushcfunction(a_state, lua_float3Rotate);
+    lua_setglobal(a_state, "float3Rotate");
 }
 
 template<typename T, const char* NAME>

@@ -9,6 +9,10 @@
 #include "Math/Math.inl"
 #include "InputSystem.hpp"
 
+#include "lua.h"
+#include "lauxlib.h"
+#include "lua/LuaTypes.hpp"
+
 using namespace BB;
 
 using QuadVerticesPos = FixedArray<float3, 4>;
@@ -460,8 +464,10 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
 		m_dungeon_map.CreateEntityFloor(m_game_memory, m_scene_hierarchy, m_dungeon_obj);
 		m_dungeon_map.CreateEntityWalls(m_game_memory, m_scene_hierarchy, m_dungeon_obj);
 	}
-	m_player.SetPosition(m_dungeon_map.GetSpawnPoint() + map_start_pos + float3(0.f, 1.f, 0.f));
-	m_player.SetLerpSpeed(5.f);
+	//m_player.SetPosition(m_dungeon_map.GetSpawnPoint() + map_start_pos + float3(0.f, 1.f, 0.f));
+	//m_player.SetLerpSpeed(5.f);
+
+    FixedArray<InputActionHandle, 8> input_actions;
 
     {   // input
         InputActionCreateInfo input_create{};
@@ -472,7 +478,7 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
         input_create.input_keys[1].keyboard_key = KEYBOARD_KEY::S;
         input_create.input_keys[2].keyboard_key = KEYBOARD_KEY::D;
         input_create.input_keys[3].keyboard_key = KEYBOARD_KEY::A;
-        m_input.player_move = Input::CreateInputAction("Player move", input_create);
+        input_actions[0] = Input::CreateInputAction("player_move", input_create);
     }
     {
         InputActionCreateInfo input_create{};
@@ -480,7 +486,7 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
         input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
         input_create.source = INPUT_SOURCE::KEYBOARD;
         input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::Q;
-        m_input.turn_left = Input::CreateInputAction("Player turn left", input_create);
+        input_actions[1] = Input::CreateInputAction("player_turn_left", input_create);
     }
     {
         InputActionCreateInfo input_create{};
@@ -488,24 +494,26 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
         input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
         input_create.source = INPUT_SOURCE::KEYBOARD;
         input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::E;
-        m_input.turn_right = Input::CreateInputAction("Player turn right", input_create);
+        input_actions[2] = Input::CreateInputAction("player_turn_right", input_create);
     }
     {
         InputActionCreateInfo input_create{};
-        input_create.value_type = INPUT_VALUE_TYPE::BOOL;
-        input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
+        input_create.value_type = INPUT_VALUE_TYPE::FLOAT_2;
+        input_create.binding_type = INPUT_BINDING_TYPE::COMPOSITE_UP_DOWN_RIGHT_LEFT;
         input_create.source = INPUT_SOURCE::KEYBOARD;
-        input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::G;
-        m_input.toggle_freecam = Input::CreateInputAction("Player toggle freecam", input_create);
+        input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::W;
+        input_create.input_keys[1].keyboard_key = KEYBOARD_KEY::S;
+        input_create.input_keys[2].keyboard_key = KEYBOARD_KEY::D;
+        input_create.input_keys[3].keyboard_key = KEYBOARD_KEY::A;
+        input_actions[3] = Input::CreateInputAction("gcamera_move", input_create);
     }
-
     {
         InputActionCreateInfo input_create{};
         input_create.value_type = INPUT_VALUE_TYPE::FLOAT;
         input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
         input_create.source = INPUT_SOURCE::MOUSE;
         input_create.input_keys[0].mouse_input = MOUSE_INPUT::SCROLL_WHEEL;
-        m_input.move_speed_slider = Input::CreateInputAction("GameMain move speed slider", input_create);
+        input_actions[4] = Input::CreateInputAction("gmove_speed_slider", input_create);
     }
     {
         InputActionCreateInfo input_create{};
@@ -513,7 +521,7 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
         input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
         input_create.source = INPUT_SOURCE::MOUSE;
         input_create.input_keys[0].mouse_input = MOUSE_INPUT::MOUSE_MOVE;
-        m_input.look_around = Input::CreateInputAction("GameMain look around", input_create);
+        input_actions[5] = Input::CreateInputAction("glook_around", input_create);
     }
     {
         InputActionCreateInfo input_create{};
@@ -521,15 +529,28 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
         input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
         input_create.source = INPUT_SOURCE::MOUSE;
         input_create.input_keys[0].mouse_input = MOUSE_INPUT::RIGHT_BUTTON;
-        m_input.enable_rotate_button = Input::CreateInputAction("GameMain enable rotate", input_create);
+        input_actions[6] = Input::CreateInputAction("genable_rotate", input_create);
+    }
+    {
+        InputActionCreateInfo input_create{};
+        input_create.value_type = INPUT_VALUE_TYPE::BOOL;
+        input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
+        input_create.source = INPUT_SOURCE::KEYBOARD;
+        input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::G;
+        input_actions[7] = Input::CreateInputAction("toggle_freecam", input_create);
     }
 
+    m_context.Init(m_game_memory, &m_scene_hierarchy.GetECS(), gbSize);
+    m_context.RegisterActionHandlesLua(input_actions.const_slice());
+
+    bool status = m_context.LoadLuaFile("gamescene.lua");
+    BB_ASSERT(status == true, lua_tostring(m_context.GetState(), -1));
 	return true;
 }
 
 bool DungeonGame::Update(const float a_delta_time, const bool a_selected)
 {
-    if (a_selected)
+   /* if (a_selected)
     {
         const float2 move_value = Input::InputActionGetFloat2(m_input.player_move);
         const float3 player_move = float3(move_value.x, 0.f, move_value.y);
@@ -581,7 +602,19 @@ bool DungeonGame::Update(const float a_delta_time, const bool a_selected)
 	else
 	{
 		m_scene_hierarchy.GetECS().GetRenderSystem().SetView(m_player.CalculateView(), m_player.GetPosition());
-	}
+	}*/
+
+    const LuaStackScope scope(m_context.GetState());
+
+    lua_getglobal(m_context.GetState(), "Update");
+    lua_pushnumber(m_context.GetState(), static_cast<lua_Number>(a_delta_time));
+    lua_pushboolean(m_context.GetState(), a_selected);
+    BB_ASSERT(lua_pcall(m_context.GetState(), 2, 0, 0) == LUA_OK, lua_tostring(m_context.GetState(), -1));
+
+    const float3 pos = GetCameraPos();
+    const float4x4 view = GetCameraView();
+    m_scene_hierarchy.GetECS().GetRenderSystem().SetView(view, pos);
+
 
 	DisplayImGuiInfo();
 
@@ -591,29 +624,29 @@ bool DungeonGame::Update(const float a_delta_time, const bool a_selected)
 // maybe ifdef this for editor
 void DungeonGame::DisplayImGuiInfo()
 {
-	if (ImGui::Begin("game info"))
-	{
-		ImGui::Text("Use freecam: %s", m_free_cam.use_free_cam ? "true" : "false");
-		if (ImGui::Button("Toggle freecam"))
-		{
-			ToggleFreeCam();
-		}
+	//if (ImGui::Begin("game info"))
+	//{
+	//	ImGui::Text("Use freecam: %s", m_free_cam.use_free_cam ? "true" : "false");
+	//	if (ImGui::Button("Toggle freecam"))
+	//	{
+	//		ToggleFreeCam();
+	//	}
 
-		if (ImGui::SliderFloat("Freecam speed", &m_free_cam.speed, m_free_cam.min_speed, m_free_cam.max_speed))
-		{
-			 m_free_cam.camera.SetSpeed(m_free_cam.speed);
-		}
-		
-		if (ImGui::CollapsingHeader("player"))
-		{
-			float velocity_speed = m_player.GetLerpSpeed();
-			if (ImGui::SliderFloat("velocity speed", &velocity_speed, 1.f, 100.f))
-			{
-				m_player.SetLerpSpeed(velocity_speed);
-			}
-		}
-	}
-	ImGui::End();
+	//	if (ImGui::SliderFloat("Freecam speed", &m_free_cam.speed, m_free_cam.min_speed, m_free_cam.max_speed))
+	//	{
+	//		 m_free_cam.camera.SetSpeed(m_free_cam.speed);
+	//	}
+	//	
+	//	if (ImGui::CollapsingHeader("player"))
+	//	{
+	//		float velocity_speed = m_player.GetLerpSpeed();
+	//		if (ImGui::SliderFloat("velocity speed", &velocity_speed, 1.f, 100.f))
+	//		{
+	//			m_player.SetLerpSpeed(velocity_speed);
+	//		}
+	//	}
+	//}
+	//ImGui::End();
 }
 
 void DungeonGame::Destroy()
@@ -621,17 +654,23 @@ void DungeonGame::Destroy()
 	MemoryArenaFree(m_game_memory);
 }
 
-float3 DungeonGame::GetCameraPos() const
+float3 DungeonGame::GetCameraPos()
 {
-    if (m_free_cam.use_free_cam)
-        return m_free_cam.camera.GetPosition();
-    return m_player.GetPosition();
+    const LuaStackScope scope(m_context.GetState());
+    lua_getglobal(m_context.GetState(), "GetCameraPos");
+    lua_pcall(m_context.GetState(), 0, 1, 0);
+    return *lua_getfloat3(m_context.GetState(), -1);
 }
 
-void DungeonGame::ToggleFreeCam()
+float4x4 DungeonGame::GetCameraView()
 {
-	m_free_cam.use_free_cam = !m_free_cam.use_free_cam;
-	m_free_cam.camera.SetPosition(m_player.GetPosition());
-	m_free_cam.camera.SetUp(float3(0.f, 1.f, 0.f));
-	m_free_cam.camera.SetSpeed(m_free_cam.speed);
+    const float3 pos = GetCameraPos();
+    lua_getglobal(m_context.GetState(), "GetCameraUp");
+    BB_ASSERT(lua_pcall(m_context.GetState(), 0, 1, 0) == LUA_OK, lua_tostring(m_context.GetState(), -1));
+    const float3 up = *lua_getfloat3(m_context.GetState(), -1);
+    lua_getglobal(m_context.GetState(), "GetCameraForward");
+    BB_ASSERT(lua_pcall(m_context.GetState(), 0, 1, 0) == LUA_OK, lua_tostring(m_context.GetState(), -1));
+    const float3 forward = *lua_getfloat3(m_context.GetState(), -1);
+
+    return Float4x4Lookat(pos, pos + forward, up);
 }
