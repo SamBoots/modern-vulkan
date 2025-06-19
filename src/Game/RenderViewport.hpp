@@ -16,6 +16,7 @@ namespace BB
         float4x4 GetCameraView();
 
 		Viewport& GetViewport() { return m_viewport; }
+        InputChannelHandle GetInputChannel() const { return m_input_channel; }
         SceneHierarchy& GetSceneHierarchy() { return m_scene_hierarchy; }
 
 	private:
@@ -23,6 +24,7 @@ namespace BB
 		Viewport m_viewport;
 		SceneHierarchy m_scene_hierarchy;
 		LuaECSEngine m_context;
+        InputChannelHandle m_input_channel;
 	};
 	static_assert(is_interactable_viewport_interface<RenderViewport>);
 }

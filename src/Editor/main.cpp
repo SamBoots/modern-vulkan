@@ -31,7 +31,6 @@ int main(int argc, char** argv)
         engine_options.max_materials = 128;
         engine_options.max_shader_effects = 64;
         engine_options.max_material_instances = 256;
-        engine_options.max_input_actions = 64;
         engine_options.enable_debug = true;
         engine_options.debug_options.max_profiler_entries = 64;
 

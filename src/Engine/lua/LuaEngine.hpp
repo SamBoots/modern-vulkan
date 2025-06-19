@@ -23,16 +23,16 @@ namespace BB
     class LuaECSEngine
     {
     public:
-        bool Init(MemoryArena& a_arena, class EntityComponentSystem* a_psystem, const size_t a_lua_mem_size);
+        bool Init(MemoryArena& a_arena, const InputChannelHandle a_channel, class EntityComponentSystem* a_psystem, const size_t a_lua_mem_size);
 
         lua_State*& GetState() { return m_context.GetState(); }
         bool LoadLuaFile(const StringView& a_file_name);
 
-        bool RegisterActionHandlesLua(const ConstSlice<InputActionHandle> a_input_actions);
+        bool RegisterActionHandlesLua(const InputChannelHandle a_channel, const ConstSlice<InputActionHandle> a_input_actions);
 
     private:
         void LoadECSFunctions(class EntityComponentSystem* a_psystem);
-        void LoadInputFunctions();
+        void LoadInputFunctions(const InputChannelHandle a_channel);
         void LoadECSFunction(const lua_CFunction a_function, const char* a_func_name);
         void LoadInputFunction(const lua_CFunction a_function, const char* a_func_name);
 

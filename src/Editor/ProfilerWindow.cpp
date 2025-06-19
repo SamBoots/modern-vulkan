@@ -34,7 +34,7 @@ void BB::ImGuiShowProfiler(MemoryArenaTemp temp_arena)
 				}
 
 				ImGui::Text("File: %s", profile_results[i].file);
-				ImGui::Text("Line: %u", profile_results[i].line);
+				ImGui::Text("Line: %d", profile_results[i].line);
 				ImGui::PopID();
 			}
 		}

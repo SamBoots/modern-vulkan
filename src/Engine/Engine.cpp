@@ -124,7 +124,7 @@ EngineInfo BB::InitEngine(MemoryArena& a_arena, const wchar* a_app_name, const E
     const Asset::AssetManagerInitInfo asset_manager_info = {};
     Asset::InitializeAssetManager(a_arena, asset_manager_info);
 
-    Input::InitInputSystem(a_arena, a_engine_options.max_input_actions);
+    Input::InitInputSystem(a_arena);
 
     if (a_engine_options.enable_debug)
     {

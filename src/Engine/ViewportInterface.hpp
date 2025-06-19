@@ -3,6 +3,7 @@
 #include <concepts>
 #include "Storage/BBString.h"
 #include "Slice.h"
+#include "Enginefwd.hpp"
 
 namespace BB
 {
@@ -38,6 +39,7 @@ namespace BB
 	{
 		{ v.Update(a_delta_time, a_selected) } -> std::same_as<bool>;
 		{ v.GetViewport() } -> std::same_as<BB::Viewport&>;
+        { v.GetInputChannel() } -> std::same_as<BB::InputChannelHandle>;
         { v.GetCameraPos() } -> std::same_as<BB::float3>;
 	};
 }

@@ -10,60 +10,60 @@
 
 using namespace BB;
 
-static EntityComponentSystem* GetECS(lua_State* m_state)
+static EntityComponentSystem* GetECS(lua_State* a_state)
 {
-    return reinterpret_cast<EntityComponentSystem*>(lua_touserdata(m_state, lua_upvalueindex(1)));
+    return reinterpret_cast<EntityComponentSystem*>(lua_touserdata(a_state, lua_upvalueindex(1)));
 }
 
-int luaapi::ECSCreateEntity(lua_State* m_state)
+int luaapi::ECSCreateEntity(lua_State* a_state)
 {
-    const NameComponent name = lua_tostring(m_state, 1);
-    const ECSEntity parent = ECSEntity(*lua_getbbhandle(m_state, 2));
-    const float3 pos = *lua_getfloat3(m_state, 3);
+    const NameComponent name = lua_tostring(a_state, 1);
+    const ECSEntity parent = ECSEntity(*lua_getbbhandle(a_state, 2));
+    const float3 pos = *lua_getfloat3(a_state, 3);
 
-    EntityComponentSystem* ecs = GetECS(m_state);
+    EntityComponentSystem* ecs = GetECS(a_state);
     const ECSEntity entity = ecs->CreateEntity(name, parent, float3(pos));
 
-    lua_pushbbhandle(m_state, entity.handle);
+    lua_pushbbhandle(a_state, entity.handle);
     return 1;
 }
 
-int luaapi::ECSGetPosition(lua_State* m_state)
+int luaapi::ECSGetPosition(lua_State* a_state)
 {
-    const ECSEntity entity = ECSEntity(*lua_getbbhandle(m_state, 1));
-    EntityComponentSystem* ecs = GetECS(m_state);
+    const ECSEntity entity = ECSEntity(*lua_getbbhandle(a_state, 1));
+    EntityComponentSystem* ecs = GetECS(a_state);
             
     const float3 pos = ecs->GetPosition(entity);
 
-    lua_pushfloat3(m_state, pos);
+    lua_pushfloat3(a_state, pos);
     return 1;
 }
 
-int luaapi::ECSSetPosition(lua_State* m_state)
+int luaapi::ECSSetPosition(lua_State* a_state)
 {
-    const ECSEntity entity = ECSEntity(*lua_getbbhandle(m_state, 1));
-    const float3 pos = *lua_getfloat3(m_state, 2);
+    const ECSEntity entity = ECSEntity(*lua_getbbhandle(a_state, 1));
+    const float3 pos = *lua_getfloat3(a_state, 2);
 
-    EntityComponentSystem* ecs = GetECS(m_state);
+    EntityComponentSystem* ecs = GetECS(a_state);
     ecs->SetPosition(entity, pos);
 
     return 0;
 }
 
-int luaapi::ECSTranslate(lua_State* m_state)
+int luaapi::ECSTranslate(lua_State* a_state)
 {
-    const ECSEntity entity = ECSEntity(*lua_getbbhandle(m_state, 1));
-    const float3 move = *lua_getfloat3(m_state, 2);
+    const ECSEntity entity = ECSEntity(*lua_getbbhandle(a_state, 1));
+    const float3 move = *lua_getfloat3(a_state, 2);
 
-    EntityComponentSystem* ecs = GetECS(m_state);
+    EntityComponentSystem* ecs = GetECS(a_state);
     ecs->Translate(entity, move);
 
     return 0;
 }
 
-static InputActionHandle LuaLoadInputHandle(lua_State* m_state, const int a_index)
+static InputActionHandle LuaLoadInputHandle(lua_State* a_state, const int a_index)
 {
-    uint64_t* handle = lua_getbbhandle(m_state, a_index);
+    uint64_t* handle = lua_getbbhandle(a_state, a_index);
 
     if (handle)
         return InputActionHandle(*handle);
@@ -71,38 +71,43 @@ static InputActionHandle LuaLoadInputHandle(lua_State* m_state, const int a_inde
     return InputActionHandle();
 }
 
-int luaapi::InputActionIsPressed(lua_State* m_state)
+static InputChannelHandle GetChannelHandle(lua_State* a_state)
 {
-    const bool res = Input::InputActionIsPressed(LuaLoadInputHandle(m_state, 1));
-    lua_pushboolean(m_state, res);
+    return InputChannelHandle(*lua_getbbhandle(a_state, lua_upvalueindex(1)));
+}
+
+int luaapi::InputActionIsPressed(lua_State* a_state)
+{
+    const bool res = Input::InputActionIsPressed(GetChannelHandle(a_state), LuaLoadInputHandle(a_state, 1));
+    lua_pushboolean(a_state, res);
     return 1;
 }
 
-int luaapi::InputActionIsHeld(lua_State* m_state)
+int luaapi::InputActionIsHeld(lua_State* a_state)
 {
-    const bool res = Input::InputActionIsHeld(LuaLoadInputHandle(m_state, 1));
-    lua_pushboolean(m_state, res);
+    const bool res = Input::InputActionIsHeld(GetChannelHandle(a_state), LuaLoadInputHandle(a_state, 1));
+    lua_pushboolean(a_state, res);
     return 1;
 }
 
-int luaapi::InputActionIsReleased(lua_State* m_state)
+int luaapi::InputActionIsReleased(lua_State* a_state)
 {
-    const bool res = Input::InputActionIsReleased(LuaLoadInputHandle(m_state, 1));
-    lua_pushboolean(m_state, res);
+    const bool res = Input::InputActionIsReleased(GetChannelHandle(a_state), LuaLoadInputHandle(a_state, 1));
+    lua_pushboolean(a_state, res);
     return 1;
 }
 
-int luaapi::InputActionGetFloat(lua_State* m_state)
+int luaapi::InputActionGetFloat(lua_State* a_state)
 {
-    const float res = Input::InputActionGetFloat(LuaLoadInputHandle(m_state, 1));
-    lua_pushnumber(m_state, res);
+    const float res = Input::InputActionGetFloat(GetChannelHandle(a_state), LuaLoadInputHandle(a_state, 1));
+    lua_pushnumber(a_state, res);
     return 1;
 }
 
-int luaapi::InputActionGetFloat2(lua_State* m_state)
+int luaapi::InputActionGetFloat2(lua_State* a_state)
 {
-    const float2 res = Input::InputActionGetFloat2(LuaLoadInputHandle(m_state, 1));
-    lua_pushnumber(m_state, res.x);
-    lua_pushnumber(m_state, res.y);
+    const float2 res = Input::InputActionGetFloat2(GetChannelHandle(a_state), LuaLoadInputHandle(a_state, 1));
+    lua_pushnumber(a_state, res.x);
+    lua_pushnumber(a_state, res.y);
     return 2;
 }

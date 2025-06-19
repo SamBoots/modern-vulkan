@@ -105,6 +105,7 @@ bool RenderViewport::Init(const uint2 a_game_viewport_size, const uint32_t a_bac
 	CreateSceneHierarchyViaJson(m_memory, m_scene_hierarchy, a_game_viewport_size, a_back_buffer_count, json_file);
 
     FixedArray<InputActionHandle, 4> actions;
+    m_input_channel = Input::CreateInputChannel(m_memory, "render viewport", 4);
     // create input
     {
         InputActionCreateInfo input_create{};
@@ -115,7 +116,7 @@ bool RenderViewport::Init(const uint2 a_game_viewport_size, const uint32_t a_bac
         input_create.input_keys[1].keyboard_key = KEYBOARD_KEY::S;
         input_create.input_keys[2].keyboard_key = KEYBOARD_KEY::D;
         input_create.input_keys[3].keyboard_key = KEYBOARD_KEY::A;
-        actions[0] = Input::CreateInputAction("camera_move", input_create);
+        actions[0] = Input::CreateInputAction(m_input_channel, "camera_move", input_create);
     }
     {
         InputActionCreateInfo input_create{};
@@ -123,7 +124,7 @@ bool RenderViewport::Init(const uint2 a_game_viewport_size, const uint32_t a_bac
         input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
         input_create.source = INPUT_SOURCE::MOUSE;
         input_create.input_keys[0].mouse_input = MOUSE_INPUT::SCROLL_WHEEL;
-        actions[1] = Input::CreateInputAction("move_speed_slider", input_create);
+        actions[1] = Input::CreateInputAction(m_input_channel, "move_speed_slider", input_create);
     }
     {
         InputActionCreateInfo input_create{};
@@ -131,7 +132,7 @@ bool RenderViewport::Init(const uint2 a_game_viewport_size, const uint32_t a_bac
         input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
         input_create.source = INPUT_SOURCE::MOUSE;
         input_create.input_keys[0].mouse_input = MOUSE_INPUT::MOUSE_MOVE;
-        actions[2] = Input::CreateInputAction("look_around", input_create);
+        actions[2] = Input::CreateInputAction(m_input_channel, "look_around", input_create);
     }
     {
         InputActionCreateInfo input_create{};
@@ -139,13 +140,13 @@ bool RenderViewport::Init(const uint2 a_game_viewport_size, const uint32_t a_bac
         input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
         input_create.source = INPUT_SOURCE::MOUSE;
         input_create.input_keys[0].mouse_input = MOUSE_INPUT::RIGHT_BUTTON;
-        actions[3] = Input::CreateInputAction("enable_rotate", input_create);
+        actions[3] = Input::CreateInputAction(m_input_channel, "enable_rotate", input_create);
     }
 
 	m_viewport.Init(a_game_viewport_size, int2(0, 0), "render viewport");
 
-    m_context.Init(m_memory, &m_scene_hierarchy.GetECS(), gbSize);
-    m_context.RegisterActionHandlesLua(actions.const_slice());
+    m_context.Init(m_memory, m_input_channel,&m_scene_hierarchy.GetECS(), gbSize);
+    m_context.RegisterActionHandlesLua(m_input_channel, actions.const_slice());
 
     bool status = m_context.LoadLuaFile("renderviewport.lua");
     BB_ASSERT(status == true, lua_tostring(m_context.GetState(), -1));

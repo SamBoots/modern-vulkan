@@ -7,6 +7,7 @@ namespace BB
 	using MasterMaterialHandle = FrameworkHandle<struct MasterMaterialHandleTag>;
 	using MaterialHandle = FrameworkHandle<struct MaterialHandleTag>;
     using InputActionHandle = FrameworkHandle<struct InputActionHandleTag>;
+    using InputChannelHandle = FrameworkHandle<struct InputChannelHandleTag>;
 
 	// ECS
 	constexpr size_t MAX_ECS_COMPONENTS = 32;

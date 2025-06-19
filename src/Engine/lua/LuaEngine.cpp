@@ -65,13 +65,13 @@ bool LuaContext::Init(MemoryArena& a_arena, const size_t a_lua_mem_size)
     return true;
 }
 
-bool LuaECSEngine::Init(MemoryArena& a_arena, EntityComponentSystem* a_psystem, const size_t a_lua_mem_size)
+bool LuaECSEngine::Init(MemoryArena& a_arena, const InputChannelHandle a_channel, EntityComponentSystem* a_psystem, const size_t a_lua_mem_size)
 {
     m_context.Init(a_arena, a_lua_mem_size);
 
     LuaStackScope scope(m_context.GetState());
     LoadECSFunctions(a_psystem);
-    LoadInputFunctions();
+    LoadInputFunctions(a_channel);
 
     return true;
 }
@@ -84,13 +84,13 @@ bool LuaECSEngine::LoadLuaFile(const StringView& a_file_name)
     return luaL_dofile(m_context.GetState(), lua_path.c_str()) == LUA_OK;
 }
 
-bool LuaECSEngine::RegisterActionHandlesLua(const ConstSlice<InputActionHandle> a_input_actions)
+bool LuaECSEngine::RegisterActionHandlesLua(const InputChannelHandle a_channel, const ConstSlice<InputActionHandle> a_input_actions)
 {
     LuaStackScope scope(m_context.GetState());
     for (size_t i = 0; i < a_input_actions.size(); i++)
     {
         lua_pushbbhandle(m_context.GetState(), a_input_actions[i].handle);
-        lua_setglobal(m_context.GetState(), Input::GetInputActionName(a_input_actions[i]).c_str());
+        lua_setglobal(m_context.GetState(), Input::GetInputActionName(a_channel, a_input_actions[i]).c_str());
     }
     return true;
 }
@@ -107,8 +107,10 @@ void LuaECSEngine::LoadECSFunctions(EntityComponentSystem* a_psystem)
     LoadECSFunction(LUA_FUNC_NAME(ECSTranslate));
 }
 
-void LuaECSEngine::LoadInputFunctions()
+void LuaECSEngine::LoadInputFunctions(const InputChannelHandle a_channel)
 {
+    lua_pushbbhandle(m_context.GetState(), a_channel.handle);
+
     LoadInputFunction(LUA_FUNC_NAME(InputActionIsPressed));
     LoadInputFunction(LUA_FUNC_NAME(InputActionIsHeld));
     LoadInputFunction(LUA_FUNC_NAME(InputActionIsReleased));
@@ -125,6 +127,7 @@ void LuaECSEngine::LoadECSFunction(const lua_CFunction a_function, const char* a
 
 void LuaECSEngine::LoadInputFunction(const lua_CFunction a_function, const char* a_func_name)
 {
-    lua_pushcfunction(m_context.GetState(), a_function);
+    lua_pushvalue(m_context.GetState(), -1);
+    lua_pushcclosure(m_context.GetState(), a_function, 1);
     lua_setglobal(m_context.GetState(), a_func_name);
 }

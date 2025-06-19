@@ -1,7 +1,5 @@
 #include "InputSystem.hpp"
-#include "Storage/Hashmap.h"
 #include "Storage/FixedArray.h"
-#include "Storage/Slotmap.h"
 #include "Storage/Array.h"
 #include "OS/Program.h"
 
@@ -14,11 +12,15 @@ constexpr uint32_t COMPOSITE_DOWN = 1;
 constexpr uint32_t COMPOSITE_RIGHT = 2;
 constexpr uint32_t COMPOSITE_LEFT = 3;
 
+struct InputChannel
+{
+    InputChannelName channel_name;
+    StaticArray<InputAction> input_actions;
+    uint32_t channel_index; // used to identify input actions to this channel
+};
+
 struct InputSystem
 {
-    StaticOL_HashMap<InputActionName, InputActionHandle> input_action_index_map;
-    StaticSlotmap<InputAction, InputActionHandle> input_actions;
-
     struct State
     {
         FixedArray<bool, static_cast<uint32_t>(KEYBOARD_KEY::ENUM_SIZE)> keyboard_state;
@@ -33,6 +35,7 @@ struct InputSystem
     };
     State current;
     State previous;
+    uint32_t input_channels = 1;
 };
 
 static InputSystem* s_input_system;
@@ -68,30 +71,30 @@ static inline KEY_STATE MouseButtonState(const MOUSE_INPUT a_input)
 {
     switch (a_input)
     {
-        case MOUSE_INPUT::LEFT_BUTTON:
-            if (s_input_system->current.mouse_state.left_pressed && s_input_system->previous.mouse_state.left_pressed)
-                return KEY_STATE::HELD;
-            if (s_input_system->current.mouse_state.left_pressed)
-                return KEY_STATE::PRESSED;
-            if (s_input_system->previous.mouse_state.left_pressed)
-                return KEY_STATE::RELEASED;
+    case MOUSE_INPUT::LEFT_BUTTON:
+        if (s_input_system->current.mouse_state.left_pressed && s_input_system->previous.mouse_state.left_pressed)
+            return KEY_STATE::HELD;
+        if (s_input_system->current.mouse_state.left_pressed)
+            return KEY_STATE::PRESSED;
+        if (s_input_system->previous.mouse_state.left_pressed)
+            return KEY_STATE::RELEASED;
         break;
-        case MOUSE_INPUT::MIDDLE_BUTTON:
-            if (s_input_system->current.mouse_state.middle_pressed && s_input_system->previous.mouse_state.middle_pressed)
-                return KEY_STATE::HELD;
-            if (s_input_system->current.mouse_state.middle_pressed)
-                return KEY_STATE::PRESSED;
-            if (s_input_system->previous.mouse_state.middle_pressed)
-                return KEY_STATE::RELEASED;
-            break;
-        case MOUSE_INPUT::RIGHT_BUTTON:
-            if (s_input_system->current.mouse_state.right_pressed && s_input_system->previous.mouse_state.right_pressed)
-                return KEY_STATE::HELD;
-            if (s_input_system->current.mouse_state.right_pressed)
-                return KEY_STATE::PRESSED;
-            if (s_input_system->previous.mouse_state.right_pressed)
-                return KEY_STATE::RELEASED;
-            break;
+    case MOUSE_INPUT::MIDDLE_BUTTON:
+        if (s_input_system->current.mouse_state.middle_pressed && s_input_system->previous.mouse_state.middle_pressed)
+            return KEY_STATE::HELD;
+        if (s_input_system->current.mouse_state.middle_pressed)
+            return KEY_STATE::PRESSED;
+        if (s_input_system->previous.mouse_state.middle_pressed)
+            return KEY_STATE::RELEASED;
+        break;
+    case MOUSE_INPUT::RIGHT_BUTTON:
+        if (s_input_system->current.mouse_state.right_pressed && s_input_system->previous.mouse_state.right_pressed)
+            return KEY_STATE::HELD;
+        if (s_input_system->current.mouse_state.right_pressed)
+            return KEY_STATE::PRESSED;
+        if (s_input_system->previous.mouse_state.right_pressed)
+            return KEY_STATE::RELEASED;
+        break;
     default:
         BB_WARNING(false, "checking a mouse button state but MOUSE_INPUT is not a button", WarningType::MEDIUM);
         break;
@@ -100,13 +103,11 @@ static inline KEY_STATE MouseButtonState(const MOUSE_INPUT a_input)
     return KEY_STATE::IDLE;
 }
 
-bool Input::InitInputSystem(struct MemoryArena& a_arena, const uint32_t a_max_actions)
+bool Input::InitInputSystem(struct MemoryArena& a_arena)
 {
     if (s_input_system)
         return false;
     s_input_system = ArenaAllocType(a_arena, InputSystem);
-    s_input_system->input_action_index_map.Init(a_arena, a_max_actions);
-    s_input_system->input_actions.Init(a_arena, a_max_actions);
     return true;
 }
 
@@ -122,7 +123,7 @@ void Input::UpdateInput(const ConstSlice<InputEvent> a_input_events)
         const InputEvent& ev = a_input_events[i];
         if (ev.input_type == INPUT_TYPE::KEYBOARD)
         {
-            s_input_system->current.keyboard_state[static_cast<uint32_t>(ev.key_info.scan_code)] =  ev.key_info.key_pressed;
+            s_input_system->current.keyboard_state[static_cast<uint32_t>(ev.key_info.scan_code)] = ev.key_info.key_pressed;
         }
         else if (ev.input_type == INPUT_TYPE::MOUSE)
         {
@@ -147,15 +148,42 @@ void Input::UpdateInput(const ConstSlice<InputEvent> a_input_events)
     s_input_system->current.mouse_state.wheel_move = wheel_move;
 }
 
+InputChannelHandle Input::CreateInputChannel(MemoryArena& a_arena, const InputChannelName& a_channel_name, const uint32_t a_max_actions)
+{
+    InputChannel* channel = ArenaAllocType(a_arena, InputChannel);
+    channel->channel_name = a_channel_name;
+    channel->input_actions.Init(a_arena, a_max_actions);
+    channel->channel_index = s_input_system->input_channels++;
+    return InputChannelHandle(reinterpret_cast<uint64_t>(channel));
+}
+
 float2 Input::GetMousePos(const WindowHandle a_window_handle)
 {
     return OSGetCursorPos(a_window_handle);
 }
 
-InputActionHandle Input::CreateInputAction(const InputActionName& a_name, const InputActionCreateInfo& a_create_info)
+static bool HasSimiliarInputActionName(const ConstSlice<InputAction> a_input_action, const InputActionName& a_name)
 {
-    if (s_input_system->input_action_index_map.find(a_name))
-        return InputActionHandle(); // already found
+    for (size_t i = 0; i < a_input_action.size(); i++)
+    {
+        if (a_input_action[i].name == a_name)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool ActionHandleIsFromChannel(const InputChannel* a_input_channel, const InputActionHandle a_action)
+{
+    return a_input_channel->channel_index == a_action.extra_index;
+}
+
+InputActionHandle Input::CreateInputAction(const InputChannelHandle a_channel, const InputActionName& a_name, const InputActionCreateInfo& a_create_info)
+{
+    InputChannel* channel = reinterpret_cast<InputChannel*>(a_channel.handle);
+    BB_ASSERT(channel->input_actions.IsFull() == false, "input channel is full");
+    BB_ASSERT(HasSimiliarInputActionName(channel->input_actions.const_slice(), a_name) == false, "duplicate input being created in input channel");
 
     InputAction action{};
     action.name = a_name;
@@ -164,29 +192,41 @@ InputActionHandle Input::CreateInputAction(const InputActionName& a_name, const 
     action.input_source = a_create_info.source;
     action.input_keys = a_create_info.input_keys;
 
-    const InputActionHandle handle = s_input_system->input_actions.emplace(action);
-    s_input_system->input_action_index_map.emplace(a_name, handle);
+    const InputActionHandle handle = InputActionHandle(channel->input_actions.size(), channel->channel_index);
+    channel->input_actions.emplace_back(action);
 
     return handle;
 }
 
-InputActionHandle Input::FindInputAction(const InputActionName& a_name)
+InputActionHandle Input::FindInputAction(const InputChannelHandle a_channel, const InputActionName& a_name)
 {
-    if (const InputActionHandle* found = s_input_system->input_action_index_map.find(a_name))
-        return *found;
+    InputChannel* channel = reinterpret_cast<InputChannel*>(a_channel.handle);
+
+    for (uint32_t i = 0; i < channel->input_actions.size(); i++)
+        if (channel->input_actions[i].name == a_name)
+            return InputActionHandle(i, channel->channel_index);
 
     return InputActionHandle(); // invalid
 }
 
-const InputActionName& Input::GetInputActionName(const InputActionHandle a_input_action)
+const InputChannelName& Input::GetInputChannelName(const InputChannelHandle a_channel)
 {
-    const InputAction& ia = s_input_system->input_actions.find(a_input_action);
-    return ia.name;
+    return reinterpret_cast<InputChannel*>(a_channel.handle)->channel_name;
 }
 
-static bool _InputActionCheck(const InputActionHandle a_input_action, const KEY_STATE a_state)
+const InputActionName& Input::GetInputActionName(const InputChannelHandle a_channel, const InputActionHandle a_input_action)
 {
-    const InputAction& ia = s_input_system->input_actions.find(a_input_action);
+    InputChannel* channel = reinterpret_cast<InputChannel*>(a_channel.handle);
+    BB_ASSERT(ActionHandleIsFromChannel(channel, a_input_action), "InputAction is not from this InputChannel");
+    return channel->input_actions[a_input_action.index].name;
+}
+
+static bool _InputActionCheck(const InputChannelHandle a_channel, const InputActionHandle a_input_action, const KEY_STATE a_state)
+{
+    InputChannel* channel = reinterpret_cast<InputChannel*>(a_channel.handle);
+    BB_ASSERT(ActionHandleIsFromChannel(channel, a_input_action), "InputAction is not from this InputChannel");
+
+    const InputAction& ia = channel->input_actions[a_input_action.index];
     BB_WARNING(ia.value_type == INPUT_VALUE_TYPE::BOOL, "trying to get bool from an input action that is not made with INPUT_VALUE_TYPE::BOOL", WarningType::HIGH);
 
     if (ia.input_source == INPUT_SOURCE::KEYBOARD)
@@ -200,24 +240,26 @@ static bool _InputActionCheck(const InputActionHandle a_input_action, const KEY_
     return false;
 }
 
-bool Input::InputActionIsPressed(const InputActionHandle a_input_action)
+bool Input::InputActionIsPressed(const InputChannelHandle a_channel, const InputActionHandle a_input_action)
 {
-    return _InputActionCheck(a_input_action, KEY_STATE::PRESSED);
+    return _InputActionCheck(a_channel, a_input_action, KEY_STATE::PRESSED);
 }
 
-bool Input::InputActionIsHeld(const InputActionHandle a_input_action)
+bool Input::InputActionIsHeld(const InputChannelHandle a_channel, const InputActionHandle a_input_action)
 {
-    return _InputActionCheck(a_input_action, KEY_STATE::HELD);
+    return _InputActionCheck(a_channel, a_input_action, KEY_STATE::HELD);
 }
 
-bool Input::InputActionIsReleased(const InputActionHandle a_input_action)
+bool Input::InputActionIsReleased(const InputChannelHandle a_channel, const InputActionHandle a_input_action)
 {
-    return _InputActionCheck(a_input_action, KEY_STATE::RELEASED);
+    return _InputActionCheck(a_channel, a_input_action, KEY_STATE::RELEASED);
 }
 
-float Input::InputActionGetFloat(const InputActionHandle a_input_action)
+float Input::InputActionGetFloat(const InputChannelHandle a_channel, const InputActionHandle a_input_action)
 {
-    const InputAction& ia = s_input_system->input_actions.find(a_input_action);
+    InputChannel* channel = reinterpret_cast<InputChannel*>(a_channel.handle);
+    BB_ASSERT(ActionHandleIsFromChannel(channel, a_input_action), "InputAction is not from this InputChannel");
+    const InputAction& ia = channel->input_actions[a_input_action.index];
     if (ia.value_type != INPUT_VALUE_TYPE::FLOAT)
     {
         BB_WARNING(false, "trying to get float from an input action that is not made with INPUT_VALUE_TYPE::FLOAT", WarningType::HIGH);
@@ -233,9 +275,11 @@ float Input::InputActionGetFloat(const InputActionHandle a_input_action)
     return 0.f;
 }
 
-float2 Input::InputActionGetFloat2(const InputActionHandle a_input_action)
+float2 Input::InputActionGetFloat2(const InputChannelHandle a_channel, const InputActionHandle a_input_action)
 {
-    const InputAction& ia = s_input_system->input_actions.find(a_input_action);
+    InputChannel* channel = reinterpret_cast<InputChannel*>(a_channel.handle);
+    BB_ASSERT(ActionHandleIsFromChannel(channel, a_input_action), "InputAction is not from this InputChannel");
+    const InputAction& ia = channel->input_actions[a_input_action.index];
     if (ia.value_type != INPUT_VALUE_TYPE::FLOAT_2)
     {
         BB_WARNING(false, "trying to get float2 from an input action that is not made with INPUT_VALUE_TYPE::FLOAT_2", WarningType::HIGH);
@@ -268,7 +312,8 @@ float2 Input::InputActionGetFloat2(const InputActionHandle a_input_action)
     return float2(0);
 }
 
-Slice<InputAction> Input::GetAllInputActions()
+Slice<InputAction> Input::GetAllInputActions(const InputChannelHandle a_channel)
 {
-    return s_input_system->input_actions.slice();
+    InputChannel* channel = reinterpret_cast<InputChannel*>(a_channel.handle);
+    return channel->input_actions.slice();
 }

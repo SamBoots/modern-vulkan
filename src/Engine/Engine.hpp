@@ -22,7 +22,6 @@ namespace BB
         uint32_t max_materials;
         uint32_t max_shader_effects;
         uint32_t max_material_instances;
-        uint32_t max_input_actions;
         bool enable_debug;
         DebugOptions debug_options;
     };

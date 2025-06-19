@@ -54,7 +54,7 @@ static void DisplayGPUInfo(const GPUDeviceInfo& a_gpu_info)
 			for (uint32_t i = 0; i < static_cast<uint32_t>(a_gpu_info.memory_heaps.size()); i++)
 			{
 				ImGui::Text("heap: %u", a_gpu_info.memory_heaps[i].heap_num);
-				ImGui::Text("heap size: %lld", a_gpu_info.memory_heaps[i].heap_size);
+				ImGui::Text("heap size: %llu", a_gpu_info.memory_heaps[i].heap_size);
 				ImGui::Text("heap is device local %d", a_gpu_info.memory_heaps[i].heap_device_local);
 			}
 			ImGui::Unindent();
@@ -142,7 +142,7 @@ void Editor::DrawScene(Viewport& a_viewport, SceneHierarchy& a_hierarchy)
 
 void Editor::UpdateGizmo(Viewport& a_viewport, SceneHierarchy& a_scene_hierarchy, const float3 a_cam_pos)
 {
-    if (Input::InputActionIsPressed(m_input.click_on_screen))
+    if (Input::InputActionIsPressed(m_input.channel, m_input.click_on_screen))
     {
         float2 mouse_pos_window;
         if (a_viewport.ScreenToViewportMousePosition(m_previous_mouse_pos, mouse_pos_window))
@@ -169,18 +169,18 @@ void Editor::UpdateGizmo(Viewport& a_viewport, SceneHierarchy& a_scene_hierarchy
         }
     }
 
-    if (Input::InputActionIsReleased(m_input.click_on_screen))
+    if (Input::InputActionIsReleased(m_input.channel, m_input.click_on_screen))
         m_gizmo.ClearCollision();
 
-    if (Input::InputActionIsPressed(m_input.gizmo_toggle_scale))
+    if (Input::InputActionIsPressed(m_input.channel, m_input.gizmo_toggle_scale))
         m_gizmo.SetMode(GIZMO_MODE::SCALE);
-    if (Input::InputActionIsReleased(m_input.gizmo_toggle_scale))
+    if (Input::InputActionIsReleased(m_input.channel, m_input.gizmo_toggle_scale))
         m_gizmo.SetMode(GIZMO_MODE::TRANSLATE);
 
     if (m_gizmo.HasValidEntity())
     { 
         m_gizmo.Draw();
-        const float2 mouse_move = Input::InputActionGetFloat2(m_input.mouse_move);
+        const float2 mouse_move = Input::InputActionGetFloat2(m_input.channel, m_input.mouse_move);
         m_gizmo.ManipulateEntity(mouse_move);
     }
 }
@@ -240,13 +240,14 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 
 		m_render_target_descs[i] = CreateImageView(view_info);
 	}
+    m_input.channel = Input::CreateInputChannel(a_arena, "editor", 3);
     {
         InputActionCreateInfo action_info;
         action_info.binding_type = INPUT_BINDING_TYPE::BINDING;
         action_info.value_type = INPUT_VALUE_TYPE::BOOL;
         action_info.source = INPUT_SOURCE::MOUSE;
         action_info.input_keys[0].mouse_input = MOUSE_INPUT::LEFT_BUTTON;
-        m_input.click_on_screen = Input::CreateInputAction("editor click on screen", action_info);
+        m_input.click_on_screen = Input::CreateInputAction(m_input.channel, "editor click on screen", action_info);
     }
     {
         InputActionCreateInfo input_create{};
@@ -254,7 +255,7 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
         input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
         input_create.source = INPUT_SOURCE::MOUSE;
         input_create.input_keys[0].mouse_input = MOUSE_INPUT::MOUSE_MOVE;
-        m_input.mouse_move = Input::CreateInputAction("editor mouse move", input_create);
+        m_input.mouse_move = Input::CreateInputAction(m_input.channel, "editor mouse move", input_create);
     }
     {
         InputActionCreateInfo input_create{};
@@ -262,7 +263,7 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
         input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
         input_create.source = INPUT_SOURCE::KEYBOARD;
         input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::CONTROLLEFT;
-        m_input.gizmo_toggle_scale = Input::CreateInputAction("editor gizmo toggle scale", input_create);
+        m_input.gizmo_toggle_scale = Input::CreateInputAction(m_input.channel, "editor gizmo toggle scale", input_create);
     }
 }
 
@@ -319,7 +320,7 @@ void Editor::EndFrame(MemoryArena& a_arena)
 
 		ImGui::End();
 
-        ImGuiDisplayInputSystem();
+        ImGuiDisplayInputChannel(m_input.channel);
 
 		Asset::ShowAssetMenu(a_arena);
 		MainEditorImGuiInfo(a_arena);
@@ -893,11 +894,13 @@ static inline KEYBOARD_KEY KeyboardKeyChange(const char* a_text, const KEYBOARD_
     return static_cast<KEYBOARD_KEY>(selected);
 }
 
-void Editor::ImGuiDisplayInputSystem()
+void Editor::ImGuiDisplayInputChannel(const InputChannelHandle a_channel)
 {
-    if (ImGui::Begin("input system"))
+    StackString<64> begin_str = "input channel : ";
+    begin_str.append(Input::GetInputChannelName(a_channel).GetView());
+    if (ImGui::Begin(begin_str.c_str()))
     {
-        Slice ipas = Input::GetAllInputActions();
+        Slice ipas = Input::GetAllInputActions(a_channel);
         for (uint32_t i = 0; i < ipas.size(); i++)
         {
             InputAction& ipa = ipas[i];

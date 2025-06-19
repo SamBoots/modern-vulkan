@@ -42,6 +42,7 @@ namespace BB
             }
 
 			ImguiDisplayECS(hierarchy.m_ecs);
+            ImGuiDisplayInputChannel(a_game_interface.GetInputChannel());
 
 			ThreadFuncForDrawing_Params params =
 			{
@@ -75,7 +76,7 @@ namespace BB
 		void ImGuiDisplayShaderEffects(MemoryArena& a_arena);
 		void ImGuiDisplayMaterial(const MasterMaterial& a_material) const;
 		void ImGuiDisplayMaterials();
-        void ImGuiDisplayInputSystem();
+        void ImGuiDisplayInputChannel(const InputChannelHandle a_channel);
 
 		void MainEditorImGuiInfo(const MemoryArena& a_arena);
 		static void ThreadFuncForDrawing(MemoryArena& a_thread_arena, void* a_param);
@@ -117,6 +118,7 @@ namespace BB
 
         struct Controls
         {
+            InputChannelHandle channel;
             InputActionHandle click_on_screen;
             InputActionHandle mouse_move;
             InputActionHandle gizmo_toggle_scale;

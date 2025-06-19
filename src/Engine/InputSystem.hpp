@@ -7,6 +7,7 @@
 namespace BB
 {
     using InputActionName = StackString<32>;
+    using InputChannelName = StackString<32>;
 
     enum class INPUT_VALUE_TYPE : uint32_t
     {
@@ -109,21 +110,24 @@ namespace BB
 
     namespace Input
     {
-        bool InitInputSystem(struct MemoryArena& a_arena, const uint32_t a_max_actions);
+        bool InitInputSystem(struct MemoryArena& a_arena);
         void UpdateInput(const ConstSlice<InputEvent> a_input_events);
+
+        InputChannelHandle CreateInputChannel(MemoryArena& a_arena, const InputChannelName& a_channel_name, const uint32_t a_max_actions);
 
         float2 GetMousePos(const WindowHandle a_window_handle);
 
-        InputActionHandle CreateInputAction(const InputActionName& a_name, const InputActionCreateInfo& a_create_info);
-        InputActionHandle FindInputAction(const InputActionName& a_name);
+        InputActionHandle CreateInputAction(const InputChannelHandle a_channel, const InputActionName& a_name, const InputActionCreateInfo& a_create_info);
+        InputActionHandle FindInputAction(const InputChannelHandle a_channel, const InputActionName& a_name);
 
-        const InputActionName& GetInputActionName(const InputActionHandle a_input_action);
+        const InputChannelName& GetInputChannelName(const InputChannelHandle a_channel);
+        const InputActionName& GetInputActionName(const InputChannelHandle a_channel, const InputActionHandle a_input_action);
 
-        bool InputActionIsPressed(const InputActionHandle a_input_action);
-        bool InputActionIsHeld(const InputActionHandle a_input_action);
-        bool InputActionIsReleased(const InputActionHandle a_input_action);
-        float InputActionGetFloat(const InputActionHandle a_input_action);
-        float2 InputActionGetFloat2(const InputActionHandle a_input_action);
-        Slice<InputAction> GetAllInputActions();
+        bool InputActionIsPressed(const InputChannelHandle a_channel, const InputActionHandle a_input_action);
+        bool InputActionIsHeld(const InputChannelHandle a_channel, const InputActionHandle a_input_action);
+        bool InputActionIsReleased(const InputChannelHandle a_channel, const InputActionHandle a_input_action);
+        float InputActionGetFloat(const InputChannelHandle a_channel, const InputActionHandle a_input_action);
+        float2 InputActionGetFloat2(const InputChannelHandle a_channel, const InputActionHandle a_input_action);
+        Slice<InputAction> GetAllInputActions(const InputChannelHandle a_channel);
     }
 }
