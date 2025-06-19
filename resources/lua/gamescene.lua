@@ -62,7 +62,7 @@ function Player:IsMoving()
     return self.pos_lerp < 1.0 or self.forward_lerp < 1.0
 end
 
-player = Player.new(float3(0, 0, 0), float3(0, 0, 1), 5)
+player = nil
 free_cam = FreeCamera.new(Camera.new(float3(0, 0.5, -0.5), float3(0, 0, -1), float3(1, 0, 0), float3(0, 1, 0)), 1)
 use_freecam = false
 
@@ -90,8 +90,8 @@ function GetCameraForward()
     end
 end
 
-function Init()
-
+function Init(a_player_pos)
+    player = Player.new(a_player_pos, float3(0, 0, 1), 5)
 end
 
 function FreeCamMove(a_delta_time)
@@ -110,30 +110,34 @@ function FreeCamMove(a_delta_time)
     free_cam:Update(a_delta_time)
 end
 
+function DoPlayerMove()
+    local move_value_x, move_value_y = InputActionGetFloat2(player_move)
+    local player_move = float3(move_value_x, 0, move_value_y)
+    if move_value_x ~= 0 or move_value_y ~= 0 then
+        player:Move(player_move)
+    end
+
+    if InputActionIsPressed(player_turn_left) then
+        player:Rotate(float3(0,  math.rad(90), 0))
+    end
+    if InputActionIsPressed(player_turn_right) then
+        player:Rotate(float3(0, math.rad(-90), 0))
+    end
+end
+
 function SelectedUpdate(a_delta_time)
     if InputActionIsPressed(toggle_freecam) then
         use_freecam = not use_freecam
+        free_cam.camera.pos = player.camera.pos
     end
 
     if use_freecam then
         FreeCamMove(a_delta_time)
         return
     end
-    
-    local move_value_x, move_value_y = InputActionGetFloat2(player_move)
-    local player_move = float3(move_value_x, 0, move_value_y) * a_delta_time
-
-    local player_rotate_y = 0
-    if InputActionIsPressed(player_turn_left) then
-        player_rotate_y = math.rad(90)
-    end
-    if InputActionIsPressed(player_turn_right) then
-        player_rotate_y = math.rad(-90)
-    end
 
     if not player:IsMoving() then
-        player:Move(player_move)
-        player:Rotate(float3(0, player_rotate_y, 0))
+        DoPlayerMove()
     end
 end
 

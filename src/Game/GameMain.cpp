@@ -387,64 +387,6 @@ ECSEntity DungeonMap::CreateEntityWalls(MemoryArena& a_temp_arena, SceneHierarch
 	return map_obj;
 }
 
-float3 Player::Move(const float3 a_translation)
-{
-	m_position_src = m_position;
-	m_position_dest = m_position_dest + a_translation;
-	m_position_lerp_t = 0;
-	return m_position_dest;
-}
-
-float3 Player::Rotate(const float3 a_rotation)
-{
-	m_forward_src = m_forward;
-	m_forward_dest = Float3x3FromRotation(a_rotation) * m_forward_dest;
-	m_forward_lerp_t = 0;
-	return m_forward_dest;
-}
-
-void Player::SetPosition(const float3 a_position)
-{
-	m_position = a_position;
-	m_position_src = a_position;
-	m_position_dest = a_position;
-}
-
-void Player::SetLerpSpeed(const float a_lerp_speed)
-{
-	m_lerp_speed = a_lerp_speed;
-}
-
-bool Player::Update(const float a_delta_time)
-{
-	const float lerp_speed = m_lerp_speed * a_delta_time;
-
-
-	m_position_lerp_t = m_position_lerp_t + lerp_speed;
-	if (m_position_lerp_t >= 1.f)
-		m_position = m_position_dest;
-	else
-		m_position = Float3Lerp(m_position_src, m_position_dest, m_position_lerp_t);
-
-	m_forward_lerp_t = m_forward_lerp_t + lerp_speed;
-	if (m_forward_lerp_t >= 1.f)
-		m_forward = m_forward_dest;
-	else
-		m_forward = Float3Lerp(m_forward_src, m_forward_dest, m_forward_lerp_t);
-
-	return true;
-}
-
-float4x4 Player::CalculateView() const
-{
-	return Float4x4Lookat(m_position, m_position + m_forward, m_up);
-}
-
-bool Player::IsMoving() const
-{
-	return m_position != m_position_dest || m_forward != m_forward_dest;
-}
-
 bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_buffer_count)
 {
 	m_game_memory = MemoryArenaCreate();
@@ -464,8 +406,6 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
 		m_dungeon_map.CreateEntityFloor(m_game_memory, m_scene_hierarchy, m_dungeon_obj);
 		m_dungeon_map.CreateEntityWalls(m_game_memory, m_scene_hierarchy, m_dungeon_obj);
 	}
-	//m_player.SetPosition(m_dungeon_map.GetSpawnPoint() + map_start_pos + float3(0.f, 1.f, 0.f));
-	//m_player.SetLerpSpeed(5.f);
 
     FixedArray<InputActionHandle, 8> input_actions;
 
@@ -545,6 +485,11 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
 
     bool status = m_context.LoadLuaFile("gamescene.lua");
     BB_ASSERT(status == true, lua_tostring(m_context.GetState(), -1));
+
+    lua_getglobal(m_context.GetState(), "Init");
+    lua_pushfloat3(m_context.GetState(), m_dungeon_map.GetSpawnPoint() + map_start_pos + float3(0.f, 1.f, 0.f));
+    BB_ASSERT(lua_pcall(m_context.GetState(), 1, 0, 0) == LUA_OK, lua_tostring(m_context.GetState(), -1));
+
 	return true;
 }
 

@@ -1,6 +1,5 @@
 #pragma once
 #include "ViewportInterface.hpp"
-#include "Camera.hpp"
 #include "SceneHierarchy.hpp"
 #include "lua/LuaEngine.hpp"
 

@@ -1,7 +1,6 @@
 #pragma once
 #include "Common.h"
 #include "SceneHierarchy.hpp"
-#include "Camera.hpp"
 #include "ViewportInterface.hpp"
 #include "MaterialSystem.hpp"
 #include "BBThreadScheduler.hpp"
