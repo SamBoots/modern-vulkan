@@ -1,5 +1,6 @@
 #pragma once
 #include "Common.h"
+#include "Storage/BBString.h"
 #include <bitset>
 
 namespace BB
@@ -19,6 +20,13 @@ namespace BB
 	class PathString;
 
 	constexpr ECSEntity INVALID_ECS_OBJ = ECSEntity(BB_INVALID_HANDLE_64);
+
+    // used this to forward declare it
+    class PathString : public StackString<MAX_PATH_SIZE>
+    {
+    public:
+        using StackString<MAX_PATH_SIZE>::StackString;
+    };
 
     struct BoundingBox
     {

@@ -28,13 +28,6 @@ namespace BB
 	constexpr size_t MAX_ASSET_NAME_SIZE = 64;
 	using AssetString = StackString<MAX_ASSET_NAME_SIZE>;
 
-	// used this to forward declare it
-	class PathString : public StackString<MAX_PATH_SIZE>
-	{
-	public:
-		using StackString<MAX_PATH_SIZE>::StackString;
-	};
-
 	struct Image
 	{
 		uint32_t width;		//4

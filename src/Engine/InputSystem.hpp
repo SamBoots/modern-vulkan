@@ -8,78 +8,31 @@ namespace BB
 {
     using InputActionName = StackString<32>;
     using InputChannelName = StackString<32>;
+    
+#define INPUT_VALUE_TYPE_D(FUNC, ...) \
+    FUNC(BOOL, 0, __VA_ARGS__) \
+    FUNC(FLOAT, 1, __VA_ARGS__) \
+    FUNC(FLOAT_2, 2, __VA_ARGS__)
 
-    enum class INPUT_VALUE_TYPE : uint32_t
-    {
-        BOOL,
-        FLOAT,
-        FLOAT_2
-    };
+#define INPUT_BINDING_TYPE_D(FUNC, ...) \
+    FUNC(BINDING, 0, __VA_ARGS__) \
+    FUNC(COMPOSITE_UP_DOWN_RIGHT_LEFT, 1, __VA_ARGS__)  // input_keys[] , 0 = UP, 1, = DOWN, 2 = RIGHT, 3 = LEFT
 
-    enum class INPUT_BINDING_TYPE : uint32_t
-    {
-        BINDING,
-        COMPOSITE_UP_DOWN_RIGHT_LEFT, // input_keys[] , 0 = UP, 1, = DOWN, 2 = RIGHT, 3 = LEFT
-    };
+#define INPUT_SOURCE_D(FUNC, ...) \
+    FUNC(KEYBOARD, 0, __VA_ARGS__) \
+    FUNC(MOUSE, 1, __VA_ARGS__)
 
-    enum class INPUT_SOURCE
-    {
-        KEYBOARD,
-        MOUSE
-    };
+#define MOUSE_INPUT_D(FUNC, ...) \
+    FUNC(LEFT_BUTTON, 0, __VA_ARGS__) \
+    FUNC(RIGHT_BUTTON, 1, __VA_ARGS__) \
+    FUNC(MIDDLE_BUTTON, 2, __VA_ARGS__) \
+    FUNC(SCROLL_WHEEL, 3, __VA_ARGS__) \
+    FUNC(MOUSE_MOVE, 4, __VA_ARGS__)
 
-    enum class MOUSE_INPUT : uint32_t
-    {
-        LEFT_BUTTON,
-        RIGHT_BUTTON,
-        MIDDLE_BUTTON,
-        SCROLL_WHEEL,
-        MOUSE_MOVE
-    };
-
-    static inline const char* INPUT_VALUE_TYPE_STR(const INPUT_VALUE_TYPE a_enum)
-    {
-        switch (a_enum)
-        {
-            ENUM_CASE_STR(INPUT_VALUE_TYPE, BOOL);
-            ENUM_CASE_STR(INPUT_VALUE_TYPE, FLOAT);
-            ENUM_CASE_STR(INPUT_VALUE_TYPE, FLOAT_2);
-            ENUM_CASE_STR_NOT_FOUND();
-        }
-    }
-
-    static inline const char* INPUT_BINDING_TYPE_STR(const INPUT_BINDING_TYPE a_enum)
-    {
-        switch (a_enum)
-        {
-            ENUM_CASE_STR(INPUT_BINDING_TYPE, BINDING);
-            ENUM_CASE_STR(INPUT_BINDING_TYPE, COMPOSITE_UP_DOWN_RIGHT_LEFT);
-            ENUM_CASE_STR_NOT_FOUND();
-        }
-    }
-
-    static inline const char* INPUT_SOURCE_STR(const INPUT_SOURCE a_enum)
-    {
-        switch (a_enum)
-        {
-            ENUM_CASE_STR(INPUT_SOURCE, KEYBOARD);
-            ENUM_CASE_STR(INPUT_SOURCE, MOUSE);
-            ENUM_CASE_STR_NOT_FOUND();
-        }
-    }
-
-    static inline const char* MOUSE_INPUT_STR(const MOUSE_INPUT a_enum)
-    {
-        switch (a_enum)
-        {
-            ENUM_CASE_STR(MOUSE_INPUT, LEFT_BUTTON);
-            ENUM_CASE_STR(MOUSE_INPUT, RIGHT_BUTTON);
-            ENUM_CASE_STR(MOUSE_INPUT, MIDDLE_BUTTON);
-            ENUM_CASE_STR(MOUSE_INPUT, SCROLL_WHEEL);
-            ENUM_CASE_STR(MOUSE_INPUT, MOUSE_MOVE);
-            ENUM_CASE_STR_NOT_FOUND();
-        }
-    }
+    BB_CREATE_ENUM(INPUT_VALUE_TYPE, uint32_t, INPUT_VALUE_TYPE_D)
+    BB_CREATE_ENUM(INPUT_BINDING_TYPE, uint32_t, INPUT_BINDING_TYPE_D)
+    BB_CREATE_ENUM(INPUT_SOURCE, uint32_t, INPUT_SOURCE_D)
+    BB_CREATE_ENUM(MOUSE_INPUT, uint32_t, MOUSE_INPUT_D)
 
     struct InputKey
     {

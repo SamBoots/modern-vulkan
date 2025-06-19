@@ -5,8 +5,8 @@ cmake_minimum_required (VERSION 3.8)
 
 add_library(Game 
 	"GameMain.cpp"
-	 
-	"RenderViewport.cpp" )
+	"RenderViewport.cpp"
+    "JsonLoading.cpp")
 
 target_include_directories(Game PUBLIC
 	"")	# this gets the current directory
