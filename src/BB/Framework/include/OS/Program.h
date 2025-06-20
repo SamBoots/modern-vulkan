@@ -13,6 +13,7 @@
 #include "BBMemory.h"
 #include "MemoryArena.hpp"
 #include "Storage/BBString.h"
+#include "Utils/Slice.h"
 
 namespace BB
 {
@@ -96,6 +97,8 @@ namespace BB
 	Buffer OSReadFile(MemoryArena& a_arena, const OSFileHandle a_file_handle);
 	Buffer OSReadFile(MemoryArena& a_arena, const char* a_path);
 	Buffer OSReadFile(MemoryArena& a_arena, const wchar* a_path);
+    bool OSGetDirectoryEntries(MemoryArena& a_arena, const char* a_path, ConstSlice<StackString<MAX_PATH_SIZE>>& a_out_entries);
+
 
 	uint64_t GetOSFileSize(const OSFileHandle a_file_handle);
 	//Set the file position, a_offset can be 0 if you just want to move it to BEGIN or END.

@@ -10,6 +10,8 @@
 
 #include "AssetLoader.hpp"
 
+#include "Program.h"
+
 using namespace BB;
 
 static void* LuaAlloc(void* a_user_data, void* a_ptr, const size_t a_old_size, const size_t a_new_size)
@@ -79,6 +81,26 @@ bool LuaECSEngine::Init(MemoryArena& a_arena, const InputChannelHandle a_channel
 bool LuaECSEngine::LoadLuaFile(const StringView& a_file_path)
 {
     return luaL_dofile(m_context.GetState(), a_file_path.c_str()) == LUA_OK;
+}
+
+bool LuaECSEngine::LoadLuaDirectory(MemoryArena& a_temp_arena, const StringView& a_file_path)
+{
+    ConstSlice<StackString<MAX_PATH_SIZE>> lua_paths;
+    PathString path = a_file_path;
+    path.append("\\*lua");
+    if (!OSGetDirectoryEntries(a_temp_arena, path.c_str(), lua_paths))
+        return false;
+
+    for (size_t i = 0; i < lua_paths.size(); i++)
+    {
+        PathString path = a_file_path;
+        path.push_directory_slash();
+        path.append(lua_paths[i].GetView());
+        bool status = LoadLuaFile(path.GetView());
+        BB_ASSERT(status == true, lua_tostring(m_context.GetState(), -1));
+    }
+
+    return true;
 }
 
 bool LuaECSEngine::RegisterActionHandlesLua(const InputChannelHandle a_channel)

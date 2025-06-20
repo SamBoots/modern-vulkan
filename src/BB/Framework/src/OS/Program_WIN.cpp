@@ -4,6 +4,7 @@
 #include "Math/Math.inl"
 #include "Utils/Logger.h"
 #include "RingAllocator.h"
+#include "Storage/Array.h"
 
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
@@ -458,6 +459,44 @@ Buffer BB::OSReadFile(MemoryArena& a_arena, const wchar* a_path)
 	CloseOSFile(read_file);
 
 	return file_buffer;
+}
+
+static uint32_t CheckDirectoryElementSize(const char* a_path)
+{
+    WIN32_FIND_DATAA ffd;
+    HANDLE search_handle = FindFirstFileA(a_path, &ffd);
+    if (search_handle == INVALID_HANDLE_VALUE)
+        return false;
+
+    size_t entries = 1;
+    while (FindNextFileA(search_handle, &ffd))
+        entries++;
+
+    if (!FindClose(search_handle))
+        return 0;
+
+    return entries;
+}
+
+bool BB::OSGetDirectoryEntries(MemoryArena& a_arena, const char* a_path, ConstSlice<StackString<MAX_PATH_SIZE>>& a_out_entries)
+{
+    const uint32_t entries = CheckDirectoryElementSize(a_path);
+    if (entries == 0)
+        return false;
+
+    StaticArray<StackString<MAX_PATH_SIZE>> arr{};
+    arr.Init(a_arena, entries);
+    WIN32_FIND_DATAA ffd;
+    HANDLE search_handle = FindFirstFileA(a_path, &ffd);
+
+    do
+    {
+        arr.emplace_back(ffd.cFileName);
+    } while (FindNextFileA(search_handle, &ffd));
+
+    a_out_entries = arr.const_slice();
+
+    return FindClose(search_handle);
 }
 
 //char replaced with string view later on.

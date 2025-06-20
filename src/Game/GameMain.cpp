@@ -429,9 +429,12 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
     m_context.RegisterActionHandlesLua(m_input_channel);
 
     PathString lua_path = m_project_path;
-    lua_path.append("lua\\dungeon.lua");
-    bool status = m_context.LoadLuaFile(lua_path.GetView());
-    BB_ASSERT(status == true, lua_tostring(m_context.GetState(), -1));
+    lua_path.append("lua\\");
+    MemoryArenaScope(m_game_memory)
+    {
+        bool status = m_context.LoadLuaDirectory(m_game_memory, lua_path.GetView());
+        BB_ASSERT(status, "something went wrong loading a lua directory");
+    }
 
     lua_getglobal(m_context.GetState(), "Init");
     lua_pushfloat3(m_context.GetState(), m_dungeon_map.GetSpawnPoint() + map_start_pos + float3(0.f, 1.f, 0.f));

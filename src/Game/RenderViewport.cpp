@@ -53,11 +53,13 @@ bool RenderViewport::Init(const uint2 a_game_viewport_size, const uint32_t a_bac
     m_context.Init(m_memory, m_input_channel,&m_scene_hierarchy.GetECS(), gbSize);
     m_context.RegisterActionHandlesLua(m_input_channel);
 
-    // change this to load *all* project lua files
     PathString lua_path = m_project_path;
-    lua_path.append("lua\\rendershowcase.lua");
-    bool status = m_context.LoadLuaFile(lua_path.GetView());
-    BB_ASSERT(status == true, lua_tostring(m_context.GetState(), -1));
+    lua_path.append("lua\\");
+    MemoryArenaScope(m_memory)
+    {
+        bool status = m_context.LoadLuaDirectory(m_memory, lua_path.GetView());
+        BB_ASSERT(status, "something went wrong loading a lua directory");
+    }
 	return true;
 }
 

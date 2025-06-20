@@ -27,6 +27,7 @@ namespace BB
 
         lua_State*& GetState() { return m_context.GetState(); }
         bool LoadLuaFile(const StringView& a_file_path);
+        bool LoadLuaDirectory(MemoryArena& a_temp_arena, const StringView& a_file_path);
 
         bool RegisterActionHandlesLua(const InputChannelHandle a_channel);
 
