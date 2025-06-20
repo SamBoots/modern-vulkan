@@ -31,15 +31,6 @@ add_custom_target(copy_textures ALL
 add_dependencies(Engine copy_textures)
 
 #copy models when a change happened.
-add_custom_target(copy_game_res ALL
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_SOURCE_DIR}/resources/game
-    ${CMAKE_BINARY_DIR}/resources/game
-    COMMENT "Copying game directory")
-
-add_dependencies(Game copy_game_res)
-
-#copy models when a change happened.
 add_custom_target(copy_lua ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory
     ${CMAKE_SOURCE_DIR}/resources/lua
@@ -47,3 +38,12 @@ add_custom_target(copy_lua ALL
     COMMENT "Copying lua directory")
 
 add_dependencies(Game copy_lua)
+
+#copy models when a change happened.
+add_custom_target(copy_projects ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/projects
+    ${CMAKE_BINARY_DIR}/projects
+    COMMENT "Copying projects directory")
+
+add_dependencies(Game copy_projects)

@@ -47,10 +47,10 @@ int main(int argc, char** argv)
 	float delta_time = 0;
 
 	DungeonGame def_game{};
-	def_game.Init(engine_info.window_extent / 2, engine_info.backbuffer_count);
+	def_game.Init(engine_info.window_extent / 2, engine_info.backbuffer_count, "dungeon");
 
 	RenderViewport render_viewport{};
-	render_viewport.Init(engine_info.window_extent / 2, engine_info.backbuffer_count, "../../resources/scenes/standard_scene.json");
+	render_viewport.Init(engine_info.window_extent / 2, engine_info.backbuffer_count, "rendershowcase");
      
 	while (true)
 	{

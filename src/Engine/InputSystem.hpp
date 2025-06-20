@@ -54,6 +54,7 @@ namespace BB
 
     struct InputAction
     {
+        InputActionHandle handle;
         InputActionName name;
         INPUT_VALUE_TYPE value_type;
         INPUT_BINDING_TYPE binding_type;

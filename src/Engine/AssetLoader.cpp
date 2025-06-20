@@ -827,12 +827,8 @@ void Asset::InitializeAssetManager(MemoryArena& a_arena, const AssetManagerInitI
 
 	s_asset_manager->icons_storage.max_slots = a_init_info.asset_count;
 	s_asset_manager->icons_storage.next_index = 0;
-
-    const StringView exe_path = GetExePath();
-    const size_t first_slash = exe_path.find_last_of_directory_slash();
-    const size_t src_slash = exe_path.SubView(first_slash).find_last_of_directory_slash();
     
-    s_asset_manager->asset_dir = PathString(exe_path.c_str(), src_slash);
+    s_asset_manager->asset_dir = GetRootPath();
     s_asset_manager->asset_dir.append("\\resources\\");
 
 	ImageCreateInfo icons_image_info;

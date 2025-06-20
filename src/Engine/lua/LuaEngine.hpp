@@ -26,9 +26,9 @@ namespace BB
         bool Init(MemoryArena& a_arena, const InputChannelHandle a_channel, class EntityComponentSystem* a_psystem, const size_t a_lua_mem_size);
 
         lua_State*& GetState() { return m_context.GetState(); }
-        bool LoadLuaFile(const StringView& a_file_name);
+        bool LoadLuaFile(const StringView& a_file_path);
 
-        bool RegisterActionHandlesLua(const InputChannelHandle a_channel, const ConstSlice<InputActionHandle> a_input_actions);
+        bool RegisterActionHandlesLua(const InputChannelHandle a_channel);
 
     private:
         void LoadECSFunctions(class EntityComponentSystem* a_psystem);

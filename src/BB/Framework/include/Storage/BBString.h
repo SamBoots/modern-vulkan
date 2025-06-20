@@ -442,15 +442,14 @@ namespace BB
 			memset(Pointer::Add(m_string, m_size), NULL, a_count);
 		}
 
-		bool push_directory_slash()
+		void push_directory_slash()
 		{
 #ifdef _WIN32
-			return push_back('\\');
+			push_back('\\');
 #elif _UNIX
-			return push_back('/');
+			push_back('/');
 #else
 			BB_STATIC_ASSERT(false, "no OS define given for push_directory_slash");
-			return false;
 #endif // OS name
 		}
 

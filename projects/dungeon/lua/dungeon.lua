@@ -95,15 +95,15 @@ function Init(a_player_pos)
 end
 
 function FreeCamMove(a_delta_time)
-    local move_value_x, move_value_y = InputActionGetFloat2(gcamera_move)
+    local move_value_x, move_value_y = InputActionGetFloat2(camera_move)
     local player_move = float3(move_value_x, 0, move_value_y) * a_delta_time
-    local wheel_move = InputActionGetFloat(gmove_speed_slider)
+    local wheel_move = InputActionGetFloat(move_speed_slider)
             
     free_cam:AddSpeed(wheel_move)
     free_cam:Move(player_move)
-    local enable_rot = InputActionIsHeld(genable_rotate)
+    local enable_rot = InputActionIsHeld(enable_rotate)
     if enable_rot then
-        local look_x, look_y = InputActionGetFloat2(glook_around);
+        local look_x, look_y = InputActionGetFloat2(look_around);
         free_cam:Rotate(look_x * a_delta_time, look_y * a_delta_time)
     end
 

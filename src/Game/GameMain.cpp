@@ -13,6 +13,9 @@
 #include "lauxlib.h"
 #include "lua/LuaTypes.hpp"
 
+#include "Engine.hpp"
+#include "JsonLoading.hpp"
+
 using namespace BB;
 
 using QuadVerticesPos = FixedArray<float3, 4>;
@@ -387,15 +390,30 @@ ECSEntity DungeonMap::CreateEntityWalls(MemoryArena& a_temp_arena, SceneHierarch
 	return map_obj;
 }
 
-bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_buffer_count)
+bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_buffer_count, const StringView a_project_name)
 {
 	m_game_memory = MemoryArenaCreate();
-	m_scene_hierarchy.Init(m_game_memory, STANDARD_ECS_OBJ_COUNT, a_game_viewport_size, a_back_buffer_count, "game hierarchy");
+
+    m_project_path = GetRootPath();
+    m_project_path.append("\\projects\\");
+    m_project_path.append(a_project_name);
+    m_project_path.push_directory_slash();
+
+    {
+        PathString input_path = m_project_path;
+        input_path.append("input.json");
+        m_input_channel = CreateInputChannelByJson(m_game_memory, a_project_name, input_path.GetView());
+    }
+
+	m_scene_hierarchy.Init(m_game_memory, STANDARD_ECS_OBJ_COUNT, a_game_viewport_size, a_back_buffer_count, a_project_name);
 
 	m_viewport.Init(a_game_viewport_size, int2(0, 0), "dungeon game viewport");
 
+    PathString room_path = m_project_path;
+    room_path.append("rooms/map1.bmp");
+
 	DungeonRoom room;
-	room.CreateRoom(m_game_memory, "../../resources/game/dungeon_rooms/map1.bmp");
+	room.CreateRoom(m_game_memory, room_path.c_str());
 	DungeonRoom* roomptr = &room;
 	m_dungeon_map.CreateMap(m_game_memory, 30, 30, Slice(&roomptr, 1));
 	const float3 map_start_pos = float3(0.f, 0.f, -10.f);
@@ -407,84 +425,12 @@ bool DungeonGame::Init(const uint2 a_game_viewport_size, const uint32_t a_back_b
 		m_dungeon_map.CreateEntityWalls(m_game_memory, m_scene_hierarchy, m_dungeon_obj);
 	}
 
-    FixedArray<InputActionHandle, 8> input_actions;
-    m_input_channel = Input::CreateInputChannel(m_game_memory, "game main", 8);
-
-    {   // input
-        InputActionCreateInfo input_create{};
-        input_create.value_type = INPUT_VALUE_TYPE::FLOAT_2;
-        input_create.binding_type = INPUT_BINDING_TYPE::COMPOSITE_UP_DOWN_RIGHT_LEFT;
-        input_create.source = INPUT_SOURCE::KEYBOARD;
-        input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::W;
-        input_create.input_keys[1].keyboard_key = KEYBOARD_KEY::S;
-        input_create.input_keys[2].keyboard_key = KEYBOARD_KEY::D;
-        input_create.input_keys[3].keyboard_key = KEYBOARD_KEY::A;
-        input_actions[0] = Input::CreateInputAction(m_input_channel, "player_move", input_create);
-    }
-    {
-        InputActionCreateInfo input_create{};
-        input_create.value_type = INPUT_VALUE_TYPE::BOOL;
-        input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
-        input_create.source = INPUT_SOURCE::KEYBOARD;
-        input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::Q;
-        input_actions[1] = Input::CreateInputAction(m_input_channel, "player_turn_left", input_create);
-    }
-    {
-        InputActionCreateInfo input_create{};
-        input_create.value_type = INPUT_VALUE_TYPE::BOOL;
-        input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
-        input_create.source = INPUT_SOURCE::KEYBOARD;
-        input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::E;
-        input_actions[2] = Input::CreateInputAction(m_input_channel, "player_turn_right", input_create);
-    }
-    {
-        InputActionCreateInfo input_create{};
-        input_create.value_type = INPUT_VALUE_TYPE::FLOAT_2;
-        input_create.binding_type = INPUT_BINDING_TYPE::COMPOSITE_UP_DOWN_RIGHT_LEFT;
-        input_create.source = INPUT_SOURCE::KEYBOARD;
-        input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::W;
-        input_create.input_keys[1].keyboard_key = KEYBOARD_KEY::S;
-        input_create.input_keys[2].keyboard_key = KEYBOARD_KEY::D;
-        input_create.input_keys[3].keyboard_key = KEYBOARD_KEY::A;
-        input_actions[3] = Input::CreateInputAction(m_input_channel, "gcamera_move", input_create);
-    }
-    {
-        InputActionCreateInfo input_create{};
-        input_create.value_type = INPUT_VALUE_TYPE::FLOAT;
-        input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
-        input_create.source = INPUT_SOURCE::MOUSE;
-        input_create.input_keys[0].mouse_input = MOUSE_INPUT::SCROLL_WHEEL;
-        input_actions[4] = Input::CreateInputAction(m_input_channel, "gmove_speed_slider", input_create);
-    }
-    {
-        InputActionCreateInfo input_create{};
-        input_create.value_type = INPUT_VALUE_TYPE::FLOAT_2;
-        input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
-        input_create.source = INPUT_SOURCE::MOUSE;
-        input_create.input_keys[0].mouse_input = MOUSE_INPUT::MOUSE_MOVE;
-        input_actions[5] = Input::CreateInputAction(m_input_channel, "glook_around", input_create);
-    }
-    {
-        InputActionCreateInfo input_create{};
-        input_create.value_type = INPUT_VALUE_TYPE::BOOL;
-        input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
-        input_create.source = INPUT_SOURCE::MOUSE;
-        input_create.input_keys[0].mouse_input = MOUSE_INPUT::RIGHT_BUTTON;
-        input_actions[6] = Input::CreateInputAction(m_input_channel, "genable_rotate", input_create);
-    }
-    {
-        InputActionCreateInfo input_create{};
-        input_create.value_type = INPUT_VALUE_TYPE::BOOL;
-        input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
-        input_create.source = INPUT_SOURCE::KEYBOARD;
-        input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::G;
-        input_actions[7] = Input::CreateInputAction(m_input_channel, "toggle_freecam", input_create);
-    }
-
     m_context.Init(m_game_memory, m_input_channel, &m_scene_hierarchy.GetECS(), gbSize);
-    m_context.RegisterActionHandlesLua(m_input_channel, input_actions.const_slice());
+    m_context.RegisterActionHandlesLua(m_input_channel);
 
-    bool status = m_context.LoadLuaFile("gamescene.lua");
+    PathString lua_path = m_project_path;
+    lua_path.append("lua\\dungeon.lua");
+    bool status = m_context.LoadLuaFile(lua_path.GetView());
     BB_ASSERT(status == true, lua_tostring(m_context.GetState(), -1));
 
     lua_getglobal(m_context.GetState(), "Init");

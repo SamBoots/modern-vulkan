@@ -185,14 +185,16 @@ InputActionHandle Input::CreateInputAction(const InputChannelHandle a_channel, c
     BB_ASSERT(channel->input_actions.IsFull() == false, "input channel is full");
     BB_ASSERT(HasSimiliarInputActionName(channel->input_actions.const_slice(), a_name) == false, "duplicate input being created in input channel");
 
+    const InputActionHandle handle = InputActionHandle(channel->input_actions.size(), channel->channel_index);
+
     InputAction action{};
+    action.handle = handle;
     action.name = a_name;
     action.value_type = a_create_info.value_type;
     action.binding_type = a_create_info.binding_type;
     action.input_source = a_create_info.source;
     action.input_keys = a_create_info.input_keys;
 
-    const InputActionHandle handle = InputActionHandle(channel->input_actions.size(), channel->channel_index);
     channel->input_actions.emplace_back(action);
 
     return handle;

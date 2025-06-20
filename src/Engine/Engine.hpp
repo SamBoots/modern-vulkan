@@ -3,6 +3,7 @@
 #include "MemoryArena.hpp"
 #include "Slice.h"
 #include "HID.h"
+#include "Storage/BBString.h"
 
 namespace BB
 {
@@ -45,6 +46,7 @@ namespace BB
     ENGINE_STATUS UpdateEngine(const WindowHandle a_window_handle, const ConstSlice<InputEvent> a_input_events);
 
     const char* GetExePath();
+    const StringView GetRootPath();
 
     bool WindowResized();
     bool WindowClosed();

@@ -25,7 +25,7 @@ namespace BB
 	//Calculate the load factor.
 	static size_t LFCalculation(size_t a_size, float a_load_factor)
 	{
-		return static_cast<size_t>(static_cast<float>(a_size) * a_load_factor);
+		return static_cast<size_t>(static_cast<float>(a_size) * a_load_factor) + 1;
 	}
 
 	struct String_KeyComp

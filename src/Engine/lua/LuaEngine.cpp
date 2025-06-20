@@ -76,21 +76,19 @@ bool LuaECSEngine::Init(MemoryArena& a_arena, const InputChannelHandle a_channel
     return true;
 }
 
-bool LuaECSEngine::LoadLuaFile(const StringView& a_file_name)
+bool LuaECSEngine::LoadLuaFile(const StringView& a_file_path)
 {
-    PathString lua_path = Asset::GetAssetPath();
-    lua_path.append("lua\\");
-    lua_path.append(a_file_name);
-    return luaL_dofile(m_context.GetState(), lua_path.c_str()) == LUA_OK;
+    return luaL_dofile(m_context.GetState(), a_file_path.c_str()) == LUA_OK;
 }
 
-bool LuaECSEngine::RegisterActionHandlesLua(const InputChannelHandle a_channel, const ConstSlice<InputActionHandle> a_input_actions)
+bool LuaECSEngine::RegisterActionHandlesLua(const InputChannelHandle a_channel)
 {
+    const Slice input_actions = Input::GetAllInputActions(a_channel);
     LuaStackScope scope(m_context.GetState());
-    for (size_t i = 0; i < a_input_actions.size(); i++)
+    for (size_t i = 0; i < input_actions.size(); i++)
     {
-        lua_pushbbhandle(m_context.GetState(), a_input_actions[i].handle);
-        lua_setglobal(m_context.GetState(), Input::GetInputActionName(a_channel, a_input_actions[i]).c_str());
+        lua_pushbbhandle(m_context.GetState(), input_actions[i].handle.handle);
+        lua_setglobal(m_context.GetState(), input_actions[i].name.c_str());
     }
     return true;
 }

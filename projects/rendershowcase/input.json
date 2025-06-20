@@ -5,31 +5,28 @@
       "INPUT_VALUE": "FLOAT_2",
       "INPUT_BINDING": "COMPOSITE_UP_DOWN_RIGHT_LEFT",
       "INPUT_SOURCE": "KEYBOARD",
-      "KEY0": "W",
-      "KEY1": "S",
-      "KEY2": "D",
-      "KEY3": "A"
+      "KEYS": [ "W", "S", "D", "A" ]
     },
     {
-      "name": "move speed slider",
+      "name": "move_speed_slider",
       "INPUT_VALUE": "FLOAT",
       "INPUT_BINDING": "BINDING",
       "INPUT_SOURCE": "MOUSE",
-      "KEY0": "SCROLL_WHEEL"
+      "KEYS": [ "SCROLL_WHEEL" ]
     },
     {
-      "name": "move speed slider",
+      "name": "look_around",
       "INPUT_VALUE": "FLOAT_2",
       "INPUT_BINDING": "BINDING",
       "INPUT_SOURCE": "MOUSE",
-      "KEY0": "MOUSE_MOVE"
+      "KEYS": [ "MOUSE_MOVE" ]
     },
     {
-      "name": "enable rotation",
+      "name": "enable_rotate",
       "INPUT_VALUE": "BOOL",
       "INPUT_BINDING": "BINDING",
       "INPUT_SOURCE": "MOUSE",
-      "KEY0": "RIGHT_BUTTON"
+      "KEYS": [ "RIGHT_BUTTON" ]
     }
   ]
 }

@@ -1,0 +1,61 @@
+{
+  "input_actions": [
+    {
+      "name": "player_move",
+      "INPUT_VALUE": "FLOAT_2",
+      "INPUT_BINDING": "COMPOSITE_UP_DOWN_RIGHT_LEFT",
+      "INPUT_SOURCE": "KEYBOARD",
+      "KEYS": [ "W", "S", "D", "A" ]
+    },
+    {
+      "name": "player_turn_left",
+      "INPUT_VALUE": "BOOL",
+      "INPUT_BINDING": "BINDING",
+      "INPUT_SOURCE": "KEYBOARD",
+      "KEYS": [ "Q" ]
+    },
+    {
+      "name": "player_turn_right",
+      "INPUT_VALUE": "BOOL",
+      "INPUT_BINDING": "BINDING",
+      "INPUT_SOURCE": "KEYBOARD",
+      "KEYS": [ "E" ]
+    },
+    {
+      "name": "toggle_freecam",
+      "INPUT_VALUE": "BOOL",
+      "INPUT_BINDING": "BINDING",
+      "INPUT_SOURCE": "KEYBOARD",
+      "KEYS": [ "G" ]
+    },
+
+    {
+      "name": "camera_move",
+      "INPUT_VALUE": "FLOAT_2",
+      "INPUT_BINDING": "COMPOSITE_UP_DOWN_RIGHT_LEFT",
+      "INPUT_SOURCE": "KEYBOARD",
+      "KEYS": [ "W", "S", "D", "A" ]
+    },
+    {
+      "name": "move_speed_slider",
+      "INPUT_VALUE": "FLOAT",
+      "INPUT_BINDING": "BINDING",
+      "INPUT_SOURCE": "MOUSE",
+      "KEYS": [ "SCROLL_WHEEL" ]
+    },
+    {
+      "name": "look_around",
+      "INPUT_VALUE": "FLOAT_2",
+      "INPUT_BINDING": "BINDING",
+      "INPUT_SOURCE": "MOUSE",
+      "KEYS": [ "MOUSE_MOVE" ]
+    },
+    {
+      "name": "enable_rotate",
+      "INPUT_VALUE": "BOOL",
+      "INPUT_BINDING": "BINDING",
+      "INPUT_SOURCE": "MOUSE",
+      "KEYS": [ "RIGHT_BUTTON" ]
+    }
+  ]
+}
