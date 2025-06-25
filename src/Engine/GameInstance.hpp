@@ -6,10 +6,12 @@
 
 namespace BB
 {
+    typedef void (*PFN_LuaPluginRegisterFunctions)(class GameInstance& a_inst);
+
     class GameInstance
     {
     public:
-        bool Init(const uint2 a_viewport_size, const StringView a_project_name, MemoryArena* a_parena);
+        bool Init(const uint2 a_viewport_size, const StringView a_project_name, MemoryArena* a_parena, const ConstSlice<PFN_LuaPluginRegisterFunctions> a_register_funcs = ConstSlice<PFN_LuaPluginRegisterFunctions>());
         bool Update(const float a_delta_time, const bool a_selected = true);
         void Destroy();
 
@@ -22,6 +24,7 @@ namespace BB
         SceneHierarchy& GetSceneHierarchy() { return m_scene_hierarchy; }
         MemoryArena& GetMemory() { return m_arena; }
         const PathString& GetProjectPath() const { return m_project_path; }
+        struct lua_State* GetLuaState();
 
     private:
         void RegisterLuaCFunctions();

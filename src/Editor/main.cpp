@@ -17,6 +17,8 @@
 
 #include "Profiler.hpp"
 
+#include "DungeonGameLib.hpp"
+
 using namespace BB;
 
 int main(int argc, char** argv)
@@ -45,13 +47,15 @@ int main(int argc, char** argv)
 	auto current_time = std::chrono::high_resolution_clock::now();
 
 	float delta_time = 0;
-    
-	//DungeonGame def_game{};
-	//def_game.Init(engine_info.window_extent / 2, engine_info.backbuffer_count, "dungeon");
 
     GameInstance render_viewport{};
     render_viewport.Init(engine_info.window_extent / 2, "rendershowcase", nullptr);
      
+    FixedArray<PFN_LuaPluginRegisterFunctions, 1> lua_plugins;
+    lua_plugins[0] = RegisterDungeonGameLibLuaFunctions;
+    GameInstance def_game{};
+    def_game.Init(engine_info.window_extent / 2, "dungeon", nullptr, lua_plugins.const_slice());
+
 	while (true)
 	{
         InputEvent input_events[INPUT_EVENT_BUFFER_MAX]{};
@@ -77,16 +81,14 @@ int main(int argc, char** argv)
 
 		editor.StartFrame(main_arena, Slice(input_events, input_event_count), delta_time);
 
-		const ThreadTask tasks[1]
+		const ThreadTask tasks[2]
 		{
-			editor.UpdateViewport(main_arena, delta_time, render_viewport)
-			//editor.UpdateViewport(main_arena, delta_time, def_game)
+			editor.UpdateViewport(main_arena, delta_time, render_viewport),
+			editor.UpdateViewport(main_arena, delta_time, def_game)
 		};
 
 		for (size_t i = 0; i < _countof(tasks); i++)
-		{
 			Threads::WaitForTask(tasks[i]);
-		}
 
 		editor.EndFrame(main_arena);
 		auto current_new = std::chrono::high_resolution_clock::now();

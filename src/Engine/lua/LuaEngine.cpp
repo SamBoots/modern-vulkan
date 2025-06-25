@@ -31,26 +31,6 @@ static void* LuaAlloc(void* a_user_data, void* a_ptr, const size_t a_old_size, c
     return nullptr;
 }
 
-static bool lua_setuppaths(lua_State* a_state)
-{
-    PathString lua_path = Asset::GetAssetPath();
-    lua_path.append("lua\\?.lua");
-
-    StackString<2024> lua_include_paths;
-
-    lua_getglobal(a_state, "package");
-    lua_getfield(a_state, -1, "path");
-    const char* current_path = lua_tostring(a_state, -1);
-    lua_include_paths.append(current_path);
-    lua_include_paths.append(";");
-    lua_include_paths.append(lua_path);
-    lua_pop(a_state, 1);
-
-    lua_pushstring(a_state, lua_include_paths.c_str());
-    lua_setfield(a_state, -2, "path");
-    return true;
-}
-
 bool LuaContext::Init(MemoryArena& a_arena, const size_t a_lua_mem_size)
 {
     if (m_state != nullptr)
@@ -62,7 +42,9 @@ bool LuaContext::Init(MemoryArena& a_arena, const size_t a_lua_mem_size)
 
     LuaStackScope scope(m_state);
     lua_registerbbtypes(m_state);
-    lua_setuppaths(m_state);
+    PathString lua_path = Asset::GetAssetPath();
+    lua_path.append("lua\\?.lua");
+    AddIncludePath(lua_path.GetView());
 
     return true;
 }
@@ -101,5 +83,23 @@ bool LuaContext::RegisterActionHandlesLua(const InputChannelHandle a_channel)
         lua_pushbbhandle(m_state, input_actions[i].handle.handle);
         lua_setglobal(m_state, input_actions[i].name.c_str());
     }
+    return true;
+}
+
+bool LuaContext::AddIncludePath(const StringView a_path)
+{
+    StackString<2024> lua_include_paths;
+    LuaStackScope scope(m_state);
+
+    lua_getglobal(m_state, "package");
+    lua_getfield(m_state, -1, "path");
+    const char* current_path = lua_tostring(m_state, -1);
+    lua_include_paths.append(current_path);
+    lua_include_paths.append(";");
+    lua_include_paths.append(a_path);
+    lua_pop(m_state, 1);
+
+    lua_pushstring(m_state, lua_include_paths.c_str());
+    lua_setfield(m_state, -2, "path");
     return true;
 }

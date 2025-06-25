@@ -1,18 +1,18 @@
 #include "DungeonGameLib.hpp"
+#include "GameInstance.hpp"
 #include "MaterialSystem.hpp"
-#include "BBImage.hpp"
-#include "SceneHierarchy.hpp"
 
 #include "Math/Math.inl"
 
 #include "lualib.h"
 #include "lauxlib.h"
+#include "lua/LuaTypes.hpp"
 
 #include "OS/Program.h"
 
 using namespace BB;
 
-// basic dictonary
+// basic dictonary6
 constexpr int WALL_FIGURE = '#';
 constexpr int FREE_FIGURE = '.';
 constexpr int SPAWN_FIGURE = '@';
@@ -38,6 +38,7 @@ static void ReadMapBufferToLuaArray(lua_State* a_state, const Buffer& a_buffer, 
         {
             lua_pushinteger(a_state, value);
             lua_rawseti(a_state, -2, i + 1);
+            local_x++;
         }
         else
         {
@@ -47,40 +48,49 @@ static void ReadMapBufferToLuaArray(lua_State* a_state, const Buffer& a_buffer, 
                     x = local_x;
                 ++y;
                 BB_ASSERT(local_x == x, "map has unequal size_x on some dimensions");
+                local_x = 0;
             }
+            else 
+                local_x++;
         }
-        local_x++;
+
     }
 
     a_size.x = x;
     a_size.y = y;
 }
 
-static MemoryArena* GetMemoryArena(lua_State* a_state, int a_upvalueindex)
+static GameInstance* GetGameInstance(lua_State* a_state)
 {
-    return reinterpret_cast<MemoryArena*>(lua_touserdata(a_state, lua_upvalueindex(a_upvalueindex)));
+    return reinterpret_cast<GameInstance*>(lua_touserdata(a_state, lua_upvalueindex(1)));
 }
 
 static int CreateMapTilesFromFile(lua_State* a_state)
 {
-    MemoryArena* arena = GetMemoryArena(a_state, 1);
+    GameInstance* inst = GetGameInstance(a_state);
 
     const char* str = lua_tostring(a_state, 1);
-    PathString level_path = /* project path*/ str;
+    PathString level_path = inst->GetProjectPath();
+    level_path.append(str);
     int2 size;
-    MemoryArenaScope(*arena)
+    MemoryArenaScope(inst->GetMemory())
     {
-        const Buffer buffer = OSReadFile(*arena, level_path.c_str());
+        const Buffer buffer = OSReadFile(inst->GetMemory(), level_path.c_str());
         ReadMapBufferToLuaArray(a_state, buffer, size);
     }
 
-    // do -2 here?
-    lua_setmetatable(a_state, -2);
+    lua_setmetatable(a_state, -1);
     lua_pushinteger(a_state, size.x);
     lua_pushinteger(a_state, size.y);
-    // push table
 
     return 3;
+}
+
+static int CreateMapFromTiles(lua_State* a_state)
+{
+    const ECSEntity entity = ECSEntity(0);
+    lua_pushbbhandle(a_state, entity.handle);
+    return 1;
 }
 
 // todo , fix this to be better
@@ -91,14 +101,16 @@ static void RegisterLuaFunction(lua_State* a_state, const lua_CFunction a_functi
     lua_setglobal(a_state, a_func_name);
 }
 
-void BB::RegisterDungeonGameLibLuaFunctions(lua_State* a_state, MemoryArena* a_arena)
+void BB::RegisterDungeonGameLibLuaFunctions(GameInstance& a_inst)
 {
-    const int top = lua_gettop(a_state);
-    lua_pushlightuserdata(a_state, a_arena);
-    RegisterLuaFunction(a_state, CreateMapTilesFromFile, "CreateMapTilesFromFile");
-
-    lua_settop(a_state, top);
+    const int top = lua_gettop(a_inst.GetLuaState());
+    lua_pushlightuserdata(a_inst.GetLuaState(), &a_inst);
+    RegisterLuaFunction(a_inst.GetLuaState(), CreateMapTilesFromFile, "CreateMapTilesFromFile");
+    RegisterLuaFunction(a_inst.GetLuaState(), CreateMapFromTiles, "CreateMapFromTiles");
+    lua_settop(a_inst.GetLuaState(), top);
 }
+
+/*
 
 using QuadVerticesPos = FixedArray<float3, 4>;
 using QuadVerticesNormals = FixedArray<float3, 4>;
@@ -471,3 +483,5 @@ ECSEntity DungeonMap::CreateEntityWalls(MemoryArena& a_temp_arena, SceneHierarch
 
 	return map_obj;
 }
+
+*/

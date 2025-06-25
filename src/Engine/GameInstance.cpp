@@ -7,7 +7,7 @@
 
 using namespace BB;
 
-bool GameInstance::Init(const uint2 a_game_viewport_size, const StringView a_project_name, MemoryArena* a_parena)
+bool GameInstance::Init(const uint2 a_game_viewport_size, const StringView a_project_name, MemoryArena* a_parena, const ConstSlice<PFN_LuaPluginRegisterFunctions> a_register_funcs)
 {
     if (a_parena)
         m_arena = *a_parena;
@@ -35,6 +35,14 @@ bool GameInstance::Init(const uint2 a_game_viewport_size, const StringView a_pro
 
     PathString lua_path = m_project_path;
     lua_path.append("lua\\");
+
+    PathString lua_include_path = lua_path;
+    lua_include_path.append("include\\?.lua");
+    m_lua.AddIncludePath(lua_include_path.GetView());
+
+    for (size_t i = 0; i < a_register_funcs.size(); i++)
+        a_register_funcs[i](*this);
+
     MemoryArenaScope(m_arena)
     {
         bool status = m_lua.LoadLuaDirectory(m_arena, lua_path.GetView());
@@ -90,6 +98,11 @@ float4x4 GameInstance::GetCameraView()
     const float3 forward = *lua_getfloat3(m_lua.State(), -1);
 
     return Float4x4Lookat(pos, pos + forward, up);
+}
+
+lua_State* GameInstance::GetLuaState()
+{
+    return m_lua.State();
 }
 
 bool GameInstance::Verify()

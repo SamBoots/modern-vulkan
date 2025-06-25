@@ -191,11 +191,12 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 	PerFrame& pfd = m_per_frame[m_current_frame];
 
 	const ConstSlice<ECSEntity> render_entities = a_render_pool.GetEntityComponents();
-
-	const size_t render_component_count = render_entities.size();
-	DrawList draw_list;
-	draw_list.draw_entries.Init(a_per_frame_arena, static_cast<uint32_t>(render_component_count));
-	draw_list.transforms.Init(a_per_frame_arena, static_cast<uint32_t>(render_component_count));
+    const size_t render_component_count = render_entities.size();
+    if (render_component_count == 0)
+        return;
+    DrawList draw_list;
+    draw_list.draw_entries.Init(a_per_frame_arena, static_cast<uint32_t>(render_component_count));
+    draw_list.transforms.Init(a_per_frame_arena, static_cast<uint32_t>(render_component_count));
 
 	for (size_t i = 0; i < render_component_count; i++)
 	{

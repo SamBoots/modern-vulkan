@@ -8,10 +8,10 @@ class SceneHierarchy;
 
 namespace BB
 {
-    void RegisterDungeonGameLibLuaFunctions(lua_State* a_state, MemoryArena* a_arena);
+    void RegisterDungeonGameLibLuaFunctions(class GameInstance& a_inst);
 
 	enum class DUNGEON_TILE : uint32_t;
-
+    /*
 	class DungeonRoom
 	{
 	public:
@@ -90,4 +90,5 @@ namespace BB
 		StaticArray<DungeonTile> m_map;
 		int2 m_spawn_point;
 	};
+    */
 }
