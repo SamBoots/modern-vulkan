@@ -83,7 +83,6 @@ function DungeonMap.new(a_size_x, a_size_y, a_rooms)
 
     end 
 
-
     local map = 
     {
         size_x = a_size_x,

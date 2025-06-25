@@ -17,15 +17,25 @@ constexpr int WALL_FIGURE = '#';
 constexpr int FREE_FIGURE = '.';
 constexpr int SPAWN_FIGURE = '@';
 
+static int GetIFromXY(int a_x, int a_y, int a_max_x)
+{
+	return a_x + a_y * a_max_x;
+}
+
+struct DungeonRoom
+{
+	int size_x;
+	int size_y;
+	StaticArray<int> tiles;
+};
+
 static bool TileIsValid(const int a_value)
 {
     return a_value == WALL_FIGURE || a_value == FREE_FIGURE || a_value == SPAWN_FIGURE;
 }
 
-static void ReadMapBufferToLuaArray(lua_State* a_state, const Buffer& a_buffer, int2& a_size)
+static DungeonRoom CreateRoom(MemoryArena& a_temp_arena, const Buffer& a_buffer)
 {
-    lua_newtable(a_state);
-
     const char* chars = reinterpret_cast<const char*>(a_buffer.data);
 
     int x = 0;
@@ -34,30 +44,33 @@ static void ReadMapBufferToLuaArray(lua_State* a_state, const Buffer& a_buffer, 
     for (size_t i = 0; i < a_buffer.size; i++)
     {
         const int value = chars[i];
-        if (TileIsValid(value))
+        if (value == '\n')
         {
-            lua_pushinteger(a_state, value);
-            lua_rawseti(a_state, -2, i + 1);
+            if (y == 0)
+                x = local_x;
+            ++y;
+            BB_ASSERT(local_x == x, "map has unequal size_x on some dimensions");
+            local_x = 0;
+        }
+        else 
             local_x++;
-        }
-        else
-        {
-            if (value == '\n')
-            {
-                if (y == 0)
-                    x = local_x;
-                ++y;
-                BB_ASSERT(local_x == x, "map has unequal size_x on some dimensions");
-                local_x = 0;
-            }
-            else 
-                local_x++;
-        }
-
     }
 
-    a_size.x = x;
-    a_size.y = y;
+	DungeonRoom room;
+	room.size_x = x;
+	room.size_y = y;
+	room.tiles = {};
+
+	room.tiles.Init(a_temp_arena, static_cast<uint32_t>(x * y), static_cast<uint32_t>(x * y));
+
+	for (size_t i = 0; i < a_buffer.size; i++)
+	{
+		const int value = chars[i];
+		if (TileIsValid(value))
+			room.tiles[i] = value;
+	}
+
+	return room;
 }
 
 static GameInstance* GetGameInstance(lua_State* a_state)
@@ -65,25 +78,55 @@ static GameInstance* GetGameInstance(lua_State* a_state)
     return reinterpret_cast<GameInstance*>(lua_touserdata(a_state, lua_upvalueindex(1)));
 }
 
-static int CreateMapTilesFromFile(lua_State* a_state)
+static int CreateMapTilesFromFiles(lua_State* a_state)
 {
+	LuaStackScope scope(a_state);
     GameInstance* inst = GetGameInstance(a_state);
 
-    const char* str = lua_tostring(a_state, 1);
-    PathString level_path = inst->GetProjectPath();
-    level_path.append(str);
-    int2 size;
-    MemoryArenaScope(inst->GetMemory())
-    {
-        const Buffer buffer = OSReadFile(inst->GetMemory(), level_path.c_str());
-        ReadMapBufferToLuaArray(a_state, buffer, size);
-    }
+	lua_gettable(a_state, 1);
+	if (!lua_istable(a_state, -1))
+		return 0;
+
+	const uint32_t a_map_size_x = lua_tointeger(a_state, -2);
+	const uint32_t a_map_size_y = lua_tointeger(a_state, -3);
+
+	const uint32_t file_count = lua_rawlen(a_state, -1);
+
+	MemoryArenaScope(inst->GetMemory())
+	{
+		StaticArray<DungeonRoom> rooms = {};
+		rooms.Init(inst->GetMemory(), file_count - 1);
+
+		for (uint32_t i = 1; i < file_count; i++)
+		{
+			MemoryArenaTemp mem_scope = (inst->GetMemory());
+			lua_rawgeti(a_state, -1, i);
+			if (!lua_isstring(a_state, -1))
+				return 0;
+
+			const char* file_name = lua_tostring(a_state, -1);
+			PathString level_path = inst->GetProjectPath();
+			level_path.append(file_name);
+			const Buffer buffer = OSReadFile(inst->GetMemory(), level_path.c_str());
+			DungeonRoom room = CreateRoom(inst->GetMemory(), buffer);
+			rooms.emplace_back(room);
+
+			lua_pop(a_state, 1);
+		}
+
+		// generate the dungeon
+
+
+	}
+
+
+
+
+
 
     lua_setmetatable(a_state, -1);
-    lua_pushinteger(a_state, size.x);
-    lua_pushinteger(a_state, size.y);
 
-    return 3;
+    return 1;
 }
 
 static int CreateMapFromTiles(lua_State* a_state)
@@ -105,7 +148,7 @@ void BB::RegisterDungeonGameLibLuaFunctions(GameInstance& a_inst)
 {
     const int top = lua_gettop(a_inst.GetLuaState());
     lua_pushlightuserdata(a_inst.GetLuaState(), &a_inst);
-    RegisterLuaFunction(a_inst.GetLuaState(), CreateMapTilesFromFile, "CreateMapTilesFromFile");
+    RegisterLuaFunction(a_inst.GetLuaState(), CreateMapTilesFromFiles, "CreateMapTilesFromFiles");
     RegisterLuaFunction(a_inst.GetLuaState(), CreateMapFromTiles, "CreateMapFromTiles");
     lua_settop(a_inst.GetLuaState(), top);
 }

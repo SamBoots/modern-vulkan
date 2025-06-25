@@ -87,6 +87,7 @@ float3 GameInstance::GetCameraPos()
     lua_pcall(m_lua.State(), 0, 1, 0);
     return *lua_getfloat3(m_lua.State(), -1);
 }
+
 float4x4 GameInstance::GetCameraView()
 {
     const float3 pos = GetCameraPos();
