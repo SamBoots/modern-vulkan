@@ -13,7 +13,7 @@
 #include "BBjson.hpp"
 #include "Editor.hpp"
 #include "GameMain.hpp"
-#include "RenderViewport.hpp"
+#include "GameInstance.hpp"
 
 #include "Profiler.hpp"
 
@@ -45,12 +45,12 @@ int main(int argc, char** argv)
 	auto current_time = std::chrono::high_resolution_clock::now();
 
 	float delta_time = 0;
+    
+	//DungeonGame def_game{};
+	//def_game.Init(engine_info.window_extent / 2, engine_info.backbuffer_count, "dungeon");
 
-	DungeonGame def_game{};
-	def_game.Init(engine_info.window_extent / 2, engine_info.backbuffer_count, "dungeon");
-
-	RenderViewport render_viewport{};
-	render_viewport.Init(engine_info.window_extent / 2, engine_info.backbuffer_count, "rendershowcase");
+    GameInstance render_viewport{};
+    render_viewport.Init(engine_info.window_extent / 2, "rendershowcase", nullptr);
      
 	while (true)
 	{
@@ -77,10 +77,10 @@ int main(int argc, char** argv)
 
 		editor.StartFrame(main_arena, Slice(input_events, input_event_count), delta_time);
 
-		const ThreadTask tasks[2]
+		const ThreadTask tasks[1]
 		{
-			editor.UpdateViewport(main_arena, delta_time, render_viewport),
-			editor.UpdateViewport(main_arena, delta_time, def_game)
+			editor.UpdateViewport(main_arena, delta_time, render_viewport)
+			//editor.UpdateViewport(main_arena, delta_time, def_game)
 		};
 
 		for (size_t i = 0; i < _countof(tasks); i++)

@@ -68,6 +68,7 @@ namespace BB
         void UpdateInput(const ConstSlice<InputEvent> a_input_events);
 
         InputChannelHandle CreateInputChannel(MemoryArena& a_arena, const InputChannelName& a_channel_name, const uint32_t a_max_actions);
+        InputChannelHandle CreateInputChannelByJson(MemoryArena& a_arena, const InputChannelName& a_channel_name, const StringView a_json_path);
 
         float2 GetMousePos(const WindowHandle a_window_handle);
 

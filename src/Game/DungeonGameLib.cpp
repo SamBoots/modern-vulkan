@@ -5,7 +5,100 @@
 
 #include "Math/Math.inl"
 
+#include "lualib.h"
+#include "lauxlib.h"
+
+#include "OS/Program.h"
+
 using namespace BB;
+
+// basic dictonary
+constexpr int WALL_FIGURE = '#';
+constexpr int FREE_FIGURE = '.';
+constexpr int SPAWN_FIGURE = '@';
+
+static bool TileIsValid(const int a_value)
+{
+    return a_value == WALL_FIGURE || a_value == FREE_FIGURE || a_value == SPAWN_FIGURE;
+}
+
+static void ReadMapBufferToLuaArray(lua_State* a_state, const Buffer& a_buffer, int2& a_size)
+{
+    lua_newtable(a_state);
+
+    const char* chars = reinterpret_cast<const char*>(a_buffer.data);
+
+    int x = 0;
+    int y = 0;
+    int local_x = 0;
+    for (size_t i = 0; i < a_buffer.size; i++)
+    {
+        const int value = chars[i];
+        if (TileIsValid(value))
+        {
+            lua_pushinteger(a_state, value);
+            lua_rawseti(a_state, -2, i + 1);
+        }
+        else
+        {
+            if (value == '\n')
+            {
+                if (y == 0)
+                    x = local_x;
+                ++y;
+                BB_ASSERT(local_x == x, "map has unequal size_x on some dimensions");
+            }
+        }
+        local_x++;
+    }
+
+    a_size.x = x;
+    a_size.y = y;
+}
+
+static MemoryArena* GetMemoryArena(lua_State* a_state, int a_upvalueindex)
+{
+    return reinterpret_cast<MemoryArena*>(lua_touserdata(a_state, lua_upvalueindex(a_upvalueindex)));
+}
+
+static int CreateMapTilesFromFile(lua_State* a_state)
+{
+    MemoryArena* arena = GetMemoryArena(a_state, 1);
+
+    const char* str = lua_tostring(a_state, 1);
+    PathString level_path = /* project path*/ str;
+    int2 size;
+    MemoryArenaScope(*arena)
+    {
+        const Buffer buffer = OSReadFile(*arena, level_path.c_str());
+        ReadMapBufferToLuaArray(a_state, buffer, size);
+    }
+
+    // do -2 here?
+    lua_setmetatable(a_state, -2);
+    lua_pushinteger(a_state, size.x);
+    lua_pushinteger(a_state, size.y);
+    // push table
+
+    return 3;
+}
+
+// todo , fix this to be better
+static void RegisterLuaFunction(lua_State* a_state, const lua_CFunction a_function, const char* a_func_name)
+{
+    lua_pushvalue(a_state, -1);
+    lua_pushcclosure(a_state, a_function, 1);
+    lua_setglobal(a_state, a_func_name);
+}
+
+void BB::RegisterDungeonGameLibLuaFunctions(lua_State* a_state, MemoryArena* a_arena)
+{
+    const int top = lua_gettop(a_state);
+    lua_pushlightuserdata(a_state, a_arena);
+    RegisterLuaFunction(a_state, CreateMapTilesFromFile, "CreateMapTilesFromFile");
+
+    lua_settop(a_state, top);
+}
 
 using QuadVerticesPos = FixedArray<float3, 4>;
 using QuadVerticesNormals = FixedArray<float3, 4>;

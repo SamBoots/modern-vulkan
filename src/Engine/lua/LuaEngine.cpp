@@ -67,28 +67,17 @@ bool LuaContext::Init(MemoryArena& a_arena, const size_t a_lua_mem_size)
     return true;
 }
 
-bool LuaECSEngine::Init(MemoryArena& a_arena, const InputChannelHandle a_channel, EntityComponentSystem* a_psystem, const size_t a_lua_mem_size)
+bool LuaContext::LoadLuaFile(const StringView& a_file_path)
 {
-    m_context.Init(a_arena, a_lua_mem_size);
-
-    LuaStackScope scope(m_context.GetState());
-    LoadECSFunctions(a_psystem);
-    LoadInputFunctions(a_channel);
-
-    return true;
+    return luaL_dofile(m_state, a_file_path.c_str()) == LUA_OK;
 }
 
-bool LuaECSEngine::LoadLuaFile(const StringView& a_file_path)
-{
-    return luaL_dofile(m_context.GetState(), a_file_path.c_str()) == LUA_OK;
-}
-
-bool LuaECSEngine::LoadLuaDirectory(MemoryArena& a_temp_arena, const StringView& a_file_path)
+bool LuaContext::LoadLuaDirectory(MemoryArena& a_temp_arena, const StringView& a_file_path)
 {
     ConstSlice<StackString<MAX_PATH_SIZE>> lua_paths;
-    PathString path = a_file_path;
-    path.append("\\*lua");
-    if (!OSGetDirectoryEntries(a_temp_arena, path.c_str(), lua_paths))
+    PathString lua_path = a_file_path;
+    lua_path.append("\\*lua");
+    if (!OSGetDirectoryEntries(a_temp_arena, lua_path.c_str(), lua_paths))
         return false;
 
     for (size_t i = 0; i < lua_paths.size(); i++)
@@ -97,57 +86,20 @@ bool LuaECSEngine::LoadLuaDirectory(MemoryArena& a_temp_arena, const StringView&
         path.push_directory_slash();
         path.append(lua_paths[i].GetView());
         bool status = LoadLuaFile(path.GetView());
-        BB_ASSERT(status == true, lua_tostring(m_context.GetState(), -1));
+        BB_ASSERT(status == true, lua_tostring(m_state, -1));
     }
 
     return true;
 }
 
-bool LuaECSEngine::RegisterActionHandlesLua(const InputChannelHandle a_channel)
+bool LuaContext::RegisterActionHandlesLua(const InputChannelHandle a_channel)
 {
     const Slice input_actions = Input::GetAllInputActions(a_channel);
-    LuaStackScope scope(m_context.GetState());
+    LuaStackScope scope(m_state);
     for (size_t i = 0; i < input_actions.size(); i++)
     {
-        lua_pushbbhandle(m_context.GetState(), input_actions[i].handle.handle);
-        lua_setglobal(m_context.GetState(), input_actions[i].name.c_str());
+        lua_pushbbhandle(m_state, input_actions[i].handle.handle);
+        lua_setglobal(m_state, input_actions[i].name.c_str());
     }
     return true;
-}
-
-#define LUA_FUNC_NAME(func) luaapi::func, #func
-
-void LuaECSEngine::LoadECSFunctions(EntityComponentSystem* a_psystem)
-{
-    lua_pushlightuserdata(m_context.GetState(), a_psystem);
-
-    LoadECSFunction(LUA_FUNC_NAME(ECSCreateEntity));
-    LoadECSFunction(LUA_FUNC_NAME(ECSGetPosition));
-    LoadECSFunction(LUA_FUNC_NAME(ECSSetPosition));
-    LoadECSFunction(LUA_FUNC_NAME(ECSTranslate));
-}
-
-void LuaECSEngine::LoadInputFunctions(const InputChannelHandle a_channel)
-{
-    lua_pushbbhandle(m_context.GetState(), a_channel.handle);
-
-    LoadInputFunction(LUA_FUNC_NAME(InputActionIsPressed));
-    LoadInputFunction(LUA_FUNC_NAME(InputActionIsHeld));
-    LoadInputFunction(LUA_FUNC_NAME(InputActionIsReleased));
-    LoadInputFunction(LUA_FUNC_NAME(InputActionGetFloat));
-    LoadInputFunction(LUA_FUNC_NAME(InputActionGetFloat2));
-}
-
-void LuaECSEngine::LoadECSFunction(const lua_CFunction a_function, const char* a_func_name)
-{
-    lua_pushvalue(m_context.GetState(), -1);
-    lua_pushcclosure(m_context.GetState(), a_function, 1);
-    lua_setglobal(m_context.GetState(), a_func_name);
-}
-
-void LuaECSEngine::LoadInputFunction(const lua_CFunction a_function, const char* a_func_name)
-{
-    lua_pushvalue(m_context.GetState(), -1);
-    lua_pushcclosure(m_context.GetState(), a_function, 1);
-    lua_setglobal(m_context.GetState(), a_func_name);
 }

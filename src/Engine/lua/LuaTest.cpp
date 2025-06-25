@@ -67,7 +67,7 @@ bool BB::lua_RunBBTypeTest()
     LuaContext context;
     context.Init(arena, gbSize);
 
-    lua_State* state = context.GetState();
+    lua_State* state = context.State();
 
     if (!SimpleFunctionsTest(state))
     {

@@ -1,5 +1,6 @@
 {
   "scene": {
+    "scene_name": "default",
     "scene_objects": [
       {
         "file_name": "../../resources/models/ABeautifulGame.gltf",

@@ -41,5 +41,6 @@ namespace BB
 		{ v.GetViewport() } -> std::same_as<BB::Viewport&>;
         { v.GetInputChannel() } -> std::same_as<BB::InputChannelHandle>;
         { v.GetCameraPos() } -> std::same_as<BB::float3>;
-	};
+        { v.GetMemory() } -> std::same_as<MemoryArena&>;
+ 	};
 }

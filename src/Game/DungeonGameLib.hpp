@@ -1,9 +1,15 @@
 #pragma once
 #include "Storage/Array.h"
 #include "Enginefwd.hpp"
+#include "ViewportInterface.hpp"
+
+struct lua_State;
+class SceneHierarchy;
 
 namespace BB
 {
+    void RegisterDungeonGameLibLuaFunctions(lua_State* a_state, MemoryArena* a_arena);
+
 	enum class DUNGEON_TILE : uint32_t;
 
 	class DungeonRoom

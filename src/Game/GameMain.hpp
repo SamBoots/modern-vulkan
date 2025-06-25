@@ -20,15 +20,14 @@ namespace BB
 		Viewport& GetViewport() { return m_viewport; }
         InputChannelHandle GetInputChannel() const { return m_input_channel; }
         SceneHierarchy& GetSceneHierarchy() { return m_scene_hierarchy; }
+        MemoryArena& GetMemory() { return m_game_memory; }
 
 	private:
 		MemoryArena m_game_memory;
 
 		Viewport m_viewport;
 		SceneHierarchy m_scene_hierarchy;
-		DungeonMap m_dungeon_map;
-		ECSEntity m_dungeon_obj;
-        LuaECSEngine m_context;
+        LuaContext m_context;
         InputChannelHandle m_input_channel;
         PathString m_project_path;
 

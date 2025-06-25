@@ -5,6 +5,8 @@
 
 #include "Math/Math.inl"
 
+#include "BBjson.hpp"
+
 using namespace BB;
 
 constexpr uint32_t COMPOSITE_UP = 0;
@@ -155,6 +157,37 @@ InputChannelHandle Input::CreateInputChannel(MemoryArena& a_arena, const InputCh
     channel->input_actions.Init(a_arena, a_max_actions);
     channel->channel_index = s_input_system->input_channels++;
     return InputChannelHandle(reinterpret_cast<uint64_t>(channel));
+}
+
+InputChannelHandle Input::CreateInputChannelByJson(MemoryArena& a_arena, const InputChannelName& a_channel_name, const StringView a_json_path)
+{
+    JsonParser parser(a_json_path.c_str());
+    parser.Parse();
+    const JsonList& ias = parser.GetRootNode()->GetObject().Find("input_actions")->GetList();
+
+    const InputChannelHandle channel = Input::CreateInputChannel(a_arena, a_channel_name, ias.node_count);
+    for (uint32_t i = 0; i < ias.node_count; i++)
+    {
+        const JsonObject& iaobj = ias.nodes[i]->GetObject();
+        InputActionCreateInfo create_info;
+        InputActionName name = iaobj.Find("name")->GetString();
+        create_info.value_type = STR_TO_INPUT_VALUE_TYPE(iaobj.Find("INPUT_VALUE")->GetString());
+        create_info.binding_type = STR_TO_INPUT_BINDING_TYPE(iaobj.Find("INPUT_BINDING")->GetString());
+        create_info.source = STR_TO_INPUT_SOURCE(iaobj.Find("INPUT_SOURCE")->GetString());
+
+        const JsonList& keys = iaobj.Find("KEYS")->GetList();
+
+        if (create_info.source == INPUT_SOURCE::KEYBOARD)
+            for (uint32_t key_i = 0; key_i < keys.node_count; key_i++)
+                create_info.input_keys[key_i].keyboard_key = STR_TO_KEYBOARD_KEY(keys.nodes[key_i]->GetString());
+        else if (create_info.source == INPUT_SOURCE::MOUSE)
+            for (uint32_t key_i = 0; key_i < keys.node_count; key_i++)
+                create_info.input_keys[key_i].mouse_input = STR_TO_MOUSE_INPUT(keys.nodes[key_i]->GetString());
+
+        const InputActionHandle ac = Input::CreateInputAction(channel, name, create_info);
+        BB_ASSERT(ac.IsValid(), "input action is not valid");
+    }
+    return channel;
 }
 
 float2 Input::GetMousePos(const WindowHandle a_window_handle)

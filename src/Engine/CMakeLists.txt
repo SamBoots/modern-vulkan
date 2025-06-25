@@ -28,7 +28,8 @@ add_library(Engine
 	"Viewport.cpp"
 	"Profiler.cpp"
 	"ImGuiImpl.cpp"
-    "Engine.cpp")
+    "Engine.cpp" 
+    "GameInstance.cpp")
 	
 target_include_directories(Engine PUBLIC "")
 

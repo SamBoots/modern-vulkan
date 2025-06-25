@@ -468,7 +468,7 @@ static uint32_t CheckDirectoryElementSize(const char* a_path)
     if (search_handle == INVALID_HANDLE_VALUE)
         return false;
 
-    size_t entries = 1;
+    uint32_t entries = 1;
     while (FindNextFileA(search_handle, &ffd))
         entries++;
 

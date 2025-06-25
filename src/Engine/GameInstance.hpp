@@ -1,0 +1,36 @@
+#pragma once
+#include "ViewportInterface.hpp"
+#include "Enginefwd.hpp"
+#include "SceneHierarchy.hpp"
+#include "lua/LuaEngine.hpp"
+
+namespace BB
+{
+    class GameInstance
+    {
+    public:
+        bool Init(const uint2 a_viewport_size, const StringView a_project_name, MemoryArena* a_parena);
+        bool Update(const float a_delta_time, const bool a_selected = true);
+        void Destroy();
+
+        bool Verify();
+
+        float3 GetCameraPos();
+        float4x4 GetCameraView();
+        Viewport& GetViewport() { return m_viewport; }
+        InputChannelHandle GetInputChannel() const { return m_input_channel; }
+        SceneHierarchy& GetSceneHierarchy() { return m_scene_hierarchy; }
+        MemoryArena& GetMemory() { return m_arena; }
+        const PathString& GetProjectPath() const { return m_project_path; }
+
+    private:
+        void RegisterLuaCFunctions();
+
+        MemoryArena m_arena;
+        Viewport m_viewport;
+        SceneHierarchy m_scene_hierarchy;
+        LuaContext m_lua;
+        InputChannelHandle m_input_channel;
+        PathString m_project_path;
+    };
+}

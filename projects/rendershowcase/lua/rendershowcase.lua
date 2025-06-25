@@ -16,8 +16,10 @@ function GetCameraForward()
     return free_cam.camera.forward
 end
 
-function Init()
+root_entity = nil
 
+function Init()
+    root_entity = CreateEntityFromJson("scene.json")
 end
 
 function SelectedUpdate(a_delta_time)
