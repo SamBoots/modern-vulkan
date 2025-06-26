@@ -73,6 +73,49 @@ static DungeonRoom CreateRoom(MemoryArena& a_temp_arena, const Buffer& a_buffer)
 	return room;
 }
 
+void CreateMap(lua_State* a_state, const int a_map_size_x, const int a_map_size_y, const Slice<DungeonRoom*> a_rooms, int2& a_spawn_point)
+{
+    const int table_size = a_map_size_x * a_map_size_y;
+    // walkable
+    lua_createtable(a_state, table_size, 0);
+
+    for (size_t i = 0; i < a_rooms.size(); i++)
+    {
+        const DungeonRoom& room = *a_rooms[i];
+        const int max_x = a_map_size_x - room.size_x;
+        const int max_y = a_map_size_y - room.size_y;
+
+        const int start_pos_x = static_cast<int>(Random::Random(1, static_cast<uint32_t>(max_x)));
+        const int start_pos_y = static_cast<int>(Random::Random(1, static_cast<uint32_t>(max_y)));
+
+        const int end_pos_x = start_pos_x + room.size_x;
+        const int end_pos_y = start_pos_y + room.size_y;
+
+        // try to load the map reverse so you don't need to track these two variables
+        int room_x = 0;
+        int room_y = 0;
+        for (int y = start_pos_y; y < end_pos_y; y++)
+        {
+            for (int x = start_pos_x; x < end_pos_x; x++)
+            {
+                const uint32_t index = static_cast<size_t>(GetIFromXY(x, y, a_map_size_x));
+                const int tile = GetIFromXY(room_x++, room_y, room.size_x);
+
+                if (TileIsValid(tile))
+                {
+
+                }
+                else
+                {
+                    BB_ASSERT(false, "unidentified tile index");
+                }
+            }
+            room_x = 0;
+            ++room_y;
+        }
+    }
+}
+
 static GameInstance* GetGameInstance(lua_State* a_state)
 {
     return reinterpret_cast<GameInstance*>(lua_touserdata(a_state, lua_upvalueindex(1)));
