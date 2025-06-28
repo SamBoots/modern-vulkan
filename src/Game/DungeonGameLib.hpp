@@ -4,10 +4,10 @@
 #include "ViewportInterface.hpp"
 
 struct lua_State;
-class SceneHierarchy;
 
 namespace BB
 {
+	class SceneHierarchy;
     void RegisterDungeonGameLibLuaFunctions(class GameInstance& a_inst);
 
 	enum class DUNGEON_TILE : uint32_t;

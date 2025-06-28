@@ -73,15 +73,16 @@ static DungeonRoom CreateRoom(MemoryArena& a_temp_arena, const Buffer& a_buffer)
 	return room;
 }
 
-void CreateMap(lua_State* a_state, const int a_map_size_x, const int a_map_size_y, const Slice<DungeonRoom*> a_rooms, int2& a_spawn_point)
+static ConstSlice<int> CreateMap(MemoryArena& a_temp_arena, const int a_map_size_x, const int a_map_size_y, const ConstSlice<DungeonRoom> a_rooms, int2& a_spawn_point)
 {
     const int table_size = a_map_size_x * a_map_size_y;
     // walkable
-    lua_createtable(a_state, table_size, 0);
+	StaticArray<int> map = {};
+	map.Init(a_temp_arena, table_size, table_size);
 
     for (size_t i = 0; i < a_rooms.size(); i++)
     {
-        const DungeonRoom& room = *a_rooms[i];
+        const DungeonRoom& room = a_rooms[i];
         const int max_x = a_map_size_x - room.size_x;
         const int max_y = a_map_size_y - room.size_y;
 
@@ -103,7 +104,7 @@ void CreateMap(lua_State* a_state, const int a_map_size_x, const int a_map_size_
 
                 if (TileIsValid(tile))
                 {
-
+					map[i] = tile;
                 }
                 else
                 {
@@ -114,6 +115,270 @@ void CreateMap(lua_State* a_state, const int a_map_size_x, const int a_map_size_
             ++room_y;
         }
     }
+
+	return map.const_slice();
+}
+
+using QuadVerticesPos = FixedArray<float3, 4>;
+using QuadVerticesNormals = FixedArray<float3, 4>;
+using QuadVerticesUVs = FixedArray<float2, 4>;
+using QuadVerticesColors = FixedArray<float4, 4>;
+
+static ECSEntity CreateMapFloor(MemoryArena& a_temp_arena, const ConstSlice<int> a_map, const int a_size_x, const int a_size_y, SceneHierarchy& a_scene_hierarchy, const ECSEntity a_parent)
+{
+	ECSEntity map_obj{};
+	MemoryArenaScope(a_temp_arena)
+	{
+		QuadVerticesNormals quad_norms;
+		quad_norms[0] = float3(0.f, 1.f, 0.1f);
+		quad_norms[1] = float3(0.f, 1.f, 0.1f);
+		quad_norms[2] = float3(0.f, 1.f, 0.1f);
+		quad_norms[3] = float3(0.f, 1.f, 0.1f);
+
+		QuadVerticesUVs quad_uvs;
+		quad_uvs[0] = float2(0.f, 1.f);
+		quad_uvs[1] = float2(1.f, 1.f);
+		quad_uvs[2] = float2(1.f, 0.f);
+		quad_uvs[3] = float2(0.f, 0.f);
+
+		QuadVerticesColors quad_colors;
+		quad_colors[0] = float4(1.f, 1.f, 1.f, 1.f);
+		quad_colors[1] = float4(1.f, 1.f, 1.f, 1.f);
+		quad_colors[2] = float4(1.f, 1.f, 1.f, 1.f);
+		quad_colors[3] = float4(1.f, 1.f, 1.f, 1.f);
+
+		StaticArray<float3> positions;
+		StaticArray<float3> normals;
+		StaticArray<float2> uvs;
+		StaticArray<float4> colors;
+		positions.Init(a_temp_arena, a_map.size() * 4);
+		normals.Init(a_temp_arena, a_map.size() * 4);
+		uvs.Init(a_temp_arena, a_map.size() * 4);
+		colors.Init(a_temp_arena, a_map.size() * 4);
+
+		float max_x = 0;
+		float max_y = 0;
+
+		StaticArray<uint32_t> indices;
+		indices.Init(a_temp_arena, a_map.size() * 6);
+		// optimize this
+		for (int y = 0; y < a_size_y; y++)
+		{
+			for (int x = 0; x < a_size_x; x++)
+			{
+				const int& tile = GetIFromXY(x, y, a_size_x);
+				if (tile != WALL_FIGURE)
+				{
+					QuadVerticesPos quad_pos;
+					const float fx = static_cast<float>(x);
+					const float fy = static_cast<float>(y);
+					const float3 pos_top_left = float3(fx - .5f, 0.f, fy + .5f);
+					const float3 pos_top_right = float3(fx + .5f, 0.f, fy + .5f);
+					const float3 pos_bot_right = float3(fx + .5f, 0.f, fy - .5f);
+					const float3 pos_bot_left = float3(fx - .5f, 0.f, fy - .5f);
+
+					max_x = Max(max_x, fx);
+					max_y = Max(max_y, fy);
+
+					quad_pos[0] = pos_top_left;
+					quad_pos[1] = pos_top_right;
+					quad_pos[2] = pos_bot_right;
+					quad_pos[3] = pos_bot_left;
+
+					const uint32_t current_index = positions.size();
+					const uint32_t quad_indices[] = {
+						current_index,
+						current_index + 1,
+						current_index + 2,
+						current_index + 2,
+						current_index + 3,
+						current_index
+					};
+					positions.push_back(quad_pos.const_slice());
+					normals.push_back(quad_norms.const_slice());
+					uvs.push_back(quad_uvs.const_slice());
+					colors.push_back(quad_colors.const_slice());
+					indices.push_back(quad_indices, _countof(quad_indices));
+				}
+			}
+		}
+
+		Asset::MeshLoadFromMemory load_mesh_info;
+		load_mesh_info.name = "dungeon floor";
+		load_mesh_info.indices = indices.const_slice();
+		load_mesh_info.base_albedo = Asset::GetCheckerBoardTexture();
+		load_mesh_info.mesh_load.positions = positions.const_slice();
+		load_mesh_info.mesh_load.normals = normals.const_slice();
+		load_mesh_info.mesh_load.uvs = uvs.const_slice();
+		load_mesh_info.mesh_load.colors = colors.const_slice();
+		Mesh mesh = Asset::LoadMeshFromMemory(a_temp_arena, load_mesh_info).meshes[0].mesh;
+		MeshMetallic material_info;
+		material_info.metallic_factor = 1.0f;
+		material_info.roughness_factor = 0.0f;
+		material_info.base_color_factor = float4(1.f);
+		material_info.albedo_texture = Asset::GetCheckerBoardTexture();
+		material_info.normal_texture = Asset::GetBlueTexture();
+		material_info.orm_texture = Asset::GetWhiteTexture();
+
+		BoundingBox bounding_box;
+		bounding_box.min = float3(0.f);
+		bounding_box.max.x = max_x;
+		bounding_box.max.y = max_y;
+		bounding_box.max.z = 1.f;
+
+		SceneMeshCreateInfo mesh_info;
+		mesh_info.mesh = mesh;
+		mesh_info.index_start = 0;
+		mesh_info.index_count = indices.size();
+		mesh_info.master_material = Material::GetDefaultMasterMaterial(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D);
+		mesh_info.material_data = material_info;
+		map_obj = a_scene_hierarchy.CreateEntityMesh(float3(), mesh_info, "dungeon map floor", bounding_box, a_parent);
+	}
+	return map_obj;
+}
+
+static float3 RotatePointOnPoint(const float3x3& a_rotation_matrix, const float3 a_point, const float3 a_middle)
+{
+	const float3 res = a_rotation_matrix * (a_point - a_middle);
+	return a_middle + res;
+}
+
+static bool IsTileWalkable(const ConstSlice<int> a_map, const int a_x, const int a_y, const int a_max_x, const int a_max_y)
+{
+	if (a_x >= a_max_x || a_y >= a_max_y || 0 > a_x || 0 > a_y)
+		return false;
+
+	const int& tile = GetIFromXY(a_x, a_y, a_max_x);
+	return tile != WALL_FIGURE;
+}
+
+static ECSEntity CreateMapWalls(MemoryArena& a_temp_arena, const ConstSlice<int> a_map, const int a_size_x, const int a_size_y, SceneHierarchy& a_scene_hierarchy, const ECSEntity a_parent)
+{
+	QuadVerticesNormals quad_norms;
+	quad_norms[0] = float3(0.f, 1.f, 0.1f);
+	quad_norms[1] = float3(0.f, 1.f, 0.1f);
+	quad_norms[2] = float3(0.f, 1.f, 0.1f);
+	quad_norms[3] = float3(0.f, 1.f, 0.1f);
+
+	QuadVerticesUVs quad_uvs;
+	quad_uvs[0] = float2(0.f, 1.f);
+	quad_uvs[1] = float2(1.f, 1.f);
+	quad_uvs[2] = float2(1.f, 0.f);
+	quad_uvs[3] = float2(0.f, 0.f);
+
+	QuadVerticesColors quad_colors;
+	quad_colors[0] = float4(1.f, 1.f, 1.f, 1.f);
+	quad_colors[1] = float4(1.f, 1.f, 1.f, 1.f);
+	quad_colors[2] = float4(1.f, 1.f, 1.f, 1.f);
+	quad_colors[3] = float4(1.f, 1.f, 1.f, 1.f);
+
+	float max_x = 0;
+	float max_z = 0;
+
+	ECSEntity map_obj{};
+	MemoryArenaScope(a_temp_arena)
+	{
+		StaticArray<float3> positions;
+		StaticArray<float3> normals;
+		StaticArray<float2> uvs;
+		StaticArray<float4> colors;
+		positions.Init(a_temp_arena, a_map.size() * 4);
+		normals.Init(a_temp_arena, a_map.size() * 4);
+		uvs.Init(a_temp_arena, a_map.size() * 4);
+		colors.Init(a_temp_arena, a_map.size() * 4);
+		StaticArray<uint32_t> indices;
+		indices.Init(a_temp_arena, a_map.size() * 6);
+
+		auto MakeWallSegment = [&](const int a_x, const int a_y, const float3 a_offset, const float3 a_rotation)
+			{
+				const float fx = static_cast<float>(a_x);
+				const float fz = static_cast<float>(a_y);
+				const float3 middle = float3(fx, 0.5f, fz);
+				const float3x3 rotation_matrix = Float3x3FromRotation(Float3ToRadians(a_rotation));
+
+				// rotate these
+				const float3 pos_top_left = RotatePointOnPoint(rotation_matrix, float3(fx - 0.5f, 0.5f, fz + 0.5f), middle);
+				const float3 pos_top_right = RotatePointOnPoint(rotation_matrix, float3(fx + 0.5f, 0.5f, fz + 0.5f), middle);
+				const float3 pos_bot_right = RotatePointOnPoint(rotation_matrix, float3(fx + 0.5f, 0.5f, fz - 0.5f), middle);
+				const float3 pos_bot_left = RotatePointOnPoint(rotation_matrix, float3(fx - 0.5f, 0.5f, fz - 0.5f), middle);
+
+				max_x = Max(max_x, fx);
+				max_z = Max(max_z, fz);
+
+				QuadVerticesPos pos;
+				pos[0] = pos_top_left + a_offset;
+				pos[1] = pos_top_right + a_offset;
+				pos[2] = pos_bot_right + a_offset;
+				pos[3] = pos_bot_left + a_offset;
+
+				const uint32_t current_index = positions.size();
+				const uint32_t quad_indices[] = {
+					current_index,
+					current_index + 1,
+					current_index + 2,
+					current_index + 2,
+					current_index + 3,
+					current_index
+				};
+				positions.push_back(pos.const_slice());
+				normals.push_back(quad_norms.const_slice());
+				uvs.push_back(quad_uvs.const_slice());
+				colors.push_back(quad_colors.const_slice());
+				indices.push_back(quad_indices, _countof(quad_indices));
+			};
+
+		for (int y = 0; y < a_size_y; y++)
+		{
+			for (int x = 0; x < a_size_x; x++)
+			{
+				const int& tile = GetIFromXY(x, y, a_size_x);
+				if (tile != WALL_FIGURE)
+				{
+					if (!IsTileWalkable(a_map, x + 1, y, a_size_x, a_size_y))
+						MakeWallSegment(x, y, float3(0.5f, 0.f, 0.f), float3(0.f, 0.f, 90.f));
+					if (!IsTileWalkable(a_map, x - 1, y, a_size_x, a_size_y))
+						MakeWallSegment(x, y, float3(-0.5f, 0.f, 0.f), float3(0.f, 0.f, -90.f));
+					if (!IsTileWalkable(a_map, x, y + 1, a_size_x, a_size_y))
+						MakeWallSegment(x, y, float3(0.f, 0.f, 0.5f), float3(-90.f, 0.f, 0.f));
+					if (!IsTileWalkable(a_map, x, y - 1, a_size_x, a_size_y))
+						MakeWallSegment(x, y, float3(0.f, 0.f, -0.5f), float3(90.f, 0.f, 0.f));
+				}
+			}
+		}
+
+		BoundingBox bounding_box;
+		bounding_box.min = float3(0.f);
+		bounding_box.max.x = max_x;
+		bounding_box.max.y = 1.f;
+		bounding_box.max.z = max_z;
+
+		Asset::MeshLoadFromMemory load_mesh_info;
+		load_mesh_info.name = "dungeon wall";
+		load_mesh_info.indices = indices.const_slice();
+		load_mesh_info.base_albedo = Asset::GetCheckerBoardTexture();
+		load_mesh_info.mesh_load.positions = positions.const_slice();
+		load_mesh_info.mesh_load.normals = normals.const_slice();
+		load_mesh_info.mesh_load.uvs = uvs.const_slice();
+		load_mesh_info.mesh_load.colors = colors.const_slice();
+		Mesh mesh = Asset::LoadMeshFromMemory(a_temp_arena, load_mesh_info).meshes[0].mesh;
+		MeshMetallic material_info;
+		material_info.metallic_factor = 1.0f;
+		material_info.roughness_factor = 0.0f;
+		material_info.base_color_factor = float4(1.f);
+		material_info.albedo_texture = Asset::GetCheckerBoardTexture();
+		material_info.normal_texture = Asset::GetBlueTexture();
+		material_info.orm_texture = RDescriptorIndex(0);
+
+		SceneMeshCreateInfo mesh_info;
+		mesh_info.mesh = mesh;
+		mesh_info.index_start = 0;
+		mesh_info.index_count = indices.size();
+		mesh_info.master_material = Material::GetDefaultMasterMaterial(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D);
+		mesh_info.material_data = material_info;
+		map_obj = a_scene_hierarchy.CreateEntityMesh(float3(), mesh_info, "dungeon map wall", bounding_box, a_parent);
+	}
+
+	return map_obj;
 }
 
 static GameInstance* GetGameInstance(lua_State* a_state)
@@ -126,25 +391,26 @@ static int CreateMapTilesFromFiles(lua_State* a_state)
 	LuaStackScope scope(a_state);
     GameInstance* inst = GetGameInstance(a_state);
 
-	lua_gettable(a_state, 1);
-	if (!lua_istable(a_state, -1))
+	const uint32_t map_size_x = lua_tointeger(a_state, 1);
+	const uint32_t map_size_y = lua_tointeger(a_state, 2);
+
+	if (!lua_istable(a_state, 3))
 		return 0;
 
-	const uint32_t a_map_size_x = lua_tointeger(a_state, -2);
-	const uint32_t a_map_size_y = lua_tointeger(a_state, -3);
+	const uint32_t file_count = lua_rawlen(a_state, 3);
 
-	const uint32_t file_count = lua_rawlen(a_state, -1);
+	ECSEntity parent = inst->GetSceneHierarchy().CreateEntity(float3(0, 0, 0), "Dungeon Map");
 
 	MemoryArenaScope(inst->GetMemory())
 	{
 		StaticArray<DungeonRoom> rooms = {};
-		rooms.Init(inst->GetMemory(), file_count - 1);
+		rooms.Init(inst->GetMemory(), file_count);
 
 		for (uint32_t i = 1; i < file_count; i++)
 		{
 			MemoryArenaTemp mem_scope = (inst->GetMemory());
-			lua_rawgeti(a_state, -1, i);
-			if (!lua_isstring(a_state, -1))
+			lua_rawgeti(a_state, 3, i);
+			if (!lua_isstring(a_state, 3))
 				return 0;
 
 			const char* file_name = lua_tostring(a_state, -1);
@@ -157,26 +423,25 @@ static int CreateMapTilesFromFiles(lua_State* a_state)
 			lua_pop(a_state, 1);
 		}
 
+		int2 spawn_point;
 		// generate the dungeon
+		ConstSlice<int> map = CreateMap(inst->GetMemory(), map_size_x, map_size_y, rooms.const_slice(), spawn_point);
+		CreateMapFloor(inst->GetMemory(), map, map_size_x, map_size_y, inst->GetSceneHierarchy(), parent);
+		CreateMapWalls(inst->GetMemory(), map, map_size_x, map_size_y, inst->GetSceneHierarchy(), parent);
 
-
+		lua_createtable(a_state, static_cast<int>(map.size()) + 1, 0);
+		for (size_t i = 0; i < map.size(); i++)
+		{
+			lua_pushinteger(a_state, map[i]);
+			lua_rawseti(a_state, -2, i + 1);
+		}
 	}
 
 
+	lua_pushbbhandle(a_state, parent.handle);
+    lua_setmetatable(a_state, -2);
 
-
-
-
-    lua_setmetatable(a_state, -1);
-
-    return 1;
-}
-
-static int CreateMapFromTiles(lua_State* a_state)
-{
-    const ECSEntity entity = ECSEntity(0);
-    lua_pushbbhandle(a_state, entity.handle);
-    return 1;
+    return 2;
 }
 
 // todo , fix this to be better
@@ -192,16 +457,12 @@ void BB::RegisterDungeonGameLibLuaFunctions(GameInstance& a_inst)
     const int top = lua_gettop(a_inst.GetLuaState());
     lua_pushlightuserdata(a_inst.GetLuaState(), &a_inst);
     RegisterLuaFunction(a_inst.GetLuaState(), CreateMapTilesFromFiles, "CreateMapTilesFromFiles");
-    RegisterLuaFunction(a_inst.GetLuaState(), CreateMapFromTiles, "CreateMapFromTiles");
     lua_settop(a_inst.GetLuaState(), top);
 }
 
 /*
 
-using QuadVerticesPos = FixedArray<float3, 4>;
-using QuadVerticesNormals = FixedArray<float3, 4>;
-using QuadVerticesUVs = FixedArray<float2, 4>;
-using QuadVerticesColors = FixedArray<float4, 4>;
+
 
 enum class BB::DUNGEON_TILE : uint32_t
 {

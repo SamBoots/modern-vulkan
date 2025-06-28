@@ -3,8 +3,6 @@ local Camera = camera_module.Camera
 local FreeCamera = camera_module.FreeCamera
 
 local map_module = require "map"
-local DungeonRoom = map_module.DungeonRoom
-local DungeonTile = map_module.DungeonTile
 local DungeonMap = map_module.DungeonMap
 
 local Player = {}
@@ -98,8 +96,7 @@ end
 map = nil
 
 function Init()
-    local room_arr = { DungeonRoomViaFile("rooms/map1.txt") }
-    map = DungeonMap.new(40, 40, room_arr)
+    map = DungeonMapViaFiles(40, 40, {"rooms/map1.txt"})
     
     player = Player.new(float3(map.spawn_x, 0, map.spawn_y), float3(0, 0, 1), 5)
 end
