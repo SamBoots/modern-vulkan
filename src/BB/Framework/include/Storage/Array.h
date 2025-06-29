@@ -486,9 +486,7 @@ namespace BB
 		void fill(const T& a_value)
 		{
 			for (size_t i = 0; i < m_capacity; i++)
-			{
 				new (&m_arr[i]) T(a_value);
-			}
 			m_size = m_capacity;
 		}
 

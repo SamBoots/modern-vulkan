@@ -61,13 +61,13 @@ static DungeonRoom CreateRoom(MemoryArena& a_temp_arena, const Buffer& a_buffer)
 	room.size_y = y;
 	room.tiles = {};
 
-	room.tiles.Init(a_temp_arena, static_cast<uint32_t>(x * y), static_cast<uint32_t>(x * y));
+	room.tiles.Init(a_temp_arena, static_cast<uint32_t>(x * y));
 
 	for (size_t i = 0; i < a_buffer.size; i++)
 	{
 		const int value = chars[i];
 		if (TileIsValid(value))
-			room.tiles[i] = value;
+			room.tiles.push_back(value);
 	}
 
 	return room;
@@ -79,6 +79,7 @@ static ConstSlice<int> CreateMap(MemoryArena& a_temp_arena, const int a_map_size
     // walkable
 	StaticArray<int> map = {};
 	map.Init(a_temp_arena, table_size, table_size);
+	map.fill(WALL_FIGURE);
 
     for (size_t i = 0; i < a_rooms.size(); i++)
     {
@@ -100,11 +101,14 @@ static ConstSlice<int> CreateMap(MemoryArena& a_temp_arena, const int a_map_size
             for (int x = start_pos_x; x < end_pos_x; x++)
             {
                 const uint32_t index = static_cast<size_t>(GetIFromXY(x, y, a_map_size_x));
-                const int tile = GetIFromXY(room_x++, room_y, room.size_x);
-
+                const int tile = room.tiles[GetIFromXY(room_x++, room_y, room.size_x)];
+				
                 if (TileIsValid(tile))
                 {
-					map[i] = tile;
+					const int map_index = GetIFromXY(x, y, a_map_size_x);
+					map[map_index] = tile;
+					if (tile == SPAWN_FIGURE)
+						a_spawn_point = int2(x, y);
                 }
                 else
                 {
@@ -151,10 +155,10 @@ static ECSEntity CreateMapFloor(MemoryArena& a_temp_arena, const ConstSlice<int>
 		StaticArray<float3> normals;
 		StaticArray<float2> uvs;
 		StaticArray<float4> colors;
-		positions.Init(a_temp_arena, a_map.size() * 4);
-		normals.Init(a_temp_arena, a_map.size() * 4);
-		uvs.Init(a_temp_arena, a_map.size() * 4);
-		colors.Init(a_temp_arena, a_map.size() * 4);
+		positions.Init(a_temp_arena, a_map.size() * 8);
+		normals.Init(a_temp_arena, a_map.size() * 8);
+		uvs.Init(a_temp_arena, a_map.size() * 8);
+		colors.Init(a_temp_arena, a_map.size() * 8);
 
 		float max_x = 0;
 		float max_y = 0;
@@ -166,7 +170,7 @@ static ECSEntity CreateMapFloor(MemoryArena& a_temp_arena, const ConstSlice<int>
 		{
 			for (int x = 0; x < a_size_x; x++)
 			{
-				const int& tile = GetIFromXY(x, y, a_size_x);
+				const int& tile = a_map[GetIFromXY(x, y, a_size_x)];
 				if (tile != WALL_FIGURE)
 				{
 					QuadVerticesPos quad_pos;
@@ -243,13 +247,13 @@ static float3 RotatePointOnPoint(const float3x3& a_rotation_matrix, const float3
 	return a_middle + res;
 }
 
-static bool IsTileWalkable(const ConstSlice<int> a_map, const int a_x, const int a_y, const int a_max_x, const int a_max_y)
+static bool IsTileWall(const ConstSlice<int> a_map, const int a_x, const int a_y, const int a_max_x, const int a_max_y)
 {
 	if (a_x >= a_max_x || a_y >= a_max_y || 0 > a_x || 0 > a_y)
 		return false;
 
-	const int& tile = GetIFromXY(a_x, a_y, a_max_x);
-	return tile != WALL_FIGURE;
+	const int& tile = a_map[GetIFromXY(a_x, a_y, a_max_x)];
+	return tile == WALL_FIGURE;
 }
 
 static ECSEntity CreateMapWalls(MemoryArena& a_temp_arena, const ConstSlice<int> a_map, const int a_size_x, const int a_size_y, SceneHierarchy& a_scene_hierarchy, const ECSEntity a_parent)
@@ -331,16 +335,16 @@ static ECSEntity CreateMapWalls(MemoryArena& a_temp_arena, const ConstSlice<int>
 		{
 			for (int x = 0; x < a_size_x; x++)
 			{
-				const int& tile = GetIFromXY(x, y, a_size_x);
+				const int& tile = a_map[GetIFromXY(x, y, a_size_x)];
 				if (tile != WALL_FIGURE)
 				{
-					if (!IsTileWalkable(a_map, x + 1, y, a_size_x, a_size_y))
+					if (IsTileWall(a_map, x + 1, y, a_size_x, a_size_y))
 						MakeWallSegment(x, y, float3(0.5f, 0.f, 0.f), float3(0.f, 0.f, 90.f));
-					if (!IsTileWalkable(a_map, x - 1, y, a_size_x, a_size_y))
+					if (IsTileWall(a_map, x - 1, y, a_size_x, a_size_y))
 						MakeWallSegment(x, y, float3(-0.5f, 0.f, 0.f), float3(0.f, 0.f, -90.f));
-					if (!IsTileWalkable(a_map, x, y + 1, a_size_x, a_size_y))
+					if (IsTileWall(a_map, x, y + 1, a_size_x, a_size_y))
 						MakeWallSegment(x, y, float3(0.f, 0.f, 0.5f), float3(-90.f, 0.f, 0.f));
-					if (!IsTileWalkable(a_map, x, y - 1, a_size_x, a_size_y))
+					if (IsTileWall(a_map, x, y - 1, a_size_x, a_size_y))
 						MakeWallSegment(x, y, float3(0.f, 0.f, -0.5f), float3(90.f, 0.f, 0.f));
 				}
 			}
@@ -400,17 +404,17 @@ static int CreateMapTilesFromFiles(lua_State* a_state)
 	const uint32_t file_count = lua_rawlen(a_state, 3);
 
 	ECSEntity parent = inst->GetSceneHierarchy().CreateEntity(float3(0, 0, 0), "Dungeon Map");
+	int2 spawn_point;
 
 	MemoryArenaScope(inst->GetMemory())
 	{
 		StaticArray<DungeonRoom> rooms = {};
 		rooms.Init(inst->GetMemory(), file_count);
 
-		for (uint32_t i = 1; i < file_count; i++)
+		for (uint32_t i = 1; i < file_count + 1; i++)
 		{
-			MemoryArenaTemp mem_scope = (inst->GetMemory());
 			lua_rawgeti(a_state, 3, i);
-			if (!lua_isstring(a_state, 3))
+			if (!lua_isstring(a_state, -1))
 				return 0;
 
 			const char* file_name = lua_tostring(a_state, -1);
@@ -423,7 +427,6 @@ static int CreateMapTilesFromFiles(lua_State* a_state)
 			lua_pop(a_state, 1);
 		}
 
-		int2 spawn_point;
 		// generate the dungeon
 		ConstSlice<int> map = CreateMap(inst->GetMemory(), map_size_x, map_size_y, rooms.const_slice(), spawn_point);
 		CreateMapFloor(inst->GetMemory(), map, map_size_x, map_size_y, inst->GetSceneHierarchy(), parent);
@@ -438,10 +441,12 @@ static int CreateMapTilesFromFiles(lua_State* a_state)
 	}
 
 
+	lua_pushinteger(a_state, spawn_point.x);
+	lua_pushinteger(a_state, spawn_point.y);
 	lua_pushbbhandle(a_state, parent.handle);
-    lua_setmetatable(a_state, -2);
-
-    return 2;
+    //int success = lua_setmetatable(a_state, -1);
+	//BB_ASSERT(success == LUA_OK, "settable failure");
+    return 3;
 }
 
 // todo , fix this to be better
