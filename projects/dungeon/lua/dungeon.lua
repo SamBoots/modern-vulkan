@@ -97,15 +97,15 @@ map = nil
 
 function Init()
     map = DungeonMapViaFiles(40, 40, {"rooms/map1.txt"})
-    
-    player = Player.new(float3(map.spawn_x, 0, map.spawn_y), float3(0, 0, 1), 5)
+    print(map.spawn_x, map.spawn_y)
+    player = Player.new(float3(map.spawn_x, 0.5, map.spawn_y), float3(0, 0, 1), 5)
 end
 
 function FreeCamMove(a_delta_time)
     local move_value_x, move_value_y = InputActionGetFloat2(camera_move)
     local player_move = float3(move_value_x, 0, move_value_y) * a_delta_time
     local wheel_move = InputActionGetFloat(move_speed_slider)
-            
+    
     free_cam:AddSpeed(wheel_move)
     free_cam:Move(player_move)
     local enable_rot = InputActionIsHeld(enable_rotate)
