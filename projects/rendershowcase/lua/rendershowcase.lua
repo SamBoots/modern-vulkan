@@ -2,7 +2,7 @@ local camera_module = require "camera"
 local Camera = camera_module.Camera
 local FreeCamera = camera_module.FreeCamera
 
-free_cam = FreeCamera.new(Camera.new(float3(0, 0.5, -0.5), float3(0, 0, -1), float3(1, 0, 0), float3(0, 1, 0)), 1)
+free_cam = FreeCamera.new(Camera.new(float3(0.8, 0.2, 0), float3(0, 0, -1), float3(1, 0, 0), float3(0, 1, 0)), 1)
 
 function GetCameraPos()
     return free_cam.camera.pos

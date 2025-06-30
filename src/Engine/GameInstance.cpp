@@ -54,7 +54,11 @@ bool GameInstance::InitLua()
     MemoryArenaScope(m_arena)
     {
         bool status = m_lua.LoadLuaDirectory(m_arena, lua_path.GetView());
-        BB_ASSERT(status, "something went wrong loading a lua directory");
+        if (!status)
+        {
+            SetDirty();
+            return false;
+        }
     }
 
     if (!Verify())
@@ -102,7 +106,7 @@ void GameInstance::Destroy()
 {
     m_lua.LoadAndCallFunction("Destroy", 1);
     bool success = lua_isboolean(m_lua.State(), -1);
-    BB_ASSERT(success, "something went wrong destroying game instance");
+    BB_WARNING(success, "something went wrong destroying game instance", WarningType::HIGH);
 }
 
 float3 GameInstance::GetCameraPos()

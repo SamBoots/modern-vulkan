@@ -81,7 +81,12 @@ bool LuaContext::LoadLuaDirectory(MemoryArena& a_temp_arena, const StringView& a
         path.push_directory_slash();
         path.append(lua_paths[i].GetView());
         bool status = LoadLuaFile(path.GetView());
-        BB_ASSERT(status == true, lua_tostring(m_state, -1));
+
+        if (!status)
+        {
+            BB_WARNING(false, lua_tostring(m_state, -1), WarningType::HIGH);
+            return false;
+        }
     }
 
     return true;
