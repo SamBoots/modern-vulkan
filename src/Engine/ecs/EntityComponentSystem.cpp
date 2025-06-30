@@ -9,6 +9,17 @@
 
 using namespace BB;
 
+constexpr ECSSignatureIndex SIGNATURES[] =
+{
+    RELATION_ECS_SIGNATURE,
+    NAME_ECS_SIGNATURE,
+    POSITION_ECS_SIGNATURE,
+    ROTATION_ECS_SIGNATURE,
+    SCALE_ECS_SIGNATURE,
+    LOCAL_MATRIX_ECS_SIGNATURE,
+    WORLD_MATRIX_ECS_SIGNATURE
+};
+
 bool EntityComponentSystem::Init(MemoryArena& a_arena, const EntityComponentSystemCreateInfo& a_create_info, const StackString<32> a_name)
 {
 	m_name = a_name;
@@ -67,18 +78,7 @@ ECSEntity EntityComponentSystem::CreateEntity(const NameComponent& a_name, const
 	const uint32_t res = m_transform_system.dirty_transforms.Insert(entity);
 	BB_ASSERT(res != SPARSE_SET_INVALID || res != SPARSE_SET_ALREADY_SET, "ecs entity can't be added to dirty transforms");
 
-	constexpr ECSSignatureIndex signatures[] =
-	{
-		RELATION_ECS_SIGNATURE,
-		NAME_ECS_SIGNATURE,
-		POSITION_ECS_SIGNATURE,
-		ROTATION_ECS_SIGNATURE,
-		SCALE_ECS_SIGNATURE,
-		LOCAL_MATRIX_ECS_SIGNATURE,
-		WORLD_MATRIX_ECS_SIGNATURE
-	};
-
-	success = m_ecs_entities.RegisterSignatures(entity, ConstSlice<const ECSSignatureIndex>(signatures, _countof(signatures)));
+	success = m_ecs_entities.RegisterSignatures(entity, ConstSlice<const ECSSignatureIndex>(SIGNATURES, _countof(SIGNATURES)));
 	BB_ASSERT(success, "ecs entity was not correctly deleted");
 
 	return entity;
@@ -130,6 +130,52 @@ ECSEntity EntityComponentSystem::SelectEntityByRay(const float3 a_ray_origin, co
     }
 
     return found;
+}
+
+bool EntityComponentSystem::DestroyEntity(const ECSEntity a_entity)
+{
+    if (!ValidateEntity(a_entity))
+        return false;
+
+    const EntityRelation relation = m_relations.GetComponent(a_entity);
+    ECSEntity child = relation.first_child;
+    for (size_t i = 0; i < relation.child_count; i++)
+    {
+        const EntityRelation child_relation = m_relations.GetComponent(child);
+        const ECSEntity next_child = child_relation.next;
+        DestroyEntity(child);
+        child = next_child;
+    }
+
+    if (m_ecs_entities.HasSignature(a_entity, RELATION_ECS_SIGNATURE))
+        m_relations.FreeComponent(a_entity);
+    if (m_ecs_entities.HasSignature(a_entity, NAME_ECS_SIGNATURE))
+        m_name_pool.FreeComponent(a_entity);
+    if (m_ecs_entities.HasSignature(a_entity, POSITION_ECS_SIGNATURE))
+        m_positions.FreeComponent(a_entity);
+    if (m_ecs_entities.HasSignature(a_entity, ROTATION_ECS_SIGNATURE))
+        m_rotations.FreeComponent(a_entity);
+    if (m_ecs_entities.HasSignature(a_entity, SCALE_ECS_SIGNATURE))
+        m_scales.FreeComponent(a_entity);
+    if (m_ecs_entities.HasSignature(a_entity, LOCAL_MATRIX_ECS_SIGNATURE))
+        m_local_matrices.FreeComponent(a_entity);
+    if (m_ecs_entities.HasSignature(a_entity, WORLD_MATRIX_ECS_SIGNATURE))
+        m_world_matrices.FreeComponent(a_entity);
+
+    if (m_ecs_entities.HasSignature(a_entity, RENDER_ECS_SIGNATURE))
+        m_render_mesh_pool.FreeComponent(a_entity);
+    if (m_ecs_entities.HasSignature(a_entity, LIGHT_ECS_SIGNATURE))
+        m_light_pool.FreeComponent(a_entity);
+    if (m_ecs_entities.HasSignature(a_entity, RAYTRACE_ECS_SIGNATURE))
+        m_raytrace_pool.FreeComponent(a_entity);
+    if (m_ecs_entities.HasSignature(a_entity, BOUNDING_BOX_ECS_SIGNATURE))
+        m_bounding_box_pool.FreeComponent(a_entity);
+
+    if (m_root_entity_system.root_entities.Find(a_entity.index))
+        m_root_entity_system.root_entities.Erase(a_entity);
+
+    
+    return m_ecs_entities.FreeEntity(a_entity);
 }
 
 void EntityComponentSystem::AddLinesToFrame(const ConstSlice<Line> a_lines)

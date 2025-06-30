@@ -7,6 +7,7 @@ namespace BB
     namespace luaapi
     {
         int ECSCreateEntity(lua_State* a_state);
+        int ECSDestroyEntity(lua_State* a_state);
         int ECSGetPosition(lua_State* a_state);
         int ECSSetPosition(lua_State* a_state);
         int ECSTranslate(lua_State* a_state);

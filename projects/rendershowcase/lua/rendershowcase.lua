@@ -45,3 +45,7 @@ function Update(a_delta_time, selected)
     free_cam:Update(a_delta_time)
     return true
 end
+
+function Destroy()
+    return ECSDestroyEntity(root_entity)
+end

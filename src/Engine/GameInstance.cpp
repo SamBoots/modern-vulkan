@@ -100,7 +100,9 @@ bool GameInstance::Update(const float a_delta_time, const bool a_selected)
 
 void GameInstance::Destroy()
 {
-
+    m_lua.LoadAndCallFunction("Destroy", 1);
+    bool success = lua_isboolean(m_lua.State(), -1);
+    BB_ASSERT(success, "something went wrong destroying game instance");
 }
 
 float3 GameInstance::GetCameraPos()
@@ -140,6 +142,8 @@ bool GameInstance::Verify()
         return false;
     if (!m_lua.VerifyGlobal("Update"))
         return false;
+    if (!m_lua.VerifyGlobal("Destroy"))
+        return false;
     if (!m_lua.VerifyGlobal("GetCameraPos"))
         return false;
     if (!m_lua.VerifyGlobal("GetCameraUp"))
@@ -151,6 +155,7 @@ bool GameInstance::Verify()
 
 bool GameInstance::Reload()
 {
+    Destroy();
     if (!m_lua.Reset())
         return false;
     m_dirty = false;
@@ -186,6 +191,7 @@ void GameInstance::RegisterLuaCFunctions()
     lua_pushlightuserdata(m_lua.State(), this);
 
     LoadECSFunction(m_lua.State(), LUA_FUNC_NAME(ECSCreateEntity));
+    LoadECSFunction(m_lua.State(), LUA_FUNC_NAME(ECSDestroyEntity));
     LoadECSFunction(m_lua.State(), LUA_FUNC_NAME(ECSGetPosition));
     LoadECSFunction(m_lua.State(), LUA_FUNC_NAME(ECSSetPosition));
     LoadECSFunction(m_lua.State(), LUA_FUNC_NAME(ECSTranslate));

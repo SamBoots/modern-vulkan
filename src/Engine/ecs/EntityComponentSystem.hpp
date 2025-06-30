@@ -30,6 +30,7 @@ namespace BB
 
         ECSEntity CreateEntity(const NameComponent& a_name = "#UNNAMED#", const ECSEntity& a_parent = INVALID_ECS_OBJ, const float3 a_position = float3(0.f), const float3x3 a_rotation = Float3x3Identity(), const float3 a_scale = float3(1.f));
         ECSEntity SelectEntityByRay(const float3 a_ray_origin, const float3 a_ray_dir);
+        bool DestroyEntity(const ECSEntity a_entity);
 
         void AddLinesToFrame(const ConstSlice<Line> a_lines);
         void DrawAABB(const ECSEntity a_entity, const LineColor a_color);

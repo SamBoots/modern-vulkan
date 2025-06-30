@@ -158,3 +158,6 @@ function Update(a_delta_time, selected)
     return true
 end
 
+function Destroy()
+    return ECSDestroyEntity(map.entity)
+end

@@ -28,6 +28,16 @@ int luaapi::ECSCreateEntity(lua_State* a_state)
     return 1;
 }
 
+int luaapi::ECSDestroyEntity(lua_State* a_state)
+{
+    const ECSEntity entity = ECSEntity(*lua_getbbhandle(a_state, 1));
+    GameInstance* inst = GetGameInstance(a_state);
+    bool success = inst->GetSceneHierarchy().GetECS().DestroyEntity(entity);
+
+    lua_pushboolean(a_state, success);
+    return 1;
+}
+
 int luaapi::ECSGetPosition(lua_State* a_state)
 {
     const ECSEntity entity = ECSEntity(*lua_getbbhandle(a_state, 1));
