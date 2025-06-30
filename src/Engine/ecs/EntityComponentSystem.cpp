@@ -171,7 +171,7 @@ bool EntityComponentSystem::DestroyEntity(const ECSEntity a_entity)
     if (m_ecs_entities.HasSignature(a_entity, BOUNDING_BOX_ECS_SIGNATURE))
         m_bounding_box_pool.FreeComponent(a_entity);
 
-    if (m_root_entity_system.root_entities.Find(a_entity.index))
+    if (m_root_entity_system.root_entities.Find(a_entity.index) != SPARSE_SET_INVALID)
         m_root_entity_system.root_entities.Erase(a_entity);
 
     
