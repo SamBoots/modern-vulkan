@@ -20,6 +20,7 @@ root_entity = nil
 
 function Init()
     root_entity = CreateEntityFromJson("scene.json")
+    return true
 end
 
 function SelectedUpdate(a_delta_time)
@@ -42,4 +43,5 @@ function Update(a_delta_time, selected)
     end
      
     free_cam:Update(a_delta_time)
+    return true
 end

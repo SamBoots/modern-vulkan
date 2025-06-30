@@ -17,9 +17,9 @@ constexpr int WALL_FIGURE = '#';
 constexpr int FREE_FIGURE = '.';
 constexpr int SPAWN_FIGURE = '@';
 
-static int GetIFromXY(int a_x, int a_y, int a_max_x)
+static size_t GetIFromXY(int a_x, int a_y, int a_max_x)
 {
-	return a_x + a_y * a_max_x;
+	return static_cast<size_t>(a_x + a_y * a_max_x);
 }
 
 struct DungeonRoom
@@ -48,19 +48,18 @@ static DungeonRoom CreateRoom(MemoryArena& a_temp_arena, const Buffer& a_buffer)
         {
             if (y == 0)
                 x = local_x;
-            ++y;
+            y++;
             BB_ASSERT(local_x == x, "map has unequal size_x on some dimensions");
             local_x = 0;
         }
         else if (TileIsValid(value))
             local_x++;
     }
-    
-    if (local_x > 0)
-        if (y == 0) x + local_x;
-            ++y;
 
-	DungeonRoom room;
+    if (local_x > 0)
+        y++;
+
+    DungeonRoom room{};
 	room.size_x = x;
 	room.size_y = y;
 	room.tiles = {};
@@ -79,7 +78,7 @@ static DungeonRoom CreateRoom(MemoryArena& a_temp_arena, const Buffer& a_buffer)
 
 static ConstSlice<int> CreateMap(MemoryArena& a_temp_arena, const int a_map_size_x, const int a_map_size_y, const ConstSlice<DungeonRoom> a_rooms, int2& a_spawn_point)
 {
-    const int table_size = a_map_size_x * a_map_size_y;
+    const uint32_t table_size = static_cast<uint32_t>(a_map_size_x * a_map_size_y);
     // walkable
 	StaticArray<int> map = {};
 	map.Init(a_temp_arena, table_size, table_size);
@@ -104,13 +103,11 @@ static ConstSlice<int> CreateMap(MemoryArena& a_temp_arena, const int a_map_size
         {
             for (int x = start_pos_x; x < end_pos_x; x++)
             {
-                const uint32_t index = static_cast<size_t>(GetIFromXY(x, y, a_map_size_x));
                 const int tile = room.tiles[GetIFromXY(room_x++, room_y, room.size_x)];
 				
                 if (TileIsValid(tile))
                 {
-					const int map_index = GetIFromXY(x, y, a_map_size_x);
-					map[map_index] = tile;
+					map[GetIFromXY(x, y, a_map_size_x)] = tile;
 					if (tile == SPAWN_FIGURE)
 						a_spawn_point = int2(x, y);
                 }
@@ -159,16 +156,16 @@ static ECSEntity CreateMapFloor(MemoryArena& a_temp_arena, const ConstSlice<int>
 		StaticArray<float3> normals;
 		StaticArray<float2> uvs;
 		StaticArray<float4> colors;
-		positions.Init(a_temp_arena, a_map.size() * 8);
-		normals.Init(a_temp_arena, a_map.size() * 8);
-		uvs.Init(a_temp_arena, a_map.size() * 8);
-		colors.Init(a_temp_arena, a_map.size() * 8);
+		positions.Init(a_temp_arena, static_cast<uint32_t>(a_map.size() * 4));
+		normals.Init(a_temp_arena, static_cast<uint32_t>(a_map.size() * 4));
+		uvs.Init(a_temp_arena, static_cast<uint32_t>(a_map.size() * 4));
+		colors.Init(a_temp_arena, static_cast<uint32_t>(a_map.size() * 4));
 
 		float max_x = 0;
 		float max_y = 0;
 
 		StaticArray<uint32_t> indices;
-		indices.Init(a_temp_arena, a_map.size() * 6);
+		indices.Init(a_temp_arena, static_cast<uint32_t>(a_map.size() * 6));
 		// optimize this
 		for (int y = 0; y < a_size_y; y++)
 		{
@@ -286,16 +283,16 @@ static ECSEntity CreateMapWalls(MemoryArena& a_temp_arena, const ConstSlice<int>
 	ECSEntity map_obj{};
 	MemoryArenaScope(a_temp_arena)
 	{
-		StaticArray<float3> positions;
-		StaticArray<float3> normals;
-		StaticArray<float2> uvs;
-		StaticArray<float4> colors;
-		positions.Init(a_temp_arena, a_map.size() * 4);
-		normals.Init(a_temp_arena, a_map.size() * 4);
-		uvs.Init(a_temp_arena, a_map.size() * 4);
-		colors.Init(a_temp_arena, a_map.size() * 4);
+        StaticArray<float3> positions{};
+        StaticArray<float3> normals{};
+        StaticArray<float2> uvs{};
+        StaticArray<float4> colors{};
+		positions.Init(a_temp_arena, static_cast<uint32_t>(a_map.size() * 4));
+		normals.Init(a_temp_arena, static_cast<uint32_t>(a_map.size() * 4));
+		uvs.Init(a_temp_arena, static_cast<uint32_t>(a_map.size() * 4));
+		colors.Init(a_temp_arena, static_cast<uint32_t>(a_map.size() * 4));
 		StaticArray<uint32_t> indices;
-		indices.Init(a_temp_arena, a_map.size() * 6);
+		indices.Init(a_temp_arena, static_cast<uint32_t>(a_map.size() * 6));
 
 		auto MakeWallSegment = [&](const int a_x, const int a_y, const float3 a_offset, const float3 a_rotation)
 			{
@@ -398,8 +395,8 @@ static int CreateMapTilesFromFiles(lua_State* a_state)
 {
     GameInstance* inst = GetGameInstance(a_state);
 
-	const uint32_t map_size_x = lua_tointeger(a_state, 1);
-	const uint32_t map_size_y = lua_tointeger(a_state, 2);
+	const int map_size_x = lua_tointeger(a_state, 1);
+	const int map_size_y = lua_tointeger(a_state, 2);
 
 	if (!lua_istable(a_state, 3))
 		return 0;
@@ -414,7 +411,7 @@ static int CreateMapTilesFromFiles(lua_State* a_state)
 		StaticArray<DungeonRoom> rooms = {};
 		rooms.Init(inst->GetMemory(), file_count);
 
-		for (uint32_t i = 1; i < file_count + 1; i++)
+		for (int i = 1; i < static_cast<int>(file_count + 1); i++)
 		{
 			lua_rawgeti(a_state, 3, i);
 			if (!lua_isstring(a_state, -1))
@@ -427,47 +424,27 @@ static int CreateMapTilesFromFiles(lua_State* a_state)
 			DungeonRoom room = CreateRoom(inst->GetMemory(), buffer);
 			rooms.emplace_back(room);
 
-            for (size_t y = 0; y < room.size_y; y++)
-            {
-                for (size_t x = 0; x < room.size_x; x++)
-                {
-                    printf("-%c-", room.tiles[GetIFromXY(x, y, room.size_x)]);
-                }
-                printf("\n");
-            }
-
 			lua_pop(a_state, 1);
 		}
 
 		// generate the dungeon
 		ConstSlice<int> map = CreateMap(inst->GetMemory(), map_size_x, map_size_y, rooms.const_slice(), spawn_point);
-		
-        for (size_t y = 0; y < map_size_y; y++)
-        {
-            for (size_t x = 0; x < map_size_x; x++)
-            {
-                printf("-%c-", map[GetIFromXY(x, y, map_size_x)]);
-            }
-            printf("\n");
-        }
-
         CreateMapFloor(inst->GetMemory(), map, map_size_x, map_size_y, inst->GetSceneHierarchy(), parent);
 		CreateMapWalls(inst->GetMemory(), map, map_size_x, map_size_y, inst->GetSceneHierarchy(), parent);
 
-		//lua_createtable(a_state, static_cast<int>(map.size()) + 1, 0);
-		//for (size_t i = 0; i < map.size(); i++)
-		//{
-		//	lua_pushinteger(a_state, map[i]);
-		//	lua_rawseti(a_state, -2, i + 1);
-		//}
+        const int table_size = static_cast<int>(map.size());
+		lua_createtable(a_state, table_size + 1, 0);
+		for (int i = 0; i < table_size; i++)
+		{
+			lua_pushinteger(a_state, map[static_cast<size_t>(i)]);
+			lua_rawseti(a_state, -2, i + 1);
+		}
 	}
 
 	lua_pushinteger(a_state, spawn_point.x);
 	lua_pushinteger(a_state, spawn_point.y);
 	lua_pushbbhandle(a_state, parent.handle);
-    //int success = lua_setmetatable(a_state, -1);
-	//BB_ASSERT(success == LUA_OK, "settable failure");
-    return 3;
+    return 4;
 }
 
 // todo , fix this to be better

@@ -23,36 +23,7 @@ namespace BB
 
 		void StartFrame(MemoryArena& a_arena, const Slice<InputEvent> a_input_events, const float a_delta_time);
 
-		template<typename viewport_interface>
-		requires is_interactable_viewport_interface<viewport_interface>
-		ThreadTask UpdateViewport(MemoryArena& a_arena, const float a_delta_time, viewport_interface& a_game_interface)
-		{
-			(void)a_arena;
-			Viewport& viewport = a_game_interface.GetViewport();
-			SceneHierarchy& hierarchy = a_game_interface.GetSceneHierarchy();
-
-			if (!m_swallow_input && viewport.PositionWithinViewport(uint2(static_cast<unsigned int>(m_previous_mouse_pos.x), static_cast<unsigned int>(m_previous_mouse_pos.y))))
-			{
-                UpdateGizmo(viewport, hierarchy, a_game_interface.GetCameraPos());
-                a_game_interface.Update(a_delta_time, true);
-			}
-            else
-            {
-                a_game_interface.Update(a_delta_time, false);
-            }
-
-			ImguiDisplayECS(hierarchy.m_ecs);
-            ImGuiDisplayInputChannel(a_game_interface.GetInputChannel());
-
-			ThreadFuncForDrawing_Params params =
-			{
-				*this,
-				viewport,
-				hierarchy
-			};
-
-			return Threads::StartTaskThread(ThreadFuncForDrawing, &params, sizeof(params), L"scene draw task");
-		}
+        ThreadTask UpdateGameInstance(MemoryArena& a_arena, const float a_delta_time, class GameInstance& a_game);
 		void EndFrame(MemoryArena& a_arena);
 
 		bool ResizeWindow(const uint2 a_window);
@@ -61,8 +32,8 @@ namespace BB
 		struct ThreadFuncForDrawing_Params
 		{
 			Editor& editor;
-			Viewport& viewport;
-			SceneHierarchy& scene_hierarchy;
+            float delta_time;
+            class GameInstance& instance;
 		};
 
 		bool DrawImgui(const RDescriptorIndex a_render_target, SceneHierarchy& a_hierarchy, Viewport& a_viewport);
@@ -80,7 +51,7 @@ namespace BB
 
 		void MainEditorImGuiInfo(const MemoryArena& a_arena);
 		static void ThreadFuncForDrawing(MemoryArena& a_thread_arena, void* a_param);
-		void DrawScene(Viewport& a_viewport, SceneHierarchy& a_hierarchy);
+		void UpdateGame(class GameInstance& a_instance, const float a_delta_time);
         void UpdateGizmo(Viewport& a_viewport, SceneHierarchy& a_hierarchy, const float3 a_cam_pos);
 
 		uint2 m_app_window_extent;

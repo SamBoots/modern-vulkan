@@ -103,3 +103,36 @@ bool LuaContext::AddIncludePath(const StringView a_path)
     lua_setfield(m_state, -2, "path");
     return true;
 }
+
+bool LuaContext::LoadAndCallFunction(const char* a_function, const int a_nresults)
+{
+    if (!LoadFunction(a_function))
+        return false;
+    return CallFunction(0, a_nresults);
+}
+
+bool LuaContext::LoadFunction(const char* a_function)
+{
+    return VerifyGlobal(a_function);
+}
+
+bool LuaContext::CallFunction(const int a_nargs, const int a_nresults)
+{
+    int status = lua_pcall(m_state, a_nargs, a_nresults, 0);
+    if (status == LUA_OK)
+        return true;
+
+    BB_WARNING(false, lua_tostring(m_state, -1), WarningType::HIGH);
+
+    return false;
+}
+
+bool LuaContext::VerifyGlobal(const char* a_function)
+{
+    if (lua_getglobal(m_state, a_function) == LUA_TNIL)
+    {
+        BB_WARNING(false, a_function, WarningType::HIGH);
+        return false;
+    }
+    return true;
+}

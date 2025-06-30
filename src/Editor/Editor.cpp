@@ -4,6 +4,8 @@
 #include "BBThreadScheduler.hpp"
 #include "Math/Math.inl"
 
+#include "GameInstance.hpp"
+
 #include "ProfilerWindow.hpp"
 
 #include "ImGuiImpl.hpp"
@@ -114,12 +116,12 @@ void Editor::MainEditorImGuiInfo(const MemoryArena& a_arena)
 void Editor::ThreadFuncForDrawing(MemoryArena&, void* a_param)
 {
 	ThreadFuncForDrawing_Params* params = reinterpret_cast<ThreadFuncForDrawing_Params*>(a_param);
-	params->editor.DrawScene(params->viewport, params->scene_hierarchy);
+	params->editor.UpdateGame(params->instance, params->delta_time);
 }
 
-void Editor::DrawScene(Viewport& a_viewport, SceneHierarchy& a_hierarchy)
+void Editor::UpdateGame(GameInstance& a_instance, const float a_delta_time)
 {
-	const uint32_t pool_index = m_per_frame.current_count.fetch_add(1, std::memory_order_seq_cst);
+	const uint32_t pool_index = m_per_frame.current_count.fetch_add(1, std::memory_order_relaxed);
 
 	CommandPool& pool = m_per_frame.pools[pool_index];
 	RCommandList& list = m_per_frame.lists[pool_index];
@@ -130,11 +132,22 @@ void Editor::DrawScene(Viewport& a_viewport, SceneHierarchy& a_hierarchy)
 		list = pool.StartCommandList();
 	}
 
-	const SceneFrame frame = a_hierarchy.UpdateScene(list, a_viewport);
+    Viewport& viewport = a_instance.GetViewport();
+    SceneHierarchy& hierarchy = a_instance.GetSceneHierarchy();
+
+    if (!m_swallow_input && viewport.PositionWithinViewport(uint2(static_cast<unsigned int>(m_previous_mouse_pos.x), static_cast<unsigned int>(m_previous_mouse_pos.y))))
+    {
+        UpdateGizmo(viewport, hierarchy, a_instance.GetCameraPos());
+        a_instance.Update(a_delta_time, true);
+    }
+    else
+        a_instance.Update(a_delta_time, false);
+
+	const SceneFrame frame = hierarchy.UpdateScene(list, viewport);
 
 	// book keep all the end details
-	m_per_frame.scene_hierachies[pool_index] = &a_hierarchy;
-	m_per_frame.viewports[pool_index] = &a_viewport;
+	m_per_frame.scene_hierachies[pool_index] = &a_instance.GetSceneHierarchy();
+	m_per_frame.viewports[pool_index] = &a_instance.GetViewport();
 	m_per_frame.fences[pool_index] = frame.render_frame.fence;
 	m_per_frame.fence_values[pool_index] = frame.render_frame.fence_value;
 	m_per_frame.frame_results[pool_index] = frame;
@@ -305,6 +318,21 @@ void Editor::StartFrame(MemoryArena& a_arena, const Slice<InputEvent> a_input_ev
 
 	ImGuiShowProfiler(a_arena);
 	m_console.ImGuiShowConsole(a_arena, m_app_window_extent);
+}
+
+ThreadTask Editor::UpdateGameInstance(MemoryArena& a_arena, const float a_delta_time, class GameInstance& a_game)
+{
+    ThreadFuncForDrawing_Params params =
+    {
+        *this,
+        a_delta_time,
+        a_game
+    };
+
+    ImguiDisplayECS(a_game.GetSceneHierarchy().m_ecs);
+    ImGuiDisplayInputChannel(a_game.GetInputChannel());
+
+    return Threads::StartTaskThread(ThreadFuncForDrawing, &params, sizeof(params), L"scene draw task");
 }
 
 void Editor::EndFrame(MemoryArena& a_arena)

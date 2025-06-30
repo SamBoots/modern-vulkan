@@ -52,22 +52,34 @@ bool GameInstance::Init(const uint2 a_game_viewport_size, const StringView a_pro
     if (!Verify())
         return false;
 
-    lua_getglobal(m_lua.State(), "Init");
-    int status = lua_pcall(m_lua.State(), 0, 0, 0);
-    BB_ASSERT(status == LUA_OK, lua_tostring(m_lua.State(), -1));
+    m_lua.LoadAndCallFunction("Init", 1);
+    const bool init_success = lua_toboolean(m_lua.State(), -1);
 
-    return true;
+    if (init_success)
+        return true;
+
+    SetDirty();
+    return false;
 }
 
 bool GameInstance::Update(const float a_delta_time, const bool a_selected)
 {
+    if (m_dirty)
+        return false;
+
     const LuaStackScope scope(m_lua.State());
 
-    lua_getglobal(m_lua.State(), "Update");
+    m_lua.LoadFunction("Update");
     lua_pushnumber(m_lua.State(), static_cast<lua_Number>(a_delta_time));
     lua_pushboolean(m_lua.State(), a_selected);
-    int status = lua_pcall(m_lua.State(), 2, 0, 0);
-    BB_ASSERT(status == LUA_OK, lua_tostring(m_lua.State(), -1));
+    m_lua.CallFunction(2, 1);
+    const bool update_success = lua_toboolean(m_lua.State(), -1);
+
+    if (!update_success)
+    {
+        SetDirty();
+        return false;
+    }
 
     const float3 pos = GetCameraPos();
     const float4x4 view = GetCameraView();
@@ -82,20 +94,22 @@ void GameInstance::Destroy()
 
 float3 GameInstance::GetCameraPos()
 {
+    if (m_dirty)
+        return float3();
     const LuaStackScope scope(m_lua.State());
-    lua_getglobal(m_lua.State(), "GetCameraPos");
-    lua_pcall(m_lua.State(), 0, 1, 0);
+    m_lua.LoadAndCallFunction("GetCameraPos", 1);
     return *lua_getfloat3(m_lua.State(), -1);
 }
 
 float4x4 GameInstance::GetCameraView()
 {
+    if (m_dirty)
+        return float4x4();
+    const LuaStackScope scope(m_lua.State());
     const float3 pos = GetCameraPos();
-    lua_getglobal(m_lua.State(), "GetCameraUp");
-    BB_ASSERT(lua_pcall(m_lua.State(), 0, 1, 0) == LUA_OK, lua_tostring(m_lua.State(), -1));
+    m_lua.LoadAndCallFunction("GetCameraUp", 1);
     const float3 up = *lua_getfloat3(m_lua.State(), -1);
-    lua_getglobal(m_lua.State(), "GetCameraForward");
-    BB_ASSERT(lua_pcall(m_lua.State(), 0, 1, 0) == LUA_OK, lua_tostring(m_lua.State(), -1));
+    m_lua.LoadAndCallFunction("GetCameraForward", 1);
     const float3 forward = *lua_getfloat3(m_lua.State(), -1);
 
     return Float4x4Lookat(pos, pos + forward, up);
@@ -108,38 +122,31 @@ lua_State* GameInstance::GetLuaState()
 
 bool GameInstance::Verify()
 {
+    if (m_dirty)
+        return false;
     const LuaStackScope scope(m_lua.State());
-    int status = lua_getglobal(m_lua.State(), "Init");
-    if (status == LUA_TNIL)
-    {
-        BB_WARNING(false, "lua couldn't get global function Init", WarningType::HIGH);
+    if (!m_lua.VerifyGlobal("Init"))
         return false;
-    }
-    status = lua_getglobal(m_lua.State(), "Update");
-    if (status == LUA_TNIL)
-    {
-        BB_WARNING(false, "lua couldn't get global function Update", WarningType::HIGH);
+    if (!m_lua.VerifyGlobal("Update"))
         return false;
-    }
-    status = lua_getglobal(m_lua.State(), "GetCameraPos");
-    if (status == LUA_TNIL)
-    {
-        BB_WARNING(false, "lua couldn't get global function GetCameraPos", WarningType::HIGH);
+    if (!m_lua.VerifyGlobal("GetCameraPos"))
         return false;
-    }
-    status = lua_getglobal(m_lua.State(), "GetCameraUp");
-    if (status == LUA_TNIL)
-    {
-        BB_WARNING(false, "lua couldn't get global function GetCameraUp", WarningType::HIGH);
+    if (!m_lua.VerifyGlobal("GetCameraUp"))
         return false;
-    }
-    status = lua_getglobal(m_lua.State(), "GetCameraForward");
-    if (status == LUA_TNIL)
-    {
-        BB_WARNING(false, "lua couldn't get global function GetCameraForward", WarningType::HIGH);
+    if (!m_lua.VerifyGlobal("GetCameraForward"))
         return false;
-    }
     return true;
+}
+
+bool GameInstance::IsDirty()
+{
+    return m_dirty;
+}
+
+void GameInstance::SetDirty()
+{
+    BB_WARNING(false, "Game Instance set to dirty", WarningType::HIGH);
+    m_dirty = true;
 }
 
 static void LoadECSFunction(lua_State* a_state, const lua_CFunction a_function, const char* a_func_name)

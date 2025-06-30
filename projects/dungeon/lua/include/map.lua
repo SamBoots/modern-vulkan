@@ -16,10 +16,8 @@ function DungeonMap.new(a_size_x, a_size_y, a_tiles, a_entity, a_spawn_x, a_spaw
 end
 
 function DungeonMapViaFiles(a_map_size_x, a_map_size_y, a_room_names)
-    spawn_x, spawn_y, entity = CreateMapTilesFromFiles(a_map_size_x, a_map_size_y, a_room_names)
-            print(spawn_x, spawn_y)
-    map = DungeonMap.new(a_map_size_x, a_map_size_y, nil, entity, spawn_x, spawn_y)
-        print(map.spawn_x, map.spawn_y)
+    tiles, spawn_x, spawn_y, entity = CreateMapTilesFromFiles(a_map_size_x, a_map_size_y, a_room_names)
+    map = DungeonMap.new(a_map_size_x, a_map_size_y, tiles, entity, spawn_x, spawn_y)
 
     return map
 end

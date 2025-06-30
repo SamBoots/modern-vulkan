@@ -17,6 +17,11 @@ namespace BB
         bool RegisterActionHandlesLua(const InputChannelHandle a_channel);
         bool AddIncludePath(const StringView a_path);
 
+        bool LoadFunction(const char* a_function);
+        bool LoadAndCallFunction(const char* a_function, const int a_nresults);
+        bool CallFunction(const int a_nargs, const int a_nresults);
+        bool VerifyGlobal(const char* a_function);
+
         lua_State*& State() { return m_state; }
 
     private:

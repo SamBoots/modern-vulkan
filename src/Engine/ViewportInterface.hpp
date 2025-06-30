@@ -33,14 +33,4 @@ namespace BB
 		uint2 m_extent;
 		int2 m_offset;
 	};
-
-	template <typename T>
-	concept is_interactable_viewport_interface = requires(T v, const float a_delta_time, const bool a_selected)
-	{
-		{ v.Update(a_delta_time, a_selected) } -> std::same_as<bool>;
-		{ v.GetViewport() } -> std::same_as<BB::Viewport&>;
-        { v.GetInputChannel() } -> std::same_as<BB::InputChannelHandle>;
-        { v.GetCameraPos() } -> std::same_as<BB::float3>;
-        { v.GetMemory() } -> std::same_as<MemoryArena&>;
- 	};
 }

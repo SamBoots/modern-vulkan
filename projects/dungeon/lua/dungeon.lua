@@ -97,8 +97,8 @@ map = nil
 
 function Init()
     map = DungeonMapViaFiles(40, 40, {"rooms/map1.txt"})
-    print(map.spawn_x, map.spawn_y)
     player = Player.new(float3(map.spawn_x, 0.5, map.spawn_y), float3(0, 0, 1), 5)
+    return true
 end
 
 function FreeCamMove(a_delta_time)
@@ -154,5 +154,7 @@ function Update(a_delta_time, selected)
     end
 
     player:Update(a_delta_time)
+
+    return true
 end
 

@@ -17,6 +17,9 @@ namespace BB
 
         bool Verify();
 
+        bool IsDirty();
+        void SetDirty();
+
         float3 GetCameraPos();
         float4x4 GetCameraView();
         Viewport& GetViewport() { return m_viewport; }
@@ -28,6 +31,8 @@ namespace BB
 
     private:
         void RegisterLuaCFunctions();
+
+        bool m_dirty = false;
 
         MemoryArena m_arena;
         Viewport m_viewport;
