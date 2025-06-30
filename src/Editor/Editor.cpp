@@ -134,23 +134,26 @@ void Editor::UpdateGame(GameInstance& a_instance, const float a_delta_time)
 
     Viewport& viewport = a_instance.GetViewport();
     SceneHierarchy& hierarchy = a_instance.GetSceneHierarchy();
-
+    bool success;
     if (!m_swallow_input && viewport.PositionWithinViewport(uint2(static_cast<unsigned int>(m_previous_mouse_pos.x), static_cast<unsigned int>(m_previous_mouse_pos.y))))
     {
         UpdateGizmo(viewport, hierarchy, a_instance.GetCameraPos());
-        a_instance.Update(a_delta_time, true);
+        success = a_instance.Update(a_delta_time, true);
     }
     else
-        a_instance.Update(a_delta_time, false);
+        success = a_instance.Update(a_delta_time, false);
 
 	const SceneFrame frame = hierarchy.UpdateScene(list, viewport);
 
 	// book keep all the end details
-	m_per_frame.scene_hierachies[pool_index] = &a_instance.GetSceneHierarchy();
-	m_per_frame.viewports[pool_index] = &a_instance.GetViewport();
+	m_per_frame.draw_struct[pool_index].type = DRAW_TYPE::GAME;
+    m_per_frame.draw_struct[pool_index].game = &a_instance;
 	m_per_frame.fences[pool_index] = frame.render_frame.fence;
 	m_per_frame.fence_values[pool_index] = frame.render_frame.fence_value;
 	m_per_frame.frame_results[pool_index] = frame;
+    m_per_frame.success[pool_index] = success;
+    if (!success)
+        m_per_frame.error_message[pool_index] = StackString<64>("Game Instance: Lua is dirty!");
 }
 
 void Editor::UpdateGizmo(Viewport& a_viewport, SceneHierarchy& a_scene_hierarchy, const float3 a_cam_pos)
@@ -355,7 +358,49 @@ void Editor::EndFrame(MemoryArena& a_arena)
 
 		for (size_t i = 0; i < m_per_frame.current_count; i++)
 		{
-			DrawImgui(m_per_frame.frame_results[i].render_frame.render_target, *m_per_frame.scene_hierachies[i], *m_per_frame.viewports[i]);
+            DrawStruct& ds = m_per_frame.draw_struct[i];
+            if (ds.type == DRAW_TYPE::GAME)
+            {
+                GameInstance& game_inst = *ds.game;
+                if (m_per_frame.success[i])
+                {
+                    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+                    if (ImGui::Begin(game_inst.GetSceneHierarchy().GetECS().GetName().c_str(), nullptr, ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoScrollbar))
+                    {
+                        if (ImGui::BeginMenuBar())
+                        {
+                            if (ImGui::BeginMenu("screenshot"))
+                            {
+                                static char image_name[128]{};
+                                ImGui::InputText("sceenshot name", image_name, 128);
+
+                                if (ImGui::Button("make screenshot"))
+                                    game_inst.GetSceneHierarchy().GetECS().GetRenderSystem().Screenshot(image_name);
+
+                                ImGui::EndMenu();
+                            }
+                            if (ImGui::Button("reload lua"))
+                                game_inst.Reload();
+                            ImGui::EndMenuBar();
+                        }
+                        DrawImgui(m_per_frame.frame_results[i].render_frame.render_target, game_inst.GetSceneHierarchy(), game_inst.GetViewport());
+                    }
+                    ImGui::End();
+                    ImGui::PopStyleVar();
+                }
+                else
+                {
+                    if (ImGui::Begin(game_inst.GetSceneHierarchy().GetECS().GetName().c_str()))
+                    {
+                        ImGui::TextUnformatted(m_per_frame.error_message[i].c_str());
+                        if (ImGui::Button("Reload lua"))
+                            game_inst.Reload();
+                    }
+                    ImGui::End();
+                }
+            }
+
+
 		}
 
 		// CURFRAME = the render internal frame
@@ -434,49 +479,28 @@ bool Editor::ResizeWindow(const uint2 a_window)
 bool Editor::DrawImgui(const RDescriptorIndex a_render_target, SceneHierarchy& a_hierarchy, Viewport& a_viewport)
 {
 	bool rendered_image = false;
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-	if (ImGui::Begin(a_hierarchy.GetECS().GetName().c_str(), nullptr, ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoScrollbar))
+	ImGuiIO im_io = ImGui::GetIO();
+
+	constexpr uint2 MINIMUM_WINDOW_SIZE = uint2(80, 80);
+
+	const ImVec2 viewport_offset = ImGui::GetWindowPos();
+	const ImVec2 viewport_draw_area = ImGui::GetContentRegionAvail();
+    const ImVec2 viewport_size = ImGui::GetWindowSize();
+    const uint2 window_size_u = uint2(static_cast<unsigned int>(viewport_size.x), static_cast<unsigned int>(viewport_size.y));
+	if (window_size_u.x < MINIMUM_WINDOW_SIZE.x || window_size_u.y < MINIMUM_WINDOW_SIZE.y)
 	{
-		if (ImGui::BeginMenuBar())
-		{
-			if (ImGui::BeginMenu("screenshot"))
-			{
-				static char image_name[128]{};
-				ImGui::InputText("sceenshot name", image_name, 128);
-
-				if (ImGui::Button("make screenshot"))
-					a_hierarchy.GetECS().GetRenderSystem().Screenshot(image_name);
-
-				ImGui::EndMenu();
-			}
-			ImGui::EndMenuBar();
-		}
-
-		ImGuiIO im_io = ImGui::GetIO();
-
-		constexpr uint2 MINIMUM_WINDOW_SIZE = uint2(80, 80);
-
-		const ImVec2 viewport_offset = ImGui::GetWindowPos();
-		const ImVec2 viewport_draw_area = ImGui::GetContentRegionAvail();
-        const ImVec2 viewport_size = ImGui::GetWindowSize();
-        const uint2 window_size_u = uint2(static_cast<unsigned int>(viewport_size.x), static_cast<unsigned int>(viewport_size.y));
-		if (window_size_u.x < MINIMUM_WINDOW_SIZE.x || window_size_u.y < MINIMUM_WINDOW_SIZE.y)
-		{
-			ImGui::End();
-            ImGui::PopStyleVar();
-			return false;
-		}
-		if (window_size_u != a_viewport.GetExtent() && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
-		{
-			a_viewport.SetExtent(window_size_u);
-		}
-		a_viewport.SetOffset(int2(static_cast<int>(viewport_offset.x), static_cast<int>(viewport_offset.y)));
-
-		ImGui::Image(a_render_target.handle, viewport_draw_area);
-		rendered_image = true;
+		ImGui::End();
+        ImGui::PopStyleVar();
+		return false;
 	}
-	ImGui::End();
-    ImGui::PopStyleVar();
+	if (window_size_u != a_viewport.GetExtent() && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
+	{
+		a_viewport.SetExtent(window_size_u);
+	}
+	a_viewport.SetOffset(int2(static_cast<int>(viewport_offset.x), static_cast<int>(viewport_offset.y)));
+
+	ImGui::Image(a_render_target.handle, viewport_draw_area);
+	rendered_image = true;
 
 	return rendered_image;
 }

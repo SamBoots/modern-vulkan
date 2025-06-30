@@ -28,8 +28,19 @@ bool GameInstance::Init(const uint2 a_game_viewport_size, const StringView a_pro
     m_scene_hierarchy.Init(m_arena, STANDARD_ECS_OBJ_COUNT, a_game_viewport_size, a_project_name);
 
     m_viewport.Init(a_game_viewport_size, int2(0, 0), a_project_name);
+    if (a_register_funcs.size())
+        m_plugin_functions.Init(m_arena, a_register_funcs.size());
+
+    for (size_t i = 0; i < a_register_funcs.size(); i++)
+        m_plugin_functions.push_back(a_register_funcs[i]);
 
     m_lua.Init(m_arena, gbSize);
+
+    return InitLua();
+}
+
+bool GameInstance::InitLua()
+{
     RegisterLuaCFunctions();
     m_lua.RegisterActionHandlesLua(m_input_channel);
 
@@ -40,9 +51,6 @@ bool GameInstance::Init(const uint2 a_game_viewport_size, const StringView a_pro
     lua_include_path.append("include\\?.lua");
     m_lua.AddIncludePath(lua_include_path.GetView());
 
-    for (size_t i = 0; i < a_register_funcs.size(); i++)
-        a_register_funcs[i](*this);
-
     MemoryArenaScope(m_arena)
     {
         bool status = m_lua.LoadLuaDirectory(m_arena, lua_path.GetView());
@@ -52,15 +60,18 @@ bool GameInstance::Init(const uint2 a_game_viewport_size, const StringView a_pro
     if (!Verify())
         return false;
 
+    for (size_t i = 0; i < m_plugin_functions.size(); i++)
+        m_plugin_functions[i](*this);
+
     m_lua.LoadAndCallFunction("Init", 1);
     const bool init_success = lua_toboolean(m_lua.State(), -1);
-
     if (init_success)
         return true;
 
     SetDirty();
     return false;
 }
+
 
 bool GameInstance::Update(const float a_delta_time, const bool a_selected)
 {
@@ -138,7 +149,16 @@ bool GameInstance::Verify()
     return true;
 }
 
-bool GameInstance::IsDirty()
+bool GameInstance::Reload()
+{
+    if (!m_lua.Reset())
+        return false;
+    m_dirty = false;
+
+    return InitLua();
+}
+
+bool GameInstance::IsDirty() const
 {
     return m_dirty;
 }

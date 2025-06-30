@@ -12,6 +12,7 @@ namespace BB
     {
     public:
         bool Init(MemoryArena& a_arena, const size_t a_lua_mem_size);
+        bool Reset();
         bool LoadLuaFile(const StringView& a_file_path);
         bool LoadLuaDirectory(MemoryArena& a_temp_arena, const StringView& a_file_path);
         bool RegisterActionHandlesLua(const InputChannelHandle a_channel);
@@ -25,6 +26,7 @@ namespace BB
         lua_State*& State() { return m_state; }
 
     private:
+        void RegisterLua();
         lua_State* m_state = nullptr;
         FreelistInterface m_allocator;
     };

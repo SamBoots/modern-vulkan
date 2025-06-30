@@ -31,11 +31,8 @@ static void* LuaAlloc(void* a_user_data, void* a_ptr, const size_t a_old_size, c
     return nullptr;
 }
 
-bool LuaContext::Init(MemoryArena& a_arena, const size_t a_lua_mem_size)
+void LuaContext::RegisterLua()
 {
-    if (m_state != nullptr)
-        return false;
-    m_allocator.Initialize(a_arena, a_lua_mem_size);
     m_state = luaL_newstate();
 
     luaL_openlibs(m_state);
@@ -45,7 +42,23 @@ bool LuaContext::Init(MemoryArena& a_arena, const size_t a_lua_mem_size)
     PathString lua_path = Asset::GetAssetPath();
     lua_path.append("lua\\?.lua");
     AddIncludePath(lua_path.GetView());
+}
 
+bool LuaContext::Init(MemoryArena& a_arena, const size_t a_lua_mem_size)
+{
+    if (m_state != nullptr)
+        return false;
+    m_allocator.Initialize(a_arena, a_lua_mem_size);
+    RegisterLua();
+    return true;
+}
+
+bool LuaContext::Reset()
+{
+    if (m_state == nullptr)
+        return false;
+    lua_close(m_state);
+    RegisterLua();
     return true;
 }
 

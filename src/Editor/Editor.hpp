@@ -60,15 +60,30 @@ namespace BB
 		RImage m_render_target;
 		FixedArray<RDescriptorIndex, 3> m_render_target_descs;
 
+        enum class DRAW_TYPE
+        {
+            GAME
+        };
+
+        struct DrawStruct
+        {
+            DRAW_TYPE type;
+            union
+            {
+                class GameInstance* game = nullptr;
+            };
+        };
+
 		struct PerFrameInfo
 		{
 			FixedArray<CommandPool, 8> pools;
 			FixedArray<RCommandList, 8> lists;
-			FixedArray<SceneHierarchy*, 8> scene_hierachies;
-			FixedArray<Viewport*, 8> viewports;
+			FixedArray<DrawStruct, 8> draw_struct;
 			FixedArray<RFence, 8> fences;
 			FixedArray<uint64_t, 8> fence_values;
 			FixedArray<SceneFrame, 8> frame_results;
+            FixedArray<bool, 8> success;
+            FixedArray<StackString<64>, 8> error_message;
 
 			std::atomic<uint32_t> current_count = 0;
 			uint32_t back_buffer_index;

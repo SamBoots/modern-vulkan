@@ -17,7 +17,8 @@ namespace BB
 
         bool Verify();
 
-        bool IsDirty();
+        bool Reload();
+        bool IsDirty() const;
         void SetDirty();
 
         float3 GetCameraPos();
@@ -30,6 +31,7 @@ namespace BB
         struct lua_State* GetLuaState();
 
     private:
+        bool InitLua();
         void RegisterLuaCFunctions();
 
         bool m_dirty = false;
@@ -40,5 +42,6 @@ namespace BB
         LuaContext m_lua;
         InputChannelHandle m_input_channel;
         PathString m_project_path;
+        StaticArray<PFN_LuaPluginRegisterFunctions> m_plugin_functions;
     };
 }

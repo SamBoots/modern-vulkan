@@ -1958,6 +1958,8 @@ const Model& Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoad
 	else
 		asset.icon_index = 0;
 
+    asset.finished_loading = true;
+
 	return *asset.model;
 }
 
