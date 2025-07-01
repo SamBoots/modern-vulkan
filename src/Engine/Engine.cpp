@@ -18,7 +18,7 @@
 using namespace BB;
 
 static EngineConfig engine_config;
-static PathString s_root_path;
+static char s_root_path[PathString::capacity()];
 static bool s_window_closed = false;
 static bool s_resize_app = false;
 
@@ -61,7 +61,9 @@ EngineInfo BB::InitEngine(MemoryArena& a_arena, const wchar* a_app_name, const E
     // really improve on this directory shit
     const size_t first_slash = exe_path.find_last_of_directory_slash();
     const size_t src_slash = exe_path.GetView(first_slash).find_last_of_directory_slash();
-    s_root_path = PathString(exe_path.c_str(), src_slash);
+    PathString root_path = PathString(exe_path.c_str(), src_slash);
+    BB_ASSERT(root_path.size() < _countof(s_root_path), "root path is too big!");
+    memcpy(s_root_path, root_path.c_str(), root_path.size());
 
     SystemInfo sys_info;
     OSSystemInfo(sys_info);
@@ -178,5 +180,5 @@ const char* BB::GetExePath()
 
 const StringView BB::GetRootPath()
 {
-    return s_root_path.GetView();
+    return StringView(s_root_path);
 }

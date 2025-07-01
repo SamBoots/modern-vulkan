@@ -22,7 +22,6 @@ void* FreelistInterface::Alloc(size_t a_size, size_t a_alignment)
 {
 	FreeBlock* previous_free = nullptr;
 	FreeBlock* free_block = m_free_blocks;
-
 	while (free_block != nullptr)
 	{
 		size_t adjustment = Pointer::AlignForwardAdjustmentHeader(free_block, a_alignment, sizeof(AllocHeader));

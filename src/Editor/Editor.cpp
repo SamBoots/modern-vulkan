@@ -642,6 +642,7 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 			{
 				a_ecs.m_transform_system.dirty_transforms.Insert(a_entity);
 			}
+
 			ImGui::TreePop();
 		}
 
@@ -807,6 +808,9 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 
         ImGuiCreateEntity(a_ecs, a_entity);
 
+        if (ImGui::Button("Destroy entity"))
+            a_ecs.DestroyEntity(a_entity);
+            
 		ImGui::Unindent();
 	}
 

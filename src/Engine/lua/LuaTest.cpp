@@ -67,9 +67,7 @@ bool BB::lua_RunBBTypeTest()
     LuaContext context;
     context.Init(arena, gbSize);
 
-    lua_State* state = context.State();
-
-    if (!SimpleFunctionsTest(state))
+    if (!SimpleFunctionsTest(context.State()))
     {
         BB_WARNING(false, "LUA: SimpleFunctionTest failed", WarningType::HIGH);
         return false;
