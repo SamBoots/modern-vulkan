@@ -10,6 +10,7 @@ namespace BB
 
     class GameInstance
     {
+        friend Editor;
     public:
         bool Init(const uint2 a_viewport_size, const StringView a_project_name, MemoryArena* a_parena, const ConstSlice<PFN_LuaPluginRegisterFunctions> a_register_funcs = ConstSlice<PFN_LuaPluginRegisterFunctions>());
         bool Update(const float a_delta_time, const bool a_selected = true);
@@ -41,6 +42,7 @@ namespace BB
         SceneHierarchy m_scene_hierarchy;
         LuaContext m_lua;
         InputChannelHandle m_input_channel;
+        StackString<32> m_project_name;
         PathString m_project_path;
         StaticArray<PFN_LuaPluginRegisterFunctions> m_plugin_functions;
     };

@@ -81,8 +81,9 @@ static void DisplayGPUInfo(const GPUDeviceInfo& a_gpu_info)
 
 void Editor::MainEditorImGuiInfo(const MemoryArena& a_arena)
 {
-	if (ImGui::Begin("general engine info"))
+	if (ImGui::CollapsingHeader("general engine info"))
 	{
+        ImGui::Indent();
 		DisplayGPUInfo(m_gpu_info);
 
 		if (ImGui::CollapsingHeader("main allocator"))
@@ -109,8 +110,8 @@ void Editor::MainEditorImGuiInfo(const MemoryArena& a_arena)
 				ImGui::Unindent();
 			}
 		}
+        ImGui::Unindent();
 	}
-	ImGui::End();
 }
 
 void Editor::ThreadFuncForDrawing(MemoryArena&, void* a_param)
@@ -141,10 +142,11 @@ void Editor::UpdateGame(GameInstance& a_instance, const float a_delta_time)
         success = a_instance.Update(a_delta_time, true);
     }
     else
+    {
         success = a_instance.Update(a_delta_time, false);
+    }
 
 	const SceneFrame frame = hierarchy.UpdateScene(list, viewport);
-
 	// book keep all the end details
 	m_per_frame.draw_struct[pool_index].type = DRAW_TYPE::GAME;
     m_per_frame.draw_struct[pool_index].game = &a_instance;
@@ -319,7 +321,6 @@ void Editor::StartFrame(MemoryArena& a_arena, const Slice<InputEvent> a_input_ev
 	RenderStartFrame(list, start_info, m_render_target, m_per_frame.back_buffer_index);
 	m_per_frame.current_count = 0;
 
-	ImGuiShowProfiler(a_arena);
 	m_console.ImGuiShowConsole(a_arena, m_app_window_extent);
 }
 
@@ -332,8 +333,7 @@ ThreadTask Editor::UpdateGameInstance(MemoryArena& a_arena, const float a_delta_
         a_game
     };
 
-    ImguiDisplayECS(a_game.GetSceneHierarchy().m_ecs);
-    ImGuiDisplayInputChannel(a_game.GetInputChannel());
+    ImGuiDisplayGame(a_game);
 
     return Threads::StartTaskThread(ThreadFuncForDrawing, &params, sizeof(params), L"scene draw task");
 }
@@ -343,18 +343,7 @@ void Editor::EndFrame(MemoryArena& a_arena)
 	bool skip = false;
 	MemoryArenaScope(a_arena)
 	{
-		if (ImGui::Begin("Editor - Renderer"))
-		{
-			ImGuiDisplayShaderEffects(a_arena);
-			ImGuiDisplayMaterials();
-		}
-
-		ImGui::End();
-
-        ImGuiDisplayInputChannel(m_input.channel);
-
-		Asset::ShowAssetMenu(a_arena);
-		MainEditorImGuiInfo(a_arena);
+        ImGuiDisplayEditor(a_arena);
 
 		for (size_t i = 0; i < m_per_frame.current_count; i++)
 		{
@@ -505,15 +494,41 @@ bool Editor::DrawImgui(const RDescriptorIndex a_render_target, SceneHierarchy& a
 	return rendered_image;
 }
 
+void Editor::ImGuiDisplayEditor(MemoryArena& a_arena)
+{
+    if (ImGui::Begin("editor"))
+    {
+        MainEditorImGuiInfo(a_arena);
+        ImGuiDisplayShaderEffects(a_arena);
+        ImGuiDisplayMaterials();
+        ImGuiDisplayInputChannel(m_input.channel);
+        ImGuiShowProfiler(a_arena);
+    }
+    ImGui::End();
+
+
+    Asset::ShowAssetMenu(a_arena);
+}
+
+void Editor::ImGuiDisplayGame(GameInstance& a_game)
+{
+    StackString<128> name_editor = a_game.m_project_name.GetView();
+    name_editor.append(" - editor");
+    if (ImGui::Begin(name_editor.c_str()))
+    {
+        ImguiDisplayECS(a_game.GetSceneHierarchy().m_ecs);
+        ImGuiDisplayInputChannel(a_game.GetInputChannel());
+    }
+    ImGui::End();
+}
+
 void Editor::ImguiDisplayECS(EntityComponentSystem& a_ecs)
 {
-	StackString<128> name_editor = a_ecs.GetName().c_str();
-	name_editor.append(" - editor");
-	if (ImGui::Begin(name_editor.c_str()))
+    if (ImGui::CollapsingHeader("ECS"))
 	{
 		ImGui::Indent();
 
-		ImguiCreateEntity(a_ecs);
+		ImGuiCreateEntity(a_ecs);
 
 		RenderSystem& render_sys = a_ecs.GetRenderSystem();
 
@@ -582,7 +597,6 @@ void Editor::ImguiDisplayECS(EntityComponentSystem& a_ecs)
 
 		ImGui::Unindent();
 	}
-	ImGui::End();
 }
 
 static void ImGuiShowTexturePossibleChange(const RDescriptorIndex a_texture, const float2 a_size, const char* a_name)
@@ -791,7 +805,7 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 			child = a_ecs.m_relations.GetComponent(child).next;
 		}
 
-		ImguiCreateEntity(a_ecs, a_entity);
+        ImGuiCreateEntity(a_ecs, a_entity);
 
 		ImGui::Unindent();
 	}
@@ -799,7 +813,7 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 	ImGui::PopID();
 }
 
-void Editor::ImguiCreateEntity(EntityComponentSystem& a_ecs, const ECSEntity a_parent)
+void Editor::ImGuiCreateEntity(EntityComponentSystem& a_ecs, const ECSEntity a_parent)
 {
 	if (ImGui::TreeNodeEx("create scene object menu"))
 	{
@@ -948,17 +962,16 @@ static inline KEYBOARD_KEY KeyboardKeyChange(const char* a_text, const KEYBOARD_
 
 void Editor::ImGuiDisplayInputChannel(const InputChannelHandle a_channel)
 {
-    StackString<64> begin_str = "input channel : ";
-    begin_str.append(Input::GetInputChannelName(a_channel).GetView());
-    if (ImGui::Begin(begin_str.c_str()))
+    if (ImGui::CollapsingHeader("input channel"))
     {
+        ImGui::Indent();
         Slice ipas = Input::GetAllInputActions(a_channel);
         for (uint32_t i = 0; i < ipas.size(); i++)
         {
             InputAction& ipa = ipas[i];
             ImGui::PushID(static_cast<int>(i));
 
-            if (ImGui::CollapsingHeader(ipa.name.c_str()))
+            if (ImGui::TreeNode(ipa.name.c_str()))
             {
                 ImGui::Indent();
 
@@ -990,9 +1003,10 @@ void Editor::ImGuiDisplayInputChannel(const InputChannelHandle a_channel)
                     ImGui::Unindent();
                 }
                 ImGui::Unindent();
+                ImGui::TreePop();
             }
             ImGui::PopID();
         }
+        ImGui::Unindent();
     }
-    ImGui::End();
 }

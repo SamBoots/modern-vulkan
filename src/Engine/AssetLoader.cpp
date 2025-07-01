@@ -1941,6 +1941,7 @@ const Model& Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoad
 
 	Model::Mesh& mesh = asset.model->meshes[0];
 	mesh.primitives[0] = primitive;
+    mesh.primitives[0].bounding_box = GetBoundingBoxPrimitive(create_mesh.positions, create_mesh.indices, mesh.primitives[0].start_index, mesh.primitives[0].index_count);
 	CreateMesh(a_temp_arena, create_mesh, mesh.mesh);
 
 	*asset.model->root_node_indices = 0;

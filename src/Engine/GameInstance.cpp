@@ -14,6 +14,7 @@ bool GameInstance::Init(const uint2 a_game_viewport_size, const StringView a_pro
     else
         m_arena = MemoryArenaCreate();
 
+    m_project_name = a_project_name;
     m_project_path = GetRootPath();
     m_project_path.append("\\projects\\");
     m_project_path.append(a_project_name);
@@ -29,7 +30,7 @@ bool GameInstance::Init(const uint2 a_game_viewport_size, const StringView a_pro
 
     m_viewport.Init(a_game_viewport_size, int2(0, 0), a_project_name);
     if (a_register_funcs.size())
-        m_plugin_functions.Init(m_arena, a_register_funcs.size());
+        m_plugin_functions.Init(m_arena, static_cast<uint32_t>(a_register_funcs.size()));
 
     for (size_t i = 0; i < a_register_funcs.size(); i++)
         m_plugin_functions.push_back(a_register_funcs[i]);

@@ -7,17 +7,17 @@ using namespace BB;
 
 void BB::ImGuiShowProfiler(MemoryArenaTemp temp_arena)
 {
-	if (ImGui::Begin("Profile Info", nullptr, ImGuiWindowFlags_MenuBar))
+	if (ImGui::CollapsingHeader("Profile Info", nullptr, ImGuiWindowFlags_MenuBar))
 	{
 		if (ImGui::BeginMenuBar())
 		{
 			if (ImGui::BeginMenu("Menu"))
 			{
-
 				ImGui::EndMenu();
 			}
 			ImGui::EndMenuBar();
 		}
+        ImGui::Indent();
 		const ConstSlice<ProfileResult> profile_results = GetProfileResultsList();
 		for (size_t i = 0; i < profile_results.size(); i++)
 		{
@@ -38,7 +38,6 @@ void BB::ImGuiShowProfiler(MemoryArenaTemp temp_arena)
 				ImGui::PopID();
 			}
 		}
+        ImGui::Unindent();
 	}
-
-	ImGui::End();
 }
