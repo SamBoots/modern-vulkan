@@ -338,8 +338,17 @@ void BB::ImRenderFrame(const RCommandList a_cmd_list, const RImageView a_render_
 	blend_state[0].dst_alpha_blend = BLEND_MODE::FACTOR_ZERO;
 	SetBlendMode(a_cmd_list, 0, blend_state.slice());
 
-	// Setup desired CrossRenderer state
 	const RPipelineLayout pipeline_layout = ImSetRenderState(draw_data, a_cmd_list, 0, a_material);
+    {
+        const uint32_t buffer_indices[] = { 0 };
+        const size_t buffer_offsets[]{ GetGlobalDescriptorAllocation().offset };
+        SetDescriptorBufferOffset(a_cmd_list,
+            pipeline_layout,
+            SPACE_GLOBAL,
+            _countof(buffer_offsets),
+            buffer_indices,
+            buffer_offsets);
+    }
 
 	// Will project scissor/clipping rectangles into framebuffer space
 	const ImVec2 clip_off = draw_data.DisplayPos;    // (0,0) unless using multi-viewports

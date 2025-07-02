@@ -22,7 +22,7 @@ static void* LuaAlloc(void* a_user_data, void* a_ptr, const size_t a_old_size, c
 
     if (a_new_size)
     {
-        ret_val = allocator->Alloc(a_new_size, 8);
+        ret_val = allocator->Alloc(a_new_size, 16);
         BB_ASSERT(ret_val, "failed to allocate lua mem");
 
         if (a_ptr)
@@ -31,12 +31,23 @@ static void* LuaAlloc(void* a_user_data, void* a_ptr, const size_t a_old_size, c
             allocator->Free(a_ptr);
         }
     }
-    else if (a_ptr)
+    else if (a_new_size == 0)
     {
         allocator->Free(a_ptr);
     }
 
     return ret_val;
+}
+
+
+static void *l_alloc (void *ud, void *ptr, size_t osize, size_t nsize) {
+  (void)ud; (void)osize;  /* not used */
+  if (nsize == 0) {
+    free(ptr);
+    return NULL;
+  }
+  else
+    return realloc(ptr, nsize);
 }
 
 #define _USE_LAUL
