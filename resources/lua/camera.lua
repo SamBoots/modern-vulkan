@@ -38,7 +38,7 @@ function Camera:Rotate(a_yaw, a_pitch)
     local direction = float3(dir_x, dir_y, dir_z)
         
     self.forward = float3Normalize(direction)
-    local cross = float3Cross(self.up, self.forward)
+    local cross = float3Cross(self.forward, self.up)
     self.right = float3Normalize(cross)
 end
 

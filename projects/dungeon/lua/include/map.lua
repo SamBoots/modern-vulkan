@@ -1,3 +1,12 @@
+function GetIFromXY(a_x, a_y, a_max_x)
+    return a_x + a_y * a_max_x
+end
+
+local dungeon_dictionary = {}
+dungeon_dictionary[64] = true
+dungeon_dictionary[46] = true
+dungeon_dictionary[35] = false;
+
 local DungeonMap = {}
 DungeonMap.__index = DungeonMap
 
@@ -15,17 +24,23 @@ function DungeonMap.new(a_size_x, a_size_y, a_tiles, a_entity, a_spawn_x, a_spaw
     return room
 end
 
+function DungeonMap:TileWalkable(a_x, a_y)
+    if a_x >= self.size_x or a_y >= self.size_y then
+        print("out of bounds")
+        return false
+    end
+
+    local tile = tiles[GetIFromXY(a_x, a_y, self.size_x)]
+    return dungeon_dictionary[tile]
+end
+
 function DungeonMapViaFiles(a_map_size_x, a_map_size_y, a_room_names)
     tiles, spawn_x, spawn_y, entity = CreateMapTilesFromFiles(a_map_size_x, a_map_size_y, a_room_names)
     map = DungeonMap.new(a_map_size_x, a_map_size_y, tiles, entity, spawn_x, spawn_y)
-
     return map
 end
-
-function GetIFromXY(a_x, a_y, a_max_x)
-    return a_x + a_y * a_max_x
-end
-
+ 
 return {
-    DungeonMap = DungeonMap
+    DungeonMap = DungeonMap,
+    dungeon_dictionary = dungeon_dictionary
 }

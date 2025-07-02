@@ -4,6 +4,7 @@ local FreeCamera = camera_module.FreeCamera
 
 local map_module = require "map"
 local DungeonMap = map_module.DungeonMap
+local dungeon_dictionary = map_module.dungeon_dictionary
 
 local Player = {}
 Player.__index = Player
@@ -25,10 +26,19 @@ function Player.new(a_pos, a_forward, a_lerp_speed)
     return player
 end
 
-function Player:Move(a_move)
-    self.pos_src = self.camera.pos
-    self.pos_dst = self.pos_dst + a_move
-    self.pos_lerp = 0.0
+function Player:Move(a_right, a_forward)
+    local right_cross = float3Cross(self.forward_dst, self.camera.up);
+    local right = float3Normalize(right_cross) * a_right
+    local forward = self.forward_dst * a_forward
+    local new_pos = self.pos_dst + forward + right
+
+    if map:TileWalkable(new_pos.x, new_pos.z) then
+        self.pos_src = self.camera.pos
+        self.pos_dst = new_pos
+
+        self.pos_lerp = 0.0
+    end
+
     return self.pos_dst
 end
 
@@ -39,12 +49,14 @@ function Player:Rotate(a_rot)
     return self.forward_dst
 end
 
-function Player:SetPos(a_pos)
-    self.camera.pos = a_pos
+function Player:SetPos(a_x, a_y)
+    
+    self.camera.pos.x = a_x
+    self.camera.pos.z = a_y
 end
 
 function Player:GetPos()
-    return self.camera.pos
+    return self.camera.pos.x, self.camera.pos.z
 end
 
 function Player:SetLerpSpeed(a_lerp_speed)
@@ -119,9 +131,8 @@ end
 
 function DoPlayerMove()
     local move_value_x, move_value_y = InputActionGetFloat2(player_move)
-    local player_move = float3(move_value_x, 0, move_value_y)
     if move_value_x ~= 0 or move_value_y ~= 0 then
-        player:Move(player_move)
+        player:Move(move_value_x, move_value_y)
     end
 
     if InputActionIsPressed(player_turn_left) then
