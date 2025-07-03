@@ -192,6 +192,12 @@ namespace BB
 		return a * rcp_length;
 	}
 
+    static inline float3 Float3RotatePoint(const float3x3& a_rotation_matrix, const float3 a_point, const float3 a_middle)
+    {
+        const float3 res = a_rotation_matrix * (a_point - a_middle);
+        return a_middle + res;
+    }
+
 	inline static float3 Float3Lerp(const float3 a_p0, const float3 a_p1, const float a_t)
 	{
 		return a_p0 + (a_p1 - a_p0) * a_t;

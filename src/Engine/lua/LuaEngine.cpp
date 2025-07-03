@@ -39,17 +39,6 @@ static void* LuaAlloc(void* a_user_data, void* a_ptr, const size_t a_old_size, c
     return ret_val;
 }
 
-
-static void *l_alloc (void *ud, void *ptr, size_t osize, size_t nsize) {
-  (void)ud; (void)osize;  /* not used */
-  if (nsize == 0) {
-    free(ptr);
-    return NULL;
-  }
-  else
-    return realloc(ptr, nsize);
-}
-
 #define _USE_LAUL
 
 void LuaContext::RegisterLua()

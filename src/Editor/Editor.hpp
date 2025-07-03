@@ -36,7 +36,7 @@ namespace BB
             class GameInstance& instance;
 		};
 
-		bool DrawImgui(const RDescriptorIndex a_render_target, SceneHierarchy& a_hierarchy, Viewport& a_viewport);
+		bool DrawImgui(const RDescriptorIndex a_render_target, Viewport& a_viewport);
 
 		FreelistInterface m_editor_allocator;
 

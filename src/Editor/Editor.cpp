@@ -372,7 +372,7 @@ void Editor::EndFrame(MemoryArena& a_arena)
                                 game_inst.Reload();
                             ImGui::EndMenuBar();
                         }
-                        DrawImgui(m_per_frame.frame_results[i].render_frame.render_target, game_inst.GetSceneHierarchy(), game_inst.GetViewport());
+                        DrawImgui(m_per_frame.frame_results[i].render_frame.render_target, game_inst.GetViewport());
                     }
                     ImGui::End();
                     ImGui::PopStyleVar();
@@ -465,7 +465,7 @@ bool Editor::ResizeWindow(const uint2 a_window)
 	return true;
 }
 
-bool Editor::DrawImgui(const RDescriptorIndex a_render_target, SceneHierarchy& a_hierarchy, Viewport& a_viewport)
+bool Editor::DrawImgui(const RDescriptorIndex a_render_target, Viewport& a_viewport)
 {
 	bool rendered_image = false;
 	ImGuiIO im_io = ImGui::GetIO();

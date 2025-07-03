@@ -242,12 +242,6 @@ static ECSEntity CreateMapFloor(MemoryArena& a_temp_arena, const ConstSlice<int>
 	return map_obj;
 }
 
-static float3 RotatePointOnPoint(const float3x3& a_rotation_matrix, const float3 a_point, const float3 a_middle)
-{
-	const float3 res = a_rotation_matrix * (a_point - a_middle);
-	return a_middle + res;
-}
-
 static bool IsTileWall(const ConstSlice<int> a_map, const int a_x, const int a_y, const int a_max_x, const int a_max_y)
 {
 	if (a_x >= a_max_x || a_y >= a_max_y || 0 > a_x || 0 > a_y)
@@ -302,10 +296,10 @@ static ECSEntity CreateMapWalls(MemoryArena& a_temp_arena, const ConstSlice<int>
 				const float3x3 rotation_matrix = Float3x3FromRotation(Float3ToRadians(a_rotation));
 
 				// rotate these
-				const float3 pos_top_left = RotatePointOnPoint(rotation_matrix, float3(fx - 0.5f, 0.5f, fz + 0.5f), middle);
-				const float3 pos_top_right = RotatePointOnPoint(rotation_matrix, float3(fx + 0.5f, 0.5f, fz + 0.5f), middle);
-				const float3 pos_bot_right = RotatePointOnPoint(rotation_matrix, float3(fx + 0.5f, 0.5f, fz - 0.5f), middle);
-				const float3 pos_bot_left = RotatePointOnPoint(rotation_matrix, float3(fx - 0.5f, 0.5f, fz - 0.5f), middle);
+				const float3 pos_top_left = Float3RotatePoint(rotation_matrix, float3(fx - 0.5f, 0.5f, fz + 0.5f), middle);
+				const float3 pos_top_right = Float3RotatePoint(rotation_matrix, float3(fx + 0.5f, 0.5f, fz + 0.5f), middle);
+				const float3 pos_bot_right = Float3RotatePoint(rotation_matrix, float3(fx + 0.5f, 0.5f, fz - 0.5f), middle);
+				const float3 pos_bot_left = Float3RotatePoint(rotation_matrix, float3(fx - 0.5f, 0.5f, fz - 0.5f), middle);
 
 				max_x = Max(max_x, fx);
 				max_z = Max(max_z, fz);
