@@ -37,7 +37,7 @@ function Player:Move(a_right, a_forward)
     local forward = self.forward_dst * a_forward
     local new_pos = self.pos_dst + forward + right
 
-    if map:TileWalkable(new_pos.x, new_pos.z) then
+    if map:TileWalkable(new_pos.x + 1, new_pos.z) then
         self.pos_src = self.pos
         self.pos_dst = new_pos
 

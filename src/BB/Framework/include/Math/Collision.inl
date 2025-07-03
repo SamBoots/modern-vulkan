@@ -97,9 +97,9 @@ namespace BB
             1.f);
 
         const float4 ray_clip = float4(ndc.x, ndc.y, -1.f, 1.f);
-        const float4 ray_inverse = Float4x4Inverse(a_projection) * ray_clip;
+        const float4 ray_inverse = ray_clip * Float4x4Inverse(a_projection);
         const float4 ray_eye = float4(ray_inverse.x, ray_inverse.y, -1.0, 0.0f);
-        const float4 ray_world = Float4x4Inverse(a_view) * ray_eye;
+        const float4 ray_world = ray_eye * Float4x4Inverse(a_view);
         const float3 ray_world_norm = Float3Normalize(float3(ray_world.x, ray_world.y, ray_world.z));
 
         return ray_world_norm;

@@ -1294,7 +1294,7 @@ static void LoadglTFNode(const cgltf_data& a_cgltf_data, Model& a_model, const s
 		float4x4 matrix;
 		// maybe do conversion on row or not
 		memcpy(&matrix, cgltf_node.matrix, sizeof(float4x4));
-
+        matrix = Float4x4Transpose(matrix);
 		Float4x4DecomposeTransform(matrix, node.translation, node.rotation, node.scale);
 	}
 	else

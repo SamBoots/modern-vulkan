@@ -83,6 +83,7 @@ bool BB::CompileShader(const ShaderCompiler a_shader_compiler, const Buffer& a_b
 		L"-Qstrip_debug",	// Strip out the debug and reflect info to keep the actual shader object small.
 		L"-HV", L"2021",
 
+        L"-Zpr",            // row major
 		//VULKAN SPECIFIC
 		L"-spirv",
 		L"-D",

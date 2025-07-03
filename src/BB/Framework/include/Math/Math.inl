@@ -241,6 +241,16 @@ namespace BB
 		return vec;
 	}
 
+    static inline float4 operator*(const float4 a_vec, const float4x4 a_mat)
+    {
+        float4 vec;
+        vec.x = a_vec.x * a_mat.r0.x + a_vec.y * a_mat.r0.y + a_vec.z * a_mat.r0.z + a_vec.w * a_mat.r0.w;
+        vec.y = a_vec.x * a_mat.r1.x + a_vec.y * a_mat.r1.y + a_vec.z * a_mat.r1.z + a_vec.w * a_mat.r1.w;
+        vec.z = a_vec.x * a_mat.r2.x + a_vec.y * a_mat.r2.y + a_vec.z * a_mat.r2.z + a_vec.w * a_mat.r2.w;
+        vec.w = a_vec.x * a_mat.r3.x + a_vec.y * a_mat.r3.y + a_vec.z * a_mat.r3.z + a_vec.w * a_mat.r3.w;
+        return vec;
+    }
+
 	static inline float4 operator/(const float4 a_lhs, const float4 a_rhs)
 	{
 		return float4(DivFloat4(a_lhs.vec, a_rhs.vec));
@@ -457,6 +467,15 @@ namespace BB
 		return mat;
 	}
 
+    static inline float4x4 Float4x4Transpose(const float4x4& a_mat)
+    {
+        return Float4x4FromFloats(
+            a_mat.e[0][0], a_mat.e[1][0], a_mat.e[2][0], a_mat.e[3][0],
+            a_mat.e[0][1], a_mat.e[1][1], a_mat.e[2][1], a_mat.e[3][1],
+            a_mat.e[0][2], a_mat.e[1][2], a_mat.e[2][2], a_mat.e[3][2],
+            a_mat.e[0][3], a_mat.e[1][3], a_mat.e[2][3], a_mat.e[3][3]);
+    }
+
 	static inline float4x4 operator*(const float4x4& a_lhs, const float4x4& a_rhs)
 	{
 		float4x4 mat;
@@ -489,9 +508,9 @@ namespace BB
 	static inline float4x4 Float4x4FromTranslation(const float3 translation)
 	{
 		float4x4 result = Float4x4Identity();
-		result.e[3][0] = translation.x;
-		result.e[3][1] = translation.y;
-		result.e[3][2] = translation.z;
+		result.r3.x = translation.x;
+		result.r3.y = translation.y;
+		result.r3.z = translation.z;
 		return result;
 	}
 
@@ -561,8 +580,8 @@ namespace BB
 		mat.e[0][0] = 1.f / (a_aspect * tan_half_fov);
 		mat.e[1][1] = 1.f / (tan_half_fov);
 		mat.e[2][2] = -(a_far + a_near) / (a_far - a_near);
-		mat.e[2][3] = -1.f;
-		mat.e[3][2] = -(2.f * a_far * a_near) / (a_far - a_near);
+		mat.e[3][2] = -1.f;
+		mat.e[2][3] = -(2.f * a_far * a_near) / (a_far - a_near);
 
 		mat.e[1][1] *= -1;
 
@@ -577,32 +596,25 @@ namespace BB
 		mat.e[1][1] = 2 / (a_top - a_bottom);
 		mat.e[2][2] = 2 / (a_far - a_near);
 
-		mat.e[3][0] = -(a_right + a_left) / (a_right - a_left);
-		mat.e[3][1] = -(a_top + a_bottom) / (a_top - a_bottom);
-		mat.e[3][2] = -(a_far + a_near) / (a_far - a_near);
+		mat.e[0][3] = -(a_right + a_left) / (a_right - a_left);
+		mat.e[1][3] = -(a_top + a_bottom) / (a_top - a_bottom);
+		mat.e[2][3] = -(a_far + a_near) / (a_far - a_near);
 
 		return mat;
 	}
 
-	static inline float4x4 Float4x4Lookat(const float3 eye, const float3 center, const float3 up)
+	static inline float4x4 Float4x4Lookat(const float3 a_eye, const float3 a_center, const float3 a_up)
 	{
-		const float3 f = Float3Normalize(center - eye);
-		const float3 s = Float3Normalize(Float3Cross(f, up));
-		const float3 u = Float3Cross(s, f);
+		const float3 forward = Float3Normalize(a_center - a_eye);
+		const float3 right = Float3Normalize(Float3Cross(forward, a_up));
+		const float3 up = Float3Cross(right, forward);
 
-		float4x4 mat = Float4x4Identity();
-		mat.e[0][0] = s.x;
-		mat.e[1][0] = s.y;
-		mat.e[2][0] = s.z;
-		mat.e[0][1] = u.x;
-		mat.e[1][1] = u.y;
-		mat.e[2][1] = u.z;
-		mat.e[0][2] = -f.x;
-		mat.e[1][2] = -f.y;
-		mat.e[2][2] = -f.z;
-		mat.e[3][0] = -Float3Dot(s, eye);
-		mat.e[3][1] = -Float3Dot(u, eye);
-		mat.e[3][2] = Float3Dot(f, eye);
+		float4x4 mat;
+        mat.r0 = float4(right.x, right.y, right.z, -Float3Dot(right, a_eye));
+        mat.r1 = float4(up.x, up.y, up.z, -Float3Dot(up, a_eye));
+        mat.r2 = float4(-forward.x, -forward.y, -forward.z, Float3Dot(forward, a_eye));
+        mat.r3 = float4(0.f, 0.f, 0.f, 1.f);
+
 		return mat;
 	}
 
