@@ -97,9 +97,6 @@ bool GameInstance::Update(const float a_delta_time, const bool a_selected)
         return false;
     }
 
-    const float3 pos = GetCameraPos();
-    const float4x4 view = GetCameraView();
-    m_scene_hierarchy.GetECS().GetRenderSystem().SetView(view, pos);
     return true;
 }
 

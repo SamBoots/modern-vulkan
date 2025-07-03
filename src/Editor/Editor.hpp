@@ -23,7 +23,7 @@ namespace BB
 
 		void StartFrame(MemoryArena& a_arena, const Slice<InputEvent> a_input_events, const float a_delta_time);
 
-        ThreadTask UpdateGameInstance(MemoryArena& a_arena, const float a_delta_time, class GameInstance& a_game);
+        ThreadTask UpdateGameInstance(MemoryArena& a_arena, const float a_delta_time, class EditorGame& a_game);
 		void EndFrame(MemoryArena& a_arena);
 
 		bool ResizeWindow(const uint2 a_window);
@@ -33,7 +33,7 @@ namespace BB
 		{
 			Editor& editor;
             float delta_time;
-            class GameInstance& instance;
+            class EditorGame& instance;
 		};
 
 		bool DrawImgui(const RDescriptorIndex a_render_target, Viewport& a_viewport);
@@ -53,7 +53,7 @@ namespace BB
 
 		void MainEditorImGuiInfo(const MemoryArena& a_arena);
 		static void ThreadFuncForDrawing(MemoryArena& a_thread_arena, void* a_param);
-		void UpdateGame(class GameInstance& a_instance, const float a_delta_time);
+		void UpdateGame(class EditorGame& a_instance, const float a_delta_time);
         void UpdateGizmo(Viewport& a_viewport, SceneHierarchy& a_hierarchy, const float3 a_cam_pos);
 
 		uint2 m_app_window_extent;
@@ -72,7 +72,7 @@ namespace BB
             DRAW_TYPE type;
             union
             {
-                class GameInstance* game = nullptr;
+                class EditorGame* game = nullptr;
             };
         };
 
@@ -110,6 +110,12 @@ namespace BB
             InputActionHandle click_on_screen;
             InputActionHandle mouse_move;
             InputActionHandle gizmo_toggle_scale;
+            InputActionHandle toggle_editor_cam;
+
+            InputActionHandle camera_move;
+            InputActionHandle move_speed_slider;
+            InputActionHandle look_around;
+            InputActionHandle enable_rotate;
         } m_input;
 	};
 }

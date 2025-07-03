@@ -8,7 +8,8 @@ add_executable(Editor
 	"main.cpp" 
 	"Console.cpp" 
     "Gizmo.cpp"
-	"ProfilerWindow.cpp")
+	"ProfilerWindow.cpp" 
+    "FreeCamera.cpp" "EditorGame.cpp")
 
 target_link_libraries(Editor
 	Game) 

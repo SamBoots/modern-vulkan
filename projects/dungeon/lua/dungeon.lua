@@ -149,16 +149,6 @@ function DoPlayerMove()
 end
 
 function SelectedUpdate(a_delta_time)
-    if InputActionIsPressed(toggle_freecam) then
-        use_freecam = not use_freecam
-        free_cam.camera.pos = player.pos
-    end
-
-    if use_freecam then
-        FreeCamMove(a_delta_time)
-        return
-    end
-
     if not player:IsMoving() then
         DoPlayerMove()
     end

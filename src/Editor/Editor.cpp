@@ -4,7 +4,7 @@
 #include "BBThreadScheduler.hpp"
 #include "Math/Math.inl"
 
-#include "GameInstance.hpp"
+#include "EditorGame.hpp"
 
 #include "ProfilerWindow.hpp"
 
@@ -120,7 +120,7 @@ void Editor::ThreadFuncForDrawing(MemoryArena&, void* a_param)
 	params->editor.UpdateGame(params->instance, params->delta_time);
 }
 
-void Editor::UpdateGame(GameInstance& a_instance, const float a_delta_time)
+void Editor::UpdateGame(EditorGame& a_instance, const float a_delta_time)
 {
 	const uint32_t pool_index = m_per_frame.current_count.fetch_add(1, std::memory_order_relaxed);
 
@@ -133,18 +133,30 @@ void Editor::UpdateGame(GameInstance& a_instance, const float a_delta_time)
 		list = pool.StartCommandList();
 	}
 
-    Viewport& viewport = a_instance.GetViewport();
-    SceneHierarchy& hierarchy = a_instance.GetSceneHierarchy();
+    CameraInput input;
+    input.channel = m_input.channel;
+    input.move = m_input.mouse_move;
+    input.move_speed_slider = m_input.move_speed_slider;
+    input.look_around = m_input.look_around;
+    input.enable_rotate = m_input.enable_rotate;
+
+    Viewport& viewport = a_instance.GetGameInstance().GetViewport();
+    SceneHierarchy& hierarchy = a_instance.GetGameInstance().GetSceneHierarchy();
     bool success;
     if (!m_swallow_input && viewport.PositionWithinViewport(uint2(static_cast<unsigned int>(m_previous_mouse_pos.x), static_cast<unsigned int>(m_previous_mouse_pos.y))))
     {
-        UpdateGizmo(viewport, hierarchy, a_instance.GetCameraPos());
-        success = a_instance.Update(a_delta_time, true);
+        success = a_instance.Update(a_delta_time, Input::InputActionIsPressed(m_input.channel, m_input.toggle_editor_cam), input, true);
+        if (a_instance.IsEditorMode())
+            UpdateGizmo(viewport, hierarchy, a_instance.GetCameraPos());
     }
     else
     {
-        success = a_instance.Update(a_delta_time, false);
+        success = a_instance.Update(a_delta_time, false, input, false);
     }
+
+    const float3 pos = a_instance.GetCameraPos();
+    const float4x4 view = a_instance.GetCameraView();
+    a_instance.GetSceneHierarchy().GetECS().GetRenderSystem().SetView(view, pos);
 
 	const SceneFrame frame = hierarchy.UpdateScene(list, viewport);
 	// book keep all the end details
@@ -258,14 +270,14 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 
 		m_render_target_descs[i] = CreateImageView(view_info);
 	}
-    m_input.channel = Input::CreateInputChannel(a_arena, "editor", 3);
+    m_input.channel = Input::CreateInputChannel(a_arena, "editor", 8);
     {
         InputActionCreateInfo action_info;
         action_info.binding_type = INPUT_BINDING_TYPE::BINDING;
         action_info.value_type = INPUT_VALUE_TYPE::BOOL;
         action_info.source = INPUT_SOURCE::MOUSE;
         action_info.input_keys[0].mouse_input = MOUSE_INPUT::LEFT_BUTTON;
-        m_input.click_on_screen = Input::CreateInputAction(m_input.channel, "editor click on screen", action_info);
+        m_input.click_on_screen = Input::CreateInputAction(m_input.channel, "click on screen", action_info);
     }
     {
         InputActionCreateInfo input_create{};
@@ -273,7 +285,7 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
         input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
         input_create.source = INPUT_SOURCE::MOUSE;
         input_create.input_keys[0].mouse_input = MOUSE_INPUT::MOUSE_MOVE;
-        m_input.mouse_move = Input::CreateInputAction(m_input.channel, "editor mouse move", input_create);
+        m_input.mouse_move = Input::CreateInputAction(m_input.channel, "mouse move", input_create);
     }
     {
         InputActionCreateInfo input_create{};
@@ -281,7 +293,51 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
         input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
         input_create.source = INPUT_SOURCE::KEYBOARD;
         input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::CONTROLLEFT;
-        m_input.gizmo_toggle_scale = Input::CreateInputAction(m_input.channel, "editor gizmo toggle scale", input_create);
+        m_input.gizmo_toggle_scale = Input::CreateInputAction(m_input.channel, "gizmo toggle scale", input_create);
+    }
+    {
+        InputActionCreateInfo input_create{};
+        input_create.value_type = INPUT_VALUE_TYPE::BOOL;
+        input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
+        input_create.source = INPUT_SOURCE::KEYBOARD;
+        input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::G;
+        m_input.toggle_editor_cam = Input::CreateInputAction(m_input.channel, "toggle editor camera", input_create);
+    }
+
+    {
+        InputActionCreateInfo input_create{};
+        input_create.value_type = INPUT_VALUE_TYPE::FLOAT_2;
+        input_create.binding_type = INPUT_BINDING_TYPE::COMPOSITE_UP_DOWN_RIGHT_LEFT;
+        input_create.source = INPUT_SOURCE::KEYBOARD;
+        input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::W;
+        input_create.input_keys[1].keyboard_key = KEYBOARD_KEY::S;
+        input_create.input_keys[2].keyboard_key = KEYBOARD_KEY::D;
+        input_create.input_keys[3].keyboard_key = KEYBOARD_KEY::A;
+        m_input.camera_move = Input::CreateInputAction(m_input.channel, "camera move", input_create);
+    }
+    {
+        InputActionCreateInfo input_create{};
+        input_create.value_type = INPUT_VALUE_TYPE::FLOAT;
+        input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
+        input_create.source = INPUT_SOURCE::MOUSE;
+        input_create.input_keys[0].mouse_input = MOUSE_INPUT::SCROLL_WHEEL;
+        m_input.move_speed_slider = Input::CreateInputAction(m_input.channel, "move speed slider", input_create);
+    }
+    {
+        InputActionCreateInfo input_create{};
+        input_create.value_type = INPUT_VALUE_TYPE::FLOAT_2;
+        input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
+        input_create.source = INPUT_SOURCE::MOUSE;
+        input_create.input_keys[0].mouse_input = MOUSE_INPUT::MOUSE_MOVE;
+        m_input.look_around = Input::CreateInputAction(m_input.channel, "look around", input_create);
+    }
+    {
+        InputActionCreateInfo input_create{};
+        input_create.value_type = INPUT_VALUE_TYPE::BOOL;
+        input_create.binding_type = INPUT_BINDING_TYPE::BINDING;
+        input_create.source = INPUT_SOURCE::MOUSE;
+        input_create.input_keys[0].mouse_input = MOUSE_INPUT::RIGHT_BUTTON;
+        m_input.enable_rotate = Input::CreateInputAction(m_input.channel, "enable rotate", input_create);
     }
 }
 
@@ -324,7 +380,7 @@ void Editor::StartFrame(MemoryArena& a_arena, const Slice<InputEvent> a_input_ev
 	m_console.ImGuiShowConsole(a_arena, m_app_window_extent);
 }
 
-ThreadTask Editor::UpdateGameInstance(MemoryArena& a_arena, const float a_delta_time, class GameInstance& a_game)
+ThreadTask Editor::UpdateGameInstance(MemoryArena& a_arena, const float a_delta_time, class EditorGame& a_game)
 {
     ThreadFuncForDrawing_Params params =
     {
@@ -333,7 +389,7 @@ ThreadTask Editor::UpdateGameInstance(MemoryArena& a_arena, const float a_delta_
         a_game
     };
 
-    ImGuiDisplayGame(a_game);
+    ImGuiDisplayGame(a_game.GetGameInstance());
 
     return Threads::StartTaskThread(ThreadFuncForDrawing, &params, sizeof(params), L"scene draw task");
 }
@@ -350,7 +406,7 @@ void Editor::EndFrame(MemoryArena& a_arena)
             DrawStruct& ds = m_per_frame.draw_struct[i];
             if (ds.type == DRAW_TYPE::GAME)
             {
-                GameInstance& game_inst = *ds.game;
+                EditorGame& game_inst = *ds.game;
                 if (m_per_frame.success[i])
                 {
                     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));

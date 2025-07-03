@@ -12,7 +12,7 @@
 #include "Math/Math.inl"
 #include "BBjson.hpp"
 #include "Editor.hpp"
-#include "GameInstance.hpp"
+#include "EditorGame.hpp"
 
 #include "Profiler.hpp"
 
@@ -47,12 +47,12 @@ int main(int argc, char** argv)
 
 	float delta_time = 0;
 
-    GameInstance render_viewport{};
+    EditorGame render_viewport{};
     render_viewport.Init(engine_info.window_extent / 2, "rendershowcase", nullptr);
      
     FixedArray<PFN_LuaPluginRegisterFunctions, 1> lua_plugins;
     lua_plugins[0] = RegisterDungeonGameLibLuaFunctions;
-    GameInstance def_game{};
+    EditorGame def_game{};
     def_game.Init(engine_info.window_extent / 2, "dungeon", nullptr, lua_plugins.const_slice());
 
 	while (true)
