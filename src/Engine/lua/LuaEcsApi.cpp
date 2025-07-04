@@ -76,7 +76,7 @@ int luaapi::CreateEntityFromJson(lua_State* a_state)
     const char* json_name = lua_tostring(a_state, 1);
     GameInstance* inst = GetGameInstance(a_state);
     PathString json_path = inst->GetProjectPath();
-    json_path.append(json_name);
+    json_path.AddPathNoSlash(json_name);
     const ECSEntity entity = inst->GetSceneHierarchy().CreateEntityFromJson(inst->GetMemory(), json_path);
     lua_pushbbhandle(a_state, entity.handle);
     return 1;

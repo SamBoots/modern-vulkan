@@ -413,7 +413,7 @@ static int CreateMapTilesFromFiles(lua_State* a_state)
 
 			const char* file_name = lua_tostring(a_state, -1);
 			PathString level_path = inst->GetProjectPath();
-			level_path.append(file_name);
+			level_path.AddPathNoSlash(file_name);
 			const Buffer buffer = OSReadFile(inst->GetMemory(), level_path.c_str());
 			DungeonRoom room = CreateRoom(inst->GetMemory(), buffer);
 			rooms.emplace_back(room);

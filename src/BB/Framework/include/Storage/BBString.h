@@ -55,19 +55,6 @@ namespace BB
 			return last_pos;
 		}
 
-		size_t find_last_of_directory_slash() const
-		{
-			size_t last_pos = size_t(-1);
-
-			for (size_t i = 0; i < m_size; i++)
-			{
-				if (m_string_view[i] == '\\' || m_string_view[i] == '/')
-					last_pos = i;
-			}
-
-			return last_pos;
-		}
-
 		bool compare(const String_View<CharT>& a_str_view, const size_t a_pos = 0) const
 		{
 			return compare(a_str_view.size(), a_str_view.c_str(), a_pos);
@@ -368,75 +355,80 @@ namespace BB
 		}
 
 		template<size_t PARAM_STRING_SIZE>
-		void append(const Stack_String<CharT, PARAM_STRING_SIZE>& a_string)
+        bool append(const Stack_String<CharT, PARAM_STRING_SIZE>& a_string)
 		{
-			append(a_string.c_str(), a_string.size());
+            return append(a_string.c_str(), a_string.size());
 		}
-		void append(const Stack_String<CharT, STRING_SIZE>& a_string, size_t a_sub_pos, size_t a_sub_length)
+        bool append(const Stack_String<CharT, STRING_SIZE>& a_string, size_t a_sub_pos, size_t a_sub_length)
 		{
-			append(a_string.c_str() + a_sub_pos, a_sub_length);
+            return append(a_string.c_str() + a_sub_pos, a_sub_length);
 		}
-		void append(const String_View<CharT>& a_string_view)
+        bool append(const String_View<CharT>& a_string_view)
 		{
-			append(a_string_view.c_str(), a_string_view.size());
+            return append(a_string_view.c_str(), a_string_view.size());
 		}
-		void append(const String_View<CharT>& a_string_view, size_t a_sub_pos, size_t a_sub_length)
+        bool append(const String_View<CharT>& a_string_view, size_t a_sub_pos, size_t a_sub_length)
 		{
-			append(a_string_view.c_str() + a_sub_pos, a_sub_length);
+            return append(a_string_view.c_str() + a_sub_pos, a_sub_length);
 		}
-		void append(const CharT* a_string)
+        bool append(const CharT* a_string)
 		{
-			append(a_string, Memory::StrLength(a_string));
+            return append(a_string, Memory::StrLength(a_string));
 		}
-		void append(const CharT a_char, size_t a_count = 1)
+        bool append(const CharT a_char, size_t a_count = 1)
 		{
-			BB_ASSERT(m_size + a_count < sizeof(m_string), "Stack string overflow");
+			if (m_size + a_count >= sizeof(m_string))
+                return false;
 			for (size_t i = 0; i < a_count; i++)
 				m_string[m_size++] = a_char;
+            return true;
 		}
-		void append(const CharT* a_string, size_t a_size)
+        bool append(const CharT* a_string, size_t a_size)
 		{
-			BB_ASSERT(m_size + a_size < sizeof(m_string), "Stack string overflow");
+			if (m_size + a_size >= sizeof(m_string))
+                return false;
 			BB::Memory::Copy(m_string + m_size, a_string, a_size);
 			m_size += a_size;
+            return true;
 		}
-		void insert(size_t a_pos, const Stack_String<CharT, STRING_SIZE>& a_string)
+        bool insert(size_t a_pos, const Stack_String<CharT, STRING_SIZE>& a_string)
 		{
 			insert(a_pos, a_string.c_str(), a_string.size());
 		}
-		void insert(size_t a_pos, const Stack_String<CharT, STRING_SIZE>& a_string, size_t a_sub_pos, size_t a_sub_length)
+        bool insert(size_t a_pos, const Stack_String<CharT, STRING_SIZE>& a_string, size_t a_sub_pos, size_t a_sub_length)
 		{
 			insert(a_pos, a_string.c_str() + a_sub_pos, a_sub_length);
 		}
-		void insert(size_t a_pos, const CharT* a_string)
+        bool insert(size_t a_pos, const CharT* a_string)
 		{
 			insert(a_pos, a_string, Memory::StrLength(a_string));
 		}
-		void insert(size_t a_pos, const CharT* a_string, size_t a_size)
+		bool insert(size_t a_pos, const CharT* a_string, size_t a_size)
 		{
-			BB_ASSERT(m_size >= a_pos, "Trying to insert a string in a invalid position.");
-			BB_ASSERT(m_size + a_size < sizeof(m_string), "Stack string overflow");
+            if (m_size < a_pos || m_size + a_size >= sizeof(m_string))
+                return false;
 
 			Memory::Move(m_string + (a_pos + a_size), m_string + a_pos, m_size - a_pos);
 
 			Memory::Copy(m_string + a_pos, a_string, a_size);
 			m_size += a_size;
+            return true;
 		}
-		void push_back(const CharT a_char)
+		bool push_back(const CharT a_char)
 		{
+            if (m_size + 1 >= sizeof(m_string))
+                return false;
 			m_string[m_size++] = a_char;
-			BB_ASSERT(m_size < sizeof(m_string), "Stack string overflow");
+            return true;
 		}
 
-		void pop_back(uint32_t a_count)
+		bool pop_back(uint32_t a_count)
 		{
+            if (a_count > m_size)
+                return false;
 			m_size -= a_count;
 			memset(Pointer::Add(m_string, m_size), NULL, a_count);
-		}
-
-		void push_directory_slash()
-		{
-			push_back('/');
+            return true;
 		}
 
 		// with ::Data() you can modify the string without touching the class such as interacting with some C api's like the windows API. 
@@ -456,21 +448,16 @@ namespace BB
 			return size_t(-1);
 		}
 
-		size_t find_last_of(const CharT a_char) const
+        size_t find_last_of(const CharT a_char) const
+        {
+            return find_last_of(a_char, m_size);
+        }
+
+		size_t find_last_of(const CharT a_char, const size_t a_end) const
 		{
-			for (size_t i = m_size; i--;)
+			for (size_t i = a_end; i--;)
 			{
 				if (m_string[i] == a_char)
-					return i;
-			}
-			return size_t(-1);
-		}
-
-		size_t find_last_of_directory_slash() const
-		{
-			for (size_t i = m_size; i--;)
-			{
-				if (m_string[i] == '\\' || m_string[i] == '/')
 					return i;
 			}
 			return size_t(-1);
@@ -517,4 +504,108 @@ namespace BB
 	using StackString = Stack_String<char, STRING_SIZE>;
 	template<size_t STRING_SIZE>
 	using StackWString = Stack_String<wchar_t, STRING_SIZE>;
+
+    template<typename CharT, size_t STRING_SIZE = MAX_PATH_SIZE>
+    class Path_String
+    {
+    public:
+        Path_String() : m_string() {}
+        Path_String(const CharT* a_string) : Path_String(a_string, Memory::StrLength(a_string)) {}
+        Path_String(const CharT* a_string, size_t a_size) : m_string(a_string, a_size) {}
+        Path_String(const String_View<CharT> a_view) : Path_String(a_view.c_str(), a_view.size()) {}
+
+        Path_String& operator=(const StringView& a_rhs)
+        {
+            this->~Path_String();
+            m_string = a_rhs;
+            return *this;
+        }
+
+        bool operator==(const Path_String<CharT, STRING_SIZE>& a_rhs) const
+        {
+            return m_string == a_rhs.m_string;
+        }
+
+        const CharT& operator[](const size_t a_index) const
+        {
+            return m_string[a_index];
+        }
+
+        void clear()
+        {
+            m_string.clear();
+        }
+
+        bool AddPath(const Path_String<CharT, STRING_SIZE>& a_path)
+        {
+            return m_string.append(a_path.m_string);
+        }
+
+        bool AddPath(const StringView& a_view)
+        {
+            if (AddPathNoSlash(a_view) && PushDirectorySlash())
+                return true;
+            return false;
+        }
+
+        bool AddPathNoSlash(const StringView& a_view)
+        {
+            return m_string.append(a_view);
+        }
+
+        bool PushDirectorySlash()
+        {
+            return m_string.push_back('/');
+        }
+
+        size_t find_last_of_extension_seperator() const
+        {
+            return m_string.find_last_of('.');
+        }
+
+        size_t find_last_of_directory_slash() const
+        {
+            return find_last_of_directory_slash(m_string.size());
+        }
+
+        size_t find_last_of_directory_slash(const size_t a_end) const
+        {
+            if (size_t index = m_string.find_last_of('/', a_end))
+                return index;
+
+            if (size_t index = m_string.find_last_of('\\', a_end))
+            {
+                BB_WARNING(false, "windows directory slash \\ found, should be replaced with a unix / version", WarningType::LOW);
+                return index;
+            }
+
+            return size_t(-1);
+        }
+
+        // with ::Data() you can modify the string without touching the class such as interacting with some C api's like the windows API. 
+        // this function will recalculate how big the string is.
+        void RecalculateStringSize()
+        {
+            m_string.RecalculateStringSize();
+        }
+
+        size_t size() const { return m_string.size(); }
+        static constexpr size_t capacity() { return STRING_SIZE; }
+        CharT* data() { return m_string.data(); }
+        const CharT* c_str() const { return m_string.c_str(); }
+
+        const String_View<CharT> GetView() const { return GetView(m_string.size()); }
+        const String_View<CharT> GetView(const size_t a_size, const size_t a_start_pos = 0) const { return String_View<CharT>(&m_string[a_start_pos], a_size); }
+
+    private:
+        Stack_String<CharT, STRING_SIZE> m_string;
+    };
+
+    using PathString = Path_String<char>;
+    using PathWString = Path_String<wchar_t>;
+
+    template<size_t STRING_SIZE>
+    using PathStringV = Path_String<char, STRING_SIZE>;
+    template<size_t STRING_SIZE>
+    using PathWStringV = Path_String<wchar_t, STRING_SIZE>;
 }

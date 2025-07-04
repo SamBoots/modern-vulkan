@@ -23,6 +23,7 @@ using namespace BB;
 int main(int argc, char** argv)
 {
 	(void)argc;
+    (void)argv;
 
     MemoryArena main_arena = MemoryArenaCreate();
     EngineInfo engine_info;

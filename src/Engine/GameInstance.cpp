@@ -16,14 +16,12 @@ bool GameInstance::Init(const uint2 a_game_viewport_size, const StringView a_pro
 
     m_project_name = a_project_name;
     m_project_path = GetRootPath();
-    m_project_path.append("projects");
-    m_project_path.push_directory_slash();
-    m_project_path.append(a_project_name);
-    m_project_path.push_directory_slash();
+    m_project_path.AddPath("projects");
+    m_project_path.AddPath(a_project_name);
 
     {
         PathString input_path = m_project_path;
-        input_path.append("input.json");
+        input_path.AddPathNoSlash("input.json");
         m_input_channel = Input::CreateInputChannelByJson(m_arena, a_project_name, input_path.GetView());
     }
 
@@ -47,10 +45,10 @@ bool GameInstance::InitLua()
     m_lua.RegisterActionHandlesLua(m_input_channel);
 
     PathString lua_path = m_project_path;
-    lua_path.append("lua/");
+    lua_path.AddPathNoSlash("lua/");
 
     PathString lua_include_path = lua_path;
-    lua_include_path.append("include/?.lua");
+    lua_include_path.AddPathNoSlash("include/?.lua");
     m_lua.AddIncludePath(lua_include_path.GetView());
 
     MemoryArenaScope(m_arena)

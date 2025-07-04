@@ -16,17 +16,7 @@ namespace BB
 	using ECSSignature = std::bitset<MAX_ECS_COMPONENTS>;
 	using ECSSignatureIndex = FrameworkHandle32Bit<struct ECSSignatureIndexHandle>;
 
-	// String Forwards
-	class PathString;
-
 	constexpr ECSEntity INVALID_ECS_OBJ = ECSEntity(BB_INVALID_HANDLE_64);
-
-    // used this to forward declare it
-    class PathString : public StackString<MAX_PATH_SIZE>
-    {
-    public:
-        using StackString<MAX_PATH_SIZE>::StackString;
-    };
 
     struct BoundingBox
     {

@@ -643,11 +643,11 @@ static inline AssetString GetAssetIconName(const StringView& a_asset_name)
 	return icon_name;
 }
 
-static inline void GetAssetNameFromPath(const StringView& a_path, AssetString& a_asset_name)
+static inline void GetAssetNameFromPath(const PathString& a_path, AssetString& a_asset_name)
 {
 	const size_t name_start = a_path.find_last_of_directory_slash();
 	BB_ASSERT(name_start != size_t(-1), "cannot find a directory slash");
-	const size_t name_end = a_path.find_last_of('.');
+	const size_t name_end = a_path.find_last_of_extension_seperator();
 	BB_ASSERT(name_end != size_t(-1), "file has no file extension name");
 	a_asset_name.append(&a_path[name_start + 1], name_end - name_start - 1);
 }
@@ -655,8 +655,8 @@ static inline void GetAssetNameFromPath(const StringView& a_path, AssetString& a
 static inline PathString GetIconPathFromAssetName(const StringView& a_asset_name)
 {
 	PathString icon_path(ICON_DIRECTORY);
-	icon_path.append(GetAssetIconName(a_asset_name));
-	icon_path.append(".png");
+	icon_path.AddPathNoSlash(GetAssetIconName(a_asset_name).GetView());
+	icon_path.AddPathNoSlash(".png");
 	return icon_path;
 }
 
@@ -829,7 +829,7 @@ void Asset::InitializeAssetManager(MemoryArena& a_arena, const AssetManagerInitI
 	s_asset_manager->icons_storage.next_index = 0;
     
     s_asset_manager->asset_dir = GetRootPath();
-    s_asset_manager->asset_dir.append("resources/");
+    s_asset_manager->asset_dir.AddPath("resources");
 
 	ImageCreateInfo icons_image_info;
 	icons_image_info.name = "icon mega image";
@@ -1120,7 +1120,7 @@ const Image& Asset::LoadImageArrayDisk(MemoryArena& a_temp_arena, const StringVi
 	}
 
 	asset.hash = path_hash;
-	asset.path = {};
+	asset.path = PathString();
 
 	asset.image->width = uwidth;
 	asset.image->height = uheight;
@@ -1171,7 +1171,7 @@ bool Asset::ReadWriteTextureDeferred(const StringView& a_path, const ImageInfo& 
 	params.readback = readback;
 	params.image_extent = a_image_info.extent;
 	params.write_path = a_path;
-	params.write_path.append(".png");
+	params.write_path.AddPathNoSlash(".png");
 
 	return AddGPUTask(WriteToDisk_impl, params, fence_value);
 }
@@ -1245,7 +1245,7 @@ const Image& Asset::LoadImageMemory(MemoryArena& a_temp_arena, const TextureLoad
 	WriteTexture(a_temp_arena, write_info);
 
 	asset.hash = path_hash;
-	asset.path = {};
+	asset.path = PathString();
 
 	asset.image->width = a_info.width;
 	asset.image->height = a_info.height;
@@ -1912,7 +1912,7 @@ const Model& Asset::LoadMeshFromMemory(MemoryArena& a_temp_arena, const MeshLoad
 		return *asset.model;
 
 	asset.hash = asset_hash;
-	asset.path = {};
+	asset.path = PathString();
 	asset.name = a_mesh_op.name;
 
 	CreateMeshInfo create_mesh;

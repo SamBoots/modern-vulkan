@@ -130,7 +130,7 @@ static ShaderEffectList CreateShaderEffects_impl(MemoryArena& a_temp_arena, cons
 			{
 				MemoryArenaSetMemoryMarker(a_temp_arena, memory_pos_before_shader_read);
                 PathString path = s_material_inst->shader_path;
-                path.append(info.path.c_str());
+                path.AddPathNoSlash(info.path.c_str());
 				shader_buffer = OSReadFile(a_temp_arena, path.c_str());
                 previous_shader_path = path;
 			}
@@ -221,10 +221,8 @@ void Material::InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCrea
 	
 	s_material_inst->scene_desc_layout = RenderSystem::GetSceneDescriptorLayout();
     s_material_inst->shader_path = GetRootPath();
-    s_material_inst->shader_path.append("resources");
-    s_material_inst->shader_path.push_directory_slash();
-    s_material_inst->shader_path.append("shaders");
-    s_material_inst->shader_path.push_directory_slash();
+    s_material_inst->shader_path.AddPath("resources");
+    s_material_inst->shader_path.AddPath("shaders");
 
 	MemoryArenaScope(a_arena)
 	{

@@ -183,7 +183,7 @@ void Console::LoggerCallback(const char* a_file_name, int a_line, const WarningT
 {
 	Console::ConsoleEntry entry{};
 	entry.warning_type = a_warning_type;
-	entry.file_name = a_file_name;
+	entry.file_name = PathString(a_file_name);
 	entry.line = a_line;
 
 	for (size_t i = 0; static_cast<size_t>(a_formats[i] != '\0'); i++)
