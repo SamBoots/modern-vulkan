@@ -10,15 +10,15 @@ void LineStage::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count, c
     line_material.pass_type = PASS_TYPE::SCENE;
     line_material.material_type = MATERIAL_TYPE::NONE;
     FixedArray<MaterialShaderCreateInfo, 3> line_shaders;
-    line_shaders[0].path = "../../resources/shaders/hlsl/Line.hlsl";
+    line_shaders[0].path = "hlsl/Line.hlsl";
     line_shaders[0].entry = "VertexMain";
     line_shaders[0].stage = SHADER_STAGE::VERTEX;
     line_shaders[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::GEOMETRY);
-    line_shaders[1].path = "../../resources/shaders/hlsl/Line.hlsl";
+    line_shaders[1].path = "hlsl/Line.hlsl";
     line_shaders[1].entry = "GeometryMain";
     line_shaders[1].stage = SHADER_STAGE::GEOMETRY;
     line_shaders[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
-    line_shaders[2].path = "../../resources/shaders/hlsl/Line.hlsl";
+    line_shaders[2].path = "hlsl/Line.hlsl";
     line_shaders[2].entry = "FragmentMain";
     line_shaders[2].stage = SHADER_STAGE::FRAGMENT_PIXEL;
     line_shaders[2].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);

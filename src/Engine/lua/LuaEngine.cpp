@@ -51,7 +51,7 @@ void LuaContext::RegisterLua()
     luaL_openlibs(m_state);
     lua_registerbbtypes(m_state);
     PathString lua_path = Asset::GetAssetPath();
-    lua_path.append("lua\\?.lua");
+    lua_path.append("lua/?.lua");
     AddIncludePath(lua_path.GetView());
 }
 
@@ -84,7 +84,7 @@ bool LuaContext::LoadLuaDirectory(MemoryArena& a_temp_arena, const StringView& a
     LuaStackScope scope(m_state);
     ConstSlice<StackString<MAX_PATH_SIZE>> lua_paths;
     PathString lua_path = a_file_path;
-    lua_path.append("\\*lua");
+    lua_path.append("/*lua");
     if (!OSGetDirectoryEntries(a_temp_arena, lua_path.c_str(), lua_paths))
         return false;
 
@@ -128,6 +128,7 @@ bool LuaContext::AddIncludePath(const StringView a_path)
     lua_include_paths.append(current_path);
     lua_include_paths.append(";");
     lua_include_paths.append(a_path);
+    lua_include_paths.append(";");
     lua_pop(m_state, 1);
 
     lua_pushstring(m_state, lua_include_paths.c_str());

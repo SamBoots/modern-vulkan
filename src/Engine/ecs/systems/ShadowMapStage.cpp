@@ -12,7 +12,7 @@ void ShadowMapStage::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_cou
     shadow_map_material.pass_type = PASS_TYPE::SCENE;
     shadow_map_material.material_type = MATERIAL_TYPE::NONE;
     MaterialShaderCreateInfo vertex_shadow_map;
-    vertex_shadow_map.path = "../../resources/shaders/hlsl/ShadowMap.hlsl";
+    vertex_shadow_map.path = "hlsl/ShadowMap.hlsl";
     vertex_shadow_map.entry = "VertexMain";
     vertex_shadow_map.stage = SHADER_STAGE::VERTEX;
     vertex_shadow_map.next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);

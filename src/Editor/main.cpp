@@ -28,7 +28,9 @@ int main(int argc, char** argv)
     EngineInfo engine_info;
     {
         EngineOptions engine_options;
-        engine_options.exe_path = argv[0];
+        // editor should give the src path 
+        //engine_options.exe_path = argv[0];
+        engine_options.exe_path = EDITOR_SRC_PATH;
         engine_options.max_materials = 128;
         engine_options.max_shader_effects = 64;
         engine_options.max_material_instances = 256;
@@ -76,7 +78,6 @@ int main(int argc, char** argv)
 		}
 
 		BB_START_PROFILE("frame time");
-
 
 		editor.StartFrame(main_arena, Slice(input_events, input_event_count), delta_time);
 

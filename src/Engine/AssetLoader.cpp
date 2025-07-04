@@ -829,7 +829,7 @@ void Asset::InitializeAssetManager(MemoryArena& a_arena, const AssetManagerInitI
 	s_asset_manager->icons_storage.next_index = 0;
     
     s_asset_manager->asset_dir = GetRootPath();
-    s_asset_manager->asset_dir.append("\\resources\\");
+    s_asset_manager->asset_dir.append("resources/");
 
 	ImageCreateInfo icons_image_info;
 	icons_image_info.name = "icon mega image";

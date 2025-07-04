@@ -430,7 +430,6 @@ void Editor::EndFrame(MemoryArena& a_arena)
                         }
                         DrawImgui(m_per_frame.frame_results[i].render_frame.render_target, game_inst.GetViewport());
                     }
-                    ImGui::End();
                     ImGui::PopStyleVar();
                 }
                 else
@@ -441,11 +440,9 @@ void Editor::EndFrame(MemoryArena& a_arena)
                         if (ImGui::Button("Reload lua"))
                             game_inst.Reload();
                     }
-                    ImGui::End();
                 }
+                ImGui::End();
             }
-
-
 		}
 
 		// CURFRAME = the render internal frame
@@ -533,15 +530,11 @@ bool Editor::DrawImgui(const RDescriptorIndex a_render_target, Viewport& a_viewp
     const ImVec2 viewport_size = ImGui::GetWindowSize();
     const uint2 window_size_u = uint2(static_cast<unsigned int>(viewport_size.x), static_cast<unsigned int>(viewport_size.y));
 	if (window_size_u.x < MINIMUM_WINDOW_SIZE.x || window_size_u.y < MINIMUM_WINDOW_SIZE.y)
-	{
-		ImGui::End();
-        ImGui::PopStyleVar();
 		return false;
-	}
+
 	if (window_size_u != a_viewport.GetExtent() && !ImGui::IsMouseDown(ImGuiMouseButton_Left))
-	{
 		a_viewport.SetExtent(window_size_u);
-	}
+
 	a_viewport.SetOffset(int2(static_cast<int>(viewport_offset.x), static_cast<int>(viewport_offset.y)));
 
 	ImGui::Image(a_render_target.handle, viewport_draw_area);

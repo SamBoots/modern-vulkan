@@ -11,5 +11,7 @@ add_executable(Editor
 	"ProfilerWindow.cpp" 
     "FreeCamera.cpp" "EditorGame.cpp")
 
+target_compile_definitions(Editor PRIVATE EDITOR_SRC_PATH=\"${CMAKE_CURRENT_SOURCE_DIR}/\")
+
 target_link_libraries(Editor
 	Game) 

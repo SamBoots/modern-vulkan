@@ -51,11 +51,11 @@ void ClearStage::Init(MemoryArena& a_arena)
         skybox_material.pass_type = PASS_TYPE::SCENE;
         skybox_material.material_type = MATERIAL_TYPE::NONE;
         FixedArray<MaterialShaderCreateInfo, 2> skybox_shaders;
-        skybox_shaders[0].path = "../../resources/shaders/hlsl/skybox.hlsl";
+        skybox_shaders[0].path = "hlsl/skybox.hlsl";
         skybox_shaders[0].entry = "VertexMain";
         skybox_shaders[0].stage = SHADER_STAGE::VERTEX;
         skybox_shaders[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
-        skybox_shaders[1].path = "../../resources/shaders/hlsl/skybox.hlsl";
+        skybox_shaders[1].path = "hlsl/skybox.hlsl";
         skybox_shaders[1].entry = "FragmentMain";
         skybox_shaders[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
         skybox_shaders[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);

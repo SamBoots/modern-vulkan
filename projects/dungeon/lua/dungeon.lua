@@ -1,7 +1,3 @@
-local camera_module = require "camera"
-local Camera = camera_module.Camera
-local FreeCamera = camera_module.FreeCamera
-
 local map_module = require "map"
 local DungeonMap = map_module.DungeonMap
 local dungeon_dictionary = map_module.dungeon_dictionary
@@ -83,31 +79,17 @@ function Player:IsMoving()
 end
 
 player = nil
-free_cam = FreeCamera.new(Camera.new(float3(0, 0.5, -0.5), float3(0, 0, -1), float3(1, 0, 0), float3(0, 1, 0)), 1)
-use_freecam = false
 
 function GetCameraPos()
-    if use_freecam then
-        return free_cam.camera.pos
-    else
-        return player.pos
-    end
+    return player.pos
 end
 
 function GetCameraUp()
-    if use_freecam then
-        return free_cam.camera.up
-    else
-        return PLAYER_UP
-    end
+    return PLAYER_UP
 end
 
 function GetCameraForward()
-    if use_freecam then
-        return free_cam.camera.forward
-    else
-        return player.forward
-    end
+    return player.forward
 end
 
 map = nil
@@ -116,22 +98,6 @@ function Init()
     map = DungeonMapViaFiles(40, 40, {"rooms/map1.txt"})
     player = Player.new(float3(map.spawn_x, 0.5, map.spawn_y), float3(0, 0, 1), float3(1, 0, 0), 5)
     return true
-end
-
-function FreeCamMove(a_delta_time)
-    local move_value_x, move_value_y = InputActionGetFloat2(camera_move)
-    local player_move = float3(move_value_x, 0, move_value_y) * a_delta_time
-    local wheel_move = InputActionGetFloat(move_speed_slider)
-    
-    free_cam:AddSpeed(wheel_move)
-    free_cam:Move(player_move)
-    local enable_rot = InputActionIsHeld(enable_rotate)
-    if enable_rot then
-        local look_x, look_y = InputActionGetFloat2(look_around);
-        free_cam:Rotate(look_x * a_delta_time, look_y * a_delta_time)
-    end
-
-    free_cam:Update(a_delta_time)
 end
 
 function DoPlayerMove()

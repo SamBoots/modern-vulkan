@@ -244,15 +244,7 @@ namespace BB
 
 		bool push_directory_slash()
 		{
-#ifdef _WIN32
-			push_back('\\');
-#elif _UNIX
-			push_back('/');
-			return tre;
-#else
-			BB_STATIC_ASSERT(false, "no OS define given for push_directory_slash");
-			return false;
-#endif // OS name
+			return push_back('/');
 		}
 		
 		void pop_back()
@@ -444,13 +436,7 @@ namespace BB
 
 		void push_directory_slash()
 		{
-#ifdef _WIN32
-			push_back('\\');
-#elif _UNIX
 			push_back('/');
-#else
-			BB_STATIC_ASSERT(false, "no OS define given for push_directory_slash");
-#endif // OS name
 		}
 
 		// with ::Data() you can modify the string without touching the class such as interacting with some C api's like the windows API. 

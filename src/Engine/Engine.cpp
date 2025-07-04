@@ -49,7 +49,7 @@ EngineInfo BB::InitEngine(MemoryArena& a_arena, const wchar* a_app_name, const E
     StackString<512> exe_path{};
 
     const StringView exe_path_manipulator{ a_engine_options.exe_path };
-    const size_t path_end = exe_path_manipulator.find_last_of('\\');
+    const size_t path_end = exe_path_manipulator.find_last_of_directory_slash();
 
     exe_path.append(exe_path_manipulator.c_str(), path_end);
 
@@ -61,7 +61,7 @@ EngineInfo BB::InitEngine(MemoryArena& a_arena, const wchar* a_app_name, const E
     // really improve on this directory shit
     const size_t first_slash = exe_path.find_last_of_directory_slash();
     const size_t src_slash = exe_path.GetView(first_slash).find_last_of_directory_slash();
-    PathString root_path = PathString(exe_path.c_str(), src_slash);
+    PathString root_path = PathString(exe_path.c_str(), src_slash + 1);
     BB_ASSERT(root_path.size() < _countof(s_root_path), "root path is too big!");
     memcpy(s_root_path, root_path.c_str(), root_path.size());
 
@@ -107,22 +107,22 @@ EngineInfo BB::InitEngine(MemoryArena& a_arena, const wchar* a_app_name, const E
     material_system_init.max_materials = 128;
     material_system_init.max_shader_effects = 64;
     material_system_init.max_material_instances = 256;
-    material_system_init.default_2d_vertex.path = "../../resources/shaders/hlsl/Imgui.hlsl";
+    material_system_init.default_2d_vertex.path = "hlsl/Imgui.hlsl";
     material_system_init.default_2d_vertex.entry = "VertexMain";
     material_system_init.default_2d_vertex.stage = SHADER_STAGE::VERTEX;
     material_system_init.default_2d_vertex.next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::FRAGMENT_PIXEL);
 
-    material_system_init.default_2d_fragment.path = "../../resources/shaders/hlsl/Imgui.hlsl";
+    material_system_init.default_2d_fragment.path = "hlsl/Imgui.hlsl";
     material_system_init.default_2d_fragment.entry = "FragmentMain";
     material_system_init.default_2d_fragment.stage = SHADER_STAGE::FRAGMENT_PIXEL;
     material_system_init.default_2d_fragment.next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::NONE);
 
-    material_system_init.default_3d_vertex.path = "../../resources/shaders/hlsl/pbrmesh.hlsl";
+    material_system_init.default_3d_vertex.path = "hlsl/pbrmesh.hlsl";
     material_system_init.default_3d_vertex.entry = "VertexMain";
     material_system_init.default_3d_vertex.stage = SHADER_STAGE::VERTEX;
     material_system_init.default_3d_vertex.next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::FRAGMENT_PIXEL);
 
-    material_system_init.default_3d_fragment.path = "../../resources/shaders/hlsl/pbrmesh.hlsl";
+    material_system_init.default_3d_fragment.path = "hlsl/pbrmesh.hlsl";
     material_system_init.default_3d_fragment.entry = "FragmentMain";
     material_system_init.default_3d_fragment.stage = SHADER_STAGE::FRAGMENT_PIXEL;
     material_system_init.default_3d_fragment.next_stages = static_cast<SHADER_STAGE_FLAGS>(SHADER_STAGE::NONE);

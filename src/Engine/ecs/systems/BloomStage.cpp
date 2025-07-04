@@ -10,11 +10,11 @@ void BloomStage::Init(MemoryArena& a_arena)
     gaussian_material.pass_type = PASS_TYPE::SCENE;
     gaussian_material.material_type = MATERIAL_TYPE::NONE;
     FixedArray<MaterialShaderCreateInfo, 2> gaussian_shaders;
-    gaussian_shaders[0].path = "../../resources/shaders/hlsl/GaussianBlur.hlsl";
+    gaussian_shaders[0].path = "hlsl/GaussianBlur.hlsl";
     gaussian_shaders[0].entry = "VertexMain";
     gaussian_shaders[0].stage = SHADER_STAGE::VERTEX;
     gaussian_shaders[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
-    gaussian_shaders[1].path = "../../resources/shaders/hlsl/GaussianBlur.hlsl";
+    gaussian_shaders[1].path = "hlsl/GaussianBlur.hlsl";
     gaussian_shaders[1].entry = "FragmentMain";
     gaussian_shaders[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
     gaussian_shaders[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);

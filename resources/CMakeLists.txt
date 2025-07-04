@@ -3,15 +3,6 @@
 #
 cmake_minimum_required (VERSION 3.8)
 
-#copy shaders when a change happened.
-add_custom_target(copy_shaders ALL
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_SOURCE_DIR}/resources/shaders
-    ${CMAKE_BINARY_DIR}/resources/shaders
-    COMMENT "Copying Shaders")
-
-add_dependencies(Engine copy_shaders)
-
 #copy models when a change happened.
 add_custom_target(copy_models ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -38,12 +29,3 @@ add_custom_target(copy_lua ALL
     COMMENT "Copying lua directory")
 
 add_dependencies(Game copy_lua)
-
-#copy models when a change happened.
-add_custom_target(copy_projects ALL
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_SOURCE_DIR}/projects
-    ${CMAKE_BINARY_DIR}/projects
-    COMMENT "Copying projects directory")
-
-add_dependencies(Game copy_projects)

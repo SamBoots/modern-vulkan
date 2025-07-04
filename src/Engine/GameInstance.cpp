@@ -16,7 +16,8 @@ bool GameInstance::Init(const uint2 a_game_viewport_size, const StringView a_pro
 
     m_project_name = a_project_name;
     m_project_path = GetRootPath();
-    m_project_path.append("\\projects\\");
+    m_project_path.append("projects");
+    m_project_path.push_directory_slash();
     m_project_path.append(a_project_name);
     m_project_path.push_directory_slash();
 
@@ -46,10 +47,10 @@ bool GameInstance::InitLua()
     m_lua.RegisterActionHandlesLua(m_input_channel);
 
     PathString lua_path = m_project_path;
-    lua_path.append("lua\\");
+    lua_path.append("lua/");
 
     PathString lua_include_path = lua_path;
-    lua_include_path.append("include\\?.lua");
+    lua_include_path.append("include/?.lua");
     m_lua.AddIncludePath(lua_include_path.GetView());
 
     MemoryArenaScope(m_arena)

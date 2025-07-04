@@ -4,6 +4,7 @@
 #include "Program.h"
 #include "Storage/Hashmap.h"
 #include "Storage/Slotmap.h"
+#include "Engine.hpp"
 
 using namespace BB;
 
@@ -44,6 +45,8 @@ struct MaterialSystem_inst
 	DescriptorAllocation material_desc_allocation;
 
 	MasterMaterialHandle default_materials[static_cast<uint32_t>(PASS_TYPE::ENUM_SIZE)][static_cast<uint32_t>(MATERIAL_TYPE::ENUM_SIZE)];
+
+    PathString shader_path;
 };
 
 static MaterialSystem_inst* s_material_inst;
@@ -109,7 +112,7 @@ static ShaderEffectList CreateShaderEffects_impl(MemoryArena& a_temp_arena, cons
 	size_t created_shader_effect_count = 0;
 
 	MemoryArenaMarker memory_pos_before_shader_read = MemoryArenaGetMemoryMarker(a_temp_arena);
-	StringView previous_shader_path;
+	PathString previous_shader_path;
 	Buffer shader_buffer;
 
 	for (size_t i = 0; i < a_shader_effects_info.size(); i++)
@@ -126,8 +129,10 @@ static ShaderEffectList CreateShaderEffects_impl(MemoryArena& a_temp_arena, cons
 			if (previous_shader_path != info.path)
 			{
 				MemoryArenaSetMemoryMarker(a_temp_arena, memory_pos_before_shader_read);
-				shader_buffer = OSReadFile(a_temp_arena, info.path.c_str());
-				previous_shader_path = info.path;
+                PathString path = s_material_inst->shader_path;
+                path.append(info.path.c_str());
+				shader_buffer = OSReadFile(a_temp_arena, path.c_str());
+                previous_shader_path = path;
 			}
 
 			const StringView name = info.path.c_str() + info.path.find_last_of('/');
@@ -215,6 +220,11 @@ void Material::InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCrea
 	s_material_inst->shader_effect_cache.Init(a_arena, a_create_info.max_shader_effects);
 	
 	s_material_inst->scene_desc_layout = RenderSystem::GetSceneDescriptorLayout();
+    s_material_inst->shader_path = GetRootPath();
+    s_material_inst->shader_path.append("resources");
+    s_material_inst->shader_path.push_directory_slash();
+    s_material_inst->shader_path.append("shaders");
+    s_material_inst->shader_path.push_directory_slash();
 
 	MemoryArenaScope(a_arena)
 	{
