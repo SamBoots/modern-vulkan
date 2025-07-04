@@ -613,7 +613,7 @@ namespace BB
 	{
 		const float3 forward = Float3Normalize(a_center - a_eye);
 		const float3 right = Float3Normalize(Float3Cross(forward, a_up));
-		const float3 up = Float3Cross(right, forward);
+		const float3 up = Float3Normalize(Float3Cross(right, forward));
 
 		float4x4 mat;
         mat.r0 = float4(right.x, right.y, right.z, -Float3Dot(right, a_eye));
@@ -623,6 +623,13 @@ namespace BB
 
 		return mat;
 	}
+
+    static inline void Float4x4ExtractView(const float4x4& a_view, float3& a_right, float3& a_up, float3& a_forward)
+    {
+        a_right = float3(a_view.r0.x, a_view.r0.y, a_view.r0.z);
+        a_up = float3(a_view.r1.x, a_view.r1.y, a_view.r1.z);
+        a_forward = float3(-a_view.r2.x, -a_view.r2.y, -a_view.r2.z);
+    }
 
 	static inline float4x4 Float4x4Inverse(const float4x4& m)
 	{

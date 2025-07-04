@@ -13,7 +13,12 @@ namespace BB
         void AddSpeed(const float a_speed_mod);
         void SetPosition(const float3 a_pos);
         void SetVelocity(const float3 a_velocity = float3(0.f, 0.f, 0.f));
-        void SetUp(const float3 a_up);
+
+        float3 GetRight() const;
+        float3 GetUp() const;
+        float3 GetUp(const float3 a_right, const float3 a_forward) const;
+        float3 GetForward() const;
+        void SetYawPitchFromForward(const float3 a_forward);
 
         void Update(const float a_delta_time);
 
@@ -22,13 +27,12 @@ namespace BB
     private:
         float m_yaw;
         float m_pitch;
-        float m_speed;
-
-        const float m_velocity_speed = 25.0f;
-        float3 m_velocity;
         float3 m_pos;
-        float3 m_forward;
-        float3 m_Right;
-        float3 m_up;
+        float3 m_velocity;
+
+        float m_speed = 10.f;
+        const float m_min_speed = 1.f;
+        const float m_max_speed = 100.f;
+        const float m_velocity_speed = 25.0f;
     };
 }

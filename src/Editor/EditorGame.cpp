@@ -36,22 +36,29 @@ bool EditorGame::Reload()
 void EditorGame::ToggleEditorMode()
 {
     m_editor_mode = !m_editor_mode;
+
+    float3 right;
+    float3 up;
+    float3 forward;
+    Float4x4ExtractView(m_game.GetCameraView(), right, up, forward);
+
     m_camera.SetPosition(m_game.GetCameraPos());
-    m_camera.SetUp(float3(0, 1.f, 0));
+    m_camera.SetYawPitchFromForward(forward);
 }
 
 void EditorGame::EditorUpdate(const float a_delta_time, const CameraInput& a_camera_input)
 {
     const float2 move = Input::InputActionGetFloat2(a_camera_input.channel, a_camera_input.move);
     const float3 player_move = float3(move.x, 0, move.y) * a_delta_time;
-    const float wheel_move = Input::InputActionGetFloat(a_camera_input.channel, a_camera_input.move_speed_slider) * a_delta_time;
+    const float wheel_move = Input::InputActionGetFloat(a_camera_input.channel, a_camera_input.move_speed_slider);
 
     m_camera.AddSpeed(wheel_move);
     m_camera.Move(player_move);
 
     if (Input::InputActionIsHeld(a_camera_input.channel, a_camera_input.enable_rotate))
     {
-        const float2 look = Input::InputActionGetFloat2(a_camera_input.channel, a_camera_input.look_around) * a_delta_time;
+        constexpr float LOOK_SENSITIVITY = 0.002f;
+        const float2 look = Input::InputActionGetFloat2(a_camera_input.channel, a_camera_input.look_around) * LOOK_SENSITIVITY;
         m_camera.Rotate(look.x, look.y);
     }
 

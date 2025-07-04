@@ -135,7 +135,7 @@ void Editor::UpdateGame(EditorGame& a_instance, const float a_delta_time)
 
     CameraInput input;
     input.channel = m_input.channel;
-    input.move = m_input.mouse_move;
+    input.move = m_input.camera_move;
     input.move_speed_slider = m_input.move_speed_slider;
     input.look_around = m_input.look_around;
     input.enable_rotate = m_input.enable_rotate;
