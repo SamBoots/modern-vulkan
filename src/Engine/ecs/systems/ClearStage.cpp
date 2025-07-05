@@ -37,12 +37,12 @@ void ClearStage::Init(MemoryArena& a_arena)
     {
         constexpr StringView SKYBOX_NAMES[6]
         {
-            StringView("../../resources/textures/skybox/0.jpg"),
-            StringView("../../resources/textures/skybox/1.jpg"),
-            StringView("../../resources/textures/skybox/2.jpg"),
-            StringView("../../resources/textures/skybox/3.jpg"),
-            StringView("../../resources/textures/skybox/4.jpg"),
-            StringView("../../resources/textures/skybox/5.jpg")
+            StringView("skybox/0.jpg"),
+            StringView("skybox/1.jpg"),
+            StringView("skybox/2.jpg"),
+            StringView("skybox/3.jpg"),
+            StringView("skybox/4.jpg"),
+            StringView("skybox/5.jpg")
         };
 
         FixedArray<Asset::AsyncAsset, 6> skybox_textures;

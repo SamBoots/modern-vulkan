@@ -42,7 +42,6 @@ using namespace BB;
 
 constexpr size_t GPU_TASK_QUEUE_SIZE = 64;
 
-constexpr const char TEXTURE_DIRECTORY[] = "../../resources/textures/";
 constexpr const char ICON_DIRECTORY[] = "../../resources/icons/";
 
 constexpr const IMAGE_FORMAT ICON_IMAGE_FORMAT = IMAGE_FORMAT::RGBA8_SRGB;
@@ -54,19 +53,6 @@ static bool IsPathImage(const StringView a_view)
 	if (a_view.compare(".png", extension_pos) || a_view.compare(".jpg", extension_pos) || a_view.compare(".bmp", extension_pos))
 		return true;
 	return false;
-}
-
-static char* CreateGLTFImagePath(MemoryArena& a_temp_arena, const char* a_image_path)
-{
-	const size_t image_path_size = strlen(a_image_path);
-	const size_t texture_directory_size = sizeof(TEXTURE_DIRECTORY);
-	char* new_path = ArenaAllocArr(a_temp_arena, char, texture_directory_size + image_path_size);
-
-	Memory::Copy(new_path, TEXTURE_DIRECTORY, sizeof(TEXTURE_DIRECTORY));
-	Memory::Copy(&new_path[sizeof(TEXTURE_DIRECTORY) - 1], a_image_path, image_path_size);
-	new_path[sizeof(TEXTURE_DIRECTORY) + image_path_size - 1] = '\0';
-
-	return new_path;
 }
 
 //crappy hash, don't care for now.
@@ -645,8 +631,9 @@ static inline AssetString GetAssetIconName(const StringView& a_asset_name)
 
 static inline void GetAssetNameFromPath(const PathString& a_path, AssetString& a_asset_name)
 {
-	const size_t name_start = a_path.find_last_of_directory_slash();
-	BB_ASSERT(name_start != size_t(-1), "cannot find a directory slash");
+	size_t name_start = a_path.find_last_of_directory_slash();
+	if (name_start == -1) // path already has the name
+		name_start = 0;
 	const size_t name_end = a_path.find_last_of_extension_seperator();
 	BB_ASSERT(name_end != size_t(-1), "file has no file extension name");
 	a_asset_name.append(&a_path[name_start + 1], name_end - name_start - 1);
@@ -829,7 +816,7 @@ void Asset::InitializeAssetManager(MemoryArena& a_arena, const AssetManagerInitI
 	s_asset_manager->icons_storage.next_index = 0;
     
     s_asset_manager->asset_dir = GetRootPath();
-    s_asset_manager->asset_dir.AddPath("resources");
+    s_asset_manager->asset_dir.AddPath(StringView("resources"));
 
 	ImageCreateInfo icons_image_info;
 	icons_image_info.name = "icon mega image";
@@ -976,6 +963,22 @@ const PathString& Asset::GetAssetPath()
     return s_asset_manager->asset_dir;
 }
 
+static PathString CreateTexturePath(const StringView& a_image_path)
+{
+	PathString path = s_asset_manager->asset_dir;
+	path.AddPath("textures");
+	path.AddPathNoSlash(a_image_path);
+	return path;
+}
+
+static PathString CreateModelPath(const StringView& a_model_path)
+{
+	PathString path = s_asset_manager->asset_dir;
+	path.AddPath("models");
+	path.AddPathNoSlash(a_model_path);
+	return path;
+}
+
 static inline void CreateImage_func(const StringView& a_name, const uint32_t a_width, const uint32_t a_height, const uint16_t a_array_layers, const IMAGE_FORMAT a_format, const IMAGE_VIEW_TYPE a_view_type, RImage& a_out_image, RDescriptorIndex& a_out_index)
 {
 	ImageCreateInfo create_image_info;
@@ -1015,7 +1018,7 @@ const Image& Asset::LoadImageDisk(MemoryArena& a_temp_arena, const StringView& a
 	GetAssetNameFromPath(a_path, asset.name);
 
 	int width = 0, height = 0, channels = 0;
-	stbi_uc* pixels = stbi_load(a_path.c_str(), &width, &height, &channels, 4);
+	stbi_uc* pixels = stbi_load(CreateTexturePath(a_path).c_str(), &width, &height, &channels, 4);
 	RImage gpu_image;
 	RDescriptorIndex descriptor_index;
 	const IMAGE_FORMAT format = a_format;
@@ -1085,7 +1088,7 @@ const Image& Asset::LoadImageArrayDisk(MemoryArena& a_temp_arena, const StringVi
 	asset.name = a_name;
 
 	int width = 0, height = 0, channels = 0;
-	stbi_uc* pixels = stbi_load(a_paths[0].c_str(), &width, &height, &channels, 4);
+	stbi_uc* pixels = stbi_load(CreateTexturePath(a_paths[0]).c_str(), &width, &height, &channels, 4);
 	RImage gpu_image;
 	RDescriptorIndex descriptor_index;
 	const uint32_t uwidth = static_cast<uint32_t>(width);
@@ -1107,7 +1110,7 @@ const Image& Asset::LoadImageArrayDisk(MemoryArena& a_temp_arena, const StringVi
 	for (uint32_t i = 1; i < array_layers; i++)
 	{
 		STBI_FREE(pixels);
-		pixels = stbi_load(a_paths[i].c_str(), &width, &height, &channels, 4);
+		pixels = stbi_load(CreateTexturePath(a_paths[i]).c_str(), &width, &height, &channels, 4);
 
 		BB_ASSERT(uwidth == static_cast<uint32_t>(width) && uheight == static_cast<uint32_t>(height), "image array are not the same dimensions");
 
@@ -1517,8 +1520,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 		if (prim.material->pbr_metallic_roughness.base_color_texture.texture)
 		{
 			const cgltf_image& image = *prim.material->pbr_metallic_roughness.base_color_texture.texture->image;
-			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
-			metallic_info.albedo_texture = Asset::LoadImageDisk(a_temp_arena, full_image_path, IMAGE_FORMAT::RGBA8_SRGB).descriptor_index;
+			metallic_info.albedo_texture = Asset::LoadImageDisk(a_temp_arena, image.uri, IMAGE_FORMAT::RGBA8_SRGB).descriptor_index;
 		}
 		else
 			metallic_info.albedo_texture = Asset::GetWhiteTexture();
@@ -1526,8 +1528,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 		if (prim.material->normal_texture.texture)
 		{
 			const cgltf_image& image = *prim.material->normal_texture.texture->image;
-			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
-			metallic_info.normal_texture = Asset::LoadImageDisk(a_temp_arena, full_image_path, IMAGE_FORMAT::RGBA8_UNORM).descriptor_index;
+			metallic_info.normal_texture = Asset::LoadImageDisk(a_temp_arena, image.uri, IMAGE_FORMAT::RGBA8_UNORM).descriptor_index;
 		}
 		else
 			metallic_info.normal_texture = Asset::GetWhiteTexture();
@@ -1550,8 +1551,7 @@ static void LoadglTFMesh(MemoryArena& a_temp_arena, const cgltf_mesh& a_cgltf_me
 		if (texture_is_orm)
 		{
 			const cgltf_image& image = *prim.material->pbr_metallic_roughness.metallic_roughness_texture.texture->image;
-			const char* full_image_path = CreateGLTFImagePath(a_temp_arena, image.uri);
-			metallic_info.orm_texture = Asset::LoadImageDisk(a_temp_arena, full_image_path, IMAGE_FORMAT::RGBA8_UNORM).descriptor_index;
+			metallic_info.orm_texture = Asset::LoadImageDisk(a_temp_arena, image.uri, IMAGE_FORMAT::RGBA8_UNORM).descriptor_index;
 		}
 		else
 		{
@@ -1814,13 +1814,15 @@ const Model& Asset::LoadglTFModel(MemoryArena& a_temp_arena, const MeshLoadFromD
 	gltf_option.memory.user_data = &a_temp_arena;
 	cgltf_data* gltf_data = nullptr;
 
-	if (cgltf_parse_file(&gltf_option, a_mesh_op.path.c_str(), &gltf_data) != cgltf_result_success)
+	const PathString path = CreateModelPath(a_mesh_op.path);
+
+	if (cgltf_parse_file(&gltf_option, path.c_str(), &gltf_data) != cgltf_result_success)
 	{
 		BB_ASSERT(false, "Failed to load glTF model, cgltf_parse_file.");
 		return *asset.model;
 	}
 
-	cgltf_load_buffers(&gltf_option, gltf_data, a_mesh_op.path.c_str());
+	cgltf_load_buffers(&gltf_option, gltf_data, path.c_str());
 
 	if (cgltf_validate(gltf_data) != cgltf_result_success)
 	{

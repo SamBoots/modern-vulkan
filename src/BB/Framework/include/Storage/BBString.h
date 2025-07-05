@@ -536,10 +536,11 @@ namespace BB
             m_string.clear();
         }
 
-        bool AddPath(const Path_String<CharT, STRING_SIZE>& a_path)
-        {
-            return m_string.append(a_path.m_string);
-        }
+		bool AddPath(const char* a_str)
+		{
+			const size_t str_len = strlen(a_str);
+			return AddPath(StringView(a_str, str_len));
+		}
 
         bool AddPath(const StringView& a_view)
         {
@@ -548,7 +549,18 @@ namespace BB
             return false;
         }
 
-        bool AddPathNoSlash(const StringView& a_view)
+		bool AddPathNoSlash(const Path_String<CharT, STRING_SIZE>& a_path)
+		{
+			return m_string.append(a_path.m_string);
+		}
+
+		bool AddPathNoSlash(const char* a_str)
+		{
+			const size_t str_len = strlen(a_str);
+			return AddPathNoSlash(StringView(a_str, str_len));
+		}
+
+		bool AddPathNoSlash(const StringView& a_view)
         {
             return m_string.append(a_view);
         }
