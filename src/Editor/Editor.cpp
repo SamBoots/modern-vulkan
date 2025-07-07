@@ -307,7 +307,7 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
     {
         InputActionCreateInfo input_create{};
         input_create.value_type = INPUT_VALUE_TYPE::FLOAT_2;
-        input_create.binding_type = INPUT_BINDING_TYPE::COMPOSITE_UP_DOWN_RIGHT_LEFT;
+        input_create.binding_type = INPUT_BINDING_TYPE::AXIS_2D;
         input_create.source = INPUT_SOURCE::KEYBOARD;
         input_create.input_keys[0].keyboard_key = KEYBOARD_KEY::W;
         input_create.input_keys[1].keyboard_key = KEYBOARD_KEY::S;
@@ -1037,12 +1037,17 @@ void Editor::ImGuiDisplayInputChannel(const InputChannelHandle a_channel)
                     ImGui::Indent();
                     if (ipa.input_source == INPUT_SOURCE::KEYBOARD)
                     {
-                        if (ipa.binding_type == INPUT_BINDING_TYPE::COMPOSITE_UP_DOWN_RIGHT_LEFT)
+                        if (ipa.binding_type == INPUT_BINDING_TYPE::AXIS_2D)
                         {
                             ipa.input_keys[0].keyboard_key = KeyboardKeyChange("UP", ipa.input_keys[0].keyboard_key);
                             ipa.input_keys[1].keyboard_key = KeyboardKeyChange("DOWN", ipa.input_keys[1].keyboard_key);
                             ipa.input_keys[2].keyboard_key = KeyboardKeyChange("RIGHT", ipa.input_keys[2].keyboard_key);
                             ipa.input_keys[3].keyboard_key = KeyboardKeyChange("LEFT", ipa.input_keys[3].keyboard_key);
+                        }
+                        else if (ipa.binding_type == INPUT_BINDING_TYPE::AXIS_1D)
+                        {
+                            ipa.input_keys[0].keyboard_key = KeyboardKeyChange("UP", ipa.input_keys[0].keyboard_key);
+                            ipa.input_keys[1].keyboard_key = KeyboardKeyChange("DOWN", ipa.input_keys[1].keyboard_key);
                         }
                         else
                         {

@@ -632,7 +632,7 @@ static inline AssetString GetAssetIconName(const StringView& a_asset_name)
 static inline void GetAssetNameFromPath(const PathString& a_path, AssetString& a_asset_name)
 {
 	size_t name_start = a_path.find_last_of_directory_slash();
-	if (name_start == -1) // path already has the name
+	if (name_start == -1ull) // path already has the name
 		name_start = 0;
 	const size_t name_end = a_path.find_last_of_extension_seperator();
 	BB_ASSERT(name_end != size_t(-1), "file has no file extension name");

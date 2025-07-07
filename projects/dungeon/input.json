@@ -3,7 +3,7 @@
     {
       "name": "player_move",
       "INPUT_VALUE": "FLOAT_2",
-      "INPUT_BINDING": "COMPOSITE_UP_DOWN_RIGHT_LEFT",
+      "INPUT_BINDING": "AXIS_2D",
       "INPUT_SOURCE": "KEYBOARD",
       "KEYS": [ "W", "S", "D", "A" ]
     },

@@ -95,6 +95,7 @@ end
 map = nil
 
 function Init()
+return false
     map = DungeonMapViaFiles(40, 40, {"rooms/map1.txt"})
     player = Player.new(float3(map.spawn_x, 0.5, map.spawn_y), float3(0, 0, 1), float3(1, 0, 0), 5)
     return true

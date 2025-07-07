@@ -16,7 +16,8 @@ namespace BB
 
 #define INPUT_BINDING_TYPE_D(FUNC, ...) \
     FUNC(BINDING, 0, __VA_ARGS__) \
-    FUNC(COMPOSITE_UP_DOWN_RIGHT_LEFT, 1, __VA_ARGS__)  // input_keys[] , 0 = UP, 1, = DOWN, 2 = RIGHT, 3 = LEFT
+    FUNC(AXIS_1D, 1, __VA_ARGS__) \
+    FUNC(AXIS_2D, 2, __VA_ARGS__)  // input_keys[] , 0 = UP, 1, = DOWN, 2 = RIGHT, 3 = LEFT
 
 #define INPUT_SOURCE_D(FUNC, ...) \
     FUNC(KEYBOARD, 0, __VA_ARGS__) \

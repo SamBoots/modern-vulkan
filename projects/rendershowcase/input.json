@@ -1,32 +1,11 @@
 {
   "input_actions": [
     {
-      "name": "camera_move",
-      "INPUT_VALUE": "FLOAT_2",
-      "INPUT_BINDING": "COMPOSITE_UP_DOWN_RIGHT_LEFT",
-      "INPUT_SOURCE": "KEYBOARD",
-      "KEYS": [ "W", "S", "D", "A" ]
-    },
-    {
-      "name": "move_speed_slider",
+      "name": "camera_zoom",
       "INPUT_VALUE": "FLOAT",
-      "INPUT_BINDING": "BINDING",
-      "INPUT_SOURCE": "MOUSE",
-      "KEYS": [ "SCROLL_WHEEL" ]
-    },
-    {
-      "name": "look_around",
-      "INPUT_VALUE": "FLOAT_2",
-      "INPUT_BINDING": "BINDING",
-      "INPUT_SOURCE": "MOUSE",
-      "KEYS": [ "MOUSE_MOVE" ]
-    },
-    {
-      "name": "enable_rotate",
-      "INPUT_VALUE": "BOOL",
-      "INPUT_BINDING": "BINDING",
-      "INPUT_SOURCE": "MOUSE",
-      "KEYS": [ "RIGHT_BUTTON" ]
+      "INPUT_BINDING": "AXIS_1D",
+      "INPUT_SOURCE": "KEYBOARD",
+      "KEYS": [ "W", "S" ]
     }
   ]
 }

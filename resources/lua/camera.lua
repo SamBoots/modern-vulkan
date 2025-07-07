@@ -83,6 +83,13 @@ function FreeCamera:AddSpeed(a_speed)
     self.speed = speed
 end
 
+function FreeCamera:LookAt(focus_pos)
+    local right, up, forward = LookAt(focus_pos, self.camera.pos, self.camera.up)
+    self.camera.forward = forward
+    self.camera.right = right
+    return right, up, forward
+end
+
 return {
     Camera = Camera,
     FreeCamera = FreeCamera

@@ -306,6 +306,16 @@ float Input::InputActionGetFloat(const InputChannelHandle a_channel, const Input
         return s_input_system->current.mouse_state.wheel_move;
     }
 
+    if (ia.input_source == INPUT_SOURCE::KEYBOARD && ia.binding_type == INPUT_BINDING_TYPE::AXIS_1D)
+    {
+        float scalar = 0.f;
+        if (KeyboardKeyDownOrPressed(ia.input_keys[0].keyboard_key))
+            scalar += 1.f;
+        if (KeyboardKeyDownOrPressed(ia.input_keys[1].keyboard_key))
+            scalar -= 1.f;
+        return scalar;
+    }
+
     BB_WARNING(false, "input action returned 0.f as it found no path to get the value", WarningType::MEDIUM);
     return 0.f;
 }
@@ -327,7 +337,7 @@ float2 Input::InputActionGetFloat2(const InputChannelHandle a_channel, const Inp
         return s_input_system->current.mouse_state.mouse_move;
     }
 
-    if (ia.input_source == INPUT_SOURCE::KEYBOARD && ia.binding_type == INPUT_BINDING_TYPE::COMPOSITE_UP_DOWN_RIGHT_LEFT)
+    if (ia.input_source == INPUT_SOURCE::KEYBOARD && ia.binding_type == INPUT_BINDING_TYPE::AXIS_2D)
     {
         float2 value = float2(0);
 
