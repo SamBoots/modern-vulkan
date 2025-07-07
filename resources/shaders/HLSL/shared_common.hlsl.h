@@ -118,6 +118,15 @@ namespace BB
         float4x4 inverse;           // 128
     };
 
+    struct ShaderTextUIHeader
+    {
+        uint2 offset;               // 8
+        uint2 extent;               // 16
+        float2 glypth_size_mod;     // 24
+        uint glyph_count;           // 28
+        uint pad;                   // 32
+    };
+
     //could make the size the same for shaderindices and shaderindices2d so that the pushconstant pipelinelayout is the same.....
     struct ShaderIndices
     {
