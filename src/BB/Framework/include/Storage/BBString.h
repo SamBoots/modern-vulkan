@@ -594,6 +594,25 @@ namespace BB
             return size_t(-1);
         }
 
+        bool HasFileExtension() const
+        {
+            const size_t dot = find_last_of_extension_seperator();
+            const size_t slash = find_last_of_directory_slash();
+
+            if (slash >= dot)
+                return false
+
+            return true;
+        }
+
+        StringView GetFileExtension() const
+        {
+            if (HasFileExtension())
+                return StringView();
+
+            return m_string.GetView(find_last_of_extension_seperator());
+        }
+
         // with ::Data() you can modify the string without touching the class such as interacting with some C api's like the windows API. 
         // this function will recalculate how big the string is.
         void RecalculateStringSize()

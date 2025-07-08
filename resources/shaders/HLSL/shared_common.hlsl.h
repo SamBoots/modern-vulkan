@@ -127,6 +127,12 @@ namespace BB
         uint pad;                   // 32
     };
 
+    struct GlyphUV
+    {
+        float2 min;
+        float2 max;
+    };
+
     //could make the size the same for shaderindices and shaderindices2d so that the pushconstant pipelinelayout is the same.....
     struct ShaderIndices
     {
