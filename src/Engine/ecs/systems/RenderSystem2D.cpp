@@ -8,6 +8,7 @@ using namespace BB;
 
 bool RenderSystem2D::Init(MemoryArena& a_arena, const size_t a_gpu_buffer)
 {
+    // create material here
 
 }
 
@@ -22,7 +23,9 @@ void RenderSystem2D::InitFontImage(MemoryArena& a_temp_arena, const RCommandList
     texture_load.height = height;
     texture_load.pixels = pixels;
     texture_load.bytes_per_pixel = bytes_per_pixel;
-    Asset::LoadImageMemory(a_temp_arena, texture_load);
+    const Image& img = Asset::LoadImageMemory(a_temp_arena, texture_load);
+    m_image_asset = img.asset_handle;
+    m_font_atlas = img.descriptor_index;
 
     m_image_size = uint2(static_cast<uint32_t>(width), static_cast<uint32_t>(height));
 
@@ -53,7 +56,7 @@ void RenderSystem2D::InitFontImage(MemoryArena& a_temp_arena, const RCommandList
 
 void RenderSystem2D::Destroy()
 {
-    Asset::FreeAsset()
+    Asset::FreeAsset(m_image_asset);
 }
 
 void RenderSystem2D::RenderText(const RCommandList a_list, const uint2 a_text_size, const uint2 a_text_start_pos, const StringView a_string)
