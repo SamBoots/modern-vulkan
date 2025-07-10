@@ -34,6 +34,7 @@ _BBBIND(PER_SCENE_LIGHT_DATA_BINDING, SPACE_PER_SCENE)ByteAddressBuffer light_da
 _BBBIND(PER_SCENE_LIGHT_PROJECTION_VIEW_DATA_BINDING, SPACE_PER_SCENE)ByteAddressBuffer light_view_projection_data;
 
 //PER_MATERIAL BINDINGS
+
 _BBBIND(PER_MATERIAL_BINDING, SPACE_PER_MATERIAL)ConstantBuffer<BB::MeshMetallic> materials_metallic[];
 
 float2 GetAttributeFloat2(const uint a_offset, const uint a_vertex_index)

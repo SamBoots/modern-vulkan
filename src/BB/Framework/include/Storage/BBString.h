@@ -600,7 +600,7 @@ namespace BB
             const size_t slash = find_last_of_directory_slash();
 
             if (slash >= dot)
-                return false
+                return false;
 
             return true;
         }

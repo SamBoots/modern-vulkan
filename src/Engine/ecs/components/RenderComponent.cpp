@@ -46,8 +46,7 @@ bool RenderComponentPool::FreeComponent(const ECSEntity a_entity)
     const RenderComponent& component = GetComponent(a_entity);
     if (component.material.IsValid())
         Material::FreeMaterialInstance(component.material);
-
-	return m_sparse_set.Erase(a_entity);
+    return m_sparse_set.Erase(a_entity);
 }
 
 RenderComponent& RenderComponentPool::GetComponent(const ECSEntity a_entity) const

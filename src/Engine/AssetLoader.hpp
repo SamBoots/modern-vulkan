@@ -10,7 +10,6 @@
 
 namespace BB
 {
-	using AssetHandle = FrameworkHandle<struct AssetHandleTag>;
 	class BBImage;
 	class UploadBufferView;
 
