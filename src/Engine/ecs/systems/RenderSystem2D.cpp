@@ -5,6 +5,9 @@
 
 #include "AssetLoader.hpp"
 
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "stb_truetype.h"
+
 using namespace BB;
 
 using I_TYPE = uint32_t;
@@ -60,32 +63,40 @@ static StaticArray<FixedArray<float2, 2>> CreateUVGlyphsFromImage(MemoryArena& a
     const ConstSlice<uint32_t> columns = GetVerticalColumns(a_arena, background, a_pixels, a_width, a_height);
 }
 
+// old code maybe one day I'll use it
+static void FontFromImage()
+{
+    //// create material here
+    //int width, height, bytes_per_pixel;
+    //unsigned char* pixels = Asset::LoadImageCPU(a_font_path.c_str(), width, height, bytes_per_pixel);
+
+    //m_image_size = uint2(static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+
+    //Asset::TextureLoadFromMemory texture_load;
+    //texture_load.name = "font image";
+    //texture_load.width = m_image_size.x;
+    //texture_load.height = m_image_size.y;
+    //texture_load.pixels = pixels;
+    //texture_load.bytes_per_pixel = static_cast<uint32_t>(bytes_per_pixel);
+    //MemoryArenaScope(a_arena)
+    //{
+    //    const Image& img = Asset::LoadImageMemory(a_arena, texture_load);
+    //    m_image_asset = img.asset_handle;
+    //    m_font_atlas = img.descriptor_index;
+    //}
+
+
+    //m_uvs = CreateUVGlyphsFromImage(a_arena, pixels, width, height, bytes_per_pixel);
+    //m_glyps.Init(a_arena, a_max_glyphs_per_frame);
+
+
+    //Asset::FreeImageCPU(pixels);
+}
+
 bool RenderSystem2D::Init(MemoryArena& a_arena, const size_t a_max_glyphs_per_frame, const PathString& a_font_path)
 {
-    // create material here
-    int width, height, bytes_per_pixel;
-    unsigned char* pixels = Asset::LoadImageCPU(a_font_path.c_str(), width, height, bytes_per_pixel);
-
-    m_image_size = uint2(static_cast<uint32_t>(width), static_cast<uint32_t>(height));
-
-    Asset::TextureLoadFromMemory texture_load;
-    texture_load.name = "font image";
-    texture_load.width = m_image_size.x;
-    texture_load.height = m_image_size.y;
-    texture_load.pixels = pixels;
-    texture_load.bytes_per_pixel = static_cast<uint32_t>(bytes_per_pixel);
-    MemoryArenaScope(a_arena)
-    {
-        const Image& img = Asset::LoadImageMemory(a_arena, texture_load);
-        m_image_asset = img.asset_handle;
-        m_font_atlas = img.descriptor_index;
-    }
-
-    m_uvs = CreateUVGlyphsFromImage(a_arena, pixels, width, height, bytes_per_pixel);
-    m_glyps.Init(a_arena, a_max_glyphs_per_frame);
 
 
-    Asset::FreeImageCPU(pixels);
 
     FixedArray<MaterialShaderCreateInfo, 2> m_shaders;
     m_shaders[0].path = "hlsl/text2d.hlsl";
