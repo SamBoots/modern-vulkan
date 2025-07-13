@@ -93,11 +93,97 @@ static void FontFromImage()
     //Asset::FreeImageCPU(pixels);
 }
 
-bool RenderSystem2D::Init(MemoryArena& a_arena, const size_t a_max_glyphs_per_frame, const PathString& a_font_path)
+FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_path, const float a_pixel_height, const int a_first_char)
 {
+    const Buffer file = OSReadFile(a_arena, a_font_path.c_str());
+    const unsigned char* file_c = reinterpret_cast<const unsigned char*>(file.data);
+    stbtt_fontinfo font;
+    stbtt_InitFont(&font, file_c, stbtt_GetFontOffsetForIndex(file_c, 0));
 
+    const float scale = stbtt_ScaleForPixelHeight(&font, a_pixel_height);
 
+    int max_width = 0; 
+    int max_height = 0;
+    int total_area = 0;
 
+    for (int i = 0; i < font.numGlyphs; i++)
+    {
+        const int char_code = a_first_char + i;
+        int x0, y0, x1, y1;
+        stbtt_GetCodepointBitmapBox(&font, char_code, scale, scale, &x0, &y0, &x1, &y1);
+
+        const int width = x1 - x0;
+        const int height = y1 - y0;
+
+        if (width > max_width) max_width = width;
+        if (height > max_height) max_height = height;
+        total_area += width * height;
+    }
+
+    int atlas_size = 1;
+    while (atlas_size * atlas_size < total_area * 1.5) 
+        atlas_size *= 2;
+
+    if (atlas_size < max_width) atlas_size = max_width;
+    if (atlas_size < max_height) atlas_size = max_height;
+
+    FontAtlas atl;
+    atl.char_start = a_first_char;
+    atl.char_count = font.numGlyphs;
+    atl.glyphs = ArenaAllocArr(a_arena, Glyph, font.numGlyphs);
+    atl.bitmap = ArenaAllocArr(a_arena, unsigned char, atlas_size * atlas_size);
+    atl.extent = uint2(static_cast<uint32_t>(atlas_size), static_cast<uint32_t>(atlas_size));
+    atl.pixel_height = a_pixel_height;
+
+    int current_x = 0;
+    int current_y = 0;
+    int row_height = 0;
+
+    for (int i = 0; i < font.numGlyphs; i++)
+    {
+        const int char_code = a_first_char + i;
+        int x0, y0, x1, y1;
+        stbtt_GetCodepointBitmapBox(&font, char_code, scale, scale, &x0, &y0, &x1, &y1);
+
+        const int width = x1 - x0;
+        const int height = y1 - y0;
+
+        // Check if we need to move to next row
+        if (current_x + width > atlas_size) {
+            current_x = 0;
+            current_y += row_height;
+            row_height = 0;
+        }
+
+        BB_ASSERT(current_y + height <= atlas_size, "Font atlas too small");
+
+        int advance, lsb;
+        stbtt_GetCodepointHMetrics(&font, char_code, &advance, &lsb);
+
+        atl.glyphs[i].pos.x = current_x;
+        atl.glyphs[i].pos.y = current_y;
+        atl.glyphs[i].extent.x = width;
+        atl.glyphs[i].extent.y = height;
+        atl.glyphs[i].char_v = char_code;
+        atl.glyphs[i].advance = advance * scale;
+
+        if (width > 0 && height > 0)
+        {
+            const int glyph_index = stbtt_FindGlyphIndex(&font, char_code);
+            unsigned char* bitmap_offset = atl.bitmap + current_y * atlas_size + current_x;
+            stbtt_MakeGlyphBitmap(&font, bitmap_offset, width, height, atlas_size, scale, scale, glyph_index);
+        }
+
+        current_x += width;
+        if (height > row_height)
+            row_height = height;
+    }
+
+    return atl;
+}
+
+bool RenderSystem2D::Init(MemoryArena& a_arena, const PathString& a_font_path)
+{
     FixedArray<MaterialShaderCreateInfo, 2> m_shaders;
     m_shaders[0].path = "hlsl/text2d.hlsl";
     m_shaders[0].entry = "VertexMain";
