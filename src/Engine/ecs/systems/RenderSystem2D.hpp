@@ -24,6 +24,7 @@ namespace BB
     };
 
     FontAtlas CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_path, const float a_pixel_height, const int a_first_char);
+    bool FontAtlasWriteImage(const PathString& a_path, const FontAtlas& a_atlas);
 
     class RenderSystem2D
     {

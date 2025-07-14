@@ -101,6 +101,8 @@ FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_pat
     stbtt_InitFont(&font, file_c, stbtt_GetFontOffsetForIndex(file_c, 0));
 
     const float scale = stbtt_ScaleForPixelHeight(&font, a_pixel_height);
+    int ascent;
+    stbtt_GetFontVMetrics(&font, &ascent, nullptr, nullptr);
 
     int max_width = 0; 
     int max_height = 0;
@@ -142,9 +144,9 @@ FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_pat
     for (int i = 0; i < font.numGlyphs; i++)
     {
         const int char_code = a_first_char + i;
-        int x0, y0, x1, y1;
+        int advance, lsb, x0, y0, x1, y1;
+        stbtt_GetCodepointHMetrics(&font, char_code, &advance, &lsb);
         stbtt_GetCodepointBitmapBox(&font, char_code, scale, scale, &x0, &y0, &x1, &y1);
-
         const int width = x1 - x0;
         const int height = y1 - y0;
 
@@ -157,8 +159,6 @@ FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_pat
 
         BB_ASSERT(current_y + height <= atlas_size, "Font atlas too small");
 
-        int advance, lsb;
-        stbtt_GetCodepointHMetrics(&font, char_code, &advance, &lsb);
 
         atl.glyphs[i].pos.x = current_x;
         atl.glyphs[i].pos.y = current_y;
@@ -170,8 +170,8 @@ FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_pat
         if (width > 0 && height > 0)
         {
             const int glyph_index = stbtt_FindGlyphIndex(&font, char_code);
-            unsigned char* bitmap_offset = atl.bitmap + current_y * atlas_size + current_x;
-            stbtt_MakeGlyphBitmap(&font, bitmap_offset, width, height, atlas_size, scale, scale, glyph_index);
+            const size_t bitmap_offset = current_y * atlas_size + current_x;
+            stbtt_MakeGlyphBitmap(&font, atl.bitmap + bitmap_offset, width, height, atlas_size, scale, scale, glyph_index);
         }
 
         current_x += width;
@@ -180,6 +180,11 @@ FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_pat
     }
 
     return atl;
+}
+
+bool BB::FontAtlasWriteImage(const PathString& a_path, const FontAtlas& a_atlas)
+{
+    return Asset::WriteImage(a_path.GetView(), a_atlas.extent, 1, a_atlas.bitmap);
 }
 
 bool RenderSystem2D::Init(MemoryArena& a_arena, const PathString& a_font_path)
