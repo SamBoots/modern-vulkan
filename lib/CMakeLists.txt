@@ -22,7 +22,7 @@ add_library(stb_image INTERFACE
 "stb/stb_image_write.h"
 "stb/stb_image_resize2.h"
 "stb/stb_truetype.h")
-target_include_directories(stb_image INTERFACE stb)
+target_include_directories(stb_image SYSTEM INTERFACE stb)
 
 add_library(mikktspace STATIC
 "mikktspace/mikktspace.c")

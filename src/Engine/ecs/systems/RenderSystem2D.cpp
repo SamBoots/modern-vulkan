@@ -10,89 +10,6 @@
 
 using namespace BB;
 
-using I_TYPE = uint32_t;
-
-static size_t GetIFromXY(int a_x, int a_y, int a_max_x)
-{
-    return static_cast<size_t>(a_x + a_y * a_max_x);
-}
-
-static ConstSlice<uint32_t> GetVerticalColumns(MemoryArena& a_arena, const I_TYPE a_background, const I_TYPE* a_pixels, const int a_width, const int a_height)
-{
-    uint32_t current_columns = 1;
-    uint32_t column_count = 8;
-    uint32_t* columns = ArenaAllocArr(a_arena, uint32_t, column_count);
-    columns[0] = 0;
-
-    for (int x = 0; x < a_width; x++)
-    {
-        bool empty_column = true;
-
-        for (size_t y = 0; y < a_height; y++)
-        {
-            if (a_pixels[GetIFromXY(x, y, a_width)] != a_background)
-            {
-                empty_column = false;
-                break;
-            }
-        }
-
-        if (empty_column)
-        {
-            if (current_columns == 0 || x > columns[current_columns - 1] + 1)
-            {
-                if (current_columns + 1 == column_count)
-                {
-                    const uint32_t new_column_count = column_count * 2;
-                    columns = reinterpret_cast<uint32_t*>(ArenaRealloc(a_arena, columns, sizeof(uint32_t) * column_count, sizeof(uint32_t) * new_column_count, alignof(uint32_t)));
-                    column_count = new_column_count;
-                }
-                columns[current_columns++] = x;
-            }
-        }
-    }
-
-    return ConstSlice(columns, current_columns);
-}
-
-static StaticArray<FixedArray<float2, 2>> CreateUVGlyphsFromImage(MemoryArena& a_arena, const I_TYPE* a_pixels, const int a_width, const int a_height, const int a_bytes_per_pixel)
-{
-    int cur_x = 0, cur_y = 0;
-    const I_TYPE background = a_pixels[0];
-
-    const ConstSlice<uint32_t> columns = GetVerticalColumns(a_arena, background, a_pixels, a_width, a_height);
-}
-
-// old code maybe one day I'll use it
-static void FontFromImage()
-{
-    //// create material here
-    //int width, height, bytes_per_pixel;
-    //unsigned char* pixels = Asset::LoadImageCPU(a_font_path.c_str(), width, height, bytes_per_pixel);
-
-    //m_image_size = uint2(static_cast<uint32_t>(width), static_cast<uint32_t>(height));
-
-    //Asset::TextureLoadFromMemory texture_load;
-    //texture_load.name = "font image";
-    //texture_load.width = m_image_size.x;
-    //texture_load.height = m_image_size.y;
-    //texture_load.pixels = pixels;
-    //texture_load.bytes_per_pixel = static_cast<uint32_t>(bytes_per_pixel);
-    //MemoryArenaScope(a_arena)
-    //{
-    //    const Image& img = Asset::LoadImageMemory(a_arena, texture_load);
-    //    m_image_asset = img.asset_handle;
-    //    m_font_atlas = img.descriptor_index;
-    //}
-
-
-    //m_uvs = CreateUVGlyphsFromImage(a_arena, pixels, width, height, bytes_per_pixel);
-    //m_glyps.Init(a_arena, a_max_glyphs_per_frame);
-
-
-    //Asset::FreeImageCPU(pixels);
-}
-
 FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_path, const float a_pixel_height, const int a_first_char)
 {
     const Buffer file = OSReadFile(a_arena, a_font_path.c_str());
@@ -150,6 +67,9 @@ FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_pat
         const int width = x1 - x0;
         const int height = y1 - y0;
 
+        const int height_mod = max_height - height;
+        const int y_offset = height_mod / 2;
+
         // Check if we need to move to next row
         if (current_x + width > atlas_size) {
             current_x = 0;
@@ -159,18 +79,17 @@ FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_pat
 
         BB_ASSERT(current_y + height <= atlas_size, "Font atlas too small");
 
-
         atl.glyphs[i].pos.x = current_x;
         atl.glyphs[i].pos.y = current_y;
         atl.glyphs[i].extent.x = width;
         atl.glyphs[i].extent.y = height;
-        atl.glyphs[i].char_v = char_code;
+        atl.glyphs[i].y_offset = y_offset;
         atl.glyphs[i].advance = advance * scale;
 
         if (width > 0 && height > 0)
         {
             const int glyph_index = stbtt_FindGlyphIndex(&font, char_code);
-            const size_t bitmap_offset = current_y * atlas_size + current_x;
+            const int bitmap_offset = current_y * atlas_size + current_x;
             stbtt_MakeGlyphBitmap(&font, atl.bitmap + bitmap_offset, width, height, atlas_size, scale, scale, glyph_index);
         }
 

@@ -10,7 +10,7 @@ namespace BB
         int2 pos;
         int2 extent;
         int advance;
-        int char_v;
+        float y_offset;
     };
 
     struct FontAtlas
