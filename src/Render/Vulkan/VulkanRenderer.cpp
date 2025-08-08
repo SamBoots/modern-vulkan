@@ -74,26 +74,6 @@ static inline VkDeviceSize GetBufferDeviceAddress(const VkDevice a_device, const
 	return vkGetBufferDeviceAddress(a_device, &buffer_address_info);
 }
 
-class VulkanDescriptorLinearBuffer
-{
-public:
-	VulkanDescriptorLinearBuffer(const size_t a_buffer_size, const VkBufferUsageFlags a_buffer_usage);
-	~VulkanDescriptorLinearBuffer();
-
-	DescriptorAllocation AllocateDescriptor(const RDescriptorLayout a_descriptor);
-
-	VkDeviceAddress GPUStartAddress() const { return m_start_address; }
-
-private:
-	//using uint32_t since descriptor buffers on some drivers only spend 32-bits virtual address.
-	uint32_t m_size;
-	uint32_t m_offset;
-	VkBuffer m_buffer;
-	VmaAllocation m_allocation;
-	VkDeviceAddress m_start_address = 0;
-	void* m_start;
-};
-
 constexpr int VULKAN_VERSION = 3;
 
 // reflection from directx12.
@@ -390,13 +370,9 @@ static VkDevice CreateLogicalDevice(MemoryArena& a_temp_arena, const VkPhysicalD
 	address_feature.bufferDeviceAddress = VK_TRUE;
 	address_feature.pNext = &indexingFeatures;
 
-	VkPhysicalDeviceDescriptorBufferFeaturesEXT  descriptor_buffer_info{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT };
-	descriptor_buffer_info.descriptorBuffer = VK_TRUE;
-	descriptor_buffer_info.pNext = &address_feature;
-
 	VkPhysicalDeviceSynchronization2Features sync_features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES };
 	sync_features.synchronization2 = VK_TRUE;
-	sync_features.pNext = &descriptor_buffer_info;
+	sync_features.pNext = &address_feature;
 
 	VkPhysicalDeviceShaderObjectFeaturesEXT shader_objects{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_OBJECT_FEATURES_EXT };
 	shader_objects.shaderObject = true;
@@ -456,6 +432,124 @@ static VkDevice CreateLogicalDevice(MemoryArena& a_temp_arena, const VkPhysicalD
 	return return_device;
 }
 
+struct DescriptorInfo
+{
+    VkPipelineLayout bindless_pipeline_layout;
+    VkDescriptorSetLayout bindless_set_layout;
+    VkDescriptorPool bindless_pool;
+    VkDescriptorSet bindless_set;
+};
+
+static DescriptorInfo CreateDescriptorInfo(const VkDevice a_device, const uint32_t a_image_count, const uint32_t a_sampler_count, const uint32_t a_buffer_count, const uint32_t a_uniform_count)
+{
+    FixedArray<VkDescriptorSetLayoutBinding, GPU_BINDING_COUNT> layout_bindings{};
+    layout_bindings[0].binding = GPU_BINDING_GLOBAL;
+    layout_bindings[0].descriptorCount = 1;
+    layout_bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    layout_bindings[0].stageFlags = VK_SHADER_STAGE_ALL;
+    layout_bindings[1].binding = GPU_BINDING_SCENE;
+    layout_bindings[1].descriptorCount = 1;
+    layout_bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    layout_bindings[1].stageFlags = VK_SHADER_STAGE_ALL;
+    layout_bindings[2].binding = GPU_BINDING_IMAGES;
+    layout_bindings[2].descriptorCount = a_image_count;
+    layout_bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    layout_bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    layout_bindings[3].binding = GPU_BINDING_SAMPLERS;
+    layout_bindings[3].descriptorCount = a_sampler_count;
+    layout_bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+    layout_bindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    layout_bindings[4].binding = GPU_BINDING_BUFFERS;
+    layout_bindings[4].descriptorCount = a_buffer_count;
+    layout_bindings[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    layout_bindings[4].stageFlags = VK_SHADER_STAGE_ALL;
+    layout_bindings[5].binding = GPU_BINDING_UNIFORMS;
+    layout_bindings[5].descriptorCount = a_uniform_count;
+    layout_bindings[5].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    layout_bindings[5].stageFlags = VK_SHADER_STAGE_ALL;
+
+    FixedArray<VkDescriptorBindingFlags, GPU_BINDING_COUNT> layout_binding_flags{};
+    layout_binding_flags[0] = 0;
+    layout_binding_flags[1] = 0;
+    layout_binding_flags[2] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;
+    layout_binding_flags[3] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;
+    layout_binding_flags[4] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;
+    layout_binding_flags[5] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;
+
+
+    VkDescriptorSetLayoutBindingFlagsCreateInfo layout_ext;
+    layout_ext.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT;
+    layout_ext.pNext = nullptr;
+    layout_ext.bindingCount = static_cast<uint32_t>(layout_bindings.size());
+    layout_ext.pBindingFlags = layout_binding_flags.data();
+
+    VkDescriptorSetLayoutCreateInfo layout_info;
+    layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layout_info.bindingCount = layout_bindings.size();
+    layout_info.pBindings = layout_bindings.data();
+    layout_info.flags = 0;
+    layout_info.pNext = &layout_ext;
+
+    VkDescriptorSetLayout set_layout;
+    VkResult result = vkCreateDescriptorSetLayout(a_device, &layout_info, nullptr, &set_layout);
+    VKASSERT(result, "failed to create VkDescriptorSetLayout");
+
+    VkPushConstantRange push_constant_range;
+    push_constant_range.offset = 0;
+    push_constant_range.size = GPU_PUSH_CONSTANT_SIZE;
+    push_constant_range.stageFlags = VK_SHADER_STAGE_ALL;
+    VkPipelineLayoutCreateInfo pipe_info;
+    pipe_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipe_info.pNext = nullptr;
+    pipe_info.setLayoutCount = 1;
+    pipe_info.pSetLayouts = &set_layout;
+    pipe_info.pushConstantRangeCount = 1;
+    pipe_info.pPushConstantRanges = &push_constant_range;
+    pipe_info.flags = 0;
+
+    VkPipelineLayout pipe_layout;
+    result = vkCreatePipelineLayout(s_vulkan_inst->device, &pipe_info, nullptr, &pipe_layout);
+    VKASSERT(result, "Failed to create VkPipelineLayout");
+    FixedArray<VkDescriptorPoolSize, 4> pool_sizes;
+    pool_sizes[0].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    pool_sizes[0].descriptorCount = a_image_count;
+    pool_sizes[1].type = VK_DESCRIPTOR_TYPE_SAMPLER;
+    pool_sizes[1].descriptorCount = a_sampler_count;
+    pool_sizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    pool_sizes[2].descriptorCount = a_buffer_count;
+    pool_sizes[3].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    pool_sizes[3].descriptorCount = a_uniform_count + GPU_EXTRA_UNIFORM_BUFFERS;
+
+    VkDescriptorPoolCreateInfo pool_info;
+    pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    pool_info.pNext = nullptr;
+    pool_info.poolSizeCount = static_cast<uint32_t>(pool_sizes.size());
+    pool_info.pPoolSizes = pool_sizes.data();
+    pool_info.maxSets = 1;
+    pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
+    VkDescriptorPool pool;
+    result = vkCreateDescriptorPool(a_device, &pool_info, nullptr, &pool);
+    VKASSERT(result, "Failed to create VkDescriptorPool");
+
+    VkDescriptorSetAllocateInfo set_info;
+    set_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    set_info.pNext = nullptr;
+    set_info.descriptorPool = pool;
+    set_info.pSetLayouts = &set_layout;
+    set_info.descriptorSetCount = 1;
+
+    VkDescriptorSet set;
+    result = vkAllocateDescriptorSets(a_device, &set_info, &set);
+    VKASSERT(result, "Failed to create VkDescriptorSet");
+
+    DescriptorInfo info;
+    info.bindless_set_layout = set_layout;
+    info.bindless_pipeline_layout = pipe_layout;
+    info.bindless_pool = pool;
+    info.bindless_set = set;
+    return info;
+}
+
 struct Vulkan_inst
 {
 	VkInstance instance;
@@ -465,12 +559,10 @@ struct Vulkan_inst
 	VkQueue present_queue;
 	VmaAllocator vma;
 
-	//jank pointer
-	VulkanDescriptorLinearBuffer* pdescriptor_buffer;
+    DescriptorInfo descriptors;
 
 	//takes a VkHandle
 	StaticOL_HashMap<uintptr_t, VmaAllocation> allocation_map;
-	StaticOL_HashMap<uintptr_t, VkPipelineLayout> pipeline_layout_cache;
 	
 	VulkanQueuesIndices queue_indices;
 	struct DeviceInfo
@@ -478,24 +570,9 @@ struct Vulkan_inst
 		float max_anisotropy;
 	} device_info;
 
-	struct DescriptorSizes
-	{
-		uint32_t uniform_buffer;
-		uint32_t storage_buffer;
-		uint32_t sampled_image;
-		uint32_t sampler;
-		uint32_t acceleration_structure;
-	} descriptor_sizes;
-
 	struct Pfn
 	{
 		//naming.... these function pointers do not count.
-		PFN_vkGetDescriptorSetLayoutSizeEXT GetDescriptorSetLayoutSizeEXT;
-		PFN_vkGetDescriptorSetLayoutBindingOffsetEXT GetDescriptorSetLayoutBindingOffsetEXT;
-		PFN_vkGetDescriptorEXT GetDescriptorEXT;
-		PFN_vkCmdBindDescriptorBuffersEXT CmdBindDescriptorBuffersEXT;
-		PFN_vkCmdBindDescriptorBufferEmbeddedSamplersEXT CmdBindDescriptorBufferEmbeddedSamplersEXT;
-		PFN_vkCmdSetDescriptorBufferOffsetsEXT CmdSetDescriptorBufferOffsetsEXT;
 		PFN_vkSetDebugUtilsObjectNameEXT SetDebugUtilsObjectNameEXT;
 		PFN_vkCreateShadersEXT CreateShaderEXT;
 		PFN_vkDestroyShaderEXT DestroyShaderEXT;
@@ -838,68 +915,7 @@ static VkSampler CreateSampler(const SamplerCreateInfo& a_create_info)
 	return sampler;
 }
 
-static inline VkDescriptorAddressInfoEXT GetDescriptorAddressInfo(const VkDevice a_device, const GPUBufferView& a_buffer, const VkFormat a_format = VK_FORMAT_UNDEFINED)
-{
-	VkDescriptorAddressInfoEXT info{ VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT };
-	info.range = a_buffer.size;
-	info.address = GetBufferDeviceAddress(a_device, reinterpret_cast<VkBuffer>(a_buffer.buffer.handle));
-	//offset the address.
-	info.address += a_buffer.offset;
-	info.format = a_format;
-	return info;
-}
-
-VulkanDescriptorLinearBuffer::VulkanDescriptorLinearBuffer(const size_t a_buffer_size, const VkBufferUsageFlags a_buffer_usage)
-	:	m_size(static_cast<uint32_t>(a_buffer_size)), m_offset(0)
-{
-	//create the CPU buffer
-	VkBufferCreateInfo buffer_info{ VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
-	buffer_info.size = a_buffer_size;
-	buffer_info.usage = a_buffer_usage;
-	buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-	VmaAllocationCreateInfo vma_alloc{};
-	vma_alloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_HOST;
-	vma_alloc.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-
-	VKASSERT(vmaCreateBuffer(s_vulkan_inst->vma,
-		&buffer_info, &vma_alloc,
-		&m_buffer, &m_allocation,
-		nullptr), "Vulkan::VMA, Failed to allocate memory for a descriptor buffer");
-
-	VKASSERT(vmaMapMemory(s_vulkan_inst->vma, m_allocation, &m_start),
-		"Vulkan: Failed to map memory for descriptor buffer");
-
-	m_start_address = GetBufferDeviceAddress(s_vulkan_inst->device, m_buffer);
-}
-
-VulkanDescriptorLinearBuffer::~VulkanDescriptorLinearBuffer()
-{
-	vmaUnmapMemory(s_vulkan_inst->vma, m_allocation);
-	vmaDestroyBuffer(s_vulkan_inst->vma, m_buffer, m_allocation);
-}
-
-DescriptorAllocation VulkanDescriptorLinearBuffer::AllocateDescriptor(const RDescriptorLayout a_descriptor)
-{
-	DescriptorAllocation allocation;
-	const VkDescriptorSetLayout descriptor_set = reinterpret_cast<VkDescriptorSetLayout>(a_descriptor.handle);
-	VkDeviceSize descriptors_size;
-	s_vulkan_inst->pfn.GetDescriptorSetLayoutSizeEXT(
-		s_vulkan_inst->device,
-		descriptor_set,
-		&descriptors_size);
-
-	BB_ASSERT(m_size > descriptors_size + m_offset, "Not enough space in the descriptor buffer!");
-	allocation.size = static_cast<uint32_t>(descriptors_size);
-	allocation.offset = m_offset;
-	allocation.buffer_start = m_start; //Maybe just get this from the descriptor heap? We only have one heap anyway.
-
-	m_offset += allocation.size;
-
-	return allocation;
-}
-
-bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const RendererCreateInfo a_create_info)
+bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const RendererCreateInfo& a_create_info)
 {
 	BB_ASSERT(s_vulkan_inst == nullptr, "trying to initialize vulkan while it's already initialized");
 	s_vulkan_inst = ArenaAllocType(a_arena, Vulkan_inst) {};
@@ -999,13 +1015,7 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const RendererCreateInfo a_c
 			else
 				BB_ASSERT(false, "failed to create debug messenger");
 		}
-		
-		s_vulkan_inst->pfn.GetDescriptorSetLayoutSizeEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkGetDescriptorSetLayoutSizeEXT);
-		s_vulkan_inst->pfn.GetDescriptorSetLayoutBindingOffsetEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkGetDescriptorSetLayoutBindingOffsetEXT);
-		s_vulkan_inst->pfn.GetDescriptorEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkGetDescriptorEXT);
-		s_vulkan_inst->pfn.CmdBindDescriptorBuffersEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkCmdBindDescriptorBuffersEXT);
-		s_vulkan_inst->pfn.CmdBindDescriptorBufferEmbeddedSamplersEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkCmdBindDescriptorBufferEmbeddedSamplersEXT);
-		s_vulkan_inst->pfn.CmdSetDescriptorBufferOffsetsEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkCmdSetDescriptorBufferOffsetsEXT);
+
 		s_vulkan_inst->pfn.SetDebugUtilsObjectNameEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkSetDebugUtilsObjectNameEXT);
 		s_vulkan_inst->pfn.CreateShaderEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkCreateShadersEXT);
 		s_vulkan_inst->pfn.DestroyShaderEXT = VkGetFuncPtr(s_vulkan_inst->instance, vkDestroyShaderEXT);
@@ -1044,22 +1054,6 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const RendererCreateInfo a_c
 				Slice(chosen_extensions, extension_count));
 		}
 
-		{	//descriptor info & general device properties
-			VkPhysicalDeviceTimelineSemaphoreProperties timeline_properties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TIMELINE_SEMAPHORE_PROPERTIES };
-			VkPhysicalDeviceDescriptorBufferPropertiesEXT desc_info{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_PROPERTIES_EXT };
-			desc_info.pNext = &timeline_properties;
-			VkPhysicalDeviceProperties2 device_properties{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2 };
-			device_properties.pNext = &desc_info;
-			vkGetPhysicalDeviceProperties2(s_vulkan_inst->phys_device, &device_properties);
-			s_vulkan_inst->device_info.max_anisotropy = device_properties.properties.limits.maxSamplerAnisotropy;
-
-			s_vulkan_inst->descriptor_sizes.uniform_buffer = static_cast<uint32_t>(desc_info.uniformBufferDescriptorSize);
-			s_vulkan_inst->descriptor_sizes.storage_buffer = static_cast<uint32_t>(desc_info.storageBufferDescriptorSize);
-			s_vulkan_inst->descriptor_sizes.sampled_image = static_cast<uint32_t>(desc_info.sampledImageDescriptorSize);
-			s_vulkan_inst->descriptor_sizes.sampler = static_cast<uint32_t>(desc_info.samplerDescriptorSize);
-			s_vulkan_inst->descriptor_sizes.acceleration_structure = static_cast<uint32_t>(desc_info.accelerationStructureDescriptorSize);
-		}
-
 		{	//VMA stuff
 			//Setup the Vulkan Memory Allocator
 			VmaVulkanFunctions vk_functions{};
@@ -1079,11 +1073,7 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const RendererCreateInfo a_c
 	}
 
 	s_vulkan_inst->allocation_map.Init(a_arena, 1024);
-	s_vulkan_inst->pdescriptor_buffer = ArenaAllocType(a_arena, VulkanDescriptorLinearBuffer)(
-		mbSize * 4,
-		VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
-
-	s_vulkan_inst->pipeline_layout_cache.Init(a_arena, 64);
+    s_vulkan_inst->descriptors = CreateDescriptorInfo(s_vulkan_inst->device, a_create_info.max_images, a_create_info.max_samplers, a_create_info.max_buffers, a_create_info.max_uniforms);
 
 	//Get the present queue.
 	vkGetDeviceQueue(s_vulkan_inst->device,
@@ -1711,141 +1701,73 @@ void Vulkan::FreeViewImage(const RImageView a_image_view)
 			nullptr);
 }
 
-RDescriptorLayout Vulkan::CreateDescriptorLayout(MemoryArena& a_temp_arena, const ConstSlice<DescriptorBindingInfo> a_bindings)
+void Vulkan::DescriptorWriteImage(const RDescriptorIndex a_descriptor_index, const RImageView a_view, const IMAGE_LAYOUT a_layout)
 {
-	VkDescriptorSetLayoutBinding* layout_binds = ArenaAllocArr(a_temp_arena, VkDescriptorSetLayoutBinding, a_bindings.size());
+    VkWriteDescriptorSet write_info{};
+    write_info.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_info.dstSet = s_vulkan_inst->descriptors.bindless_set;
+    write_info.descriptorCount = 1;
+    write_info.dstArrayElement = a_descriptor_index.handle;
 
-	VkDescriptorBindingFlags* bindless_flags = ArenaAllocArr(a_temp_arena, VkDescriptorBindingFlags, a_bindings.size());
-	bool is_bindless = false;
+    VkDescriptorImageInfo image_info{};
+    image_info.imageLayout = ImageLayout(a_layout);
+    image_info.imageView = reinterpret_cast<VkImageView>(a_view.handle);
 
-	for (size_t i = 0; i < a_bindings.size(); i++)
-	{
-		const DescriptorBindingInfo& binding = a_bindings[i];
-		layout_binds[i].binding = binding.binding;
-		layout_binds[i].descriptorCount = binding.count;
-		layout_binds[i].descriptorType = DescriptorBufferType(binding.type);
-		layout_binds[i].stageFlags = ShaderStageFlags(binding.shader_stage);
-
-		if (binding.count > 1)
-		{
-			is_bindless = true;
-			bindless_flags[i] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT |
-				VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;
-		}
-		else
-			bindless_flags[i] = 0;
-	}
-
-	VkDescriptorSetLayout set_layout;
-	VkDescriptorSetLayoutCreateInfo layout_info{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
-	layout_info.pBindings = layout_binds;
-	layout_info.bindingCount = static_cast<uint32_t>(a_bindings.size());
-	layout_info.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
-
-	if (is_bindless) //if bindless add another struct and return here.
-	{
-		VkDescriptorSetLayoutBindingFlagsCreateInfo t_LayoutExtInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT };
-		t_LayoutExtInfo.bindingCount = static_cast<uint32_t>(a_bindings.size());
-		t_LayoutExtInfo.pBindingFlags = bindless_flags;
-
-		layout_info.pNext = &t_LayoutExtInfo;
-
-		//Do some algorithm to see if I already made a descriptorlayout like this one.
-		VKASSERT(vkCreateDescriptorSetLayout(s_vulkan_inst->device,
-			&layout_info, nullptr, &set_layout),
-			"Vulkan: Failed to create a descriptorsetlayout.");
-	}
-	else
-	{
-		//Do some algorithm to see if I already made a descriptorlayout like this one.
-		VKASSERT(vkCreateDescriptorSetLayout(s_vulkan_inst->device,
-			&layout_info, nullptr, &set_layout),
-			"Vulkan: Failed to create a descriptorsetlayout.");
-	}
-
-	return RDescriptorLayout(reinterpret_cast<uintptr_t>(set_layout));
+    write_info.dstBinding = GPU_BINDING_IMAGES;
+    write_info.pImageInfo = &image_info;
+    vkUpdateDescriptorSets(s_vulkan_inst->device, 1, &write_info, 0, nullptr);
 }
 
-RDescriptorLayout Vulkan::CreateDescriptorSamplerLayout(const Slice<SamplerCreateInfo> a_static_samplers)
+void Vulkan::DescriptorWriteSampler(const RDescriptorIndex a_descriptor_index, const RSampler a_sampler)
 {
-	BB_ASSERT(a_static_samplers.size() <= STATIC_SAMPLER_MAX, "too many static samplers on pipeline!");
+    VkWriteDescriptorSet write_info{};
+    write_info.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_info.dstSet = s_vulkan_inst->descriptors.bindless_set;
+    write_info.descriptorCount = 1;
+    write_info.dstArrayElement = a_descriptor_index.handle;
 
-	VkDescriptorSetLayoutBinding layout_binds[STATIC_SAMPLER_MAX];
-	VkSampler samplers[STATIC_SAMPLER_MAX];
-	for (uint32_t i = 0; i < a_static_samplers.size(); i++)
-	{
-		samplers[i] = CreateSampler(a_static_samplers[i]);
-		layout_binds[i].binding = i;
-		layout_binds[i].descriptorCount = 1;
-		layout_binds[i].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-		layout_binds[i].pImmutableSamplers = &samplers[i];
-		layout_binds[i].stageFlags = VK_SHADER_STAGE_ALL;
-	}
-	VkDescriptorSetLayoutCreateInfo layout_info{ VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
-	layout_info.pBindings = layout_binds;
-	layout_info.bindingCount = static_cast<uint32_t>(a_static_samplers.size());
-	layout_info.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_EMBEDDED_IMMUTABLE_SAMPLERS_BIT_EXT | VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
+    VkDescriptorImageInfo image_info{};
+    image_info.sampler = reinterpret_cast<VkSampler>(a_sampler.handle);
 
-	VkDescriptorSetLayout set_layout;
-	//Do some algorithm to see if I already made a descriptorlayout like this one.
-	VKASSERT(vkCreateDescriptorSetLayout(s_vulkan_inst->device,
-		&layout_info, nullptr, &set_layout),
-		"Vulkan: Failed to create a descriptorsetlayout for immutable samplers in pipeline init.");
-	return RDescriptorLayout(reinterpret_cast<uintptr_t>(set_layout));
+    write_info.dstBinding = GPU_BINDING_SAMPLERS;
+    write_info.pImageInfo = &image_info;
+    vkUpdateDescriptorSets(s_vulkan_inst->device, 1, &write_info, 0, nullptr);
 }
 
-DescriptorAllocation Vulkan::AllocateDescriptor(const RDescriptorLayout a_descriptor)
+void Vulkan::DescriptorWriteStorageBuffer(const RDescriptorIndex a_descriptor_index, const GPUBufferView& a_buffer_view)
 {
-	return s_vulkan_inst->pdescriptor_buffer->AllocateDescriptor(a_descriptor);
+    VkWriteDescriptorSet write_info{};
+    write_info.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_info.dstSet = s_vulkan_inst->descriptors.bindless_set;
+    write_info.descriptorCount = 1;
+    write_info.dstArrayElement = a_descriptor_index.handle;
+
+    VkDescriptorBufferInfo buffer_info{};
+    buffer_info.buffer = reinterpret_cast<VkBuffer>(a_buffer_view.buffer.handle);
+    buffer_info.offset = a_buffer_view.offset;
+    buffer_info.range = a_buffer_view.size;
+
+    write_info.dstBinding = GPU_BINDING_BUFFERS;
+    write_info.pBufferInfo = &buffer_info;
+    vkUpdateDescriptorSets(s_vulkan_inst->device, 1, &write_info, 0, nullptr);
 }
 
-inline static void DescriptorWrite(const VkDescriptorGetInfoEXT& a_desc_info, const RDescriptorLayout a_layout, const uint32_t a_binding, const uint32_t a_descriptor_size, const uint32_t a_descriptor_index, const uint32_t a_buffer_offset, void* a_buffer_start)
+void Vulkan::DescriptorWriteUniformBuffer(const RDescriptorIndex a_descriptor_index, const GPUBufferView& a_buffer_view)
 {
-	VkDeviceSize descriptor_offset;
-	s_vulkan_inst->pfn.GetDescriptorSetLayoutBindingOffsetEXT(s_vulkan_inst->device,
-		reinterpret_cast<VkDescriptorSetLayout>(a_layout.handle),
-		a_binding,
-		&descriptor_offset);
+    VkWriteDescriptorSet write_info{};
+    write_info.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_info.dstSet = s_vulkan_inst->descriptors.bindless_set;
+    write_info.descriptorCount = 1;
+    write_info.dstArrayElement = a_descriptor_index.handle;
 
-	descriptor_offset += static_cast<VkDeviceSize>(a_descriptor_size) * a_descriptor_index;
-	void* descriptor_mem = Pointer::Add(a_buffer_start, a_buffer_offset + descriptor_offset);
+    VkDescriptorBufferInfo buffer_info{};
+    buffer_info.buffer = reinterpret_cast<VkBuffer>(a_buffer_view.buffer.handle);
+    buffer_info.offset = a_buffer_view.offset;
+    buffer_info.range = a_buffer_view.size;
 
-	s_vulkan_inst->pfn.GetDescriptorEXT(s_vulkan_inst->device, &a_desc_info, a_descriptor_size, descriptor_mem);
-}
-
-void Vulkan::DescriptorWriteUniformBuffer(const DescriptorWriteBufferInfo& a_write_info)
-{
-	VkDescriptorAddressInfoEXT buffer = GetDescriptorAddressInfo(s_vulkan_inst->device, a_write_info.buffer_view);
-	VkDescriptorGetInfoEXT desc_info{ VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT };
-	desc_info.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	desc_info.data.pUniformBuffer = &buffer;
-
-	DescriptorWrite(desc_info, a_write_info.descriptor_layout, a_write_info.binding, s_vulkan_inst->descriptor_sizes.uniform_buffer, a_write_info.descriptor_index, a_write_info.allocation.offset, a_write_info.allocation.buffer_start);
-}
-
-void Vulkan::DescriptorWriteStorageBuffer(const DescriptorWriteBufferInfo& a_write_info)
-{
-	VkDescriptorAddressInfoEXT buffer = GetDescriptorAddressInfo(s_vulkan_inst->device, a_write_info.buffer_view);
-	VkDescriptorGetInfoEXT desc_info{ VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT };
-	desc_info.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	desc_info.data.pStorageBuffer = &buffer;
-
-	DescriptorWrite(desc_info, a_write_info.descriptor_layout, a_write_info.binding, s_vulkan_inst->descriptor_sizes.storage_buffer, a_write_info.descriptor_index, a_write_info.allocation.offset, a_write_info.allocation.buffer_start);
-}
-
-void Vulkan::DescriptorWriteImage(const DescriptorWriteImageInfo& a_write_info)
-{
-	VkDescriptorImageInfo image
-	{
-		VK_NULL_HANDLE,	// static samplers only
-		reinterpret_cast<VkImageView>(a_write_info.view.handle),
-		ImageLayout(a_write_info.layout)
-	};
-	VkDescriptorGetInfoEXT desc_info{ VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT };
-	desc_info.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-	desc_info.data.pSampledImage = &image;
-
-	DescriptorWrite(desc_info, a_write_info.descriptor_layout, a_write_info.binding, s_vulkan_inst->descriptor_sizes.sampled_image, a_write_info.descriptor_index, a_write_info.allocation.offset, a_write_info.allocation.buffer_start);
+    write_info.dstBinding = GPU_BINDING_UNIFORMS;
+    write_info.pBufferInfo = &buffer_info;
+    vkUpdateDescriptorSets(s_vulkan_inst->device, 1, &write_info, 0, nullptr);
 }
 
 //we won't have that many pipeline layouts, so make a basic one.
@@ -1865,64 +1787,6 @@ static uint64_t PipelineLayoutCreateInfoHash(const VkPipelineLayoutCreateInfo& a
 	return hash;
 }
 
-RPipelineLayout Vulkan::CreatePipelineLayout(const RDescriptorLayout* a_descriptor_layouts, const uint32_t a_layout_count, const PushConstantRange a_constant_range)
-{
-	VkPipelineLayoutCreateInfo create_info{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
-	create_info.setLayoutCount = a_layout_count;
-	create_info.pSetLayouts = reinterpret_cast<const VkDescriptorSetLayout*>(a_descriptor_layouts);
-	
-	if (a_constant_range.size > 0)
-	{
-		VkPushConstantRange constant_range;
-		constant_range.stageFlags = ShaderStageFlags(a_constant_range.stages);
-		constant_range.size = a_constant_range.size;
-		constant_range.offset = 0;
-
-		create_info.pushConstantRangeCount = 1;
-		create_info.pPushConstantRanges = &constant_range;
-
-		const uint64_t pipeline_hash = PipelineLayoutCreateInfoHash(create_info);
-		if (VkPipelineLayout* layout = s_vulkan_inst->pipeline_layout_cache.find(pipeline_hash))
-			return RPipelineLayout(reinterpret_cast<uintptr_t>(*layout));
-		else
-		{
-			VkPipelineLayout pipe_layout;
-			VKASSERT(vkCreatePipelineLayout(s_vulkan_inst->device, &create_info, nullptr, &pipe_layout),
-				"Failed to create vulkan pipeline layout");
-
-			s_vulkan_inst->pipeline_layout_cache.insert(pipeline_hash, pipe_layout);
-
-			return RPipelineLayout(reinterpret_cast<uintptr_t>(pipe_layout));
-		}
-	}
-	else
-	{
-		create_info.pushConstantRangeCount = 0;
-		create_info.pPushConstantRanges = nullptr;
-
-		const uint64_t pipeline_hash = PipelineLayoutCreateInfoHash(create_info);
-		if (VkPipelineLayout* layout = s_vulkan_inst->pipeline_layout_cache.find(pipeline_hash))
-			return RPipelineLayout(reinterpret_cast<uintptr_t>(*layout));
-		else
-		{
-			VkPipelineLayout pipe_layout;
-			VKASSERT(vkCreatePipelineLayout(s_vulkan_inst->device, &create_info, nullptr, &pipe_layout),
-				"Failed to create vulkan pipeline layout");
-
-			s_vulkan_inst->pipeline_layout_cache.insert(pipeline_hash, pipe_layout);
-
-			return RPipelineLayout(reinterpret_cast<uintptr_t>(pipe_layout));
-		}
-	}
-}
-
-void Vulkan::FreePipelineLayout(const RPipelineLayout a_layout)
-{
-	vkDestroyPipelineLayout(s_vulkan_inst->device, 
-		reinterpret_cast<VkPipelineLayout>(a_layout.handle),
-		nullptr);
-}
-
 ShaderObject Vulkan::CreateShaderObject(const ShaderObjectCreateInfo& a_shader_object)
 {
 	VkShaderCreateInfoEXT shader_create_info{ VK_STRUCTURE_TYPE_SHADER_CREATE_INFO_EXT };
@@ -1933,49 +1797,32 @@ ShaderObject Vulkan::CreateShaderObject(const ShaderObjectCreateInfo& a_shader_o
 	shader_create_info.codeSize = a_shader_object.shader_code_size;
 	shader_create_info.pCode = a_shader_object.shader_code;
 	shader_create_info.pName = a_shader_object.shader_entry;
-	shader_create_info.setLayoutCount = a_shader_object.descriptor_layout_count;
-	shader_create_info.pSetLayouts = reinterpret_cast<const VkDescriptorSetLayout*>(a_shader_object.descriptor_layouts.data());
+	shader_create_info.setLayoutCount = 1;
+	shader_create_info.pSetLayouts = &s_vulkan_inst->descriptors.bindless_set_layout;
 	shader_create_info.pSpecializationInfo = nullptr;
 
 	VkShaderEXT shader_object;
-	if (a_shader_object.push_constant_range.size)
-	{
-		VkPushConstantRange constant_range;
-		constant_range.stageFlags = ShaderStageFlags(a_shader_object.push_constant_range.stages);
-		constant_range.size = a_shader_object.push_constant_range.size;
-		constant_range.offset = 0;
-		shader_create_info.pPushConstantRanges = &constant_range;
-		shader_create_info.pushConstantRangeCount = 1;
+	VkPushConstantRange constant_range;
+	constant_range.stageFlags = VK_SHADER_STAGE_ALL;
+	constant_range.size = GPU_PUSH_CONSTANT_SIZE;
+	constant_range.offset = 0;
+	shader_create_info.pPushConstantRanges = &constant_range;
+	shader_create_info.pushConstantRangeCount = 1;
 
-		VKASSERT(s_vulkan_inst->pfn.CreateShaderEXT(s_vulkan_inst->device,
-			1,
-			&shader_create_info,
-			nullptr,
-			&shader_object),
-			"Failed to create a shader object!");
+    const VkResult result = s_vulkan_inst->pfn.CreateShaderEXT(s_vulkan_inst->device,
+        1,
+        &shader_create_info,
+        nullptr,
+        &shader_object);
+	VKASSERT(result, "Failed to create a shader object!");
 
-		return ShaderObject(reinterpret_cast<size_t>(shader_object));
-	}
-	else
-	{
-		shader_create_info.pPushConstantRanges = nullptr;
-		shader_create_info.pushConstantRangeCount = 0;
-
-		VKASSERT(s_vulkan_inst->pfn.CreateShaderEXT(s_vulkan_inst->device,
-			1,
-			&shader_create_info,
-			nullptr,
-			&shader_object),
-			"Failed to create a shader object!");
-
-		return ShaderObject(reinterpret_cast<size_t>(shader_object));
-	}
+	return ShaderObject(reinterpret_cast<size_t>(shader_object));
 }
 
 void Vulkan::CreateShaderObjects(MemoryArena& a_temp_arena, Slice<ShaderObjectCreateInfo> a_shader_objects, ShaderObject* a_pshader_objects, const bool a_link_shaders)
 {
 	VkShaderCreateInfoEXT* shader_create_infos = ArenaAllocArr(a_temp_arena, VkShaderCreateInfoEXT, a_shader_objects.size());
-
+    VkPushConstantRange* constant_ranges = ArenaAllocArr(a_temp_arena, VkPushConstantRange, a_shader_objects.size());
 	for (size_t i = 0; i < a_shader_objects.size(); i++)
 	{
 		const ShaderObjectCreateInfo& shad_info = a_shader_objects[i];
@@ -1989,23 +1836,14 @@ void Vulkan::CreateShaderObjects(MemoryArena& a_temp_arena, Slice<ShaderObjectCr
 		create_inf.codeSize = shad_info.shader_code_size;
 		create_inf.pCode = shad_info.shader_code;
 		create_inf.pName = shad_info.shader_entry;
-		create_inf.setLayoutCount = shad_info.descriptor_layout_count;
-		create_inf.pSetLayouts = reinterpret_cast<const VkDescriptorSetLayout*>(shad_info.descriptor_layouts.data());
+        create_inf.setLayoutCount = 1;
+        create_inf.pSetLayouts = &s_vulkan_inst->descriptors.bindless_set_layout;
 
-		if (shad_info.push_constant_range.size)
-		{
-			VkPushConstantRange* constant_ranges = ArenaAllocType(a_temp_arena, VkPushConstantRange);
-			constant_ranges->stageFlags = ShaderStageFlags(shad_info.push_constant_range.stages);
-			constant_ranges->size = shad_info.push_constant_range.size;
-			constant_ranges->offset = 0;
-			create_inf.pPushConstantRanges = constant_ranges;
-			create_inf.pushConstantRangeCount = 1;
-		}
-		else
-		{
-			create_inf.pPushConstantRanges = nullptr;
-			create_inf.pushConstantRangeCount = 0;
-		}
+        constant_ranges[i].stageFlags = VK_SHADER_STAGE_ALL;
+        constant_ranges[i].size = GPU_PUSH_CONSTANT_SIZE;
+        constant_ranges[i].offset = 0;
+        create_inf.pPushConstantRanges = &constant_ranges[i];
+        create_inf.pushConstantRangeCount = 1;
 		create_inf.pSpecializationInfo = nullptr;
 	}
 
@@ -2048,15 +1886,13 @@ void Vulkan::StartCommandList(const RCommandList a_list, const char* a_name)
 {
 	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 	VkCommandBufferBeginInfo cmd_begin_info{ VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
-	VKASSERT(vkBeginCommandBuffer(cmd_list,
-		&cmd_begin_info),
-		"Vulkan: Failed to begin commandbuffer");
+    VkResult result = vkBeginCommandBuffer(cmd_list, &cmd_begin_info);
+	VKASSERT(result, "Vulkan: Failed to begin commandbuffer");
 
-	//jank? bind the single descriptor buffer that we have when starting the commandlist.
-	VkDescriptorBufferBindingInfoEXT descriptor_buffer_info { VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT };
-	descriptor_buffer_info.usage = VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT;
-	descriptor_buffer_info.address = s_vulkan_inst->pdescriptor_buffer->GPUStartAddress();
-	s_vulkan_inst->pfn.CmdBindDescriptorBuffersEXT(cmd_list, 1, &descriptor_buffer_info);
+    vkCmdBindDescriptorSets(cmd_list, VK_PIPELINE_BIND_POINT_GRAPHICS, 
+        s_vulkan_inst->descriptors.bindless_pipeline_layout, 
+        0, 1, &s_vulkan_inst->descriptors.bindless_set,
+        0, nullptr);
 
 	SetDebugName(a_name, cmd_list, VK_OBJECT_TYPE_COMMAND_BUFFER);
 }
@@ -2652,34 +2488,11 @@ void Vulkan::SetDepthBias(const RCommandList a_list, const float a_bias_constant
 	vkCmdSetDepthBias(cmd_buffer, a_bias_constant_factor, a_bias_clamp, a_bias_slope_factor);
 }
 
-void Vulkan::SetDescriptorImmutableSamplers(const RCommandList a_list, const RPipelineLayout a_pipe_layout)
-{
-	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
-
-	s_vulkan_inst->pfn.CmdBindDescriptorBufferEmbeddedSamplersEXT(cmd_buffer,
-		VK_PIPELINE_BIND_POINT_GRAPHICS,
-		reinterpret_cast<VkPipelineLayout>(a_pipe_layout.handle),
-		SPACE_IMMUTABLE_SAMPLER);
-}
-
-void Vulkan::SetDescriptorBufferOffset(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_first_set, const uint32_t a_set_count, const uint32_t* a_buffer_indices, const size_t* a_offsets)
-{
-	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
-
-	s_vulkan_inst->pfn.CmdSetDescriptorBufferOffsetsEXT(cmd_buffer,
-		VK_PIPELINE_BIND_POINT_GRAPHICS,
-		reinterpret_cast<VkPipelineLayout>(a_pipe_layout.handle),
-		a_first_set,
-		a_set_count,
-		a_buffer_indices,
-		a_offsets);
-}
-
-void Vulkan::SetPushConstants(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_offset, const uint32_t a_size, const void* a_data)
+void Vulkan::SetPushConstants(const RCommandList a_list, const uint32_t a_offset, const uint32_t a_size, const void* a_data)
 {
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 	vkCmdPushConstants(cmd_buffer, 
-		reinterpret_cast<VkPipelineLayout>(a_pipe_layout.handle), 
+		s_vulkan_inst->descriptors.bindless_pipeline_layout, 
 		VK_SHADER_STAGE_ALL, 
 		a_offset, 
 		a_size, 
@@ -2689,14 +2502,12 @@ void Vulkan::SetPushConstants(const RCommandList a_list, const RPipelineLayout a
 void Vulkan::DrawVertices(const RCommandList a_list, const uint32_t a_vertex_count, const uint32_t a_instance_count, const uint32_t a_first_vertex, const uint32_t a_first_instance)
 {
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
-
 	vkCmdDraw(cmd_buffer, a_vertex_count, a_instance_count, a_first_vertex, a_first_instance);
 }
 
 void Vulkan::DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance)
 {
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
-
 	vkCmdDrawIndexed(cmd_buffer, a_index_count, a_instance_count, a_first_index, a_vertex_offset, a_first_instance);
 }
 

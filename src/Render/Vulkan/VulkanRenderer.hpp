@@ -11,7 +11,7 @@ namespace BB
 {
 	namespace Vulkan //annoying, but many function names actually overlap.
 	{
-		bool InitializeVulkan(MemoryArena& a_arena, const RendererCreateInfo a_create_info);
+		bool InitializeVulkan(MemoryArena& a_arena, const RendererCreateInfo& a_create_info);
 		GPUDeviceInfo GetGPUDeviceInfo(MemoryArena& a_arena);
 
 		bool CreateSwapchain(MemoryArena& a_arena, const WindowHandle a_window_handle, const uint32_t a_width, const uint32_t a_height, uint32_t& a_backbuffer_count);
@@ -38,15 +38,11 @@ namespace BB
 		const RImageView CreateImageView(const ImageViewCreateInfo& a_create_info);
 		void FreeViewImage(const RImageView a_image_view);
 
-		RDescriptorLayout CreateDescriptorLayout(MemoryArena& a_temp_arena, const ConstSlice<DescriptorBindingInfo> a_bindings);
-		RDescriptorLayout CreateDescriptorSamplerLayout(const Slice<SamplerCreateInfo> a_static_samplers);
-		DescriptorAllocation AllocateDescriptor(const RDescriptorLayout a_descriptor);
-		void DescriptorWriteUniformBuffer(const DescriptorWriteBufferInfo& a_write_info);
-		void DescriptorWriteStorageBuffer(const DescriptorWriteBufferInfo& a_write_info);
-		void DescriptorWriteImage(const DescriptorWriteImageInfo& a_write_info);
+        void DescriptorWriteImage(const RDescriptorIndex a_descriptor_index, const RImageView a_view, const IMAGE_LAYOUT a_layout);
+        void DescriptorWriteSampler(const RDescriptorIndex a_descriptor_index, const RSampler a_sampler);
+        void DescriptorWriteStorageBuffer(const RDescriptorIndex a_descriptor_index, const GPUBufferView& a_buffer_view);
+        void DescriptorWriteUniformBuffer(const RDescriptorIndex a_descriptor_index, const GPUBufferView& a_buffer_view);
 
-		RPipelineLayout CreatePipelineLayout(const RDescriptorLayout* a_descriptor_layouts, const uint32_t a_layout_count, const PushConstantRange a_constant_range);
-		void FreePipelineLayout(const RPipelineLayout a_layout);
 
 		ShaderObject CreateShaderObject(const ShaderObjectCreateInfo& a_shader_object);
 		void CreateShaderObjects(MemoryArena& a_temp_arena, Slice<ShaderObjectCreateInfo> a_shader_objects, ShaderObject* a_pshader_objects, const bool a_link_shaders);
@@ -83,9 +79,7 @@ namespace BB
         void SetFrontFace(const RCommandList a_list, const bool a_is_clockwise);
 		void SetCullMode(const RCommandList a_list, const CULL_MODE a_cull_mode);
 		void SetDepthBias(const RCommandList a_list, const float a_bias_constant_factor, const float a_bias_clamp, const float a_bias_slope_factor);
-		void SetDescriptorImmutableSamplers(const RCommandList a_list, const RPipelineLayout a_pipe_layout);
-		void SetDescriptorBufferOffset(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_first_set, const uint32_t a_set_count, const uint32_t* a_buffer_indices, const size_t* a_offsets);
-		void SetPushConstants(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_offset, const uint32_t a_size, const void* a_data);
+		void SetPushConstants(const RCommandList a_list, const uint32_t a_offset, const uint32_t a_size, const void* a_data);
 
 		void DrawVertices(const RCommandList a_list, const uint32_t a_vertex_count, const uint32_t a_instance_count, const uint32_t a_first_vertex, const uint32_t a_first_instance);
 		void DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance);

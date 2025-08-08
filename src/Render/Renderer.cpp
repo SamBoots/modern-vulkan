@@ -86,6 +86,58 @@ struct TextureInfo
 	IMAGE_USAGE usage;			// 56
 };
 
+constexpr uint32_t INVALID_BINDING = -1;
+struct DescriptorIndexAllocator
+{
+    uint32_t next_free;
+    StaticArray<uint32_t> bindings;
+};
+
+static DescriptorIndexAllocator CreateDescriptorIndexAllocator(MemoryArena& a_arena, const uint32_t a_size)
+{
+    DescriptorIndexAllocator allocator;
+
+    allocator.next_free = 0;
+    allocator.bindings.Init(a_arena, a_size);
+    for (uint32_t i = 0; i < a_size; i++)
+        allocator.bindings.push_back(i + 1);
+
+    allocator.bindings[a_size - 1] = INVALID_BINDING;
+
+    return allocator;
+}
+
+static uint32_t DescriptorIndexAllocate(DescriptorIndexAllocator& a_allocator)
+{
+    const uint32_t retval = a_allocator.next_free;
+    a_allocator.next_free = a_allocator.bindings[retval];
+    return retval;
+}
+
+static void DescriptorIndexFree(DescriptorIndexAllocator& a_allocator, const uint32_t a_index)
+{
+    a_allocator.bindings[a_index] = a_allocator.next_free;
+    a_allocator.next_free = a_index;
+}
+
+struct DescriptorManager
+{
+    //DescriptorIndexAllocator images;
+    DescriptorIndexAllocator samplers;
+    DescriptorIndexAllocator buffers;
+    DescriptorIndexAllocator uniforms;
+};
+
+static DescriptorManager CreateDescriptorManager(MemoryArena& a_arena, const uint32_t a_image_count, const uint32_t a_sampler_count, const uint32_t a_buffer_count, const uint32_t a_uniform_count)
+{
+    DescriptorManager manager;
+    //manager.images = CreateDescriptorIndexAllocator(a_arena, a_image_count);
+    manager.samplers = CreateDescriptorIndexAllocator(a_arena, a_sampler_count);
+    manager.buffers = CreateDescriptorIndexAllocator(a_arena, a_buffer_count);
+    manager.uniforms = CreateDescriptorIndexAllocator(a_arena, a_uniform_count);
+    return manager;
+}
+
 constexpr uint32_t MAX_TEXTURES = 1024;
 
 class GPUTextureManager
@@ -117,7 +169,7 @@ public:
 		m_views[descriptor_index] =  Vulkan::CreateImageView(a_info);
 
 		DescriptorWriteImageInfo write_info;
-		write_info.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
+		write_info.binding = GPU_BINDING_IMAGES;
 		write_info.descriptor_index = descriptor_index;
 		write_info.view = m_views[descriptor_index];
 		write_info.layout = IMAGE_LAYOUT::RO_FRAGMENT;
@@ -501,7 +553,7 @@ void GPUTextureManager::SetAllTextures(const RDescriptorIndex a_descriptor_index
 	image_write.allocation = a_allocation;
 	image_write.view = GetImageView(a_descriptor_index);
 	image_write.layout = IMAGE_LAYOUT::RO_FRAGMENT;
-	image_write.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
+	image_write.binding = GPU_BINDING_IMAGES;
 	for (uint32_t i = 0; i < MAX_TEXTURES; i++)
 	{
 		image_write.descriptor_index = i;
@@ -514,11 +566,11 @@ void GPUTextureManager::FreeImageView(const RDescriptorIndex a_descriptor_index,
 	OSAcquireSRWLockWrite(&m_lock);
 	Vulkan::FreeViewImage(m_views[a_descriptor_index.handle]);
 	m_views[a_descriptor_index.handle].index = m_next_free;
-	m_next_free = m_views[a_descriptor_index.handle].index;
+	m_next_free = a_descriptor_index.handle; // this could be wrong I dunno
 	OSReleaseSRWLockWrite(&m_lock);
 
 	DescriptorWriteImageInfo write_info;
-	write_info.binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
+	write_info.binding = GPU_BINDING_IMAGES;
 	write_info.descriptor_index = a_descriptor_index.handle;
 	write_info.view = GetImageView(s_render_inst->debug_descriptor_index);
 	write_info.layout = IMAGE_LAYOUT::RO_FRAGMENT;
@@ -704,7 +756,7 @@ static GPUBuffer UploadStartupResources()
 		memcpy(Pointer::Add(mapped, debug_texture_size), SKYBOX_VERTICES, sizeof(SKYBOX_VERTICES));
 
 		const GPUBufferView vertex_view = AllocateFromVertexBuffer(sizeof(SKYBOX_VERTICES));
-		s_render_inst->global_buffer.data.cube_vertexpos_vertex_buffer_pos = static_cast<uint32_t>(vertex_view.offset);
+		s_render_inst->global_buffer.data.cubemap_vertex_offset = static_cast<uint32_t>(vertex_view.offset);
 
 		RenderCopyBufferRegion region;
 		region.src_offset = debug_texture_size;
@@ -771,26 +823,36 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		}
 		{
 			//global descriptor set 1
-			FixedArray<DescriptorBindingInfo, 4> descriptor_bindings;
-			descriptor_bindings[0].binding = GLOBAL_VERTEX_BUFFER_BINDING;
+			FixedArray<DescriptorBindingInfo, 6> descriptor_bindings;
+			descriptor_bindings[0].binding = GPU_BINDING_GLOBAL;
 			descriptor_bindings[0].count = 1;
-			descriptor_bindings[0].shader_stage = SHADER_STAGE::VERTEX;
-			descriptor_bindings[0].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
+			descriptor_bindings[0].shader_stage = SHADER_STAGE::ALL;
+			descriptor_bindings[0].type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
 
-			descriptor_bindings[1].binding = GLOBAL_CPU_VERTEX_BUFFER_BINDING;
+			descriptor_bindings[1].binding = GPU_BINDING_SCENE;
 			descriptor_bindings[1].count = 1;
-			descriptor_bindings[1].shader_stage = SHADER_STAGE::VERTEX;
-			descriptor_bindings[1].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
+			descriptor_bindings[1].shader_stage = SHADER_STAGE::ALL;
+			descriptor_bindings[1].type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
 
-			descriptor_bindings[2].binding = GLOBAL_BUFFER_BINDING;
+			descriptor_bindings[2].binding = GPU_BINDING_IMAGES;
 			descriptor_bindings[2].count = 1;
 			descriptor_bindings[2].shader_stage = SHADER_STAGE::ALL;
-			descriptor_bindings[2].type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
+			descriptor_bindings[2].type = DESCRIPTOR_TYPE::IMAGE;
 
-			descriptor_bindings[3].binding = GLOBAL_BINDLESS_TEXTURES_BINDING;
+			descriptor_bindings[3].binding = GPU_BINDING_SAMPLERS;
 			descriptor_bindings[3].count = MAX_TEXTURES;
-			descriptor_bindings[3].shader_stage = SHADER_STAGE::FRAGMENT_PIXEL;
-			descriptor_bindings[3].type = DESCRIPTOR_TYPE::IMAGE;
+			descriptor_bindings[3].shader_stage = SHADER_STAGE::ALL;
+			descriptor_bindings[3].type = DESCRIPTOR_TYPE::SAMPLER;
+
+            descriptor_bindings[4].binding = GPU_BINDING_BUFFERS;
+            descriptor_bindings[4].count = 1;
+            descriptor_bindings[4].shader_stage = SHADER_STAGE::ALL;
+            descriptor_bindings[4].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
+
+            descriptor_bindings[5].binding = GPU_BINDING_UNIFORMS;
+            descriptor_bindings[5].count = MAX_TEXTURES;
+            descriptor_bindings[5].shader_stage = SHADER_STAGE::FRAGMENT_PIXEL;
+            descriptor_bindings[5].type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
 
 			s_render_inst->global_descriptor_set = Vulkan::CreateDescriptorLayout(a_arena, descriptor_bindings.const_slice());
 			s_render_inst->global_descriptor_allocation = Vulkan::AllocateDescriptor(s_render_inst->global_descriptor_set);
@@ -1445,19 +1507,24 @@ void BB::BuildTopLevelAccelerationStruct(MemoryArena& a_temp_arena, const RComma
     Vulkan::BuildTopLevelAccelerationStruct(a_temp_arena, a_list, a_build_info);
 }
 
-void BB::DescriptorWriteUniformBuffer(const DescriptorWriteBufferInfo& a_write_info)
+void DescriptorWriteImage(const uint32_t a_descriptor_index, const RImageView a_view, const IMAGE_LAYOUT a_layout)
 {
-	Vulkan::DescriptorWriteUniformBuffer(a_write_info);
+    Vulkan::DescriptorWriteImage(a_descriptor_index, a_view, a_layout);
 }
 
-void BB::DescriptorWriteStorageBuffer(const DescriptorWriteBufferInfo& a_write_info)
+void DescriptorWriteSampler(const DescriptorWriteImageInfo& a_write_info)
 {
-	Vulkan::DescriptorWriteStorageBuffer(a_write_info);
+    Vulkan::DescriptorWriteSampler(a_write_info);
 }
 
-void BB::DescriptorWriteImage(const DescriptorWriteImageInfo& a_write_info)
+void DescriptorWriteUniformBuffer(const uint32_t a_descriptor_index, const GPUBufferView& a_buffer_view)
 {
-	Vulkan::DescriptorWriteImage(a_write_info);
+    Vulkan::DescriptorWriteUniformBuffer(a_descriptor_index, a_buffer_view);
+}
+
+void DescriptorWriteStorageBuffer(const uint32_t a_descriptor_index, const GPUBufferView& a_buffer_view)
+{
+    Vulkan::DescriptorWriteStorageBuffer(a_descriptor_index, a_buffer_view);
 }
 
 RFence BB::CreateFence(const uint64_t a_initial_value, const char* a_name)

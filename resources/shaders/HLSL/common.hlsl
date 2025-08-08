@@ -15,29 +15,22 @@
 #define INVALID_TEXTURE 0
 #define PI 3.14159265358979323846
 
-//IMMUTABLE SAMPLERS
-_BBBIND(IMMUTABLE_SAMPLER_BASIC_BINDING, SPACE_IMMUTABLE_SAMPLER)SamplerState basic_3d_sampler;
-_BBBIND(IMMUTABLE_SAMPLER_SHADOW_MAP_BINDING, SPACE_IMMUTABLE_SAMPLER)SamplerState shadow_map_sampler;
+// UNIQUE BINDINGS
+_BBBIND(GPU_BINDING_GLOBAL, 0)ConstantBuffer<BB::GlobalRenderData> global_data;
+_BBBIND(GPU_BINDING_SCENE, 0)ConstantBuffer<BB::Scene3DInfo> scene_data;
 
-//GLOBAL BINDINGS
-_BBBIND(GLOBAL_VERTEX_BUFFER_BINDING, SPACE_GLOBAL)ByteAddressBuffer vertex_data;
-_BBBIND(GLOBAL_CPU_VERTEX_BUFFER_BINDING, SPACE_GLOBAL)ByteAddressBuffer cpu_writeable_vertex_data;
-_BBBIND(GLOBAL_BUFFER_BINDING, SPACE_GLOBAL)ConstantBuffer<BB::GlobalRenderData> global_data;
-_BBBIND(GLOBAL_BINDLESS_TEXTURES_BINDING, SPACE_GLOBAL)Texture2D textures_data[];
-_BBBIND(GLOBAL_BINDLESS_TEXTURES_BINDING, SPACE_GLOBAL)Texture2DArray textures_array_data[];
-_BBBIND(GLOBAL_BINDLESS_TEXTURES_BINDING, SPACE_GLOBAL)TextureCube textures_cube_data[];
+// ALL BINDINGS
+_BBBIND(GPU_BINDING_IMAGES, 0)Texture2D textures[];
+_BBBIND(GPU_BINDING_IMAGES, 0)Texture2DArray texture_arrays[];
+_BBBIND(GPU_BINDING_SAMPLERS, 0)SamplerState samplers[];
+_BBBIND(GPU_BINDING_BUFFERS, 0)ByteAddressBuffer buffers[];
+_BBBIND(GPU_BINDING_BUFFERS, 0)RWByteAddressBuffer readwrite_buffers[];
 
-//PER_SCENE BINDINGS
-_BBBIND(PER_SCENE_SCENE_DATA_BINDING, SPACE_PER_SCENE)ConstantBuffer<BB::Scene3DInfo> scene_data;
-_BBBIND(PER_SCENE_TRANSFORM_DATA_BINDING, SPACE_PER_SCENE)ByteAddressBuffer transform_data;
-_BBBIND(PER_SCENE_LIGHT_DATA_BINDING, SPACE_PER_SCENE)ByteAddressBuffer light_data;
-_BBBIND(PER_SCENE_LIGHT_PROJECTION_VIEW_DATA_BINDING, SPACE_PER_SCENE)ByteAddressBuffer light_view_projection_data;
+// all uniforms
+_BBBIND(GPU_BINDING_UNIFORMS, 0)ConstantBuffer<BB::MeshMetallic> uniform_metallic_info[];
 
-//PER_MATERIAL BINDINGS
 
-_BBBIND(PER_MATERIAL_BINDING, SPACE_PER_MATERIAL)ConstantBuffer<BB::MeshMetallic> materials_metallic[];
-
-float2 GetAttributeFloat2(const uint a_offset, const uint a_vertex_index)
+float2 GetAttributeFloat2(const uint a_offset, const uint a_vertex_index, const uint)
 {
      return asfloat(vertex_data.Load2(a_offset + sizeof(float2) * a_vertex_index));
 }

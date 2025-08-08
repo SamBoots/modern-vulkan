@@ -15,33 +15,21 @@ namespace BB
 
     struct FontAtlas
     {
+        AssetHandle asset;
+        RImage image;
+        RDescriptorIndex desc_index;
         uint2 extent;
-        unsigned char* bitmap;
         int char_start;
         int char_count;
         Glyph* glyphs;
         float pixel_height;
+        
+        // temp
+        unsigned char* bitmap;
     };
 
     FontAtlas CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_path, const float a_pixel_height, const int a_first_char);
     bool FontAtlasWriteImage(const PathString& a_path, const FontAtlas& a_atlas);
 
-    class RenderSystem2D
-    {
-    public:
-        bool Init(MemoryArena& a_arena, const PathString& a_font_path);
-        void Destroy();
-
-        void RenderText(const RCommandList a_list, GPUUploadRingAllocator& a_ring_buffer, const GPULinearBuffer& a_frame_buffer, const uint2 a_text_size, const uint2 a_text_start_pos, const StringView a_string);
-
-    private:
-        uint2 m_image_size;
-        RDescriptorIndex m_font_atlas;
-        AssetHandle m_image_asset;
-
-        StaticArray<Glyph2D> m_glyps;
-        StaticArray<FixedArray<float2, 2>> m_uvs;
-
-        MasterMaterialHandle m_material;
-    };
+    bool RenderText(const FontAtlas& a_font_atlas, const RCommandList a_list, GPUUploadRingAllocator& a_ring_buffer, GPULinearBuffer& a_frame_buffer, const float2 a_text_size, const float2 a_text_start_pos, const StringView a_string);
 }

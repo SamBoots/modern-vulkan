@@ -90,12 +90,6 @@ namespace BB
 		uint32_t signal_count;
 	};
 
-	struct PushConstantRange
-	{
-		SHADER_STAGE stages;
-		uint32_t size; // zero for no push constant
-	};
-
 	struct ShaderObjectCreateInfo
 	{
 		//maybe flags.
@@ -104,8 +98,5 @@ namespace BB
 		size_t shader_code_size;
 		const void* shader_code;
 		const char* shader_entry;
-		uint32_t descriptor_layout_count;
-		FixedArray<RDescriptorLayout, SPACE_AMOUNT> descriptor_layouts;
-		PushConstantRange push_constant_range;
 	};
 }

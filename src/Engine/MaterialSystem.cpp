@@ -40,10 +40,6 @@ struct MaterialSystem_inst
 
 	FreelistArray<MaterialInstance> material_instances;
 
-	RDescriptorLayout scene_desc_layout;
-	RDescriptorLayout material_desc_layout;
-	DescriptorAllocation material_desc_allocation;
-
 	MasterMaterialHandle default_materials[static_cast<uint32_t>(PASS_TYPE::ENUM_SIZE)][static_cast<uint32_t>(MATERIAL_TYPE::ENUM_SIZE)];
 
     PathString shader_path;
@@ -79,7 +75,7 @@ struct ShaderEffectList
     ShaderEffectHandle geometry;
 };
 
-static ShaderEffectList CreateShaderEffects_impl(MemoryArena& a_temp_arena, const Slice<MaterialShaderCreateInfo> a_shader_effects_info, const ShaderDescriptorLayouts& a_desc_layouts, const uint32_t a_desc_layout_count)
+static ShaderEffectList CreateShaderEffects_impl(MemoryArena& a_temp_arena, const Slice<MaterialShaderCreateInfo> a_shader_effects_info, const ConstSlice<RDescriptorLayout> a_desc_layouts)
 {
     auto place_shader = [](ShaderEffectList& a_list, const SHADER_STAGE a_stage, const ShaderEffectHandle a_effect) -> bool
         {
@@ -144,8 +140,6 @@ static ShaderEffectList CreateShaderEffects_impl(MemoryArena& a_temp_arena, cons
 			shader_info.stage = info.stage;
 			shader_info.next_stages = info.next_stages;
 			shader_info.push_constant_space = PUSH_CONSTANT_SPACE_SIZE;
-			shader_info.desc_layouts = a_desc_layouts;
-			shader_info.desc_layout_count = a_desc_layout_count;
 		}
 	}
 
@@ -219,23 +213,12 @@ void Material::InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCrea
 	s_material_inst->shader_effects.Init(a_arena, a_create_info.max_shader_effects);
 	s_material_inst->shader_effect_cache.Init(a_arena, a_create_info.max_shader_effects);
 	
-	s_material_inst->scene_desc_layout = RenderSystem::GetSceneDescriptorLayout();
     s_material_inst->shader_path = GetRootPath();
     s_material_inst->shader_path.AddPath("resources");
     s_material_inst->shader_path.AddPath("shaders");
 
 	MemoryArenaScope(a_arena)
 	{
-		{
-			DescriptorBindingInfo desc_binding;
-			desc_binding.type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
-			desc_binding.count = a_create_info.max_material_instances;
-			desc_binding.binding = PER_MATERIAL_BINDING;
-			desc_binding.shader_stage = SHADER_STAGE::ALL;
-			s_material_inst->material_desc_layout = CreateDescriptorLayout(a_arena, ConstSlice<DescriptorBindingInfo>(&desc_binding, 1));
-			s_material_inst->material_desc_allocation = AllocateDescriptor(s_material_inst->material_desc_layout);
-		}
-
 		MaterialCreateInfo material_info;
 		material_info.material_type = MATERIAL_TYPE::MATERIAL_2D;
 		material_info.cpu_writeable = false;
@@ -262,47 +245,8 @@ void Material::InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCrea
 
 MasterMaterialHandle Material::CreateMasterMaterial(MemoryArena& a_temp_arena, const MaterialCreateInfo& a_create_info, const StringView a_name)
 {
-	ShaderDescriptorLayouts desc_layouts;
-	desc_layouts[SPACE_IMMUTABLE_SAMPLER] = GetStaticSamplerDescriptorLayout();
-	desc_layouts[SPACE_GLOBAL] = GetGlobalDescriptorLayout();
-	desc_layouts[SPACE_PER_SCENE] = RDescriptorLayout(BB_INVALID_HANDLE_64);	// PER SCENE SET
-	desc_layouts[SPACE_PER_MATERIAL] = RDescriptorLayout(BB_INVALID_HANDLE_64);	// PER MATERIAL SET
-	desc_layouts[SPACE_PER_MESH] = RDescriptorLayout(BB_INVALID_HANDLE_64);	// PER MESH SET
-
-	switch (a_create_info.pass_type)
-	{
-	case PASS_TYPE::GLOBAL:
-		BB_LOG("GLOBAL pass unimplemented");
-		desc_layouts[SPACE_PER_SCENE] = s_material_inst->scene_desc_layout;
-		break;
-	case PASS_TYPE::SCENE:
-		desc_layouts[SPACE_PER_SCENE] = s_material_inst->scene_desc_layout;
-		break;
-	default:
-		BB_ASSERT(false, "unknown material pass");
-		break;
-	}
-
-	uint32_t layouts = 3;
-
-	switch (a_create_info.material_type)
-	{
-	case MATERIAL_TYPE::MATERIAL_2D:
-		BB_LOG("SCENE_2D material unimplemented");
-		break;
-	case MATERIAL_TYPE::MATERIAL_3D:
-		desc_layouts[SPACE_PER_MATERIAL] = s_material_inst->material_desc_layout;
-		++layouts;
-		break;
-	case MATERIAL_TYPE::NONE:
-
-		break;
-	default:
-		BB_ASSERT(false, "unknown material type");
-		break;
-	}
-
-	const ShaderEffectList shader_effects = CreateShaderEffects_impl(a_temp_arena, a_create_info.shader_infos, desc_layouts, layouts);
+    const RDescriptorLayout layout = GetGlobalDescriptorLayout();
+	const ShaderEffectList shader_effects = CreateShaderEffects_impl(a_temp_arena, a_create_info.shader_infos, ConstSlice(&layout, 1));
 
 	return CreateMaterial_impl(shader_effects.vertex, shader_effects.fragment, shader_effects.geometry, a_create_info.pass_type, a_create_info.material_type, a_create_info.user_data_size, a_create_info.cpu_writeable, a_name);
 }
@@ -326,16 +270,6 @@ MaterialHandle Material::CreateMaterialInstance(const MasterMaterialHandle a_mas
 		mat.mapper_ptr = nullptr;
 
 	const MaterialHandle material_index = MaterialHandle(s_material_inst->material_instances.emplace(mat));
-
-	DescriptorWriteBufferInfo write_buffer;
-	write_buffer.descriptor_layout = s_material_inst->material_desc_layout;
-	write_buffer.allocation = s_material_inst->material_desc_allocation;
-	write_buffer.binding = PER_MATERIAL_BINDING;
-	write_buffer.descriptor_index = static_cast<uint32_t>(material_index.handle);
-	write_buffer.buffer_view.buffer = mat.buffer;
-	write_buffer.buffer_view.size = mat.user_data_size;
-	write_buffer.buffer_view.offset = 0;
-	DescriptorWriteUniformBuffer(write_buffer);
 
 	return material_index;
 }
@@ -375,11 +309,6 @@ RPipelineLayout Material::BindMaterial(const RCommandList a_list, const MasterMa
 {
     const MasterMaterial& inst = s_material_inst->material_map.find(a_material);
 	return BindShaders(a_list, inst.shaders.vertex, inst.shaders.fragment_pixel, inst.shaders.geometry);
-}
-
-const DescriptorAllocation& Material::GetMaterialDescAllocation()
-{
-	return s_material_inst->material_desc_allocation;
 }
 
 MasterMaterialHandle Material::GetDefaultMasterMaterial(const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type)

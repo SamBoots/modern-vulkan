@@ -11,14 +11,13 @@ namespace BB
 	using RCommandPool = FrameworkHandle<struct RCommandPoolTag>;
 	using RCommandList = FrameworkHandle<struct RCommandListTag>;
 
-	using RPipelineLayout = FrameworkHandle<struct RPipelineLayoutTag>;
-	using RDescriptorLayout = FrameworkHandle<struct RDescriptorLayoutTag>;
 	using GPUFenceValue = uint64_t;
 
 	using GPUBuffer = FrameworkHandle<struct GPUBufferTag>;
 	using GPUAddress = uint64_t;
 	using RImage = FrameworkHandle<struct RImageTag>;
 	using RImageView = FrameworkHandle<struct RImageViewTag>;
+    using RSampler = FrameworkHandle<struct RSamplerTag>;
 	using RAccelerationStruct = FrameworkHandle<struct RAccelerationStuctTag>;
 
 	using RFence = FrameworkHandle<struct RFenceTag>;
@@ -154,6 +153,11 @@ namespace BB
 		float gamma;
 		bool use_raytracing;
 		bool debug;
+
+        uint32_t max_images;
+        uint32_t max_samplers;
+        uint32_t max_buffers;
+        uint32_t max_uniforms;
     };
 
 	struct RenderingAttachmentDepth
@@ -313,34 +317,6 @@ namespace BB
 		uint32_t dst_base_layer;
 	};
 
-	struct DescriptorAllocation
-	{
-		uint32_t size;
-		uint32_t offset;
-		void* buffer_start; //Maybe just get this from the descriptor heap? We only have one heap anyway.
-	};
-
-	struct DescriptorWriteBufferInfo
-	{
-		RDescriptorLayout descriptor_layout{};
-		DescriptorAllocation allocation;
-		uint32_t binding;
-		uint32_t descriptor_index;
-
-		GPUBufferView buffer_view;
-	};
-
-	struct DescriptorWriteImageInfo
-	{
-		RDescriptorLayout descriptor_layout{};
-		DescriptorAllocation allocation;
-		uint32_t binding;
-		uint32_t descriptor_index;
-
-		RImageView view;
-		IMAGE_LAYOUT layout;
-	};
-
 	struct GPUDeviceInfo
 	{
 		char* name;
@@ -388,7 +364,6 @@ namespace BB
 		uint64_t index_buffer_offset;
 	};
 
-	using ShaderDescriptorLayouts = FixedArray<RDescriptorLayout, SPACE_AMOUNT>;
 	struct CreateShaderEffectInfo
 	{
 		const char* name;
@@ -397,9 +372,6 @@ namespace BB
 		SHADER_STAGE stage;
 		SHADER_STAGE_FLAGS next_stages;
 		uint32_t push_constant_space;
-
-		ShaderDescriptorLayouts desc_layouts;
-		uint32_t desc_layout_count;
 	};
 
 	struct PipelineBarrierGlobalInfo

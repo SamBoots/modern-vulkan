@@ -124,7 +124,6 @@ namespace BB
 
 		RPipelineLayout BindMaterial(const RCommandList a_list, const MasterMaterialHandle a_material);
 
-		const DescriptorAllocation& GetMaterialDescAllocation();
 		MasterMaterialHandle GetDefaultMasterMaterial(const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type);
 		const MasterMaterial& GetMasterMaterial(const MasterMaterialHandle a_master_material);
 		ConstSlice<CachedShaderInfo> GetAllCachedShaders();

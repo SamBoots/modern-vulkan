@@ -87,9 +87,6 @@ namespace BB
 	WriteableGPUBufferView AllocateFromWritableVertexBuffer(const size_t a_size_in_bytes);
 	WriteableGPUBufferView AllocateFromWritableIndexBuffer(const size_t a_size_in_bytes);
 
-	RDescriptorLayout CreateDescriptorLayout(MemoryArena& a_temp_arena, const ConstSlice<DescriptorBindingInfo> a_bindings);
-	DescriptorAllocation AllocateDescriptor(const RDescriptorLayout a_descriptor);
-
 	bool CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles, bool a_link_shaders);
 	bool ReloadShaderEffect(const ShaderEffectHandle a_shader_effect, const Buffer& a_shader);
 
@@ -127,9 +124,10 @@ namespace BB
     void BuildBottomLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildBottomLevelAccelerationStructInfo& a_build_info);
     void BuildTopLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildTopLevelAccelerationStructInfo& a_build_info);
 
-	void DescriptorWriteUniformBuffer(const DescriptorWriteBufferInfo& a_write_info);
-	void DescriptorWriteStorageBuffer(const DescriptorWriteBufferInfo& a_write_info);
-	void DescriptorWriteImage(const DescriptorWriteImageInfo& a_write_info);
+    void DescriptorWriteImage(const uint32_t a_descriptor_index, const RImageView a_view, const IMAGE_LAYOUT a_layout);
+    void DescriptorWriteSampler(const DescriptorWriteImageInfo& a_write_info);
+	void DescriptorWriteUniformBuffer(const uint32_t a_descriptor_index, const GPUBufferView& a_buffer_view);
+	void DescriptorWriteStorageBuffer(const uint32_t a_descriptor_index, const GPUBufferView& a_buffer_view);
 
 	RFence CreateFence(const uint64_t a_initial_value, const char* a_name);
 	void FreeFence(const RFence a_fence);
@@ -139,13 +137,6 @@ namespace BB
 
 	void SetPushConstants(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_offset, const uint32_t a_size, const void* a_data);
 	void PipelineBarriers(const RCommandList a_list, const struct PipelineBarrierInfo& a_barrier_info);
-	void SetDescriptorBufferOffset(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_first_set, const uint32_t a_set_count, const uint32_t* a_buffer_indices, const size_t* a_offsets);
-	const DescriptorAllocation& GetGlobalDescriptorAllocation();
 
 	RDescriptorIndex GetDebugTexture();
-
-	// should always be placed as layout 0
-	RDescriptorLayout GetStaticSamplerDescriptorLayout();
-	// should always be placed as layout 1
-	RDescriptorLayout GetGlobalDescriptorLayout();
 }
