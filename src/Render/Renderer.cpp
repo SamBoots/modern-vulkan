@@ -157,9 +157,9 @@ public:
 		m_views[MAX_TEXTURES - 1].index = UINT32_MAX;
 	}
 
-	void SetAllTextures(const RDescriptorIndex a_descriptor_index, const RDescriptorLayout a_global_layout, const DescriptorAllocation& a_allocation) const;
+	void SetAllTextures(const RDescriptorIndex a_descriptor_index) const;
 
-	const RDescriptorIndex AllocAndWriteImageView(const ImageViewCreateInfo& a_info, const RDescriptorLayout a_global_layout, const DescriptorAllocation& a_allocation)
+	const RDescriptorIndex AllocAndWriteImageView(const ImageViewCreateInfo& a_info)
 	{
 		OSAcquireSRWLockWrite(&m_lock);
 		const uint32_t descriptor_index = m_next_free;
@@ -451,9 +451,8 @@ struct ShaderEffect
 {
 	const char* name;				//8
 	ShaderObject shader_object;		//16
-	RPipelineLayout pipeline_layout;//24
-	SHADER_STAGE shader_stage;		//28
-	SHADER_STAGE_FLAGS shader_stages_next; //32
+	SHADER_STAGE shader_stage;		//20
+	SHADER_STAGE_FLAGS shader_stages_next; //24
 
 #ifdef _ENABLE_REBUILD_SHADERS
 	const char* shader_entry;
@@ -1075,10 +1074,9 @@ void BB::BindIndexBuffer(const RCommandList a_list, const uint64_t a_offset, con
 	}
 }
 
-RPipelineLayout BB::BindShaders(const RCommandList a_list, const ShaderEffectHandle a_vertex, const ShaderEffectHandle a_fragment_pixel, const ShaderEffectHandle a_geometry)
+void BB::BindShaders(const RCommandList a_list, const ShaderEffectHandle a_vertex, const ShaderEffectHandle a_fragment_pixel, const ShaderEffectHandle a_geometry)
 {
 	ShaderObject shader_objects[UNIQUE_SHADER_STAGE_COUNT]{};
-	RPipelineLayout layout{};
 
 	auto SetShaderEffect = [&](const ShaderEffectHandle a_effect, const uint32_t a_index)
 		{
@@ -1086,13 +1084,6 @@ RPipelineLayout BB::BindShaders(const RCommandList a_list, const ShaderEffectHan
 			{
 				const ShaderEffect& effect = s_render_inst->shader_effects[a_effect];
 				shader_objects[a_index] = effect.shader_object;
-
-				if (layout.IsValid())
-				{
-					BB_ASSERT(layout == effect.pipeline_layout, "pipeline layout is wrong");
-				}
-				else
-					layout = effect.pipeline_layout;
 			}
 			else
 				shader_objects[a_index] = ShaderObject(0); // has to be null
@@ -1103,10 +1094,6 @@ RPipelineLayout BB::BindShaders(const RCommandList a_list, const ShaderEffectHan
 	SetShaderEffect(a_geometry, 2);
 
 	Vulkan::BindShaders(a_list, UNIQUE_SHADER_STAGE_COUNT, CONSEQUTIVE_SHADER_STAGES, shader_objects);
-	// set the samplers
-	Vulkan::SetDescriptorImmutableSamplers(a_list, layout);
-
-	return layout;
 }
 
 void BB::SetBlendMode(const RCommandList a_list, const uint32_t a_first_attachment, const Slice<ColorBlendState> a_blend_states)
@@ -1244,16 +1231,6 @@ bool BB::ExecuteComputeCommands(const BB::Slice<CommandPool> a_cmd_pools, const 
 	return ExecuteQueueCommands(s_render_inst->compute_queue, a_cmd_pools, a_signal_fences, a_signal_values, a_signal_count, a_out_present_fence_value);
 }
 
-RDescriptorLayout BB::CreateDescriptorLayout(MemoryArena& a_temp_arena, const ConstSlice<DescriptorBindingInfo> a_bindings)
-{
-	return Vulkan::CreateDescriptorLayout(a_temp_arena, a_bindings);
-}
-
-DescriptorAllocation BB::AllocateDescriptor(const RDescriptorLayout a_descriptor)
-{
-	return Vulkan::AllocateDescriptor(a_descriptor);
-}
-
 bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderEffectInfo> a_create_infos, ShaderEffectHandle* const a_handles, bool a_link_shaders)
 {
 	// clean this all up, tons of duplication going on.
@@ -1265,12 +1242,6 @@ bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderE
 	for (size_t i = 0; i < a_create_infos.size(); i++)
 	{
 		const CreateShaderEffectInfo& create_info = a_create_infos[i];
-
-		PushConstantRange push_constant_range;
-		push_constant_range.stages = SHADER_STAGE::ALL;
-		push_constant_range.size = create_info.push_constant_space;
-
-		shader_effects[i].pipeline_layout = Vulkan::CreatePipelineLayout(create_info.desc_layouts.data(), create_info.desc_layout_count, push_constant_range);
 
 		if (!CompileShader(s_render_inst->shader_compiler,
 			create_info.shader_data,
@@ -1288,10 +1259,6 @@ bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderE
 		shader_object_infos[i].shader_code_size = shader_buffer.size;
 		shader_object_infos[i].shader_code = shader_buffer.data;
 		shader_object_infos[i].shader_entry = create_info.shader_entry;
-
-		shader_object_infos[i].descriptor_layout_count = create_info.desc_layout_count;
-		shader_object_infos[i].descriptor_layouts = create_info.desc_layouts;
-		shader_object_infos[i].push_constant_range = push_constant_range;
 	}
 
 	ShaderObject* shader_objects = ArenaAllocArr(a_temp_arena, ShaderObject, a_create_infos.size());
@@ -1507,22 +1474,22 @@ void BB::BuildTopLevelAccelerationStruct(MemoryArena& a_temp_arena, const RComma
     Vulkan::BuildTopLevelAccelerationStruct(a_temp_arena, a_list, a_build_info);
 }
 
-void DescriptorWriteImage(const uint32_t a_descriptor_index, const RImageView a_view, const IMAGE_LAYOUT a_layout)
+void BB::DescriptorWriteImage(const RDescriptorIndex a_descriptor_index, const RImageView a_view, const IMAGE_LAYOUT a_layout)
 {
     Vulkan::DescriptorWriteImage(a_descriptor_index, a_view, a_layout);
 }
 
-void DescriptorWriteSampler(const DescriptorWriteImageInfo& a_write_info)
+void BB::DescriptorWriteSampler(const RDescriptorIndex a_descriptor_index, const RSampler a_sampler)
 {
-    Vulkan::DescriptorWriteSampler(a_write_info);
+    Vulkan::DescriptorWriteSampler(a_descriptor_index, a_sampler);
 }
 
-void DescriptorWriteUniformBuffer(const uint32_t a_descriptor_index, const GPUBufferView& a_buffer_view)
+void BB::DescriptorWriteUniformBuffer(const RDescriptorIndex a_descriptor_index, const GPUBufferView& a_buffer_view)
 {
     Vulkan::DescriptorWriteUniformBuffer(a_descriptor_index, a_buffer_view);
 }
 
-void DescriptorWriteStorageBuffer(const uint32_t a_descriptor_index, const GPUBufferView& a_buffer_view)
+void BB::DescriptorWriteStorageBuffer(const RDescriptorIndex a_descriptor_index, const GPUBufferView& a_buffer_view)
 {
     Vulkan::DescriptorWriteStorageBuffer(a_descriptor_index, a_buffer_view);
 }
@@ -1552,9 +1519,9 @@ GPUFenceValue BB::GetCurrentFenceValue(const RFence a_fence)
 	return Vulkan::GetCurrentFenceValue(a_fence);
 }
 
-void BB::SetPushConstants(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_offset, const uint32_t a_size, const void* a_data)
+void BB::SetPushConstants(const RCommandList a_list, const uint32_t a_offset, const uint32_t a_size, const void* a_data)
 {
-	Vulkan::SetPushConstants(a_list, a_pipe_layout, a_offset, a_size, a_data);
+	Vulkan::SetPushConstants(a_list, a_offset, a_size, a_data);
 }
 
 void BB::PipelineBarriers(const RCommandList a_list, const PipelineBarrierInfo& a_barrier_info)
@@ -1562,27 +1529,7 @@ void BB::PipelineBarriers(const RCommandList a_list, const PipelineBarrierInfo& 
 	Vulkan::PipelineBarriers(a_list, a_barrier_info);
 }
 
-void BB::SetDescriptorBufferOffset(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_first_set, const uint32_t a_set_count, const uint32_t* a_buffer_indices, const size_t* a_offsets)
-{
-	Vulkan::SetDescriptorBufferOffset(a_list, a_pipe_layout, a_first_set, a_set_count, a_buffer_indices, a_offsets);
-}
-
-const BB::DescriptorAllocation& BB::GetGlobalDescriptorAllocation()
-{
-	return s_render_inst->global_descriptor_allocation;
-}
-
 RDescriptorIndex BB::GetDebugTexture()
 {
 	return s_render_inst->debug_descriptor_index;
-}
-
-RDescriptorLayout BB::GetStaticSamplerDescriptorLayout()
-{
-	return s_render_inst->static_sampler_descriptor_set;
-}
-
-RDescriptorLayout BB::GetGlobalDescriptorLayout()
-{
-	return s_render_inst->global_descriptor_set;
 }

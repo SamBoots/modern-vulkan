@@ -371,7 +371,6 @@ namespace BB
 		Buffer shader_data;
 		SHADER_STAGE stage;
 		SHADER_STAGE_FLAGS next_stages;
-		uint32_t push_constant_space;
 	};
 
 	struct PipelineBarrierGlobalInfo

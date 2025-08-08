@@ -58,7 +58,7 @@ namespace BB
 	void EndRenderPass(const RCommandList a_list);
 
 	void BindIndexBuffer(const RCommandList a_list, const uint64_t a_offset, const bool a_cpu_readable = false);
-	RPipelineLayout BindShaders(const RCommandList a_list, const ShaderEffectHandle a_vertex, const ShaderEffectHandle a_fragment_pixel, const ShaderEffectHandle a_geometry);
+	void BindShaders(const RCommandList a_list, const ShaderEffectHandle a_vertex, const ShaderEffectHandle a_fragment_pixel, const ShaderEffectHandle a_geometry);
 	void SetBlendMode(const RCommandList a_list, const uint32_t a_first_attachment, const Slice<ColorBlendState> a_blend_states);
     void SetPrimitiveTopology(const RCommandList a_list, const PRIMITIVE_TOPOLOGY a_topology);
 	void SetFrontFace(const RCommandList a_list, const bool a_is_clockwise);
@@ -124,10 +124,10 @@ namespace BB
     void BuildBottomLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildBottomLevelAccelerationStructInfo& a_build_info);
     void BuildTopLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildTopLevelAccelerationStructInfo& a_build_info);
 
-    void DescriptorWriteImage(const uint32_t a_descriptor_index, const RImageView a_view, const IMAGE_LAYOUT a_layout);
-    void DescriptorWriteSampler(const DescriptorWriteImageInfo& a_write_info);
-	void DescriptorWriteUniformBuffer(const uint32_t a_descriptor_index, const GPUBufferView& a_buffer_view);
-	void DescriptorWriteStorageBuffer(const uint32_t a_descriptor_index, const GPUBufferView& a_buffer_view);
+    void DescriptorWriteImage(const RDescriptorIndex a_descriptor_index, const RImageView a_view, const IMAGE_LAYOUT a_layout);
+    void DescriptorWriteSampler(const RDescriptorIndex a_descriptor_index, const RSampler a_sampler);
+	void DescriptorWriteUniformBuffer(const RDescriptorIndex a_descriptor_index, const GPUBufferView& a_buffer_view);
+	void DescriptorWriteStorageBuffer(const RDescriptorIndex a_descriptor_index, const GPUBufferView& a_buffer_view);
 
 	RFence CreateFence(const uint64_t a_initial_value, const char* a_name);
 	void FreeFence(const RFence a_fence);
@@ -135,7 +135,7 @@ namespace BB
 	void WaitFences(const RFence* a_fences, const GPUFenceValue* a_fence_values, const uint32_t a_fence_count);
 	GPUFenceValue GetCurrentFenceValue(const RFence a_fence);
 
-	void SetPushConstants(const RCommandList a_list, const RPipelineLayout a_pipe_layout, const uint32_t a_offset, const uint32_t a_size, const void* a_data);
+	void SetPushConstants(const RCommandList a_list, const uint32_t a_offset, const uint32_t a_size, const void* a_data);
 	void PipelineBarriers(const RCommandList a_list, const struct PipelineBarrierInfo& a_barrier_info);
 
 	RDescriptorIndex GetDebugTexture();
