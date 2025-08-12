@@ -124,6 +124,16 @@ namespace BB
     void BuildBottomLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildBottomLevelAccelerationStructInfo& a_build_info);
     void BuildTopLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildTopLevelAccelerationStructInfo& a_build_info);
 
+    RDescriptorIndex AllocateImageDescriptor();
+    RDescriptorIndex AllocateSamplerDescriptor();
+    RDescriptorIndex AllocateUniformDescriptor();
+    RDescriptorIndex AllocateBufferDescriptor();
+    void FreeImageDescriptor(const RDescriptorIndex a_index);
+    void FreeSamplerDescriptor(const RDescriptorIndex a_index);
+    void FreeUniformDescriptor(const RDescriptorIndex a_index);
+    void FreeBufferDescriptor(const RDescriptorIndex a_index);
+
+    void DescriptorWriteGlobal(const GPUBufferView& a_buffer_view);
     void DescriptorWriteImage(const RDescriptorIndex a_descriptor_index, const RImageView a_view, const IMAGE_LAYOUT a_layout);
     void DescriptorWriteSampler(const RDescriptorIndex a_descriptor_index, const RSampler a_sampler);
 	void DescriptorWriteUniformBuffer(const RDescriptorIndex a_descriptor_index, const GPUBufferView& a_buffer_view);
@@ -135,7 +145,9 @@ namespace BB
 	void WaitFences(const RFence* a_fences, const GPUFenceValue* a_fence_values, const uint32_t a_fence_count);
 	GPUFenceValue GetCurrentFenceValue(const RFence a_fence);
 
-	void SetPushConstants(const RCommandList a_list, const uint32_t a_offset, const uint32_t a_size, const void* a_data);
+	void SetPushConstantsSceneUniformIndex(const RCommandList a_list, const RDescriptorIndex a_index);
+    void SetPushConstantUserData(const RCommandList a_list, const uint32_t a_size, const void* a_data);
+
 	void PipelineBarriers(const RCommandList a_list, const struct PipelineBarrierInfo& a_barrier_info);
 
 	RDescriptorIndex GetDebugTexture();

@@ -121,7 +121,7 @@ namespace BB
 
 		bool IsValid() const { return handle != BB_INVALID_HANDLE_32; }
 		uint32_t handle;
-
+        static FrameworkHandle32Bit<Tag> INVALID() { return FrameworkHandle32Bit<Tag>(BB_INVALID_HANDLE_32); }
 		inline bool operator ==(const FrameworkHandle32Bit<Tag> a_rhs) const { return handle == a_rhs.handle; }
 		inline bool operator !=(const FrameworkHandle32Bit<Tag> a_rhs) const { return handle != a_rhs.handle; }
 	};

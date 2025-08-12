@@ -75,7 +75,7 @@ struct ShaderEffectList
     ShaderEffectHandle geometry;
 };
 
-static ShaderEffectList CreateShaderEffects_impl(MemoryArena& a_temp_arena, const Slice<MaterialShaderCreateInfo> a_shader_effects_info, const ConstSlice<RDescriptorLayout> a_desc_layouts)
+static ShaderEffectList CreateShaderEffects_impl(MemoryArena& a_temp_arena, const Slice<MaterialShaderCreateInfo> a_shader_effects_info)
 {
     auto place_shader = [](ShaderEffectList& a_list, const SHADER_STAGE a_stage, const ShaderEffectHandle a_effect) -> bool
         {
@@ -139,7 +139,6 @@ static ShaderEffectList CreateShaderEffects_impl(MemoryArena& a_temp_arena, cons
 			shader_info.shader_data = shader_buffer;
 			shader_info.stage = info.stage;
 			shader_info.next_stages = info.next_stages;
-			shader_info.push_constant_space = PUSH_CONSTANT_SPACE_SIZE;
 		}
 	}
 
@@ -245,8 +244,7 @@ void Material::InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCrea
 
 MasterMaterialHandle Material::CreateMasterMaterial(MemoryArena& a_temp_arena, const MaterialCreateInfo& a_create_info, const StringView a_name)
 {
-    const RDescriptorLayout layout = GetGlobalDescriptorLayout();
-	const ShaderEffectList shader_effects = CreateShaderEffects_impl(a_temp_arena, a_create_info.shader_infos, ConstSlice(&layout, 1));
+	const ShaderEffectList shader_effects = CreateShaderEffects_impl(a_temp_arena, a_create_info.shader_infos);
 
 	return CreateMaterial_impl(shader_effects.vertex, shader_effects.fragment, shader_effects.geometry, a_create_info.pass_type, a_create_info.material_type, a_create_info.user_data_size, a_create_info.cpu_writeable, a_name);
 }
@@ -305,10 +303,10 @@ void Material::WriteMaterialCPU(const MaterialHandle a_material, const void* a_m
 	memcpy(mat.mapper_ptr, a_memory, a_memory_size);
 }
 
-RPipelineLayout Material::BindMaterial(const RCommandList a_list, const MasterMaterialHandle a_material)
+void Material::BindMaterial(const RCommandList a_list, const MasterMaterialHandle a_material)
 {
     const MasterMaterial& inst = s_material_inst->material_map.find(a_material);
-	return BindShaders(a_list, inst.shaders.vertex, inst.shaders.fragment_pixel, inst.shaders.geometry);
+	BindShaders(a_list, inst.shaders.vertex, inst.shaders.fragment_pixel, inst.shaders.geometry);
 }
 
 MasterMaterialHandle Material::GetDefaultMasterMaterial(const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type)

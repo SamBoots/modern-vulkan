@@ -90,7 +90,7 @@ void ShadowMapStage::ExecutePass(const RCommandList a_list, const uint32_t a_fra
     BB_ASSERT(shadow_map_count <= pfd.render_pass_views.size(), "too many lights! Make a dynamic shadow mapping array");
 
     SetPrimitiveTopology(a_list, PRIMITIVE_TOPOLOGY::TRIANGLE_LIST);
-    const RPipelineLayout pipe_layout = Material::BindMaterial(a_list, m_shadowmap_material);
+    Material::BindMaterial(a_list, m_shadowmap_material);
 
     PipelineBarrierImageInfo shadow_map_write_transition = {};
     shadow_map_write_transition.prev = IMAGE_LAYOUT::NONE;
@@ -142,9 +142,10 @@ void ShadowMapStage::ExecutePass(const RCommandList a_list, const uint32_t a_fra
 
             ShaderIndicesShadowMapping shader_indices;
             shader_indices.position_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_position_offset);
+            shader_indices.pass_buffer = 
             shader_indices.transform_index = draw_index;
-            shader_indices.light_projection_view_index = shadow_map_index;
-            SetPushConstants(a_list, pipe_layout, 0, sizeof(shader_indices), &shader_indices);
+            shader_indices.shadow_map_index = shadow_map_index;
+            SetPushConstantUserData(a_list, sizeof(shader_indices), &shader_indices);
             DrawIndexed(a_list,
                 mesh_draw_call.index_count,
                 1,

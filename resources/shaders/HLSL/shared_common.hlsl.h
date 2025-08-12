@@ -9,9 +9,14 @@ namespace BB
 #define GPU_BINDING_SAMPLERS 3
 #define GPU_BINDING_BUFFERS 4
 #define GPU_BINDING_UNIFORMS 5
-#define GPU_BINDING_COUNT 6
+#define GPU_BINDING_IMMUTABLE_SAMPLERS 6
+#define GPU_BINDING_COUNT 7
 // for GLOBAL and SCENE
 #define GPU_EXTRA_UNIFORM_BUFFERS 2
+
+#define GPU_IMMUTABLE_SAMPLER_SHAWDOW_MAP 0
+#define GPU_IMMUTABLE_SAMPLER_TEMP 1
+#define GPU_IMMUTABLE_SAMPLE_COUNT 2
 
 #define CUBEMAP_BACK    0
 #define CUBEMAP_BOTTOM  1
@@ -39,8 +44,8 @@ namespace BB
         uint cubemap_vertex_offset; // 40 used for cubemaps, the type is VertexPos
 
         // buffers
-        uint vertex_buffer;         // 44
-        uint cpu_vertex_buffer;     // 48
+        RDescriptorIndex vertex_buffer;         // 44
+        RDescriptorIndex cpu_vertex_buffer;     // 48
     };
 
     struct ALIGN_STRUCT(16) Scene3DInfo
@@ -63,8 +68,9 @@ namespace BB
         float near_plane;                // 196
 
         // buffers
-        uint per_frame_buffer;           // 200
-        uint2 pad0;                      // 208
+        RDescriptorIndex matrices_index;            // 200
+        RDescriptorIndex light_index;               // 204
+        RDescriptorIndex light_view_index;          // 208
     };
 
     struct ALIGN_STRUCT(16) MeshMetallic
@@ -122,20 +128,16 @@ namespace BB
     {
         uint vertex_offset;             // 4
         uint vertex_count;              // 8
-
-        uint pass_buffer;               // 12
-        uint transform_offset;          // 16
-        RDescriptorIndex material_index;// 20
-        uint3 pad0;                     // 32
+        uint transform_index;           // 12
+        RDescriptorIndex material_index;// 16
     };
 
     struct ShaderIndices2D
     {
         uint vertex_offset;             // 4
         RDescriptorIndex albedo_texture;// 8
-        uint2 pad0;                     // 16
-        float2 rect_scale;              // 24
-        float2 translate;               // 32
+        float2 rect_scale;              // 16
+        float2 translate;               // 24
     };
 
     struct ShaderIndicesGlyph
@@ -143,16 +145,13 @@ namespace BB
         uint glyph_buffer_offset;       // 4
         RDescriptorIndex font_texture;  // 8
         float2 scale;                   // 16
-        uint4 pad0;                     // 32                 
     };
 
     struct ShaderIndicesShadowMapping
     {
-        uint position_offset;             // 4
-        uint pass_buffer;                 // 8
-        uint transform_offset;            // 12
-        uint light_projection_view_offset;// 16
-        uint4 pad0;                       // 32
+        uint position_offset;           // 4
+        uint transform_index;           // 8
+        uint shadow_map_index;          // 12
     };
 
     struct ShaderGaussianBlur
@@ -162,23 +161,16 @@ namespace BB
         uint2 src_resolution;         // 16
         float blur_strength;          // 20
         float blur_scale;             // 24
-        float2 pad0;                  // 32
     };
 
     struct ShaderLine
     {
-        float line_width;
-        uint vertex_start;
-        uint2 pad0;
-        uint4 pad1;
-    };
+        float line_width;   // 4
+        uint vertex_start;  // 8
 
-#ifndef __HLSL_VERSION // C++ version
-    constexpr uint32_t GPU_PUSH_CONSTANT_SIZE = sizeof(ShaderIndices);
-    static_assert(
-        GPU_PUSH_CONSTANT_SIZE == sizeof(ShaderIndices2D) &&
-        GPU_PUSH_CONSTANT_SIZE == sizeof(ShaderIndicesShadowMapping) &&
-        GPU_PUSH_CONSTANT_SIZE == sizeof(ShaderGaussianBlur) &&
-        GPU_PUSH_CONSTANT_SIZE == sizeof(ShaderLine));
-#endif // __HLSL_VERSION
+    struct ShaderPushConstant
+    {
+        uint scene_ub_index;
+        uint userdata[31];
+    };
 }

@@ -15,9 +15,10 @@
 #define INVALID_TEXTURE 0
 #define PI 3.14159265358979323846
 
+_BBCONSTANT(BB::ShaderPushConstant) push_constant;
+
 // UNIQUE BINDINGS
 _BBBIND(GPU_BINDING_GLOBAL, 0)ConstantBuffer<BB::GlobalRenderData> global_data;
-_BBBIND(GPU_BINDING_SCENE, 0)ConstantBuffer<BB::Scene3DInfo> scene_data;
 
 // ALL BINDINGS
 _BBBIND(GPU_BINDING_IMAGES, 0)Texture2D textures[];
@@ -28,6 +29,7 @@ _BBBIND(GPU_BINDING_BUFFERS, 0)RWByteAddressBuffer readwrite_buffers[];
 
 // all uniforms
 _BBBIND(GPU_BINDING_UNIFORMS, 0)ConstantBuffer<BB::MeshMetallic> uniform_metallic_info[];
+_BBBIND(GPU_BINDING_UNIFORMS, 0)ConstantBuffer<BB::Scene3DInfo> uniform_scene_info[];
 
 
 float2 GetAttributeFloat2(const uint a_offset, const uint a_vertex_index, const uint)
@@ -66,6 +68,11 @@ float3 ReinhardToneMapping(const float3 a_hdr_color)
 float3 ExposureToneMapping(const float3 a_hdr_color, const float a_exposure)
 {
     return float3(1.0, 1.0, 1.0) - exp(-a_hdr_color * a_exposure);
+}
+
+Scene3DInfo GetSceneInfo()
+{
+    return uniform_scene_info[push_constant.scene_ub_index];
 }
 
 #endif //COMMON_HLSL

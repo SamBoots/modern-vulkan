@@ -442,6 +442,36 @@ struct DescriptorInfo
 
 static DescriptorInfo CreateDescriptorInfo(const VkDevice a_device, const uint32_t a_image_count, const uint32_t a_sampler_count, const uint32_t a_buffer_count, const uint32_t a_uniform_count)
 {
+    // immutable samplers
+    FixedArray<VkSamplerCreateInfo, 2> immutable_samplers;
+    immutable_samplers[0].addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    immutable_samplers[0].addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    immutable_samplers[0].addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    immutable_samplers[0].magFilter = VK_FILTER_LINEAR;
+    immutable_samplers[0].minFilter = VK_FILTER_LINEAR;
+    immutable_samplers[0].anisotropyEnable = VK_TRUE;
+    immutable_samplers[0].maxAnisotropy = 1.0f;
+    immutable_samplers[0].minLod = 0.f;
+    immutable_samplers[0].maxLod = 1.f;
+    immutable_samplers[0].mipLodBias = 100.f;
+    immutable_samplers[0].borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+    immutable_samplers[1].addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    immutable_samplers[1].addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    immutable_samplers[1].addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    immutable_samplers[1].magFilter = VK_FILTER_LINEAR;
+    immutable_samplers[1].minFilter = VK_FILTER_LINEAR;
+    immutable_samplers[1].anisotropyEnable = VK_TRUE;
+    immutable_samplers[1].maxAnisotropy = 1.0f;
+    immutable_samplers[1].minLod = -100.f;
+    immutable_samplers[1].maxLod = 100.f;
+    immutable_samplers[1].mipLodBias = 100.f;
+    immutable_samplers[1].borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+
+    VkSampler s[2];
+    vkCreateSampler(a_device, &immutable_samplers[0], nullptr, &s[0]);
+    vkCreateSampler(a_device, &immutable_samplers[1], nullptr, &s[1]);
+
+
     FixedArray<VkDescriptorSetLayoutBinding, GPU_BINDING_COUNT> layout_bindings{};
     layout_bindings[0].binding = GPU_BINDING_GLOBAL;
     layout_bindings[0].descriptorCount = 1;
@@ -467,14 +497,20 @@ static DescriptorInfo CreateDescriptorInfo(const VkDevice a_device, const uint32
     layout_bindings[5].descriptorCount = a_uniform_count;
     layout_bindings[5].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     layout_bindings[5].stageFlags = VK_SHADER_STAGE_ALL;
+    layout_bindings[6].binding = GPU_BINDING_IMMUTABLE_SAMPLERS;
+    layout_bindings[6].descriptorCount = GPU_IMMUTABLE_SAMPLE_COUNT;
+    layout_bindings[6].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+    layout_bindings[6].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    layout_bindings[6].pImmutableSamplers = s;
 
     FixedArray<VkDescriptorBindingFlags, GPU_BINDING_COUNT> layout_binding_flags{};
     layout_binding_flags[0] = 0;
     layout_binding_flags[1] = 0;
-    layout_binding_flags[2] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;
-    layout_binding_flags[3] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;
-    layout_binding_flags[4] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;
-    layout_binding_flags[5] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT;
+    layout_binding_flags[2] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+    layout_binding_flags[3] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+    layout_binding_flags[4] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+    layout_binding_flags[5] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+    layout_binding_flags[6] = 0;
 
 
     VkDescriptorSetLayoutBindingFlagsCreateInfo layout_ext;
@@ -496,7 +532,7 @@ static DescriptorInfo CreateDescriptorInfo(const VkDevice a_device, const uint32
 
     VkPushConstantRange push_constant_range;
     push_constant_range.offset = 0;
-    push_constant_range.size = GPU_PUSH_CONSTANT_SIZE;
+    push_constant_range.size = sizeof(ShaderPushConstant);
     push_constant_range.stageFlags = VK_SHADER_STAGE_ALL;
     VkPipelineLayoutCreateInfo pipe_info;
     pipe_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -876,43 +912,6 @@ static void AddMemoryToAllocationMap(const uintptr_t a_address, const VmaAllocat
 	static BBRWLock lock = BBRWLock(0);
 	BBRWLockScopeWrite slock(lock);
 	s_vulkan_inst->allocation_map.insert(a_address, a_vma_allocation);
-}
-
-static VkSampler CreateSampler(const SamplerCreateInfo& a_create_info)
-{
-	VkSamplerCreateInfo sampler_info{ VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
-	sampler_info.addressModeU = SamplerAddressModes(a_create_info.mode_u);
-	sampler_info.addressModeV = SamplerAddressModes(a_create_info.mode_v);
-	sampler_info.addressModeW = SamplerAddressModes(a_create_info.mode_w);
-	switch (a_create_info.filter)
-	{
-	case SAMPLER_FILTER::NEAREST:
-		sampler_info.magFilter = VK_FILTER_NEAREST;
-		sampler_info.minFilter = VK_FILTER_NEAREST;
-		break;
-	case SAMPLER_FILTER::LINEAR:
-		sampler_info.magFilter = VK_FILTER_LINEAR;
-		sampler_info.minFilter = VK_FILTER_LINEAR;
-		break;
-	default:
-		BB_ASSERT(false, "default hit while it shouldn't");
-		break;
-	}
-	sampler_info.minLod = a_create_info.min_lod;
-	sampler_info.maxLod = a_create_info.max_lod;
-	sampler_info.mipLodBias = 0;
-	if (a_create_info.max_anistoropy > 0)
-	{
-		sampler_info.anisotropyEnable = VK_TRUE;
-		sampler_info.maxAnisotropy = a_create_info.max_anistoropy;
-	}
-	sampler_info.borderColor = SamplerBorderColor(a_create_info.border_color);
-	VkSampler sampler;
-	VKASSERT(vkCreateSampler(s_vulkan_inst->device, &sampler_info, nullptr, &sampler),
-		"Vulkan: Failed to create image sampler!");
-	SetDebugName(a_create_info.name, sampler, VK_OBJECT_TYPE_SAMPLER);
-
-	return sampler;
 }
 
 bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const RendererCreateInfo& a_create_info)
@@ -1701,6 +1700,66 @@ void Vulkan::FreeViewImage(const RImageView a_image_view)
 			nullptr);
 }
 
+const RSampler Vulkan::CreateSampler(const SamplerCreateInfo& a_create_info)
+{
+    VkSamplerCreateInfo sampler_info{ VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+    sampler_info.addressModeU = SamplerAddressModes(a_create_info.mode_u);
+    sampler_info.addressModeV = SamplerAddressModes(a_create_info.mode_v);
+    sampler_info.addressModeW = SamplerAddressModes(a_create_info.mode_w);
+    switch (a_create_info.filter)
+    {
+    case SAMPLER_FILTER::NEAREST:
+        sampler_info.magFilter = VK_FILTER_NEAREST;
+        sampler_info.minFilter = VK_FILTER_NEAREST;
+        break;
+    case SAMPLER_FILTER::LINEAR:
+        sampler_info.magFilter = VK_FILTER_LINEAR;
+        sampler_info.minFilter = VK_FILTER_LINEAR;
+        break;
+    default:
+        BB_ASSERT(false, "default hit while it shouldn't");
+        break;
+    }
+    sampler_info.minLod = a_create_info.min_lod;
+    sampler_info.maxLod = a_create_info.max_lod;
+    sampler_info.mipLodBias = 0;
+    if (a_create_info.max_anistoropy > 0)
+    {
+        sampler_info.anisotropyEnable = VK_TRUE;
+        sampler_info.maxAnisotropy = a_create_info.max_anistoropy;
+    }
+    sampler_info.borderColor = SamplerBorderColor(a_create_info.border_color);
+    VkSampler sampler;
+    VkResult result = vkCreateSampler(s_vulkan_inst->device, &sampler_info, nullptr, &sampler);
+    VKASSERT(result, "Vulkan: Failed to create image sampler!");
+    SetDebugName(a_create_info.name, sampler, VK_OBJECT_TYPE_SAMPLER);
+
+    return RSampler(reinterpret_cast<uintptr_t>(sampler));
+}
+
+void Vulkan::FreeSampler(const RSampler a_sampler)
+{
+    vkDestroySampler(s_vulkan_inst->device, reinterpret_cast<VkSampler>(a_sampler.handle), nullptr);
+}
+
+void Vulkan::DescriptorWriteGlobal(const GPUBufferView& a_buffer_view)
+{
+    VkWriteDescriptorSet write_info{};
+    write_info.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_info.dstSet = s_vulkan_inst->descriptors.bindless_set;
+    write_info.descriptorCount = 1;
+    write_info.dstArrayElement = 0;
+
+    VkDescriptorBufferInfo buffer_info{};
+    buffer_info.buffer = reinterpret_cast<VkBuffer>(a_buffer_view.buffer.handle);
+    buffer_info.offset = a_buffer_view.offset;
+    buffer_info.range = a_buffer_view.size;
+
+    write_info.dstBinding = GPU_BINDING_GLOBAL;
+    write_info.pBufferInfo = &buffer_info;
+    vkUpdateDescriptorSets(s_vulkan_inst->device, 1, &write_info, 0, nullptr);
+}
+
 void Vulkan::DescriptorWriteImage(const RDescriptorIndex a_descriptor_index, const RImageView a_view, const IMAGE_LAYOUT a_layout)
 {
     VkWriteDescriptorSet write_info{};
@@ -1804,7 +1863,7 @@ ShaderObject Vulkan::CreateShaderObject(const ShaderObjectCreateInfo& a_shader_o
 	VkShaderEXT shader_object;
 	VkPushConstantRange constant_range;
 	constant_range.stageFlags = VK_SHADER_STAGE_ALL;
-	constant_range.size = GPU_PUSH_CONSTANT_SIZE;
+	constant_range.size = sizeof(ShaderPushConstant);
 	constant_range.offset = 0;
 	shader_create_info.pPushConstantRanges = &constant_range;
 	shader_create_info.pushConstantRangeCount = 1;
@@ -1840,7 +1899,7 @@ void Vulkan::CreateShaderObjects(MemoryArena& a_temp_arena, Slice<ShaderObjectCr
         create_inf.pSetLayouts = &s_vulkan_inst->descriptors.bindless_set_layout;
 
         constant_ranges[i].stageFlags = VK_SHADER_STAGE_ALL;
-        constant_ranges[i].size = GPU_PUSH_CONSTANT_SIZE;
+        constant_ranges[i].size = sizeof(ShaderPushConstant);
         constant_ranges[i].offset = 0;
         create_inf.pPushConstantRanges = &constant_ranges[i];
         create_inf.pushConstantRangeCount = 1;
@@ -2491,11 +2550,11 @@ void Vulkan::SetDepthBias(const RCommandList a_list, const float a_bias_constant
 void Vulkan::SetPushConstants(const RCommandList a_list, const uint32_t a_offset, const uint32_t a_size, const void* a_data)
 {
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
-	vkCmdPushConstants(cmd_buffer, 
+	vkCmdPushConstants(cmd_buffer,
 		s_vulkan_inst->descriptors.bindless_pipeline_layout, 
 		VK_SHADER_STAGE_ALL, 
-		a_offset, 
-		a_size, 
+		a_offset,
+		a_size,
 		a_data);
 }
 

@@ -36,8 +36,6 @@ namespace BB
 		void ResizeNewFormat(const uint2 a_render_target_size, const IMAGE_FORMAT a_render_target_format);
 		void Screenshot(const PathString& a_path) const;
 
-		static RDescriptorLayout GetSceneDescriptorLayout();
-
 		bool ToggleSkipSkyboxPass()
 		{
 			return m_options.skip_skybox = !m_options.skip_skybox;
@@ -76,11 +74,14 @@ namespace BB
 
 			uint2 previous_draw_area;
 			GPUFenceValue fence_value;
-			DescriptorAllocation scene_descriptor;
 
 			// scene data
+            RDescriptorIndex scene_descriptor;
 			GPUStaticCPUWriteableBuffer scene_buffer;
 			// I want this to be uniform but hlsl is giga cringe
+            RDescriptorIndex matrix_descriptor;
+            RDescriptorIndex light_descriptor;
+            RDescriptorIndex light_view_descriptor;
 			GPULinearBuffer storage_buffer;
 
 			struct Bloom
@@ -142,13 +143,6 @@ namespace BB
 		} m_options;
 
 		Scene3DInfo m_scene_info;
-		struct GlobalBuffer
-		{
-			GPULinearBuffer buffer;
-			uint32_t light_max;
-			GPUBufferView light_view;
-			GPUBufferView light_viewproj_view;
-		} m_global_buffer;
 
 		RFence m_fence;
 		uint64_t m_next_fence_value;

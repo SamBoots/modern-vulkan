@@ -122,7 +122,7 @@ namespace BB
 		void WriteMaterial(const MaterialHandle a_material, const RCommandList a_list, const GPUBuffer a_src_buffer, const size_t a_src_offset);
 		void WriteMaterialCPU(const MaterialHandle a_material, const void* a_memory, const size_t a_memory_size);
 
-		RPipelineLayout BindMaterial(const RCommandList a_list, const MasterMaterialHandle a_material);
+		void BindMaterial(const RCommandList a_list, const MasterMaterialHandle a_material);
 
 		MasterMaterialHandle GetDefaultMasterMaterial(const PASS_TYPE a_pass_type, const MATERIAL_TYPE a_material_type);
 		const MasterMaterial& GetMasterMaterial(const MasterMaterialHandle a_master_material);

@@ -11,8 +11,6 @@ struct VSOutput
     _BBEXT(6)float4 world_pos_light[8] : POSITION2;
 };
 
-_BBCONSTANT(BB::ShaderIndices) shader_indices;
-
 static const float4x4 biasMat = float4x4(
 	0.5, 0.0, 0.0, 0.5,
 	0.0, 0.5, 0.0, 0.5,
@@ -21,11 +19,18 @@ static const float4x4 biasMat = float4x4(
 
 VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 {
-    const float3 position = GetAttributeFloat3(shader_indices.position_offset, a_vertex_index);
-    const float3 normal = GetAttributeFloat3(shader_indices.normal_offset, a_vertex_index);
-    const float2 uv = GetAttributeFloat2(shader_indices.uv_offset, a_vertex_index);
-    const float4 color = GetAttributeFloat4(shader_indices.color_offset, a_vertex_index);
-    const float3 tangent = GetAttributeFloat3(shader_indices.tangent_offset, a_vertex_index);
+    BB::Scene3DInfo scene = GetSceneInfo();
+    BB::ShaderIndices indices = (BB::ShaderIndices)push_constant.userdata;
+
+    const float3 position = GetAttributeFloat3(indices.vertex_offset, a_vertex_index);
+    uint normal_pos = indices.vertex_offset + sizeof(float3) * indices.vertex_count;
+    const float3 normal = GetAttributeFloat3(normal_pos, a_vertex_index);
+    uint uv_pos = normal_pos + sizeof(float3) * indices.vertex_count;
+    const float2 uv = GetAttributeFloat2(uv_pos, a_vertex_index);
+    uint color_pos = uv_pos + sizeof(float2) * indices.vertex_count;
+    const float4 color = GetAttributeFloat4(color_pos, a_vertex_index);
+    uint tangent_pos = color_pos + sizeof(float4) * indices.vertex_count;
+    const float3 tangent = GetAttributeFloat3(tangent_pos, a_vertex_index);
    
     BB::ShaderTransform transform = transform_data.Load<BB::ShaderTransform>(sizeof(BB::ShaderTransform) * shader_indices.transform_index);
     

@@ -38,6 +38,10 @@ namespace BB
 		const RImageView CreateImageView(const ImageViewCreateInfo& a_create_info);
 		void FreeViewImage(const RImageView a_image_view);
 
+        const RSampler CreateSampler(const SamplerCreateInfo& a_create_info);
+        void FreeSampler(const RSampler a_sampler);
+
+        void DescriptorWriteGlobal(const GPUBufferView& a_buffer_view);
         void DescriptorWriteImage(const RDescriptorIndex a_descriptor_index, const RImageView a_view, const IMAGE_LAYOUT a_layout);
         void DescriptorWriteSampler(const RDescriptorIndex a_descriptor_index, const RSampler a_sampler);
         void DescriptorWriteStorageBuffer(const RDescriptorIndex a_descriptor_index, const GPUBufferView& a_buffer_view);

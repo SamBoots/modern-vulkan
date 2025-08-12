@@ -11,17 +11,6 @@ constexpr float BLOOM_IMAGE_DOWNSCALE_FACTOR = 1.f;
 
 void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count, const uint32_t a_max_lights, const uint2 a_render_target_size)
 {
-	m_global_buffer.light_max = a_max_lights;
-	GPUBufferCreateInfo buff_create;
-	buff_create.name = "light buffer";
-	buff_create.size = a_max_lights * (sizeof(Light) + sizeof(float4x4));
-	buff_create.type = BUFFER_TYPE::UNIFORM;
-	buff_create.host_writable = false;
-	m_global_buffer.buffer.Init(buff_create);
-
-	m_global_buffer.buffer.Allocate(a_max_lights * sizeof(Light), m_global_buffer.light_view);
-	m_global_buffer.buffer.Allocate(a_max_lights * sizeof(float4x4), m_global_buffer.light_viewproj_view);
-
 	m_fence = CreateFence(0, "scene fence");
 	m_last_completed_fence_value = 0;
 	m_next_fence_value = 1;
@@ -50,17 +39,13 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 	{
 		PerFrame& pfd = m_per_frame[i];
 		pfd.previous_draw_area = { 0, 0 };
-		pfd.scene_descriptor = AllocateDescriptor(GetSceneDescriptorLayout());
+		pfd.scene_descriptor = AllocateUniformDescriptor();
+        pfd.matrix_descriptor = AllocateBufferDescriptor();
+        pfd.light_descriptor = AllocateBufferDescriptor();
+        pfd.light_view_descriptor = AllocateBufferDescriptor();
 
 		pfd.scene_buffer.Init(BUFFER_TYPE::UNIFORM, sizeof(m_scene_info), "scene info buffer");
-		DescriptorWriteBufferInfo desc_write;
-		desc_write.descriptor_layout = GetSceneDescriptorLayout();
-		desc_write.allocation = pfd.scene_descriptor;
-		desc_write.descriptor_index = 0;
-
-		desc_write.binding = PER_SCENE_SCENE_DATA_BINDING;
-		desc_write.buffer_view = pfd.scene_buffer.GetView();
-		DescriptorWriteUniformBuffer(desc_write);
+        DescriptorWriteUniformBuffer(pfd.scene_descriptor, pfd.scene_buffer.GetView());
 
 		GPUBufferCreateInfo buffer_info;
 		buffer_info.name = "scene STORAGE buffer";
@@ -98,44 +83,6 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 		m_raytrace_data.top_level.must_update = false;
 		m_raytrace_data.top_level.must_rebuild = false;
     }
-}
-
-RDescriptorLayout RenderSystem::GetSceneDescriptorLayout()
-{
-	static RDescriptorLayout s_scene_descriptor_layout{};
-	if (s_scene_descriptor_layout.IsValid())
-	{
-		return s_scene_descriptor_layout;
-	}
-
-	// create a temp one just to make the function nicer.
-	MemoryArena temp_arena = MemoryArenaCreate(ARENA_DEFAULT_COMMIT);
-
-	//per-frame descriptor set 1 for renderpass
-	FixedArray<DescriptorBindingInfo, 4> descriptor_bindings;
-	descriptor_bindings[0].binding = PER_SCENE_SCENE_DATA_BINDING;
-	descriptor_bindings[0].count = 1;
-	descriptor_bindings[0].shader_stage = SHADER_STAGE::ALL;
-	descriptor_bindings[0].type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
-
-	descriptor_bindings[1].binding = PER_SCENE_TRANSFORM_DATA_BINDING;
-	descriptor_bindings[1].count = 1;
-	descriptor_bindings[1].shader_stage = SHADER_STAGE::VERTEX;
-	descriptor_bindings[1].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-
-	descriptor_bindings[2].binding = PER_SCENE_LIGHT_DATA_BINDING;
-	descriptor_bindings[2].count = 1;
-	descriptor_bindings[2].shader_stage = SHADER_STAGE::FRAGMENT_PIXEL;
-	descriptor_bindings[2].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-
-	descriptor_bindings[3].binding = PER_SCENE_LIGHT_PROJECTION_VIEW_DATA_BINDING;
-	descriptor_bindings[3].count = 1;
-	descriptor_bindings[3].shader_stage = SHADER_STAGE::VERTEX;
-	descriptor_bindings[3].type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-	s_scene_descriptor_layout = CreateDescriptorLayout(temp_arena, descriptor_bindings.const_slice());
-
-	MemoryArenaFree(temp_arena);
-	return s_scene_descriptor_layout;
 }
 
 void RenderSystem::StartFrame(const RCommandList a_list)
@@ -189,6 +136,8 @@ RenderSystemFrame RenderSystem::EndFrame(const RCommandList a_list, const IMAGE_
 void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCommandList a_list, const uint2 a_draw_area, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const RaytraceComponentPool& a_raytrace_pool, const ConstSlice<LightComponent> a_lights)
 {
 	PerFrame& pfd = m_per_frame[m_current_frame];
+
+    SetPushConstantsSceneUniformIndex(a_list, pfd.scene_descriptor);
 
 	const ConstSlice<ECSEntity> render_entities = a_render_pool.GetEntityComponents();
     const size_t render_component_count = render_entities.size();
@@ -280,19 +229,7 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 
     // sam please find a better way
     SetPrimitiveTopology(a_list, PRIMITIVE_TOPOLOGY::TRIANGLE_LIST);
-    const RPipelineLayout pipe_layout = Material::BindMaterial(a_list, draw_list.draw_entries[0].master_material);
-    {
-        const uint32_t buffer_indices[] = { 0, 0 };
-        const DescriptorAllocation& global_desc_alloc = GetGlobalDescriptorAllocation();
-        const size_t buffer_offsets[]{ global_desc_alloc.offset, pfd.scene_descriptor.offset };
-        //set 1-2
-        SetDescriptorBufferOffset(a_list,
-            pipe_layout,
-            SPACE_GLOBAL,
-            _countof(buffer_offsets),
-            buffer_indices,
-            buffer_offsets);
-    }
+    Material::BindMaterial(a_list, draw_list.draw_entries[0].master_material);
 	
     m_clear_stage.ExecutePass(a_list, a_draw_area, GetImageView(pfd.render_target_view));
 
@@ -395,6 +332,11 @@ void RenderSystem::UpdateConstantBuffer(const uint32_t a_frame_index, const RCom
     m_shadowmap_stage.UpdateConstantBuffer(a_frame_index, m_scene_info);
 	m_scene_info.light_count = static_cast<uint32_t>(a_lights.size());
 	m_scene_info.scene_resolution = a_draw_area_size;
+    
+    //descriptors
+    m_scene_info.matrices_index = a_pfd.matrix_descriptor;
+    m_scene_info.light_index = a_pfd.light_descriptor;
+    m_scene_info.light_view_index = a_pfd.light_view_descriptor;
 
 	if (a_pfd.previous_draw_area != a_draw_area_size)
 	{
@@ -475,9 +417,9 @@ void RenderSystem::ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list
 	GPULinearBuffer& cur_scene_buffer = a_pfd.storage_buffer;
 	cur_scene_buffer.Clear();
 
-	{	// write scene info
-		a_pfd.scene_buffer.WriteTo(&m_scene_info, sizeof(m_scene_info), 0);
-	}
+    {	// write scene info
+        a_pfd.scene_buffer.WriteTo(&m_scene_info, sizeof(m_scene_info), 0);
+    }
 
 	const size_t matrices_upload_size = a_draw_list.draw_entries.size() * sizeof(ShaderTransform);
 	const size_t light_upload_size = a_lights.size() * sizeof(Light);
@@ -549,27 +491,12 @@ void RenderSystem::ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list
 	{
 		CopyBuffer(a_list, matrix_buffer_copy);
 
-		// WRITE DESCRIPTORS HERE
-		DescriptorWriteBufferInfo desc_write;
-		desc_write.descriptor_layout = GetSceneDescriptorLayout();
-		desc_write.allocation = a_pfd.scene_descriptor;
-		desc_write.descriptor_index = 0;
-
 		if (matrices_upload_size)
-		{
-			desc_write.binding = PER_SCENE_TRANSFORM_DATA_BINDING;
-			desc_write.buffer_view = transform_view;
-			DescriptorWriteStorageBuffer(desc_write);
-		}
+            DescriptorWriteStorageBuffer(a_pfd.matrix_descriptor, transform_view);
 		if (light_upload_size)
 		{
-			desc_write.binding = PER_SCENE_LIGHT_DATA_BINDING;
-			desc_write.buffer_view = light_view;
-			DescriptorWriteStorageBuffer(desc_write);
-
-			desc_write.binding = PER_SCENE_LIGHT_PROJECTION_VIEW_DATA_BINDING;
-			desc_write.buffer_view = light_projection_view;
-			DescriptorWriteStorageBuffer(desc_write);
+			DescriptorWriteStorageBuffer(a_pfd.light_descriptor, light_view);
+			DescriptorWriteStorageBuffer(a_pfd.light_view_descriptor, light_projection_view);
 		}
 	}
 }

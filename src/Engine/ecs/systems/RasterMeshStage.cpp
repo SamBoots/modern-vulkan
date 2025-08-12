@@ -91,28 +91,18 @@ void RasterMeshStage::ExecutePass(const RCommandList a_list, const uint32_t a_fr
         const DrawList::DrawEntry& mesh_draw_call = a_draw_list.draw_entries[i];
 
         SetPrimitiveTopology(a_list, PRIMITIVE_TOPOLOGY::TRIANGLE_LIST);
-        const RPipelineLayout pipe_layout = Material::BindMaterial(a_list, mesh_draw_call.master_material);
-        {
-            const uint32_t buffer_indices[] = { 0 };
-            const size_t buffer_offsets[]{ Material::GetMaterialDescAllocation().offset };
-            //set 3
-            SetDescriptorBufferOffset(a_list,
-                pipe_layout,
-                SPACE_PER_MATERIAL,
-                _countof(buffer_offsets),
-                buffer_indices,
-                buffer_offsets);
-        }
+        Material::BindMaterial(a_list, mesh_draw_call.master_material);
+
+        const size_t position_byte_size = mesh_draw_call.mesh.vertex_normal_offset - mesh_draw_call.mesh.vertex_position_offset;
+        const uint32_t vertex_count = static_cast<uint32_t>(position_byte_size / sizeof(float3));
 
         ShaderIndices shader_indices;
         shader_indices.transform_index = i;
-        shader_indices.position_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_position_offset);
-        shader_indices.normal_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_normal_offset);
-        shader_indices.uv_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_uv_offset);
-        shader_indices.color_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_color_offset);
-        shader_indices.tangent_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_tangent_offset);
+        shader_indices.vertex_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_position_offset);
+        shader_indices.vertex_count = vertex_count;
         shader_indices.material_index = RDescriptorIndex(mesh_draw_call.material.index);
-        SetPushConstants(a_list, pipe_layout, 0, sizeof(shader_indices), &shader_indices);
+        SetPushConstantUserData(a_list, sizeof(shader_indices), &shader_indices);
+
         DrawIndexed(a_list,
             mesh_draw_call.index_count,
             1,

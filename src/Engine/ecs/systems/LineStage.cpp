@@ -80,13 +80,13 @@ void LineStage::ExecutePass(const RCommandList a_list, const uint32_t a_frame_in
     StartRenderPass(a_list, start_rendering_info);
 
     SetPrimitiveTopology(a_list, PRIMITIVE_TOPOLOGY::LINE_LIST);
-    const RPipelineLayout pipe_layout = Material::BindMaterial(a_list, m_line_material);
+    Material::BindMaterial(a_list, m_line_material);
 
     ShaderLine push_constant;
     push_constant.line_width = 1.5f;
     push_constant.vertex_start = static_cast<uint32_t>(pfd.vertex_view.offset);
 
-    SetPushConstants(a_list, pipe_layout, 0, sizeof(push_constant), &push_constant);
+    SetPushConstantUserData(a_list, sizeof(push_constant), &push_constant);
 
     DrawVertices(a_list, pfd.lines * 2, 1, 0, 0);
 
