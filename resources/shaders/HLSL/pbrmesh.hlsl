@@ -20,19 +20,19 @@ static const float4x4 biasMat = float4x4(
 VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 {
     BB::Scene3DInfo scene = GetSceneInfo();
-    BB::ShaderIndices indices = (BB::ShaderIndices)push_constant.userdata;
+    BB::ShaderIndices shader_indices = (BB::ShaderIndices)push_constant.userdata;
 
-    const float3 position = GetAttributeFloat3(indices.vertex_offset, a_vertex_index);
-    uint normal_pos = indices.vertex_offset + sizeof(float3) * indices.vertex_count;
+    const float3 position = GetAttributeFloat3(shader_indices.vertex_offset, a_vertex_index);
+    uint normal_pos = shader_indices.vertex_offset + sizeof(float3) * shader_indices.vertex_count;
     const float3 normal = GetAttributeFloat3(normal_pos, a_vertex_index);
-    uint uv_pos = normal_pos + sizeof(float3) * indices.vertex_count;
+    uint uv_pos = normal_pos + sizeof(float3) * shader_indices.vertex_count;
     const float2 uv = GetAttributeFloat2(uv_pos, a_vertex_index);
-    uint color_pos = uv_pos + sizeof(float2) * indices.vertex_count;
+    uint color_pos = uv_pos + sizeof(float2) * shader_indices.vertex_count;
     const float4 color = GetAttributeFloat4(color_pos, a_vertex_index);
-    uint tangent_pos = color_pos + sizeof(float4) * indices.vertex_count;
+    uint tangent_pos = color_pos + sizeof(float4) * shader_indices.vertex_count;
     const float3 tangent = GetAttributeFloat3(tangent_pos, a_vertex_index);
    
-    BB::ShaderTransform transform = transform_data.Load<BB::ShaderTransform>(sizeof(BB::ShaderTransform) * shader_indices.transform_index);
+    BB::ShaderTransform transform = buffers[scene.matrix_index].Load<BB::ShaderTransform>(sizeof(BB::ShaderTransform) * shader_indices.transform_index);
     
     float3x3 normalMatrix = (float3x3)transpose(transform.inverse);
     float3 T = normalize(mul(normalMatrix, tangent));
@@ -43,14 +43,14 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 
     VSOutput output = (VSOutput) 0;
     output.world_pos = float4(mul(transform.transform, float4(position, 1.0f))).xyz;
-    output.pos = mul(scene_data.proj, mul(scene_data.view, float4(output.world_pos, 1.0)));
+    output.pos = mul(scene.proj, mul(scene.view, float4(output.world_pos, 1.0)));
     output.uv = uv;
     output.color = color;
     output.TBN = TBN;
     
-    for (uint i = 0; i < scene_data.light_count; i++)
+    for (uint i = 0; i < scene.light_count; i++)
     {
-        const float4x4 projview = light_view_projection_data.Load<float4x4>(sizeof(float4x4) * i);
+        const float4x4 projview = buffers[scene.light_view_index].Load<float4x4>(sizeof(float4x4) * i);
         output.world_pos_light[i] = mul(biasMat, mul(projview, mul(transform.transform, float4(position, 1.0))));
     }
     return output;
@@ -64,16 +64,19 @@ struct PixelOutput
 
 PixelOutput FragmentMain(VSOutput a_input)
 {
-    const BB::MeshMetallic material = materials_metallic[shader_indices.material_index];
+    BB::Scene3DInfo scene = GetSceneInfo();
+    BB::ShaderIndices shader_indices = (BB::ShaderIndices)push_constant.userdata;
 
-    const float3 normal_map = textures_data[material.normal_texture].Sample(basic_3d_sampler, a_input.uv).xyz * 2.0 - 1.0;
+    const BB::MeshMetallic material = uniform_metallic_info[shader_indices.material_index];
+
+    const float3 normal_map = textures[material.normal_texture].Sample(BASIC_3D_SAMPLER, a_input.uv).xyz * 2.0 - 1.0;
     const float3 N = normalize(mul(a_input.TBN, normal_map));
-    const float3 V = normalize(scene_data.view_pos - a_input.world_pos);
+    const float3 V = normalize(scene.view_pos - a_input.world_pos);
 
     float3 orm_data = float3(0.0, 0.0, 0.0);
     if (material.orm_texture != INVALID_TEXTURE)
     {
-        orm_data = textures_data[material.orm_texture].Sample(basic_3d_sampler, a_input.uv).xyz;
+        orm_data = textures[material.orm_texture].Sample(BASIC_3D_SAMPLER, a_input.uv).xyz;
         orm_data.g = orm_data.g * material.roughness_factor;
         orm_data.b = orm_data.b * material.metallic_factor;
     }
@@ -84,22 +87,22 @@ PixelOutput FragmentMain(VSOutput a_input)
         orm_data.b = clamp(material.metallic_factor, 0.0, 1.0);
     }
 
-    const float3 albedo = textures_data[material.albedo_texture].Sample(basic_3d_sampler, a_input.uv).xyz;// * a_input.color.xyz * material.base_color_factor.xyz;
+    const float3 albedo = textures[material.albedo_texture].Sample(BASIC_3D_SAMPLER, a_input.uv).xyz;// * a_input.color.xyz * material.base_color_factor.xyz;
     const float3 f0 = lerp(0.04, albedo.xyz, orm_data.b);
 
     float3 lo = float3(0.0, 0.0, 0.0);
-    for (uint i = 0; i < scene_data.light_count; i++)
+    for (uint i = 0; i < scene.light_count; i++)
     {
-        const BB::Light light = light_data.Load<BB::Light>(sizeof(BB::Light) * i);
+        const BB::Light light = buffers[scene.light_index].Load<BB::Light>(sizeof(BB::Light) * i);
         const float3 L = normalize(light.pos.xyz - a_input.world_pos);
 
         const float3 light_color = PBRCalculateLight(light, L, V, N, albedo, f0, orm_data, a_input.world_pos);
-        const float shadow = CalculateShadowPCF(a_input.world_pos_light[i], scene_data.shadow_map_resolution, scene_data.shadow_map_array_descriptor, i);
+        const float shadow = CalculateShadowPCF(a_input.world_pos_light[i], scene.shadow_map_resolution, scene.shadow_map_array_descriptor, i);
         
         lo += (1.0 - shadow) * (light_color);
     }
 
-    const float3 ambient = scene_data.ambient_light.xyz * albedo * orm_data.r;
+    const float3 ambient = scene.ambient_light.xyz * albedo * orm_data.r;
     float3 color = ambient + lo;
 
     PixelOutput output;
@@ -113,7 +116,7 @@ PixelOutput FragmentMain(VSOutput a_input)
 
     color = color / (color + float3(1.0, 1.0, 1.0));
     color = pow(color, 1.0f/2.2f);
-    color = ExposureToneMapping(color, scene_data.exposure);
+    color = ExposureToneMapping(color, scene.exposure);
     output.color = float4(color, 1.0);
     
     return output;

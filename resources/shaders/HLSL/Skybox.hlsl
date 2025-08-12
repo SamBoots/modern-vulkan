@@ -8,9 +8,9 @@ struct VSOutput
 
 VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 {
-    const BB::Scene3DInfo scene_info = scene_data;
+    const BB::Scene3DInfo scene_info = GetSceneInfo();
     
-    const float3 position = GetAttributeFloat3(global_data.cube_vertexpos_vertex_buffer_pos, a_vertex_index);
+    const float3 position = GetAttributeFloat3(global_data.cubemap_vertex_offset, a_vertex_index);
     
     VSOutput output = (VSOutput)0;
     output.uvw = position;
@@ -27,6 +27,6 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 
 float4 FragmentMain(VSOutput a_input) : SV_Target
 {
-    const BB::Scene3DInfo scene_info = scene_data;
-    return textures_cube_data[scene_info.skybox_texture].Sample(basic_3d_sampler, a_input.uvw);
+    const BB::Scene3DInfo scene_info = GetSceneInfo();
+    return texture_cubes[scene_info.skybox_texture].Sample(BASIC_3D_SAMPLER, a_input.uvw);
 }

@@ -137,6 +137,7 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 {
 	PerFrame& pfd = m_per_frame[m_current_frame];
 
+    BindGraphicsBindlessSet(a_list);
     SetPushConstantsSceneUniformIndex(a_list, pfd.scene_descriptor);
 
 	const ConstSlice<ECSEntity> render_entities = a_render_pool.GetEntityComponents();
@@ -334,7 +335,7 @@ void RenderSystem::UpdateConstantBuffer(const uint32_t a_frame_index, const RCom
 	m_scene_info.scene_resolution = a_draw_area_size;
     
     //descriptors
-    m_scene_info.matrices_index = a_pfd.matrix_descriptor;
+    m_scene_info.matrix_index = a_pfd.matrix_descriptor;
     m_scene_info.light_index = a_pfd.light_descriptor;
     m_scene_info.light_view_index = a_pfd.light_view_descriptor;
 

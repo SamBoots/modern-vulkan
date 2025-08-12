@@ -23,6 +23,8 @@ _BBBIND(GPU_BINDING_GLOBAL, 0)ConstantBuffer<BB::GlobalRenderData> global_data;
 // ALL BINDINGS
 _BBBIND(GPU_BINDING_IMAGES, 0)Texture2D textures[];
 _BBBIND(GPU_BINDING_IMAGES, 0)Texture2DArray texture_arrays[];
+_BBBIND(GPU_BINDING_IMAGES, 0)TextureCube texture_cubes[];
+
 _BBBIND(GPU_BINDING_SAMPLERS, 0)SamplerState samplers[];
 _BBBIND(GPU_BINDING_BUFFERS, 0)ByteAddressBuffer buffers[];
 _BBBIND(GPU_BINDING_BUFFERS, 0)RWByteAddressBuffer readwrite_buffers[];
@@ -31,21 +33,10 @@ _BBBIND(GPU_BINDING_BUFFERS, 0)RWByteAddressBuffer readwrite_buffers[];
 _BBBIND(GPU_BINDING_UNIFORMS, 0)ConstantBuffer<BB::MeshMetallic> uniform_metallic_info[];
 _BBBIND(GPU_BINDING_UNIFORMS, 0)ConstantBuffer<BB::Scene3DInfo> uniform_scene_info[];
 
-
-float2 GetAttributeFloat2(const uint a_offset, const uint a_vertex_index, const uint)
-{
-     return asfloat(vertex_data.Load2(a_offset + sizeof(float2) * a_vertex_index));
-}
-
-float3 GetAttributeFloat3(const uint a_offset, const uint a_vertex_index)
-{
-     return asfloat(vertex_data.Load3(a_offset + sizeof(float3) * a_vertex_index));
-}
-
-float4 GetAttributeFloat4(const uint a_offset, const uint a_vertex_index)
-{
-    return asfloat(vertex_data.Load4(a_offset + sizeof(float4) * a_vertex_index));
-}
+// immutable samplers
+_BBBIND(GPU_BINDING_IMMUTABLE_SAMPLERS, 0)SamplerState immutable_samplers[GPU_IMMUTABLE_SAMPLE_COUNT];
+#define SHADOW_MAP_SAMPLER immutable_samplers[GPU_IMMUTABLE_SAMPLER_SHAWDOW_MAP]
+#define BASIC_3D_SAMPLER immutable_samplers[GPU_IMMUTABLE_SAMPLER_TEMP]
 
 float4 UnpackR8B8G8A8_UNORMToFloat4(uint a_packed)
 {
@@ -59,6 +50,21 @@ float4 UnpackR8B8G8A8_UNORMToFloat4(uint a_packed)
     float sc = 1.0f / 255.0f;
     return unpacked * sc;
 }
+
+float2 GetAttributeFloat2(const uint a_offset, const uint a_vertex_index)
+{
+     return asfloat(buffers[global_data.vertex_buffer].Load2(a_offset + sizeof(float2) * a_vertex_index));
+}
+
+float3 GetAttributeFloat3(const uint a_offset, const uint a_vertex_index)
+{
+     return asfloat(buffers[global_data.vertex_buffer].Load3(a_offset + sizeof(float3) * a_vertex_index));
+}
+
+float4 GetAttributeFloat4(const uint a_offset, const uint a_vertex_index)
+{
+    return asfloat(buffers[global_data.vertex_buffer].Load4(a_offset + sizeof(float4) * a_vertex_index));
+}
     
 float3 ReinhardToneMapping(const float3 a_hdr_color)
 {
@@ -70,7 +76,7 @@ float3 ExposureToneMapping(const float3 a_hdr_color, const float a_exposure)
     return float3(1.0, 1.0, 1.0) - exp(-a_hdr_color * a_exposure);
 }
 
-Scene3DInfo GetSceneInfo()
+BB::Scene3DInfo GetSceneInfo()
 {
     return uniform_scene_info[push_constant.scene_ub_index];
 }

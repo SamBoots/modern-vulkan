@@ -18,12 +18,13 @@ static void StandardLogCallback(const char* a_file_name, const int a_line, const
 		case 's':
 			string.append(va_arg(a_args, char*));
 			break;
+        case 'hs':
 		case 'S': //convert it to a char first.
 		{
 			const wchar_t* w_char = va_arg(a_args, const wchar_t*);
 			const size_t char_size = wcslen(w_char);
 			//check to see if we do not go over bounds, largly to deal with non-null-terminated wchar strings.
-			BB_ASSERT(char_size < string.capacity() - string.size(), "error log string size exceeds 1024 characters!");
+			assert(char_size < string.capacity() - string.size());
 			char* character = BBstackAlloc_s(char_size, char);
 			size_t conv_chars = 0;
 			wcstombs_s(&conv_chars, character, char_size, w_char, _TRUNCATE);

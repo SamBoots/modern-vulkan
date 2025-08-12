@@ -110,7 +110,8 @@ bool BB::FontAtlasWriteImage(const PathString& a_path, const FontAtlas& a_atlas)
 
 bool BB::RenderText(const FontAtlas& a_font_atlas, const RCommandList a_list, GPUUploadRingAllocator& a_ring_buffer, GPULinearBuffer& a_frame_buffer, const float2 a_text_size, const float2 a_text_start_pos, const StringView a_string)
 {
-    const size_t upload_size = a_string.size() * sizeof(Glyph2D);
+
+    /*const size_t upload_size = a_string.size() * sizeof(Glyph2D);
     const size_t upload_start = a_ring_buffer.AllocateUploadMemory(upload_size, ...);
     if (upload_start == -1)
         return false;
@@ -190,7 +191,7 @@ bool BB::RenderText(const FontAtlas& a_font_atlas, const RCommandList a_list, GP
 
     DrawVertices(a_list, 4, static_cast<uint32_t>(a_string.size()), 1, 0);
     
-    EndRenderPass(a_list);
+    EndRenderPass(a_list);*/
 
     return true;
 }

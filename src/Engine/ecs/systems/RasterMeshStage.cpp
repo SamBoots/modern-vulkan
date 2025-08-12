@@ -101,7 +101,7 @@ void RasterMeshStage::ExecutePass(const RCommandList a_list, const uint32_t a_fr
         shader_indices.vertex_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_position_offset);
         shader_indices.vertex_count = vertex_count;
         shader_indices.material_index = RDescriptorIndex(mesh_draw_call.material.index);
-        SetPushConstantUserData(a_list, sizeof(shader_indices), &shader_indices);
+        SetPushConstantUserData(a_list, 0, sizeof(shader_indices), &shader_indices);
 
         DrawIndexed(a_list,
             mesh_draw_call.index_count,

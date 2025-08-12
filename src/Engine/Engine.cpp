@@ -100,6 +100,11 @@ EngineInfo BB::InitEngine(MemoryArena& a_arena, const wchar* a_app_name, const E
     render_create_info.debug = a_engine_options.enable_debug;
     render_create_info.use_raytracing = a_graphic_options.use_raytracing;
 
+    render_create_info.max_images = 1024;
+    render_create_info.max_samplers = 32;
+    render_create_info.max_buffers = 512;
+    render_create_info.max_uniforms = 2048;
+
     InitializeRenderer(a_arena, render_create_info);
     const uint32_t back_buffer_count = GetBackBufferCount();
 

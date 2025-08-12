@@ -8,16 +8,17 @@ struct VSOutput
     _BBEXT(0) float4 color: COLOR0;
 };
 
-_BBCONSTANT(BB::ShaderLine) shader_indices;
-
 VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 {
+    BB::ShaderLine shader_indices = (BB::ShaderLine)push_constant.userdata;
+    BB::Scene3DInfo scene = GetSceneInfo();
+
     const uint vertex_offset = shader_indices.vertex_start + a_vertex_index * sizeof(float4);
-    const float3 pos = asfloat(cpu_writeable_vertex_data.Load3(vertex_offset));
-    const uint color = cpu_writeable_vertex_data.Load(vertex_offset + sizeof(float3));
+    const float3 pos = asfloat(buffers[global_data.cpu_vertex_buffer].Load3(vertex_offset));
+    const uint color = buffers[global_data.cpu_vertex_buffer].Load(vertex_offset + sizeof(float3));
 
     VSOutput output = (VSOutput) 0;
-    output.pos = mul(scene_data.proj, mul(scene_data.view, float4(pos, 1.0)));
+    output.pos = mul(scene.proj, mul(scene.view, float4(pos, 1.0)));
     output.color = UnpackR8B8G8A8_UNORMToFloat4(color);
     return output;
 }
@@ -32,6 +33,9 @@ struct GSOutput
 [maxvertexcount(4)]
 void GeometryMain(line VSOutput a_in[2], inout TriangleStream<GSOutput> a_out) : SV_Target
 {
+    BB::ShaderLine shader_indices = (BB::ShaderLine)push_constant.userdata;
+    BB::Scene3DInfo scene = GetSceneInfo();
+
     float4 p0 = a_in[0].pos;
 	float4 p1 = a_in[1].pos;
     float4 p0_color = a_in[0].color;
@@ -42,15 +46,15 @@ void GeometryMain(line VSOutput a_in[2], inout TriangleStream<GSOutput> a_out) :
 		p0 = p1;
 		p1 = temp;
 	}
-    if (p0.w < scene_data.near_plane)
+    if (p0.w < scene.near_plane)
     {
-        const float ratio = (scene_data.near_plane - p0.w) / (p1.w - p0.w);
+        const float ratio = (scene.near_plane - p0.w) / (p1.w - p0.w);
         p0 = lerp (p0, p1, ratio);
     }
 
 	const float2 a = p0.xy / p0.w;
 	const float2 b = p1.xy / p1.w;
-	const float2 c = normalize(float2(a.y - b.y, b.x - a.x)) / scene_data.scene_resolution.xy * 3;
+	const float2 c = normalize(float2(a.y - b.y, b.x - a.x)) / scene.scene_resolution.xy * 3;
 
 	GSOutput g0;
 	g0.pos = float4(p0.xy + c * p0.w, p0.zw);

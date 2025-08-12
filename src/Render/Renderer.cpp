@@ -670,7 +670,7 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	s_render_inst->shader_effects.Init(a_arena, 64);
 
 	s_render_inst->shader_compiler = CreateShaderCompiler(a_arena);
-
+    s_render_inst->descriptor = CreateDescriptorManager(a_arena, a_render_create_info.max_images, a_render_create_info.max_samplers, a_render_create_info.max_buffers, a_render_create_info.max_uniforms);
 	{
 		GPUBufferCreateInfo vertex_buffer;
 		vertex_buffer.name = "global vertex buffer";
@@ -925,6 +925,11 @@ void BB::DrawCubemap(const RCommandList a_list, const uint32_t a_instance_count,
 void BB::DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance)
 {
 	Vulkan::DrawIndexed(a_list, a_index_count, a_instance_count, a_first_index, a_vertex_offset, a_first_instance);
+}
+
+void BB::BindGraphicsBindlessSet(const RCommandList a_list)
+{
+    Vulkan::BindGraphicsBindlessSet(a_list);
 }
 
 CommandPool& BB::GetGraphicsCommandPool()
@@ -1359,9 +1364,9 @@ void BB::SetPushConstantsSceneUniformIndex(const RCommandList a_list, const RDes
     Vulkan::SetPushConstants(a_list, offsetof(ShaderPushConstant, scene_ub_index), sizeof(a_index), &a_index);
 }
 
-void BB::SetPushConstantUserData(const RCommandList a_list, const uint32_t a_size, const void* a_data)
+void BB::SetPushConstantUserData(const RCommandList a_list, const uint32_t a_offset, const uint32_t a_size, const void* a_data)
 {
-    Vulkan::SetPushConstants(a_list, offsetof(ShaderPushConstant, userdata), a_size, a_data);
+    Vulkan::SetPushConstants(a_list, offsetof(ShaderPushConstant, userdata) + a_offset, a_size, a_data);
 }
 
 void BB::PipelineBarriers(const RCommandList a_list, const PipelineBarrierInfo& a_barrier_info)

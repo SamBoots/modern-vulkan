@@ -68,7 +68,7 @@ namespace BB
         float near_plane;                // 196
 
         // buffers
-        RDescriptorIndex matrices_index;            // 200
+        RDescriptorIndex matrix_index;            // 200
         RDescriptorIndex light_index;               // 204
         RDescriptorIndex light_view_index;          // 208
     };
@@ -167,6 +167,7 @@ namespace BB
     {
         float line_width;   // 4
         uint vertex_start;  // 8
+    };
 
     struct ShaderPushConstant
     {

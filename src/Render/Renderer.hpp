@@ -70,6 +70,7 @@ namespace BB
 	void DrawCubemap(const RCommandList a_list, const uint32_t a_instance_count, const uint32_t a_first_instance);
 	void DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance);
 
+    void BindGraphicsBindlessSet(const RCommandList a_list);
 	CommandPool& GetGraphicsCommandPool();
 	CommandPool& GetTransferCommandPool();
 	CommandPool& GetCommandCommandPool();
@@ -146,7 +147,7 @@ namespace BB
 	GPUFenceValue GetCurrentFenceValue(const RFence a_fence);
 
 	void SetPushConstantsSceneUniformIndex(const RCommandList a_list, const RDescriptorIndex a_index);
-    void SetPushConstantUserData(const RCommandList a_list, const uint32_t a_size, const void* a_data);
+    void SetPushConstantUserData(const RCommandList a_list, const uint32_t a_offset, const uint32_t a_size, const void* a_data);
 
 	void PipelineBarriers(const RCommandList a_list, const struct PipelineBarrierInfo& a_barrier_info);
 

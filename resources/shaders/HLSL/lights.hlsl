@@ -16,7 +16,7 @@ float CalculateShadowPCF_impl(const float4 a_world_pos_light, const float2 a_tex
         for (int y = -1; y <= 1; ++y)
         {
             const float3 sample_cords = float3(proj_coords.xy + float2(x, y) * texture_size, (float)a_shadow_map_base_layer);
-            const float pcf_depth = textures_array_data[a_shadow_map_texture].Sample(shadow_map_sampler, sample_cords).r;
+            const float pcf_depth = texture_arrays[a_shadow_map_texture].Sample(SHADOW_MAP_SAMPLER, sample_cords).r;
             shadow += current_depth > pcf_depth ? 1.0 : 0.0;
         }
     }
@@ -27,7 +27,7 @@ float CalculateShadowPCF_impl(const float4 a_world_pos_light, const float2 a_tex
 float CalculateShadow_impl(const float4 a_world_pos_light, const RDescriptorIndex a_shadow_map_texture, const uint a_shadow_map_base_layer)
 {
     const float4 proj_coords = a_world_pos_light / a_world_pos_light.w;
-    const float closest_depth = textures_array_data[a_shadow_map_texture].Sample(shadow_map_sampler, float3(proj_coords.xy, (float) a_shadow_map_base_layer)).r;
+    const float closest_depth = texture_arrays[a_shadow_map_texture].Sample(SHADOW_MAP_SAMPLER, float3(proj_coords.xy, (float) a_shadow_map_base_layer)).r;
     const float current_depth = proj_coords.z;
     const float shadow = current_depth > closest_depth ? 1.0 : 0.0;
     if (proj_coords.z > 1.0)
@@ -112,7 +112,7 @@ float3 PBRCalculateLight(const BB::Light a_light, const float3 a_L, const float3
         if (theta <= a_light.direction.w)
         {
             const float N_dot_L = max(dot(a_N, light_dir), 0.0);
-            return float3(scene_data.ambient_light.xyz * a_albedo);
+            return float3(GetSceneInfo().ambient_light.xyz * a_albedo);
         }
     }
     else if (a_light.light_type == DIRECTIONAL_LIGHT)
@@ -153,7 +153,7 @@ float3 NonPBRCalculateLight(const BB::Light a_light, const float3 a_L, const flo
         if (theta <= a_light.direction.w)
         {
             const float N_dot_L = max(dot(a_N, light_dir), 0.0);
-            return float3(scene_data.ambient_light.xyz * a_albedo);
+            return float3(GetSceneInfo().ambient_light.xyz * a_albedo);
         }
     }
     else if (a_light.light_type == DIRECTIONAL_LIGHT)

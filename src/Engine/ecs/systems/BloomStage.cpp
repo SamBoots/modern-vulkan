@@ -82,7 +82,7 @@ void BloomStage::ExecutePass(const RCommandList a_list, const uint2 a_resolution
         push_constant.blur_strength = m_bloom_strength;
         push_constant.blur_scale = m_bloom_scale;
 
-        SetPushConstantUserData(a_list, sizeof(push_constant), &push_constant);
+        SetPushConstantUserData(a_list, 0, sizeof(push_constant), &push_constant);
 
         StartRenderPass(a_list, rendering_info);
         DrawVertices(a_list, 3, 1, 0, 0);
@@ -124,7 +124,7 @@ void BloomStage::ExecutePass(const RCommandList a_list, const uint2 a_resolution
         push_constant.src_resolution = a_resolution;
         push_constant.blur_strength = m_bloom_strength;
         push_constant.blur_scale = m_bloom_scale;
-        SetPushConstantUserData(a_list, sizeof(push_constant), &push_constant);
+        SetPushConstantUserData(a_list, 0, sizeof(push_constant), &push_constant);
 
         StartRenderPass(a_list, rendering_info);
         DrawVertices(a_list, 3, 1, 0, 0);

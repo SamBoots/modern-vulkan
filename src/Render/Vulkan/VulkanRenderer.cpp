@@ -444,6 +444,7 @@ static DescriptorInfo CreateDescriptorInfo(const VkDevice a_device, const uint32
 {
     // immutable samplers
     FixedArray<VkSamplerCreateInfo, 2> immutable_samplers;
+    immutable_samplers[0].sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     immutable_samplers[0].addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     immutable_samplers[0].addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
     immutable_samplers[0].addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
@@ -453,8 +454,9 @@ static DescriptorInfo CreateDescriptorInfo(const VkDevice a_device, const uint32
     immutable_samplers[0].maxAnisotropy = 1.0f;
     immutable_samplers[0].minLod = 0.f;
     immutable_samplers[0].maxLod = 1.f;
-    immutable_samplers[0].mipLodBias = 100.f;
+    immutable_samplers[0].mipLodBias = 0.f;
     immutable_samplers[0].borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+    immutable_samplers[1].sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     immutable_samplers[1].addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     immutable_samplers[1].addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     immutable_samplers[1].addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
@@ -464,7 +466,7 @@ static DescriptorInfo CreateDescriptorInfo(const VkDevice a_device, const uint32
     immutable_samplers[1].maxAnisotropy = 1.0f;
     immutable_samplers[1].minLod = -100.f;
     immutable_samplers[1].maxLod = 100.f;
-    immutable_samplers[1].mipLodBias = 100.f;
+    immutable_samplers[1].mipLodBias = 0.f;
     immutable_samplers[1].borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
 
     VkSampler s[2];
@@ -508,8 +510,8 @@ static DescriptorInfo CreateDescriptorInfo(const VkDevice a_device, const uint32
     layout_binding_flags[1] = 0;
     layout_binding_flags[2] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
     layout_binding_flags[3] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
-    layout_binding_flags[4] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
-    layout_binding_flags[5] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+    layout_binding_flags[4] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT;
+    layout_binding_flags[5] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT;
     layout_binding_flags[6] = 0;
 
 
@@ -523,7 +525,7 @@ static DescriptorInfo CreateDescriptorInfo(const VkDevice a_device, const uint32
     layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layout_info.bindingCount = layout_bindings.size();
     layout_info.pBindings = layout_bindings.data();
-    layout_info.flags = 0;
+    layout_info.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
     layout_info.pNext = &layout_ext;
 
     VkDescriptorSetLayout set_layout;
@@ -544,7 +546,7 @@ static DescriptorInfo CreateDescriptorInfo(const VkDevice a_device, const uint32
     pipe_info.flags = 0;
 
     VkPipelineLayout pipe_layout;
-    result = vkCreatePipelineLayout(s_vulkan_inst->device, &pipe_info, nullptr, &pipe_layout);
+    result = vkCreatePipelineLayout(a_device, &pipe_info, nullptr, &pipe_layout);
     VKASSERT(result, "Failed to create VkPipelineLayout");
     FixedArray<VkDescriptorPoolSize, 4> pool_sizes;
     pool_sizes[0].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
@@ -1755,6 +1757,7 @@ void Vulkan::DescriptorWriteGlobal(const GPUBufferView& a_buffer_view)
     buffer_info.offset = a_buffer_view.offset;
     buffer_info.range = a_buffer_view.size;
 
+    write_info.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     write_info.dstBinding = GPU_BINDING_GLOBAL;
     write_info.pBufferInfo = &buffer_info;
     vkUpdateDescriptorSets(s_vulkan_inst->device, 1, &write_info, 0, nullptr);
@@ -1772,6 +1775,7 @@ void Vulkan::DescriptorWriteImage(const RDescriptorIndex a_descriptor_index, con
     image_info.imageLayout = ImageLayout(a_layout);
     image_info.imageView = reinterpret_cast<VkImageView>(a_view.handle);
 
+    write_info.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
     write_info.dstBinding = GPU_BINDING_IMAGES;
     write_info.pImageInfo = &image_info;
     vkUpdateDescriptorSets(s_vulkan_inst->device, 1, &write_info, 0, nullptr);
@@ -1788,6 +1792,7 @@ void Vulkan::DescriptorWriteSampler(const RDescriptorIndex a_descriptor_index, c
     VkDescriptorImageInfo image_info{};
     image_info.sampler = reinterpret_cast<VkSampler>(a_sampler.handle);
 
+    write_info.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
     write_info.dstBinding = GPU_BINDING_SAMPLERS;
     write_info.pImageInfo = &image_info;
     vkUpdateDescriptorSets(s_vulkan_inst->device, 1, &write_info, 0, nullptr);
@@ -1800,12 +1805,12 @@ void Vulkan::DescriptorWriteStorageBuffer(const RDescriptorIndex a_descriptor_in
     write_info.dstSet = s_vulkan_inst->descriptors.bindless_set;
     write_info.descriptorCount = 1;
     write_info.dstArrayElement = a_descriptor_index.handle;
-
     VkDescriptorBufferInfo buffer_info{};
     buffer_info.buffer = reinterpret_cast<VkBuffer>(a_buffer_view.buffer.handle);
     buffer_info.offset = a_buffer_view.offset;
     buffer_info.range = a_buffer_view.size;
 
+    write_info.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     write_info.dstBinding = GPU_BINDING_BUFFERS;
     write_info.pBufferInfo = &buffer_info;
     vkUpdateDescriptorSets(s_vulkan_inst->device, 1, &write_info, 0, nullptr);
@@ -1824,26 +1829,10 @@ void Vulkan::DescriptorWriteUniformBuffer(const RDescriptorIndex a_descriptor_in
     buffer_info.offset = a_buffer_view.offset;
     buffer_info.range = a_buffer_view.size;
 
+    write_info.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     write_info.dstBinding = GPU_BINDING_UNIFORMS;
     write_info.pBufferInfo = &buffer_info;
     vkUpdateDescriptorSets(s_vulkan_inst->device, 1, &write_info, 0, nullptr);
-}
-
-//we won't have that many pipeline layouts, so make a basic one.
-static uint64_t PipelineLayoutCreateInfoHash(const VkPipelineLayoutCreateInfo& a_info)
-{
-	uint64_t hash = static_cast<uint64_t>(a_info.pushConstantRangeCount + a_info.setLayoutCount);
-
-	for (size_t i = 0; i < a_info.pushConstantRangeCount; i++)
-	{
-		hash *= a_info.pPushConstantRanges[i].size;
-	}
-	
-	for (size_t i = 0; i < a_info.setLayoutCount; i++)
-	{
-		hash *= reinterpret_cast<uint64_t>(a_info.pSetLayouts[i]);
-	}
-	return hash;
 }
 
 ShaderObject Vulkan::CreateShaderObject(const ShaderObjectCreateInfo& a_shader_object)
@@ -1948,12 +1937,16 @@ void Vulkan::StartCommandList(const RCommandList a_list, const char* a_name)
     VkResult result = vkBeginCommandBuffer(cmd_list, &cmd_begin_info);
 	VKASSERT(result, "Vulkan: Failed to begin commandbuffer");
 
-    vkCmdBindDescriptorSets(cmd_list, VK_PIPELINE_BIND_POINT_GRAPHICS, 
-        s_vulkan_inst->descriptors.bindless_pipeline_layout, 
+	SetDebugName(a_name, cmd_list, VK_OBJECT_TYPE_COMMAND_BUFFER);
+}
+
+void Vulkan::BindGraphicsBindlessSet(const RCommandList a_list)
+{
+    const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+    vkCmdBindDescriptorSets(cmd_list, VK_PIPELINE_BIND_POINT_GRAPHICS,
+        s_vulkan_inst->descriptors.bindless_pipeline_layout,
         0, 1, &s_vulkan_inst->descriptors.bindless_set,
         0, nullptr);
-
-	SetDebugName(a_name, cmd_list, VK_OBJECT_TYPE_COMMAND_BUFFER);
 }
 
 void Vulkan::EndCommandList(const RCommandList a_list)

@@ -8,10 +8,6 @@
 
 using namespace BB;
 
-BB_STATIC_ASSERT(sizeof(ShaderIndices) == sizeof(ShaderIndices2D), "shaderindices not the same sizeof.");
-
-constexpr size_t PUSH_CONSTANT_SPACE_SIZE = sizeof(ShaderIndices);
-
 static uint64_t ShaderEffectHash(const MaterialShaderCreateInfo& a_create_info)
 {
 	uint64_t hash = 256;

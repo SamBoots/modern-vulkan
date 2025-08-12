@@ -57,6 +57,7 @@ namespace BB
 
 		void ResetCommandPool(const RCommandPool a_pool);
 		void StartCommandList(const RCommandList a_list, const char* a_name);
+        void BindGraphicsBindlessSet(const RCommandList a_list);
 		void EndCommandList(const RCommandList a_list);
 
 		void CopyBuffer(const RCommandList a_list, const RenderCopyBuffer& a_copy_buffer);

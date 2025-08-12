@@ -28,7 +28,7 @@ float4 SnapVertex(const float4 pos, const float2 resolution)
 
 VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 {
-    const BB::Scene3DInfo scene_info = scene_data;
+    const BB::Scene3DInfo scene_info = GetSceneInfo();
     
     const uint vertex_offset = shader_indices.vertex_buffer_offset + sizeof(BB::Vertex) * a_vertex_index;
     BB::Vertex cur_vertex;

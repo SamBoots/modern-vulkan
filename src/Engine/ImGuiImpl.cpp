@@ -194,28 +194,26 @@ static inline void SetupImGuiRender(MemoryArena& a_arena)
 	io.Fonts->SetTexID(bd->font_descriptor.handle);
 }
 
-inline static RPipelineLayout ImSetRenderState(const ImDrawData& a_draw_data, const RCommandList a_cmd_list, const uint32_t a_vert_pos, const MasterMaterialHandle a_material)
+inline static void ImSetRenderState(const ImDrawData& a_draw_data, const RCommandList a_cmd_list, const uint32_t a_vert_pos, const MasterMaterialHandle a_material)
 {
 	ImRenderData* bd = ImGetRenderData();
 
     SetPrimitiveTopology(a_cmd_list, PRIMITIVE_TOPOLOGY::TRIANGLE_LIST);
-	const RPipelineLayout layout = Material::BindMaterial(a_cmd_list, a_material);
+	Material::BindMaterial(a_cmd_list, a_material);
 	SetFrontFace(a_cmd_list, true);
 	SetCullMode(a_cmd_list, CULL_MODE::NONE);
 
 	// Setup scale and translation:
 	// Our visible imgui space lies from draw_data->DisplayPps (top left) to draw_data->DisplayPos+data_data->DisplaySize (bottom right). DisplayPos is (0,0) for single viewport apps.
 	ShaderIndices2D shader_indices;
-	shader_indices.vertex_buffer_offset = a_vert_pos;
+	shader_indices.vertex_offset = a_vert_pos;
 	shader_indices.albedo_texture = bd->font_descriptor;
 	shader_indices.rect_scale.x = 2.0f / a_draw_data.DisplaySize.x;
 	shader_indices.rect_scale.y = 2.0f / a_draw_data.DisplaySize.y;
 	shader_indices.translate.x = -1.0f - a_draw_data.DisplayPos.x * shader_indices.rect_scale.x;
 	shader_indices.translate.y = -1.0f - a_draw_data.DisplayPos.y * shader_indices.rect_scale.y;
 
-	SetPushConstants(a_cmd_list, layout, 0, sizeof(shader_indices), &shader_indices);
-
-	return layout;
+	SetPushConstantUserData(a_cmd_list, 0, sizeof(shader_indices), &shader_indices);
 }
 
 inline static void ImGrowFrameBufferGPUBuffers(ImRenderBuffer& a_rb, const size_t a_new_vertex_size, const size_t a_new_index_size)
@@ -338,17 +336,7 @@ void BB::ImRenderFrame(const RCommandList a_cmd_list, const RImageView a_render_
 	blend_state[0].dst_alpha_blend = BLEND_MODE::FACTOR_ZERO;
 	SetBlendMode(a_cmd_list, 0, blend_state.slice());
 
-	const RPipelineLayout pipeline_layout = ImSetRenderState(draw_data, a_cmd_list, 0, a_material);
-    {
-        const uint32_t buffer_indices[] = { 0 };
-        const size_t buffer_offsets[]{ GetGlobalDescriptorAllocation().offset };
-        SetDescriptorBufferOffset(a_cmd_list,
-            pipeline_layout,
-            SPACE_GLOBAL,
-            _countof(buffer_offsets),
-            buffer_indices,
-            buffer_offsets);
-    }
+	ImSetRenderState(draw_data, a_cmd_list, 0, a_material);
 
 	// Will project scissor/clipping rectangles into framebuffer space
 	const ImVec2 clip_off = draw_data.DisplayPos;    // (0,0) unless using multi-viewports
@@ -364,7 +352,7 @@ void BB::ImRenderFrame(const RCommandList a_cmd_list, const RImageView a_render_
 	for (int n = 0; n < draw_data.CmdListsCount; n++)
 	{
 		const ImDrawList* cmd_list = draw_data.CmdLists[n];
-		SetPushConstants(a_cmd_list, pipeline_layout, IM_OFFSETOF(ShaderIndices2D, vertex_buffer_offset), sizeof(vertex_offset), &vertex_offset);
+		SetPushConstantUserData(a_cmd_list, IM_OFFSETOF(ShaderIndices2D, vertex_offset), sizeof(vertex_offset), &vertex_offset);
 
 		for (int cmd_i = 0; cmd_i < cmd_list->CmdBuffer.Size; cmd_i++)
 		{
@@ -395,7 +383,7 @@ void BB::ImRenderFrame(const RCommandList a_cmd_list, const RImageView a_render_
 				const ImTextureID new_text = pcmd->TextureId;
 				if (new_text != last_texture)
 				{
-					SetPushConstants(a_cmd_list, pipeline_layout, IM_OFFSETOF(ShaderIndices2D, albedo_texture), sizeof(new_text), &new_text);
+					SetPushConstantUserData(a_cmd_list, IM_OFFSETOF(ShaderIndices2D, albedo_texture), sizeof(new_text), &new_text);
 					last_texture = new_text;
 				}
 				// Apply scissor/clipping rectangle
