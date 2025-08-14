@@ -4,13 +4,12 @@
 namespace BB
 {
 #define GPU_BINDING_GLOBAL 0
-#define GPU_BINDING_SCENE 1
-#define GPU_BINDING_IMAGES 2
-#define GPU_BINDING_SAMPLERS 3
-#define GPU_BINDING_BUFFERS 4
-#define GPU_BINDING_UNIFORMS 5
-#define GPU_BINDING_IMMUTABLE_SAMPLERS 6
-#define GPU_BINDING_COUNT 7
+#define GPU_BINDING_IMAGES 1
+#define GPU_BINDING_SAMPLERS 2
+#define GPU_BINDING_BUFFERS 3
+#define GPU_BINDING_UNIFORMS 4
+#define GPU_BINDING_IMMUTABLE_SAMPLERS 5
+#define GPU_BINDING_COUNT 6
 // for GLOBAL and SCENE
 #define GPU_EXTRA_UNIFORM_BUFFERS 2
 
@@ -124,7 +123,7 @@ namespace BB
     };
 
     //could make the size the same for shaderindices and shaderindices2d so that the pushconstant pipelinelayout is the same.....
-    struct ShaderIndices
+    struct PBRIndices
     {
         uint vertex_offset;             // 4
         uint vertex_count;              // 8

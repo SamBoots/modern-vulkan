@@ -20,7 +20,7 @@ static const float4x4 biasMat = float4x4(
 VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 {
     BB::Scene3DInfo scene = GetSceneInfo();
-    BB::ShaderIndices shader_indices = (BB::ShaderIndices)push_constant.userdata;
+    BB::PBRIndices shader_indices = PushConstantPBR();
 
     const float3 position = GetAttributeFloat3(shader_indices.vertex_offset, a_vertex_index);
     uint normal_pos = shader_indices.vertex_offset + sizeof(float3) * shader_indices.vertex_count;
@@ -65,7 +65,7 @@ struct PixelOutput
 PixelOutput FragmentMain(VSOutput a_input)
 {
     BB::Scene3DInfo scene = GetSceneInfo();
-    BB::ShaderIndices shader_indices = (BB::ShaderIndices)push_constant.userdata;
+    BB::PBRIndices shader_indices = PushConstantPBR();
 
     const BB::MeshMetallic material = uniform_metallic_info[shader_indices.material_index];
 

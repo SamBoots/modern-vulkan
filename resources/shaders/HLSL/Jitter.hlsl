@@ -9,8 +9,6 @@ struct VSOutput
     _BBEXT(3)float3 normal : NORMAL0;
 };
 
-_BBCONSTANT(BB::ShaderIndices) shader_indices;
-
 float4 SnapVertex(const float4 pos, const float2 resolution)
 {
     float4 new_pos = pos;

@@ -81,4 +81,65 @@ BB::Scene3DInfo GetSceneInfo()
     return uniform_scene_info[push_constant.scene_ub_index];
 }
 
+BB::PBRIndices PushConstantPBR()
+{
+    BB::PBRIndices indices;
+    indices.vertex_offset = push_constant.userdata[0];
+    indices.vertex_count = push_constant.userdata[1];
+    indices.transform_index = push_constant.userdata[2];
+    indices.material_index = push_constant.userdata[3];
+    return indices;
+}
+
+BB::ShaderIndices2D PushConstant2D()
+{
+    BB::ShaderIndices2D indices;
+    indices.vertex_offset = push_constant.userdata[0];
+    indices.albedo_texture = push_constant.userdata[1];
+    indices.rect_scale.x = asfloat(push_constant.userdata[2]);
+    indices.rect_scale.y = asfloat(push_constant.userdata[3]);
+    indices.translate.x = asfloat(push_constant.userdata[4]);
+    indices.translate.y = asfloat(push_constant.userdata[5]);
+    return indices;
+}
+
+BB::ShaderIndicesGlyph PushConstantGlyph()
+{
+    BB::ShaderIndicesGlyph indices;
+    indices.glyph_buffer_offset = push_constant.userdata[0];
+    indices.font_texture = push_constant.userdata[1];
+    indices.scale.x = asfloat(push_constant.userdata[2]);
+    indices.scale.y = asfloat(push_constant.userdata[3]);
+    return indices;
+}
+
+BB::ShaderIndicesShadowMapping PushConstantShadowMapping()
+{
+    BB::ShaderIndicesShadowMapping indices;
+    indices.position_offset = push_constant.userdata[0];
+    indices.transform_index = push_constant.userdata[1];
+    indices.shadow_map_index = push_constant.userdata[2];
+    return indices;
+}
+
+BB::ShaderGaussianBlur PushConstantBlur()
+{
+    BB::ShaderGaussianBlur indices;
+    indices.src_texture = push_constant.userdata[0];
+    indices.horizontal_enable = push_constant.userdata[1];
+    indices.src_resolution.x = push_constant.userdata[2];
+    indices.src_resolution.y = push_constant.userdata[3];
+    indices.blur_strength = asfloat(push_constant.userdata[4]);
+    indices.blur_scale = asfloat(push_constant.userdata[5]);
+    return indices;
+}
+
+BB::ShaderLine PushConstantLine()
+{
+    BB::ShaderLine indices;
+    indices.line_width = asfloat(push_constant.userdata[0]);
+    indices.vertex_start = push_constant.userdata[1];
+    return indices;
+}
+
 #endif //COMMON_HLSL

@@ -96,7 +96,7 @@ void RasterMeshStage::ExecutePass(const RCommandList a_list, const uint32_t a_fr
         const size_t position_byte_size = mesh_draw_call.mesh.vertex_normal_offset - mesh_draw_call.mesh.vertex_position_offset;
         const uint32_t vertex_count = static_cast<uint32_t>(position_byte_size / sizeof(float3));
 
-        ShaderIndices shader_indices;
+        PBRIndices shader_indices;
         shader_indices.transform_index = i;
         shader_indices.vertex_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_position_offset);
         shader_indices.vertex_count = vertex_count;

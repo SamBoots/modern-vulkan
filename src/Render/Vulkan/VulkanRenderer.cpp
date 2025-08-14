@@ -224,7 +224,8 @@ static VkPhysicalDevice FindPhysicalDevice(MemoryArena& a_temp_arena, const VkIn
 			indexing_features.descriptorBindingPartiallyBound == VK_TRUE &&
 			indexing_features.runtimeDescriptorArray == VK_TRUE &&
 			indexing_features.descriptorBindingSampledImageUpdateAfterBind == VK_TRUE &&
-			indexing_features.descriptorBindingVariableDescriptorCount == VK_TRUE)
+            indexing_features.descriptorBindingStorageBufferUpdateAfterBind == VK_TRUE &&
+            indexing_features.descriptorBindingUniformBufferUpdateAfterBind == VK_TRUE)
 		{
 			return physical_device[i];
 		}
@@ -342,7 +343,7 @@ static VulkanQueuesIndices GetQueueIndices(MemoryArena& a_temp_arena, const VkPh
 	return return_value;
 }
 
-static VkDevice CreateLogicalDevice(MemoryArena& a_temp_arena, const VkPhysicalDevice a_phys_device, const VulkanQueuesIndices& a_queue_indices, const BB::Slice<const char*>& a_device_extensions)
+static VkDevice CreateLogicalDevice(MemoryArena& a_temp_arena, const VkPhysicalDevice a_phys_device, const VulkanQueuesIndices& a_queue_indices, const BB::Slice<const char*>& a_device_extensions, const bool a_use_raytracing)
 {
 	VkPhysicalDeviceFeatures device_features{};
 	device_features.geometryShader = VK_TRUE;
@@ -363,7 +364,8 @@ static VkDevice CreateLogicalDevice(MemoryArena& a_temp_arena, const VkPhysicalD
 	indexingFeatures.descriptorBindingPartiallyBound = VK_TRUE;
 	indexingFeatures.runtimeDescriptorArray = VK_TRUE;
 	indexingFeatures.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
-	indexingFeatures.descriptorBindingVariableDescriptorCount = VK_TRUE;
+    indexingFeatures.descriptorBindingStorageBufferUpdateAfterBind = VK_TRUE;
+    indexingFeatures.descriptorBindingUniformBufferUpdateAfterBind = VK_TRUE;
 	indexingFeatures.pNext = &dynamic_rendering;
 
 	VkPhysicalDeviceBufferDeviceAddressFeatures address_feature{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES };
@@ -420,7 +422,10 @@ static VkDevice CreateLogicalDevice(MemoryArena& a_temp_arena, const VkPhysicalD
 	device_create_info.pEnabledFeatures = &device_features;
 	device_create_info.ppEnabledExtensionNames = a_device_extensions.data();
 	device_create_info.enabledExtensionCount = static_cast<uint32_t>(a_device_extensions.size());
-	device_create_info.pNext = &acceleration_struct;
+    if (a_use_raytracing)
+	    device_create_info.pNext = &acceleration_struct;
+    else
+        device_create_info.pNext = &shader_objects;
 
 	VkDevice return_device;
 	VKASSERT(vkCreateDevice(a_phys_device,
@@ -479,39 +484,35 @@ static DescriptorInfo CreateDescriptorInfo(const VkDevice a_device, const uint32
     layout_bindings[0].descriptorCount = 1;
     layout_bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     layout_bindings[0].stageFlags = VK_SHADER_STAGE_ALL;
-    layout_bindings[1].binding = GPU_BINDING_SCENE;
-    layout_bindings[1].descriptorCount = 1;
-    layout_bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    layout_bindings[1].stageFlags = VK_SHADER_STAGE_ALL;
-    layout_bindings[2].binding = GPU_BINDING_IMAGES;
-    layout_bindings[2].descriptorCount = a_image_count;
-    layout_bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    layout_bindings[1].binding = GPU_BINDING_IMAGES;
+    layout_bindings[1].descriptorCount = a_image_count;
+    layout_bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+    layout_bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    layout_bindings[2].binding = GPU_BINDING_SAMPLERS;
+    layout_bindings[2].descriptorCount = a_sampler_count;
+    layout_bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
     layout_bindings[2].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    layout_bindings[3].binding = GPU_BINDING_SAMPLERS;
-    layout_bindings[3].descriptorCount = a_sampler_count;
-    layout_bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-    layout_bindings[3].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    layout_bindings[4].binding = GPU_BINDING_BUFFERS;
-    layout_bindings[4].descriptorCount = a_buffer_count;
-    layout_bindings[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    layout_bindings[3].binding = GPU_BINDING_BUFFERS;
+    layout_bindings[3].descriptorCount = a_buffer_count;
+    layout_bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    layout_bindings[3].stageFlags = VK_SHADER_STAGE_ALL;
+    layout_bindings[4].binding = GPU_BINDING_UNIFORMS;
+    layout_bindings[4].descriptorCount = a_uniform_count;
+    layout_bindings[4].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     layout_bindings[4].stageFlags = VK_SHADER_STAGE_ALL;
-    layout_bindings[5].binding = GPU_BINDING_UNIFORMS;
-    layout_bindings[5].descriptorCount = a_uniform_count;
-    layout_bindings[5].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    layout_bindings[5].stageFlags = VK_SHADER_STAGE_ALL;
-    layout_bindings[6].binding = GPU_BINDING_IMMUTABLE_SAMPLERS;
-    layout_bindings[6].descriptorCount = GPU_IMMUTABLE_SAMPLE_COUNT;
-    layout_bindings[6].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-    layout_bindings[6].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    layout_bindings[6].pImmutableSamplers = s;
+    layout_bindings[5].binding = GPU_BINDING_IMMUTABLE_SAMPLERS;
+    layout_bindings[5].descriptorCount = GPU_IMMUTABLE_SAMPLE_COUNT;
+    layout_bindings[5].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+    layout_bindings[5].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    layout_bindings[5].pImmutableSamplers = s;
 
     FixedArray<VkDescriptorBindingFlags, GPU_BINDING_COUNT> layout_binding_flags{};
     layout_binding_flags[0] = 0;
     layout_binding_flags[1] = 0;
     layout_binding_flags[2] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
     layout_binding_flags[3] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
-    layout_binding_flags[4] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT;
-    layout_binding_flags[5] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT;
+    layout_binding_flags[4] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+    layout_binding_flags[5] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
     layout_binding_flags[6] = 0;
 
 
@@ -935,7 +936,6 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const RendererCreateInfo& a_
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 		VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME,
 		VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
-		VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME,
 		VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
 		VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME,
 		VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME,
@@ -957,7 +957,7 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const RendererCreateInfo& a_
 		++extension_count;
 	}
 
-	if (a_create_info.use_raytracing)
+	if (s_vulkan_inst->use_raytracing)
 	{
 		chosen_extensions[_countof(device_extensions)] = device_raytracing[0];
 		chosen_extensions[_countof(device_extensions) + 1] = device_raytracing[1];
@@ -1052,7 +1052,8 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const RendererCreateInfo& a_
 			s_vulkan_inst->device = CreateLogicalDevice(a_arena,
 				s_vulkan_inst->phys_device, 
 				s_vulkan_inst->queue_indices,
-				Slice(chosen_extensions, extension_count));
+				Slice(chosen_extensions, extension_count),
+                s_vulkan_inst->use_raytracing);
 		}
 
 		{	//VMA stuff
@@ -1864,6 +1865,8 @@ ShaderObject Vulkan::CreateShaderObject(const ShaderObjectCreateInfo& a_shader_o
         &shader_object);
 	VKASSERT(result, "Failed to create a shader object!");
 
+    SetDebugName(a_shader_object.name, shader_object, VK_OBJECT_TYPE_SHADER_EXT);
+
 	return ShaderObject(reinterpret_cast<size_t>(shader_object));
 }
 
@@ -1901,6 +1904,11 @@ void Vulkan::CreateShaderObjects(MemoryArena& a_temp_arena, Slice<ShaderObjectCr
 		nullptr,
 		reinterpret_cast<VkShaderEXT*>(a_pshader_objects)),
 		"Failed to create shader objects!");
+
+    for (size_t i = 0; i < a_shader_objects.size(); i++)
+    {
+        SetDebugName(a_shader_objects[i].name, a_pshader_objects[i].handle, VK_OBJECT_TYPE_SHADER_EXT);
+    }
 }
 
 void Vulkan::DestroyShaderObject(const ShaderObject a_shader_object)

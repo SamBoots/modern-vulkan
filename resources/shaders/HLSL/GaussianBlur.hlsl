@@ -18,7 +18,7 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 
 float4 FragmentMain(VSOutput a_input) : SV_Target
 {
-    const BB::ShaderGaussianBlur shader_indices = (BB::ShaderGaussianBlur)push_constant.userdata;
+    const BB::ShaderGaussianBlur shader_indices = PushConstantBlur();
 
     float weight[5];
     weight[0] = 0.227027;

@@ -92,6 +92,7 @@ namespace BB
 
 	struct ShaderObjectCreateInfo
 	{
+        const char* name;
 		//maybe flags.
 		SHADER_STAGE stage;
 		SHADER_STAGE_FLAGS next_stages;

@@ -9,7 +9,7 @@ struct VSOutput
 
 VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 {
-    BB::ShaderIndices2D shader_indices = (BB::ShaderIndices2D)push_constant.userdata;
+    BB::ShaderIndices2D shader_indices = PushConstant2D();
 
     const uint vertex_offset = shader_indices.vertex_offset + sizeof(BB::Vertex2D) * a_vertex_index;
     BB::Vertex2D cur_vertex;
@@ -27,7 +27,7 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 
 float4 FragmentMain(VSOutput a_input) : SV_Target
 {
-    BB::ShaderIndices2D shader_indices = (BB::ShaderIndices2D)push_constant.userdata;
+    BB::ShaderIndices2D shader_indices = PushConstant2D();
 
     float4 color = a_input.color * textures[shader_indices.albedo_texture].Sample(BASIC_3D_SAMPLER, a_input.uv);
     return color;

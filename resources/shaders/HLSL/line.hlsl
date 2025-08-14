@@ -10,7 +10,7 @@ struct VSOutput
 
 VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 {
-    BB::ShaderLine shader_indices = (BB::ShaderLine)push_constant.userdata;
+    BB::ShaderLine shader_indices = PushConstantLine();
     BB::Scene3DInfo scene = GetSceneInfo();
 
     const uint vertex_offset = shader_indices.vertex_start + a_vertex_index * sizeof(float4);
@@ -33,7 +33,7 @@ struct GSOutput
 [maxvertexcount(4)]
 void GeometryMain(line VSOutput a_in[2], inout TriangleStream<GSOutput> a_out) : SV_Target
 {
-    BB::ShaderLine shader_indices = (BB::ShaderLine)push_constant.userdata;
+    BB::ShaderLine shader_indices = PushConstantLine();
     BB::Scene3DInfo scene = GetSceneInfo();
 
     float4 p0 = a_in[0].pos;

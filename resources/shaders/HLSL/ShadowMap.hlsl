@@ -3,7 +3,7 @@
 float4 VertexMain(uint a_vertex_index : SV_VertexID) : SV_POSITION
 {
     BB::Scene3DInfo scene = GetSceneInfo();
-    BB::ShaderIndicesShadowMapping shader_indices = (BB::ShaderIndicesShadowMapping)push_constant.userdata;
+    BB::ShaderIndicesShadowMapping shader_indices = PushConstantShadowMapping();
 
     const float3 cur_vertex_pos = GetAttributeFloat3(shader_indices.position_offset, a_vertex_index);
    
