@@ -40,11 +40,13 @@ namespace BB
         float delta_time;           // 28
         float total_time;           // 32
         float gamma;                // 36
-        uint cubemap_vertex_offset; // 40 used for cubemaps, the type is VertexPos
+        uint cubemap_geometry_offset; // 40 used for cubemaps, the type is VertexPos
 
         // buffers
-        RDescriptorIndex vertex_buffer;         // 44
-        RDescriptorIndex cpu_vertex_buffer;     // 48
+        RDescriptorIndex geometry_buffer;           // 44
+        RDescriptorIndex shading_buffer;            // 48
+        RDescriptorIndex cpu_vertex_buffer;         // 52
+        uint3 pad0;                                 // 64
     };
 
     struct ALIGN_STRUCT(16) Scene3DInfo
@@ -122,11 +124,19 @@ namespace BB
         float4 color;
     };
 
+    struct PBRShadingAttribute
+    {
+        float3 normal;  // 12
+        float3 tangent; // 24
+        float2 uv;      // 32
+        float4 color;   // 48
+    };
+
     //could make the size the same for shaderindices and shaderindices2d so that the pushconstant pipelinelayout is the same.....
     struct PBRIndices
     {
-        uint vertex_offset;             // 4
-        uint vertex_count;              // 8
+        uint geometry_offset;           // 4
+        uint shading_offset;            // 8
         uint transform_index;           // 12
         RDescriptorIndex material_index;// 16
     };
@@ -148,7 +158,7 @@ namespace BB
 
     struct ShaderIndicesShadowMapping
     {
-        uint position_offset;           // 4
+        uint geometry_offset;           // 4
         uint transform_index;           // 8
         uint shadow_map_index;          // 12
     };

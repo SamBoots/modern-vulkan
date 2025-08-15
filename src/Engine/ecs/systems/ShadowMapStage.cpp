@@ -141,7 +141,7 @@ void ShadowMapStage::ExecutePass(const RCommandList a_list, const uint32_t a_fra
             const DrawList::DrawEntry& mesh_draw_call = a_draw_list.draw_entries[draw_index];
 
             ShaderIndicesShadowMapping shader_indices;
-            shader_indices.position_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_position_offset);
+            shader_indices.geometry_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_geometry_offset);
             shader_indices.transform_index = draw_index;
             shader_indices.shadow_map_index = shadow_map_index;
             SetPushConstantUserData(a_list, 0, sizeof(shader_indices), &shader_indices);

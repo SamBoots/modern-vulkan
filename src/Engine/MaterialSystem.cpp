@@ -251,6 +251,7 @@ MaterialHandle Material::CreateMaterialInstance(const MasterMaterialHandle a_mas
 	MaterialInstance mat;
 	mat.master_handle = a_master_material;
 	mat.user_data_size = master.user_data_size;
+    mat.descriptor_index = AllocateUniformDescriptor();
 
 	GPUBufferCreateInfo create_buffer;
 	create_buffer.name = master.name.c_str();
@@ -262,6 +263,8 @@ MaterialHandle Material::CreateMaterialInstance(const MasterMaterialHandle a_mas
 		mat.mapper_ptr = MapGPUBuffer(mat.buffer);
 	else
 		mat.mapper_ptr = nullptr;
+
+    DescriptorWriteUniformBuffer(mat.descriptor_index, GPUBufferView(mat.buffer, mat.user_data_size, 0));
 
 	const MaterialHandle material_index = MaterialHandle(s_material_inst->material_instances.emplace(mat));
 

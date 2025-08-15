@@ -89,6 +89,7 @@ namespace BB
 		uint32_t user_data_size;
 		GPUBuffer buffer;
 		void* mapper_ptr; // if true means the buffer is cpu writeable;
+        RDescriptorIndex descriptor_index;
 	};
 
 	namespace Material

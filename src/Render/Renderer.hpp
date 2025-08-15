@@ -80,7 +80,8 @@ namespace BB
 	bool ExecuteTransferCommands(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value);
 	bool ExecuteComputeCommands(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value);
 
-	GPUBufferView AllocateFromVertexBuffer(const size_t a_size_in_bytes);
+	GPUBufferView AllocateFromVertexBufferGeometry(const size_t a_size_in_bytes);
+    GPUBufferView AllocateFromVertexBufferShading(const size_t a_size_in_bytes);
 	GPUBufferView AllocateFromIndexBuffer(const size_t a_size_in_bytes);
 	void CopyToVertexBuffer(const RCommandList a_list, const GPUBuffer a_src, const Slice<RenderCopyBufferRegion> a_regions);
 	void CopyToIndexBuffer(const RCommandList a_list, const GPUBuffer a_src, const Slice<RenderCopyBufferRegion> a_regions);

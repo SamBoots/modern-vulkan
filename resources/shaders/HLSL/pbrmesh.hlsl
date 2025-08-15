@@ -22,21 +22,14 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
     BB::Scene3DInfo scene = GetSceneInfo();
     BB::PBRIndices shader_indices = PushConstantPBR();
 
-    const float3 position = GetAttributeFloat3(shader_indices.vertex_offset, a_vertex_index);
-    uint normal_pos = shader_indices.vertex_offset + sizeof(float3) * shader_indices.vertex_count;
-    const float3 normal = GetAttributeFloat3(normal_pos, a_vertex_index);
-    uint uv_pos = normal_pos + sizeof(float3) * shader_indices.vertex_count;
-    const float2 uv = GetAttributeFloat2(uv_pos, a_vertex_index);
-    uint color_pos = uv_pos + sizeof(float2) * shader_indices.vertex_count;
-    const float4 color = GetAttributeFloat4(color_pos, a_vertex_index);
-    uint tangent_pos = color_pos + sizeof(float4) * shader_indices.vertex_count;
-    const float3 tangent = GetAttributeFloat3(tangent_pos, a_vertex_index);
+    const float3 position = GetAttributeGeometry(shader_indices.geometry_offset, a_vertex_index);
+    BB::PBRShadingAttribute shading = GetAttributePBRShading(shader_indices.shading_offset, a_vertex_index);
    
     BB::ShaderTransform transform = buffers[scene.matrix_index].Load<BB::ShaderTransform>(sizeof(BB::ShaderTransform) * shader_indices.transform_index);
     
-    float3x3 normalMatrix = (float3x3)transpose(transform.inverse);
-    float3 T = normalize(mul(normalMatrix, tangent));
-    const float3 N = normalize(mul(normalMatrix, normal));
+    float3x3 normal_matrix = (float3x3)transpose(transform.inverse);
+    float3 T = normalize(mul(normal_matrix, shading.tangent));
+    const float3 N = normalize(mul(normal_matrix, shading.normal));
     T = normalize(T - dot(T, N) * N);
     const float3 B = cross(N, T);
     const float3x3 TBN = transpose(float3x3(T, B, N));
@@ -44,8 +37,8 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
     VSOutput output = (VSOutput) 0;
     output.world_pos = float4(mul(transform.transform, float4(position, 1.0f))).xyz;
     output.pos = mul(scene.proj, mul(scene.view, float4(output.world_pos, 1.0)));
-    output.uv = uv;
-    output.color = color;
+    output.uv = shading.uv;
+    output.color = shading.color;
     output.TBN = TBN;
     
     for (uint i = 0; i < scene.light_count; i++)

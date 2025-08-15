@@ -51,21 +51,25 @@ float4 UnpackR8B8G8A8_UNORMToFloat4(uint a_packed)
     return unpacked * sc;
 }
 
-float2 GetAttributeFloat2(const uint a_offset, const uint a_vertex_index)
+float3 GetAttributeGeometry(const uint a_offset, const uint a_vertex_index)
 {
-     return asfloat(buffers[global_data.vertex_buffer].Load2(a_offset + sizeof(float2) * a_vertex_index));
+     return asfloat(buffers[global_data.geometry_buffer].Load3(a_offset + sizeof(float3) * a_vertex_index));
 }
 
-float3 GetAttributeFloat3(const uint a_offset, const uint a_vertex_index)
+BB::PBRShadingAttribute GetAttributePBRShading(const uint a_offset, const uint a_vertex_index)
 {
-     return asfloat(buffers[global_data.vertex_buffer].Load3(a_offset + sizeof(float3) * a_vertex_index));
+    const uint offset = a_offset * sizeof(BB::PBRShadingAttribute) * a_vertex_index;
+    BB::PBRShadingAttribute attrib;
+    attrib.normal = asfloat(buffers[global_data.shading_buffer].Load3(offset));
+    attrib.tangent = asfloat(buffers[global_data.shading_buffer].Load3(offset + 12));
+    attrib.uv = asfloat(buffers[global_data.shading_buffer].Load2(offset + 24));
+    attrib.color = asfloat(buffers[global_data.shading_buffer].Load4(offset + 32));
+    return attrib;
+
+
+    return buffers[global_data.shading_buffer].Load<BB::PBRShadingAttribute>(a_offset + sizeof(BB::PBRShadingAttribute) * a_vertex_index);
 }
 
-float4 GetAttributeFloat4(const uint a_offset, const uint a_vertex_index)
-{
-    return asfloat(buffers[global_data.vertex_buffer].Load4(a_offset + sizeof(float4) * a_vertex_index));
-}
-    
 float3 ReinhardToneMapping(const float3 a_hdr_color)
 {
     return a_hdr_color / (a_hdr_color + float3(1.0, 1.0, 1.0));
@@ -84,8 +88,8 @@ BB::Scene3DInfo GetSceneInfo()
 BB::PBRIndices PushConstantPBR()
 {
     BB::PBRIndices indices;
-    indices.vertex_offset = push_constant.userdata[0];
-    indices.vertex_count = push_constant.userdata[1];
+    indices.geometry_offset = push_constant.userdata[0];
+    indices.shading_offset = push_constant.userdata[1];
     indices.transform_index = push_constant.userdata[2];
     indices.material_index = push_constant.userdata[3];
     return indices;
@@ -116,7 +120,7 @@ BB::ShaderIndicesGlyph PushConstantGlyph()
 BB::ShaderIndicesShadowMapping PushConstantShadowMapping()
 {
     BB::ShaderIndicesShadowMapping indices;
-    indices.position_offset = push_constant.userdata[0];
+    indices.geometry_offset = push_constant.userdata[0];
     indices.transform_index = push_constant.userdata[1];
     indices.shadow_map_index = push_constant.userdata[2];
     return indices;

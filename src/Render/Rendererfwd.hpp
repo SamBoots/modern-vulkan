@@ -356,11 +356,8 @@ namespace BB
 
 	struct Mesh
 	{
-		uint64_t vertex_position_offset;
-		uint64_t vertex_normal_offset;
-		uint64_t vertex_uv_offset;
-		uint64_t vertex_color_offset;
-		uint64_t vertex_tangent_offset;
+		uint64_t vertex_geometry_offset;
+        uint64_t vertex_shading_offset;
 		uint64_t index_buffer_offset;
 	};
 

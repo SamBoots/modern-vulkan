@@ -10,7 +10,7 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 {
     const BB::Scene3DInfo scene_info = GetSceneInfo();
     
-    const float3 position = GetAttributeFloat3(global_data.cubemap_vertex_offset, a_vertex_index);
+    const float3 position = GetAttributeGeometry(global_data.cubemap_geometry_offset, a_vertex_index);
     
     VSOutput output = (VSOutput)0;
     output.uvw = position;

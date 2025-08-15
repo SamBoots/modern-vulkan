@@ -93,13 +93,10 @@ void RasterMeshStage::ExecutePass(const RCommandList a_list, const uint32_t a_fr
         SetPrimitiveTopology(a_list, PRIMITIVE_TOPOLOGY::TRIANGLE_LIST);
         Material::BindMaterial(a_list, mesh_draw_call.master_material);
 
-        const size_t position_byte_size = mesh_draw_call.mesh.vertex_normal_offset - mesh_draw_call.mesh.vertex_position_offset;
-        const uint32_t vertex_count = static_cast<uint32_t>(position_byte_size / sizeof(float3));
-
         PBRIndices shader_indices;
         shader_indices.transform_index = i;
-        shader_indices.vertex_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_position_offset);
-        shader_indices.vertex_count = vertex_count;
+        shader_indices.geometry_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_geometry_offset);
+        shader_indices.shading_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_shading_offset);
         shader_indices.material_index = RDescriptorIndex(mesh_draw_call.material.index);
         SetPushConstantUserData(a_list, 0, sizeof(shader_indices), &shader_indices);
 

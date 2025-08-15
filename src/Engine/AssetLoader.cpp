@@ -145,7 +145,8 @@ struct GPUTask
 
 struct UploadDataMesh
 {
-	RenderCopyBufferRegion vertex_region;
+	RenderCopyBufferRegion geometry_region;
+    RenderCopyBufferRegion shading_region;
 	GPUBuffer vertex_dst_buffer;
 	RenderCopyBufferRegion index_region;
 	GPUBuffer index_dst_buffer;
@@ -159,12 +160,12 @@ enum class UPLOAD_TEXTURE_TYPE
 
 struct CreateMeshInfo
 {
-	ConstSlice<float3> positions;
-	ConstSlice<float3> normals;
-	ConstSlice<float2> uvs;
-	ConstSlice<float4> colors;
-	ConstSlice<float3> tangents;
-	ConstSlice<uint32_t> indices;
+    ConstSlice<float3> positions;
+    ConstSlice<float3> normals;
+    ConstSlice<float2> uvs;
+    ConstSlice<float4> colors;
+    ConstSlice<float3> tangents;
+    ConstSlice<uint32_t> indices;
 };
 
 struct UploadDataTexture
@@ -294,7 +295,8 @@ static void UploadAndWaitAssets(MemoryArena& a_thread_arena, void*)
 				UploadDataMesh upload_data;
 				while (uploader.upload_meshes.DeQueue(upload_data) && vertex_regions.size() < MAX_MESH_UPLOAD_QUEUE)
 				{
-					vertex_regions.push_back(upload_data.vertex_region);
+					vertex_regions.push_back(upload_data.geometry_region);
+                    vertex_regions.push_back(upload_data.shading_region);
 					if (upload_data.index_region.size)
 						index_regions.push_back(upload_data.index_region);
 				}
@@ -393,7 +395,9 @@ static GPUFenceValue CreateMesh(MemoryArena& a_temp_arena, const CreateMeshInfo&
 {
 	GPUUploader& uploader = s_asset_manager->gpu_uploader;
 
-	const size_t vertex_buffer_size = a_create_info.positions.sizeInBytes() + a_create_info.normals.sizeInBytes() + a_create_info.uvs.sizeInBytes() + a_create_info.colors.sizeInBytes() + a_create_info.tangents.sizeInBytes();
+	const size_t geometry_size = a_create_info.positions.sizeInBytes();
+    const size_t shading_size = a_create_info.normals.sizeInBytes() + a_create_info.uvs.sizeInBytes() + a_create_info.colors.sizeInBytes() + a_create_info.tangents.sizeInBytes();
+    const size_t total_vertex_size = geometry_size + shading_size;
 
 	auto memcpy_and_advance = [](const GPUUploadRingAllocator& a_buffer, const size_t a_dst_offset, const void* a_src_data, const size_t a_src_size)
 		{
@@ -403,29 +407,43 @@ static GPUFenceValue CreateMesh(MemoryArena& a_temp_arena, const CreateMeshInfo&
 		};
 
 	const GPUFenceValue fence_value = GPUFenceValue(uploader.next_fence_value.load());
-	const size_t vertex_start_offset = uploader.upload_buffer.AllocateUploadMemory(vertex_buffer_size + a_create_info.indices.sizeInBytes(), fence_value);
+	const size_t vertex_start_offset = uploader.upload_buffer.AllocateUploadMemory(total_vertex_size + a_create_info.indices.sizeInBytes(), fence_value);
 	if (vertex_start_offset == size_t(-1))
 	{
 		UploadAndWaitAssets(a_temp_arena, nullptr);
 		return CreateMesh(a_temp_arena, a_create_info, a_out_mesh);
 	}
 
-	const size_t normal_offset = memcpy_and_advance(uploader.upload_buffer, vertex_start_offset, a_create_info.positions.data(), a_create_info.positions.sizeInBytes());
-	const size_t uv_offset = memcpy_and_advance(uploader.upload_buffer, normal_offset, a_create_info.normals.data(), a_create_info.normals.sizeInBytes());
-	const size_t color_offset = memcpy_and_advance(uploader.upload_buffer, uv_offset, a_create_info.uvs.data(), a_create_info.uvs.sizeInBytes());
-	const size_t tangent_offset = memcpy_and_advance(uploader.upload_buffer, color_offset, a_create_info.colors.data(), a_create_info.colors.sizeInBytes());
-	const size_t index_offset = memcpy_and_advance(uploader.upload_buffer, tangent_offset, a_create_info.tangents.data(), a_create_info.tangents.sizeInBytes());
+
+	const size_t position_end = memcpy_and_advance(uploader.upload_buffer, vertex_start_offset, a_create_info.positions.data(), a_create_info.positions.sizeInBytes());
+    // TODO, interleave it inside the load functions
+    size_t shading_offset = position_end;
+    for (size_t i = 0; i < a_create_info.normals.size(); i++)
+    {
+        PBRShadingAttribute shading;
+        shading.normal = a_create_info.normals[i];
+        shading.uv = a_create_info.uvs[i];
+        shading.tangent = a_create_info.tangents[i];
+        shading.color = a_create_info.colors[i];
+        shading_offset = memcpy_and_advance(uploader.upload_buffer, shading_offset, &shading, sizeof(PBRShadingAttribute));
+    }
+    const size_t index_offset = shading_offset;
 
 	// now the indices
 	memcpy_and_advance(uploader.upload_buffer, index_offset, a_create_info.indices.data(), a_create_info.indices.sizeInBytes());
 
-	const GPUBufferView vertex_buffer = AllocateFromVertexBuffer(vertex_buffer_size);
+	const GPUBufferView geometry_buffer = AllocateFromVertexBufferGeometry(geometry_size);
+    const GPUBufferView shading_buffer = AllocateFromVertexBufferShading(shading_size);
 	const GPUBufferView index_buffer = a_create_info.indices.size() ? AllocateFromIndexBuffer(a_create_info.indices.sizeInBytes()) : GPUBufferView();
 
 	UploadDataMesh task{};
-	task.vertex_region.size = vertex_buffer.size;
-	task.vertex_region.dst_offset = vertex_buffer.offset;
-	task.vertex_region.src_offset = vertex_start_offset;
+	task.geometry_region.size = geometry_buffer.size;
+	task.geometry_region.dst_offset = geometry_buffer.offset;
+	task.geometry_region.src_offset = vertex_start_offset;
+    task.shading_region.size = shading_buffer.size;
+    task.shading_region.dst_offset = shading_buffer.offset;
+    task.shading_region.src_offset = vertex_start_offset + geometry_buffer.size;
+
 	task.index_region.size = index_buffer.size;
 	task.index_region.dst_offset = index_buffer.offset;
 	task.index_region.src_offset = index_offset;
@@ -433,11 +451,8 @@ static GPUFenceValue CreateMesh(MemoryArena& a_temp_arena, const CreateMeshInfo&
 	BB_ASSERT(success, "failed to add mesh to uploadmesh tasks");
 
 	Mesh mesh{};
-	mesh.vertex_position_offset = vertex_buffer.offset;
-	mesh.vertex_normal_offset = vertex_buffer.offset + normal_offset - vertex_start_offset;
-	mesh.vertex_uv_offset = vertex_buffer.offset + uv_offset - vertex_start_offset;
-	mesh.vertex_color_offset = vertex_buffer.offset + color_offset - vertex_start_offset;
-	mesh.vertex_tangent_offset = vertex_buffer.offset + tangent_offset - vertex_start_offset;
+	mesh.vertex_geometry_offset = geometry_buffer.offset;
+	mesh.vertex_shading_offset = shading_buffer.offset;
 	mesh.index_buffer_offset = index_buffer.offset;
 
 	a_out_mesh = mesh;
