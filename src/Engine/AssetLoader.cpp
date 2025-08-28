@@ -396,7 +396,7 @@ static GPUFenceValue CreateMesh(MemoryArena& a_temp_arena, const CreateMeshInfo&
 	GPUUploader& uploader = s_asset_manager->gpu_uploader;
 
 	const size_t geometry_size = a_create_info.positions.sizeInBytes();
-    const size_t shading_size = a_create_info.normals.sizeInBytes() + a_create_info.uvs.sizeInBytes() + a_create_info.colors.sizeInBytes() + a_create_info.tangents.sizeInBytes();
+    const size_t shading_size = a_create_info.normals.size() * sizeof(PBRShadingAttribute);
     const size_t total_vertex_size = geometry_size + shading_size;
 
 	auto memcpy_and_advance = [](const GPUUploadRingAllocator& a_buffer, const size_t a_dst_offset, const void* a_src_data, const size_t a_src_size)
@@ -413,7 +413,6 @@ static GPUFenceValue CreateMesh(MemoryArena& a_temp_arena, const CreateMeshInfo&
 		UploadAndWaitAssets(a_temp_arena, nullptr);
 		return CreateMesh(a_temp_arena, a_create_info, a_out_mesh);
 	}
-
 
 	const size_t position_end = memcpy_and_advance(uploader.upload_buffer, vertex_start_offset, a_create_info.positions.data(), a_create_info.positions.sizeInBytes());
     // TODO, interleave it inside the load functions
@@ -432,17 +431,17 @@ static GPUFenceValue CreateMesh(MemoryArena& a_temp_arena, const CreateMeshInfo&
 	// now the indices
 	memcpy_and_advance(uploader.upload_buffer, index_offset, a_create_info.indices.data(), a_create_info.indices.sizeInBytes());
 
-	const GPUBufferView geometry_buffer = AllocateFromVertexBufferGeometry(geometry_size);
-    const GPUBufferView shading_buffer = AllocateFromVertexBufferShading(shading_size);
+	const AttributeGPUBufferView geometry_buffer = AllocateFromVertexBufferGeometry(geometry_size);
+    const AttributeGPUBufferView shading_buffer = AllocateFromVertexBufferShading(shading_size);
 	const GPUBufferView index_buffer = a_create_info.indices.size() ? AllocateFromIndexBuffer(a_create_info.indices.sizeInBytes()) : GPUBufferView();
 
 	UploadDataMesh task{};
-	task.geometry_region.size = geometry_buffer.size;
-	task.geometry_region.dst_offset = geometry_buffer.offset;
+	task.geometry_region.size = geometry_buffer.view.size;
+	task.geometry_region.dst_offset = geometry_buffer.view.offset;
 	task.geometry_region.src_offset = vertex_start_offset;
-    task.shading_region.size = shading_buffer.size;
-    task.shading_region.dst_offset = shading_buffer.offset;
-    task.shading_region.src_offset = vertex_start_offset + geometry_buffer.size;
+    task.shading_region.size = shading_buffer.view.size;
+    task.shading_region.dst_offset = shading_buffer.view.offset;
+    task.shading_region.src_offset = position_end;
 
 	task.index_region.size = index_buffer.size;
 	task.index_region.dst_offset = index_buffer.offset;
@@ -451,8 +450,8 @@ static GPUFenceValue CreateMesh(MemoryArena& a_temp_arena, const CreateMeshInfo&
 	BB_ASSERT(success, "failed to add mesh to uploadmesh tasks");
 
 	Mesh mesh{};
-	mesh.vertex_geometry_offset = geometry_buffer.offset;
-	mesh.vertex_shading_offset = shading_buffer.offset;
+	mesh.vertex_geometry_offset = geometry_buffer.desc_offset;
+	mesh.vertex_shading_offset = shading_buffer.desc_offset;
 	mesh.index_buffer_offset = index_buffer.offset;
 
 	a_out_mesh = mesh;

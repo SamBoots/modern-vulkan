@@ -58,7 +58,7 @@ float3 GetAttributeGeometry(const uint a_offset, const uint a_vertex_index)
 
 BB::PBRShadingAttribute GetAttributePBRShading(const uint a_offset, const uint a_vertex_index)
 {
-    const uint offset = a_offset * sizeof(BB::PBRShadingAttribute) * a_vertex_index;
+    const uint offset = a_offset + sizeof(BB::PBRShadingAttribute) * a_vertex_index;
     BB::PBRShadingAttribute attrib;
     attrib.normal = asfloat(buffers[global_data.shading_buffer].Load3(offset));
     attrib.tangent = asfloat(buffers[global_data.shading_buffer].Load3(offset + 12));

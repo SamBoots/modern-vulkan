@@ -124,7 +124,7 @@ namespace BB
         float4 color;
     };
 
-    struct PBRShadingAttribute
+    struct ALIGN_STRUCT(16) PBRShadingAttribute
     {
         float3 normal;  // 12
         float3 tangent; // 24

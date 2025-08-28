@@ -97,7 +97,7 @@ void RasterMeshStage::ExecutePass(const RCommandList a_list, const uint32_t a_fr
         shader_indices.transform_index = i;
         shader_indices.geometry_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_geometry_offset);
         shader_indices.shading_offset = static_cast<uint32_t>(mesh_draw_call.mesh.vertex_shading_offset);
-        shader_indices.material_index = RDescriptorIndex(mesh_draw_call.material.index);
+        shader_indices.material_index = Material::GetMaterialBufferIndex(mesh_draw_call.material);
         SetPushConstantUserData(a_list, 0, sizeof(shader_indices), &shader_indices);
 
         DrawIndexed(a_list,

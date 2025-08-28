@@ -90,7 +90,7 @@ namespace BB
 				return a_destination;
 			}
 			else
-				BB_STATIC_ASSERT(false, "Something weird happened, Unsafe Move.");
+				static_assert(false);
 			return nullptr;
 		}
 

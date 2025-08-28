@@ -119,6 +119,7 @@ namespace BB
 
 		MasterMaterialHandle CreateMasterMaterial(MemoryArena& a_temp_arena, const MaterialCreateInfo& a_create_info, const StringView a_name);
 		MaterialHandle CreateMaterialInstance(const MasterMaterialHandle a_master_material);
+		RDescriptorIndex GetMaterialBufferIndex(const MaterialHandle a_material);
 		void FreeMaterialInstance(const MaterialHandle a_material);
 		void WriteMaterial(const MaterialHandle a_material, const RCommandList a_list, const GPUBuffer a_src_buffer, const size_t a_src_offset);
 		void WriteMaterialCPU(const MaterialHandle a_material, const void* a_memory, const size_t a_memory_size);

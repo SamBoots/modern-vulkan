@@ -553,7 +553,7 @@ static DescriptorInfo CreateDescriptorInfo(const VkDevice a_device, const uint32
     pool_sizes[0].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
     pool_sizes[0].descriptorCount = a_image_count;
     pool_sizes[1].type = VK_DESCRIPTOR_TYPE_SAMPLER;
-    pool_sizes[1].descriptorCount = a_sampler_count;
+    pool_sizes[1].descriptorCount = a_sampler_count + GPU_IMMUTABLE_SAMPLE_COUNT;
     pool_sizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     pool_sizes[2].descriptorCount = a_buffer_count;
     pool_sizes[3].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -684,22 +684,6 @@ static inline void SetDebugName_f(const char* a_name, const uint64_t a_object_ha
 #else
 #define SetDebugName
 #endif //_DEBUG
-
-static inline VkDescriptorType DescriptorBufferType(const DESCRIPTOR_TYPE a_type)
-{
-	switch (a_type)
-	{
-	case DESCRIPTOR_TYPE::READONLY_CONSTANT:	    return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	case DESCRIPTOR_TYPE::READONLY_BUFFER:		    return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	case DESCRIPTOR_TYPE::READWRITE:			    return VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-	case DESCRIPTOR_TYPE::IMAGE:				    return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-	case DESCRIPTOR_TYPE::SAMPLER:				    return VK_DESCRIPTOR_TYPE_SAMPLER;
-	case DESCRIPTOR_TYPE::ACCELERATION_STRUCTURE:   return VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
-	default:
-		BB_ASSERT(false, "Vulkan: DESCRIPTOR_TYPE failed to convert to a VkDescriptorType.");
-		return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	}
-}
 
 static inline VkShaderStageFlags ShaderStageFlags(const SHADER_STAGE a_stage)
 {
@@ -870,12 +854,12 @@ static inline VkImageUsageFlags ImageUsage(const IMAGE_USAGE a_usage)
 {
 	switch (a_usage)
 	{
-	case IMAGE_USAGE::DEPTH:			    return VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
+	case IMAGE_USAGE::DEPTH:			    return VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
 	case IMAGE_USAGE::SHADOW_MAP:			return VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
 	case IMAGE_USAGE::TEXTURE:			    return VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
-	case IMAGE_USAGE::SWAPCHAIN_COPY_IMG:	return  VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
-	case IMAGE_USAGE::RENDER_TARGET:    	return VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
-	case IMAGE_USAGE::COPY_SRC_DST: 		return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+	case IMAGE_USAGE::SWAPCHAIN_COPY_IMG:	return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
+	case IMAGE_USAGE::RENDER_TARGET:    	return VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT BB_EXTENDED_IMAGE_USAGE_FLAGS;
+	case IMAGE_USAGE::COPY_SRC_DST: 		return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 	default:
 		BB_ASSERT(false, "Vulkan: IMAGE_USAGE failed to convert to a VkImageUsageFlags.");
 		return VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
@@ -928,17 +912,11 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const RendererCreateInfo& a_
 	const char* instance_extensions[] = {
 		VK_KHR_SURFACE_EXTENSION_NAME,
 		VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
-		VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME,
 		VK_EXT_DEBUG_UTILS_EXTENSION_NAME
 	};
 
 	constexpr const char* device_extensions[] = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-		VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME,
-		VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
-		VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
-		VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME,
-		VK_EXT_EXTENDED_DYNAMIC_STATE_EXTENSION_NAME,
 		VK_EXT_VERTEX_INPUT_DYNAMIC_STATE_EXTENSION_NAME,
 		VK_EXT_SHADER_OBJECT_EXTENSION_NAME
 	};
@@ -1130,6 +1108,9 @@ GPUDeviceInfo Vulkan::GetGPUDeviceInfo(MemoryArena& a_arena)
 			device.queue_families.emplace_back(queue_family);
 		}
 	}
+
+	device.uniform_buffer_max_size = properties.properties.limits.maxUniformBufferRange;
+	device.uniform_buffer_alignment = properties.properties.limits.minUniformBufferOffsetAlignment;
 
 	return device;
 }
@@ -1772,9 +1753,10 @@ void Vulkan::DescriptorWriteImage(const RDescriptorIndex a_descriptor_index, con
     write_info.descriptorCount = 1;
     write_info.dstArrayElement = a_descriptor_index.handle;
 
-    VkDescriptorImageInfo image_info{};
+	VkDescriptorImageInfo image_info;
     image_info.imageLayout = ImageLayout(a_layout);
     image_info.imageView = reinterpret_cast<VkImageView>(a_view.handle);
+	image_info.sampler = nullptr;
 
     write_info.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
     write_info.dstBinding = GPU_BINDING_IMAGES;

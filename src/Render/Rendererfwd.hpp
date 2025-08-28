@@ -226,6 +226,12 @@ namespace BB
 		uint64_t offset;
 	};
 
+	struct AttributeGPUBufferView
+	{
+		GPUBufferView view;
+		uint64_t desc_offset;
+	};
+
 	struct WriteableGPUBufferView
 	{
 		GPUBuffer buffer;
@@ -338,6 +344,9 @@ namespace BB
 			bool support_transfer;
 		};
 		StaticArray<QueueFamily> queue_families;
+
+		size_t uniform_buffer_max_size;
+		size_t uniform_buffer_alignment;
 	};
 
 	struct RenderCopyBufferRegion

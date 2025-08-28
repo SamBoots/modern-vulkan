@@ -424,7 +424,8 @@ struct RenderInterface_inst
         struct Region
         {
             RDescriptorIndex index;
-            std::atomic<uint64_t> offset;
+            std::atomic<uint64_t> desc_offset;
+			uint64_t start_offset;
         };
         Region geometry;
         Region shading;
@@ -469,22 +470,24 @@ static void SetAllTextures(const RDescriptorIndex a_descriptor_index)
     }
 }
 
-GPUBufferView BB::AllocateFromVertexBufferGeometry(const size_t a_size_in_bytes)
+AttributeGPUBufferView BB::AllocateFromVertexBufferGeometry(const size_t a_size_in_bytes)
 {
-	GPUBufferView view;
-	view.buffer = s_render_inst->vertex_buffer.buffer;
-	view.size = a_size_in_bytes;
-	view.offset = s_render_inst->vertex_buffer.geometry.offset.fetch_add(a_size_in_bytes);
+	AttributeGPUBufferView view;
+	view.desc_offset = s_render_inst->vertex_buffer.geometry.desc_offset.fetch_add(a_size_in_bytes);;
+	view.view.buffer = s_render_inst->vertex_buffer.buffer;
+	view.view.size = a_size_in_bytes;
+	view.view.offset = view.desc_offset + s_render_inst->vertex_buffer.geometry.start_offset;
 	return view;
 }
 
-GPUBufferView BB::AllocateFromVertexBufferShading(const size_t a_size_in_bytes)
+AttributeGPUBufferView BB::AllocateFromVertexBufferShading(const size_t a_size_in_bytes)
 {
-    GPUBufferView view;
-    view.buffer = s_render_inst->vertex_buffer.buffer;
-    view.size = a_size_in_bytes;
-    view.offset = s_render_inst->vertex_buffer.shading.offset.fetch_add(a_size_in_bytes);
-    return view;
+	AttributeGPUBufferView view;
+	view.desc_offset = s_render_inst->vertex_buffer.shading.desc_offset.fetch_add(a_size_in_bytes);
+    view.view.buffer = s_render_inst->vertex_buffer.buffer;
+    view.view.size = a_size_in_bytes;
+	view.view.offset = view.desc_offset + s_render_inst->vertex_buffer.shading.start_offset;
+	return view;
 }
 
 GPUBufferView BB::AllocateFromIndexBuffer(const size_t a_size_in_bytes)
@@ -642,8 +645,8 @@ static GPUBuffer UploadStartupResources()
 	{
 		memcpy(Pointer::Add(mapped, debug_texture_size), SKYBOX_VERTICES, sizeof(SKYBOX_VERTICES));
 
-		const GPUBufferView vertex_view = AllocateFromVertexBufferGeometry(sizeof(SKYBOX_VERTICES));
-		s_render_inst->global_buffer.data.cubemap_geometry_offset = static_cast<uint32_t>(vertex_view.offset);
+		const AttributeGPUBufferView vertex_view = AllocateFromVertexBufferGeometry(sizeof(SKYBOX_VERTICES));
+		s_render_inst->global_buffer.data.cubemap_geometry_offset = static_cast<uint32_t>(vertex_view.view.offset);
 
 		RenderCopyBufferRegion region;
 		region.src_offset = debug_texture_size;
@@ -651,7 +654,7 @@ static GPUBuffer UploadStartupResources()
 		region.size = sizeof(SKYBOX_VERTICES);
 		RenderCopyBuffer copy_buffer;
 		copy_buffer.src = upload_buffer;
-		copy_buffer.dst = vertex_view.buffer;
+		copy_buffer.dst = vertex_view.view.buffer;
 		copy_buffer.regions = Slice(&region, 1);
 
 		CopyBuffer(list, copy_buffer);
@@ -700,14 +703,23 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 
         // set regions
         s_render_inst->vertex_buffer.geometry.index = AllocateBufferDescriptor();
-		s_render_inst->vertex_buffer.geometry.offset = 0;
-        DescriptorWriteStorageBuffer(s_render_inst->vertex_buffer.geometry.index,
-            GPUBufferView(s_render_inst->vertex_buffer.buffer, POSITION_SIZE, s_render_inst->vertex_buffer.geometry.offset));
+		s_render_inst->vertex_buffer.geometry.desc_offset = 0;
+		s_render_inst->vertex_buffer.geometry.start_offset = 0;
+
+		GPUBufferView geo_view;
+		geo_view.buffer = s_render_inst->vertex_buffer.buffer;
+		geo_view.size = POSITION_SIZE;
+		geo_view.offset = s_render_inst->vertex_buffer.geometry.start_offset;
+        DescriptorWriteStorageBuffer(s_render_inst->vertex_buffer.geometry.index, geo_view);
 
         s_render_inst->vertex_buffer.shading.index = AllocateBufferDescriptor();
-        s_render_inst->vertex_buffer.shading.offset = POSITION_SIZE;
-        DescriptorWriteStorageBuffer(s_render_inst->vertex_buffer.shading.index,
-            GPUBufferView(s_render_inst->vertex_buffer.buffer, UV_NORMAL_TANGENT_SIZE, s_render_inst->vertex_buffer.shading.offset));
+		s_render_inst->vertex_buffer.shading.desc_offset = 0;
+        s_render_inst->vertex_buffer.shading.start_offset = POSITION_SIZE;
+		GPUBufferView shad_view;
+		shad_view.buffer = s_render_inst->vertex_buffer.buffer;
+		shad_view.size = UV_NORMAL_TANGENT_SIZE;
+		shad_view.offset = s_render_inst->vertex_buffer.shading.start_offset;
+        DescriptorWriteStorageBuffer(s_render_inst->vertex_buffer.shading.index, shad_view);
 
 		vertex_buffer.host_writable = true;
         s_render_inst->cpu_vertex_buffer.index = AllocateBufferDescriptor();
@@ -716,7 +728,12 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 		s_render_inst->cpu_vertex_buffer.size = static_cast<uint32_t>(vertex_buffer.size);
 		s_render_inst->cpu_vertex_buffer.used = 0;
 		s_render_inst->cpu_vertex_buffer.start_mapped = Vulkan::MapBufferMemory(s_render_inst->cpu_vertex_buffer.buffer);
-        DescriptorWriteStorageBuffer(s_render_inst->cpu_vertex_buffer.index, GPUBufferView(s_render_inst->cpu_vertex_buffer.buffer, vertex_buffer.size, 0));
+
+		GPUBufferView cpu_view;
+		cpu_view.buffer = s_render_inst->cpu_vertex_buffer.buffer;
+		cpu_view.size = vertex_buffer.size;
+		cpu_view.offset = 0;
+        DescriptorWriteStorageBuffer(s_render_inst->cpu_vertex_buffer.index, cpu_view);
 	}
 	{
 		GPUBufferCreateInfo index_buffer;
@@ -753,9 +770,12 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
         s_render_inst->global_buffer.data.shading_buffer = s_render_inst->vertex_buffer.shading.index;
         s_render_inst->global_buffer.data.cpu_vertex_buffer = s_render_inst->cpu_vertex_buffer.index;
 
-        DescriptorWriteGlobal(GPUBufferView(s_render_inst->global_buffer.buffer, sizeof(s_render_inst->global_buffer.data), 0));
+		GPUBufferView global_view;
+		global_view.buffer = s_render_inst->global_buffer.buffer;
+		global_view.size = sizeof(s_render_inst->global_buffer.data);
+		global_view.offset = 0;
+        DescriptorWriteGlobal(global_view);
     }
-
 
     s_render_inst->m_views = ArenaAllocArr(a_arena, RImageView, a_render_create_info.max_images);
 	const GPUBuffer startup_buffer = UploadStartupResources();
