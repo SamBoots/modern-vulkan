@@ -2506,7 +2506,9 @@ void Vulkan::SetPrimitiveTopology(const RCommandList a_list, const PRIMITIVE_TOP
     case PRIMITIVE_TOPOLOGY::TRIANGLE_LIST:
         vkCmdSetPrimitiveTopology(cmd_buffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
         break;
-    default:
+	case PRIMITIVE_TOPOLOGY::TRIANGLE_STRIP:
+		vkCmdSetPrimitiveTopology(cmd_buffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP);
+	break;    default:
         BB_ASSERT(false, "PRIMITIVE_TOPOLOGY unknown entry");
         break;
     }

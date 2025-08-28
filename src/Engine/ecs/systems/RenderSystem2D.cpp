@@ -111,7 +111,7 @@ bool BB::FontAtlasWriteImage(const PathString& a_path, const FontAtlas& a_atlas)
 bool BB::RenderText(const FontAtlas& a_font_atlas, const RCommandList a_list, GPUUploadRingAllocator& a_ring_buffer, GPULinearBuffer& a_frame_buffer, const float2 a_text_size, const float2 a_text_start_pos, const StringView a_string)
 {
 
-    /*const size_t upload_size = a_string.size() * sizeof(Glyph2D);
+    const size_t upload_size = a_string.size() * (sizeof(Glyph2D) * 4);
     const size_t upload_start = a_ring_buffer.AllocateUploadMemory(upload_size, ...);
     if (upload_start == -1)
         return false;
@@ -133,15 +133,24 @@ bool BB::RenderText(const FontAtlas& a_font_atlas, const RCommandList a_list, GP
         }
         const Glyph rd_gly = a_font_atlas.glyphs[char_index];
 
-        Glyph2D wr_gly;
-        wr_gly.pos = pos;
-        wr_gly.extent.x = static_cast<float>(rd_gly.extent.x + a_text_size.x);
-        wr_gly.extent.y = static_cast<float>(rd_gly.extent.y + a_text_size.y);
-        wr_gly.uv0.x = static_cast<float>(rd_gly.pos.x / a_font_atlas.extent.x);
-        wr_gly.uv0.y = static_cast<float>(rd_gly.pos.y / a_font_atlas.extent.y);
-        wr_gly.uv1.x = static_cast<float>((rd_gly.pos.x + rd_gly.extent.x) / a_font_atlas.extent.x);
-        wr_gly.uv1.y = static_cast<float>((rd_gly.pos.y + rd_gly.extent.y) / a_font_atlas.extent.y);
-        a_ring_buffer.MemcpyIntoBuffer(upload_start + i * sizeof(Glyph2D), &wr_gly, sizeof(wr_gly));
+        const float2 uv0 = float2(
+            static_cast<float>(rd_gly.pos.x / a_font_atlas.extent.x), 
+            static_cast<float>(rd_gly.pos.y / a_font_atlas.extent.y));
+        const float2 uv1 = float2(
+            static_cast<float>((rd_gly.pos.x + rd_gly.extent.x) / a_font_atlas.extent.x), 
+            static_cast<float>((rd_gly.pos.y + rd_gly.extent.y) / a_font_atlas.extent.y));
+
+        FixedArray<Glyph2D, 4> wr_gly;
+        wr_gly[0].pos = float2(pos.x, pos.y);
+        wr_gly[0].uv = float2(uv0.x, uv0.y);
+        wr_gly[1].pos = float2(pos.x + a_text_size.x, pos.y);
+        wr_gly[1].uv = float2(uv1.x, uv0.y);
+        wr_gly[2].pos = float2(pos.x + a_text_size.x, pos.y + a_text_size.y);
+        wr_gly[2].uv = float2(uv1.x, uv1.y);
+        wr_gly[3].pos = float2(pos.x, pos.y + a_text_size.y);
+        wr_gly[3].uv = float2(uv0.x, uv1.y);
+
+        a_ring_buffer.MemcpyIntoBuffer(upload_start + i * sizeof(wr_gly), &wr_gly, sizeof(wr_gly));
 
         pos.x += rd_gly.advance;
     }
@@ -180,18 +189,18 @@ bool BB::RenderText(const FontAtlas& a_font_atlas, const RCommandList a_list, GP
     SetBlendMode(a_list, 0, blend_state.slice());
     StartRenderPass(a_list, start_rendering_info);
 
-    SetPrimitiveTopology(a_list, PRIMITIVE_TOPOLOGY::LINE_LIST);
-    const RPipelineLayout pipe_layout = Material::BindMaterial(a_list, m_line_material);
+    SetPrimitiveTopology(a_list, PRIMITIVE_TOPOLOGY::TRIANGLE_STRIP);
+    Material::BindMaterial(a_list, m_line_material);
 
     ShaderIndicesGlyph push_constant;
     push_constant.glyph_buffer_offset = buffer_view.offset;
     push_constant.font_texture = a_font_atlas.desc_index;
 
-    SetPushConstants(a_list, pipe_layout, 0, sizeof(push_constant), &push_constant);
+    SetPushConstantUserData(a_list, 0, sizeof(push_constant), &push_constant);
 
     DrawVertices(a_list, 4, static_cast<uint32_t>(a_string.size()), 1, 0);
     
-    EndRenderPass(a_list);*/
+    EndRenderPass(a_list);
 
     return true;
 }

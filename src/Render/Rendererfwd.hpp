@@ -104,6 +104,7 @@ namespace BB
     {
         LINE_LIST,
         TRIANGLE_LIST,
+		TRIANGLE_STRIP,
 
         ENUM_SIZE
     };

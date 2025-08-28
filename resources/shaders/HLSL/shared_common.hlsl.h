@@ -121,7 +121,6 @@ namespace BB
     {
         float2 pos;
         float2 uv;
-        float4 color;
     };
 
     struct ALIGN_STRUCT(16) PBRShadingAttribute
