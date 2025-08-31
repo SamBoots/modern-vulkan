@@ -108,11 +108,11 @@ bool BB::FontAtlasWriteImage(const PathString& a_path, const FontAtlas& a_atlas)
     return Asset::WriteImage(a_path.GetView(), a_atlas.extent, 1, a_atlas.bitmap);
 }
 
-bool BB::RenderText(const FontAtlas& a_font_atlas, const RCommandList a_list, GPUUploadRingAllocator& a_ring_buffer, GPULinearBuffer& a_frame_buffer, const float2 a_text_size, const float2 a_text_start_pos, const StringView a_string)
+bool BB::RenderText(const FontAtlas& a_font_atlas, const RCommandList a_list, GPUUploadRingAllocator& a_ring_buffer, const GPUFenceValue a_fence_value, const uint2 a_draw_area, const RImageView a_render_target,, GPULinearBuffer& a_frame_buffer, const float2 a_text_size, const float2 a_text_start_pos, const StringView a_string)
 {
 
     const size_t upload_size = a_string.size() * (sizeof(Glyph2D) * 4);
-    const size_t upload_start = a_ring_buffer.AllocateUploadMemory(upload_size, ...);
+    const size_t upload_start = a_ring_buffer.AllocateUploadMemory(upload_size, a_fence_value);
     if (upload_start == -1)
         return false;
 
