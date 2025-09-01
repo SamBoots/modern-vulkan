@@ -110,7 +110,7 @@ BB::ShaderIndices2D PushConstant2D()
 BB::ShaderIndicesGlyph PushConstantGlyph()
 {
     BB::ShaderIndicesGlyph indices;
-    indices.glyph_buffer_offset = push_constant.userdata[0];
+    indices.glyph_buffer_index = push_constant.userdata[0];
     indices.font_texture = push_constant.userdata[1];
     indices.scale.x = asfloat(push_constant.userdata[2]);
     indices.scale.y = asfloat(push_constant.userdata[3]);

@@ -120,7 +120,9 @@ namespace BB
     struct Glyph2D
     {
         float2 pos;
-        float2 uv;
+        float2 extent;
+        float2 uv0;
+        float2 uv1;
     };
 
     struct ALIGN_STRUCT(16) PBRShadingAttribute
@@ -150,7 +152,7 @@ namespace BB
 
     struct ShaderIndicesGlyph
     {
-        uint glyph_buffer_offset;       // 4
+        RDescriptorIndex glyph_buffer_index; // 4
         RDescriptorIndex font_texture;  // 8
         float2 scale;                   // 16
     };

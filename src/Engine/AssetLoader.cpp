@@ -674,7 +674,7 @@ static inline void* ResizeImage(MemoryArena& a_arena, const void* a_src_pixels, 
 
 	BB_ASSERT(stbir_resize_uint8_srgb(
 		reinterpret_cast<const unsigned char*>(a_src_pixels), a_src_width, a_src_height, 0,
-		icon_pixels, a_dst_width, a_dst_height, 0, STBIR_RGBA), "failed to resize image using stibr");
+		icon_pixels, a_dst_width, a_dst_height, 0, STBIR_1CHANNEL), "failed to resize image using stibr");
 
 	return icon_pixels;
 }
