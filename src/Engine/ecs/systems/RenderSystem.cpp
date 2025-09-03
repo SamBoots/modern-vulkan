@@ -5,6 +5,8 @@
 
 #include "AssetLoader.hpp"
 
+#include "Engine.hpp"
+
 using namespace BB;
 
 constexpr float BLOOM_IMAGE_DOWNSCALE_FACTOR = 1.f;
@@ -83,6 +85,14 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 		m_raytrace_data.top_level.must_update = false;
 		m_raytrace_data.top_level.must_rebuild = false;
     }
+
+    PathString font_string = GetRootPath();
+    font_string.AddPathNoSlash("resources/fonts/ProggyVector.ttf");
+    PathString write_image = GetRootPath();
+    write_image.AddPathNoSlash("resources/fonts/ProggyVector.png");
+
+    m_font_atlas = CreateFontAtlas(a_arena, font_string, 32, 0);
+    FontAtlasWriteImage(write_image, m_font_atlas);
 }
 
 void RenderSystem::StartFrame(const RCommandList a_list)
@@ -205,9 +215,6 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 		draw_list.transforms.push_back(shader_transform);
 	}
 
-	BindIndexBuffer(a_list, 0);
-	UpdateConstantBuffer(m_current_frame, a_list, a_draw_area, a_lights);
-
 	//if (m_raytrace_data.top_level.must_rebuild || !m_raytrace_data.top_level.accel_struct.IsValid())
     if (false)
 	{
@@ -227,10 +234,6 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 
 	BindIndexBuffer(a_list, 0);
 	UpdateConstantBuffer(m_current_frame, a_list, a_draw_area, a_lights);
-
-    // sam please find a better way
-    SetPrimitiveTopology(a_list, PRIMITIVE_TOPOLOGY::TRIANGLE_LIST);
-    Material::BindMaterial(a_list, draw_list.draw_entries[0].master_material);
 	
     m_clear_stage.ExecutePass(a_list, a_draw_area, GetImageView(pfd.render_target_view));
 
@@ -240,6 +243,8 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
     m_raster_mesh_stage.ExecutePass(a_list, m_current_frame, a_draw_area, draw_list, GetImageView(pfd.render_target_view), GetImageView(pfd.bloom.descriptor_index_0));
     if (!m_options.skip_bloom)
 	    m_bloom_stage.ExecutePass(a_list, pfd.bloom.resolution, pfd.bloom.image, pfd.bloom.descriptor_index_0, pfd.bloom.descriptor_index_1, a_draw_area, GetImageView(pfd.render_target_view));
+
+    RenderText(m_font_atlas, a_list, m_upload_allocator, m_next_fence_value, a_draw_area, GetImageView(pfd.render_target_view), pfd.storage_buffer, float2(1.f), float2(0.f), "de");
 }
 
 void RenderSystem::DebugDraw(const RCommandList a_list, const uint2 a_draw_area)

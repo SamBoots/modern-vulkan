@@ -76,12 +76,11 @@ FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_pat
         const int height = y1 - y0;
 
         const int height_mod = max_height - height;
-        const int y_offset = height_mod / 2;
 
         // Check if we need to move to next row
         if (current_x + width > atlas_size) {
             current_x = 0;
-            current_y += row_height;
+            current_y += row_height + 1;
             row_height = 0;
         }
 
@@ -91,7 +90,7 @@ FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_pat
         atl.glyphs[i].pos.y = current_y;
         atl.glyphs[i].extent.x = width;
         atl.glyphs[i].extent.y = height;
-        atl.glyphs[i].y_offset = y_offset;
+        atl.glyphs[i].y_offset = height_mod;
         atl.glyphs[i].advance = advance * scale;
 
         if (width > 0 && height > 0)
@@ -101,7 +100,7 @@ FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_pat
             stbtt_MakeGlyphBitmap(&font, atl.bitmap + bitmap_offset, width, height, atlas_size, scale, scale, glyph_index);
         }
 
-        current_x += width;
+        current_x += advance * scale;
         if (height > row_height)
             row_height = height;
     }
@@ -151,7 +150,7 @@ bool BB::RenderText(FontAtlas& a_font_atlas, const RCommandList a_list, GPUUploa
     // temp
     const RDescriptorIndex buffer_desc = a_font_atlas.per_frame[a_font_atlas.current_frame];
 
-    const size_t upload_size = a_string.size() * (sizeof(Glyph2D) * 4);
+    const size_t upload_size = a_string.size() * sizeof(Glyph2D);
     const size_t upload_start = a_ring_buffer.AllocateUploadMemory(upload_size, a_fence_value);
     if (upload_start == -1)
         return false;
@@ -165,23 +164,24 @@ bool BB::RenderText(FontAtlas& a_font_atlas, const RCommandList a_list, GPUUploa
 
     for (size_t i = 0; i < a_string.size(); i++)
     {
-        const size_t char_index = a_string[i] - a_font_atlas.char_start;
+        const char ch = a_string[i];
+        const size_t char_index = ch - a_font_atlas.char_start;
         if (char_index > a_font_atlas.char_count)
         {
             BB_WARNING(false, "trying to write a char that doesn't exist or goes out of bounds", WarningType::MEDIUM);
             return false;
         }
         const Glyph rd_gly = a_font_atlas.glyphs[char_index];
+        const float2 tex_pos = float2(static_cast<float>(rd_gly.pos.x), static_cast<float>(rd_gly.pos.y));
 
         Glyph2D glyph;
-        glyph.pos = float2(static_cast<float>(rd_gly.pos.x), static_cast<float>(rd_gly.pos.y));
+        glyph.pos = float2(pos.x, pos.y + rd_gly.y_offset);
         glyph.extent = float2(static_cast<float>(rd_gly.extent.x), static_cast<float>(rd_gly.extent.y));
-        glyph.uv0 = glyph.pos / float2(a_font_atlas.extent.x, a_font_atlas.extent.y);
-        glyph.uv1 = (glyph.pos + glyph.extent) / float2(a_font_atlas.extent.x, a_font_atlas.extent.y);
+        glyph.uv0 = tex_pos / float2(a_font_atlas.extent.x, a_font_atlas.extent.y);
+        glyph.uv1 = (tex_pos + glyph.extent) / float2(a_font_atlas.extent.x, a_font_atlas.extent.y);
 
         a_ring_buffer.MemcpyIntoBuffer(upload_start + i * sizeof(glyph), &glyph, sizeof(glyph));
-
-        pos.x += rd_gly.advance;
+        pos.x += rd_gly.advance * a_text_size.x + glyph.extent.x;
     }
 
     RenderCopyBufferRegion region;
@@ -220,7 +220,7 @@ bool BB::RenderText(FontAtlas& a_font_atlas, const RCommandList a_list, GPUUploa
     SetBlendMode(a_list, 0, blend_state.slice());
     StartRenderPass(a_list, start_rendering_info);
 
-    SetPrimitiveTopology(a_list, PRIMITIVE_TOPOLOGY::TRIANGLE_STRIP);
+    SetPrimitiveTopology(a_list, PRIMITIVE_TOPOLOGY::TRIANGLE_LIST);
     Material::BindMaterial(a_list, a_font_atlas.material);
 
     ShaderIndicesGlyph push_constant;
@@ -230,7 +230,7 @@ bool BB::RenderText(FontAtlas& a_font_atlas, const RCommandList a_list, GPUUploa
 
     SetPushConstantUserData(a_list, 0, sizeof(push_constant), &push_constant);
 
-    DrawVertices(a_list, 4, static_cast<uint32_t>(a_string.size()), 1, 0);
+    DrawVertices(a_list, 6, static_cast<uint32_t>(a_string.size()), 1, 0);
     
     EndRenderPass(a_list);
 

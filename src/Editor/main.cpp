@@ -60,14 +60,6 @@ int main(int argc, char** argv)
     EditorGame def_game{};
     def_game.Init(engine_info.window_extent / 2, "dungeon", nullptr, lua_plugins.const_slice());
 
-    PathString font_string = GetRootPath();
-    font_string.AddPathNoSlash("resources/fonts/ProggyVector.ttf");
-    PathString write_image = GetRootPath();
-    write_image.AddPathNoSlash("resources/fonts/ProggyVector.png");
-
-    FontAtlas atlas = CreateFontAtlas(main_arena, font_string, 28, (int)'a');
-    FontAtlasWriteImage(write_image, atlas);
-
 	while (true)
 	{
         InputEvent input_events[INPUT_EVENT_BUFFER_MAX]{};

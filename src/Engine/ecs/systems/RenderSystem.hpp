@@ -9,6 +9,7 @@
 #include "RasterMeshStage.hpp"
 #include "BloomStage.hpp"
 #include "LineStage.hpp"
+#include "RenderSystem2D.hpp"
 
 namespace BB
 {
@@ -154,5 +155,6 @@ namespace BB
         RasterMeshStage m_raster_mesh_stage;
         BloomStage m_bloom_stage;
 		LineStage m_line_stage;
+        FontAtlas m_font_atlas;
 	};
 }
