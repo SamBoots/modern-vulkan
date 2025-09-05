@@ -69,12 +69,12 @@ namespace BB
         RDescriptorIndex skybox_texture; // 192
         RDescriptorIndex skybox_sampler; // 196
         float near_plane;                // 200
-        uint3 pad0;                      // 212
 
         // buffers
-        RDescriptorIndex matrix_index;   // 216
-        RDescriptorIndex light_index;    // 220
-        RDescriptorIndex light_view_index; // 224
+        RDescriptorIndex matrix_index;   // 204
+        RDescriptorIndex light_index;    // 208
+        RDescriptorIndex light_view_index; // 212
+        uint3 pad0;
     };
 
     struct ALIGN_STRUCT(16) MeshMetallic
