@@ -62,14 +62,14 @@ PixelOutput FragmentMain(VSOutput a_input)
 
     const BB::MeshMetallic material = uniform_metallic_info[shader_indices.material_index];
 
-    const float3 normal_map = textures[material.normal_texture].Sample(BASIC_3D_SAMPLER, a_input.uv).xyz * 2.0 - 1.0;
+    const float3 normal_map = textures[material.normal_texture].Sample(samplers[0], a_input.uv).xyz * 2.0 - 1.0;
     const float3 N = normalize(mul(a_input.TBN, normal_map));
     const float3 V = normalize(scene.view_pos - a_input.world_pos);
 
     float3 orm_data = float3(0.0, 0.0, 0.0);
     if (material.orm_texture != INVALID_TEXTURE)
     {
-        orm_data = textures[material.orm_texture].Sample(BASIC_3D_SAMPLER, a_input.uv).xyz;
+        orm_data = textures[material.orm_texture].Sample(samplers[0], a_input.uv).xyz;
         orm_data.g = orm_data.g * material.roughness_factor;
         orm_data.b = orm_data.b * material.metallic_factor;
     }
@@ -80,7 +80,7 @@ PixelOutput FragmentMain(VSOutput a_input)
         orm_data.b = clamp(material.metallic_factor, 0.0, 1.0);
     }
 
-    const float3 albedo = textures[material.albedo_texture].Sample(BASIC_3D_SAMPLER, a_input.uv).xyz;// * a_input.color.xyz * material.base_color_factor.xyz;
+    const float3 albedo = textures[material.albedo_texture].Sample(samplers[0], a_input.uv).xyz;// * a_input.color.xyz * material.base_color_factor.xyz;
     const float3 f0 = lerp(0.04, albedo.xyz, orm_data.b);
 
     float3 lo = float3(0.0, 0.0, 0.0);

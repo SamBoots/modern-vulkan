@@ -13,6 +13,8 @@ namespace BB
         void UpdateConstantBuffer(Scene3DInfo& a_scene_3d_info) const;
     private:
         RDescriptorIndex m_skybox_descriptor_index;
+        RSampler m_skybox_sampler;
+        RDescriptorIndex m_skybox_sampler_index;
         RImage m_skybox;
 
         MasterMaterialHandle m_skybox_material;

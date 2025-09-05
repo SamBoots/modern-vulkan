@@ -28,5 +28,5 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
 float4 FragmentMain(VSOutput a_input) : SV_Target
 {
     const BB::Scene3DInfo scene_info = GetSceneInfo();
-    return texture_cubes[scene_info.skybox_texture].Sample(BASIC_3D_SAMPLER, a_input.uvw);
+    return texture_cubes[scene_info.skybox_texture].Sample(samplers[scene_info.skybox_sampler], a_input.uvw);
 }

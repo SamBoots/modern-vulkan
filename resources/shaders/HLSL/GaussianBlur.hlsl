@@ -31,7 +31,7 @@ float4 FragmentMain(VSOutput a_input) : SV_Target
     uint2 resolution;
     texture.GetDimensions(resolution.x, resolution.y);
     const float2 texture_offset = 1.0 / resolution * shader_indices.blur_scale;
-    float3 result = texture.Sample(BASIC_3D_SAMPLER, a_input.uv).rgb * weight[0];
+    float3 result = texture.Sample(BLUR_SAMPLER, a_input.uv).rgb * weight[0];
         
     if (shader_indices.horizontal_enable == 1)
     {

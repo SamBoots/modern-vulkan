@@ -31,49 +31,6 @@ namespace BB
 		ENUM_SIZE
 	};
 
-	enum class SAMPLER_ADDRESS_MODE : uint32_t
-	{
-		REPEAT,
-		MIRROR,
-		BORDER,
-		CLAMP,
-
-		ENUM_SIZE
-	};
-
-	enum class SAMPLER_BORDER_COLOR : uint32_t
-	{
-		COLOR_FLOAT_TRANSPARENT_BLACK,
-		COLOR_INT_TRANSPARENT_BLACK,
-		COLOR_FLOAT_OPAQUE_BLACK,
-		COLOR_INT_OPAQUE_BLACK,
-		COLOR_FLOAT_OPAQUE_WHITE,
-		COLOR_INT_OPAQUE_WHITE,
-
-		ENUM_SIZE
-	};
-
-	enum class SAMPLER_FILTER : uint32_t
-	{
-		NEAREST,
-		LINEAR
-	};
-
-	struct SamplerCreateInfo
-	{
-		const char* name;
-		SAMPLER_ADDRESS_MODE mode_u{};
-		SAMPLER_ADDRESS_MODE mode_v{};
-		SAMPLER_ADDRESS_MODE mode_w{};
-
-		SAMPLER_FILTER filter{};
-		float max_anistoropy;
-
-		float min_lod;
-		float max_lod;
-		SAMPLER_BORDER_COLOR border_color;
-	};
-
 	using RQueue = FrameworkHandle<struct RQueueTag>;
 
 	struct ExecuteCommandsInfo

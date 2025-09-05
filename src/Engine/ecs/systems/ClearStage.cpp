@@ -65,6 +65,22 @@ void ClearStage::Init(MemoryArena& a_arena)
         m_skybox = skybox_image.gpu_image;
         m_skybox_descriptor_index = skybox_image.descriptor_index;
         m_skybox_material = Material::CreateMasterMaterial(a_arena, skybox_material, "skybox material");
+
+        m_skybox_sampler_index = AllocateSamplerDescriptor();
+        SamplerCreateInfo sampler_info;
+        sampler_info.name = "skybox sampler";
+        sampler_info.mode_u = SAMPLER_ADDRESS_MODE::CLAMP;
+        sampler_info.mode_v = SAMPLER_ADDRESS_MODE::CLAMP;
+        sampler_info.mode_w = SAMPLER_ADDRESS_MODE::CLAMP;
+        sampler_info.filter = SAMPLER_FILTER::LINEAR;
+        sampler_info.max_anistoropy = 16.f;
+        sampler_info.min_lod = 0.0f;
+        sampler_info.max_lod = 0.0f;
+        sampler_info.border_color = SAMPLER_BORDER_COLOR::COLOR_FLOAT_TRANSPARENT_BLACK;
+
+        m_skybox_sampler = CreateSampler(sampler_info);
+
+        DescriptorWriteSampler(m_skybox_sampler_index, m_skybox_sampler);
     }
 }
 
@@ -108,4 +124,5 @@ void ClearStage::ExecutePass(const RCommandList a_list, const uint2 a_draw_area_
 void ClearStage::UpdateConstantBuffer(Scene3DInfo& a_scene_3d_info) const
 {
     a_scene_3d_info.skybox_texture = m_skybox_descriptor_index;
+    a_scene_3d_info.skybox_sampler = m_skybox_sampler_index;
 }

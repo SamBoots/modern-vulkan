@@ -1239,6 +1239,16 @@ void BB::CopyImageToBuffer(const RCommandList a_list, const RenderCopyImageToBuf
 	Vulkan::CopyImageToBuffer(a_list, a_copy_info);
 }
 
+const RSampler BB::CreateSampler(const SamplerCreateInfo& a_create_info)
+{
+    return Vulkan::CreateSampler(a_create_info);
+}
+
+void BB::FreeSampler(const RSampler a_sampler)
+{
+    Vulkan::FreeSampler(a_sampler);
+}
+
 const GPUBuffer BB::CreateGPUBuffer(const GPUBufferCreateInfo& a_create_info)
 {
 	return Vulkan::CreateBuffer(a_create_info);

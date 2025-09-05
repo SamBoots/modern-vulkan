@@ -108,6 +108,9 @@ namespace BB
 	void CopyBufferToImage(const RCommandList a_list, const RenderCopyBufferToImageInfo& a_copy_info);
 	void CopyImageToBuffer(const RCommandList a_list, const RenderCopyImageToBufferInfo& a_copy_info);
 
+    const RSampler CreateSampler(const SamplerCreateInfo& a_create_info);
+    void FreeSampler(const RSampler a_sampler);
+
 	const GPUBuffer CreateGPUBuffer(const GPUBufferCreateInfo& a_create_info);
 	void FreeGPUBuffer(const GPUBuffer a_buffer);
 	void* MapGPUBuffer(const GPUBuffer a_buffer);

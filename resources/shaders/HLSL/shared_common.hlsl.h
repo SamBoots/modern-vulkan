@@ -15,7 +15,7 @@ namespace BB
 
 #define GPU_IMMUTABLE_SAMPLER_SHAWDOW_MAP 0
 #define GPU_IMMUTABLE_SAMPLER_UI 1
-#define GPU_IMMUTABLE_SAMPLER_TEMP 2
+#define GPU_IMMUTABLE_SAMPLER_BLUR 2
 #define GPU_IMMUTABLE_SAMPLE_COUNT 3
 
 #define CUBEMAP_BACK    0
@@ -67,12 +67,14 @@ namespace BB
         RDescriptorIndex shadow_map_array_descriptor; // 184
         uint light_count;                // 188
         RDescriptorIndex skybox_texture; // 192
-        float near_plane;                // 196
+        RDescriptorIndex skybox_sampler; // 196
+        float near_plane;                // 200
+        uint3 pad0;                      // 212
 
         // buffers
-        RDescriptorIndex matrix_index;            // 200
-        RDescriptorIndex light_index;               // 204
-        RDescriptorIndex light_view_index;          // 208
+        RDescriptorIndex matrix_index;   // 216
+        RDescriptorIndex light_index;    // 220
+        RDescriptorIndex light_view_index; // 224
     };
 
     struct ALIGN_STRUCT(16) MeshMetallic
