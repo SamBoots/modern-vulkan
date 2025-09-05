@@ -26,7 +26,7 @@ namespace BB
         friend class Editor;
         // temporary
         friend class EntityComponentSystem;
-		void Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count, const uint32_t a_max_lights, const uint2 a_render_target_size);
+		void Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count, const uint2 a_render_target_size);
 
 		void StartFrame(const RCommandList a_list);
 		RenderSystemFrame EndFrame(const RCommandList a_list, const IMAGE_LAYOUT a_current_layout);

@@ -23,7 +23,7 @@ namespace BB
 
 		void StartFrame(MemoryArena& a_arena, const Slice<InputEvent> a_input_events, const float a_delta_time);
 
-        ThreadTask UpdateGameInstance(MemoryArena& a_arena, const float a_delta_time, class EditorGame& a_game);
+        ThreadTask UpdateGameInstance(const float a_delta_time, class EditorGame& a_game);
 		void EndFrame(MemoryArena& a_arena);
 
 		bool ResizeWindow(const uint2 a_window);

@@ -29,6 +29,6 @@ float4 FragmentMain(VSOutput a_input) : SV_Target
 {
     BB::ShaderIndices2D shader_indices = PushConstant2D();
 
-    float4 color = a_input.color * textures[shader_indices.albedo_texture].Sample(BASIC_3D_SAMPLER, a_input.uv);
+    float4 color = a_input.color * textures[shader_indices.albedo_texture].Sample(UI_SAMPLER, a_input.uv);
     return color;
 }

@@ -18,7 +18,6 @@ static void StandardLogCallback(const char* a_file_name, const int a_line, const
 		case 's':
 			string.append(va_arg(a_args, char*));
 			break;
-        case 'hs':
 		case 'S': //convert it to a char first.
 		{
 			const wchar_t* w_char = va_arg(a_args, const wchar_t*);

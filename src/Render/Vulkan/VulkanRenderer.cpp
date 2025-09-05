@@ -427,7 +427,7 @@ static VkDevice CreateLogicalDevice(MemoryArena& a_temp_arena, const VkPhysicalD
     else
         device_create_info.pNext = &shader_objects;
 
-	VkDevice return_device;
+    VkDevice return_device;
 	VKASSERT(vkCreateDevice(a_phys_device,
 		&device_create_info,
 		nullptr,
@@ -448,35 +448,51 @@ struct DescriptorInfo
 static DescriptorInfo CreateDescriptorInfo(const VkDevice a_device, const uint32_t a_image_count, const uint32_t a_sampler_count, const uint32_t a_buffer_count, const uint32_t a_uniform_count)
 {
     // immutable samplers
-    FixedArray<VkSamplerCreateInfo, 2> immutable_samplers;
-    immutable_samplers[0].sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    immutable_samplers[0].addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    immutable_samplers[0].addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    immutable_samplers[0].addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    immutable_samplers[0].magFilter = VK_FILTER_LINEAR;
-    immutable_samplers[0].minFilter = VK_FILTER_LINEAR;
-    immutable_samplers[0].anisotropyEnable = VK_TRUE;
-    immutable_samplers[0].maxAnisotropy = 1.0f;
-    immutable_samplers[0].minLod = 0.f;
-    immutable_samplers[0].maxLod = 1.f;
-    immutable_samplers[0].mipLodBias = 0.f;
-    immutable_samplers[0].borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-    immutable_samplers[1].sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    immutable_samplers[1].addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    immutable_samplers[1].addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    immutable_samplers[1].addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    immutable_samplers[1].magFilter = VK_FILTER_LINEAR;
-    immutable_samplers[1].minFilter = VK_FILTER_LINEAR;
-    immutable_samplers[1].anisotropyEnable = VK_TRUE;
-    immutable_samplers[1].maxAnisotropy = 1.0f;
-    immutable_samplers[1].minLod = -100.f;
-    immutable_samplers[1].maxLod = 100.f;
-    immutable_samplers[1].mipLodBias = 0.f;
-    immutable_samplers[1].borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+    FixedArray<VkSamplerCreateInfo, GPU_IMMUTABLE_SAMPLE_COUNT> immutable_samplers{};
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_SHAWDOW_MAP].sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_SHAWDOW_MAP].addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_SHAWDOW_MAP].addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_SHAWDOW_MAP].addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_SHAWDOW_MAP].magFilter = VK_FILTER_LINEAR;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_SHAWDOW_MAP].minFilter = VK_FILTER_LINEAR;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_SHAWDOW_MAP].anisotropyEnable = VK_TRUE;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_SHAWDOW_MAP].maxAnisotropy = 1.0f;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_SHAWDOW_MAP].minLod = 0.f;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_SHAWDOW_MAP].maxLod = 1.f;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_SHAWDOW_MAP].mipLodBias = 0.f;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_SHAWDOW_MAP].borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
 
-    VkSampler s[2];
-    vkCreateSampler(a_device, &immutable_samplers[0], nullptr, &s[0]);
-    vkCreateSampler(a_device, &immutable_samplers[1], nullptr, &s[1]);
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_UI].sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_UI].addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_UI].addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_UI].addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_UI].magFilter = VK_FILTER_NEAREST;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_UI].minFilter = VK_FILTER_NEAREST;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_UI].anisotropyEnable = VK_FALSE;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_UI].maxAnisotropy = 1.0f;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_UI].mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_UI].minLod = 0.f;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_UI].maxLod = VK_LOD_CLAMP_NONE;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_UI].mipLodBias = 0.f;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_UI].borderColor = VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK;
+
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_TEMP].sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_TEMP].addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_TEMP].addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_TEMP].addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_TEMP].magFilter = VK_FILTER_LINEAR;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_TEMP].minFilter = VK_FILTER_LINEAR;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_TEMP].anisotropyEnable = VK_TRUE;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_TEMP].maxAnisotropy = 1.0f;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_TEMP].minLod = -100.f;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_TEMP].maxLod = 100.f;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_TEMP].mipLodBias = 0.f;
+    immutable_samplers[GPU_IMMUTABLE_SAMPLER_TEMP].borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+
+    VkSampler s[GPU_IMMUTABLE_SAMPLE_COUNT];
+    vkCreateSampler(a_device, &immutable_samplers[GPU_IMMUTABLE_SAMPLER_SHAWDOW_MAP], nullptr, &s[GPU_IMMUTABLE_SAMPLER_SHAWDOW_MAP]);
+    vkCreateSampler(a_device, &immutable_samplers[GPU_IMMUTABLE_SAMPLER_UI], nullptr, &s[GPU_IMMUTABLE_SAMPLER_UI]);
+    vkCreateSampler(a_device, &immutable_samplers[GPU_IMMUTABLE_SAMPLER_TEMP], nullptr, &s[GPU_IMMUTABLE_SAMPLER_TEMP]);
 
 
     FixedArray<VkDescriptorSetLayoutBinding, GPU_BINDING_COUNT> layout_bindings{};

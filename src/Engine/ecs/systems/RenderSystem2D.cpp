@@ -18,10 +18,10 @@ FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_pat
     const unsigned char* file_c = reinterpret_cast<const unsigned char*>(file.data);
     stbtt_fontinfo font;
     stbtt_InitFont(&font, file_c, stbtt_GetFontOffsetForIndex(file_c, 0));
-
     const float scale = stbtt_ScaleForPixelHeight(&font, a_pixel_height);
-    int ascent;
-    stbtt_GetFontVMetrics(&font, &ascent, nullptr, nullptr);
+    int ascent, descent, gap;
+    stbtt_GetFontVMetrics(&font, &ascent, &descent, &gap);
+    const int baseline = static_cast<int>(static_cast<float>(ascent) * scale);
 
     int max_width = 0; 
     int max_height = 0;
@@ -50,17 +50,19 @@ FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_pat
 
     const uint2 extent = uint2(static_cast<uint32_t>(atlas_size), static_cast<uint32_t>(atlas_size));
 
+    const uint32_t bitmap_size = static_cast<uint32_t>(atlas_size * atlas_size);
     FontAtlas atl;
     atl.extent = extent;
     atl.char_start = a_first_char;
     atl.char_count = font.numGlyphs;
-    atl.bitmap = ArenaAllocArr(a_arena, unsigned char, atlas_size * atlas_size);
-    atl.glyphs = ArenaAllocArr(a_arena, Glyph, font.numGlyphs);
+    atl.bitmap = ArenaAllocArr(a_arena, unsigned char, bitmap_size);
+    atl.glyphs = ArenaAllocArr(a_arena, Glyph, static_cast<uint32_t>(font.numGlyphs));
     atl.pixel_height = a_pixel_height;
     atl.current_frame = 0;
     atl.per_frame[0] = AllocateBufferDescriptor();
     atl.per_frame[1] = AllocateBufferDescriptor();
     atl.per_frame[2] = AllocateBufferDescriptor();
+    atl.text_height = static_cast<float>(ascent - descent + gap) * scale;
 
     int current_x = 0;
     int current_y = 0;
@@ -75,23 +77,19 @@ FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_pat
         const int width = x1 - x0;
         const int height = y1 - y0;
 
-        const int height_mod = max_height - height;
-
         // Check if we need to move to next row
         if (current_x + width > atlas_size) {
             current_x = 0;
             current_y += row_height + 1;
             row_height = 0;
         }
-
-        BB_ASSERT(current_y + height <= atlas_size, "Font atlas too small");
-
+        const int advance_scaled = static_cast<int>(static_cast<float>(advance) * scale);
         atl.glyphs[i].pos.x = current_x;
         atl.glyphs[i].pos.y = current_y;
         atl.glyphs[i].extent.x = width;
         atl.glyphs[i].extent.y = height;
-        atl.glyphs[i].y_offset = height_mod;
-        atl.glyphs[i].advance = advance * scale;
+        atl.glyphs[i].y_offset = static_cast<float>(baseline + y0);
+        atl.glyphs[i].advance = advance_scaled;
 
         if (width > 0 && height > 0)
         {
@@ -100,7 +98,7 @@ FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_pat
             stbtt_MakeGlyphBitmap(&font, atl.bitmap + bitmap_offset, width, height, atlas_size, scale, scale, glyph_index);
         }
 
-        current_x += advance * scale;
+        current_x += advance_scaled;
         if (height > row_height)
             row_height = height;
     }
@@ -136,7 +134,6 @@ FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_pat
         atl.material = Material::CreateMasterMaterial(a_arena, material_info, "glyph");
     }
 
-
     return atl;
 }
 
@@ -152,7 +149,7 @@ bool BB::RenderText(FontAtlas& a_font_atlas, const RCommandList a_list, GPUUploa
 
     const size_t upload_size = a_string.size() * sizeof(Glyph2D);
     const size_t upload_start = a_ring_buffer.AllocateUploadMemory(upload_size, a_fence_value);
-    if (upload_start == -1)
+    if (upload_start == -1ull)
         return false;
 
     GPUBufferView buffer_view;
@@ -165,23 +162,31 @@ bool BB::RenderText(FontAtlas& a_font_atlas, const RCommandList a_list, GPUUploa
     for (size_t i = 0; i < a_string.size(); i++)
     {
         const char ch = a_string[i];
-        const size_t char_index = ch - a_font_atlas.char_start;
-        if (char_index > a_font_atlas.char_count)
+        if (ch == '\n')
         {
-            BB_WARNING(false, "trying to write a char that doesn't exist or goes out of bounds", WarningType::MEDIUM);
-            return false;
+            pos.x = a_text_start_pos.x;
+            pos.y += a_font_atlas.text_height;
         }
-        const Glyph rd_gly = a_font_atlas.glyphs[char_index];
-        const float2 tex_pos = float2(static_cast<float>(rd_gly.pos.x), static_cast<float>(rd_gly.pos.y));
+        else
+        {
+            const int char_index = ch - a_font_atlas.char_start;
+            if (char_index > a_font_atlas.char_count)
+            {
+                BB_WARNING(false, "trying to write a char that doesn't exist or goes out of bounds", WarningType::MEDIUM);
+                return false;
+            }
+            const Glyph rd_gly = a_font_atlas.glyphs[char_index];
+            const float2 tex_pos = float2(static_cast<float>(rd_gly.pos.x), static_cast<float>(rd_gly.pos.y));
 
-        Glyph2D glyph;
-        glyph.pos = float2(pos.x, pos.y + rd_gly.y_offset);
-        glyph.extent = float2(static_cast<float>(rd_gly.extent.x), static_cast<float>(rd_gly.extent.y));
-        glyph.uv0 = tex_pos / float2(a_font_atlas.extent.x, a_font_atlas.extent.y);
-        glyph.uv1 = (tex_pos + glyph.extent) / float2(a_font_atlas.extent.x, a_font_atlas.extent.y);
+            Glyph2D glyph;
+            glyph.pos = float2(pos.x, pos.y + rd_gly.y_offset);
+            glyph.extent = float2(static_cast<float>(rd_gly.extent.x), static_cast<float>(rd_gly.extent.y));
+            glyph.uv0 = tex_pos / float2(static_cast<float>(a_font_atlas.extent.x), static_cast<float>(a_font_atlas.extent.y));
+            glyph.uv1 = (tex_pos + glyph.extent) / float2(static_cast<float>(a_font_atlas.extent.x), static_cast<float>(a_font_atlas.extent.y));
 
-        a_ring_buffer.MemcpyIntoBuffer(upload_start + i * sizeof(glyph), &glyph, sizeof(glyph));
-        pos.x += rd_gly.advance * a_text_size.x + glyph.extent.x;
+            a_ring_buffer.MemcpyIntoBuffer(upload_start + i * sizeof(glyph), &glyph, sizeof(glyph));
+            pos.x += static_cast<float>(rd_gly.advance) * a_text_size.x + glyph.extent.x;
+        }
     }
 
     RenderCopyBufferRegion region;
@@ -216,7 +221,7 @@ bool BB::RenderText(FontAtlas& a_font_atlas, const RCommandList a_list, GPUUploa
     blend_state[0].dst_blend = BLEND_MODE::FACTOR_ONE_MINUS_SRC_ALPHA;
     blend_state[0].alpha_blend_op = BLEND_OP::ADD;
     blend_state[0].src_alpha_blend = BLEND_MODE::FACTOR_ONE;
-    blend_state[0].dst_alpha_blend = BLEND_MODE::FACTOR_ZERO;
+    blend_state[0].dst_alpha_blend = BLEND_MODE::FACTOR_ONE_MINUS_SRC_ALPHA;
     SetBlendMode(a_list, 0, blend_state.slice());
     StartRenderPass(a_list, start_rendering_info);
 

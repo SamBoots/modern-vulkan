@@ -29,7 +29,7 @@ float4 FragmentMain(VSOutput a_input) : SV_Target
 {
     BB::ShaderIndicesGlyph shader_indices = PushConstantGlyph();
 
-    float4 color = textures[shader_indices.font_texture].Sample(SHADOW_MAP_SAMPLER, a_input.uv).r;
+    float4 color = textures[shader_indices.font_texture].Sample(UI_SAMPLER, a_input.uv).r;
     if (color.r < 0.01)
         discard;
     return color;

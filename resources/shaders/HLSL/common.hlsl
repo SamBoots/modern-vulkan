@@ -36,6 +36,7 @@ _BBBIND(GPU_BINDING_UNIFORMS, 0)ConstantBuffer<BB::Scene3DInfo> uniform_scene_in
 // immutable samplers
 _BBBIND(GPU_BINDING_IMMUTABLE_SAMPLERS, 0)SamplerState immutable_samplers[GPU_IMMUTABLE_SAMPLE_COUNT];
 #define SHADOW_MAP_SAMPLER immutable_samplers[GPU_IMMUTABLE_SAMPLER_SHAWDOW_MAP]
+#define UI_SAMPLER immutable_samplers[GPU_IMMUTABLE_SAMPLER_UI]
 #define BASIC_3D_SAMPLER immutable_samplers[GPU_IMMUTABLE_SAMPLER_TEMP]
 
 float4 UnpackR8B8G8A8_UNORMToFloat4(uint a_packed)

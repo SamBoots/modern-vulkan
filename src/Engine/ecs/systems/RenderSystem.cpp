@@ -11,7 +11,7 @@ using namespace BB;
 
 constexpr float BLOOM_IMAGE_DOWNSCALE_FACTOR = 1.f;
 
-void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count, const uint32_t a_max_lights, const uint2 a_render_target_size)
+void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count, const uint2 a_render_target_size)
 {
 	m_fence = CreateFence(0, "scene fence");
 	m_last_completed_fence_value = 0;
@@ -244,7 +244,7 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
     if (!m_options.skip_bloom)
 	    m_bloom_stage.ExecutePass(a_list, pfd.bloom.resolution, pfd.bloom.image, pfd.bloom.descriptor_index_0, pfd.bloom.descriptor_index_1, a_draw_area, GetImageView(pfd.render_target_view));
 
-    RenderText(m_font_atlas, a_list, m_upload_allocator, m_next_fence_value, a_draw_area, GetImageView(pfd.render_target_view), pfd.storage_buffer, float2(1.f), float2(0.f), "de");
+    RenderText(m_font_atlas, a_list, m_upload_allocator, m_next_fence_value, a_draw_area, GetImageView(pfd.render_target_view), pfd.storage_buffer, float2(1.f), float2(0.f, 100.f), "Ape Has Eaten The Apple,\noppo");
 }
 
 void RenderSystem::DebugDraw(const RCommandList a_list, const uint2 a_draw_area)

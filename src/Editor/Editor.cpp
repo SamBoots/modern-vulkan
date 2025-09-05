@@ -380,7 +380,7 @@ void Editor::StartFrame(MemoryArena& a_arena, const Slice<InputEvent> a_input_ev
 	m_console.ImGuiShowConsole(a_arena, m_app_window_extent);
 }
 
-ThreadTask Editor::UpdateGameInstance(MemoryArena& a_arena, const float a_delta_time, class EditorGame& a_game)
+ThreadTask Editor::UpdateGameInstance(const float a_delta_time, class EditorGame& a_game)
 {
     ThreadFuncForDrawing_Params params =
     {

@@ -23,6 +23,8 @@ namespace BB
         Glyph* glyphs;
         float pixel_height;
         AssetHandle asset;
+
+        float text_height;
         
         // temp
         unsigned char* bitmap;

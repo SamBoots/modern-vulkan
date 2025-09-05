@@ -473,7 +473,7 @@ static void SetAllTextures(const RDescriptorIndex a_descriptor_index)
 AttributeGPUBufferView BB::AllocateFromVertexBufferGeometry(const size_t a_size_in_bytes)
 {
 	AttributeGPUBufferView view;
-	view.desc_offset = s_render_inst->vertex_buffer.geometry.desc_offset.fetch_add(a_size_in_bytes);;
+	view.desc_offset = s_render_inst->vertex_buffer.geometry.desc_offset.fetch_add(a_size_in_bytes);
 	view.view.buffer = s_render_inst->vertex_buffer.buffer;
 	view.view.size = a_size_in_bytes;
 	view.view.offset = view.desc_offset + s_render_inst->vertex_buffer.geometry.start_offset;
