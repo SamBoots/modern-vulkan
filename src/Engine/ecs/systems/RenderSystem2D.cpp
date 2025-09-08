@@ -12,6 +12,12 @@
 
 using namespace BB;
 
+static void AddBaselineToRow(unsigned char* a_bitmap, const int a_bitmap_x, const int a_current_y, const int a_baseline)
+{
+    const int offset = (a_current_y + a_baseline) * a_bitmap_x;
+    memset(a_bitmap + offset, 211, a_bitmap_x);
+}
+
 FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_path, const float a_pixel_height, const int a_first_char)
 {
     const Buffer file = OSReadFile(a_arena, a_font_path.c_str());
@@ -79,13 +85,14 @@ FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_pat
 
         // Check if we need to move to next row
         if (current_x + width > atlas_size) {
+            AddBaselineToRow(atl.bitmap, atlas_size, current_y, baseline);
             current_x = 0;
             current_y += row_height + 1;
             row_height = 0;
         }
         const int advance_scaled = static_cast<int>(static_cast<float>(advance) * scale);
         atl.glyphs[i].pos.x = current_x;
-        atl.glyphs[i].pos.y = current_y;
+        atl.glyphs[i].pos.y = current_y + baseline + y0;
         atl.glyphs[i].extent.x = width;
         atl.glyphs[i].extent.y = height;
         atl.glyphs[i].y_offset = static_cast<float>(baseline + y0);
@@ -94,7 +101,7 @@ FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_pat
         if (width > 0 && height > 0)
         {
             const int glyph_index = stbtt_FindGlyphIndex(&font, char_code);
-            const int bitmap_offset = current_y * atlas_size + current_x;
+            const int bitmap_offset = (current_y + baseline + y0) * atlas_size + current_x;
             stbtt_MakeGlyphBitmap(&font, atl.bitmap + bitmap_offset, width, height, atlas_size, scale, scale, glyph_index);
         }
 
@@ -102,6 +109,8 @@ FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_pat
         if (height > row_height)
             row_height = height;
     }
+    AddBaselineToRow(atl.bitmap, atlas_size, current_y, baseline);
+
     MemoryArenaScope(a_arena)
     {
         Asset::TextureLoadFromMemory load_info;
