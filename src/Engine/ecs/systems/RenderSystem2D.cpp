@@ -12,12 +12,6 @@
 
 using namespace BB;
 
-static void AddBaselineToRow(unsigned char* a_bitmap, const int a_bitmap_x, const int a_current_y, const int a_baseline)
-{
-    const int offset = (a_current_y + a_baseline) * a_bitmap_x;
-    memset(a_bitmap + offset, 211, a_bitmap_x);
-}
-
 FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_path, const float a_pixel_height, const int a_first_char)
 {
     const Buffer file = OSReadFile(a_arena, a_font_path.c_str());
@@ -40,7 +34,7 @@ FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_pat
         stbtt_GetCodepointBitmapBox(&font, char_code, scale, scale, &x0, &y0, &x1, &y1);
 
         const int width = x1 - x0;
-        const int height = y1 - y0;
+        const int height = baseline + y1;
 
         if (width > max_width) max_width = width;
         if (height > max_height) max_height = height;
@@ -68,7 +62,7 @@ FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_pat
     atl.per_frame[0] = AllocateBufferDescriptor();
     atl.per_frame[1] = AllocateBufferDescriptor();
     atl.per_frame[2] = AllocateBufferDescriptor();
-    atl.text_height = static_cast<float>(ascent - descent + gap) * scale;
+    atl.text_height = ceilf(static_cast<float>(ascent - descent + gap) * scale);
 
     int current_x = 0;
     int current_y = 0;
@@ -81,21 +75,20 @@ FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_pat
         stbtt_GetCodepointHMetrics(&font, char_code, &advance, &lsb);
         stbtt_GetCodepointBitmapBox(&font, char_code, scale, scale, &x0, &y0, &x1, &y1);
         const int width = x1 - x0;
-        const int height = y1 - y0;
+        const int height = baseline + y1;
 
         // Check if we need to move to next row
-        if (current_x + width > atlas_size) {
-            AddBaselineToRow(atl.bitmap, atlas_size, current_y, baseline);
+        if (current_x + width > atlas_size) 
+        {
             current_x = 0;
-            current_y += row_height + 1;
+            current_y += row_height;
             row_height = 0;
         }
         const int advance_scaled = static_cast<int>(static_cast<float>(advance) * scale);
         atl.glyphs[i].pos.x = current_x;
-        atl.glyphs[i].pos.y = current_y + baseline + y0;
+        atl.glyphs[i].pos.y = current_y;
         atl.glyphs[i].extent.x = width;
         atl.glyphs[i].extent.y = height;
-        atl.glyphs[i].y_offset = static_cast<float>(baseline + y0);
         atl.glyphs[i].advance = advance_scaled;
 
         if (width > 0 && height > 0)
@@ -109,7 +102,6 @@ FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_pat
         if (height > row_height)
             row_height = height;
     }
-    AddBaselineToRow(atl.bitmap, atlas_size, current_y, baseline);
 
     MemoryArenaScope(a_arena)
     {
@@ -151,7 +143,7 @@ bool BB::FontAtlasWriteImage(const PathString& a_path, const FontAtlas& a_atlas)
     return Asset::WriteImage(a_path.GetView(), a_atlas.extent, 1, a_atlas.bitmap);
 }
 
-bool BB::RenderText(FontAtlas& a_font_atlas, const RCommandList a_list, GPUUploadRingAllocator& a_ring_buffer, const GPUFenceValue a_fence_value, const uint2 a_draw_area, const RImageView a_render_target, GPULinearBuffer& a_frame_buffer, const float2 a_text_size, const float2 a_text_start_pos, const StringView a_string)
+bool BB::RenderText(FontAtlas& a_font_atlas, const RCommandList a_list, GPUUploadRingAllocator& a_ring_buffer, const GPUFenceValue a_fence_value, const uint2 a_draw_area, const RImageView a_render_target, GPULinearBuffer& a_frame_buffer, const float2 a_text_size, const float2 a_text_start_pos, const float a_spacing, const StringView a_string)
 {
     // temp
     const RDescriptorIndex buffer_desc = a_font_atlas.per_frame[a_font_atlas.current_frame];
@@ -173,8 +165,9 @@ bool BB::RenderText(FontAtlas& a_font_atlas, const RCommandList a_list, GPUUploa
         const char ch = a_string[i];
         if (ch == '\n')
         {
+            const float spacing = a_font_atlas.text_height * a_text_size.y + a_spacing;
             pos.x = a_text_start_pos.x;
-            pos.y += a_font_atlas.text_height;
+            pos.y += spacing;
         }
         else
         {
@@ -188,13 +181,13 @@ bool BB::RenderText(FontAtlas& a_font_atlas, const RCommandList a_list, GPUUploa
             const float2 tex_pos = float2(static_cast<float>(rd_gly.pos.x), static_cast<float>(rd_gly.pos.y));
 
             Glyph2D glyph;
-            glyph.pos = float2(pos.x, pos.y + rd_gly.y_offset);
+            glyph.pos = float2(pos.x, pos.y);
             glyph.extent = float2(static_cast<float>(rd_gly.extent.x), static_cast<float>(rd_gly.extent.y));
             glyph.uv0 = tex_pos / float2(static_cast<float>(a_font_atlas.extent.x), static_cast<float>(a_font_atlas.extent.y));
             glyph.uv1 = (tex_pos + glyph.extent) / float2(static_cast<float>(a_font_atlas.extent.x), static_cast<float>(a_font_atlas.extent.y));
 
             a_ring_buffer.MemcpyIntoBuffer(upload_start + i * sizeof(glyph), &glyph, sizeof(glyph));
-            pos.x += static_cast<float>(rd_gly.advance) * a_text_size.x + glyph.extent.x;
+            pos.x += static_cast<float>(rd_gly.advance) * a_text_size.x;
         }
     }
 

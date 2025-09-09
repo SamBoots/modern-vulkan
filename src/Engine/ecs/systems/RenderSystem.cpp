@@ -244,7 +244,7 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
     if (!m_options.skip_bloom)
 	    m_bloom_stage.ExecutePass(a_list, pfd.bloom.resolution, pfd.bloom.image, pfd.bloom.descriptor_index_0, pfd.bloom.descriptor_index_1, a_draw_area, GetImageView(pfd.render_target_view));
 
-    RenderText(m_font_atlas, a_list, m_upload_allocator, m_next_fence_value, a_draw_area, GetImageView(pfd.render_target_view), pfd.storage_buffer, float2(1.f), float2(0.f, 100.f), "TT Fonts are cool\nbut how do I center my text\ncorrectly please help");
+    RenderText(m_font_atlas, a_list, m_upload_allocator, m_next_fence_value, a_draw_area, GetImageView(pfd.render_target_view), pfd.storage_buffer, float2(4.f), float2(0.f), -8.f, "TT Fonts are cool.\nbut how do I center my text,\ncorrectly please help");
 }
 
 void RenderSystem::DebugDraw(const RCommandList a_list, const uint2 a_draw_area)
