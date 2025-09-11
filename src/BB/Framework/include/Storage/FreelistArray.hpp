@@ -106,4 +106,3 @@ namespace BB
 		size_t m_next_free;
 	};
 }
-

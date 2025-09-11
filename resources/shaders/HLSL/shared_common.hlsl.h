@@ -29,7 +29,7 @@ namespace BB
     {
         float2 position;
         float2 uv;
-        uint color;
+        Color color;
     };
 
     struct ALIGN_STRUCT(16) GlobalRenderData
@@ -71,10 +71,11 @@ namespace BB
         float near_plane;                // 200
 
         // buffers
-        RDescriptorIndex matrix_index;   // 204
-        RDescriptorIndex light_index;    // 208
-        RDescriptorIndex light_view_index; // 212
-        uint3 pad0;
+        RDescriptorIndex per_frame_index;// 204
+        RDescriptorIndex matrix_index;   // 208
+        RDescriptorIndex light_index;    // 212
+        RDescriptorIndex light_view_index; // 216
+        uint2 pad0;                        // 224
     };
 
     struct ALIGN_STRUCT(16) MeshMetallic
@@ -128,6 +129,16 @@ namespace BB
         float2 uv1;
     };
 
+    struct Quad2D
+    {
+        float2 pos;
+        float2 extent;
+        float2 uv0;
+        float2 uv1;
+        Color color;
+        RDescriptorIndex text_id;
+    };
+
     struct ALIGN_STRUCT(16) PBRShadingAttribute
     {
         float3 normal;  // 12
@@ -153,11 +164,9 @@ namespace BB
         float2 translate;               // 24
     };
 
-    struct ShaderIndicesGlyph
+    struct ShaderIndices2DQuads
     {
-        RDescriptorIndex glyph_buffer_index; // 4
-        RDescriptorIndex font_texture;  // 8
-        float2 scale;                   // 16
+        uint per_frame_buffer_start;
     };
 
     struct ShaderIndicesShadowMapping

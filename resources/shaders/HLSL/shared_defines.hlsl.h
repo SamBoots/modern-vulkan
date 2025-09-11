@@ -14,5 +14,6 @@ namespace BB
 
 #define ALIGN_STRUCT(x)
 typedef uint RDescriptorIndex;
+typedef uint Color;
 
 #endif // __HLSL_VERSION

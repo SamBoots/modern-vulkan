@@ -11,6 +11,8 @@ using namespace BB;
 
 constexpr float BLOOM_IMAGE_DOWNSCALE_FACTOR = 1.f;
 
+static MasterMaterialHandle material;
+
 void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count, const uint2 a_render_target_size)
 {
 	m_fence = CreateFence(0, "scene fence");
@@ -42,6 +44,7 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 		PerFrame& pfd = m_per_frame[i];
 		pfd.previous_draw_area = { 0, 0 };
 		pfd.scene_descriptor = AllocateUniformDescriptor();
+        pfd.per_frame_descriptor = AllocateBufferDescriptor();
         pfd.matrix_descriptor = AllocateBufferDescriptor();
         pfd.light_descriptor = AllocateBufferDescriptor();
         pfd.light_view_descriptor = AllocateBufferDescriptor();
@@ -55,6 +58,13 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 		buffer_info.type = BUFFER_TYPE::STORAGE;
 		buffer_info.host_writable = false;
 		pfd.storage_buffer.Init(buffer_info);
+
+
+        GPUBufferView view;
+        view.buffer = pfd.storage_buffer.GetBuffer();
+        view.offset = 0;
+        view.size = mbSize * 4;
+        DescriptorWriteStorageBuffer(pfd.per_frame_descriptor, view);
 
 		pfd.fence_value = 0;
 
@@ -92,7 +102,24 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
     write_image.AddPathNoSlash("resources/fonts/ProggyVector.png");
 
     m_font_atlas = CreateFontAtlas(a_arena, font_string, 32, 0);
-    FontAtlasWriteImage(write_image, m_font_atlas);
+
+    FixedArray<MaterialShaderCreateInfo, 2> shader_infos;
+    shader_infos[0].stage = SHADER_STAGE::VERTEX;
+    shader_infos[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
+    shader_infos[0].entry = "VertexMain";
+    shader_infos[0].path = "HLSL/glyph.hlsl";
+    shader_infos[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
+    shader_infos[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
+    shader_infos[1].entry = "FragmentMain";
+    shader_infos[1].path = "HLSL/glyph.hlsl";
+
+    MaterialCreateInfo material_info;
+    material_info.pass_type = PASS_TYPE::SCENE;
+    material_info.material_type = MATERIAL_TYPE::MATERIAL_2D;
+    material_info.shader_infos = shader_infos.slice();
+    material_info.cpu_writeable = false;
+    material_info.user_data_size = 0;
+    material = Material::CreateMasterMaterial(a_arena, material_info, "glyph");
 }
 
 void RenderSystem::StartFrame(const RCommandList a_list)
@@ -114,8 +141,6 @@ void RenderSystem::StartFrame(const RCommandList a_list)
 	PipelineBarrierInfo pipeline_info{};
 	pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo>(&render_target_transition, 1);
 	PipelineBarriers(a_list, pipeline_info);
-
-
 }
 
 RenderSystemFrame RenderSystem::EndFrame(const RCommandList a_list, const IMAGE_LAYOUT a_current_layout)
@@ -244,7 +269,11 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
     if (!m_options.skip_bloom)
 	    m_bloom_stage.ExecutePass(a_list, pfd.bloom.resolution, pfd.bloom.image, pfd.bloom.descriptor_index_0, pfd.bloom.descriptor_index_1, a_draw_area, GetImageView(pfd.render_target_view));
 
-    RenderText(m_font_atlas, a_list, m_upload_allocator, m_next_fence_value, a_draw_area, GetImageView(pfd.render_target_view), pfd.storage_buffer, float2(4.f), float2(0.f), -8.f, "TT Fonts are cool.\nbut how do I center my text,\ncorrectly please help");
+    UICanvas canvas;
+    canvas.BeginDraw(a_per_frame_arena, 128);
+    canvas.CreateText(float2(25.f, 25.f), float2(1.5f), Color(255, 255, 0, 255), "TT Fonts are cool, but how do I center my text correctly please help", 390.f, -8.f, m_font_atlas);
+    canvas.CreatePanel(float2(20.f, 20.f), float2(400.f, 200.f), Color(255, 0, 0, 100));
+    canvas.EndDraw(a_list, m_next_fence_value, m_upload_allocator, pfd.storage_buffer, a_draw_area, GetImageView(pfd.render_target_view), material);
 }
 
 void RenderSystem::DebugDraw(const RCommandList a_list, const uint2 a_draw_area)
@@ -340,6 +369,7 @@ void RenderSystem::UpdateConstantBuffer(const uint32_t a_frame_index, const RCom
 	m_scene_info.scene_resolution = a_draw_area_size;
     
     //descriptors
+    m_scene_info.per_frame_index = a_pfd.per_frame_descriptor;
     m_scene_info.matrix_index = a_pfd.matrix_descriptor;
     m_scene_info.light_index = a_pfd.light_descriptor;
     m_scene_info.light_view_index = a_pfd.light_view_descriptor;

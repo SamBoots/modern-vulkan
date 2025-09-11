@@ -108,13 +108,10 @@ BB::ShaderIndices2D PushConstant2D()
     return indices;
 }
 
-BB::ShaderIndicesGlyph PushConstantGlyph()
+BB::ShaderIndices2DQuads PushConstant2DQuads()
 {
-    BB::ShaderIndicesGlyph indices;
-    indices.glyph_buffer_index = push_constant.userdata[0];
-    indices.font_texture = push_constant.userdata[1];
-    indices.scale.x = asfloat(push_constant.userdata[2]);
-    indices.scale.y = asfloat(push_constant.userdata[3]);
+    BB::ShaderIndices2DQuads indices;
+    indices.per_frame_buffer_start = push_constant.userdata[0];
     return indices;
 }
 

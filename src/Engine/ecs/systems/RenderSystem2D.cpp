@@ -55,153 +55,161 @@ FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_pat
     atl.extent = extent;
     atl.char_start = a_first_char;
     atl.char_count = font.numGlyphs;
-    atl.bitmap = ArenaAllocArr(a_arena, unsigned char, bitmap_size);
     atl.glyphs = ArenaAllocArr(a_arena, Glyph, static_cast<uint32_t>(font.numGlyphs));
     atl.pixel_height = a_pixel_height;
-    atl.current_frame = 0;
-    atl.per_frame[0] = AllocateBufferDescriptor();
-    atl.per_frame[1] = AllocateBufferDescriptor();
-    atl.per_frame[2] = AllocateBufferDescriptor();
     atl.text_height = ceilf(static_cast<float>(ascent - descent + gap) * scale);
 
     int current_x = 0;
     int current_y = 0;
     int row_height = 0;
 
-    for (int i = 0; i < font.numGlyphs; i++)
-    {
-        const int char_code = a_first_char + i;
-        int advance, lsb, x0, y0, x1, y1;
-        stbtt_GetCodepointHMetrics(&font, char_code, &advance, &lsb);
-        stbtt_GetCodepointBitmapBox(&font, char_code, scale, scale, &x0, &y0, &x1, &y1);
-        const int width = x1 - x0;
-        const int height = baseline + y1;
-
-        // Check if we need to move to next row
-        if (current_x + width > atlas_size) 
-        {
-            current_x = 0;
-            current_y += row_height;
-            row_height = 0;
-        }
-        const int advance_scaled = static_cast<int>(static_cast<float>(advance) * scale);
-        atl.glyphs[i].pos.x = current_x;
-        atl.glyphs[i].pos.y = current_y;
-        atl.glyphs[i].extent.x = width;
-        atl.glyphs[i].extent.y = height;
-        atl.glyphs[i].advance = advance_scaled;
-
-        if (width > 0 && height > 0)
-        {
-            const int glyph_index = stbtt_FindGlyphIndex(&font, char_code);
-            const int bitmap_offset = (current_y + baseline + y0) * atlas_size + current_x;
-            stbtt_MakeGlyphBitmap(&font, atl.bitmap + bitmap_offset, width, height, atlas_size, scale, scale, glyph_index);
-        }
-
-        current_x += advance_scaled;
-        if (height > row_height)
-            row_height = height;
-    }
-
     MemoryArenaScope(a_arena)
     {
+        unsigned char* bitmap = ArenaAllocArr(a_arena, unsigned char, bitmap_size);
+        for (int i = 0; i < font.numGlyphs; i++)
+        {
+            const int char_code = a_first_char + i;
+            int advance, lsb, x0, y0, x1, y1;
+            stbtt_GetCodepointHMetrics(&font, char_code, &advance, &lsb);
+            stbtt_GetCodepointBitmapBox(&font, char_code, scale, scale, &x0, &y0, &x1, &y1);
+            const int width = x1 - x0;
+            const int height = baseline + y1;
+
+            // Check if we need to move to next row
+            if (current_x + width > atlas_size) 
+            {
+                current_x = 0;
+                current_y += row_height;
+                row_height = 0;
+            }
+            const int advance_scaled = static_cast<int>(static_cast<float>(advance) * scale);
+            atl.glyphs[i].pos.x = current_x;
+            atl.glyphs[i].pos.y = current_y;
+            atl.glyphs[i].extent.x = width;
+            atl.glyphs[i].extent.y = height;
+            atl.glyphs[i].advance = advance_scaled;
+
+            if (width > 0 && height > 0)
+            {
+                const int glyph_index = stbtt_FindGlyphIndex(&font, char_code);
+                const int bitmap_offset = (current_y + baseline + y0) * atlas_size + current_x;
+                stbtt_MakeGlyphBitmap(&font, bitmap + bitmap_offset, width, height, atlas_size, scale, scale, glyph_index);
+            }
+
+            current_x += advance_scaled;
+            if (height > row_height)
+                row_height = height;
+        }
+
         Asset::TextureLoadFromMemory load_info;
         load_info.name = "font";
         load_info.bytes_per_pixel = 1;
         load_info.width = extent.x;
         load_info.height = extent.y;
-        load_info.pixels = atl.bitmap;
+        load_info.pixels = bitmap;
         const Image& img = Asset::LoadImageMemory(a_arena, load_info);
         atl.image = img.gpu_image;
         atl.image_index = img.descriptor_index;
         atl.asset = img.asset_handle;
-
-        FixedArray<MaterialShaderCreateInfo, 2> shader_infos;
-        shader_infos[0].stage = SHADER_STAGE::VERTEX;
-        shader_infos[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
-        shader_infos[0].entry = "VertexMain";
-        shader_infos[0].path = "HLSL/glyph.hlsl";
-        shader_infos[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
-        shader_infos[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
-        shader_infos[1].entry = "FragmentMain";
-        shader_infos[1].path = "HLSL/glyph.hlsl";
-        
-        MaterialCreateInfo material_info;
-        material_info.pass_type = PASS_TYPE::SCENE;
-        material_info.material_type = MATERIAL_TYPE::MATERIAL_2D;
-        material_info.shader_infos = shader_infos.slice();
-        material_info.cpu_writeable = false;
-        material_info.user_data_size = 0;
-        atl.material = Material::CreateMasterMaterial(a_arena, material_info, "glyph");
     }
 
     return atl;
 }
 
-bool BB::FontAtlasWriteImage(const PathString& a_path, const FontAtlas& a_atlas)
+void UICanvas::BeginDraw(MemoryArena& a_arena, const size_t a_max_quads)
 {
-    return Asset::WriteImage(a_path.GetView(), a_atlas.extent, 1, a_atlas.bitmap);
+    m_quads.Init(a_arena, a_max_quads);
 }
 
-bool BB::RenderText(FontAtlas& a_font_atlas, const RCommandList a_list, GPUUploadRingAllocator& a_ring_buffer, const GPUFenceValue a_fence_value, const uint2 a_draw_area, const RImageView a_render_target, GPULinearBuffer& a_frame_buffer, const float2 a_text_size, const float2 a_text_start_pos, const float a_spacing, const StringView a_string)
+void UICanvas::CreatePanel(const float2 a_pos, const float2 a_extent, const Color a_color)
 {
-    // temp
-    const RDescriptorIndex buffer_desc = a_font_atlas.per_frame[a_font_atlas.current_frame];
+    Quad2D quad;
+    quad.pos = a_pos;
+    quad.extent = a_extent;
+    quad.uv0 = float2(0.f);
+    quad.uv1 = float2(1.f);
+    quad.color = a_color;
+    quad.text_id = Asset::GetWhiteTexture();
+    m_quads.emplace_back(quad);
 
-    const size_t upload_size = a_string.size() * sizeof(Glyph2D);
-    const size_t upload_start = a_ring_buffer.AllocateUploadMemory(upload_size, a_fence_value);
-    if (upload_start == -1ull)
-        return false;
+}
 
-    GPUBufferView buffer_view;
-    bool success = a_frame_buffer.Allocate(upload_size, buffer_view);
-    if (!success)
-        return false;
-
-    float2 pos = a_text_start_pos;
+bool UICanvas::CreateText(const float2 a_pos, const float2 a_extent, const Color a_color, const StringView a_string, const float a_x_length, const float a_spacing, const FontAtlas& a_font)
+{
+    float2 pos = a_pos;
 
     for (size_t i = 0; i < a_string.size(); i++)
     {
         const char ch = a_string[i];
+
         if (ch == '\n')
         {
-            const float spacing = a_font_atlas.text_height * a_text_size.y + a_spacing;
-            pos.x = a_text_start_pos.x;
+            const float spacing = a_font.text_height * a_extent.y + a_spacing;
+            pos.x = a_pos.x;
             pos.y += spacing;
         }
         else
         {
-            const int char_index = ch - a_font_atlas.char_start;
-            if (char_index > a_font_atlas.char_count)
+            const int char_index = ch - a_font.char_start;
+            if (char_index > a_font.char_count)
             {
                 BB_WARNING(false, "trying to write a char that doesn't exist or goes out of bounds", WarningType::MEDIUM);
                 return false;
             }
-            const Glyph rd_gly = a_font_atlas.glyphs[char_index];
+            const Glyph rd_gly = a_font.glyphs[char_index];
             const float2 tex_pos = float2(static_cast<float>(rd_gly.pos.x), static_cast<float>(rd_gly.pos.y));
+            const float2 rd_extent = float2(static_cast<float>(rd_gly.extent.x), static_cast<float>(rd_gly.extent.y));
+            const float2 wr_extent = rd_extent * a_extent;
 
-            Glyph2D glyph;
-            glyph.pos = float2(pos.x, pos.y);
-            glyph.extent = float2(static_cast<float>(rd_gly.extent.x), static_cast<float>(rd_gly.extent.y));
-            glyph.uv0 = tex_pos / float2(static_cast<float>(a_font_atlas.extent.x), static_cast<float>(a_font_atlas.extent.y));
-            glyph.uv1 = (tex_pos + glyph.extent) / float2(static_cast<float>(a_font_atlas.extent.x), static_cast<float>(a_font_atlas.extent.y));
+            if (pos.x + wr_extent.x > a_pos.x + a_x_length)
+            {
+                const float spacing = a_font.text_height * a_extent.y + a_spacing;
+                pos.x = a_pos.x;
+                pos.y += spacing;
+            }
 
-            a_ring_buffer.MemcpyIntoBuffer(upload_start + i * sizeof(glyph), &glyph, sizeof(glyph));
-            pos.x += static_cast<float>(rd_gly.advance) * a_text_size.x;
+            Quad2D quad;
+            quad.pos = float2(pos.x, pos.y);
+            quad.extent = wr_extent;
+            quad.uv0 = tex_pos / float2(static_cast<float>(a_font.extent.x), static_cast<float>(a_font.extent.y));
+            quad.uv1 = (tex_pos + rd_extent) / float2(static_cast<float>(a_font.extent.x), static_cast<float>(a_font.extent.y));
+            quad.color = a_color;
+            quad.text_id = a_font.image_index;
+            m_quads.emplace_back(quad);
+            pos.x += static_cast<float>(rd_gly.advance) * a_extent.x;
         }
     }
+    return true;
+}
+
+bool UICanvas::EndDraw(const RCommandList a_list, const GPUFenceValue a_fence_value, GPUUploadRingAllocator& a_ring_buffer, GPULinearBuffer& a_frame_buffer, const uint2 a_draw_area, const RImageView a_render_target, const MasterMaterialHandle a_material) const
+{
+    const size_t memsize = m_quads.size() * sizeof(Quad2D);
+
+    const uint64_t src_offset = a_ring_buffer.AllocateUploadMemory(memsize, a_fence_value);
+    if (src_offset == uint64_t(-1))
+    {
+        BB_WARNING(false, "out of upload buffer space for UICanvas", WarningType::HIGH);
+        return false;
+    }
+    GPUBufferView dst;
+    if (!a_frame_buffer.Allocate(memsize, dst))
+    {
+        BB_WARNING(false, "out of per frame buffer space for UICanvas", WarningType::HIGH);
+        return false;
+    }
+
+    a_ring_buffer.MemcpyIntoBuffer(src_offset, m_quads.data(), memsize);
 
     RenderCopyBufferRegion region;
-    region.size = upload_size;
-    region.src_offset = upload_start;
-    region.dst_offset = buffer_view.offset;
+    region.size = memsize;
+    region.src_offset = src_offset;
+    region.dst_offset = dst.offset;
     RenderCopyBuffer copy;
     copy.src = a_ring_buffer.GetBuffer();
     copy.dst = a_frame_buffer.GetBuffer();
     copy.regions = Slice(&region, 1);
     CopyBuffer(a_list, copy);
-
-    DescriptorWriteStorageBuffer(buffer_desc, buffer_view);
 
     RenderingAttachmentColor color_attach;
     color_attach.load_color = true;
@@ -228,20 +236,21 @@ bool BB::RenderText(FontAtlas& a_font_atlas, const RCommandList a_list, GPUUploa
     StartRenderPass(a_list, start_rendering_info);
 
     SetPrimitiveTopology(a_list, PRIMITIVE_TOPOLOGY::TRIANGLE_LIST);
-    Material::BindMaterial(a_list, a_font_atlas.material);
+    Material::BindMaterial(a_list, a_material);
 
-    ShaderIndicesGlyph push_constant;
-    push_constant.glyph_buffer_index = buffer_desc;
-    push_constant.font_texture = a_font_atlas.image_index;
-    push_constant.scale = a_text_size;
+    ShaderIndices2DQuads push_constant;
+    push_constant.per_frame_buffer_start = dst.offset;
 
     SetPushConstantUserData(a_list, 0, sizeof(push_constant), &push_constant);
 
-    DrawVertices(a_list, 6, static_cast<uint32_t>(a_string.size()), 1, 0);
-    
+    DrawVertices(a_list, 6, m_quads.size(), 1, 0);
+
     EndRenderPass(a_list);
-
-    a_font_atlas.current_frame = (a_font_atlas.current_frame + 1) % 3;
-
     return true;
+}
+
+
+void UICanvas::Clear()
+{
+    m_quads.clear();
 }
