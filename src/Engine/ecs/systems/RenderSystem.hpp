@@ -9,7 +9,7 @@
 #include "RasterMeshStage.hpp"
 #include "BloomStage.hpp"
 #include "LineStage.hpp"
-#include "RenderSystem2D.hpp"
+#include "UICanvas.hpp"
 
 namespace BB
 {
@@ -28,7 +28,7 @@ namespace BB
         friend class EntityComponentSystem;
 		void Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count, const uint2 a_render_target_size);
 
-		void StartFrame(const RCommandList a_list);
+		void StartFrame(MemoryArena& a_per_frame_arena, const uint32_t a_max_ui_elements = 1024);
 		RenderSystemFrame EndFrame(const RCommandList a_list, const IMAGE_LAYOUT a_current_layout);
 		void UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCommandList a_list, const uint2 a_draw_area, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const RaytraceComponentPool& a_raytrace_pool, const ConstSlice<LightComponent> a_lights);
         void DebugDraw(const RCommandList a_list, const uint2 a_draw_area);
@@ -36,6 +36,9 @@ namespace BB
 		void Resize(const uint2 a_new_extent, const bool a_force = false);
 		void ResizeNewFormat(const uint2 a_render_target_size, const IMAGE_FORMAT a_render_target_format);
 		void Screenshot(const PathString& a_path) const;
+
+        UICanvas& GetUIStage() { return m_ui_stage; }
+        FontAtlas& GetDefaultFont() {return m_font_atlas;}
 
 		bool ToggleSkipSkyboxPass()
 		{
@@ -84,7 +87,7 @@ namespace BB
             RDescriptorIndex matrix_descriptor;
             RDescriptorIndex light_descriptor;
             RDescriptorIndex light_view_descriptor;
-			GPULinearBuffer storage_buffer;
+			GPULinearBuffer per_frame_buffer;
 
 			struct Bloom
 			{
@@ -126,6 +129,7 @@ namespace BB
 			IMAGE_FORMAT format;
 		};
 
+        void Update3D(MemoryArena& a_per_frame_arena, const RCommandList a_list, const uint2 a_draw_area, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const RaytraceComponentPool& a_raytrace_pool, const ConstSlice<LightComponent> a_lights);
 		void UpdateConstantBuffer(const uint32_t a_frame_index, const RCommandList a_list, const uint2 a_draw_area_size, const ConstSlice<LightComponent> a_lights);
 		void BuildTopLevelAccelerationStructure(MemoryArena& a_per_frame_arena, const RCommandList a_list, const ConstSlice<AccelerationStructureInstanceInfo> a_instances);
 		void ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list, const DrawList& a_draw_list, const ConstSlice<LightComponent> a_lights);
@@ -156,6 +160,7 @@ namespace BB
         RasterMeshStage m_raster_mesh_stage;
         BloomStage m_bloom_stage;
 		LineStage m_line_stage;
+        UICanvas m_ui_stage;
         FontAtlas m_font_atlas;
 	};
 }

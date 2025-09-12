@@ -24,12 +24,8 @@ bool EntityComponentSystem::Init(MemoryArena& a_arena, const EntityComponentSyst
 {
 	m_name = a_name;
 
-	m_per_frame.Init(a_arena, a_create_info.render_frame_count);
-	m_per_frame.resize(a_create_info.render_frame_count);
-	for (uint32_t i = 0; i < a_create_info.render_frame_count; i++)
-	{
-		m_per_frame[i].arena = MemoryArenaCreate();
-	}
+    m_frame_count = a_create_info.render_frame_count;
+    m_per_frame_arena = MemoryArenaCreate();
 
 	// components
 	m_ecs_entities.Init(a_arena, a_create_info.entity_count);
@@ -241,13 +237,13 @@ void EntityComponentSystem::DrawAABB(const ECSEntity a_entity, const LineColor a
 
 void EntityComponentSystem::StartFrame()
 {
-	PerFrame& frame = m_per_frame[m_current_frame];
-	MemoryArenaReset(frame.arena);
+	MemoryArenaReset(m_per_frame_arena);
+    m_render_system.StartFrame(m_per_frame_arena);
 }
 
 void EntityComponentSystem::EndFrame()
 {
-	m_current_frame = (m_current_frame + 1) % m_per_frame.size();
+	m_current_frame = (m_current_frame + 1) % m_frame_count;
 }
 
 void EntityComponentSystem::TransformSystemUpdate()
@@ -260,12 +256,10 @@ void EntityComponentSystem::TransformSystemUpdate()
 
 RenderSystemFrame EntityComponentSystem::RenderSystemUpdate(const RCommandList a_list, const uint2 a_draw_area_size)
 {
-	m_render_system.StartFrame(a_list);
-
 	StackString<32> rendering_name = m_name;
 	rendering_name.append(" - render");
 	BB_START_PROFILE(rendering_name);
-	m_render_system.UpdateRenderSystem(m_per_frame[m_current_frame].arena, a_list, a_draw_area_size, m_world_matrices, m_render_mesh_pool, m_raytrace_pool, m_light_pool.GetAllComponents());
+	m_render_system.UpdateRenderSystem(m_per_frame_arena, a_list, a_draw_area_size, m_world_matrices, m_render_mesh_pool, m_raytrace_pool, m_light_pool.GetAllComponents());
 	BB_END_PROFILE(rendering_name);
 
     m_render_system.DebugDraw(a_list, a_draw_area_size);

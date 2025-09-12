@@ -18,8 +18,6 @@
 
 #include "DungeonGameLib.hpp"
 
-#include "ecs/systems/RenderSystem2D.hpp"
-
 using namespace BB;
 
 int main(int argc, char** argv)
@@ -60,6 +58,10 @@ int main(int argc, char** argv)
     EditorGame def_game{};
     def_game.Init(engine_info.window_extent / 2, "dungeon", nullptr, lua_plugins.const_slice());
 
+    EditorGame snake_game{};
+    snake_game.Init(engine_info.window_extent / 2, "snake", nullptr);
+
+
 	while (true)
 	{
         InputEvent input_events[INPUT_EVENT_BUFFER_MAX]{};
@@ -84,10 +86,11 @@ int main(int argc, char** argv)
 
 		editor.StartFrame(main_arena, Slice(input_events, input_event_count), delta_time);
 
-		const ThreadTask tasks[2]
+		const ThreadTask tasks[]
 		{
-			editor.UpdateGameInstance(delta_time, render_viewport),
-			editor.UpdateGameInstance(delta_time, def_game)
+			//editor.UpdateGameInstance(delta_time, render_viewport),
+			editor.UpdateGameInstance(delta_time, def_game),
+            editor.UpdateGameInstance(delta_time, snake_game)
 		};
 
 		for (size_t i = 0; i < _countof(tasks); i++)

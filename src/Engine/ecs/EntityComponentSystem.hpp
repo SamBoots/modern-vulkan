@@ -79,12 +79,9 @@ namespace BB
 		void UpdateTransform(const ECSEntity a_entity);
 
 		StackString<32> m_name;
-		struct PerFrame
-		{
-			MemoryArena arena;
-		};
+		MemoryArena m_per_frame_arena;
 		uint32_t m_current_frame;
-		StaticArray<PerFrame> m_per_frame;
+        uint32_t m_frame_count;
 
 		// ecs entities
 		EntityMap m_ecs_entities;

@@ -75,6 +75,11 @@ StaticArray<Asset::AsyncAsset> SceneHierarchy::PreloadAssetsFromJson(MemoryArena
 	return async_model_loads;
 }
 
+void SceneHierarchy::StartFrame()
+{
+    m_ecs.StartFrame();
+}
+
 SceneFrame SceneHierarchy::UpdateScene(const RCommandList a_list, Viewport& a_viewport)
 {
 	RenderSystem& render_sys = m_ecs.GetRenderSystem();
@@ -88,7 +93,6 @@ SceneFrame SceneHierarchy::UpdateScene(const RCommandList a_list, Viewport& a_vi
 		render_sys.SetProjection(a_viewport.CreateProjection(60.f, 0.001f, 10000.0f), 0.001f);
 	}
 
-	m_ecs.StartFrame();
 	scene_frame.render_frame = m_ecs.RenderSystemUpdate(a_list, a_viewport.GetExtent());
 	m_ecs.EndFrame();
 

@@ -19,5 +19,8 @@ namespace BB
         int InputActionIsReleased(lua_State* a_state);
         int InputActionGetFloat(lua_State* a_state);
         int InputActionGetFloat2(lua_State* a_state);
+
+        int UICreatePanel(lua_State* a_state);
+        int UICreateText(lua_State* a_state);
     }
 }

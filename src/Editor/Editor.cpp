@@ -142,6 +142,7 @@ void Editor::UpdateGame(EditorGame& a_instance, const float a_delta_time)
 
     Viewport& viewport = a_instance.GetGameInstance().GetViewport();
     SceneHierarchy& hierarchy = a_instance.GetGameInstance().GetSceneHierarchy();
+    hierarchy.StartFrame();
     bool success;
     if (!m_swallow_input && viewport.PositionWithinViewport(uint2(static_cast<unsigned int>(m_previous_mouse_pos.x), static_cast<unsigned int>(m_previous_mouse_pos.y))))
     {

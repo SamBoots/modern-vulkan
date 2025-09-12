@@ -56,6 +56,7 @@ struct Thread
 
 struct ThreadScheduler
 {
+    BBRWLock lock;
 	uint32_t thread_count = 0;
 	Thread threads[32]{};
 };
@@ -107,6 +108,7 @@ void BB::Threads::InitThreads(const uint32_t a_thread_count)
 			0,
 			&s_thread_scheduler.threads[i].thread_info);
 	}
+    s_thread_scheduler.lock = OSCreateRWLock();
 }
 
 void BB::Threads::DestroyThreads()
@@ -119,6 +121,7 @@ void BB::Threads::DestroyThreads()
 
 ThreadTask BB::Threads::StartTaskThread(void(*a_function)(MemoryArena&, void*), void* a_func_parameter, const size_t a_func_parameter_size, const wchar_t* a_task_name)
 {
+    BBRWLockScopeWrite lock(s_thread_scheduler.lock);
 	if (FORCE_SINGLE_THREAD)
 	{
 		MemoryArenaScope(s_thread_scheduler.threads[0].thread_info.arena)

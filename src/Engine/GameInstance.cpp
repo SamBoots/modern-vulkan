@@ -22,7 +22,8 @@ bool GameInstance::Init(const uint2 a_game_viewport_size, const StringView a_pro
     {
         PathString input_path = m_project_path;
         input_path.AddPathNoSlash("input.json");
-        m_input_channel = Input::CreateInputChannelByJson(m_arena, a_project_name, input_path.GetView());
+        if (OSFileExist(input_path.c_str()))
+            m_input_channel = Input::CreateInputChannelByJson(m_arena, a_project_name, input_path.GetView());
     }
 
     m_scene_hierarchy.Init(m_arena, STANDARD_ECS_OBJ_COUNT, a_game_viewport_size, a_project_name);
@@ -42,7 +43,8 @@ bool GameInstance::Init(const uint2 a_game_viewport_size, const StringView a_pro
 bool GameInstance::InitLua()
 {
     RegisterLuaCFunctions();
-    m_lua.RegisterActionHandlesLua(m_input_channel);
+    if (m_input_channel.IsValid())
+        m_lua.RegisterActionHandlesLua(m_input_channel);
 
     PathString lua_path = m_project_path;
     lua_path.AddPathNoSlash("lua/");
@@ -204,4 +206,7 @@ void GameInstance::RegisterLuaCFunctions()
     LoadECSFunction(m_lua.State(), LUA_FUNC_NAME(InputActionIsReleased));
     LoadECSFunction(m_lua.State(), LUA_FUNC_NAME(InputActionGetFloat));
     LoadECSFunction(m_lua.State(), LUA_FUNC_NAME(InputActionGetFloat2));
+
+    LoadECSFunction(m_lua.State(), LUA_FUNC_NAME(UICreatePanel));
+    LoadECSFunction(m_lua.State(), LUA_FUNC_NAME(UICreateText));
 }

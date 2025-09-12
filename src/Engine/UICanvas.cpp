@@ -1,4 +1,4 @@
-#include "RenderSystem2D.hpp"
+#include "UICanvas.hpp"
 #include "Rendererfwd.hpp"
 #include "Renderer.hpp"
 #include "MaterialSystem.hpp"
@@ -116,7 +116,7 @@ FontAtlas BB::CreateFontAtlas(MemoryArena& a_arena, const PathString& a_font_pat
     return atl;
 }
 
-void UICanvas::BeginDraw(MemoryArena& a_arena, const size_t a_max_quads)
+void UICanvas::BeginDraw(MemoryArena& a_arena, const uint32_t a_max_quads)
 {
     m_quads.Init(a_arena, a_max_quads);
 }
@@ -131,7 +131,6 @@ void UICanvas::CreatePanel(const float2 a_pos, const float2 a_extent, const Colo
     quad.color = a_color;
     quad.text_id = Asset::GetWhiteTexture();
     m_quads.emplace_back(quad);
-
 }
 
 bool UICanvas::CreateText(const float2 a_pos, const float2 a_extent, const Color a_color, const StringView a_string, const float a_x_length, const float a_spacing, const FontAtlas& a_font)
@@ -184,6 +183,8 @@ bool UICanvas::CreateText(const float2 a_pos, const float2 a_extent, const Color
 
 bool UICanvas::EndDraw(const RCommandList a_list, const GPUFenceValue a_fence_value, GPUUploadRingAllocator& a_ring_buffer, GPULinearBuffer& a_frame_buffer, const uint2 a_draw_area, const RImageView a_render_target, const MasterMaterialHandle a_material) const
 {
+    if (m_quads.IsEmpty())
+        return false;
     const size_t memsize = m_quads.size() * sizeof(Quad2D);
 
     const uint64_t src_offset = a_ring_buffer.AllocateUploadMemory(memsize, a_fence_value);
@@ -239,7 +240,7 @@ bool UICanvas::EndDraw(const RCommandList a_list, const GPUFenceValue a_fence_va
     Material::BindMaterial(a_list, a_material);
 
     ShaderIndices2DQuads push_constant;
-    push_constant.per_frame_buffer_start = dst.offset;
+    push_constant.per_frame_buffer_start = static_cast<uint32_t>(dst.offset);
 
     SetPushConstantUserData(a_list, 0, sizeof(push_constant), &push_constant);
 
@@ -248,7 +249,6 @@ bool UICanvas::EndDraw(const RCommandList a_list, const GPUFenceValue a_fence_va
     EndRenderPass(a_list);
     return true;
 }
-
 
 void UICanvas::Clear()
 {

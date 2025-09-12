@@ -31,7 +31,7 @@ namespace BB
     class UICanvas
     {
     public:
-        void BeginDraw(MemoryArena& a_arena, const size_t a_max_quads);
+        void BeginDraw(MemoryArena& a_arena, const uint32_t a_max_quads);
         void CreatePanel(const float2 a_pos, const float2 a_extent, const Color a_color);
         bool CreateText(const float2 a_pos, const float2 a_extent, const Color a_color, const StringView a_string, const float a_x_length, const float a_spacing, const FontAtlas& a_font);
         bool EndDraw(const RCommandList a_list, const GPUFenceValue a_fence_value, GPUUploadRingAllocator& a_ring_buffer, GPULinearBuffer& a_frame_buffer, const uint2 a_draw_area, const RImageView a_render_target, const MasterMaterialHandle a_material) const;

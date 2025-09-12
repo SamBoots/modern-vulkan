@@ -127,3 +127,43 @@ int luaapi::InputActionGetFloat2(lua_State* a_state)
     lua_pushnumber(a_state, res.y);
     return 2;
 }
+
+int luaapi::UICreatePanel(lua_State* a_state)
+{
+    const float pos_x = lua_tonumber(a_state, 1);
+    const float pos_y = lua_tonumber(a_state, 2);
+    const float extent_x = lua_tonumber(a_state, 3);
+    const float extent_y = lua_tonumber(a_state, 4);
+    const int r = lua_tointeger(a_state, 5);
+    const int g = lua_tointeger(a_state, 6);
+    const int b = lua_tointeger(a_state, 7);
+    const int a = lua_tointeger(a_state, 8);
+
+    GameInstance* inst = GetGameInstance(a_state);
+    inst->GetSceneHierarchy().GetECS().GetRenderSystem().GetUIStage().CreatePanel(float2(pos_x, pos_y), float2(extent_x, extent_y), Color(r, g, b, a));
+    return 0;
+}
+
+int luaapi::UICreateText(lua_State* a_state)
+{
+    const float pos_x = lua_tonumber(a_state, 1);
+    const float pos_y = lua_tonumber(a_state, 2);
+    const float extent_x = lua_tonumber(a_state, 3);
+    const float extent_y = lua_tonumber(a_state, 4);
+    const int r = lua_tointeger(a_state, 5);
+    const int g = lua_tointeger(a_state, 6);
+    const int b = lua_tointeger(a_state, 7);
+    const int a = lua_tointeger(a_state, 8);
+    const float spacing = lua_tonumber(a_state, 9);
+    const int max_x = lua_tointeger(a_state, 10);
+    const char* str = lua_tostring(a_state, 11);
+
+    GameInstance* inst = GetGameInstance(a_state);
+    inst->GetSceneHierarchy().GetECS().GetRenderSystem().GetUIStage().CreateText(
+        float2(pos_x, pos_y), 
+        float2(extent_x, extent_y), 
+        Color(r, g, b, a), 
+        str, max_x, spacing,
+        inst->GetSceneHierarchy().GetECS().GetRenderSystem().GetDefaultFont());
+    return 0;
+}
