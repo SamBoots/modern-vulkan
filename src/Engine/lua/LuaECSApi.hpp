@@ -12,6 +12,8 @@ namespace BB
         int ECSSetPosition(lua_State* a_state);
         int ECSTranslate(lua_State* a_state);
 
+        int GetScreenResolution(lua_State* a_state);
+
         int CreateEntityFromJson(lua_State* a_state);
 
         int InputActionIsPressed(lua_State* a_state);

@@ -199,6 +199,8 @@ void GameInstance::RegisterLuaCFunctions()
     LoadECSFunction(m_lua.State(), LUA_FUNC_NAME(ECSSetPosition));
     LoadECSFunction(m_lua.State(), LUA_FUNC_NAME(ECSTranslate));
 
+    LoadECSFunction(m_lua.State(), LUA_FUNC_NAME(GetScreenResolution));
+
     LoadECSFunction(m_lua.State(), LUA_FUNC_NAME(CreateEntityFromJson));
 
     LoadECSFunction(m_lua.State(), LUA_FUNC_NAME(InputActionIsPressed));

@@ -71,6 +71,15 @@ int luaapi::ECSTranslate(lua_State* a_state)
     return 0;
 }
 
+int luaapi::GetScreenResolution(lua_State* a_state)
+{
+    GameInstance* inst = GetGameInstance(a_state);
+    const uint2 extent = inst->GetViewport().GetExtent();
+    lua_pushinteger(a_state, static_cast<int>(extent.x));
+    lua_pushinteger(a_state, static_cast<int>(extent.y));
+    return 2;
+}
+
 int luaapi::CreateEntityFromJson(lua_State* a_state)
 {
     const char* json_name = lua_tostring(a_state, 1);

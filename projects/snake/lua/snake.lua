@@ -19,9 +19,6 @@ root_entity = nil
 
 map_size_x = 0
 map_size_y = 0
-tile_size = 0
-tile_offset = 0;
-tile_base_pos = 60
 
 snake_size = 0
 snake_pos = {}
@@ -43,8 +40,6 @@ end
 function NewGame()
     map_size_x = 20
     map_size_y = 20
-    tile_size = 24
-    tile_offset = 8;
     snake_size = 1
     snake_pos[1] = { math.floor(map_size_x / 2), math.floor(map_size_y / 2) }
     NewApple();
@@ -139,28 +134,34 @@ function SelectedUpdate(a_delta_time)
 end
 
 function DrawMap()
+    local screen_x, screen_y = GetScreenResolution()
+    UICreatePanel(0, 0, screen_x, screen_y, 0, 0, 0, 255)
+
+    local screen_min = math.min(screen_x, screen_y)
+    local scale = screen_min / map_size_x
+
     for y=1,map_size_y do  
         for x=1,map_size_x do  
-            local pos_x = x * tile_size + x * tile_offset + tile_base_pos
-            local pos_y = y * tile_size + y * tile_offset + tile_base_pos
+            local pos_x = x * scale
+            local pos_y = y * scale
 
-            UICreatePanel(pos_x, pos_y, tile_size, tile_size, 255, 255, 255, 255)
+            UICreatePanel(pos_x, pos_y, scale, scale, 255, 255, 255, 255)
         end
     end
 
     for i=1,snake_size do
         local pos_x, pos_y = table.unpack(snake_pos[i])
-        pos_x = pos_x * tile_offset + pos_x * tile_size + tile_base_pos
-        pos_y = pos_y * tile_offset + pos_y * tile_size + tile_base_pos
+        pos_x = pos_x * scale
+        pos_y = pos_y * scale
 
-	    UICreatePanel(pos_x, pos_y, tile_size, tile_size, 0, 255, 0, 255)
+	    UICreatePanel(pos_x, pos_y, scale, scale, 0, 255, 0, 255)
     end
 
-    local mod_apple_pos_x = apple_pos_x * tile_size + apple_pos_x * tile_offset + tile_base_pos
-    local mod_apple_pos_y = apple_pos_y * tile_size + apple_pos_y * tile_offset + tile_base_pos
-    UICreatePanel(mod_apple_pos_x, mod_apple_pos_y, tile_size, tile_size, 255, 0, 0, 255)
+    local mod_apple_pos_x = apple_pos_x * scale
+    local mod_apple_pos_y = apple_pos_y * scale
+    UICreatePanel(mod_apple_pos_x, mod_apple_pos_y, scale, scale, 255, 0, 0, 255)
 
-    local total_size_x_size = map_size_x * tile_size + map_size_x * tile_offset + tile_base_pos
+    local total_size_x_size = map_size_x * scale
     total_size_x_size = total_size_x_size / 3
     local message = "current score: " .. snake_size - 1
     UICreateText(total_size_x_size, 0, 2, 2, 255, 255, 255, 255, 0, 700, message)
