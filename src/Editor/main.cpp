@@ -61,8 +61,8 @@ int main(int argc, char** argv)
     EditorGame snake_game{};
     snake_game.Init(engine_info.window_extent / 2, "snake", nullptr);
 
-
-	while (true)
+    bool end_app = false;
+	while (end_app == false)
 	{
         InputEvent input_events[INPUT_EVENT_BUFFER_MAX]{};
         size_t input_event_count = 0;
@@ -72,7 +72,7 @@ int main(int argc, char** argv)
         const ENGINE_STATUS status = UpdateEngine(engine_info.window_handle, ConstSlice<InputEvent>(input_events, input_event_count));
 
         if (status == ENGINE_STATUS::CLOSE_APP)
-            break;
+            end_app = true;
 
 		if (status == ENGINE_STATUS::RESIZE)
 		{

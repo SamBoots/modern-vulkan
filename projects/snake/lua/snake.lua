@@ -21,7 +21,7 @@ map_size_x = 0
 map_size_y = 0
 tile_size = 0
 tile_offset = 0;
-tile_base_pos = 30
+tile_base_pos = 60
 
 snake_size = 0
 snake_pos = {}
@@ -29,8 +29,8 @@ snake_pos = {}
 move_timer = 0.5
 update_time = 0
 
-snake_move_x = 0
-snake_move_y = -1
+snake_dir_x = 0
+snake_dir_y = -1
 
 apple_pos_x = 0
 apple_pos_y = 0
@@ -41,8 +41,8 @@ function Init()
 end
 
 function NewGame()
-    map_size_x = 5
-    map_size_y = 5
+    map_size_x = 20
+    map_size_y = 20
     tile_size = 24
     tile_offset = 8;
     snake_size = 1
@@ -52,7 +52,7 @@ end
 
 function PosHitSnake(pos_x, pos_y)
     for i=1,snake_size - 1 do
-        snake_pos_x, snake_pos_y = table.unpack(snake_pos[i])
+        local snake_pos_x, snake_pos_y = table.unpack(snake_pos[i])
         if snake_pos_x == pos_x and snake_pos_y == pos_y then
             return true
         end
@@ -69,30 +69,40 @@ function NewApple()
 end
 
 function WrapAroundSnakePos(new_pos_x, new_pos_y)
-    mod_pos_x = new_pos_x
-    mod_pos_y = new_pos_y
-
-    if (mod_pos_x > map_size_x) then
-        mod_pos_x = 1
-    end
-    if (mod_pos_x < 1) then
-        mod_pos_x = map_size_x
-    end
-
-    if (mod_pos_y > map_size_y) then
-        mod_pos_y = 1
-    end
-    if (mod_pos_y < 1) then
-        mod_pos_y = map_size_y
-    end
-
+    local mod_pos_x = ((new_pos_x - 1) % map_size_x) + 1
+    local mod_pos_y = ((new_pos_y - 1) % map_size_y) + 1
     return mod_pos_x, mod_pos_y
 end
 
+function SetSnakeDirection()
+    local move_value_x, move_value_y = InputActionGetFloat2(snake_move)
+    move_value_y = -move_value_y
+    if move_value_x ~= 0 or move_value_y ~= 0 then
+
+        if move_value_x ~= 0 then
+            move_value_y = 0
+        end
+
+        local cur_pos_x, cur_pos_y = table.unpack(snake_pos[1])
+        local next_pos_x = cur_pos_x + move_value_x
+        local next_pos_y = cur_pos_y + move_value_y
+
+        if snake_size > 1 then
+            local back_x, back_y = table.unpack(snake_pos[2])
+            if back_x == next_pos_x and back_y == next_pos_y then
+                return
+            end
+        end
+
+        snake_dir_x = move_value_x
+        snake_dir_y = move_value_y
+    end
+end
+
 function MoveSnake(move_x, move_y)
-    prev_pos_x, prev_pos_y = table.unpack(snake_pos[1])
-    new_pos_x = prev_pos_x + move_x
-    new_pos_y = prev_pos_y + move_y
+    local prev_pos_x, prev_pos_y = table.unpack(snake_pos[1])
+    local new_pos_x = prev_pos_x + move_x
+    local new_pos_y = prev_pos_y + move_y
 
     new_pos_x, new_pos_y = WrapAroundSnakePos(new_pos_x, new_pos_y)
     if PosHitSnake(new_pos_x, new_pos_y) then
@@ -118,22 +128,11 @@ function SelectedUpdate(a_delta_time)
         update_time = update_time + a_delta_time
     end
 
-    local move_value_x, move_value_y = InputActionGetFloat2(snake_move)
-    if move_value_x ~= 0 then
-        if move_value_x ~= -snake_move_x then
-            snake_move_x = move_value_x
-            snake_move_y = 0
-        end
-    elseif move_value_y ~= 0 then
-        if move_value_y ~= snake_move_y then
-            snake_move_y = -move_value_y
-            snake_move_x = 0
-        end
-    end
+    SetSnakeDirection()
 
     if (update_time >= move_timer) then
         update_time = 0
-        MoveSnake(snake_move_x, snake_move_y)
+        MoveSnake(snake_dir_x, snake_dir_y)
     end
 
     return true;
@@ -142,24 +141,29 @@ end
 function DrawMap()
     for y=1,map_size_y do  
         for x=1,map_size_x do  
-            pos_x = x * tile_size + x * tile_offset + tile_base_pos
-            pos_y = y * tile_size + y * tile_offset + tile_base_pos
+            local pos_x = x * tile_size + x * tile_offset + tile_base_pos
+            local pos_y = y * tile_size + y * tile_offset + tile_base_pos
 
             UICreatePanel(pos_x, pos_y, tile_size, tile_size, 255, 255, 255, 255)
         end
     end
 
     for i=1,snake_size do
-        pos_x, pos_y = table.unpack(snake_pos[i])
+        local pos_x, pos_y = table.unpack(snake_pos[i])
         pos_x = pos_x * tile_offset + pos_x * tile_size + tile_base_pos
         pos_y = pos_y * tile_offset + pos_y * tile_size + tile_base_pos
 
 	    UICreatePanel(pos_x, pos_y, tile_size, tile_size, 0, 255, 0, 255)
     end
 
-    mod_apple_pos_x = apple_pos_x * tile_size + apple_pos_x * tile_offset + tile_base_pos
-    mod_apple_pos_y = apple_pos_y * tile_size + apple_pos_y * tile_offset + tile_base_pos
+    local mod_apple_pos_x = apple_pos_x * tile_size + apple_pos_x * tile_offset + tile_base_pos
+    local mod_apple_pos_y = apple_pos_y * tile_size + apple_pos_y * tile_offset + tile_base_pos
     UICreatePanel(mod_apple_pos_x, mod_apple_pos_y, tile_size, tile_size, 255, 0, 0, 255)
+
+    local total_size_x_size = map_size_x * tile_size + map_size_x * tile_offset + tile_base_pos
+    total_size_x_size = total_size_x_size / 3
+    local message = "current score: " .. snake_size - 1
+    UICreateText(total_size_x_size, 0, 2, 2, 255, 255, 255, 255, 0, 700, message)
 end
 
 function Update(a_delta_time, selected)
