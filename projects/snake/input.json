@@ -13,6 +13,13 @@
       "INPUT_BINDING": "BINDING",
       "INPUT_SOURCE": "KEYBOARD",
       "KEYS": [ "Q" ]
+    },
+    {
+      "name": "start_game",
+      "INPUT_VALUE": "BOOL",
+      "INPUT_BINDING": "BINDING",
+      "INPUT_SOURCE": "KEYBOARD",
+      "KEYS": [ "RETURN" ]
     }
   ]
 }

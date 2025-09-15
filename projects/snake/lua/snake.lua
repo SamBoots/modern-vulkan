@@ -32,6 +32,11 @@ snake_dir_y = -1
 apple_pos_x = 0
 apple_pos_y = 0
 
+game_state_current = 0
+game_state_main_menu = 0
+game_state_game = 1
+game_state_restart = 2
+
 function Init()
     NewGame()
     return true
@@ -79,9 +84,8 @@ function SetSnakeDirection()
         end
 
         local cur_pos_x, cur_pos_y = table.unpack(snake_pos[1])
-        local next_pos_x = cur_pos_x + move_value_x
-        local next_pos_y = cur_pos_y + move_value_y
-
+        local next_pos_x, next_pos_y = WrapAroundSnakePos(cur_pos_x + move_value_x, cur_pos_y + move_value_y)
+        
         if snake_size > 1 then
             local back_x, back_y = table.unpack(snake_pos[2])
             if back_x == next_pos_x and back_y == next_pos_y then
@@ -101,7 +105,7 @@ function MoveSnake(move_x, move_y)
 
     new_pos_x, new_pos_y = WrapAroundSnakePos(new_pos_x, new_pos_y)
     if PosHitSnake(new_pos_x, new_pos_y) then
-        NewGame()
+        game_state_current = game_state_restart
         return
     end
 
@@ -116,61 +120,121 @@ function MoveSnake(move_x, move_y)
     snake_pos[1] = {new_pos_x, new_pos_y}
 end
 
-function SelectedUpdate(a_delta_time)
-    if InputActionIsHeld(snake_speed_up) then
-        update_time = update_time + a_delta_time * 4
-    else
-        update_time = update_time + a_delta_time
-    end
-
-    SetSnakeDirection()
-
-    if (update_time >= move_timer) then
-        update_time = 0
-        MoveSnake(snake_dir_x, snake_dir_y)
-    end
-
-    return true;
-end
-
-function DrawMap()
+function MainMenuDraw()
     local screen_x, screen_y = GetScreenResolution()
     UICreatePanel(0, 0, screen_x, screen_y, 0, 0, 0, 255)
+    local message_panel_scale = 0.6
+    local message_panel_offset = 1 - message_panel_scale
 
-    local screen_min = math.min(screen_x, screen_y)
-    local scale = screen_min / map_size_x
+    pos_x = screen_x * message_panel_offset / 2
+    pos_y = screen_y * message_panel_offset / 2
+
+    UICreatePanel(pos_x, pos_y, screen_x * message_panel_scale, screen_y * message_panel_scale, 0, 0, 255, 100)
+    UICreateText(pos_x, pos_y, 0.9, 0.9, 255, 0, 0, 255, 0, 700, "press: ENTER to start the game")
+end
+
+function GameDraw()
+    local screen_x, screen_y = GetScreenResolution()
+    UICreatePanel(0, 0, screen_x, screen_y, 0, 0, 0, 255)
+    local pixel_offset = 4
+    local margin = 32
+    local screen_min = math.min(screen_x, screen_y) - (margin * 2)
+    local tile_size = (screen_min - (pixel_offset * (map_size_x - 1))) / map_size_x
+    -- make sure there is a tile space so leave one side.
+
+    local start_x = (screen_x - (map_size_x * tile_size + (map_size_x - 1) * pixel_offset)) / 2
+    local start_y = (screen_y - (map_size_y * tile_size + (map_size_y - 1) * pixel_offset)) / 2
 
     for y=1,map_size_y do  
         for x=1,map_size_x do  
-            local pos_x = x * scale
-            local pos_y = y * scale
+            local pos_x = start_x + (x - 1) * (tile_size + pixel_offset)
+            local pos_y = start_y + (y - 1) * (tile_size + pixel_offset)
 
-            UICreatePanel(pos_x, pos_y, scale, scale, 255, 255, 255, 255)
+            UICreatePanel(pos_x, pos_y, tile_size, tile_size, 255, 255, 255, 255)
         end
     end
 
     for i=1,snake_size do
         local pos_x, pos_y = table.unpack(snake_pos[i])
-        pos_x = pos_x * scale
-        pos_y = pos_y * scale
+        pos_x = start_x + (pos_x - 1) * (tile_size + pixel_offset)
+        pos_y = start_y + (pos_y - 1) * (tile_size + pixel_offset)
 
-	    UICreatePanel(pos_x, pos_y, scale, scale, 0, 255, 0, 255)
+	    UICreatePanel(pos_x, pos_y, tile_size, tile_size, 0, 255, 0, 255)
     end
 
-    local mod_apple_pos_x = apple_pos_x * scale
-    local mod_apple_pos_y = apple_pos_y * scale
-    UICreatePanel(mod_apple_pos_x, mod_apple_pos_y, scale, scale, 255, 0, 0, 255)
+    local mod_apple_pos_x = start_x + (apple_pos_x - 1) * (tile_size + pixel_offset)
+    local mod_apple_pos_y = start_y + (apple_pos_y - 1) * (tile_size + pixel_offset)
+    UICreatePanel(mod_apple_pos_x, mod_apple_pos_y, tile_size, tile_size, 255, 0, 0, 255)
 
-    local total_size_x_size = map_size_x * scale
+    local total_size_x_size = map_size_x * tile_size
     total_size_x_size = total_size_x_size / 3
     local message = "current score: " .. snake_size - 1
-    UICreateText(total_size_x_size, 0, 2, 2, 255, 255, 255, 255, 0, 700, message)
+    UICreateText(total_size_x_size, 0, 0.9, 0.9, 255, 0, 0, 255, 0, 700, message)
 end
 
-function Update(a_delta_time, selected)
-    DrawMap()
-    if selected then
-        return SelectedUpdate(a_delta_time)
+function RestartDraw()
+    local screen_x, screen_y = GetScreenResolution()
+    UICreatePanel(0, 0, screen_x, screen_y, 0, 0, 0, 255)
+    local message_panel_scale = 0.6
+    local message_panel_offset = 1 - message_panel_scale
+
+    pos_x = screen_x * message_panel_offset / 2
+    pos_y = screen_y * message_panel_offset / 2
+
+    UICreatePanel(pos_x, pos_y, screen_x * message_panel_scale, screen_y * message_panel_scale, 255, 0, 0, 100)
+    local message = "score achieved: " .. snake_size - 1
+    UICreateText(pos_x, pos_y, 0.9, 0.9, 255, 0, 0, 255, 0, 700, message)
+    UICreateText(pos_x, pos_y + 50, 0.9, 0.9, 255, 0, 0, 255, 0, 700, "press: ENTER to start the game")
+end
+
+function MainMenuUpdate(a_delta_time, a_selected)
+    MainMenuDraw()
+
+    if a_selected then
+        if InputActionIsHeld(start_game) then
+            NewGame()
+            game_state_current = game_state_game
+        end
+    end
+end
+
+function GameUpdate(a_delta_time, a_selected)
+    GameDraw()
+
+    if a_selected then
+        if InputActionIsHeld(snake_speed_up) then
+            update_time = update_time + a_delta_time * 4
+        else
+            update_time = update_time + a_delta_time
+        end
+
+        SetSnakeDirection()
+
+        if (update_time >= move_timer) then
+            update_time = 0
+            MoveSnake(snake_dir_x, snake_dir_y)
+        end
+    end
+end
+
+function RestartUpdate(a_delta_time, a_selected)
+    RestartDraw()
+
+    if a_selected then
+        if InputActionIsHeld(start_game) then
+            NewGame()
+            game_state_current = game_state_game
+        end
+    end
+end
+
+function Update(a_delta_time, a_selected)
+    if game_state_current == game_state_main_menu then
+        MainMenuUpdate(a_delta_time, a_selected)
+    elseif game_state_current == game_state_game then
+        GameUpdate(a_delta_time, a_selected)
+    elseif game_state_restart then
+        RestartUpdate(a_delta_time, a_selected)
     end
     
     return true

@@ -17,7 +17,7 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID, uint a_instance_index : S
     
     float2 local = float2((a_vertex_index << 1) & 2, a_vertex_index & 2) * 0.5;
     float2 world = quad.pos + local * quad.extent;
-    float2 ndc = (world / scene.scene_resolution) - 1.0;
+    float2 ndc = (world / scene.scene_resolution) * 2 - 1.0;
     
     float2 uv = lerp(quad.uv0, quad.uv1, local);
 
