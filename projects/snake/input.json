@@ -20,6 +20,27 @@
       "INPUT_BINDING": "BINDING",
       "INPUT_SOURCE": "KEYBOARD",
       "KEYS": [ "RETURN" ]
+    },
+    {
+      "name": "pause_game",
+      "INPUT_VALUE": "BOOL",
+      "INPUT_BINDING": "BINDING",
+      "INPUT_SOURCE": "KEYBOARD",
+      "KEYS": [ "ESCAPE" ]
+    },
+    {
+      "name": "increase_tiles",
+      "INPUT_VALUE": "BOOL",
+      "INPUT_BINDING": "BINDING",
+      "INPUT_SOURCE": "KEYBOARD",
+      "KEYS": [ "D" ]
+    },
+    {
+      "name": "decrease_tiles",
+      "INPUT_VALUE": "BOOL",
+      "INPUT_BINDING": "BINDING",
+      "INPUT_SOURCE": "KEYBOARD",
+      "KEYS": [ "A" ]
     }
   ]
 }

@@ -15,10 +15,7 @@ function GetCameraForward()
     return float3(0, 0, 1)
 end
 
-root_entity = nil
-
-map_size_x = 0
-map_size_y = 0
+map_size = 20
 
 snake_size = 0
 snake_pos = {}
@@ -34,8 +31,9 @@ apple_pos_y = 0
 
 game_state_current = 0
 game_state_main_menu = 0
-game_state_game = 1
+game_state_game = 3
 game_state_restart = 2
+game_state_pause = 1
 
 function Init()
     NewGame()
@@ -43,10 +41,8 @@ function Init()
 end
 
 function NewGame()
-    map_size_x = 20
-    map_size_y = 20
     snake_size = 1
-    snake_pos[1] = { math.floor(map_size_x / 2), math.floor(map_size_y / 2) }
+    snake_pos[1] = { math.floor(map_size / 2), math.floor(map_size / 2) }
     NewApple();
 end
 
@@ -61,16 +57,16 @@ function PosHitSnake(pos_x, pos_y)
 end
 
 function NewApple()
-    apple_pos_x = math.random(1, map_size_x)
-    apple_pos_y = math.random(1, map_size_y)
-    if PosHitSnake() then
+    apple_pos_x = math.random(1, map_size)
+    apple_pos_y = math.random(1, map_size)
+    if PosHitSnake(apple_pos_x, apple_pos_y) then
         NewApple(apple_pos_x, apple_pos_y)
     end
 end
 
 function WrapAroundSnakePos(new_pos_x, new_pos_y)
-    local mod_pos_x = ((new_pos_x - 1) % map_size_x) + 1
-    local mod_pos_y = ((new_pos_y - 1) % map_size_y) + 1
+    local mod_pos_x = ((new_pos_x - 1) % map_size) + 1
+    local mod_pos_y = ((new_pos_y - 1) % map_size) + 1
     return mod_pos_x, mod_pos_y
 end
 
@@ -120,17 +116,22 @@ function MoveSnake(move_x, move_y)
     snake_pos[1] = {new_pos_x, new_pos_y}
 end
 
-function MainMenuDraw()
-    local screen_x, screen_y = GetScreenResolution()
-    UICreatePanel(0, 0, screen_x, screen_y, 0, 0, 0, 255)
+function DrawPanelCenter(a_text, a_r, a_g, a_b, a_a, a_screen_x, a_screen_y)
     local message_panel_scale = 0.6
     local message_panel_offset = 1 - message_panel_scale
 
-    pos_x = screen_x * message_panel_offset / 2
-    pos_y = screen_y * message_panel_offset / 2
+    pos_x = a_screen_x * message_panel_offset / 2
+    pos_y = a_screen_y * message_panel_offset / 2
 
-    UICreatePanel(pos_x, pos_y, screen_x * message_panel_scale, screen_y * message_panel_scale, 0, 0, 255, 100)
-    UICreateText(pos_x, pos_y, 0.9, 0.9, 255, 0, 0, 255, 0, 700, "press: ENTER to start the game")
+    UICreatePanel(pos_x, pos_y, a_screen_x * message_panel_scale, a_screen_y * message_panel_scale, a_r, a_g, a_b, a_a)
+    UICreateText(pos_x, pos_y, 0.9, 0.9, 255, 0, 0, 255, 0, 500, a_text)
+end
+
+function MainMenuDraw()
+    local screen_x, screen_y = GetScreenResolution()
+    UICreatePanel(0, 0, screen_x, screen_y, 0, 0, 0, 255)
+    message = "press: ENTER to start the game\n" .. "press: A or D to decrease or increase the amount of tiles per side: " .. map_size
+    DrawPanelCenter(message, 0, 0, 255, 100, screen_x, screen_y)
 end
 
 function GameDraw()
@@ -139,14 +140,14 @@ function GameDraw()
     local pixel_offset = 4
     local margin = 32
     local screen_min = math.min(screen_x, screen_y) - (margin * 2)
-    local tile_size = (screen_min - (pixel_offset * (map_size_x - 1))) / map_size_x
+    local tile_size = (screen_min - (pixel_offset * (map_size - 1))) / map_size
     -- make sure there is a tile space so leave one side.
 
-    local start_x = (screen_x - (map_size_x * tile_size + (map_size_x - 1) * pixel_offset)) / 2
-    local start_y = (screen_y - (map_size_y * tile_size + (map_size_y - 1) * pixel_offset)) / 2
+    local start_x = (screen_x - (map_size * tile_size + (map_size - 1) * pixel_offset)) / 2
+    local start_y = (screen_y - (map_size * tile_size + (map_size - 1) * pixel_offset)) / 2
 
-    for y=1,map_size_y do  
-        for x=1,map_size_x do  
+    for y=1,map_size do  
+        for x=1,map_size do  
             local pos_x = start_x + (x - 1) * (tile_size + pixel_offset)
             local pos_y = start_y + (y - 1) * (tile_size + pixel_offset)
 
@@ -166,7 +167,7 @@ function GameDraw()
     local mod_apple_pos_y = start_y + (apple_pos_y - 1) * (tile_size + pixel_offset)
     UICreatePanel(mod_apple_pos_x, mod_apple_pos_y, tile_size, tile_size, 255, 0, 0, 255)
 
-    local total_size_x_size = map_size_x * tile_size
+    local total_size_x_size = map_size * tile_size
     total_size_x_size = total_size_x_size / 3
     local message = "current score: " .. snake_size - 1
     UICreateText(total_size_x_size, 0, 0.9, 0.9, 255, 0, 0, 255, 0, 700, message)
@@ -175,25 +176,29 @@ end
 function RestartDraw()
     local screen_x, screen_y = GetScreenResolution()
     UICreatePanel(0, 0, screen_x, screen_y, 0, 0, 0, 255)
-    local message_panel_scale = 0.6
-    local message_panel_offset = 1 - message_panel_scale
-
-    pos_x = screen_x * message_panel_offset / 2
-    pos_y = screen_y * message_panel_offset / 2
-
-    UICreatePanel(pos_x, pos_y, screen_x * message_panel_scale, screen_y * message_panel_scale, 255, 0, 0, 100)
-    local message = "score achieved: " .. snake_size - 1
-    UICreateText(pos_x, pos_y, 0.9, 0.9, 255, 0, 0, 255, 0, 700, message)
-    UICreateText(pos_x, pos_y + 50, 0.9, 0.9, 255, 0, 0, 255, 0, 700, "press: ENTER to start the game")
+    local message = "score achieved: " .. snake_size - 1 .. "\npress: ENTER to go back to main menu"
+    DrawPanelCenter(message, 255, 0, 0, 100, screen_x, screen_y)
 end
 
-function MainMenuUpdate(a_delta_time, a_selected)
+function PauseDraw()
+    GameDraw()
+    local screen_x, screen_y = GetScreenResolution()
+    DrawPanelCenter("paused\npress: ENTER to go back to main menu", 255, 0, 0, 100, screen_x, screen_y)
+end
+
+function MainMenuUpdate(a_selected)
     MainMenuDraw()
 
     if a_selected then
-        if InputActionIsHeld(start_game) then
+        if InputActionIsPressed(start_game) then
             NewGame()
             game_state_current = game_state_game
+        end
+
+        if InputActionIsPressed(increase_tiles) then
+            map_size = map_size + 1
+        elseif InputActionIsPressed(decrease_tiles) then
+            map_size = math.max(5, map_size - 1)
         end
     end
 end
@@ -202,6 +207,9 @@ function GameUpdate(a_delta_time, a_selected)
     GameDraw()
 
     if a_selected then
+         if InputActionIsPressed(pause_game) then
+            game_state_current = game_state_pause
+        end
         if InputActionIsHeld(snake_speed_up) then
             update_time = update_time + a_delta_time * 4
         else
@@ -217,12 +225,25 @@ function GameUpdate(a_delta_time, a_selected)
     end
 end
 
-function RestartUpdate(a_delta_time, a_selected)
+function RestartUpdate(a_selected)
     RestartDraw()
 
     if a_selected then
-        if InputActionIsHeld(start_game) then
-            NewGame()
+        if InputActionIsPressed(start_game) then
+            game_state_current = game_state_main_menu
+        end
+    end
+end
+
+function PauseUpdate(a_selected)
+    PauseDraw()
+
+    if a_selected then
+        if InputActionIsPressed(start_game) then
+            game_state_current = game_state_main_menu
+        end
+        if InputActionIsPressed(pause_game) then
+            update_time = 0
             game_state_current = game_state_game
         end
     end
@@ -230,11 +251,13 @@ end
 
 function Update(a_delta_time, a_selected)
     if game_state_current == game_state_main_menu then
-        MainMenuUpdate(a_delta_time, a_selected)
+        MainMenuUpdate(a_selected)
     elseif game_state_current == game_state_game then
         GameUpdate(a_delta_time, a_selected)
-    elseif game_state_restart then
-        RestartUpdate(a_delta_time, a_selected)
+    elseif game_state_current == game_state_pause then
+        PauseUpdate(a_selected)
+    elseif game_state_current == game_state_restart then
+        RestartUpdate(a_selected)
     end
     
     return true
