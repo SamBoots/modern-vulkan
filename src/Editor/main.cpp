@@ -44,22 +44,26 @@ int main(int argc, char** argv)
     }
 
 	Editor editor{};
-	editor.Init(main_arena, engine_info.window_handle, engine_info.window_extent);
+    {
+        FixedArray<PFN_LuaPluginRegisterFunctions, 1> lua_plugins;
+        lua_plugins[0] = RegisterDungeonGameLibLuaFunctions;
+        FixedArray<EditorGameCreateInfo, 2> game_infos;
+        game_infos[0].dir_name = "rendershowcase";
+        game_infos[0].register_funcs = {};
+        game_infos[1].dir_name = "dungeon";
+        game_infos[1].register_funcs = lua_plugins.const_slice();
+        EditorCreateInfo create_info;
+        create_info.window = engine_info.window_handle;
+        create_info.window_extent = engine_info.window_extent;
+        create_info.game_instance_max = 8;
+        create_info.initial_games = game_infos.const_slice();
+
+        editor.Init(main_arena, create_info);
+    }
 
 	auto current_time = std::chrono::high_resolution_clock::now();
 
 	float delta_time = 0;
-
-    EditorGame render_viewport{};
-    render_viewport.Init(engine_info.window_extent / 2, "rendershowcase", nullptr);
-     
-    FixedArray<PFN_LuaPluginRegisterFunctions, 1> lua_plugins;
-    lua_plugins[0] = RegisterDungeonGameLibLuaFunctions;
-    EditorGame def_game{};
-    def_game.Init(engine_info.window_extent / 2, "dungeon", nullptr, lua_plugins.const_slice());
-
-    EditorGame snake_game{};
-    snake_game.Init(engine_info.window_extent / 2, "snake", nullptr);
 
     bool end_app = false;
 	while (end_app == false)
@@ -85,17 +89,7 @@ int main(int argc, char** argv)
 		BB_START_PROFILE("frame time");
 
 		editor.StartFrame(main_arena, Slice(input_events, input_event_count), delta_time);
-
-		const ThreadTask tasks[]
-		{
-			//editor.UpdateGameInstance(delta_time, render_viewport),
-			editor.UpdateGameInstance(delta_time, def_game),
-            editor.UpdateGameInstance(delta_time, snake_game)
-		};
-
-		for (size_t i = 0; i < _countof(tasks); i++)
-			Threads::WaitForTask(tasks[i]);
-
+        editor.UpdateGames(main_arena, delta_time);
 		editor.EndFrame(main_arena);
 		auto current_new = std::chrono::high_resolution_clock::now();
 		delta_time = std::chrono::duration<float, std::chrono::seconds::period>(current_new - current_time).count();

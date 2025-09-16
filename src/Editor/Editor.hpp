@@ -7,6 +7,7 @@
 #include "Console.hpp"
 #include "Gizmo.hpp"
 #include "HID.h"
+#include "EditorGame.hpp"
 
 #include <tuple>
 
@@ -14,15 +15,31 @@ namespace BB
 {
 	constexpr size_t EDITOR_DEFAULT_MEMORY = mbSize * 4;
 
+    struct EditorGameCreateInfo
+    {
+        StringView dir_name;
+        ConstSlice<PFN_LuaPluginRegisterFunctions> register_funcs;
+    };
+
+    struct EditorCreateInfo
+    {
+        WindowHandle window;
+        uint2 window_extent;
+        uint32_t game_instance_max;
+        ConstSlice<EditorGameCreateInfo> initial_games;
+    };
+
 	struct MemoryArena;
 	class Editor
 	{
 	public:
-		void Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent, const size_t a_editor_memory = EDITOR_DEFAULT_MEMORY);
+		void Init(MemoryArena& a_arena, const EditorCreateInfo& a_create_info);
 		void Destroy();
 
 		void StartFrame(MemoryArena& a_arena, const Slice<InputEvent> a_input_events, const float a_delta_time);
+        void UpdateGames(MemoryArena& a_arena, const float a_delta_time);
 
+        void AddGameInstance(const StringView a_dir_path, const ConstSlice<PFN_LuaPluginRegisterFunctions> a_register_funcs);
         ThreadTask UpdateGameInstance(const float a_delta_time, class EditorGame& a_game);
 		void EndFrame(MemoryArena& a_arena);
 
@@ -38,8 +55,6 @@ namespace BB
 
 		bool DrawImgui(const RDescriptorIndex a_render_target, Viewport& a_viewport);
 
-		FreelistInterface m_editor_allocator;
-
         void ImGuiDisplayEditor(MemoryArena& a_arena);
         void ImGuiDisplayGame(class GameInstance& a_game);
 		void ImguiDisplayECS(EntityComponentSystem& a_ecs);
@@ -50,6 +65,7 @@ namespace BB
 		void ImGuiDisplayMaterial(const MasterMaterial& a_material) const;
 		void ImGuiDisplayMaterials();
         void ImGuiDisplayInputChannel(const InputChannelHandle a_channel);
+        void ImGuiDisplayGames();
 
 		void MainEditorImGuiInfo(const MemoryArena& a_arena);
 		static void ThreadFuncForDrawing(MemoryArena& a_thread_arena, void* a_param);
@@ -61,6 +77,7 @@ namespace BB
 
 		RImage m_render_target;
 		FixedArray<RDescriptorIndex, 3> m_render_target_descs;
+        StaticArray<EditorGame> m_game_instances;
 
         enum class DRAW_TYPE
         {

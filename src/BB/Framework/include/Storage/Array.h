@@ -442,6 +442,31 @@ namespace BB
 			new (&m_arr[a_position]) T(std::forward<Args>(a_args)...);
 			m_size++;
 		}
+        void Erase(const uint32_t a_position)
+        {
+            BB_ASSERT(a_position < m_size, "trying to erase an element that is out of bounds");
+            if (a_position == m_size - 1)
+            {
+                pop();
+                return;
+            }
+            const uint32_t new_size = m_size - 1;
+
+            if constexpr (!trivialDestructible_T)
+            {
+                for (size_t i = a_position; i < new_size; i++)
+                {
+                    new (&m_arr[i]) T(m_arr[i + 1]);
+                    m_arr[i + 1].~T();
+                }
+            }
+            else
+            {
+                memmove(&m_arr[a_position], &m_arr[a_position + 1], sizeof(T) * (m_size - a_position));
+            }
+
+            m_size = new_size;
+        }
 
 		void pop()
 		{

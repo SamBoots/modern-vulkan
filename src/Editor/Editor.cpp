@@ -3,8 +3,7 @@
 #include "Program.h"
 #include "BBThreadScheduler.hpp"
 #include "Math/Math.inl"
-
-#include "EditorGame.hpp"
+#include "Engine.hpp"
 
 #include "ProfilerWindow.hpp"
 
@@ -216,7 +215,7 @@ void Editor::UpdateGizmo(Viewport& a_viewport, SceneHierarchy& a_scene_hierarchy
     }
 }
 
-void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2 a_window_extent, const size_t a_editor_memory)
+void Editor::Init(MemoryArena& a_arena, const EditorCreateInfo& a_create_info)
 {
 	// console stuff
 	ConsoleCreateInfo create_info;
@@ -227,15 +226,13 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 	create_info.enabled_warnings = WARNING_TYPES_ALL;
 	m_console.Init(create_info);
 
-	m_main_window = a_window;
-	m_app_window_extent = a_window_extent;
+	m_main_window = a_create_info.window;
+	m_app_window_extent = a_create_info.window_extent;
 
 	const bool success = ImInit(a_arena, m_main_window);
 	BB_ASSERT(success, "failed to init imgui");
 
 	m_gpu_info = GetGPUInfo(a_arena);
-
-	m_editor_allocator.Initialize(a_arena, a_editor_memory);
 
 	m_imgui_material = Material::GetDefaultMasterMaterial(PASS_TYPE::GLOBAL, MATERIAL_TYPE::MATERIAL_2D);
 
@@ -243,8 +240,8 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
 
 	ImageCreateInfo render_target_info;
 	render_target_info.name = "image before transfer to swapchain";
-	render_target_info.width = a_window_extent.x;
-	render_target_info.height = a_window_extent.y;
+	render_target_info.width = m_app_window_extent.x;
+	render_target_info.height = m_app_window_extent.y;
 	render_target_info.depth = 1;
 	render_target_info.array_layers = static_cast<uint16_t>(frame_count);
 	render_target_info.mip_levels = 1;
@@ -340,6 +337,12 @@ void Editor::Init(MemoryArena& a_arena, const WindowHandle a_window, const uint2
         input_create.input_keys[0].mouse_input = MOUSE_INPUT::RIGHT_BUTTON;
         m_input.enable_rotate = Input::CreateInputAction(m_input.channel, "enable rotate", input_create);
     }
+
+    m_game_instances.Init(a_arena, a_create_info.game_instance_max);
+    for (size_t i = 0; i < a_create_info.initial_games.size(); i++)
+    {
+        AddGameInstance(a_create_info.initial_games[i].dir_name, a_create_info.initial_games[i].register_funcs);
+    }
 }
 
 void Editor::Destroy()
@@ -379,6 +382,25 @@ void Editor::StartFrame(MemoryArena& a_arena, const Slice<InputEvent> a_input_ev
 	m_per_frame.current_count = 0;
 
 	m_console.ImGuiShowConsole(a_arena, m_app_window_extent);
+}
+
+void Editor::UpdateGames(MemoryArena& a_arena, const float a_delta_time)
+{
+    ThreadTask* tasks = ArenaAllocArr(a_arena, ThreadTask, m_game_instances.size());
+
+    for (uint32_t i = 0; i < m_game_instances.size(); i++)
+        tasks[i] = UpdateGameInstance(a_delta_time, m_game_instances[i]);
+
+    for (uint32_t i = 0; i < m_game_instances.size(); i++)
+        Threads::WaitForTask(tasks[i]);
+}
+
+
+void Editor::AddGameInstance(const StringView a_dir_path, const ConstSlice<PFN_LuaPluginRegisterFunctions> a_register_funcs)
+{
+    const uint32_t index = m_game_instances.size();
+    m_game_instances.resize(index + 1);
+    m_game_instances[index].Init(m_app_window_extent / 2, a_dir_path, nullptr, a_register_funcs);
 }
 
 ThreadTask Editor::UpdateGameInstance(const float a_delta_time, class EditorGame& a_game)
@@ -553,6 +575,7 @@ void Editor::ImGuiDisplayEditor(MemoryArena& a_arena)
         ImGuiDisplayMaterials();
         ImGuiDisplayInputChannel(m_input.channel);
         ImGuiShowProfiler(a_arena);
+        ImGuiDisplayGames();
     }
     ImGui::End();
 
@@ -1063,6 +1086,44 @@ void Editor::ImGuiDisplayInputChannel(const InputChannelHandle a_channel)
                 }
                 ImGui::Unindent();
                 ImGui::TreePop();
+            }
+            ImGui::PopID();
+        }
+        ImGui::Unindent();
+    }
+}
+
+void Editor::ImGuiDisplayGames()
+{
+    if (ImGui::CollapsingHeader("game instances"))
+    {
+        if (ImGui::Button("load game"))
+        {
+            PathString search_path{};
+
+            if (OSFindFileNameDialogWindow(search_path.data(), search_path.capacity(), GetRootPath().c_str()))
+            {
+                search_path.RecalculateStringSize();
+                if (OSDirectoryExist(search_path.c_str()))
+                {
+                    const StringView dir_name = search_path.GetView(search_path.find_last_of_directory_slash());
+                    AddGameInstance(dir_name, ConstSlice<PFN_LuaPluginRegisterFunctions>());
+                }
+            }
+        }
+        ImGui::Indent();
+        for (uint32_t i = 0; i < m_game_instances.size(); i++)
+        {
+            ImGui::PushID(static_cast<int>(i));
+            EditorGame& game = m_game_instances[i];
+            if (ImGui::CollapsingHeader(game.GetGameInstance().m_project_name.GetView().c_str()))
+            {
+                if (ImGui::Button("unload"))
+                {
+                    game.Destroy();
+                    m_game_instances.Erase(i);
+                    return;
+                }
             }
             ImGui::PopID();
         }
