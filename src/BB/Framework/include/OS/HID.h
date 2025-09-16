@@ -3,7 +3,7 @@
 
 namespace BB
 {
-	constexpr size_t INPUT_EVENT_BUFFER_MAX = 64;
+	constexpr size_t INPUT_EVENT_BUFFER_MAX = 128;
 
 	//These will be translated, the are already close to their real counterpart.
 	//Translation table: https://download.microsoft.com/download/1/6/1/161ba512-40e2-4cc9-843a-923143f3456c/translate.pdf

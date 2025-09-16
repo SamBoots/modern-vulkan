@@ -31,9 +31,8 @@ static PFN_WindowMoveEvent s_pfn_move_event = DefaultMove;
 struct InputBuffer
 {
 	InputEvent input_buffer[INPUT_EVENT_BUFFER_MAX];
-	uint32_t start = 0;
-	uint16_t pos = 0;
-	uint16_t used = 0;
+    size_t head = 0;
+	size_t tail = 0;
 };
 
 struct GlobalProgramInfo
@@ -45,37 +44,39 @@ static BBRWLock s_input_lock{ OSCreateRWLock() };
 static GlobalProgramInfo s_program_info;
 static InputBuffer s_input_buffer{};
 
-static void PushInput(const InputEvent& a_Input)
+static void PushInput(const InputEvent& a_input)
 {
-	OSAcquireSRWLockWrite(&s_input_lock);
-	if (s_input_buffer.pos + 1 > INPUT_EVENT_BUFFER_MAX)
-		s_input_buffer.pos = 0;
+    BBRWLockScopeWrite lock(s_input_lock);
+    const size_t next = (s_input_buffer.tail + 1) % INPUT_EVENT_BUFFER_MAX;
+    if (next == s_input_buffer.head)
+    {
+        s_input_buffer.head = (s_input_buffer.head + 1) % INPUT_EVENT_BUFFER_MAX;
+    }
 
-	s_input_buffer.input_buffer[s_input_buffer.pos++] = a_Input;
+    s_input_buffer.input_buffer[s_input_buffer.tail] = a_input;
+    s_input_buffer.tail = next;
+}
 
-	//Since when we get the input we get all of it. 
-	if (s_input_buffer.used < INPUT_EVENT_BUFFER_MAX)
-	{
-		++s_input_buffer.used;
-	}
-	OSReleaseSRWLockWrite(&s_input_lock);
+// no lock since this should be done all in one go
+
+static bool PopInput(InputEvent& a_out_input)
+{
+    if (s_input_buffer.head == s_input_buffer.tail)
+        return false;
+
+    a_out_input = s_input_buffer.input_buffer[s_input_buffer.head];
+    s_input_buffer.head = (s_input_buffer.head + 1) % INPUT_EVENT_BUFFER_MAX;
+    return true;
 }
 
 //Returns false if no input is left.
-static void GetAllInput(InputEvent* a_InputBuffer)
+static void GetAllInput(InputEvent* a_input_buffer, size_t& a_out_size)
 {
-	OSAcquireSRWLockWrite(&s_input_lock);
-	size_t first_index = s_input_buffer.start;
-	for (size_t i = 0; i < s_input_buffer.used; i++)
-	{
-		a_InputBuffer[i] = s_input_buffer.input_buffer[first_index];
-		//We go back to zero the read the data.
-		if (++first_index > INPUT_EVENT_BUFFER_MAX)
-			first_index = 0;
-	}
-	s_input_buffer.start = s_input_buffer.pos;
-	s_input_buffer.used = 0;
-	OSReleaseSRWLockWrite(&s_input_lock);
+    BBRWLockScopeWrite lock(s_input_lock);
+    a_out_size = 0;
+    InputEvent ev;
+    while(PopInput(ev))
+        a_input_buffer[a_out_size++] = ev;
 }
 
 void BB::InitProgram()
@@ -918,10 +919,9 @@ bool BB::ProcessMessages(const WindowHandle a_window_handle)
 
 void BB::PollInputEvents(InputEvent* a_event_buffers, size_t& input_event_amount)
 {
-	input_event_amount = s_input_buffer.used;
 	if (a_event_buffers == nullptr)
 		return;
 	
 	//Overwrite could happen! But this is user's responsibility.
-	GetAllInput(a_event_buffers);
+	GetAllInput(a_event_buffers, input_event_amount);
 }
