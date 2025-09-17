@@ -67,7 +67,7 @@ namespace BB
         void ImGuiDisplayInputChannel(const InputChannelHandle a_channel);
         void ImGuiDisplayGames();
 
-		void MainEditorImGuiInfo(const MemoryArena& a_arena);
+		void MainEditorImGuiInfo(const MemoryArena& a_arena) const;
 		static void ThreadFuncForDrawing(MemoryArena& a_thread_arena, void* a_param);
 		void UpdateGame(class EditorGame& a_instance, const float a_delta_time);
         void UpdateGizmo(Viewport& a_viewport, SceneHierarchy& a_hierarchy, const float3 a_cam_pos);

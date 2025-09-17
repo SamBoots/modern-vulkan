@@ -19,12 +19,10 @@ bool GameInstance::Init(const uint2 a_game_viewport_size, const StringView a_pro
     m_project_path.AddPath("projects");
     m_project_path.AddPath(a_project_name);
 
-    {
-        PathString input_path = m_project_path;
-        input_path.AddPathNoSlash("input.json");
-        if (OSFileExist(input_path.c_str()))
-            m_input_channel = Input::CreateInputChannelByJson(m_arena, a_project_name, input_path.GetView());
-    }
+    PathString input_path = m_project_path;
+    input_path.AddPathNoSlash("input.json");
+    if (OSFileExist(input_path.c_str()))
+        m_input_channel = Input::CreateInputChannelByJson(m_arena, a_project_name, input_path.GetView());
 
     m_scene_hierarchy.Init(m_arena, STANDARD_ECS_OBJ_COUNT, a_game_viewport_size, a_project_name);
 

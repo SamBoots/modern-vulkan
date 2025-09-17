@@ -564,22 +564,48 @@ bool BB::OSFindFileNameDialogWindow(char* a_str_buffer, const size_t a_str_buffe
 	return false;
 }
 
-bool BB::OSOpenFolder(const StringView a_directory, MemoryArenaTemp a_temp_arena)
+bool BB::OSFindDirectoryNameDialogWindow(char* a_str_buffer, const size_t a_str_buffer_size, const wchar* a_title)
 {
-	wchar_t* wide_chars = ArenaAllocArr(a_temp_arena, wchar_t, a_directory.size());
-	size_t conv_char;
-	mbstowcs_s(&conv_char, wide_chars, a_directory.size(), a_directory.c_str(), a_directory.size());
+    if (FAILED(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE)))
+    {
+        return false;
+    }
+    BB_DEFER(CoUninitialize());
+    IFileDialog* fd = nullptr;
+    if (FAILED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&fd))))
+        return false;
+    BB_DEFER(fd->Release());
 
-	PIDLIST_ABSOLUTE pidl;
-	if (SUCCEEDED(SHParseDisplayName(wide_chars, nullptr, &pidl, 0, nullptr)))
-	{
-		ITEMIDLIST idNull = {};
-		LPCITEMIDLIST pidlNull[1] = { &idNull };
-		SHOpenFolderAndSelectItems(pidl, 1, pidlNull, 0);
-		ILFree(pidl);
-		return true;
-	}
-	return false;
+    DWORD dwoptions;
+    if (FAILED(fd->GetOptions(&dwoptions)))
+        return false;
+
+    if (FAILED(fd->SetOptions(dwoptions | FOS_PICKFOLDERS)))
+        return false;
+
+    fd->SetTitle(a_title);
+
+    if (FAILED(fd->Show(nullptr)))
+        return false;
+
+    IShellItem* si = nullptr;
+    if (FAILED(fd->GetResult(&si)))
+        return false;
+    BB_DEFER(si->Release());
+
+    PWSTR wpath = nullptr;
+    if (FAILED(si->GetDisplayName(SIGDN_FILESYSPATH, &wpath)))
+        return false;
+    BB_DEFER(CoTaskMemFree(wpath));
+
+    // i hate wide chars windows whyyy :(
+    const size_t str_size = static_cast<size_t>(WideCharToMultiByte(CP_UTF8, 0, wpath, -1, nullptr, 0, nullptr, nullptr));
+    if (str_size > a_str_buffer_size)
+        return false;
+
+    WideCharToMultiByte(CP_UTF8, 0, wpath, -1, a_str_buffer, str_size, nullptr, nullptr);
+
+    return true;
 }
 
 bool BB::CloseOSFile(const OSFileHandle a_file_handle)

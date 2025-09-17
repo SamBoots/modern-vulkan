@@ -582,16 +582,11 @@ namespace BB
 
         size_t find_last_of_directory_slash(const size_t a_end) const
         {
-            if (size_t index = m_string.find_last_of('/', a_end))
+            size_t index = m_string.find_last_of('/', a_end);
+            if (index != size_t(-1))
                 return index;
 
-            if (size_t index = m_string.find_last_of('\\', a_end))
-            {
-                BB_WARNING(false, "windows directory slash \\ found, should be replaced with a unix / version", WarningType::LOW);
-                return index;
-            }
-
-            return size_t(-1);
+            return m_string.find_last_of('\\', a_end);
         }
 
         bool HasFileExtension() const

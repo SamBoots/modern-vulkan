@@ -5,6 +5,7 @@
 namespace BB
 {
 #define BB_CONCAT(a, b) a##b
+#define BB_CONCAT_EXPAND(a, b) BB_CONCAT(a, b)
 #define ENUM_CASE_STR(name, entry_name) case name::entry_name: return #entry_name
 #define ENUM_CASE_STR_NOT_FOUND() default: return "ENUM_NAME_NOT_FOUND"
 
@@ -27,13 +28,31 @@ namespace BB
 
 #define BB_WARNINGS_ON			BB_PRAGMA(clang diagnostic pop)
 #elif _MSC_VER
-#define BB_PAD(n) unsigned char BB_CONCAT(_padding_, __LINE__)[n]
+#define BB_PAD(n) unsigned char BB_CONCAT_EXPAND(_padding_, __LINE__)[n]
 
 #define BB_NO_RETURN			__declspec(noreturn)
 
 #define BB_WARNINGS_OFF			BB_PRAGMA(warning(push, 0))
 #define BB_WARNINGS_ON			BB_PRAGMA(warning(pop, 0))
 #endif
+
+    template<typename FUNC>
+    class ScopeGuard
+    {
+    public:
+        explicit ScopeGuard(FUNC a_func) : func(std::move(a_func)) {}
+        ~ScopeGuard() { func(); }
+
+        ScopeGuard(const ScopeGuard&) = delete;
+        ScopeGuard& operator=(const ScopeGuard&) = delete;
+        ScopeGuard(ScopeGuard&&) = delete;
+        ScopeGuard& operator=(ScopeGuard&&) = delete;
+
+    private:
+        FUNC func;
+    };
+
+#define BB_DEFER(code) auto BB_CONCAT_EXPAND(DEFER_BB_, __LINE__) = ScopeGuard([&]() {code;})
 
 	// logger info 
 	using WarningTypeFlags = unsigned int;

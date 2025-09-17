@@ -78,7 +78,7 @@ static void DisplayGPUInfo(const GPUDeviceInfo& a_gpu_info)
 	}
 }
 
-void Editor::MainEditorImGuiInfo(const MemoryArena& a_arena)
+void Editor::MainEditorImGuiInfo(const MemoryArena& a_arena) const
 {
 	if (ImGui::CollapsingHeader("general engine info"))
 	{
@@ -1101,12 +1101,13 @@ void Editor::ImGuiDisplayGames()
         {
             PathString search_path{};
 
-            if (OSFindFileNameDialogWindow(search_path.data(), search_path.capacity(), GetRootPath().c_str()))
+            if (OSFindDirectoryNameDialogWindow(search_path.data(), search_path.capacity(), L"Game project directory search"))
             {
                 search_path.RecalculateStringSize();
                 if (OSDirectoryExist(search_path.c_str()))
                 {
-                    const StringView dir_name = search_path.GetView(search_path.find_last_of_directory_slash());
+                    const size_t dir_slash_pos = search_path.find_last_of_directory_slash();
+                    const StringView dir_name = search_path.GetView(search_path.size() - dir_slash_pos - 1, dir_slash_pos + 1);
                     AddGameInstance(dir_name, ConstSlice<PFN_LuaPluginRegisterFunctions>());
                 }
             }
@@ -1122,7 +1123,6 @@ void Editor::ImGuiDisplayGames()
                 {
                     game.Destroy();
                     m_game_instances.Erase(i);
-                    return;
                 }
             }
             ImGui::PopID();
