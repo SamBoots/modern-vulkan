@@ -11,6 +11,7 @@ add_library(Engine
 	"ecs/components/NameComponent.cpp"
     "ecs/components/RaytraceComponent.cpp"
 	"ecs/systems/RenderSystem.cpp"
+    "ecs/systems/RenderGraph.cpp"
     "ecs/systems/ClearStage.cpp"
     "ecs/systems/ShadowMapStage.cpp"
     "ecs/systems/RasterMeshStage.cpp"
@@ -30,7 +31,7 @@ add_library(Engine
 	"ImGuiImpl.cpp"
     "Engine.cpp" 
     "UICanvas.cpp"
-    "GameInstance.cpp")
+    "GameInstance.cpp" "ecs/systems/RenderStages.cpp")
 	
 target_include_directories(Engine PUBLIC "")
 

@@ -20,6 +20,8 @@
 
 using namespace BB;
 
+BB_WARNING_IGNORE_LANGUAGE_TOKEN
+
 static void DefaultClose(WindowHandle) {}
 static void DefaultResize(WindowHandle, uint32_t, uint32_t) {}
 static void DefaultMove(WindowHandle, uint32_t, uint32_t) {}
@@ -599,8 +601,8 @@ bool BB::OSFindDirectoryNameDialogWindow(char* a_str_buffer, const size_t a_str_
     BB_DEFER(CoTaskMemFree(wpath));
 
     // i hate wide chars windows whyyy :(
-    const size_t str_size = static_cast<size_t>(WideCharToMultiByte(CP_UTF8, 0, wpath, -1, nullptr, 0, nullptr, nullptr));
-    if (str_size > a_str_buffer_size)
+    const int str_size = WideCharToMultiByte(CP_UTF8, 0, wpath, -1, nullptr, 0, nullptr, nullptr);
+    if (str_size > static_cast<int>(a_str_buffer_size))
         return false;
 
     WideCharToMultiByte(CP_UTF8, 0, wpath, -1, a_str_buffer, str_size, nullptr, nullptr);

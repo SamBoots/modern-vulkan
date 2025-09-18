@@ -188,6 +188,9 @@ namespace BB
 		uint2 render_area_extent;
 		int2 render_area_offset;
 
+        uint32_t layer_count;
+        uint32_t view_mask;
+
 		RenderingAttachmentDepth* depth_attachment;
 		Slice<RenderingAttachmentColor> color_attachments;
 	};

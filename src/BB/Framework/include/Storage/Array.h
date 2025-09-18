@@ -520,7 +520,7 @@ namespace BB
 		T* data() const { return m_arr; }
 
 		Iterator begin() { return Iterator(m_arr); }
-		Iterator end() { return Iterator(&m_arr[m_size + 1]); } //Get an out of bounds Iterator.
+		Iterator end() { return Iterator(&m_arr[m_size]); } //Get an out of bounds Iterator.
 
 		ConstSlice<T> const_slice() const
 		{

@@ -1,41 +1,10 @@
 #pragma once
 #include <cstdint>
 #include <BBIntrin.h>
+#include "BBPragma.h"
 
 namespace BB
 {
-#define BB_CONCAT(a, b) a##b
-#define BB_CONCAT_EXPAND(a, b) BB_CONCAT(a, b)
-#define ENUM_CASE_STR(name, entry_name) case name::entry_name: return #entry_name
-#define ENUM_CASE_STR_NOT_FOUND() default: return "ENUM_NAME_NOT_FOUND"
-
-#define BB_PRAGMA(X)			_Pragma(#X)
-#define BB_PRAGMA_PACK_PUSH(n)  BB_PRAGMA(pack(push,n))
-#define BB_PRAGMA_PACK_POP()    BB_PRAGMA(pack(pop))
-#ifdef __clang__
-#define BB_PAD(n)   BB_PRAGMA(clang diagnostic push) \
-					BB_PRAGMA(clang diagnostic ignored "-Wunused-private-field") \
-	                unsigned char BB_CONCAT(_padding_, __LINE__)[n] \
-					BB_PRAGMA(clang diagnostic pop)
-
-#define BB_NO_RETURN			__attribute__((noreturn))
-
-#define BB_WARNINGS_OFF			BB_PRAGMA(clang diagnostic push) \
-								BB_PRAGMA(clang diagnostic ignored "-Wall")	\
-								BB_PRAGMA(clang diagnostic ignored "-Wextra") \
-								BB_PRAGMA(clang diagnostic ignored "-Weverything") \
-								BB_PRAGMA(clang diagnostic ignored "-Wpedantic")
-
-#define BB_WARNINGS_ON			BB_PRAGMA(clang diagnostic pop)
-#elif _MSC_VER
-#define BB_PAD(n) unsigned char BB_CONCAT_EXPAND(_padding_, __LINE__)[n]
-
-#define BB_NO_RETURN			__declspec(noreturn)
-
-#define BB_WARNINGS_OFF			BB_PRAGMA(warning(push, 0))
-#define BB_WARNINGS_ON			BB_PRAGMA(warning(pop, 0))
-#endif
-
     template<typename FUNC>
     class ScopeGuard
     {
@@ -235,7 +204,7 @@ namespace BB
 		{
 			return float3(-x, -y, -z);
 		}
-		float e[3];
+        float e[3];
 		struct
 		{
 			float x;

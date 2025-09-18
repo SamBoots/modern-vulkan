@@ -4,6 +4,7 @@
 #include "Utils/Logger.h"
 #include <malloc.h>
 #include <type_traits>
+#include "BBCompiler.h"
 
 ////incase BBnewArr / BBStackAlloc / BBStackAlloc_s do not work anymore due to template stuff, use this again.
 ////This was required once to make templates work in macros but not anymore?

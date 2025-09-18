@@ -399,7 +399,7 @@ void Editor::UpdateGames(MemoryArena& a_arena, const float a_delta_time)
 void Editor::AddGameInstance(const StringView a_dir_path, const ConstSlice<PFN_LuaPluginRegisterFunctions> a_register_funcs)
 {
     const uint32_t index = m_game_instances.size();
-    m_game_instances.resize(index + 1);
+    m_game_instances.emplace_back();
     m_game_instances[index].Init(m_app_window_extent / 2, a_dir_path, nullptr, a_register_funcs);
 }
 

@@ -72,6 +72,8 @@ void BloomStage::ExecutePass(const RCommandList a_list, const uint2 a_resolution
         StartRenderingInfo rendering_info;
         rendering_info.color_attachments = Slice(&color_attach, 1);
         rendering_info.depth_attachment = nullptr;
+        rendering_info.layer_count = 1;
+        rendering_info.view_mask = 0;
         rendering_info.render_area_extent = a_resolution;
         rendering_info.render_area_offset = int2();
 
@@ -115,6 +117,8 @@ void BloomStage::ExecutePass(const RCommandList a_list, const uint2 a_resolution
         StartRenderingInfo rendering_info;
         rendering_info.color_attachments = Slice(&color_attach, 1);
         rendering_info.depth_attachment = nullptr;
+        rendering_info.layer_count = 1;
+        rendering_info.view_mask = 0;
         rendering_info.render_area_extent = a_draw_area;
         rendering_info.render_area_offset = int2{ 0, 0 };
 

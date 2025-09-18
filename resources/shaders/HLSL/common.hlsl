@@ -120,7 +120,6 @@ BB::ShaderIndicesShadowMapping PushConstantShadowMapping()
     BB::ShaderIndicesShadowMapping indices;
     indices.geometry_offset = push_constant.userdata[0];
     indices.transform_index = push_constant.userdata[1];
-    indices.shadow_map_index = push_constant.userdata[2];
     return indices;
 }
 

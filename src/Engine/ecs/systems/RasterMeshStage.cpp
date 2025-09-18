@@ -61,6 +61,8 @@ void RasterMeshStage::ExecutePass(const RCommandList a_list, const uint32_t a_fr
     StartRenderingInfo rendering_info;
     rendering_info.color_attachments = color_attachs.slice(color_attach_count);
     rendering_info.depth_attachment = &depth_attach;
+    rendering_info.layer_count = 1;
+    rendering_info.view_mask = 0;
     rendering_info.render_area_extent = a_draw_area_size;
     rendering_info.render_area_offset = int2{ 0, 0 };
 

@@ -2,6 +2,7 @@
 #include "GPUBuffers.hpp"
 #include "Rendererfwd.hpp"
 #include "Enginefwd.hpp"
+#include "Rendergraph.hpp"
 
 namespace BB
 {

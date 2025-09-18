@@ -212,6 +212,7 @@ static VkPhysicalDevice FindPhysicalDevice(MemoryArena& a_temp_arena, const VkIn
 		VkPhysicalDeviceSynchronization2Features sync_features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES };
 		sync_features.pNext = &sem_features;
 		VkPhysicalDeviceFeatures2 device_features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2 };
+        device_features.features.multiViewport = VK_TRUE;
 		device_features.pNext = &sync_features;
 		vkGetPhysicalDeviceFeatures2(physical_device[i], &device_features);
 
@@ -372,9 +373,13 @@ static VkDevice CreateLogicalDevice(MemoryArena& a_temp_arena, const VkPhysicalD
 	address_feature.bufferDeviceAddress = VK_TRUE;
 	address_feature.pNext = &indexingFeatures;
 
+    VkPhysicalDeviceMultiviewFeatures multi_viewport_feature{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTIVIEW_FEATURES };
+    multi_viewport_feature.multiview = VK_TRUE;
+    multi_viewport_feature.pNext = &address_feature;
+
 	VkPhysicalDeviceSynchronization2Features sync_features{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SYNCHRONIZATION_2_FEATURES };
 	sync_features.synchronization2 = VK_TRUE;
-	sync_features.pNext = &address_feature;
+	sync_features.pNext = &multi_viewport_feature;
 
 	VkPhysicalDeviceShaderObjectFeaturesEXT shader_objects{ VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_OBJECT_FEATURES_EXT };
 	shader_objects.shaderObject = true;
@@ -2361,8 +2366,7 @@ void Vulkan::StartRenderPass(const RCommandList a_list, const StartRenderingInfo
 {
 	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
 
-	VkRenderingInfo rendering_info{ VK_STRUCTURE_TYPE_RENDERING_INFO };
-
+    VkRenderingAttachmentInfo* pdepth_attachment;
 	VkRenderingAttachmentInfo depth_attachment{};
 	if (a_render_info.depth_attachment)
 	{
@@ -2375,7 +2379,7 @@ void Vulkan::StartRenderPass(const RCommandList a_list, const StartRenderingInfo
 		depth_attachment.imageView = reinterpret_cast<VkImageView>(depth_info.image_view.handle);
 		depth_attachment.clearValue.depthStencil = { depth_info.clear_value.depth, depth_info.clear_value.stencil };
 
-		rendering_info.pDepthAttachment = &depth_attachment;
+        pdepth_attachment = &depth_attachment;
 
 		vkCmdSetStencilTestEnable(cmd_buffer, VK_FALSE);
 		vkCmdSetDepthBiasEnable(cmd_buffer, VK_TRUE);
@@ -2385,7 +2389,7 @@ void Vulkan::StartRenderPass(const RCommandList a_list, const StartRenderingInfo
 	}
 	else
 	{
-		rendering_info.pDepthAttachment = nullptr;
+        pdepth_attachment = nullptr;
 
 		vkCmdSetStencilTestEnable(cmd_buffer, false);
 		vkCmdSetDepthBiasEnable(cmd_buffer, VK_FALSE);
@@ -2418,10 +2422,13 @@ void Vulkan::StartRenderPass(const RCommandList a_list, const StartRenderingInfo
 	scissor.extent.width = a_render_info.render_area_extent.x;
 	scissor.extent.height = a_render_info.render_area_extent.y;
 
-	rendering_info.renderArea = scissor;
-	rendering_info.layerCount = 1;
+    VkRenderingInfo rendering_info{ VK_STRUCTURE_TYPE_RENDERING_INFO };
+    rendering_info.renderArea = scissor;
 	rendering_info.pColorAttachments = color_attachments.data();
 	rendering_info.colorAttachmentCount = static_cast<uint32_t>(a_render_info.color_attachments.size());
+    rendering_info.pDepthAttachment = pdepth_attachment;
+    rendering_info.layerCount = a_render_info.layer_count;
+    rendering_info.viewMask = a_render_info.view_mask;
 	vkCmdBeginRendering(cmd_buffer, &rendering_info);
 
 	// maybe make this it's own function? Think there is no need now

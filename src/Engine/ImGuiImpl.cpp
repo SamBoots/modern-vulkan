@@ -322,6 +322,8 @@ void BB::ImRenderFrame(const RCommandList a_cmd_list, const RImageView a_render_
 	StartRenderingInfo imgui_pass_start{};
 	imgui_pass_start.render_area_extent = a_render_target_extent;
 	imgui_pass_start.render_area_offset = {};
+    imgui_pass_start.layer_count = 1;
+    imgui_pass_start.view_mask = 0;
 	imgui_pass_start.color_attachments = Slice(&color_attach, 1);
 	imgui_pass_start.depth_attachment = nullptr;
 	StartRenderPass(a_cmd_list, imgui_pass_start);

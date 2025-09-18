@@ -48,8 +48,8 @@ void EditorGame::ToggleEditorMode()
 
 void EditorGame::EditorUpdate(const float a_delta_time, const CameraInput& a_camera_input)
 {
-    const float2 move = Input::InputActionGetFloat2(a_camera_input.channel, a_camera_input.move);
-    const float3 player_move = float3(move.x, 0, move.y) * a_delta_time;
+    const float2 move = Input::InputActionGetFloat2(a_camera_input.channel, a_camera_input.move) * a_delta_time;
+    const float3 player_move = float3(move.x, 0, move.y);
     const float wheel_move = Input::InputActionGetFloat(a_camera_input.channel, a_camera_input.move_speed_slider);
 
     m_camera.AddSpeed(wheel_move);

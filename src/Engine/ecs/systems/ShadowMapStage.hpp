@@ -19,7 +19,6 @@ namespace BB
         {
             RImage image;
             RDescriptorIndex descriptor_index;
-            StaticArray<RImageView> render_pass_views;
         };
 
         StaticArray<PerFrame> m_per_frame;

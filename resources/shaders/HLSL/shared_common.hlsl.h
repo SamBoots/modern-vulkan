@@ -173,7 +173,6 @@ namespace BB
     {
         uint geometry_offset;           // 4
         uint transform_index;           // 8
-        uint shadow_map_index;          // 12
     };
 
     struct ShaderGaussianBlur

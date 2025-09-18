@@ -64,6 +64,8 @@ void LineStage::ExecutePass(const RCommandList a_list, const uint32_t a_frame_in
     StartRenderingInfo start_rendering_info;
     start_rendering_info.render_area_extent = a_draw_area;
     start_rendering_info.render_area_offset = int2{ 0, 0 };
+    start_rendering_info.layer_count = 1;
+    start_rendering_info.view_mask = 0;
     start_rendering_info.color_attachments = Slice(&color_attach, 1);
     start_rendering_info.depth_attachment = pdepth;
 

@@ -14,6 +14,7 @@
 #include "MemoryArena.hpp"
 #include "Storage/BBString.h"
 #include "Utils/Slice.h"
+#include "BBCompiler.h"
 
 namespace BB
 {
