@@ -4,7 +4,7 @@
 
 using namespace BB;
 
-bool BB::RenderPassClearStage(RG::RenderGraph& a_graph, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
+bool BB::RenderPassClearStage(RG::RenderGraph& a_graph, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle>, Slice<RG::ResourceHandle> a_resource_outputs)
 {
     const RG::RenderResource& out_rt = a_graph.GetResource(a_resource_outputs[0]);
 
@@ -45,7 +45,7 @@ bool BB::RenderPassClearStage(RG::RenderGraph& a_graph, const RCommandList a_lis
     EndRenderPass(a_list);
 }
 
-bool BB::RenderPassShadowMapStage(RG::RenderGraph& a_graph, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
+bool BB::RenderPassShadowMapStage(RG::RenderGraph& a_graph, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle>, Slice<RG::ResourceHandle> a_resource_outputs)
 {
     const RG::RenderResource& out_rt = a_graph.GetResource(a_resource_outputs[0]);
     const uint2 shadow_map_extent = uint2(out_rt.image.extent.x, out_rt.image.extent.y);
@@ -135,7 +135,7 @@ bool BB::RenderPassShadowMapStage(RG::RenderGraph& a_graph, const RCommandList a
     PipelineBarriers(a_list, pipeline_info);
 }
 
-bool BB::RenderPassPBRStage(RG::RenderGraph& a_graph, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
+bool BB::RenderPassPBRStage(RG::RenderGraph& a_graph, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle>, Slice<RG::ResourceHandle> a_resource_outputs)
 {
     const RG::RenderResource& out_rt = a_graph.GetResource(a_resource_outputs[0]);
     const RG::RenderResource& out_rt_bright = a_graph.GetResource(a_resource_outputs[1]);
@@ -402,8 +402,8 @@ bool BB::RenderPassBloomStage(RG::RenderGraph& a_graph, const RCommandList a_lis
         push_constant.horizontal_enable = false;
         push_constant.src_texture = in_rt_0.descriptor_index;
         push_constant.src_resolution = rt_0_extent;
-        //push_constant.blur_strength = m_bloom_strength;
-        //push_constant.blur_scale = m_bloom_scale;
+        push_constant.blur_strength = a_graph.GetPostFXOptions().blur_strength;
+        push_constant.blur_scale = a_graph.GetPostFXOptions().blur_scale;
 
         SetPushConstantUserData(a_list, 0, sizeof(push_constant), &push_constant);
 
@@ -447,8 +447,8 @@ bool BB::RenderPassBloomStage(RG::RenderGraph& a_graph, const RCommandList a_lis
         push_constant.horizontal_enable = true;
         push_constant.src_texture = in_rt_1.descriptor_index;
         push_constant.src_resolution = rt_1_extent;
-        //push_constant.blur_strength = m_bloom_strength;
-        //push_constant.blur_scale = m_bloom_scale;
+        push_constant.blur_strength = a_graph.GetPostFXOptions().blur_strength;
+        push_constant.blur_scale = a_graph.GetPostFXOptions().blur_scale;
         SetPushConstantUserData(a_list, 0, sizeof(push_constant), &push_constant);
 
         StartRenderPass(a_list, rendering_info);

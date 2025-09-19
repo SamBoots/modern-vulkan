@@ -61,10 +61,18 @@ namespace BB
             StaticArray<ResourceHandle> m_resource_outputs;
         };
 
+        struct PostFXOptions
+        {
+            float blur_strength;
+            float blur_scale;
+        };
+
         class RenderGraph
         {
         public:
             RenderGraph(MemoryArena& a_arena, const uint32_t a_max_passes, const uint32_t a_max_resources);
+
+            bool Compile();
 
             RenderPass& AddRenderPass(MemoryArena& a_arena, const PFN_RenderPass a_call, const uint32_t a_resources_in, const uint32_t a_resources_out, const MasterMaterialHandle a_material);
             ResourceHandle AddUniform(const StackString<32>& a_name, const size_t a_size, const void* a_upload_data = nullptr);
@@ -75,6 +83,7 @@ namespace BB
 
             const RenderResource& GetResource(const ResourceHandle a_handle);
             const DrawList& GetDrawList() const { return m_drawlist; }
+            const PostFXOptions& GetPostFXOptions() const { return m_post_fx; }
 
         private:
             StaticArray<RenderPass> m_passes;
@@ -82,6 +91,21 @@ namespace BB
             StaticArray<RenderResource> m_resources;
 
             DrawList m_drawlist;
+
+            // scene data
+            RDescriptorIndex m_per_frame_descriptor;
+            GPULinearBuffer m_per_frame_buffer;
+            GPUStaticCPUWriteableBuffer m_scene_buffer;
+
+            // these should be higher level and are temp here
+            Scene3DInfo m_scene_info;
+
+            PostFXOptions m_post_fx;
+
+            RFence m_fence;
+            uint64_t m_next_fence_value;
+            uint64_t m_last_completed_fence_value;
+            GPUUploadRingAllocator m_upload_allocator;
         };
     }
 }

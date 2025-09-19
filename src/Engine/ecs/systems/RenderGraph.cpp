@@ -1,4 +1,5 @@
 #include "Rendergraph.hpp"
+#include "Renderer.hpp"
 
 using namespace BB;
 
@@ -36,6 +37,64 @@ RG::RenderGraph::RenderGraph(MemoryArena& a_arena, const uint32_t a_max_passes, 
     m_passes.Init(a_arena, a_max_passes);
     m_execution_order.Init(a_arena, a_max_passes);
     m_resources.Init(a_arena, a_max_resources);
+}
+
+bool RG::RenderGraph::Compile()
+{
+    for (size_t i = 0; i < m_execution_order.size(); i++)
+    {
+        m_execution_order[i] = i;
+    }
+
+    size_t per_frame_buffer_size = 0;
+    for (size_t i = 0; i < m_resources.size(); i++)
+    {
+        const RenderResource& res = m_resources[i];
+        if (res.descriptor_type == DESCRIPTOR_TYPE::READONLY_BUFFER)
+        {
+            per_frame_buffer_size += res.buffer.size;
+        }
+    }
+    {   // buffer gen
+        m_scene_buffer.Init(BUFFER_TYPE::UNIFORM, sizeof(Scene3DInfo), "scene info buffer");
+
+        GPUBufferCreateInfo per_frame_create_info;
+        per_frame_create_info.name = "per frame buffer";
+        per_frame_create_info.size = per_frame_buffer_size;
+        per_frame_create_info.type = BUFFER_TYPE::STORAGE;
+        per_frame_create_info.host_writable = false;
+        m_per_frame_buffer.Init(per_frame_create_info);
+
+        m_per_frame_descriptor = AllocateBufferDescriptor();
+        GPUBufferView per_frame_view;
+        per_frame_view.buffer = m_per_frame_buffer.GetBuffer();
+        per_frame_view.size = per_frame_buffer_size;
+        per_frame_view.offset = 0;
+        DescriptorWriteStorageBuffer(m_per_frame_descriptor, per_frame_view);
+    }
+
+
+    // upload all data
+    for (size_t i = 0; i < m_resources.size(); i++)
+    {
+        const RenderResource& res = m_resources[i];
+        if (res.descriptor_type == DESCRIPTOR_TYPE::READONLY_CONSTANT)
+        {
+            
+        }
+        if (res.descriptor_type == DESCRIPTOR_TYPE::READONLY_BUFFER)
+        {
+
+        }
+        if (res.descriptor_type == DESCRIPTOR_TYPE::IMAGE)
+        {
+
+        }
+        if (res.descriptor_type == DESCRIPTOR_TYPE::SAMPLER)
+        {
+
+        }
+    }
 }
 
 RG::RenderPass& RG::RenderGraph::AddRenderPass(MemoryArena& a_arena, const PFN_RenderPass a_call, const uint32_t a_resources_in, const uint32_t a_resources_out, const MasterMaterialHandle a_material)
