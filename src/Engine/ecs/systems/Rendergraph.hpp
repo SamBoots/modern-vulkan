@@ -74,11 +74,14 @@ namespace BB
             ResourceHandle AddDepthTarget(const StackString<32>& a_name, const uint3 a_extent, const IMAGE_FORMAT a_format);
 
             const RenderResource& GetResource(const ResourceHandle a_handle);
+            const DrawList& GetDrawList() const { return m_drawlist; }
 
         private:
             StaticArray<RenderPass> m_passes;
             StaticArray<uint32_t> m_execution_order;
             StaticArray<RenderResource> m_resources;
+
+            DrawList m_drawlist;
         };
     }
 }
