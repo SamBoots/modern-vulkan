@@ -304,7 +304,7 @@ bool SceneHierarchy::CreateLight(const ECSEntity a_entity, const LightCreateInfo
 	light.direction = float4(a_light_info.direction.x, a_light_info.direction.y, a_light_info.direction.z, a_light_info.cutoff_radius);
 
 	const float near_plane = 1.f, far_plane = 7.5f;
-	const float4x4 vp = CalculateLightProjectionView(a_light_info.pos, near_plane, far_plane);
+	const float4x4 vp = CalculateLightProjectionView(a_light_info.pos, a_light_info.direction, m_ecs.GetRenderSystem().GetRenderTargetExtent(), near_plane, far_plane);
 
 	LightComponent light_component;
 	light_component.light = light;
@@ -312,9 +312,9 @@ bool SceneHierarchy::CreateLight(const ECSEntity a_entity, const LightCreateInfo
 	return m_ecs.EntityAssignLight(a_entity, light_component);
 }
 
-float4x4 SceneHierarchy::CalculateLightProjectionView(const float3 a_pos, const float a_near, const float a_far)
+float4x4 SceneHierarchy::CalculateLightProjectionView(const float3 a_pos, const float3 a_direction, const uint2 a_resolution, const float a_near, const float a_far)
 {
-	const float4x4 projection = Float4x4Perspective(ToRadians(45.f), 1.0f, a_near, a_far);
-	const float4x4 view = Float4x4Lookat(a_pos, float3(), float3(0.0f, -1.0f, 0.0f));
+	const float4x4 projection = Float4x4Perspective(ToRadians(45.f), static_cast<float>(a_resolution.x) / static_cast<float>(a_resolution.y), a_near, a_far);
+	const float4x4 view = Float4x4Lookat(a_pos, a_pos + a_direction, float3(0.0f, 1.0f, 0.0f));
 	return projection * view;
 }

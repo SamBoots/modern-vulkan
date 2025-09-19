@@ -482,23 +482,41 @@ namespace BB
             a_mat.e[0][3], a_mat.e[1][3], a_mat.e[2][3], a_mat.e[3][3]);
     }
 
-	static inline float4x4 operator*(const float4x4& a_lhs, const float4x4& a_rhs)
-	{
-		float4x4 mat;
-		mat.r0 = a_lhs.r0 * a_rhs.r0.x + a_lhs.r1 * a_rhs.r0.y + a_lhs.r2 * a_rhs.r0.z + a_lhs.r3 * a_rhs.r0.w;
-		mat.r1 = a_lhs.r0 * a_rhs.r1.x + a_lhs.r1 * a_rhs.r1.y + a_lhs.r2 * a_rhs.r1.z + a_lhs.r3 * a_rhs.r1.w;
-		mat.r2 = a_lhs.r0 * a_rhs.r2.x + a_lhs.r1 * a_rhs.r2.y + a_lhs.r2 * a_rhs.r2.z + a_lhs.r3 * a_rhs.r2.w;
-		mat.r3 = a_lhs.r0 * a_rhs.r3.x + a_lhs.r1 * a_rhs.r3.y + a_lhs.r2 * a_rhs.r3.z + a_lhs.r3 * a_rhs.r3.w;
-		return mat;
-	}
+    static inline float4x4 operator*(const float4x4& a_lhs, const float4x4& a_rhs)
+    {
+        float4x4 result;
+        for (int i = 0; i < 4; ++i)
+            for (int j = 0; j < 4; ++j)
+                result.e[i][j] =
+                a_lhs.e[i][0] * a_rhs.e[0][j] +
+                a_lhs.e[i][1] * a_rhs.e[1][j] +
+                a_lhs.e[i][2] * a_rhs.e[2][j] +
+                a_lhs.e[i][3] * a_rhs.e[3][j];
+        return result;
+    }
 
 	static inline float4x4 operator*(const float4x4& a_lhs, const float3x3& a_rhs)
 	{
-		return Float4x4FromFloats(
-			a_lhs.r0.x * a_rhs.r0.x, a_lhs.r0.y * a_rhs.r0.y, a_lhs.r0.z * a_rhs.r0.z, a_lhs.r0.w,
-			a_lhs.r1.x * a_rhs.r1.x, a_lhs.r1.y * a_rhs.r1.y, a_lhs.r1.z * a_rhs.r1.z, a_lhs.r1.w,
-			a_lhs.r2.x * a_rhs.r2.x, a_lhs.r2.y * a_rhs.r2.y, a_lhs.r2.z * a_rhs.r2.z, a_lhs.r2.w,
-			a_lhs.r3.x, a_lhs.r3.y, a_lhs.r3.z, a_lhs.r3.w);
+        float4x4 result;
+        for (int i = 0; i < 3; ++i)
+        {
+            for (int j = 0; j < 3; ++j)
+            {
+                result.e[i][j] =
+                    a_lhs.e[i][0] * a_rhs.e[0][j] +
+                    a_lhs.e[i][1] * a_rhs.e[1][j] +
+                    a_lhs.e[i][2] * a_rhs.e[2][j];
+            }
+            result.e[i][3] = a_lhs.e[i][3];
+        }
+
+        // Preserve the bottom row (homogeneous coordinates)
+        result.e[3][0] = a_lhs.e[3][0];
+        result.e[3][1] = a_lhs.e[3][1];
+        result.e[3][2] = a_lhs.e[3][2];
+        result.e[3][3] = a_lhs.e[3][3];
+
+        return result;
 	}
 
 	static inline float4x4 Float4x4Identity()

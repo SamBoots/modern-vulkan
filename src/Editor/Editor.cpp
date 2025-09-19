@@ -811,7 +811,7 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 				if (position_changed)
 				{
 					const float near_plane = 1.f, far_plane = 7.5f;
-					comp.projection_view =SceneHierarchy::CalculateLightProjectionView(pos, near_plane, far_plane);
+					comp.projection_view =SceneHierarchy::CalculateLightProjectionView(pos, float3(comp.light.direction.x, comp.light.direction.y, comp.light.direction.z), a_ecs.GetRenderSystem().GetRenderTargetExtent(), near_plane, far_plane);
 				}
 
 				ImGui::Unindent();
@@ -858,7 +858,7 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 						light_comp.light.radius_quadratic = quadratic;
 
 						const float near_plane = 1.f, far_plane = 7.5f;
-						light_comp.projection_view = SceneHierarchy::CalculateLightProjectionView(pos, near_plane, far_plane);
+						light_comp.projection_view = SceneHierarchy::CalculateLightProjectionView(pos, direction, a_ecs.GetRenderSystem().GetRenderTargetExtent(), near_plane, far_plane);
 
 						a_ecs.EntityAssignLight(a_entity, light_comp);
 					}
