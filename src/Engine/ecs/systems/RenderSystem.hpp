@@ -84,9 +84,6 @@ namespace BB
 			GPUStaticCPUWriteableBuffer scene_buffer;
 			// I want this to be uniform but hlsl is giga cringe
             RDescriptorIndex per_frame_descriptor;
-            RDescriptorIndex matrix_descriptor;
-            RDescriptorIndex light_descriptor;
-            RDescriptorIndex light_view_descriptor;
 			GPULinearBuffer per_frame_buffer;
 
 			struct Bloom

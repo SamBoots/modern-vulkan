@@ -25,7 +25,7 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
     const float3 position = GetAttributeGeometry(shader_indices.geometry_offset, a_vertex_index);
     BB::PBRShadingAttribute shading = GetAttributePBRShading(shader_indices.shading_offset, a_vertex_index);
    
-    BB::ShaderTransform transform = buffers[scene.matrix_index].Load<BB::ShaderTransform>(sizeof(BB::ShaderTransform) * shader_indices.transform_index);
+    BB::ShaderTransform transform = buffers[scene.per_frame_index].Load<BB::ShaderTransform>(scene.matrix_offset + sizeof(BB::ShaderTransform) * shader_indices.transform_index);
     
     float3x3 normal_matrix = (float3x3)transpose(transform.inverse);
     float3 T = normalize(mul(normal_matrix, shading.tangent));
@@ -43,7 +43,7 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
     
     for (uint i = 0; i < scene.light_count; i++)
     {
-        const float4x4 projview = buffers[scene.light_view_index].Load<float4x4>(sizeof(float4x4) * i);
+        const float4x4 projview = buffers[scene.per_frame_index].Load<float4x4>(scene.light_view_offset + sizeof(float4x4) * i);
         output.world_pos_light[i] = mul(biasMat, mul(projview, mul(transform.transform, float4(position, 1.0))));
     }
     return output;
@@ -86,7 +86,7 @@ PixelOutput FragmentMain(VSOutput a_input)
     float3 lo = float3(0.0, 0.0, 0.0);
     for (uint i = 0; i < scene.light_count; i++)
     {
-        const BB::Light light = buffers[scene.light_index].Load<BB::Light>(sizeof(BB::Light) * i);
+        const BB::Light light = buffers[scene.per_frame_index].Load<BB::Light>(scene.light_offset + sizeof(BB::Light) * i);
         const float3 L = normalize(light.pos.xyz - a_input.world_pos);
 
         const float3 light_color = PBRCalculateLight(light, L, V, N, albedo, f0, orm_data, a_input.world_pos);

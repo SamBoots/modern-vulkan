@@ -51,6 +51,13 @@ void GPULinearBuffer::Init(const GPUBufferCreateInfo& a_buffer_info)
 	m_size = 0;
 }
 
+void GPULinearBuffer::Destroy()
+{
+    Vulkan::FreeBuffer(m_buffer);
+    m_size = 0;
+    m_capacity = 0;
+}
+
 bool GPULinearBuffer::Allocate(const size_t a_byte_amount, GPUBufferView& a_out_view)
 {
 	const size_t offset = m_size.fetch_add(a_byte_amount, std::memory_order_relaxed);

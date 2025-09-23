@@ -72,9 +72,9 @@ namespace BB
 
         // buffers
         RDescriptorIndex per_frame_index;// 204
-        RDescriptorIndex matrix_index;   // 208
-        RDescriptorIndex light_index;    // 212
-        RDescriptorIndex light_view_index; // 216
+        uint matrix_offset;   // 208
+        uint light_offset;    // 212
+        uint light_view_offset; // 216
         uint2 pad0;                        // 224
     };
 

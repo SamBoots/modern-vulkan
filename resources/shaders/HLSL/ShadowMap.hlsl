@@ -7,8 +7,8 @@ float4 VertexMain(uint a_vertex_index : SV_VertexID, uint a_view_index : SV_View
 
     const float3 cur_vertex_pos = GetAttributeGeometry(shader_indices.geometry_offset, a_vertex_index);
    
-    BB::ShaderTransform transform = buffers[scene.matrix_index].Load<BB::ShaderTransform>(sizeof(BB::ShaderTransform) * shader_indices.transform_index);
-    const float4x4 projview = buffers[scene.light_view_index].Load<float4x4>(sizeof(float4x4) * a_view_index);
+    BB::ShaderTransform transform = buffers[scene.per_frame_index].Load<BB::ShaderTransform>(scene.matrix_offset + sizeof(BB::ShaderTransform) * shader_indices.transform_index);
+    const float4x4 projview = buffers[scene.per_frame_index].Load<float4x4>(scene.light_view_offset + sizeof(float4x4) * a_view_index);
 
     return mul(mul(projview, transform.transform), float4(cur_vertex_pos, 1.0));
 }

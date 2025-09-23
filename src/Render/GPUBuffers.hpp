@@ -28,12 +28,14 @@ namespace BB
 	{
 	public:
 		void Init(const GPUBufferCreateInfo& a_buffer_info);
+        void Destroy();
 		// THREAD SAFE
 
 		bool Allocate(const size_t a_byte_amount, GPUBufferView& a_out_view);
 		void Clear();
 
 		const GPUBuffer GetBuffer() const { return m_buffer; }
+        size_t GetCapacity() const { return m_capacity; }
 	private:
 		GPUBuffer m_buffer;
 		size_t m_capacity;

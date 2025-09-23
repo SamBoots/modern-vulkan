@@ -45,9 +45,6 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 		pfd.previous_draw_area = { 0, 0 };
 		pfd.scene_descriptor = AllocateUniformDescriptor();
         pfd.per_frame_descriptor = AllocateBufferDescriptor();
-        pfd.matrix_descriptor = AllocateBufferDescriptor();
-        pfd.light_descriptor = AllocateBufferDescriptor();
-        pfd.light_view_descriptor = AllocateBufferDescriptor();
 
 		pfd.scene_buffer.Init(BUFFER_TYPE::UNIFORM, sizeof(m_scene_info), "scene info buffer");
         DescriptorWriteUniformBuffer(pfd.scene_descriptor, pfd.scene_buffer.GetView());
@@ -376,9 +373,6 @@ void RenderSystem::UpdateConstantBuffer(const uint32_t a_frame_index, const RCom
     
     //descriptors
     m_scene_info.per_frame_index = a_pfd.per_frame_descriptor;
-    m_scene_info.matrix_index = a_pfd.matrix_descriptor;
-    m_scene_info.light_index = a_pfd.light_descriptor;
-    m_scene_info.light_view_index = a_pfd.light_view_descriptor;
 
 	if (a_pfd.previous_draw_area != a_draw_area_size)
 	{
@@ -453,7 +447,6 @@ void RenderSystem::UpdateConstantBuffer(const uint32_t a_frame_index, const RCom
 		a_pfd.previous_draw_area = a_draw_area_size;
 	}
 
-    a_pfd.scene_buffer.WriteTo(&m_scene_info, sizeof(m_scene_info), 0);
 }
 
 void RenderSystem::ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list, const DrawList& a_draw_list, const ConstSlice<LightComponent> a_lights)
@@ -529,13 +522,15 @@ void RenderSystem::ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list
 		CopyBuffer(a_list, matrix_buffer_copy);
 
 		if (matrices_upload_size)
-            DescriptorWriteStorageBuffer(a_pfd.matrix_descriptor, transform_view);
+            m_scene_info.matrix_offset = static_cast<uint32_t>(transform_view.offset);
 		if (light_upload_size)
 		{
-			DescriptorWriteStorageBuffer(a_pfd.light_descriptor, light_view);
-			DescriptorWriteStorageBuffer(a_pfd.light_view_descriptor, light_projection_view);
+            m_scene_info.light_offset = static_cast<uint32_t>(light_view.offset);
+            m_scene_info.light_view_offset = static_cast<uint32_t>(light_projection_view.offset);
 		}
 	}
+
+    a_pfd.scene_buffer.WriteTo(&m_scene_info, sizeof(m_scene_info), 0);
 }
 
 void RenderSystem::CreateRenderTarget(const uint2 a_render_target_size)

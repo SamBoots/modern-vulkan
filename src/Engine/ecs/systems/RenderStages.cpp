@@ -4,9 +4,14 @@
 
 using namespace BB;
 
-bool BB::RenderPassClearStage(RG::RenderGraph& a_graph, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle>, Slice<RG::ResourceHandle> a_resource_outputs)
+bool BB::RenderPassClearStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
 {
+    const RG::RenderResource& skybox_texture = a_graph.GetResource(a_resource_inputs[0]);
+    const RG::RenderResource& skybox_sampler = a_graph.GetResource(a_resource_inputs[1]);
     const RG::RenderResource& out_rt = a_graph.GetResource(a_resource_outputs[0]);
+
+    a_global_data.scene_info.skybox_texture = skybox_texture.descriptor_index;
+    a_global_data.scene_info.skybox_sampler = skybox_sampler.descriptor_index;
 
     SetPrimitiveTopology(a_list, PRIMITIVE_TOPOLOGY::TRIANGLE_LIST);
     Material::BindMaterial(a_list, a_material);
@@ -43,18 +48,22 @@ bool BB::RenderPassClearStage(RG::RenderGraph& a_graph, const RCommandList a_lis
     DrawCubemap(a_list, 1, 0);
 
     EndRenderPass(a_list);
+    return true;
 }
 
-bool BB::RenderPassShadowMapStage(RG::RenderGraph& a_graph, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle>, Slice<RG::ResourceHandle> a_resource_outputs)
+bool BB::RenderPassShadowMapStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle>, Slice<RG::ResourceHandle> a_resource_outputs)
 {
     const RG::RenderResource& out_rt = a_graph.GetResource(a_resource_outputs[0]);
     const uint2 shadow_map_extent = uint2(out_rt.image.extent.x, out_rt.image.extent.y);
 
-    const uint32_t shadow_map_count = out_rt.image.layer_count;
+    const uint32_t shadow_map_count = out_rt.image.array_layers;
+    a_global_data.scene_info.shadow_map_count = shadow_map_count;
+    a_global_data.scene_info.shadow_map_array_descriptor = out_rt.descriptor_index;
+    a_global_data.scene_info.shadow_map_resolution = float2(static_cast<float>(shadow_map_extent.x), static_cast<float>(shadow_map_extent.y));
     if (shadow_map_count == 0)
     {
         // I don't think we need this if the graph is done
-        return;
+        return true;
     }
 
     SetPrimitiveTopology(a_list, PRIMITIVE_TOPOLOGY::TRIANGLE_LIST);
@@ -67,7 +76,7 @@ bool BB::RenderPassShadowMapStage(RG::RenderGraph& a_graph, const RCommandList a
     shadow_map_write_transition.layer_count = shadow_map_count;
     shadow_map_write_transition.level_count = 1;
     shadow_map_write_transition.base_array_layer = out_rt.image.base_array_layer;
-    shadow_map_write_transition.base_mip_level = 0;
+    shadow_map_write_transition.base_mip_level = out_rt.image.base_mip;
     shadow_map_write_transition.image_aspect = IMAGE_ASPECT::DEPTH;
 
     PipelineBarrierInfo write_pipeline{};
@@ -84,7 +93,7 @@ bool BB::RenderPassShadowMapStage(RG::RenderGraph& a_graph, const RCommandList a
     rendering_info.color_attachments = {};	// null
     rendering_info.depth_attachment = &depth_attach;
     rendering_info.layer_count = 1;
-    rendering_info.view_mask = ((1 << shadow_map_count) - 1) << out_rt.image.base_array_layer;
+    rendering_info.view_mask = ((1u << shadow_map_count) - 1u) << out_rt.image.base_array_layer;
     rendering_info.render_area_extent = shadow_map_extent;
     rendering_info.render_area_offset = int2(0, 0);
 
@@ -133,15 +142,28 @@ bool BB::RenderPassShadowMapStage(RG::RenderGraph& a_graph, const RCommandList a
     PipelineBarrierInfo pipeline_info = {};
     pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo>(&shadow_map_read_transition, 1);
     PipelineBarriers(a_list, pipeline_info);
+    return true;
 }
 
-bool BB::RenderPassPBRStage(RG::RenderGraph& a_graph, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle>, Slice<RG::ResourceHandle> a_resource_outputs)
+bool BB::RenderPassPBRStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
 {
+    const RG::RenderResource& matrix_buffer = a_graph.GetResource(a_resource_inputs[0]);
+    const RG::RenderResource& light_buffer = a_graph.GetResource(a_resource_inputs[1]);
+    const RG::RenderResource& light_view_buffer = a_graph.GetResource(a_resource_inputs[2]);
+
     const RG::RenderResource& out_rt = a_graph.GetResource(a_resource_outputs[0]);
     const RG::RenderResource& out_rt_bright = a_graph.GetResource(a_resource_outputs[1]);
     const RG::RenderResource& out_depth = a_graph.GetResource(a_resource_outputs[2]);
     const uint2 draw_area = uint2(out_rt.image.extent.x, out_rt.image.extent.y);
+    const uint32_t light_count = static_cast<uint32_t>(light_buffer.buffer.size) / sizeof(Light);
 
+    a_global_data.scene_info.light_count = light_count;
+    a_global_data.scene_info.scene_resolution = draw_area;
+
+    // MAYBE ALSO DO OFFSETS
+    a_global_data.scene_info.matrix_offset = static_cast<uint32_t>(matrix_buffer.buffer.offset);
+    a_global_data.scene_info.light_offset = static_cast<uint32_t>(light_buffer.buffer.offset);
+    a_global_data.scene_info.light_view_offset = static_cast<uint32_t>(light_view_buffer.buffer.offset);
 
     PipelineBarrierImageInfo image_transitions[1]{};
     image_transitions[0].prev = IMAGE_LAYOUT::NONE;
@@ -161,7 +183,7 @@ bool BB::RenderPassPBRStage(RG::RenderGraph& a_graph, const RCommandList a_list,
     color_attachs[0].load_color = true;
     color_attachs[0].store_color = true;
     color_attachs[0].image_layout = IMAGE_LAYOUT::RT_COLOR;
-    color_attachs[0].image_view = GetImageView(out_rt.descriptor_index);;
+    color_attachs[0].image_view = GetImageView(out_rt.descriptor_index);
 
     color_attachs[1].load_color = false;
     color_attachs[1].store_color = true;
@@ -228,9 +250,10 @@ bool BB::RenderPassPBRStage(RG::RenderGraph& a_graph, const RCommandList a_list,
     }
 
     EndRenderPass(a_list);
+    return true;
 }
 
-bool BB::RenderPassLineStage(RG::RenderGraph& a_graph, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
+bool BB::RenderPassLineStage(RG::RenderGraph& a_graph, RG::GlobalGraphData&, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
 {
     const RG::RenderResource& line_buffer = a_graph.GetResource(a_resource_inputs[0]);
 
@@ -290,14 +313,15 @@ bool BB::RenderPassLineStage(RG::RenderGraph& a_graph, const RCommandList a_list
 
     SetPushConstantUserData(a_list, 0, sizeof(push_constant), &push_constant);
 
-    const uint32_t line_count = line_buffer.buffer.size / sizeof(Line);
+    const uint32_t line_count = static_cast<uint32_t>(line_buffer.buffer.size) / sizeof(Line);
 
     DrawVertices(a_list, line_count * 2, 1, 0, 0);
 
     EndRenderPass(a_list);
+    return true;
 }
 
-bool BB::RenderPassGlyphStage(RG::RenderGraph& a_graph, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
+bool BB::RenderPassGlyphStage(RG::RenderGraph& a_graph, RG::GlobalGraphData&, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
 {
     const RG::RenderResource& quad_buffer = a_graph.GetResource(a_resource_inputs[0]);
     const RG::RenderResource& out_rt = a_graph.GetResource(a_resource_outputs[0]);
@@ -337,14 +361,14 @@ bool BB::RenderPassGlyphStage(RG::RenderGraph& a_graph, const RCommandList a_lis
 
     SetPushConstantUserData(a_list, 0, sizeof(push_constant), &push_constant);
 
-    const uint32_t quad_count = quad_buffer.buffer.size / sizeof(Quad2D);
+    const uint32_t quad_count = static_cast<uint32_t>(quad_buffer.buffer.size) / sizeof(Quad2D);
     DrawVertices(a_list, 6, quad_count, 1, 0);
 
     EndRenderPass(a_list);
     return true;
 }
 
-bool BB::RenderPassBloomStage(RG::RenderGraph& a_graph, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
+bool BB::RenderPassBloomStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
 {
     const RG::RenderResource& in_rt_0 = a_graph.GetResource(a_resource_inputs[0]);
     const RG::RenderResource& in_rt_1 = a_graph.GetResource(a_resource_inputs[1]);
@@ -402,8 +426,8 @@ bool BB::RenderPassBloomStage(RG::RenderGraph& a_graph, const RCommandList a_lis
         push_constant.horizontal_enable = false;
         push_constant.src_texture = in_rt_0.descriptor_index;
         push_constant.src_resolution = rt_0_extent;
-        push_constant.blur_strength = a_graph.GetPostFXOptions().blur_strength;
-        push_constant.blur_scale = a_graph.GetPostFXOptions().blur_scale;
+        push_constant.blur_strength = a_global_data.post_fx.blur_strength;
+        push_constant.blur_scale = a_global_data.post_fx.blur_scale;
 
         SetPushConstantUserData(a_list, 0, sizeof(push_constant), &push_constant);
 
@@ -447,8 +471,8 @@ bool BB::RenderPassBloomStage(RG::RenderGraph& a_graph, const RCommandList a_lis
         push_constant.horizontal_enable = true;
         push_constant.src_texture = in_rt_1.descriptor_index;
         push_constant.src_resolution = rt_1_extent;
-        push_constant.blur_strength = a_graph.GetPostFXOptions().blur_strength;
-        push_constant.blur_scale = a_graph.GetPostFXOptions().blur_scale;
+        push_constant.blur_strength = a_global_data.post_fx.blur_strength;
+        push_constant.blur_scale = a_global_data.post_fx.blur_scale;
         SetPushConstantUserData(a_list, 0, sizeof(push_constant), &push_constant);
 
         StartRenderPass(a_list, rendering_info);

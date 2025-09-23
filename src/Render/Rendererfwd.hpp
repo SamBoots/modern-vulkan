@@ -58,6 +58,26 @@ namespace BB
 		ENUM_SIZE
 	};
 
+    static inline uint32_t GetPixelByteSizeImageFormat(const IMAGE_FORMAT a_format)
+    {
+        switch (a_format)
+        {
+        case IMAGE_FORMAT::RGBA16_UNORM:
+        case IMAGE_FORMAT::RGBA16_SFLOAT:
+            return 8;
+        case IMAGE_FORMAT::RGBA8_SRGB:
+        case IMAGE_FORMAT::RGBA8_UNORM:
+            return 4;
+        case IMAGE_FORMAT::RGB8_SRGB:
+            return 3;
+        case IMAGE_FORMAT::A8_UNORM:
+            return 1;
+        default:
+            return 0;
+            break;
+        }
+    }
+
 	enum class IMAGE_ASPECT : uint32_t
 	{
 		COLOR,
