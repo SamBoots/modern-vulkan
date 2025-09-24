@@ -44,6 +44,16 @@ RG::RenderGraph::RenderGraph(MemoryArena& a_arena, const uint32_t a_max_passes, 
 
 bool RG::RenderGraph::Reset()
 {
+    for (uint32_t i = 0; i < m_resources.size(); i++)
+    {
+        const RenderResource& res = m_resources[i];
+        if (res.descriptor_type == DESCRIPTOR_TYPE::IMAGE)
+        {
+            FreeImageView(res.descriptor_index);
+            FreeImage(res.image.image);
+        }
+    }
+
     m_passes.clear();
     m_execution_order.clear();
     m_resources.clear();
@@ -211,6 +221,30 @@ bool RG::RenderGraph::Compile(MemoryArena& a_temp_arena, GPUUploadRingAllocator&
         }
     }
 
+    m_per_frame_copies = Slice(pf_regions, pf_upload_region_count);
+    m_image_copies = Slice(image_copies, image_uploads);
+
+    return true;
+}
+
+bool RG::RenderGraph::Execute(GlobalGraphData& a_global, const RCommandList a_list, const GPUBuffer a_upload_buffer)
+{
+    RenderCopyBuffer copy_buffer;
+    copy_buffer.src = a_upload_buffer;
+    copy_buffer.dst = m_per_frame_buffer.GetBuffer();
+    copy_buffer.regions = m_per_frame_copies;
+    CopyBuffer(a_list, copy_buffer);
+
+    for (size_t i = 0; i < m_image_copies.size(); i++)
+        CopyBufferToImage(a_list, m_image_copies[i]);
+
+    for (uint32_t i = 0; i < m_execution_order.size(); i++)
+    {
+        RenderPass& pass = m_passes[m_execution_order[i]];
+        if (!pass.DoPass(*this, a_global, a_list))
+            return false;
+    }
+
     return true;
 }
 
@@ -285,9 +319,7 @@ void RG::RenderGraphSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buf
     m_upload_allocator.Init(a_arena, mbSize * 64, m_fence, "rendergraph upload allocator");
     m_graphs.Init(a_arena, a_back_buffers);
     for (uint32_t i = 0; i < a_back_buffers; i++)
-    {
         m_graphs.emplace_back(a_arena, a_max_passes, a_max_resources);
-    }
 }
 
 bool RG::RenderGraphSystem::StartGraph(const uint32_t a_back_buffer, RG::RenderGraph* a_out_graph)
@@ -301,8 +333,7 @@ bool RG::RenderGraphSystem::StartGraph(const uint32_t a_back_buffer, RG::RenderG
     return true;
 }
 
-bool RG::RenderGraphSystem::ExecuteGraph(RenderGraph& a_graph)
+bool RG::RenderGraphSystem::ExecuteGraph(const RCommandList a_list, RenderGraph& a_graph)
 {
-
-    return true;
+    return a_graph.Execute(m_global, a_list, m_upload_allocator.GetBuffer());
 }

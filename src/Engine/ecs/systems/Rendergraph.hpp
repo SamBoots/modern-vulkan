@@ -80,6 +80,7 @@ namespace BB
 
             bool Reset();
             bool Compile(MemoryArena& a_temp_arena, GPUUploadRingAllocator& a_upload_buffer, const uint64_t a_fence_value);
+            bool Execute(GlobalGraphData& a_global, const RCommandList a_list, const GPUBuffer a_upload_buffer);
 
             RenderPass& AddRenderPass(MemoryArena& a_arena, const PFN_RenderPass a_call, const uint32_t a_resources_in, const uint32_t a_resources_out, const MasterMaterialHandle a_material);
             ResourceHandle AddUniform(const StackString<32>& a_name, const size_t a_size, const void* a_upload_data = nullptr);
@@ -98,6 +99,9 @@ namespace BB
             StaticArray<uint32_t> m_execution_order;
             StaticArray<RenderResource> m_resources;
 
+            Slice<RenderCopyBufferRegion> m_per_frame_copies;
+            Slice<RenderCopyBufferToImageInfo> m_image_copies;
+
             DrawList m_drawlist;
 
             // scene data
@@ -112,7 +116,7 @@ namespace BB
         public:
             void Init(MemoryArena& a_arena, const uint32_t a_back_buffers, const uint32_t a_max_passes, const uint32_t a_max_resources);
             bool StartGraph(const uint32_t a_back_buffer, RG::RenderGraph* a_out_graph);
-            bool ExecuteGraph(RenderGraph& a_graph);
+            bool ExecuteGraph(const RCommandList a_list, RenderGraph& a_graph);
 
             GlobalGraphData& GetGlobalData() { return m_global; }
 
