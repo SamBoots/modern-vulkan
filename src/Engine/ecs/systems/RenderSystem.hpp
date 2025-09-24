@@ -11,6 +11,8 @@
 #include "LineStage.hpp"
 #include "UICanvas.hpp"
 
+#include "Rendergraph.hpp"
+
 namespace BB
 {
 	struct RenderSystemFrame
@@ -72,6 +74,8 @@ namespace BB
         float4x4 GetView() const {return m_scene_info.view; }
 
 	private:
+        RG::RenderGraphSystem m_graph_system;
+
 		struct PerFrame
 		{
 			RDescriptorIndex render_target_view;

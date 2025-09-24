@@ -58,6 +58,8 @@ bool RG::RenderGraph::Reset()
     m_execution_order.clear();
     m_resources.clear();
     m_per_frame_buffer.Clear();
+    m_drawlist.transforms.clear();
+    m_drawlist.draw_entries.clear();
 
     // delete resources here
     return true;
@@ -310,6 +312,18 @@ const RG::RenderResource& RG::RenderGraph::GetResource(const RG::ResourceHandle 
     return m_resources[a_handle.handle];
 }
 
+void RG::RenderGraph::AddDrawEntry(const DrawList::DrawEntry& a_draw_entry, const ShaderTransform& a_transform)
+{
+    m_drawlist.draw_entries.push_back(a_draw_entry);
+    m_drawlist.transforms.push_back(a_transform);
+}
+
+void RG::RenderGraph::SetupDrawList(MemoryArena& a_arena, const uint32_t a_size)
+{
+    m_drawlist.draw_entries.Init(a_arena, a_size);
+    m_drawlist.transforms.Init(a_arena, a_size);
+}
+
 void RG::RenderGraphSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffers, const uint32_t a_max_passes, const uint32_t a_max_resources)
 {
     m_fence = CreateFence(0, "rendergraph fence");
@@ -322,7 +336,7 @@ void RG::RenderGraphSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buf
         m_graphs.emplace_back(a_arena, a_max_passes, a_max_resources);
 }
 
-bool RG::RenderGraphSystem::StartGraph(const uint32_t a_back_buffer, RG::RenderGraph* a_out_graph)
+bool RG::RenderGraphSystem::StartGraph(MemoryArena& a_arena, const uint32_t a_back_buffer, RG::RenderGraph* a_out_graph, const uint32_t a_draw_list_size)
 {
     if (!m_graphs[a_back_buffer].IsFinished(m_last_completed_fence_value))
         return false;
@@ -330,6 +344,7 @@ bool RG::RenderGraphSystem::StartGraph(const uint32_t a_back_buffer, RG::RenderG
     a_out_graph = &m_graphs[a_back_buffer];
 
     m_global.scene_info.per_frame_index = a_out_graph->GetPerFrameBufferDescriptorIndex();
+    a_out_graph->SetupDrawList(a_arena, a_draw_list_size);
     return true;
 }
 

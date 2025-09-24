@@ -7,6 +7,8 @@
 
 #include "Engine.hpp"
 
+#include "RenderStages.hpp"
+
 using namespace BB;
 
 constexpr float BLOOM_IMAGE_DOWNSCALE_FACTOR = 1.f;
@@ -117,12 +119,14 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
     material_info.cpu_writeable = false;
     material_info.user_data_size = 0;
     material = Material::CreateMasterMaterial(a_arena, material_info, "glyph");
+
+    m_graph_system.Init(a_arena, a_back_buffer_count, 10, 100);
 }
 
 void RenderSystem::StartFrame(MemoryArena& a_per_frame_arena, const uint32_t a_max_ui_elements)
 {
-    PerFrame& pfd = m_per_frame[m_current_frame];
-    pfd.per_frame_buffer.Clear();
+    //PerFrame& pfd = m_per_frame[m_current_frame];
+    //pfd.per_frame_buffer.Clear();
     m_ui_stage.BeginDraw(a_per_frame_arena, a_max_ui_elements);
 }
 
@@ -153,6 +157,76 @@ RenderSystemFrame RenderSystem::EndFrame(const RCommandList a_list, const IMAGE_
 
 void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCommandList a_list, const uint2 a_draw_area, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const RaytraceComponentPool& a_raytrace_pool, const ConstSlice<LightComponent> a_lights)
 {
+    const ConstSlice<ECSEntity> render_entities = a_render_pool.GetEntityComponents();
+    const size_t render_component_count = a_render_pool.GetEntityComponents().size();
+
+    RG::RenderGraph* pgraph;
+    m_graph_system.StartGraph(a_per_frame_arena, m_current_frame, pgraph, static_cast<uint32_t>(render_component_count));
+
+    for (size_t i = 0; i < render_component_count; i++)
+    {
+        RenderComponent& comp = a_render_pool.GetComponent(render_entities[i]);
+        const float4x4& transform = a_world_matrices.GetComponent(render_entities[i]);
+
+        if (comp.material_dirty)
+        {
+            const uint64_t upload_offset = m_upload_allocator.AllocateUploadMemory(sizeof(comp.material_data), pfd.fence_value);
+            m_upload_allocator.MemcpyIntoBuffer(upload_offset, &comp.material_data, sizeof(comp.material_data));
+            Material::WriteMaterial(comp.material, a_list, m_upload_allocator.GetBuffer(), upload_offset);
+            comp.material_dirty = false;
+        }
+
+        DrawList::DrawEntry entry;
+        entry.mesh = comp.mesh;
+        entry.master_material = comp.master_material;
+        entry.material = comp.material;
+        entry.index_start = comp.index_start;
+        entry.index_count = comp.index_count;
+
+        ShaderTransform shader_transform;
+        shader_transform.transform = transform;
+        shader_transform.inverse = Float4x4Inverse(transform);
+
+        pgraph->AddDrawEntry(entry, shader_transform);
+    }
+
+    const uint3 render_target_size = uint3(m_render_target.extent.x, m_render_target.extent.y, 1);
+    const RG::ResourceHandle final_image = pgraph->AddTexture("final image", 
+        render_target_size, 
+        1, 
+        1, 
+        IMAGE_USAGE::RENDER_TARGET, 
+        m_render_target.format);
+
+    RG::RenderPass& clear_pass = pgraph->AddRenderPass(a_per_frame_arena, RenderPassClearStage, 2, 1, MAT);
+    clear_pass.AddInputResource(skybox_texture); // texture
+    clear_pass.AddInputResource(skybox_sampler); // sampler
+    clear_pass.AddOutputResource(final_image);
+
+    const RG::ResourceHandle shadowmaps = pgraph->AddTexture("shadow maps", 
+        uint3(DEPTH_IMAGE_SIZE_W_H, DEPTH_IMAGE_SIZE_W_H, 1), 
+        static_cast<uint16_t>(a_lights.size()), 
+        1,
+        IMAGE_USAGE::SHADOW_MAP,
+        IMAGE_FORMAT::D16_UNORM);
+    RG::RenderPass& shadowmap_pass = pgraph->AddRenderPass(a_per_frame_arena, RenderPassShadowMapStage, 0, 1, MAT);
+    clear_pass.AddInputResource(shadowmaps);
+
+    const RG::ResourceHandle matrix_buffer = pgraph->AddBuffer("matrix buffer", pgraph->GetDrawList().transforms.size() * sizeof(ShaderTransform), pgraph->GetDrawList().transforms.data());
+    const RG::ResourceHandle light_buffer = pgraph->AddBuffer("light buffer", );
+    const RG::ResourceHandle light_view_buffer = pgraph->AddBuffer("light view buffer", );
+
+    RG::RenderPass& pbr_pass = pgraph->AddRenderPass(a_per_frame_arena, RenderPassPBRStage, 3, 3, MAT);
+    pbr_pass.AddInputResource(matrix_buffer);
+    pbr_pass.AddInputResource(light_buffer);
+    pbr_pass.AddInputResource(light_view_buffer);
+    pbr_pass.AddOutputResource(final_image);
+    pbr_pass.AddOutputResource(bright);
+    pbr_pass.AddOutputResource(depth);
+
+
+    return;
+    // old shit
     PerFrame& pfd = m_per_frame[m_current_frame];
     WaitFence(m_fence, pfd.fence_value);
     pfd.fence_value = m_next_fence_value;

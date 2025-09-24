@@ -94,6 +94,9 @@ namespace BB
 
             bool IsFinished(const uint64_t a_completed_fence_value) const { return a_completed_fence_value >= m_fence_value; }
 
+            void SetupDrawList(MemoryArena& a_arena, const uint32_t a_size);
+            void AddDrawEntry(const DrawList::DrawEntry& a_draw_entry, const ShaderTransform& a_transform);
+
         private:
             StaticArray<RenderPass> m_passes;
             StaticArray<uint32_t> m_execution_order;
@@ -115,7 +118,7 @@ namespace BB
         {
         public:
             void Init(MemoryArena& a_arena, const uint32_t a_back_buffers, const uint32_t a_max_passes, const uint32_t a_max_resources);
-            bool StartGraph(const uint32_t a_back_buffer, RG::RenderGraph* a_out_graph);
+            bool StartGraph(MemoryArena& a_arena, const uint32_t a_back_buffer, RG::RenderGraph* a_out_graph, const uint32_t a_draw_list_size);
             bool ExecuteGraph(const RCommandList a_list, RenderGraph& a_graph);
 
             GlobalGraphData& GetGlobalData() { return m_global; }
