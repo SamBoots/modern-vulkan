@@ -176,7 +176,7 @@ bool EntityComponentSystem::DestroyEntity(const ECSEntity a_entity)
 
 void EntityComponentSystem::AddLinesToFrame(const ConstSlice<Line> a_lines)
 {
-    m_render_system.m_line_stage.AddLines(m_current_frame, a_lines);
+    //m_render_system.m_line_stage.AddLines(m_current_frame, a_lines);
 }
 
 void EntityComponentSystem::DrawAABB(const ECSEntity a_entity, const LineColor a_color)
@@ -262,7 +262,7 @@ RenderSystemFrame EntityComponentSystem::RenderSystemUpdate(const RCommandList a
 	m_render_system.UpdateRenderSystem(m_per_frame_arena, a_list, a_draw_area_size, m_world_matrices, m_render_mesh_pool, m_raytrace_pool, m_light_pool.GetAllComponents());
 	BB_END_PROFILE(rendering_name);
 
-    m_render_system.DebugDraw(a_list, a_draw_area_size);
+    //m_render_system.DebugDraw(a_list, a_draw_area_size);
 
 	return m_render_system.EndFrame(a_list, IMAGE_LAYOUT::RT_COLOR);
 }

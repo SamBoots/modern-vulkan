@@ -13,11 +13,11 @@ add_library(Engine
     "ecs/systems/RenderStages.cpp"
 	"ecs/systems/RenderSystem.cpp"
     "ecs/systems/RenderGraph.cpp"
-    "ecs/systems/ClearStage.cpp"
-    "ecs/systems/ShadowMapStage.cpp"
-    "ecs/systems/RasterMeshStage.cpp"
-    "ecs/systems/BloomStage.cpp"
-    "ecs/systems/LineStage.cpp"
+    
+    
+    
+    
+    
     "lua/LuaECSApi.cpp"
     "lua/LuaEngine.cpp"
     "lua/LuaTypes.cpp" 

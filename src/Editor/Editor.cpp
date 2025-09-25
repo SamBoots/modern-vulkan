@@ -576,6 +576,13 @@ void Editor::ImGuiDisplayEditor(MemoryArena& a_arena)
         ImGuiDisplayInputChannel(m_input.channel);
         ImGuiShowProfiler(a_arena);
         ImGuiDisplayGames();
+
+        for (size_t i = 0; i < 100; i++)
+        {
+            ImGui::Text("%u", i);
+            ImGui::Image(i, ImVec2(160, 160));
+        }
+
     }
     ImGui::End();
 
@@ -613,21 +620,21 @@ void Editor::ImguiDisplayECS(EntityComponentSystem& a_ecs)
 			//postfx_options.bloom_scale = 10.5f;
 		}
 
-		if (render_sys.m_render_target.format == IMAGE_FORMAT::RGBA16_SFLOAT)
+		if (render_sys.m_final_image_format == IMAGE_FORMAT::RGBA16_SFLOAT)
 		{
 			if (ImGui::Button("Render Format to: RGBA8_SRGB"))
-				render_sys.ResizeNewFormat(render_sys.m_render_target.extent, IMAGE_FORMAT::RGBA8_SRGB);
+				render_sys.ResizeNewFormat(render_sys.m_final_image_extent, IMAGE_FORMAT::RGBA8_SRGB);
 		}
 		else
 		{
 			if (ImGui::Button("Render Format to: RGBA16_SFLOAT"))
-				render_sys.ResizeNewFormat(render_sys.m_render_target.extent, IMAGE_FORMAT::RGBA16_SFLOAT);
+				render_sys.ResizeNewFormat(render_sys.m_final_image_extent, IMAGE_FORMAT::RGBA16_SFLOAT);
 		}
 
 		if (ImGui::CollapsingHeader("graphical options"))
 		{
-			ImGui::InputFloat("exposure", &render_sys.m_scene_info.exposure);
-			ImGui::InputFloat3("ambient light", render_sys.m_scene_info.ambient_light.e);
+			ImGui::InputFloat("exposure", &render_sys.m_graph_system.GetGlobalData().scene_info.exposure);
+			ImGui::InputFloat3("ambient light", render_sys.m_graph_system.GetGlobalData().scene_info.ambient_light.e);
 		}
 
 		if (ImGui::CollapsingHeader("post fx option"))

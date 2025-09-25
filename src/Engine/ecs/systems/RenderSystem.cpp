@@ -12,66 +12,21 @@
 using namespace BB;
 
 constexpr float BLOOM_IMAGE_DOWNSCALE_FACTOR = 1.f;
+constexpr uint32_t DEPTH_IMAGE_SIZE_W_H = 1024;
 
 void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count, const uint2 a_render_target_size)
 {
-	m_fence = CreateFence(0, "scene fence");
-	m_last_completed_fence_value = 0;
-	m_next_fence_value = 1;
-
-	m_upload_allocator.Init(a_arena, mbSize * 4, m_fence, "scene upload buffer");
-
-	m_scene_info.ambient_light = float4(0.03f, 0.03f, 0.03f, 1.f);
-	m_scene_info.exposure = 1.0;
-	m_scene_info.shadow_map_resolution = float2(DEPTH_IMAGE_SIZE_W_H, DEPTH_IMAGE_SIZE_W_H);
+    m_frame_count = a_back_buffer_count;
+    m_final_image_extent = a_render_target_size;
+    m_final_image_format = IMAGE_FORMAT::RGBA8_SRGB;
 
 	m_options.skip_skybox = false;
 	m_options.skip_shadow_mapping = false;
 	m_options.skip_object_rendering = false;
 	m_options.skip_bloom = false;
 
-    m_clear_stage.Init(a_arena);
-    m_shadowmap_stage.Init(a_arena, a_back_buffer_count);
-    m_raster_mesh_stage.Init(a_arena, a_render_target_size, a_back_buffer_count);
-    m_bloom_stage.Init(a_arena);
-	m_line_stage.Init(a_arena, a_back_buffer_count, LINE_MAX);
-
-	// per frame
-	m_per_frame.Init(a_arena, a_back_buffer_count);
-	m_per_frame.resize(a_back_buffer_count);
-	for (uint32_t i = 0; i < m_per_frame.size(); i++)
-	{
-		PerFrame& pfd = m_per_frame[i];
-		pfd.previous_draw_area = { 0, 0 };
-		pfd.scene_descriptor = AllocateUniformDescriptor();
-        pfd.per_frame_descriptor = AllocateBufferDescriptor();
-
-		pfd.scene_buffer.Init(BUFFER_TYPE::UNIFORM, sizeof(m_scene_info), "scene info buffer");
-        DescriptorWriteUniformBuffer(pfd.scene_descriptor, pfd.scene_buffer.GetView());
-
-		GPUBufferCreateInfo buffer_info;
-		buffer_info.name = "scene STORAGE buffer";
-		buffer_info.size = mbSize * 4;
-		buffer_info.type = BUFFER_TYPE::STORAGE;
-		buffer_info.host_writable = false;
-		pfd.per_frame_buffer.Init(buffer_info);
-
-
-        GPUBufferView view;
-        view.buffer = pfd.per_frame_buffer.GetBuffer();
-        view.offset = 0;
-        view.size = mbSize * 4;
-        DescriptorWriteStorageBuffer(pfd.per_frame_descriptor, view);
-
-		pfd.fence_value = 0;
-
-		pfd.bloom.image = RImage();
-	}
-	m_render_target.format = IMAGE_FORMAT::RGBA8_SRGB;
-	CreateRenderTarget(a_render_target_size);
-
     // IF USING RAYTRACING
-    if (true)
+    if (false)
     {
         GPUBufferCreateInfo accel_create_info;
         accel_create_info.name = "acceleration structure buffer";
@@ -180,9 +135,41 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
         m_glyph_material = Material::CreateMasterMaterial(a_arena, glyph_material, "glyph material");
         m_line_material = Material::CreateMasterMaterial(a_arena, line_material, "line material");
         m_gaussian_material = Material::CreateMasterMaterial(a_arena, gaussian_material, "shadow map material");
+
+        constexpr StringView SKYBOX_NAMES[6]
+        {
+            StringView("skybox/0.jpg"),
+            StringView("skybox/1.jpg"),
+            StringView("skybox/2.jpg"),
+            StringView("skybox/3.jpg"),
+            StringView("skybox/4.jpg"),
+            StringView("skybox/5.jpg")
+        };
+
+        const Image& skybox_image = Asset::LoadImageArrayDisk(a_arena, "default skybox", ConstSlice<StringView>(SKYBOX_NAMES, _countof(SKYBOX_NAMES)), IMAGE_FORMAT::RGBA8_SRGB, true);
+        m_skybox = skybox_image.gpu_image;
+        m_skybox_descriptor_index = skybox_image.descriptor_index;
     }
 
+    m_skybox_sampler_index = AllocateSamplerDescriptor();
+    SamplerCreateInfo sampler_info;
+    sampler_info.name = "skybox sampler";
+    sampler_info.mode_u = SAMPLER_ADDRESS_MODE::CLAMP;
+    sampler_info.mode_v = SAMPLER_ADDRESS_MODE::CLAMP;
+    sampler_info.mode_w = SAMPLER_ADDRESS_MODE::CLAMP;
+    sampler_info.filter = SAMPLER_FILTER::LINEAR;
+    sampler_info.max_anistoropy = 16.f;
+    sampler_info.min_lod = 0.0f;
+    sampler_info.max_lod = 0.0f;
+    sampler_info.border_color = SAMPLER_BORDER_COLOR::COLOR_FLOAT_TRANSPARENT_BLACK;
+    m_skybox_sampler = CreateSampler(sampler_info);
+    DescriptorWriteSampler(m_skybox_descriptor_index, m_skybox_sampler);
+
     m_graph_system.Init(a_arena, a_back_buffer_count, 10, 100);
+    m_graph_system.GetGlobalData().scene_info.ambient_light = float4(0.03f, 0.03f, 0.03f, 1.f);
+    m_graph_system.GetGlobalData().scene_info.exposure = 1.0;
+    m_graph_system.GetGlobalData().scene_info.shadow_map_resolution = float2(DEPTH_IMAGE_SIZE_W_H, DEPTH_IMAGE_SIZE_W_H);
+
 }
 
 void RenderSystem::StartFrame(MemoryArena& a_per_frame_arena, const uint32_t a_max_ui_elements)
@@ -194,13 +181,15 @@ void RenderSystem::StartFrame(MemoryArena& a_per_frame_arena, const uint32_t a_m
 
 RenderSystemFrame RenderSystem::EndFrame(const RCommandList a_list, const IMAGE_LAYOUT a_current_layout)
 {
+    const RG::RenderResource& final_image = m_cur_graph->GetResource(m_final_image);
+
 	PipelineBarrierImageInfo render_target_transition;
 	render_target_transition.prev = a_current_layout;
 	render_target_transition.next = IMAGE_LAYOUT::RO_FRAGMENT;
-	render_target_transition.image = m_render_target.image;
+	render_target_transition.image = final_image.image.image;
 	render_target_transition.layer_count = 1;
 	render_target_transition.level_count = 1;
-	render_target_transition.base_array_layer = static_cast<uint16_t>(m_current_frame);
+	render_target_transition.base_array_layer = 0;
 	render_target_transition.base_mip_level = 0;
 	render_target_transition.image_aspect = IMAGE_ASPECT::COLOR;
 
@@ -208,12 +197,14 @@ RenderSystemFrame RenderSystem::EndFrame(const RCommandList a_list, const IMAGE_
 	pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo>(&render_target_transition, 1);
 	PipelineBarriers(a_list, pipeline_info);
 
-	RenderSystemFrame frame;
-	frame.render_target = m_per_frame[m_current_frame].render_target_view;
-	m_current_frame = (m_current_frame + 1) % m_per_frame.size();
+    m_graph_system.EndGraph(*m_cur_graph);
 
-	frame.fence = m_fence;
-	frame.fence_value = m_next_fence_value++;
+	RenderSystemFrame frame;
+	frame.render_target = final_image.descriptor_index;
+	m_current_frame = (m_current_frame + 1) % m_frame_count;
+
+	frame.fence = m_graph_system.GetFence();
+	frame.fence_value = m_graph_system.IncrementNextFenceValue();
 	return frame;
 }
 
@@ -222,9 +213,12 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
     const ConstSlice<ECSEntity> render_entities = a_render_pool.GetEntityComponents();
     const size_t render_component_count = a_render_pool.GetEntityComponents().size();
 
-    RG::RenderGraph* pgraph;
-    m_graph_system.StartGraph(a_per_frame_arena, m_current_frame, pgraph, static_cast<uint32_t>(render_component_count));
-
+    m_graph_system.StartGraph(a_per_frame_arena, m_current_frame, m_cur_graph, static_cast<uint32_t>(render_component_count));
+    
+    BindGraphicsBindlessSet(a_list);
+    BindIndexBuffer(a_list, 0);
+    SetPushConstantsSceneUniformIndex(a_list, m_cur_graph->GetPerFrameBufferDescriptorIndex());
+    
     for (size_t i = 0; i < render_component_count; i++)
     {
         RenderComponent& comp = a_render_pool.GetComponent(render_entities[i]);
@@ -232,9 +226,8 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 
         if (comp.material_dirty)
         {
-            const uint64_t upload_offset = m_upload_allocator.AllocateUploadMemory(sizeof(comp.material_data), m_graph_system.NextFenceValue());
-            m_upload_allocator.MemcpyIntoBuffer(upload_offset, &comp.material_data, sizeof(comp.material_data));
-            Material::WriteMaterial(comp.material, a_list, m_upload_allocator.GetBuffer(), upload_offset);
+            const GPUBufferView upload_view = m_graph_system.AllocateAndUploadGPUMemory(sizeof(comp.material_data), &comp.material_data);
+            Material::WriteMaterial(comp.material, a_list, upload_view.buffer, upload_view.offset);
             comp.material_dirty = false;
         }
 
@@ -249,190 +242,171 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
         shader_transform.transform = transform;
         shader_transform.inverse = Float4x4Inverse(transform);
 
-        pgraph->AddDrawEntry(entry, shader_transform);
+        m_cur_graph->AddDrawEntry(entry, shader_transform);
     }
 
-    const uint3 render_target_size = uint3(m_render_target.extent.x, m_render_target.extent.y, 1);
-    const RG::ResourceHandle final_image = pgraph->AddImage("final image", 
+    const uint3 render_target_size = uint3(m_final_image_extent.x, m_final_image_extent.y, 1);
+    m_final_image = m_cur_graph->AddImage("final image",
         render_target_size, 
         1, 
         1, 
         IMAGE_USAGE::RENDER_TARGET, 
-        m_render_target.format);
+        m_final_image_format);
 
-    const RG::ResourceHandle skybox_texture = pgraph->AddTexture("skybox",
+    const RG::ResourceHandle skybox_texture = m_cur_graph->AddTexture("skybox",
         m_skybox,
         m_skybox_descriptor_index,
         render_target_size,
+        6,
         1,
-        1,
-        IMAGE_USAGE::RENDER_TARGET,
-        m_render_target.format,
+        IMAGE_FORMAT::RGB8_SRGB,
         true);
 
-    const RG::ResourceHandle skybox_sampler = pgraph->AddSampler("skybox sampler", m_skybox_sampler_index);
+    const RG::ResourceHandle skybox_sampler = m_cur_graph->AddSampler("skybox sampler", m_skybox_sampler_index);
 
-    RG::RenderPass& clear_pass = pgraph->AddRenderPass(a_per_frame_arena, RenderPassClearStage, 2, 1, m_skybox_material);
+    RG::RenderPass& clear_pass = m_cur_graph->AddRenderPass(a_per_frame_arena, RenderPassClearStage, 2, 1, m_skybox_material);
     clear_pass.AddInputResource(skybox_texture); // texture
     clear_pass.AddInputResource(skybox_sampler); // sampler
-    clear_pass.AddOutputResource(final_image);
+    clear_pass.AddOutputResource(m_final_image);
 
-    const RG::ResourceHandle shadowmaps = pgraph->AddImage("shadow maps",
-        uint3(DEPTH_IMAGE_SIZE_W_H, DEPTH_IMAGE_SIZE_W_H, 1), 
-        static_cast<uint16_t>(a_lights.size()), 
-        1,
-        IMAGE_USAGE::SHADOW_MAP,
-        IMAGE_FORMAT::D16_UNORM);
-    RG::RenderPass& shadowmap_pass = pgraph->AddRenderPass(a_per_frame_arena, RenderPassShadowMapStage, 0, 1, m_shadowmap_material);
-    clear_pass.AddInputResource(shadowmaps);
+    //if (a_lights.size())
+    //{
+    //    const RG::ResourceHandle shadowmaps = m_cur_graph->AddImage("shadow maps",
+    //        uint3(DEPTH_IMAGE_SIZE_W_H, DEPTH_IMAGE_SIZE_W_H, 1), 
+    //        static_cast<uint16_t>(a_lights.size()), 
+    //        1,
+    //        IMAGE_USAGE::SHADOW_MAP,
+    //        IMAGE_FORMAT::D16_UNORM);
+    //    RG::RenderPass& shadowmap_pass = m_cur_graph->AddRenderPass(a_per_frame_arena, RenderPassShadowMapStage, 0, 1, m_shadowmap_material);
+    //    shadowmap_pass.AddOutputResource(shadowmaps);
+    //}
 
-    // temp make light and light view seperate
-    StaticArray<Light> lights;
-    StaticArray<float4x4> light_view;
-    lights.Init(a_per_frame_arena, static_cast<uint32_t>(a_lights.size()));
-    light_view.Init(a_per_frame_arena, static_cast<uint32_t>(a_lights.size()));
-    for (size_t i = 0; i < a_lights.size(); i++)
-    {
-        lights.push_back(a_lights[i].light);
-        light_view.push_back(a_lights[i].projection_view);
-    }
+    //const DrawList& draw_list = m_cur_graph->GetDrawList();
+    //const RG::ResourceHandle matrix_buffer = m_cur_graph->AddBuffer("matrix buffer", draw_list.transforms.size() * sizeof(ShaderTransform), draw_list.transforms.data());
 
-    const RG::ResourceHandle matrix_buffer = pgraph->AddBuffer("matrix buffer", pgraph->GetDrawList().transforms.size() * sizeof(ShaderTransform), pgraph->GetDrawList().transforms.data());
-    const RG::ResourceHandle light_buffer = pgraph->AddBuffer("light buffer", lights.size() * sizeof(Light), lights.data());
-    const RG::ResourceHandle light_view_buffer = pgraph->AddBuffer("light view buffer", light_view.size() * sizeof(float4x4), light_view.data());
+    //RG::ResourceHandle light_buffer;
+    //RG::ResourceHandle light_view_buffer;
 
-    const RG::ResourceHandle bright_image = pgraph->AddImage("bright image",
-        render_target_size, 1, 1, IMAGE_USAGE::RENDER_TARGET, m_render_target.format);
-    const RG::ResourceHandle depth_buffer = pgraph->AddImage("depth buffer",
-        render_target_size, 1, 1, IMAGE_USAGE::DEPTH, IMAGE_FORMAT::D24_UNORM_S8_UINT);
+    //if (a_lights.size())
+    //{
+    //    // temp make light and light view seperate
+    //    StaticArray<Light> lights{};
+    //    StaticArray<float4x4> light_view{};
+    //    lights.Init(a_per_frame_arena, static_cast<uint32_t>(a_lights.size()));
+    //    light_view.Init(a_per_frame_arena, static_cast<uint32_t>(a_lights.size()));
+    //    for (size_t i = 0; i < a_lights.size(); i++)
+    //    {
+    //        lights.push_back(a_lights[i].light);
+    //        light_view.push_back(a_lights[i].projection_view);
+    //    }
+    //    light_buffer = m_cur_graph->AddBuffer("light buffer", lights.size() * sizeof(Light), lights.data());
+    //    light_view_buffer = m_cur_graph->AddBuffer("light view buffer", light_view.size() * sizeof(float4x4), light_view.data());
+    //}
+    //else
+    //{
+    //    light_buffer = m_cur_graph->AddBuffer("light buffer", 0);
+    //    light_view_buffer = m_cur_graph->AddBuffer("light view buffer", 0);
+    //}
+   
 
-    RG::RenderPass& pbr_pass = pgraph->AddRenderPass(a_per_frame_arena, RenderPassPBRStage, 3, 3, MasterMaterialHandle());
-    pbr_pass.AddInputResource(matrix_buffer);
-    pbr_pass.AddInputResource(light_buffer);
-    pbr_pass.AddInputResource(light_view_buffer);
-    pbr_pass.AddOutputResource(final_image);
-    pbr_pass.AddOutputResource(bright_image);
-    pbr_pass.AddOutputResource(depth_buffer);
-    
-    //RG::RenderPass& debug_pass = pgraph->AddRenderPass(a_per_frame_arena, RenderPassLineStage, 1, 2, m_line_material);
-    //debug_pass.AddInputResource(lines);
-    //debug_pass.AddOutputResource(final_image);
-    //debug_pass.AddOutputResource(depth_buffer);
+    //const RG::ResourceHandle bright_image = m_cur_graph->AddImage("bright image",
+    //    render_target_size, 1, 1, IMAGE_USAGE::RENDER_TARGET, m_final_image_format);
+    //const RG::ResourceHandle depth_buffer = m_cur_graph->AddImage("depth buffer",
+    //    render_target_size, 1, 1, IMAGE_USAGE::DEPTH, IMAGE_FORMAT::D24_UNORM_S8_UINT);
 
-    ConstSlice quads = m_ui_stage.GetQuads();
-    const RG::ResourceHandle quad_buffer = pgraph->AddBuffer("quads", quads.sizeInBytes(), quads.data());
+    //RG::RenderPass& pbr_pass = m_cur_graph->AddRenderPass(a_per_frame_arena, RenderPassPBRStage, 3, 3, MasterMaterialHandle());
+    //pbr_pass.AddInputResource(matrix_buffer);
+    //pbr_pass.AddInputResource(light_buffer);
+    //pbr_pass.AddInputResource(light_view_buffer);
+    //pbr_pass.AddOutputResource(m_final_image);
+    //pbr_pass.AddOutputResource(bright_image);
+    //pbr_pass.AddOutputResource(depth_buffer);
+    //
+    ////RG::RenderPass& debug_pass = pgraph->AddRenderPass(a_per_frame_arena, RenderPassLineStage, 1, 2, m_line_material);
+    ////debug_pass.AddInputResource(lines);
+    ////debug_pass.AddOutputResource(final_image);
+    ////debug_pass.AddOutputResource(depth_buffer);
 
-    RG::RenderPass& glyph_pass = pgraph->AddRenderPass(a_per_frame_arena, RenderPassGlyphStage, 1, 1, m_glyph_material);
-    glyph_pass.AddInputResource(quad_buffer);
-    glyph_pass.AddOutputResource(final_image);
+    //ConstSlice quads = m_ui_stage.GetQuads();
+    //if (quads.size())
+    //{
+    //    const RG::ResourceHandle quad_buffer = m_cur_graph->AddBuffer("quads", quads.sizeInBytes(), quads.data());
 
-    const RG::ResourceHandle ping = pgraph->AddImage("ping image",
-        render_target_size,
-        1,
-        1,
-        IMAGE_USAGE::RENDER_TARGET,
-        m_render_target.format);
-    const RG::ResourceHandle pong = pgraph->AddImage("pong image",
-        render_target_size,
-        1,
-        1,
-        IMAGE_USAGE::RENDER_TARGET,
-        m_render_target.format);
-    RG::RenderPass& bloom_pass = pgraph->AddRenderPass(a_per_frame_arena, RenderPassBloomStage, 2, 1, m_gaussian_material);
-    bloom_pass.AddInputResource(ping);
-    bloom_pass.AddInputResource(pong);
-    bloom_pass.AddOutputResource(final_image);
+    //    RG::RenderPass& glyph_pass = m_cur_graph->AddRenderPass(a_per_frame_arena, RenderPassGlyphStage, 1, 1, m_glyph_material);
+    //    glyph_pass.AddInputResource(quad_buffer);
+    //    glyph_pass.AddOutputResource(m_final_image);
+    //}
 
-    m_graph_system.CompileGraph(a_per_frame_arena, *pgraph);
-    m_graph_system.ExecuteGraph(a_list, *pgraph);
-    m_graph_system.EndGraph(*pgraph);
 
-    return;
-    // old shit
-    PerFrame& pfd = m_per_frame[m_current_frame];
-    WaitFence(m_fence, pfd.fence_value);
-    pfd.fence_value = m_next_fence_value;
+    //const RG::ResourceHandle ping = m_cur_graph->AddImage("ping image",
+    //    render_target_size,
+    //    1,
+    //    1,
+    //    IMAGE_USAGE::RENDER_TARGET,
+    //    m_final_image_format);
+    //const RG::ResourceHandle pong = m_cur_graph->AddImage("pong image",
+    //    render_target_size,
+    //    1,
+    //    1,
+    //    IMAGE_USAGE::RENDER_TARGET,
+    //    m_final_image_format);
+    //RG::RenderPass& bloom_pass = m_cur_graph->AddRenderPass(a_per_frame_arena, RenderPassBloomStage, 2, 1, m_gaussian_material);
+    //bloom_pass.AddInputResource(ping);
+    //bloom_pass.AddInputResource(pong);
+    //bloom_pass.AddOutputResource(m_final_image);
 
-    PipelineBarrierImageInfo render_target_transition;
-    render_target_transition.prev = IMAGE_LAYOUT::NONE;
-    render_target_transition.next = IMAGE_LAYOUT::RT_COLOR;
-    render_target_transition.image = m_render_target.image;
-    render_target_transition.layer_count = 1;
-    render_target_transition.level_count = 1;
-    render_target_transition.base_array_layer = static_cast<uint16_t>(m_current_frame);
-    render_target_transition.base_mip_level = 0;
-    render_target_transition.image_aspect = IMAGE_ASPECT::COLOR;
-
-    PipelineBarrierInfo pipeline_info{};
-    pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo>(&render_target_transition, 1);
-    PipelineBarriers(a_list, pipeline_info);
-
-    BindGraphicsBindlessSet(a_list);
-    SetPushConstantsSceneUniformIndex(a_list, pfd.scene_descriptor);
-
-    m_clear_stage.ExecutePass(a_list, a_draw_area, GetImageView(pfd.render_target_view));
-    Update3D(a_per_frame_arena, a_list, a_draw_area, a_world_matrices, a_render_pool, a_raytrace_pool, a_lights);
-    m_ui_stage.EndDraw(a_list, m_next_fence_value, m_upload_allocator, pfd.per_frame_buffer, a_draw_area, GetImageView(pfd.render_target_view), m_glyph_material);
-}
-
-void RenderSystem::DebugDraw(const RCommandList a_list, const uint2 a_draw_area)
-{
-    PerFrame& pfd = m_per_frame[m_current_frame];
-    m_line_stage.ExecutePass(a_list, m_current_frame, a_draw_area, GetImageView(pfd.render_target_view), m_raster_mesh_stage.GetDepth(m_current_frame));
+    m_graph_system.CompileGraph(a_per_frame_arena, *m_cur_graph);
+    m_graph_system.ExecuteGraph(a_per_frame_arena, a_list, *m_cur_graph);
 }
 
 void RenderSystem::Resize(const uint2 a_new_extent, const bool a_force)
 {
-	if (m_render_target.extent == a_new_extent && !a_force)
+	if (m_final_image_extent == a_new_extent && !a_force)
 		return;
 
 	// wait until the rendering is all done
-	WaitFence(m_fence, m_next_fence_value - 1);
+    m_graph_system.WaitFence();
 	GPUWaitIdle();
 
-	FreeImage(m_render_target.image);
-	for (uint32_t i = 0; i < m_per_frame.size(); i++)
-	{
-		FreeImageView(m_per_frame[i].render_target_view);
-	}
-	CreateRenderTarget(a_new_extent);
+    m_final_image_extent = a_new_extent;
 }
 
 void RenderSystem::ResizeNewFormat(const uint2 a_render_target_size, const IMAGE_FORMAT a_render_target_format)
 {
-	m_render_target.format = a_render_target_format;
 	Resize(a_render_target_size, true);
+    m_final_image_format = a_render_target_format;
 }
 
 void RenderSystem::Screenshot(const PathString& a_path) const
 {
 	// wait until the rendering is all done
-	WaitFence(m_fence, m_next_fence_value - 1);
+    m_graph_system.WaitFence();
+    // todo, remember the previous frame's image, should be easy.
+    // 
+	//const uint32_t prev_frame = (m_current_frame + 1) % m_per_frame.size();
 
-	const uint32_t prev_frame = (m_current_frame + 1) % m_per_frame.size();
+	//ImageInfo image_info;
+	//image_info.image = m_render_target.image;
+	//image_info.extent = m_render_target.extent;
+	//image_info.offset = int2(0);
+	//image_info.array_layers = 1;
+	//image_info.base_array_layer = static_cast<uint16_t>(prev_frame);
+	//image_info.mip_level = 0;
 
-	ImageInfo image_info;
-	image_info.image = m_render_target.image;
-	image_info.extent = m_render_target.extent;
-	image_info.offset = int2(0);
-	image_info.array_layers = 1;
-	image_info.base_array_layer = static_cast<uint16_t>(prev_frame);
-	image_info.mip_level = 0;
-
-	const bool success = Asset::ReadWriteTextureDeferred(a_path.GetView(), image_info);
-	BB_ASSERT(success, "failed to write screenshot image to disk");
+	//const bool success = Asset::ReadWriteTextureDeferred(a_path.GetView(), image_info);
+	//BB_ASSERT(success, "failed to write screenshot image to disk");
 }
 
 void RenderSystem::SetView(const float4x4& a_view, const float3& a_view_position)
 {
-	m_scene_info.view = a_view;
-	m_scene_info.view_pos = float3(a_view_position.x, a_view_position.y, a_view_position.z);
+	m_graph_system.GetGlobalData().scene_info.view = a_view;
+    m_graph_system.GetGlobalData().scene_info.view_pos = float3(a_view_position.x, a_view_position.y, a_view_position.z);
 }
 
 void RenderSystem::SetProjection(const float4x4& a_projection, const float a_near_plane)
 {
-	m_scene_info.proj = a_projection;
-    m_scene_info.near_plane = a_near_plane;
+    m_graph_system.GetGlobalData().scene_info.proj = a_projection;
+    m_graph_system.GetGlobalData().scene_info.near_plane = a_near_plane;
 }
 
 void RenderSystem::BuildTopLevelAccelerationStructure(MemoryArena& a_per_frame_arena, const RCommandList a_list, const ConstSlice<AccelerationStructureInstanceInfo> a_instances)
@@ -456,310 +430,4 @@ void RenderSystem::BuildTopLevelAccelerationStructure(MemoryArena& a_per_frame_a
 	tpl.scratch_update = size_info.scratch_update_size;
 	// not yet, this is wrong
 	tpl.accel_struct = CreateTopLevelAccelerationStruct(size_info.acceleration_structure_size, tpl.accel_buffer_view.buffer, tpl.accel_buffer_view.offset);
-}
-
-void RenderSystem::Update3D(MemoryArena& a_per_frame_arena, const RCommandList a_list, const uint2 a_draw_area, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const RaytraceComponentPool& a_raytrace_pool, const ConstSlice<LightComponent> a_lights)
-{
-    PerFrame& pfd = m_per_frame[m_current_frame];
-
-    const ConstSlice<ECSEntity> render_entities = a_render_pool.GetEntityComponents();
-    const size_t render_component_count = render_entities.size();
-    if (render_component_count == 0)
-    {
-        UpdateConstantBuffer(m_current_frame, a_list, a_draw_area, a_lights);
-        return;
-    }
-    DrawList draw_list;
-    draw_list.draw_entries.Init(a_per_frame_arena, static_cast<uint32_t>(render_component_count));
-    draw_list.transforms.Init(a_per_frame_arena, static_cast<uint32_t>(render_component_count));
-
-    for (size_t i = 0; i < render_component_count; i++)
-    {
-        RenderComponent& comp = a_render_pool.GetComponent(render_entities[i]);
-        const float4x4& transform = a_world_matrices.GetComponent(render_entities[i]);
-        //RaytraceComponent& ray_comp = a_raytrace_pool.GetComponent(render_entities[i]);
-
-        if (comp.material_dirty)
-        {
-            const uint64_t upload_offset = m_upload_allocator.AllocateUploadMemory(sizeof(comp.material_data), pfd.fence_value);
-            m_upload_allocator.MemcpyIntoBuffer(upload_offset, &comp.material_data, sizeof(comp.material_data));
-            Material::WriteMaterial(comp.material, a_list, m_upload_allocator.GetBuffer(), upload_offset);
-            comp.material_dirty = false;
-        }
-
-        // raytrace stuff
-        //if (ray_comp.needs_build)
-        //{
-        //	GPUBufferView view;
-        //	bool success = m_raytrace_data.acceleration_structure_buffer.Allocate(ray_comp.build_size, view);
-        //	BB_ASSERT(success, "failed to allocate acceleration structure data");
-        //	ray_comp.acceleration_structure = CreateBottomLevelAccelerationStruct(ray_comp.build_size, view.buffer, view.offset);
-        //	ray_comp.acceleration_struct_address = GetAccelerationStructureAddress(ray_comp.acceleration_structure);
-        //	ray_comp.acceleration_buffer_offset = view.offset;
-        //	ray_comp.needs_build = false;
-
-        //	AccelerationStructGeometrySize geometry_size;
-        //	geometry_size.vertex_count = comp.index_count * 3;
-        //	geometry_size.vertex_stride = sizeof(float3);
-        //	geometry_size.transform_address = 0; // TODO
-        //	geometry_size.index_offset = comp.index_start;
-        //	geometry_size.vertex_offset = comp.mesh.vertex_position_offset;
-
-        //	const uint32_t primitive_count = comp.index_count / 3;
-
-        //	BuildBottomLevelAccelerationStructInfo acc_build_info;
-        //	acc_build_info.acc_struct = ray_comp.acceleration_structure;
-        //	acc_build_info.scratch_buffer_address = 0; // TODO
-        //	acc_build_info.geometry_sizes = ConstSlice<AccelerationStructGeometrySize>(&geometry_size, 1);
-        //	acc_build_info.primitive_counts = ConstSlice<uint32_t>(&primitive_count, 1);
-        //	//BuildBottomLevelAccelerationStruct(a_per_frame_arena, a_list, acc_build_info);
-        //}
-
-        DrawList::DrawEntry entry;
-        entry.mesh = comp.mesh;
-        entry.master_material = comp.master_material;
-        entry.material = comp.material;
-        entry.index_start = comp.index_start;
-        entry.index_count = comp.index_count;
-
-        ShaderTransform shader_transform;
-        shader_transform.transform = transform;
-        shader_transform.inverse = Float4x4Inverse(transform);
-
-        draw_list.draw_entries.push_back(entry);
-        draw_list.transforms.push_back(shader_transform);
-    }
-
-    //if (m_raytrace_data.top_level.must_rebuild || !m_raytrace_data.top_level.accel_struct.IsValid())
-    if (false)
-    {
-        StaticArray<AccelerationStructureInstanceInfo> instances{};
-        instances.Init(a_per_frame_arena, static_cast<uint32_t>(render_component_count), static_cast<uint32_t>(render_component_count));
-        for (size_t i = 0; i < render_component_count; i++)
-        {
-            instances[i].transform = &draw_list.transforms[i].transform;
-            instances[i].shader_custom_index = 0;
-            instances[i].mask = 0xFF;
-            instances[i].shader_binding_table_offset = 0;
-            instances[i].acceleration_structure_address = a_raytrace_pool.GetComponent(render_entities[i]).acceleration_struct_address;
-        }
-
-        BuildTopLevelAccelerationStructure(a_per_frame_arena, a_list, instances.const_slice());
-    }
-
-    BindIndexBuffer(a_list, 0);
-    UpdateConstantBuffer(m_current_frame, a_list, a_draw_area, a_lights);
-
-    ResourceUploadPass(pfd, a_list, draw_list, a_lights);
-
-    m_shadowmap_stage.ExecutePass(a_list, m_current_frame, uint2(DEPTH_IMAGE_SIZE_W_H, DEPTH_IMAGE_SIZE_W_H), draw_list, a_lights);
-    m_raster_mesh_stage.ExecutePass(a_list, m_current_frame, a_draw_area, draw_list, GetImageView(pfd.render_target_view), GetImageView(pfd.bloom.descriptor_index_0));
-    if (!m_options.skip_bloom)
-        m_bloom_stage.ExecutePass(a_list, pfd.bloom.resolution, pfd.bloom.image, pfd.bloom.descriptor_index_0, pfd.bloom.descriptor_index_1, a_draw_area, GetImageView(pfd.render_target_view));
-}
-
-void RenderSystem::UpdateConstantBuffer(const uint32_t a_frame_index, const RCommandList a_list, const uint2 a_draw_area_size, const ConstSlice<LightComponent> a_lights)
-{
-    // temp jank
-    PerFrame& a_pfd = m_per_frame[a_frame_index];
-    m_clear_stage.UpdateConstantBuffer(m_scene_info);
-    m_shadowmap_stage.UpdateConstantBuffer(a_frame_index, m_scene_info);
-	m_scene_info.light_count = static_cast<uint32_t>(a_lights.size());
-	m_scene_info.scene_resolution = a_draw_area_size;
-    
-    //descriptors
-    m_scene_info.per_frame_index = a_pfd.per_frame_descriptor;
-
-	if (a_pfd.previous_draw_area != a_draw_area_size)
-	{
-		if (a_pfd.bloom.image.IsValid())
-		{
-			FreeImage(a_pfd.bloom.image);
-			FreeImageView(a_pfd.bloom.descriptor_index_0);
-			FreeImageView(a_pfd.bloom.descriptor_index_1);
-		}
-
-		{
-			const float2 downscaled_bloom_image = {
-				static_cast<float>(a_draw_area_size.x) * BLOOM_IMAGE_DOWNSCALE_FACTOR,
-				static_cast<float>(a_draw_area_size.y) * BLOOM_IMAGE_DOWNSCALE_FACTOR
-			};
-
-			a_pfd.bloom.resolution = uint2(static_cast<uint32_t>(downscaled_bloom_image.x), static_cast<uint32_t>(downscaled_bloom_image.y));
-
-			ImageCreateInfo bloom_img_info;
-			bloom_img_info.name = "bloom image";
-			bloom_img_info.width = a_pfd.bloom.resolution.x;
-			bloom_img_info.height = a_pfd.bloom.resolution.y;
-			bloom_img_info.depth = 1;
-			bloom_img_info.mip_levels = 1;
-			bloom_img_info.array_layers = 2;			// 0 == bloom image, 1 = bloom vertical blur
-			bloom_img_info.format = m_render_target.format;
-			bloom_img_info.usage = IMAGE_USAGE::RENDER_TARGET;
-			bloom_img_info.type = IMAGE_TYPE::TYPE_2D;
-			bloom_img_info.use_optimal_tiling = true;
-			bloom_img_info.is_cube_map = false;
-			a_pfd.bloom.image = CreateImage(bloom_img_info);
-
-			ImageViewCreateInfo bloom_img_view_info;
-			bloom_img_view_info.name = "bloom image view";
-			bloom_img_view_info.image = a_pfd.bloom.image;
-			bloom_img_view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
-			bloom_img_view_info.base_array_layer = 0;
-			bloom_img_view_info.array_layers = 1;
-			bloom_img_view_info.mip_levels = 1;
-			bloom_img_view_info.base_mip_level = 0;
-			bloom_img_view_info.format = m_render_target.format;
-			bloom_img_view_info.aspects = IMAGE_ASPECT::COLOR;
-			a_pfd.bloom.descriptor_index_0 = CreateImageView(bloom_img_view_info);
-
-			bloom_img_view_info.base_array_layer = 1;
-			a_pfd.bloom.descriptor_index_1 = CreateImageView(bloom_img_view_info);
-
-			FixedArray<PipelineBarrierImageInfo, 2> bloom_initial_stages;
-			bloom_initial_stages[0].prev = IMAGE_LAYOUT::NONE;
-			bloom_initial_stages[0].next = IMAGE_LAYOUT::RT_COLOR;
-			bloom_initial_stages[0].image = a_pfd.bloom.image;
-			bloom_initial_stages[0].layer_count = 1;
-			bloom_initial_stages[0].level_count = 1;
-			bloom_initial_stages[0].base_array_layer = 0;
-			bloom_initial_stages[0].base_mip_level = 0;
-			bloom_initial_stages[0].image_aspect = IMAGE_ASPECT::COLOR;
-
-			bloom_initial_stages[1].prev = IMAGE_LAYOUT::NONE;
-			bloom_initial_stages[1].next = IMAGE_LAYOUT::RO_FRAGMENT;
-			bloom_initial_stages[1].image = a_pfd.bloom.image;
-			bloom_initial_stages[1].layer_count = 1;
-			bloom_initial_stages[1].level_count = 1;
-			bloom_initial_stages[1].base_array_layer = 1;
-			bloom_initial_stages[1].base_mip_level = 0;
-			bloom_initial_stages[1].image_aspect = IMAGE_ASPECT::COLOR;
-
-			PipelineBarrierInfo barriers{};
-			barriers.image_barriers = bloom_initial_stages.const_slice();
-			PipelineBarriers(a_list, barriers);
-		}
-
-		a_pfd.previous_draw_area = a_draw_area_size;
-	}
-
-}
-
-void RenderSystem::ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list, const DrawList& a_draw_list, const ConstSlice<LightComponent> a_lights)
-{
-	const size_t matrices_upload_size = a_draw_list.draw_entries.size() * sizeof(ShaderTransform);
-	const size_t light_upload_size = a_lights.size() * sizeof(Light);
-	const size_t light_projection_view_size = a_lights.size() * sizeof(float4x4);
-
-	auto memcpy_and_advance = [](const GPUUploadRingAllocator& a_buffer, const size_t a_dst_offset, const void* a_src_data, const size_t a_src_size)
-		{
-			const bool success = a_buffer.MemcpyIntoBuffer(a_dst_offset, a_src_data, a_src_size);
-			BB_ASSERT(success, "failed to memcpy mesh data into gpu visible buffer");
-			return a_dst_offset + a_src_size;
-		};
-
-	// optimize this
-	const size_t total_size = matrices_upload_size + light_upload_size + light_projection_view_size;
-
-	uint64_t upload_offset = m_upload_allocator.AllocateUploadMemory(total_size, a_pfd.fence_value);
-	BB_ASSERT(upload_offset != uint64_t(-1), "upload offset invalid");
-
-	const uint64_t matrix_offset = upload_offset;
-	upload_offset = memcpy_and_advance(m_upload_allocator, upload_offset, a_draw_list.transforms.data(), matrices_upload_size);
-
-	const uint64_t light_offset = upload_offset;
-	for (uint32_t i = 0; i < a_lights.size(); i++)
-		upload_offset = memcpy_and_advance(m_upload_allocator, upload_offset, &a_lights[i].light, sizeof(Light));
-
-	const uint64_t light_projection_view_offset = upload_offset;
-	for (uint32_t i = 0; i < a_lights.size(); i++)
-		upload_offset = memcpy_and_advance(m_upload_allocator, upload_offset, &a_lights[i].projection_view, sizeof(float4x4));
-
-	GPUBufferView transform_view;
-	bool success = a_pfd.per_frame_buffer.Allocate(matrices_upload_size, transform_view);
-	BB_ASSERT(success, "failed to allocate frame memory");
-	GPUBufferView light_view;
-	success = a_pfd.per_frame_buffer.Allocate(light_upload_size, light_view);
-	BB_ASSERT(success, "failed to allocate frame memory");
-	GPUBufferView light_projection_view;
-	success = a_pfd.per_frame_buffer.Allocate(light_projection_view_size, light_projection_view);
-	BB_ASSERT(success, "failed to allocate frame memory");
-
-	//upload to some GPU buffer here.
-	RenderCopyBuffer matrix_buffer_copy;
-	matrix_buffer_copy.src = m_upload_allocator.GetBuffer();
-	matrix_buffer_copy.dst = a_pfd.per_frame_buffer.GetBuffer();
-	size_t copy_region_count = 0;
-	FixedArray<RenderCopyBufferRegion, 3> buffer_regions; //0 = matrix, 1 = lights, 2 = light projection view
-	if (matrices_upload_size)
-	{
-		buffer_regions[copy_region_count].src_offset = matrix_offset;
-		buffer_regions[copy_region_count].dst_offset = transform_view.offset;
-		buffer_regions[copy_region_count].size = matrices_upload_size;
-		++copy_region_count;
-	}
-
-	if (light_upload_size)
-	{
-		buffer_regions[copy_region_count].src_offset = light_offset;
-		buffer_regions[copy_region_count].dst_offset = light_view.offset;
-		buffer_regions[copy_region_count].size = light_upload_size;
-		++copy_region_count;
-
-		buffer_regions[copy_region_count].src_offset = light_projection_view_offset;
-		buffer_regions[copy_region_count].dst_offset = light_projection_view.offset;
-		buffer_regions[copy_region_count].size = light_projection_view_size;
-		++copy_region_count;
-	}
-
-	matrix_buffer_copy.regions = buffer_regions.slice(copy_region_count);
-	if (copy_region_count)
-	{
-		CopyBuffer(a_list, matrix_buffer_copy);
-
-		if (matrices_upload_size)
-            m_scene_info.matrix_offset = static_cast<uint32_t>(transform_view.offset);
-		if (light_upload_size)
-		{
-            m_scene_info.light_offset = static_cast<uint32_t>(light_view.offset);
-            m_scene_info.light_view_offset = static_cast<uint32_t>(light_projection_view.offset);
-		}
-	}
-
-    a_pfd.scene_buffer.WriteTo(&m_scene_info, sizeof(m_scene_info), 0);
-}
-
-void RenderSystem::CreateRenderTarget(const uint2 a_render_target_size)
-{
-	ImageCreateInfo render_target_create;
-	render_target_create.name = "render target color";
-	render_target_create.width = a_render_target_size.x;
-	render_target_create.height = a_render_target_size.y;
-	render_target_create.depth = 1;
-	render_target_create.array_layers = static_cast<uint16_t>(m_per_frame.size());
-	render_target_create.mip_levels = 1;
-	render_target_create.type = IMAGE_TYPE::TYPE_2D;
-	render_target_create.format = m_render_target.format;
-	render_target_create.usage = IMAGE_USAGE::RENDER_TARGET;
-	render_target_create.use_optimal_tiling = true;
-	render_target_create.is_cube_map = false;
-	m_render_target.image = CreateImage(render_target_create);
-	m_render_target.extent = a_render_target_size;
-
-	ImageViewCreateInfo image_view_create;
-	image_view_create.name = "render target color view";
-	image_view_create.array_layers = 1;
-	image_view_create.mip_levels = 1;
-	image_view_create.base_mip_level = 0;
-	image_view_create.image = m_render_target.image;
-	image_view_create.format = m_render_target.format;
-	image_view_create.type = IMAGE_VIEW_TYPE::TYPE_2D;
-	image_view_create.aspects = IMAGE_ASPECT::COLOR;
-
-	for (uint32_t i = 0; i < m_per_frame.size(); i++)
-	{
-		// render target
-		image_view_create.base_array_layer = static_cast<uint16_t>(i);
-		m_per_frame[i].render_target_view = CreateImageView(image_view_create);
-	}
 }

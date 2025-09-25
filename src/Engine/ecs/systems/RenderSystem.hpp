@@ -3,12 +3,9 @@
 #include "Rendererfwd.hpp"
 #include "ecs/components/RenderComponent.hpp"
 #include "ecs/components/RaytraceComponent.hpp"
+#include "ecs/components/TransformComponents.hpp"
+#include "ecs/components/LightComponent.hpp"
 
-#include "ClearStage.hpp"
-#include "ShadowMapStage.hpp"
-#include "RasterMeshStage.hpp"
-#include "BloomStage.hpp"
-#include "LineStage.hpp"
 #include "UICanvas.hpp"
 
 #include "Rendergraph.hpp"
@@ -33,7 +30,6 @@ namespace BB
 		void StartFrame(MemoryArena& a_per_frame_arena, const uint32_t a_max_ui_elements = 1024);
 		RenderSystemFrame EndFrame(const RCommandList a_list, const IMAGE_LAYOUT a_current_layout);
 		void UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCommandList a_list, const uint2 a_draw_area, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const RaytraceComponentPool& a_raytrace_pool, const ConstSlice<LightComponent> a_lights);
-        void DebugDraw(const RCommandList a_list, const uint2 a_draw_area);
 
 		void Resize(const uint2 a_new_extent, const bool a_force = false);
 		void ResizeNewFormat(const uint2 a_render_target_size, const IMAGE_FORMAT a_render_target_format);
@@ -64,17 +60,25 @@ namespace BB
 
 		uint2 GetRenderTargetExtent() const
 		{
-			return m_render_target.extent;
+			return m_final_image_extent;
 		}
 
 		void SetView(const float4x4& a_view, const float3& a_view_position);
 		void SetProjection(const float4x4& a_projection, const float a_near_plane);
 
-        float4x4 GetProjection() const {return m_scene_info.proj; }
-        float4x4 GetView() const {return m_scene_info.view; }
+        float4x4 GetProjection() const {return m_graph_system.GetConstGlobalData().scene_info.proj; }
+        float4x4 GetView() const {return m_graph_system.GetConstGlobalData().scene_info.view; }
 
 	private:
         RG::RenderGraphSystem m_graph_system;
+        RG::RenderGraph* m_cur_graph;
+
+        uint2 m_final_image_extent;
+        IMAGE_FORMAT m_final_image_format;
+        RG::ResourceHandle m_final_image;
+        uint32_t m_current_frame;
+        uint32_t m_frame_count;
+
         RDescriptorIndex m_skybox_descriptor_index;
         RSampler m_skybox_sampler;
         RDescriptorIndex m_skybox_sampler_index;
@@ -110,37 +114,7 @@ namespace BB
 
         } m_raytrace_data;
 
-        struct PerFrame
-        {
-            RDescriptorIndex render_target_view;
-
-            uint2 previous_draw_area;
-            GPUFenceValue fence_value;
-
-            // scene data
-            RDescriptorIndex scene_descriptor;
-            GPUStaticCPUWriteableBuffer scene_buffer;
-            // I want this to be uniform but hlsl is giga cringe
-            RDescriptorIndex per_frame_descriptor;
-            GPULinearBuffer per_frame_buffer;
-
-            struct Bloom
-            {
-                RImage image;
-                RDescriptorIndex descriptor_index_0;
-                RDescriptorIndex descriptor_index_1;
-                uint2 resolution;
-            } bloom;
-        };
-
-        void Update3D(MemoryArena& a_per_frame_arena, const RCommandList a_list, const uint2 a_draw_area, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const RaytraceComponentPool& a_raytrace_pool, const ConstSlice<LightComponent> a_lights);
-		void UpdateConstantBuffer(const uint32_t a_frame_index, const RCommandList a_list, const uint2 a_draw_area_size, const ConstSlice<LightComponent> a_lights);
 		void BuildTopLevelAccelerationStructure(MemoryArena& a_per_frame_arena, const RCommandList a_list, const ConstSlice<AccelerationStructureInstanceInfo> a_instances);
-		void ResourceUploadPass(PerFrame& a_pfd, const RCommandList a_list, const DrawList& a_draw_list, const ConstSlice<LightComponent> a_lights);
-
-		void CreateRenderTarget(const uint2 a_render_target_size);
-
-        uint32_t m_current_frame;
 
 		struct Options
 		{
@@ -152,27 +126,6 @@ namespace BB
 
         // old shit
 
-        struct RenderTarget
-        {
-            RImage image;
-            uint2 extent;
-            IMAGE_FORMAT format;
-        };
-        StaticArray<PerFrame> m_per_frame;
-        RenderTarget m_render_target;
-
-		Scene3DInfo m_scene_info;
-
-		RFence m_fence;
-		uint64_t m_next_fence_value;
-		uint64_t m_last_completed_fence_value;
-		GPUUploadRingAllocator m_upload_allocator;
-
-        ClearStage m_clear_stage;
-        ShadowMapStage m_shadowmap_stage;
-        RasterMeshStage m_raster_mesh_stage;
-        BloomStage m_bloom_stage;
-		LineStage m_line_stage;
         UICanvas m_ui_stage;
         FontAtlas m_font_atlas;
 	};

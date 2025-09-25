@@ -1173,7 +1173,8 @@ const RDescriptorIndex BB::CreateImageView(const ImageViewCreateInfo& a_create_i
 {
     RDescriptorIndex index = DescriptorIndexAllocate(s_render_inst->descriptor.images);
     s_render_inst->m_views[index.handle] = Vulkan::CreateImageView(a_create_info);
-    DescriptorWriteImage(index, GetImageView(index), IMAGE_LAYOUT::RO_FRAGMENT);
+    if (a_create_info.aspects != IMAGE_ASPECT::DEPTH_STENCIL)
+        DescriptorWriteImage(index, GetImageView(index), IMAGE_LAYOUT::RO_FRAGMENT);
     return index;
 }
 
@@ -1194,8 +1195,10 @@ void BB::FreeImage(const RImage a_image)
 
 void BB::FreeImageView(const RDescriptorIndex a_index)
 {
+    FreeImageDescriptor(a_index);
     DescriptorWriteImage(a_index, GetImageView(s_render_inst->debug_descriptor_index), IMAGE_LAYOUT::RO_FRAGMENT);
     Vulkan::FreeViewImage(s_render_inst->m_views[a_index.handle]);
+
 }
 
 void BB::FreeImageViewShaderInaccessible(const RImageView a_view)

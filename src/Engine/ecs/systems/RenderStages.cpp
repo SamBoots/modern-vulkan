@@ -165,20 +165,6 @@ bool BB::RenderPassPBRStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_glo
     a_global_data.scene_info.light_offset = static_cast<uint32_t>(light_buffer.buffer.offset);
     a_global_data.scene_info.light_view_offset = static_cast<uint32_t>(light_view_buffer.buffer.offset);
 
-    PipelineBarrierImageInfo image_transitions[1]{};
-    image_transitions[0].prev = IMAGE_LAYOUT::NONE;
-    image_transitions[0].next = IMAGE_LAYOUT::RT_DEPTH;
-    image_transitions[0].image = out_depth.image.image;
-    image_transitions[0].layer_count = 1;
-    image_transitions[0].level_count = 1;
-    image_transitions[0].base_array_layer = 0;
-    image_transitions[0].base_mip_level = 0;
-    image_transitions[0].image_aspect = IMAGE_ASPECT::DEPTH_STENCIL;
-
-    PipelineBarrierInfo pipeline_info = {};
-    pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo>(image_transitions, 1);
-    PipelineBarriers(a_list, pipeline_info);
-
     FixedArray<RenderingAttachmentColor, 2> color_attachs;
     color_attachs[0].load_color = true;
     color_attachs[0].store_color = true;
@@ -381,7 +367,7 @@ bool BB::RenderPassBloomStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_g
 
     FixedArray<PipelineBarrierImageInfo, 2> transitions{};
     PipelineBarrierImageInfo& to_shader_read = transitions[0];
-    to_shader_read.prev = IMAGE_LAYOUT::RT_COLOR;
+    to_shader_read.prev = IMAGE_LAYOUT::NONE;
     to_shader_read.next = IMAGE_LAYOUT::RO_FRAGMENT;
     to_shader_read.image = in_rt_0.image.image;
     to_shader_read.layer_count = 1;
@@ -391,12 +377,12 @@ bool BB::RenderPassBloomStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_g
     to_shader_read.image_aspect = IMAGE_ASPECT::COLOR;
 
     PipelineBarrierImageInfo& to_render_target = transitions[1];
-    to_render_target.prev = IMAGE_LAYOUT::RO_FRAGMENT;
+    to_render_target.prev = IMAGE_LAYOUT::NONE;
     to_render_target.next = IMAGE_LAYOUT::RT_COLOR;
-    to_render_target.image = in_rt_0.image.image;
+    to_render_target.image = in_rt_1.image.image;
     to_render_target.layer_count = 1;
     to_render_target.level_count = 1;
-    to_render_target.base_array_layer = 1;
+    to_render_target.base_array_layer = in_rt_1.image.base_array_layer;
     to_render_target.base_mip_level = 0;
     to_render_target.image_aspect = IMAGE_ASPECT::COLOR;
 
@@ -436,8 +422,12 @@ bool BB::RenderPassBloomStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_g
         EndRenderPass(a_list);
 
         // ping pong
-        to_render_target.base_array_layer = 0;
-        to_shader_read.base_array_layer = 1;
+        to_render_target.prev = IMAGE_LAYOUT::RT_COLOR;
+        to_render_target.next = IMAGE_LAYOUT::RO_FRAGMENT;
+
+        to_shader_read.prev = IMAGE_LAYOUT::RO_FRAGMENT;
+        to_shader_read.next = IMAGE_LAYOUT::RT_COLOR;
+
         PipelineBarriers(a_list, barrier_info);
     }
 
