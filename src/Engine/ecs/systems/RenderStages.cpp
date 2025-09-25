@@ -145,7 +145,7 @@ bool BB::RenderPassShadowMapStage(RG::RenderGraph& a_graph, RG::GlobalGraphData&
     return true;
 }
 
-bool BB::RenderPassPBRStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
+bool BB::RenderPassPBRStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
 {
     const RG::RenderResource& matrix_buffer = a_graph.GetResource(a_resource_inputs[0]);
     const RG::RenderResource& light_buffer = a_graph.GetResource(a_resource_inputs[1]);

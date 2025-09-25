@@ -34,6 +34,7 @@ namespace BB
             RDescriptorIndex descriptor_index;
             DESCRIPTOR_TYPE descriptor_type;
             const void* upload_data;  // nullptr no upload
+            bool rendergraph_owned; // temp, due to the rendergraph deleting images
             struct ImageView
             {
                 RImage image;
@@ -44,12 +45,12 @@ namespace BB
                 uint16_t mips;
                 uint16_t base_array_layer;
                 uint16_t base_mip;
+                bool is_cube_map;
             };
             union
             {
                 GPUBufferView buffer;
                 ImageView image;
-                RSampler sampler;
             };
         };
 
@@ -79,14 +80,16 @@ namespace BB
             RenderGraph(MemoryArena& a_arena, const uint32_t a_max_passes, const uint32_t a_max_resources);
 
             bool Reset();
-            bool Compile(MemoryArena& a_temp_arena, GPUUploadRingAllocator& a_upload_buffer, const uint64_t a_fence_value);
+            bool Compile(MemoryArena& a_arena, GPUUploadRingAllocator& a_upload_buffer, const uint64_t a_fence_value);
             bool Execute(GlobalGraphData& a_global, const RCommandList a_list, const GPUBuffer a_upload_buffer);
 
             RenderPass& AddRenderPass(MemoryArena& a_arena, const PFN_RenderPass a_call, const uint32_t a_resources_in, const uint32_t a_resources_out, const MasterMaterialHandle a_material);
             ResourceHandle AddUniform(const StackString<32>& a_name, const size_t a_size, const void* a_upload_data = nullptr);
             ResourceHandle AddBuffer(const StackString<32>& a_name, const size_t a_size, const void* a_upload_data = nullptr);
-            ResourceHandle AddTexture(const StackString<32>& a_name, const uint3 a_extent, const uint16_t a_array_layers, const uint16_t a_mips, const IMAGE_USAGE a_usage, const IMAGE_FORMAT a_format, const void* a_upload_data = nullptr);
-            ResourceHandle AddSampler(const StackString<32>& a_name, const RSampler a_sampler);
+            ResourceHandle AddImage(const StackString<32>& a_name, const uint3 a_extent, const uint16_t a_array_layers, const uint16_t a_mips, const IMAGE_USAGE a_usage, const IMAGE_FORMAT a_format, const bool a_is_cube_map = false, const void* a_upload_data = nullptr);
+            ResourceHandle AddTexture(const StackString<32>& a_name, const RImage a_image, const RDescriptorIndex a_index, const uint3 a_extent, const uint16_t a_array_layers, const uint16_t a_mips, const IMAGE_USAGE a_usage, const IMAGE_FORMAT a_format, const bool a_is_cube_map = false);
+
+            ResourceHandle AddSampler(const StackString<32>& a_name, const RDescriptorIndex a_sampler);
 
             const RenderResource& GetResource(const ResourceHandle a_handle);
             const DrawList& GetDrawList() const { return m_drawlist; }
@@ -119,10 +122,13 @@ namespace BB
         public:
             void Init(MemoryArena& a_arena, const uint32_t a_back_buffers, const uint32_t a_max_passes, const uint32_t a_max_resources);
             bool StartGraph(MemoryArena& a_arena, const uint32_t a_back_buffer, RG::RenderGraph* a_out_graph, const uint32_t a_draw_list_size);
+            bool CompileGraph(MemoryArena& a_temp_arena, RG::RenderGraph& a_graph);
             bool ExecuteGraph(const RCommandList a_list, RenderGraph& a_graph);
+            bool EndGraph(RenderGraph& a_graph);
 
             GlobalGraphData& GetGlobalData() { return m_global; }
-
+            const uint64_t NextFenceValue() const { return m_next_fence_value; }
+ 
         private:
             StaticArray<RenderGraph> m_graphs;
 

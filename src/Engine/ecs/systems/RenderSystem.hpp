@@ -75,29 +75,16 @@ namespace BB
 
 	private:
         RG::RenderGraphSystem m_graph_system;
+        RDescriptorIndex m_skybox_descriptor_index;
+        RSampler m_skybox_sampler;
+        RDescriptorIndex m_skybox_sampler_index;
+        RImage m_skybox;
 
-		struct PerFrame
-		{
-			RDescriptorIndex render_target_view;
-
-			uint2 previous_draw_area;
-			GPUFenceValue fence_value;
-
-			// scene data
-            RDescriptorIndex scene_descriptor;
-			GPUStaticCPUWriteableBuffer scene_buffer;
-			// I want this to be uniform but hlsl is giga cringe
-            RDescriptorIndex per_frame_descriptor;
-			GPULinearBuffer per_frame_buffer;
-
-			struct Bloom
-			{
-				RImage image;
-				RDescriptorIndex descriptor_index_0;
-				RDescriptorIndex descriptor_index_1;
-				uint2 resolution;
-			} bloom;
-		};
+        MasterMaterialHandle m_skybox_material;
+        MasterMaterialHandle m_shadowmap_material;
+        MasterMaterialHandle m_glyph_material;
+        MasterMaterialHandle m_line_material;
+        MasterMaterialHandle m_gaussian_material;
 
         struct RaytraceData
         {
@@ -123,12 +110,28 @@ namespace BB
 
         } m_raytrace_data;
 
-		struct RenderTarget
-		{
-			RImage image;
-			uint2 extent;
-			IMAGE_FORMAT format;
-		};
+        struct PerFrame
+        {
+            RDescriptorIndex render_target_view;
+
+            uint2 previous_draw_area;
+            GPUFenceValue fence_value;
+
+            // scene data
+            RDescriptorIndex scene_descriptor;
+            GPUStaticCPUWriteableBuffer scene_buffer;
+            // I want this to be uniform but hlsl is giga cringe
+            RDescriptorIndex per_frame_descriptor;
+            GPULinearBuffer per_frame_buffer;
+
+            struct Bloom
+            {
+                RImage image;
+                RDescriptorIndex descriptor_index_0;
+                RDescriptorIndex descriptor_index_1;
+                uint2 resolution;
+            } bloom;
+        };
 
         void Update3D(MemoryArena& a_per_frame_arena, const RCommandList a_list, const uint2 a_draw_area, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const RaytraceComponentPool& a_raytrace_pool, const ConstSlice<LightComponent> a_lights);
 		void UpdateConstantBuffer(const uint32_t a_frame_index, const RCommandList a_list, const uint2 a_draw_area_size, const ConstSlice<LightComponent> a_lights);
@@ -137,9 +140,7 @@ namespace BB
 
 		void CreateRenderTarget(const uint2 a_render_target_size);
 
-		uint32_t m_current_frame;
-		StaticArray<PerFrame> m_per_frame;
-		RenderTarget m_render_target;
+        uint32_t m_current_frame;
 
 		struct Options
 		{
@@ -148,6 +149,17 @@ namespace BB
 			bool skip_object_rendering;
 			bool skip_bloom;
 		} m_options;
+
+        // old shit
+
+        struct RenderTarget
+        {
+            RImage image;
+            uint2 extent;
+            IMAGE_FORMAT format;
+        };
+        StaticArray<PerFrame> m_per_frame;
+        RenderTarget m_render_target;
 
 		Scene3DInfo m_scene_info;
 

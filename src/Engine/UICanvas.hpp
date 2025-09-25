@@ -35,7 +35,7 @@ namespace BB
         void CreatePanel(const float2 a_pos, const float2 a_extent, const Color a_color);
         bool CreateText(const float2 a_pos, const float2 a_extent, const Color a_color, const StringView a_string, const float a_x_length, const float a_spacing, const FontAtlas& a_font);
         bool EndDraw(const RCommandList a_list, const GPUFenceValue a_fence_value, GPUUploadRingAllocator& a_ring_buffer, GPULinearBuffer& a_frame_buffer, const uint2 a_draw_area, const RImageView a_render_target, const MasterMaterialHandle a_material) const;
-
+        ConstSlice<Quad2D> GetQuads() const { return m_quads.const_slice(); }
         void Clear();
     private:
         StaticArray<Quad2D> m_quads;

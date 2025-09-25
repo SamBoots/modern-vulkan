@@ -13,8 +13,6 @@ using namespace BB;
 
 constexpr float BLOOM_IMAGE_DOWNSCALE_FACTOR = 1.f;
 
-static MasterMaterialHandle material;
-
 void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count, const uint2 a_render_target_size)
 {
 	m_fence = CreateFence(0, "scene fence");
@@ -102,23 +100,87 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
 
     m_font_atlas = CreateFontAtlas(a_arena, font_string, 32, 0);
 
-    FixedArray<MaterialShaderCreateInfo, 2> shader_infos;
-    shader_infos[0].stage = SHADER_STAGE::VERTEX;
-    shader_infos[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
-    shader_infos[0].entry = "VertexMain";
-    shader_infos[0].path = "HLSL/glyph.hlsl";
-    shader_infos[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
-    shader_infos[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
-    shader_infos[1].entry = "FragmentMain";
-    shader_infos[1].path = "HLSL/glyph.hlsl";
+    MaterialCreateInfo skybox_material;
+    skybox_material.pass_type = PASS_TYPE::SCENE;
+    skybox_material.material_type = MATERIAL_TYPE::NONE;
+    FixedArray<MaterialShaderCreateInfo, 2> skybox_shaders;
+    skybox_shaders[0].path = "hlsl/skybox.hlsl";
+    skybox_shaders[0].entry = "VertexMain";
+    skybox_shaders[0].stage = SHADER_STAGE::VERTEX;
+    skybox_shaders[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
+    skybox_shaders[1].path = "hlsl/skybox.hlsl";
+    skybox_shaders[1].entry = "FragmentMain";
+    skybox_shaders[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
+    skybox_shaders[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
+    skybox_material.shader_infos = Slice(skybox_shaders.slice());
 
-    MaterialCreateInfo material_info;
-    material_info.pass_type = PASS_TYPE::SCENE;
-    material_info.material_type = MATERIAL_TYPE::MATERIAL_2D;
-    material_info.shader_infos = shader_infos.slice();
-    material_info.cpu_writeable = false;
-    material_info.user_data_size = 0;
-    material = Material::CreateMasterMaterial(a_arena, material_info, "glyph");
+    MaterialCreateInfo shadow_map_material;
+    shadow_map_material.pass_type = PASS_TYPE::SCENE;
+    shadow_map_material.material_type = MATERIAL_TYPE::NONE;
+    MaterialShaderCreateInfo vertex_shadow_map;
+    vertex_shadow_map.path = "hlsl/ShadowMap.hlsl";
+    vertex_shadow_map.entry = "VertexMain";
+    vertex_shadow_map.stage = SHADER_STAGE::VERTEX;
+    vertex_shadow_map.next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
+    shadow_map_material.shader_infos = Slice(&vertex_shadow_map, 1);
+
+    MaterialCreateInfo glyph_material;
+    glyph_material.pass_type = PASS_TYPE::SCENE;
+    glyph_material.material_type = MATERIAL_TYPE::MATERIAL_2D;
+    glyph_material.cpu_writeable = false;
+    glyph_material.user_data_size = 0;
+    FixedArray<MaterialShaderCreateInfo, 2> glyph_shaders;
+    glyph_shaders[0].stage = SHADER_STAGE::VERTEX;
+    glyph_shaders[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
+    glyph_shaders[0].entry = "VertexMain";
+    glyph_shaders[0].path = "HLSL/glyph.hlsl";
+    glyph_shaders[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
+    glyph_shaders[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
+    glyph_shaders[1].entry = "FragmentMain";
+    glyph_shaders[1].path = "HLSL/glyph.hlsl";
+    glyph_material.shader_infos = glyph_shaders.slice();
+
+    MaterialCreateInfo line_material;
+    line_material.pass_type = PASS_TYPE::SCENE;
+    line_material.material_type = MATERIAL_TYPE::NONE;
+    FixedArray<MaterialShaderCreateInfo, 3> line_shaders;
+    line_shaders[0].path = "hlsl/Line.hlsl";
+    line_shaders[0].entry = "VertexMain";
+    line_shaders[0].stage = SHADER_STAGE::VERTEX;
+    line_shaders[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::GEOMETRY);
+    line_shaders[1].path = "hlsl/Line.hlsl";
+    line_shaders[1].entry = "GeometryMain";
+    line_shaders[1].stage = SHADER_STAGE::GEOMETRY;
+    line_shaders[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
+    line_shaders[2].path = "hlsl/Line.hlsl";
+    line_shaders[2].entry = "FragmentMain";
+    line_shaders[2].stage = SHADER_STAGE::FRAGMENT_PIXEL;
+    line_shaders[2].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
+    line_material.shader_infos = Slice(line_shaders.slice());
+
+
+    MaterialCreateInfo gaussian_material;
+    gaussian_material.pass_type = PASS_TYPE::SCENE;
+    gaussian_material.material_type = MATERIAL_TYPE::NONE;
+    FixedArray<MaterialShaderCreateInfo, 2> gaussian_shaders;
+    gaussian_shaders[0].path = "hlsl/GaussianBlur.hlsl";
+    gaussian_shaders[0].entry = "VertexMain";
+    gaussian_shaders[0].stage = SHADER_STAGE::VERTEX;
+    gaussian_shaders[0].next_stages = static_cast<uint32_t>(SHADER_STAGE::FRAGMENT_PIXEL);
+    gaussian_shaders[1].path = "hlsl/GaussianBlur.hlsl";
+    gaussian_shaders[1].entry = "FragmentMain";
+    gaussian_shaders[1].stage = SHADER_STAGE::FRAGMENT_PIXEL;
+    gaussian_shaders[1].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
+    gaussian_material.shader_infos = Slice(gaussian_shaders.slice());
+
+    MemoryArenaScope(a_arena)
+    {
+        m_skybox_material = Material::CreateMasterMaterial(a_arena, skybox_material, "clear material");
+        m_shadowmap_material = Material::CreateMasterMaterial(a_arena, shadow_map_material, "shadowmap material");
+        m_glyph_material = Material::CreateMasterMaterial(a_arena, glyph_material, "glyph material");
+        m_line_material = Material::CreateMasterMaterial(a_arena, line_material, "line material");
+        m_gaussian_material = Material::CreateMasterMaterial(a_arena, gaussian_material, "shadow map material");
+    }
 
     m_graph_system.Init(a_arena, a_back_buffer_count, 10, 100);
 }
@@ -170,7 +232,7 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 
         if (comp.material_dirty)
         {
-            const uint64_t upload_offset = m_upload_allocator.AllocateUploadMemory(sizeof(comp.material_data), pfd.fence_value);
+            const uint64_t upload_offset = m_upload_allocator.AllocateUploadMemory(sizeof(comp.material_data), m_graph_system.NextFenceValue());
             m_upload_allocator.MemcpyIntoBuffer(upload_offset, &comp.material_data, sizeof(comp.material_data));
             Material::WriteMaterial(comp.material, a_list, m_upload_allocator.GetBuffer(), upload_offset);
             comp.material_dirty = false;
@@ -191,39 +253,99 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
     }
 
     const uint3 render_target_size = uint3(m_render_target.extent.x, m_render_target.extent.y, 1);
-    const RG::ResourceHandle final_image = pgraph->AddTexture("final image", 
+    const RG::ResourceHandle final_image = pgraph->AddImage("final image", 
         render_target_size, 
         1, 
         1, 
         IMAGE_USAGE::RENDER_TARGET, 
         m_render_target.format);
 
-    RG::RenderPass& clear_pass = pgraph->AddRenderPass(a_per_frame_arena, RenderPassClearStage, 2, 1, MAT);
+    const RG::ResourceHandle skybox_texture = pgraph->AddTexture("skybox",
+        m_skybox,
+        m_skybox_descriptor_index,
+        render_target_size,
+        1,
+        1,
+        IMAGE_USAGE::RENDER_TARGET,
+        m_render_target.format,
+        true);
+
+    const RG::ResourceHandle skybox_sampler = pgraph->AddSampler("skybox sampler", m_skybox_sampler_index);
+
+    RG::RenderPass& clear_pass = pgraph->AddRenderPass(a_per_frame_arena, RenderPassClearStage, 2, 1, m_skybox_material);
     clear_pass.AddInputResource(skybox_texture); // texture
     clear_pass.AddInputResource(skybox_sampler); // sampler
     clear_pass.AddOutputResource(final_image);
 
-    const RG::ResourceHandle shadowmaps = pgraph->AddTexture("shadow maps", 
+    const RG::ResourceHandle shadowmaps = pgraph->AddImage("shadow maps",
         uint3(DEPTH_IMAGE_SIZE_W_H, DEPTH_IMAGE_SIZE_W_H, 1), 
         static_cast<uint16_t>(a_lights.size()), 
         1,
         IMAGE_USAGE::SHADOW_MAP,
         IMAGE_FORMAT::D16_UNORM);
-    RG::RenderPass& shadowmap_pass = pgraph->AddRenderPass(a_per_frame_arena, RenderPassShadowMapStage, 0, 1, MAT);
+    RG::RenderPass& shadowmap_pass = pgraph->AddRenderPass(a_per_frame_arena, RenderPassShadowMapStage, 0, 1, m_shadowmap_material);
     clear_pass.AddInputResource(shadowmaps);
 
-    const RG::ResourceHandle matrix_buffer = pgraph->AddBuffer("matrix buffer", pgraph->GetDrawList().transforms.size() * sizeof(ShaderTransform), pgraph->GetDrawList().transforms.data());
-    const RG::ResourceHandle light_buffer = pgraph->AddBuffer("light buffer", );
-    const RG::ResourceHandle light_view_buffer = pgraph->AddBuffer("light view buffer", );
+    // temp make light and light view seperate
+    StaticArray<Light> lights;
+    StaticArray<float4x4> light_view;
+    lights.Init(a_per_frame_arena, static_cast<uint32_t>(a_lights.size()));
+    light_view.Init(a_per_frame_arena, static_cast<uint32_t>(a_lights.size()));
+    for (size_t i = 0; i < a_lights.size(); i++)
+    {
+        lights.push_back(a_lights[i].light);
+        light_view.push_back(a_lights[i].projection_view);
+    }
 
-    RG::RenderPass& pbr_pass = pgraph->AddRenderPass(a_per_frame_arena, RenderPassPBRStage, 3, 3, MAT);
+    const RG::ResourceHandle matrix_buffer = pgraph->AddBuffer("matrix buffer", pgraph->GetDrawList().transforms.size() * sizeof(ShaderTransform), pgraph->GetDrawList().transforms.data());
+    const RG::ResourceHandle light_buffer = pgraph->AddBuffer("light buffer", lights.size() * sizeof(Light), lights.data());
+    const RG::ResourceHandle light_view_buffer = pgraph->AddBuffer("light view buffer", light_view.size() * sizeof(float4x4), light_view.data());
+
+    const RG::ResourceHandle bright_image = pgraph->AddImage("bright image",
+        render_target_size, 1, 1, IMAGE_USAGE::RENDER_TARGET, m_render_target.format);
+    const RG::ResourceHandle depth_buffer = pgraph->AddImage("depth buffer",
+        render_target_size, 1, 1, IMAGE_USAGE::DEPTH, IMAGE_FORMAT::D24_UNORM_S8_UINT);
+
+    RG::RenderPass& pbr_pass = pgraph->AddRenderPass(a_per_frame_arena, RenderPassPBRStage, 3, 3, MasterMaterialHandle());
     pbr_pass.AddInputResource(matrix_buffer);
     pbr_pass.AddInputResource(light_buffer);
     pbr_pass.AddInputResource(light_view_buffer);
     pbr_pass.AddOutputResource(final_image);
-    pbr_pass.AddOutputResource(bright);
-    pbr_pass.AddOutputResource(depth);
+    pbr_pass.AddOutputResource(bright_image);
+    pbr_pass.AddOutputResource(depth_buffer);
+    
+    //RG::RenderPass& debug_pass = pgraph->AddRenderPass(a_per_frame_arena, RenderPassLineStage, 1, 2, m_line_material);
+    //debug_pass.AddInputResource(lines);
+    //debug_pass.AddOutputResource(final_image);
+    //debug_pass.AddOutputResource(depth_buffer);
 
+    ConstSlice quads = m_ui_stage.GetQuads();
+    const RG::ResourceHandle quad_buffer = pgraph->AddBuffer("quads", quads.sizeInBytes(), quads.data());
+
+    RG::RenderPass& glyph_pass = pgraph->AddRenderPass(a_per_frame_arena, RenderPassGlyphStage, 1, 1, m_glyph_material);
+    glyph_pass.AddInputResource(quad_buffer);
+    glyph_pass.AddOutputResource(final_image);
+
+    const RG::ResourceHandle ping = pgraph->AddImage("ping image",
+        render_target_size,
+        1,
+        1,
+        IMAGE_USAGE::RENDER_TARGET,
+        m_render_target.format);
+    const RG::ResourceHandle pong = pgraph->AddImage("pong image",
+        render_target_size,
+        1,
+        1,
+        IMAGE_USAGE::RENDER_TARGET,
+        m_render_target.format);
+    RG::RenderPass& bloom_pass = pgraph->AddRenderPass(a_per_frame_arena, RenderPassBloomStage, 2, 1, m_gaussian_material);
+    bloom_pass.AddInputResource(ping);
+    bloom_pass.AddInputResource(pong);
+    bloom_pass.AddOutputResource(final_image);
+
+    m_graph_system.CompileGraph(a_per_frame_arena, *pgraph);
+    m_graph_system.ExecuteGraph(a_list, *pgraph);
+    m_graph_system.EndGraph(*pgraph);
 
     return;
     // old shit
@@ -250,7 +372,7 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 
     m_clear_stage.ExecutePass(a_list, a_draw_area, GetImageView(pfd.render_target_view));
     Update3D(a_per_frame_arena, a_list, a_draw_area, a_world_matrices, a_render_pool, a_raytrace_pool, a_lights);
-    m_ui_stage.EndDraw(a_list, m_next_fence_value, m_upload_allocator, pfd.per_frame_buffer, a_draw_area, GetImageView(pfd.render_target_view), material);
+    m_ui_stage.EndDraw(a_list, m_next_fence_value, m_upload_allocator, pfd.per_frame_buffer, a_draw_area, GetImageView(pfd.render_target_view), m_glyph_material);
 }
 
 void RenderSystem::DebugDraw(const RCommandList a_list, const uint2 a_draw_area)

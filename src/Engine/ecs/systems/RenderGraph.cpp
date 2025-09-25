@@ -47,7 +47,7 @@ bool RG::RenderGraph::Reset()
     for (uint32_t i = 0; i < m_resources.size(); i++)
     {
         const RenderResource& res = m_resources[i];
-        if (res.descriptor_type == DESCRIPTOR_TYPE::IMAGE)
+        if (res.descriptor_type == DESCRIPTOR_TYPE::IMAGE && res.rendergraph_owned)
         {
             FreeImageView(res.descriptor_index);
             FreeImage(res.image.image);
@@ -65,7 +65,7 @@ bool RG::RenderGraph::Reset()
     return true;
 }
 
-bool RG::RenderGraph::Compile(MemoryArena& a_temp_arena, GPUUploadRingAllocator& a_upload_buffer, const uint64_t a_fence_value)
+bool RG::RenderGraph::Compile(MemoryArena& a_arena, GPUUploadRingAllocator& a_upload_buffer, const uint64_t a_fence_value)
 {
     for (uint32_t i = 0; i < m_execution_order.size(); i++)
     {
@@ -111,9 +111,9 @@ bool RG::RenderGraph::Compile(MemoryArena& a_temp_arena, GPUUploadRingAllocator&
         DescriptorWriteStorageBuffer(m_per_frame_descriptor, per_frame_view);
     }
 
-    RenderCopyBufferRegion* pf_regions = ArenaAllocArr(a_temp_arena, RenderCopyBufferRegion, pf_upload_region_count);
+    RenderCopyBufferRegion* pf_regions = ArenaAllocArr(a_arena, RenderCopyBufferRegion, pf_upload_region_count);
     uint32_t pf_current_region = 0;
-    RenderCopyBufferToImageInfo* image_copies = ArenaAllocArr(a_temp_arena, RenderCopyBufferToImageInfo, image_uploads);
+    RenderCopyBufferToImageInfo* image_copies = ArenaAllocArr(a_arena, RenderCopyBufferToImageInfo, image_uploads);
     uint32_t current_image_copy = 0;
     bool success = true;
 
@@ -151,45 +151,48 @@ bool RG::RenderGraph::Compile(MemoryArena& a_temp_arena, GPUUploadRingAllocator&
         }
         else if (res.descriptor_type == DESCRIPTOR_TYPE::IMAGE)
         {
-            ImageCreateInfo image_info;
-            image_info.name = res.name.c_str();
-            image_info.width = res.image.extent.x;
-            image_info.height = res.image.extent.y;
-            image_info.depth = res.image.extent.z;
-            image_info.array_layers = res.image.array_layers;
-            image_info.mip_levels = res.image.mips;
-            if (res.image.extent.x == 1)
-                image_info.type = IMAGE_TYPE::TYPE_2D;
-            else
-                image_info.type = IMAGE_TYPE::TYPE_3D;
-            image_info.format = res.image.format;
-            image_info.usage = res.image.usage;
-            image_info.use_optimal_tiling = true;
-            image_info.is_cube_map = false;
-
-            res.image.image = CreateImage(image_info);
-            ImageViewCreateInfo view_info;
-            view_info.name = res.name.c_str();
-            view_info.array_layers = res.image.array_layers;
-            view_info.mip_levels = res.image.mips;
-            view_info.base_array_layer = 0;
-            view_info.base_mip_level = 0;
-
-            if (res.image.extent.x == 1)
-                if (res.image.array_layers == 1)
-                    view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
+            if (!res.image.image.IsValid())
+            {
+                ImageCreateInfo image_info;
+                image_info.name = res.name.c_str();
+                image_info.width = res.image.extent.x;
+                image_info.height = res.image.extent.y;
+                image_info.depth = res.image.extent.z;
+                image_info.array_layers = res.image.array_layers;
+                image_info.mip_levels = res.image.mips;
+                if (res.image.extent.x == 1)
+                    image_info.type = IMAGE_TYPE::TYPE_2D;
                 else
-                    view_info.type = IMAGE_VIEW_TYPE::TYPE_2D_ARRAY;
-            else
-                view_info.type = IMAGE_VIEW_TYPE::TYPE_3D;
+                    image_info.type = IMAGE_TYPE::TYPE_3D;
+                image_info.format = res.image.format;
+                image_info.usage = res.image.usage;
+                image_info.use_optimal_tiling = true;
+                image_info.is_cube_map = false;
 
-            view_info.format = res.image.format;
-            if (res.image.usage == IMAGE_USAGE::DEPTH || res.image.usage == IMAGE_USAGE::SHADOW_MAP)
-                view_info.aspects = IMAGE_ASPECT::COLOR;
-            else
-                view_info.aspects = IMAGE_ASPECT::DEPTH;
+                res.image.image = CreateImage(image_info);
+                ImageViewCreateInfo view_info;
+                view_info.name = res.name.c_str();
+                view_info.array_layers = res.image.array_layers;
+                view_info.mip_levels = res.image.mips;
+                view_info.base_array_layer = 0;
+                view_info.base_mip_level = 0;
 
-            res.descriptor_index = CreateImageView(view_info);
+                if (res.image.extent.x == 1)
+                    if (res.image.array_layers == 1)
+                        view_info.type = IMAGE_VIEW_TYPE::TYPE_2D;
+                    else
+                        view_info.type = IMAGE_VIEW_TYPE::TYPE_2D_ARRAY;
+                else
+                    view_info.type = IMAGE_VIEW_TYPE::TYPE_3D;
+
+                view_info.format = res.image.format;
+                if (res.image.usage == IMAGE_USAGE::DEPTH || res.image.usage == IMAGE_USAGE::SHADOW_MAP)
+                    view_info.aspects = IMAGE_ASPECT::COLOR;
+                else
+                    view_info.aspects = IMAGE_ASPECT::DEPTH;
+
+                res.descriptor_index = CreateImageView(view_info);
+            }
 
             if (res.upload_data)
             {
@@ -208,7 +211,10 @@ bool RG::RenderGraph::Compile(MemoryArena& a_temp_arena, GPUUploadRingAllocator&
                 image_copies[current_image_copy].src_buffer = a_upload_buffer.GetBuffer();
                 image_copies[current_image_copy].src_offset = src_offset;
                 image_copies[current_image_copy].dst_image = res.image.image;
-                image_copies[current_image_copy].dst_aspects = view_info.aspects;
+                if (res.image.usage == IMAGE_USAGE::DEPTH || res.image.usage == IMAGE_USAGE::SHADOW_MAP)
+                    image_copies[current_image_copy].dst_aspects = IMAGE_ASPECT::COLOR;
+                else
+                    image_copies[current_image_copy].dst_aspects = IMAGE_ASPECT::DEPTH;
                 image_copies[current_image_copy].dst_image_info.base_array_layer = 0;
                 image_copies[current_image_copy].dst_image_info.extent = res.image.extent;
                 image_copies[current_image_copy].dst_image_info.layer_count = res.image.array_layers;
@@ -219,7 +225,7 @@ bool RG::RenderGraph::Compile(MemoryArena& a_temp_arena, GPUUploadRingAllocator&
         }
         else if (res.descriptor_type == DESCRIPTOR_TYPE::SAMPLER)
         {
-            // should be handled
+            // already allocated and handled
         }
     }
 
@@ -263,6 +269,7 @@ RG::ResourceHandle RG::RenderGraph::AddUniform(const StackString<32>& a_name, co
     resource.buffer.size = a_size;
     resource.upload_data = a_upload_data;
     resource.descriptor_type = DESCRIPTOR_TYPE::READONLY_CONSTANT;
+    resource.rendergraph_owned = true;
     RG::ResourceHandle rh = RG::ResourceHandle(m_resources.size());
     m_resources.push_back(resource);
     return rh;
@@ -275,12 +282,13 @@ RG::ResourceHandle RG::RenderGraph::AddBuffer(const StackString<32>& a_name, con
     resource.buffer.size = a_size;
     resource.upload_data = a_upload_data;
     resource.descriptor_type = DESCRIPTOR_TYPE::READONLY_BUFFER;
+    resource.rendergraph_owned = true;
     RG::ResourceHandle rh = RG::ResourceHandle(m_resources.size());
     m_resources.push_back(resource);
     return rh;
 }
 
-RG::ResourceHandle RG::RenderGraph::AddTexture(const StackString<32>& a_name, const uint3 a_extent, const uint16_t a_array_layers, const uint16_t a_mips, const IMAGE_USAGE a_usage, const IMAGE_FORMAT a_format, const void* a_upload_data)
+RG::ResourceHandle RG::RenderGraph::AddImage(const StackString<32>& a_name, const uint3 a_extent, const uint16_t a_array_layers, const uint16_t a_mips, const IMAGE_USAGE a_usage, const IMAGE_FORMAT a_format, const bool a_is_cube_map, const void* a_upload_data)
 {
     RG::RenderResource resource{};
     resource.name = a_name;
@@ -289,19 +297,42 @@ RG::ResourceHandle RG::RenderGraph::AddTexture(const StackString<32>& a_name, co
     resource.image.mips = a_mips;
     resource.image.format = a_format;
     resource.image.usage = a_usage;
+    resource.image.is_cube_map = a_is_cube_map;
     resource.upload_data = a_upload_data;
+    resource.rendergraph_owned = true;
     resource.descriptor_type = DESCRIPTOR_TYPE::IMAGE;
     RG::ResourceHandle rh = RG::ResourceHandle(m_resources.size());
     m_resources.push_back(resource);
     return rh;
 }
 
-RG::ResourceHandle RG::RenderGraph::AddSampler(const StackString<32>& a_name, const RSampler a_sampler)
+RG::ResourceHandle RG::RenderGraph::AddTexture(const StackString<32>& a_name, const RImage a_image, const RDescriptorIndex a_index, const uint3 a_extent, const uint16_t a_array_layers, const uint16_t a_mips, const IMAGE_USAGE a_usage, const IMAGE_FORMAT a_format, const bool a_is_cube_map)
 {
     RG::RenderResource resource{};
     resource.name = a_name;
-    resource.sampler = a_sampler;
+    resource.descriptor_index = a_index;
+    resource.image.image = a_image;
+    resource.image.extent = a_extent;
+    resource.image.array_layers = a_array_layers;
+    resource.image.mips = a_mips;
+    resource.image.format = a_format;
+    resource.image.usage = a_usage;
+    resource.image.is_cube_map = a_is_cube_map;
+    resource.upload_data = nullptr;
+    resource.descriptor_type = DESCRIPTOR_TYPE::IMAGE;
+    resource.rendergraph_owned = false;
+    RG::ResourceHandle rh = RG::ResourceHandle(m_resources.size());
+    m_resources.push_back(resource);
+    return rh;
+}
+
+RG::ResourceHandle RG::RenderGraph::AddSampler(const StackString<32>& a_name, const RDescriptorIndex a_sampler)
+{
+    RG::RenderResource resource{};
+    resource.name = a_name;
+    resource.descriptor_index = a_sampler;
     resource.descriptor_type = DESCRIPTOR_TYPE::SAMPLER;
+    resource.rendergraph_owned = false;
     RG::ResourceHandle rh = RG::ResourceHandle(m_resources.size());
     m_resources.push_back(resource);
     return rh;
@@ -348,7 +379,17 @@ bool RG::RenderGraphSystem::StartGraph(MemoryArena& a_arena, const uint32_t a_ba
     return true;
 }
 
+bool RG::RenderGraphSystem::CompileGraph(MemoryArena& a_temp_arena, RG::RenderGraph& a_graph)
+{
+    return a_graph.Compile(a_temp_arena, m_upload_allocator, m_next_fence_value);
+}
+
 bool RG::RenderGraphSystem::ExecuteGraph(const RCommandList a_list, RenderGraph& a_graph)
 {
     return a_graph.Execute(m_global, a_list, m_upload_allocator.GetBuffer());
+}
+
+bool RG::RenderGraphSystem::EndGraph(RenderGraph& a_graph)
+{
+
 }
