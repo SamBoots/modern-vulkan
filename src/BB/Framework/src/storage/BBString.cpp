@@ -47,6 +47,17 @@ size_t BB::FormatString(char* a_dst, const size_t a_dst_size, const StringView a
 
         switch (a_fmt_string[percentage_spot + 1])
         {
+        case 'u':
+        {
+            uint32_t value = va_arg(a_args, uint32_t);
+            char buf[32]{};
+            int i = 30;
+            for (; value && i; --i, value /= 10)
+                buf[i] = "0123456789abcdef"[value % 10];
+
+            add_to_string(&buf[i] + 1);
+        }
+            break;
         case 's':
             add_to_string(va_arg(a_args, char*));
             break;

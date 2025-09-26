@@ -65,6 +65,8 @@ int main(int argc, char** argv)
 
 	float delta_time = 0;
 
+    BB_LOGF("message: %s, message wide: %S, unsigned number: %u", "hello", L"HELLO", 512);
+
     bool end_app = false;
 	while (end_app == false)
 	{
