@@ -179,40 +179,21 @@ void Console::ImGuiShowConsole(MemoryArena& a_arena, const uint2 a_window_size)
 	ImGui::End();
 }
 
-void Console::LoggerCallback(const char* a_file_name, int a_line, const WarningType a_warning_type, const char* a_formats, void* a_puserdata, va_list a_args)
+void Console::LoggerCallback(const char* a_file_name, int a_line, const WarningType a_warning_type, const char* a_str, void* a_puserdata, va_list a_args)
 {
 	Console::ConsoleEntry entry{};
 	entry.warning_type = a_warning_type;
 	entry.file_name = PathString(a_file_name);
 	entry.line = a_line;
 
-	for (size_t i = 0; static_cast<size_t>(a_formats[i] != '\0'); i++)
-	{
-		switch (a_formats[i])
-		{
-		case 's':
-			entry.message.append(va_arg(a_args, char*));
-			break;
-		case 'S': //convert it to a char first.
-		{
-			const wchar_t* w_char = va_arg(a_args, const wchar_t*);
-			const size_t char_size = wcslen(w_char);
-			//check to see if we do not go over bounds, largly to deal with non-null-terminated wchar strings.
-			BB_ASSERT(char_size < entry.message.capacity() - entry.message.size(), "error log string size exceeds 2048 characters!");
-			char* character = BBstackAlloc_s(char_size, char);
-			size_t conv_chars = 0;
-			wcstombs_s(&conv_chars, character, char_size, w_char, _TRUNCATE);
-			entry.message.append(character);
-			BBstackFree_s(character);
-		}
-		break;
-		default:
-			BB_ASSERT(false, "va arg format not yet supported");
-			break;
-		}
+    const size_t new_size = FormatString(entry.message.data(), entry.message.capacity(), a_str, a_args);
+    if (new_size == size_t(-1))
+    {
+        BB_WARNING(new_size != size_t(-1), "logger message too large", WarningType::HIGH);
+        return;
+    }
 
-		entry.message.append(" ", 1);
-	}
+    entry.message.RecalculateStringSize(new_size);
 
 	Console* pconsole = reinterpret_cast<Console*>(a_puserdata);
 	const size_t index = pconsole->m_entry_count.fetch_add(1);

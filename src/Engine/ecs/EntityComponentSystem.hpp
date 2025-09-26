@@ -14,7 +14,6 @@ namespace BB
 	// thanks to David Colson for the idea https://www.david-colson.com/2020/02/09/making-a-simple-ecs.html
 	struct EntityComponentSystemCreateInfo
 	{
-		uint2 window_size;
 		uint32_t render_frame_count;
 
 		uint32_t entity_count;

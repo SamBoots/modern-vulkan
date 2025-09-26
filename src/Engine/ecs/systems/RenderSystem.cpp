@@ -11,19 +11,11 @@
 
 using namespace BB;
 
-constexpr float BLOOM_IMAGE_DOWNSCALE_FACTOR = 1.f;
-constexpr uint32_t DEPTH_IMAGE_SIZE_W_H = 1024;
-
-void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count, const uint2 a_render_target_size)
+void RenderSystem::Init(MemoryArena& a_arena, const RenderOptions& a_options)
 {
-    m_frame_count = a_back_buffer_count;
-    m_final_image_extent = a_render_target_size;
-    m_final_image_format = IMAGE_FORMAT::RGBA8_SRGB;
+    m_frame_count = a_options.triple_buffering ? 3 : 2;
 
-	m_options.skip_skybox = false;
-	m_options.skip_shadow_mapping = false;
-	m_options.skip_object_rendering = false;
-	m_options.skip_bloom = false;
+    m_options = a_options;
 
     // IF USING RAYTRACING
     if (false)
@@ -165,11 +157,10 @@ void RenderSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count
     m_skybox_sampler = CreateSampler(sampler_info);
     DescriptorWriteSampler(m_skybox_descriptor_index, m_skybox_sampler);
 
-    m_graph_system.Init(a_arena, a_back_buffer_count, 10, 100);
+    m_graph_system.Init(a_arena, m_frame_count, 10, 100);
     m_graph_system.GetGlobalData().scene_info.ambient_light = float4(0.03f, 0.03f, 0.03f, 1.f);
     m_graph_system.GetGlobalData().scene_info.exposure = 1.0;
-    m_graph_system.GetGlobalData().scene_info.shadow_map_resolution = float2(DEPTH_IMAGE_SIZE_W_H, DEPTH_IMAGE_SIZE_W_H);
-
+    m_graph_system.GetGlobalData().scene_info.shadow_map_resolution = float2(static_cast<float>(m_options.shadow_map_resolution.x), static_cast<float>(m_options.shadow_map_resolution.y));
 }
 
 void RenderSystem::StartFrame(MemoryArena& a_per_frame_arena, const uint32_t a_max_ui_elements)
@@ -245,13 +236,13 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
         m_cur_graph->AddDrawEntry(entry, shader_transform);
     }
 
-    const uint3 render_target_size = uint3(m_final_image_extent.x, m_final_image_extent.y, 1);
+    const uint3 render_target_size = uint3(a_draw_area.x, a_draw_area.y, 1);
     m_final_image = m_cur_graph->AddImage("final image",
         render_target_size, 
         1, 
         1, 
         IMAGE_USAGE::RENDER_TARGET, 
-        m_final_image_format);
+        m_options.backbuffer_format);
 
     const RG::ResourceHandle skybox_texture = m_cur_graph->AddTexture("skybox",
         m_skybox,
@@ -259,7 +250,7 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
         render_target_size,
         6,
         1,
-        IMAGE_FORMAT::RGB8_SRGB,
+        IMAGE_FORMAT::RGBA8_SRGB,
         true);
 
     const RG::ResourceHandle skybox_sampler = m_cur_graph->AddSampler("skybox sampler", m_skybox_sampler_index);
@@ -359,42 +350,26 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
     m_graph_system.ExecuteGraph(a_per_frame_arena, a_list, *m_cur_graph);
 }
 
-void RenderSystem::Resize(const uint2 a_new_extent, const bool a_force)
-{
-	if (m_final_image_extent == a_new_extent && !a_force)
-		return;
-
-	// wait until the rendering is all done
-    m_graph_system.WaitFence();
-	GPUWaitIdle();
-
-    m_final_image_extent = a_new_extent;
-}
-
-void RenderSystem::ResizeNewFormat(const uint2 a_render_target_size, const IMAGE_FORMAT a_render_target_format)
-{
-	Resize(a_render_target_size, true);
-    m_final_image_format = a_render_target_format;
-}
-
 void RenderSystem::Screenshot(const PathString& a_path) const
 {
 	// wait until the rendering is all done
     m_graph_system.WaitFence();
-    // todo, remember the previous frame's image, should be easy.
-    // 
-	//const uint32_t prev_frame = (m_current_frame + 1) % m_per_frame.size();
 
-	//ImageInfo image_info;
+	ImageInfo image_info;
 	//image_info.image = m_render_target.image;
 	//image_info.extent = m_render_target.extent;
-	//image_info.offset = int2(0);
-	//image_info.array_layers = 1;
-	//image_info.base_array_layer = static_cast<uint16_t>(prev_frame);
-	//image_info.mip_level = 0;
+	image_info.offset = int2(0);
+	image_info.array_layers = 1;
+	image_info.base_array_layer = 1;
+	image_info.mip_level = 0;
 
-	//const bool success = Asset::ReadWriteTextureDeferred(a_path.GetView(), image_info);
-	//BB_ASSERT(success, "failed to write screenshot image to disk");
+	const bool success = Asset::ReadWriteTextureDeferred(a_path.GetView(), image_info);
+	BB_ASSERT(success, "failed to write screenshot image to disk");
+}
+
+void RenderSystem::SetOptions(const RenderOptions& a_options)
+{
+    // todo
 }
 
 void RenderSystem::SetView(const float4x4& a_view, const float3& a_view_position)

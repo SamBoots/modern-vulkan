@@ -43,7 +43,7 @@ namespace BB
 
     EngineInfo InitEngine(MemoryArena& a_arena, const wchar* a_app_name, const EngineOptions& a_engine_options, const GraphicOptions& a_graphic_options);
     bool DestroyEngine();
-    ENGINE_STATUS UpdateEngine(const WindowHandle a_window_handle, const ConstSlice<InputEvent> a_input_events);
+    ENGINE_STATUS UpdateEngine(const ConstSlice<InputEvent> a_input_events);
 
     const char* GetExePath();
     const StringView GetRootPath();

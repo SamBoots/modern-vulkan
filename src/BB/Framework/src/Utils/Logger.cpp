@@ -11,33 +11,16 @@ using namespace BB;
 static void StandardLogCallback(const char* a_file_name, const int a_line, const WarningType a_warning_type, const char* a_formats, void*, va_list a_args)
 {
 	StackString<2048> string{};
-	for (size_t i = 0; static_cast<size_t>(a_formats[i] != '\0'); i++)
-	{
-		switch (a_formats[i])
-		{
-		case 's':
-			string.append(va_arg(a_args, char*));
-			break;
-		case 'S': //convert it to a char first.
-		{
-			const wchar_t* w_char = va_arg(a_args, const wchar_t*);
-			const size_t char_size = wcslen(w_char);
-			//check to see if we do not go over bounds, largly to deal with non-null-terminated wchar strings.
-			assert(char_size < string.capacity() - string.size());
-			char* character = BBstackAlloc_s(char_size, char);
-			size_t conv_chars = 0;
-			wcstombs_s(&conv_chars, character, char_size, w_char, _TRUNCATE);
-			string.append(character);
-			BBstackFree_s(character);
-		}
-		break;
-		default:
-			BB_ASSERT(false, "va arg format not yet supported");
-			break;
-		}
 
-		string.append(" ", 1);
-	}
+    const size_t new_size = FormatString(string.data(), string.capacity(), StringView(a_formats), a_args);
+
+    if (new_size == size_t(-1))
+    {
+        BB_WARNING(new_size != size_t(-1), "logger message too large", WarningType::HIGH);
+        return;
+    }
+    string.RecalculateStringSize(new_size);
+
 	//double line ending for better reading.
 	string.append("\n\n", 2);
 	Logger::LogToConsole(a_file_name, a_line, a_warning_type, string.c_str());

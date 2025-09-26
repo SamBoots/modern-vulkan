@@ -32,9 +32,9 @@ namespace BB
 			return m_string_view[a_index];
 		}
 
-		size_t find_first_of(const CharT a_char) const
+		size_t find_first_of(const CharT a_char, const size_t a_start = 0) const
 		{
-			for (size_t i = 0; i < m_size; i++)
+			for (size_t i = a_start; i < m_size; i++)
 			{
 				if (m_string_view[i] == a_char)
 					return i;
@@ -435,8 +435,13 @@ namespace BB
 		// this function will recalculate how big the string is.
 		void RecalculateStringSize()
 		{
-			m_size = strnlen_s(m_string, STRING_SIZE);
+            RecalculateStringSize(strnlen_s(m_string, STRING_SIZE));
 		}	
+
+        void RecalculateStringSize(const size_t a_new_size)
+        {
+            m_size = a_new_size;
+        }
 
 		size_t find_first_of(const CharT a_char) const
 		{
@@ -634,4 +639,7 @@ namespace BB
     using PathStringV = Path_String<char, STRING_SIZE>;
     template<size_t STRING_SIZE>
     using PathWStringV = Path_String<wchar_t, STRING_SIZE>;
+
+    // returns size_t(-1) on failure
+    size_t FormatString(char* a_dst, const size_t a_dst_size, const StringView a_fmt_string, va_list a_args);
 }

@@ -93,8 +93,8 @@ namespace BB
             bool AddInputResource(const ResourceHandle a_resource_index);
             bool AddOutputResource(const ResourceHandle a_resource_index);
 
-            ConstSlice<ResourceHandle> GetInputs() const { return m_resource_inputs.const_slice(); };
-            ConstSlice<ResourceHandle> GetOutputs() const { return m_resource_outputs.const_slice(); };
+            ConstSlice<ResourceHandle> GetInputs() const { return m_resource_inputs.const_slice(); }
+            ConstSlice<ResourceHandle> GetOutputs() const { return m_resource_outputs.const_slice(); }
 
         private:
             PFN_RenderPass m_call;

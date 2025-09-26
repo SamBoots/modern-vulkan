@@ -22,6 +22,7 @@ add_library (BBFramework STATIC
 "src/OS/Program${PLATFORM_NAME}.cpp"
 "src/Utils/Logger.cpp"
 "src/Utils/Utils.cpp"
+"src/storage/BBString.cpp"
 "src/BBThreadScheduler.cpp"
 "src/BBjson.cpp"
 "src/BBImage.cpp"

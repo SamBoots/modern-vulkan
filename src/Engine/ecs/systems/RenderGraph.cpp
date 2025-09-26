@@ -369,7 +369,7 @@ void RG::RenderGraph::HandleImagetransitions(MemoryArena& a_temp_arena, const RC
 {
     const ConstSlice in = a_pass.GetInputs();
     const ConstSlice out = a_pass.GetOutputs();
-    const size_t resource_count = in.size() + out.size();
+    const uint32_t resource_count = static_cast<uint32_t>(in.size() + out.size());
     if (resource_count == 0)
         return;
 

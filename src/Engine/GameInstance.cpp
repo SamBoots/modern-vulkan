@@ -24,7 +24,7 @@ bool GameInstance::Init(const uint2 a_game_viewport_size, const StringView a_pro
     if (OSFileExist(input_path.c_str()))
         m_input_channel = Input::CreateInputChannelByJson(m_arena, a_project_name, input_path.GetView());
 
-    m_scene_hierarchy.Init(m_arena, STANDARD_ECS_OBJ_COUNT, a_game_viewport_size, a_project_name);
+    m_scene_hierarchy.Init(m_arena, STANDARD_ECS_OBJ_COUNT, a_project_name);
 
     m_viewport.Init(a_game_viewport_size, int2(0, 0), a_project_name);
     if (a_register_funcs.size())

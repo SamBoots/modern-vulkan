@@ -46,8 +46,6 @@ namespace BB
 		RGBA8_SRGB,
 		RGBA8_UNORM,
 
-		RGB8_SRGB,
-
 		A8_UNORM,
 
 		D16_UNORM,
@@ -68,8 +66,6 @@ namespace BB
         case IMAGE_FORMAT::RGBA8_SRGB:
         case IMAGE_FORMAT::RGBA8_UNORM:
             return 4;
-        case IMAGE_FORMAT::RGB8_SRGB:
-            return 3;
         case IMAGE_FORMAT::A8_UNORM:
             return 1;
         default:

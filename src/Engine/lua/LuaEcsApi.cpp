@@ -86,7 +86,7 @@ int luaapi::CreateEntityFromJson(lua_State* a_state)
     GameInstance* inst = GetGameInstance(a_state);
     PathString json_path = inst->GetProjectPath();
     json_path.AddPathNoSlash(json_name);
-    const ECSEntity entity = inst->GetSceneHierarchy().CreateEntityFromJson(inst->GetMemory(), json_path);
+    const ECSEntity entity = inst->GetSceneHierarchy().CreateEntityFromJson(inst->GetMemory(), json_path, inst->GetViewport().GetExtent());
     lua_pushbbhandle(a_state, entity.handle);
     return 1;
 }

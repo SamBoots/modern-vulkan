@@ -162,7 +162,7 @@ bool BB::DestroyEngine()
     return true;
 }
 
-ENGINE_STATUS BB::UpdateEngine(const WindowHandle a_window_handle, const ConstSlice<InputEvent> a_input_events)
+ENGINE_STATUS BB::UpdateEngine(const ConstSlice<InputEvent> a_input_events)
 {
     if (s_window_closed)
         return ENGINE_STATUS::CLOSE_APP;

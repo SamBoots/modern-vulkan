@@ -73,7 +73,7 @@ int main(int argc, char** argv)
 
         ProcessMessages(engine_info.window_handle);
         PollInputEvents(input_events, input_event_count);
-        const ENGINE_STATUS status = UpdateEngine(engine_info.window_handle, ConstSlice<InputEvent>(input_events, input_event_count));
+        const ENGINE_STATUS status = UpdateEngine(ConstSlice<InputEvent>(input_events, input_event_count));
 
         if (status == ENGINE_STATUS::CLOSE_APP)
             end_app = true;

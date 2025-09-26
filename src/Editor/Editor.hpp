@@ -57,8 +57,8 @@ namespace BB
 
         void ImGuiDisplayEditor(MemoryArena& a_arena);
         void ImGuiDisplayGame(class GameInstance& a_game);
-		void ImguiDisplayECS(EntityComponentSystem& a_ecs);
-		void ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_object);
+		void ImguiDisplayECS(EntityComponentSystem& a_ecs, const uint2 a_viewport_extent);
+		void ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_object, const uint2 a_viewport_extent);
 		void ImGuiCreateEntity(EntityComponentSystem& a_ecs, const ECSEntity a_parent = INVALID_ECS_OBJ);
 		void ImGuiDisplayShaderEffect(MemoryArenaTemp a_temp_arena, const CachedShaderInfo& a_shader_infom, int& a_reload_status) const;
 		void ImGuiDisplayShaderEffects(MemoryArena& a_arena);

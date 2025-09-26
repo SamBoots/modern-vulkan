@@ -45,7 +45,14 @@ bool EntityComponentSystem::Init(MemoryArena& a_arena, const EntityComponentSyst
 	m_transform_system.dirty_transforms.Init(a_arena, a_create_info.entity_count, a_create_info.entity_count);
 	m_root_entity_system.root_entities.Init(a_arena, a_create_info.entity_count, a_create_info.entity_count / 4);
 
-	m_render_system.Init(a_arena, a_create_info.render_frame_count, a_create_info.window_size);
+    RenderOptions options;
+    options.resolution = RENDER_OPTIONS::RESOLUTIONS[1];
+    options.shadow_map_resolution = RENDER_OPTIONS::SHADOW_MAP_RESOLUTION[1];
+    options.bloom_downscale_factor = RENDER_OPTIONS::BLOOM_DOWNSCALE_FACTOR[1];
+    options.bloom_smoothness = RENDER_OPTIONS::BLOOM_SMOOTHNESS[1];
+    options.backbuffer_format = IMAGE_FORMAT::RGBA8_SRGB;
+    options.triple_buffering = true;
+	m_render_system.Init(a_arena, options);
 
 	return true;
 }

@@ -473,8 +473,6 @@ static GPUFenceValue WriteTexture(MemoryArena& a_temp_arena, const WriteImageInf
 			case IMAGE_FORMAT::RGBA8_SRGB:
 			case IMAGE_FORMAT::RGBA8_UNORM:
 				return 4;
-			case IMAGE_FORMAT::RGB8_SRGB:
-				return 3;
 			case IMAGE_FORMAT::A8_UNORM:
 				return 1;
 			default:
@@ -1233,9 +1231,6 @@ const Image& Asset::LoadImageMemory(MemoryArena& a_temp_arena, const TextureLoad
 		break;
 	case 4:
 		format = IMAGE_FORMAT::RGBA8_SRGB;
-		break;
-	case 3:
-		format = IMAGE_FORMAT::RGB8_SRGB;
 		break;
 	case 1:
 		format = IMAGE_FORMAT::A8_UNORM;

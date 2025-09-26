@@ -18,13 +18,11 @@ constexpr size_t UNIQUE_MODELS_PER_SCENE = 128;
 
 constexpr uint32_t LIGHT_COUNT = 128;
 
-void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_ecs_obj_max, const uint2 a_window_size, const StackString<32> a_name)
+void SceneHierarchy::Init(MemoryArena& a_arena, const uint32_t a_ecs_obj_max, const StackString<32> a_name)
 {
 	{	// ECS systems
 		EntityComponentSystemCreateInfo create_info;
-		create_info.window_size = a_window_size;
 		create_info.render_frame_count = GetBackBufferCount();
-
 		create_info.entity_count = a_ecs_obj_max;
 		create_info.light_count = LIGHT_COUNT;
 		create_info.render_mesh_count = a_ecs_obj_max;
@@ -80,16 +78,15 @@ void SceneHierarchy::StartFrame()
     m_ecs.StartFrame();
 }
 
-SceneFrame SceneHierarchy::UpdateScene(const RCommandList a_list, Viewport& a_viewport)
+SceneFrame SceneHierarchy::UpdateScene(const RCommandList a_list, const Viewport& a_viewport, const bool a_resized)
 {
 	RenderSystem& render_sys = m_ecs.GetRenderSystem();
 	SceneFrame scene_frame;
 
 	m_ecs.TransformSystemUpdate();
 
-	if (render_sys.GetRenderTargetExtent() != a_viewport.GetExtent())
+	if (a_resized)
 	{
-		render_sys.Resize(a_viewport.GetExtent());
 		render_sys.SetProjection(a_viewport.CreateProjection(60.f, 0.001f, 10000.0f), 0.001f);
 	}
 
@@ -196,16 +193,16 @@ ECSEntity SceneHierarchy::CreateEntityViaModel(const Model& a_model, const float
 	return ecs_obj;
 }
 
-ECSEntity SceneHierarchy::CreateEntityAsLight(const LightCreateInfo& a_light_create_info, const char* a_name, const ECSEntity a_parent)
+ECSEntity SceneHierarchy::CreateEntityAsLight(const LightCreateInfo& a_light_create_info, const char* a_name, const uint2 a_viewport_extent, const ECSEntity a_parent)
 {
 	const ECSEntity ecs_obj = m_ecs.CreateEntity(a_name, a_parent, a_light_create_info.pos);
-	bool success = CreateLight(ecs_obj, a_light_create_info);
+	bool success = CreateLight(ecs_obj, a_light_create_info, a_viewport_extent);
 	BB_ASSERT(success, "failed to create light!");
 
 	return ecs_obj;
 }
 
-ECSEntity SceneHierarchy::CreateEntityFromJson(MemoryArena& a_temp_arena, const PathString& a_path)
+ECSEntity SceneHierarchy::CreateEntityFromJson(MemoryArena& a_temp_arena, const PathString& a_path, const uint2 a_viewport_extent)
 {
     JsonParser parser(a_path.c_str());
     parser.Parse();
@@ -284,13 +281,13 @@ ECSEntity SceneHierarchy::CreateEntityFromJson(MemoryArena& a_temp_arena, const 
         }
 
         const StringView light_name = light_obj.Find("name")->GetString();
-        CreateEntityAsLight(light_info, light_name.c_str(), top_level);
+        CreateEntityAsLight(light_info, light_name.c_str(), a_viewport_extent);
     }
 
     return top_level;
 }
 
-bool SceneHierarchy::CreateLight(const ECSEntity a_entity, const LightCreateInfo& a_light_info)
+bool SceneHierarchy::CreateLight(const ECSEntity a_entity, const LightCreateInfo& a_light_info, const uint2 a_viewport_extent)
 {
 	Light light;
 	light.light_type = static_cast<uint32_t>(a_light_info.light_type);
@@ -304,7 +301,7 @@ bool SceneHierarchy::CreateLight(const ECSEntity a_entity, const LightCreateInfo
 	light.direction = float4(a_light_info.direction.x, a_light_info.direction.y, a_light_info.direction.z, a_light_info.cutoff_radius);
 
 	const float near_plane = 1.f, far_plane = 7.5f;
-	const float4x4 vp = CalculateLightProjectionView(a_light_info.pos, a_light_info.direction, m_ecs.GetRenderSystem().GetRenderTargetExtent(), near_plane, far_plane);
+	const float4x4 vp = CalculateLightProjectionView(a_light_info.pos, a_light_info.direction, a_viewport_extent, near_plane, far_plane);
 
 	LightComponent light_component;
 	light_component.light = light;

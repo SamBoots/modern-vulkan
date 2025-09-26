@@ -157,8 +157,8 @@ void Editor::UpdateGame(EditorGame& a_instance, const float a_delta_time)
     const float3 pos = a_instance.GetCameraPos();
     const float4x4 view = a_instance.GetCameraView();
     a_instance.GetSceneHierarchy().GetECS().GetRenderSystem().SetView(view, pos);
-
-	const SceneFrame frame = hierarchy.UpdateScene(list, viewport);
+    // TEMP TEMP TEMP
+	const SceneFrame frame = hierarchy.UpdateScene(list, viewport, false);
 	// book keep all the end details
 	m_per_frame.draw_struct[pool_index].type = DRAW_TYPE::GAME;
     m_per_frame.draw_struct[pool_index].game = &a_instance;
@@ -577,10 +577,10 @@ void Editor::ImGuiDisplayEditor(MemoryArena& a_arena)
         ImGuiShowProfiler(a_arena);
         ImGuiDisplayGames();
 
-        for (size_t i = 0; i < 100; i++)
+        for (uint32_t i = 0; i < 100; i++)
         {
             ImGui::Text("%u", i);
-            ImGui::Image(i, ImVec2(160, 160));
+            ImGui::Image(i, ImVec2(160.f, 160.f));
         }
 
     }
@@ -596,13 +596,13 @@ void Editor::ImGuiDisplayGame(GameInstance& a_game)
     name_editor.append(" - editor");
     if (ImGui::Begin(name_editor.c_str()))
     {
-        ImguiDisplayECS(a_game.GetSceneHierarchy().m_ecs);
+        ImguiDisplayECS(a_game.GetSceneHierarchy().m_ecs, a_game.GetViewport().GetExtent());
         ImGuiDisplayInputChannel(a_game.GetInputChannel());
     }
     ImGui::End();
 }
 
-void Editor::ImguiDisplayECS(EntityComponentSystem& a_ecs)
+void Editor::ImguiDisplayECS(EntityComponentSystem& a_ecs, const uint2 a_viewport_extent)
 {
     if (ImGui::CollapsingHeader("ECS"))
 	{
@@ -620,16 +620,46 @@ void Editor::ImguiDisplayECS(EntityComponentSystem& a_ecs)
 			//postfx_options.bloom_scale = 10.5f;
 		}
 
-		if (render_sys.m_final_image_format == IMAGE_FORMAT::RGBA16_SFLOAT)
-		{
-			if (ImGui::Button("Render Format to: RGBA8_SRGB"))
-				render_sys.ResizeNewFormat(render_sys.m_final_image_extent, IMAGE_FORMAT::RGBA8_SRGB);
-		}
-		else
-		{
-			if (ImGui::Button("Render Format to: RGBA16_SFLOAT"))
-				render_sys.ResizeNewFormat(render_sys.m_final_image_extent, IMAGE_FORMAT::RGBA16_SFLOAT);
-		}
+        if (ImGui::CollapsingHeader("ECS"))
+        {
+            ImGui::Indent();
+
+            RenderOptions r_o = render_sys.GetOptions();
+
+            {
+                int resolution_index = 0;
+                FixedArray<char[32], _countof(RENDER_OPTIONS::RESOLUTIONS)> names{};
+
+                for (size_t i = 0; i < names.size(); i++)
+                    if (r_o.resolution == RENDER_OPTIONS::RESOLUTIONS[i])
+                    {
+                        resolution_index = static_cast<int>(i);
+                        break;
+                    }
+
+                FixedArray<char*, names.size()> names_list{};
+
+
+                for (size_t i = 0; i < names.size(); i++)
+                {
+
+
+
+                    names_list[i] = names[i];
+                }
+
+                ImGui::Text("Resolution: %u x %u", r_o.resolution.x, r_o.resolution.y);
+                if (ImGui::Combo("Resolution", &resolution_index, names_list.data(), names.size()))
+                {
+                    r_o.resolution = RENDER_OPTIONS::RESOLUTIONS[resolution_index];
+                }
+
+            }
+
+            render_sys.SetOptions(r_o);
+
+            ImGui::Unindent();
+        }
 
 		if (ImGui::CollapsingHeader("graphical options"))
 		{
@@ -645,32 +675,12 @@ void Editor::ImguiDisplayECS(EntityComponentSystem& a_ecs)
 			//ImGui::InputFloat("bloom scale", &postfx_options.bloom_scale);
 		}
 
-		if (ImGui::CollapsingHeader("skip render pass option"))
-		{
-			if (ImGui::Button("toggle skipping skybox pass"))
-			{
-				render_sys.ToggleSkipSkyboxPass();
-			}
-			if (ImGui::Button("toggle shadowmapping pass"))
-			{
-				render_sys.ToggleSkipShadowMappingPass();
-			}
-			if (ImGui::Button("toggle skipping object rendering pass"))
-			{
-				render_sys.ToggleSkipObjectRenderingPass();
-			}
-			if (ImGui::Button("toggle skipping bloom pass"))
-			{
-				render_sys.ToggleSkipBloomPass();
-			}
-		}
-
 		for (uint32_t i = 0; i < a_ecs.m_root_entity_system.root_entities.Size(); i++)
 		{
 			const ECSEntity entity = a_ecs.m_root_entity_system.root_entities[i];
 			ImGui::PushID(static_cast<int>(entity.index));
 
-			ImGuiDisplayEntity(a_ecs, entity);
+			ImGuiDisplayEntity(a_ecs, entity, a_viewport_extent);
 
 			ImGui::PopID();
 		}
@@ -692,7 +702,7 @@ static void ImGuiShowTexturePossibleChange(const RDescriptorIndex a_texture, con
 	}
 }
 
-void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_entity)
+void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_entity, const uint2 a_viewport_extent)
 {
 	ImGui::PushID(static_cast<int>(a_entity.handle));
 
@@ -818,7 +828,7 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 				if (position_changed)
 				{
 					const float near_plane = 1.f, far_plane = 7.5f;
-					comp.projection_view =SceneHierarchy::CalculateLightProjectionView(pos, float3(comp.light.direction.x, comp.light.direction.y, comp.light.direction.z), a_ecs.GetRenderSystem().GetRenderTargetExtent(), near_plane, far_plane);
+					comp.projection_view =SceneHierarchy::CalculateLightProjectionView(pos, float3(comp.light.direction.x, comp.light.direction.y, comp.light.direction.z), a_viewport_extent, near_plane, far_plane);
 				}
 
 				ImGui::Unindent();
@@ -865,7 +875,7 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 						light_comp.light.radius_quadratic = quadratic;
 
 						const float near_plane = 1.f, far_plane = 7.5f;
-						light_comp.projection_view = SceneHierarchy::CalculateLightProjectionView(pos, direction, a_ecs.GetRenderSystem().GetRenderTargetExtent(), near_plane, far_plane);
+						light_comp.projection_view = SceneHierarchy::CalculateLightProjectionView(pos, direction, a_viewport_extent, near_plane, far_plane);
 
 						a_ecs.EntityAssignLight(a_entity, light_comp);
 					}
@@ -882,7 +892,7 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 		ECSEntity child = relation.first_child;
 		for (size_t i = 0; i < relation.child_count; i++)
 		{
-			ImGuiDisplayEntity(a_ecs, child);
+			ImGuiDisplayEntity(a_ecs, child, a_viewport_extent);
 			child = a_ecs.m_relations.GetComponent(child).next;
 		}
 

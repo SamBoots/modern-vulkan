@@ -9,6 +9,7 @@
 #include "UICanvas.hpp"
 
 #include "Rendergraph.hpp"
+#include "RenderOptions.hpp"
 
 namespace BB
 {
@@ -25,43 +26,19 @@ namespace BB
         friend class Editor;
         // temporary
         friend class EntityComponentSystem;
-		void Init(MemoryArena& a_arena, const uint32_t a_back_buffer_count, const uint2 a_render_target_size);
+		void Init(MemoryArena& a_arena, const RenderOptions& a_options);
 
 		void StartFrame(MemoryArena& a_per_frame_arena, const uint32_t a_max_ui_elements = 1024);
 		RenderSystemFrame EndFrame(const RCommandList a_list, const IMAGE_LAYOUT a_current_layout);
 		void UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCommandList a_list, const uint2 a_draw_area, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const RaytraceComponentPool& a_raytrace_pool, const ConstSlice<LightComponent> a_lights);
 
-		void Resize(const uint2 a_new_extent, const bool a_force = false);
-		void ResizeNewFormat(const uint2 a_render_target_size, const IMAGE_FORMAT a_render_target_format);
 		void Screenshot(const PathString& a_path) const;
 
         UICanvas& GetUIStage() { return m_ui_stage; }
-        FontAtlas& GetDefaultFont() {return m_font_atlas;}
+        FontAtlas& GetDefaultFont() { return m_font_atlas; }
+        const RenderOptions& GetOptions() { return m_options; }
+        void SetOptions(const RenderOptions& a_options);
 
-		bool ToggleSkipSkyboxPass()
-		{
-			return m_options.skip_skybox = !m_options.skip_skybox;
-		}
-
-		bool ToggleSkipShadowMappingPass()
-		{
-			return m_options.skip_shadow_mapping = !m_options.skip_shadow_mapping;
-		}
-
-		bool ToggleSkipObjectRenderingPass()
-		{
-			return m_options.skip_object_rendering = !m_options.skip_object_rendering;
-		}
-
-		bool ToggleSkipBloomPass()
-		{
-			return m_options.skip_bloom = !m_options.skip_bloom;
-		}
-
-		uint2 GetRenderTargetExtent() const
-		{
-			return m_final_image_extent;
-		}
 
 		void SetView(const float4x4& a_view, const float3& a_view_position);
 		void SetProjection(const float4x4& a_projection, const float a_near_plane);
@@ -72,10 +49,9 @@ namespace BB
 	private:
         RG::RenderGraphSystem m_graph_system;
         RG::RenderGraph* m_cur_graph;
-
-        uint2 m_final_image_extent;
-        IMAGE_FORMAT m_final_image_format;
         RG::ResourceHandle m_final_image;
+
+        RenderOptions m_options;
         uint32_t m_current_frame;
         uint32_t m_frame_count;
 
@@ -115,14 +91,6 @@ namespace BB
         } m_raytrace_data;
 
 		void BuildTopLevelAccelerationStructure(MemoryArena& a_per_frame_arena, const RCommandList a_list, const ConstSlice<AccelerationStructureInstanceInfo> a_instances);
-
-		struct Options
-		{
-			bool skip_skybox;
-			bool skip_shadow_mapping;
-			bool skip_object_rendering;
-			bool skip_bloom;
-		} m_options;
 
         // old shit
 
