@@ -157,8 +157,8 @@ void Editor::UpdateGame(EditorGame& a_instance, const float a_delta_time)
     const float3 pos = a_instance.GetCameraPos();
     const float4x4 view = a_instance.GetCameraView();
     a_instance.GetSceneHierarchy().GetECS().GetRenderSystem().SetView(view, pos);
-    // TEMP TEMP TEMP
-	const SceneFrame frame = hierarchy.UpdateScene(list, viewport, false);
+    
+	const SceneFrame frame = hierarchy.UpdateScene(list, viewport, );
 	// book keep all the end details
 	m_per_frame.draw_struct[pool_index].type = DRAW_TYPE::GAME;
     m_per_frame.draw_struct[pool_index].game = &a_instance;
