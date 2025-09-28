@@ -638,13 +638,11 @@ void Editor::ImguiDisplayECS(EntityComponentSystem& a_ecs, const uint2 a_viewpor
                     }
 
                 FixedArray<char*, names.size()> names_list{};
-
+				// temp make this constexpr or something
 
                 for (size_t i = 0; i < names.size(); i++)
                 {
-
-
-
+					FormatString(names[i], _countof(names[i]), "%uX%u", RENDER_OPTIONS::RESOLUTIONS[i].x, RENDER_OPTIONS::RESOLUTIONS[i].y);
                     names_list[i] = names[i];
                 }
 

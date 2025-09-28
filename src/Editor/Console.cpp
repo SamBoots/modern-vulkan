@@ -186,7 +186,7 @@ void Console::LoggerCallback(const char* a_file_name, int a_line, const WarningT
 	entry.file_name = PathString(a_file_name);
 	entry.line = a_line;
 
-    const size_t new_size = FormatString(entry.message.data(), entry.message.capacity(), a_str, a_args);
+    const size_t new_size = _FormatString(entry.message.data(), entry.message.capacity(), a_str, a_args);
     if (new_size == size_t(-1))
     {
         BB_WARNING(new_size != size_t(-1), "logger message too large", WarningType::HIGH);

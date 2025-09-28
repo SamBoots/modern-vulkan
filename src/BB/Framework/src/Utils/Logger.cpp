@@ -12,7 +12,7 @@ static void StandardLogCallback(const char* a_file_name, const int a_line, const
 {
 	StackString<2048> string{};
 
-    const size_t new_size = FormatString(string.data(), string.capacity(), StringView(a_formats), a_args);
+    const size_t new_size = _FormatString(string.data(), string.capacity(), StringView(a_formats), a_args);
 
     if (new_size == size_t(-1))
     {

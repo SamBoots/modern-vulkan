@@ -3,7 +3,7 @@
 
 using namespace BB;
 
-size_t BB::FormatString(char* a_dst, const size_t a_dst_size, const StringView a_fmt_string, va_list a_args)
+size_t BB::_FormatString(char* a_dst, const size_t a_dst_size, const StringView a_fmt_string, va_list a_args)
 {
     if (a_fmt_string.size() > a_dst_size)
         return size_t(-1);
@@ -72,4 +72,13 @@ size_t BB::FormatString(char* a_dst, const size_t a_dst_size, const StringView a
     } 
 
     return dst_pos;
+}
+
+size_t BB::FormatString(char* a_dst, const size_t a_dst_size, const StringView a_fmt_string, ...)
+{
+    va_list vl;
+    va_start(vl, a_fmt_string);
+    const size_t retval = _FormatString(a_dst, a_dst_size, a_fmt_string, vl);
+    va_end(vl);
+    return retval;
 }

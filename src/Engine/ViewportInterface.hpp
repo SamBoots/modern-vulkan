@@ -7,12 +7,6 @@
 
 namespace BB
 {
-	struct ViewportRect
-	{
-		uint2 size;
-		uint2 offset;
-	};
-
 	class Viewport
 	{
 	public:
@@ -27,6 +21,8 @@ namespace BB
 		void SetOffset(const int2 a_offset);
 		uint2 GetExtent() const;
 		int2 GetOffset() const;
+
+		bool HasResizedAndToggle();
 
 	private:
 		StackString<32> m_name;

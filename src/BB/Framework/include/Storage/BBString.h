@@ -641,5 +641,7 @@ namespace BB
     using PathWStringV = Path_String<wchar_t, STRING_SIZE>;
 
     // returns size_t(-1) on failure
-    size_t FormatString(char* a_dst, const size_t a_dst_size, const StringView a_fmt_string, va_list a_args);
+    size_t _FormatString(char* a_dst, const size_t a_dst_size, const StringView a_fmt_string, va_list a_args);
+	size_t FormatString(char* a_dst, const size_t a_dst_size, const StringView a_fmt_string, ...);
+
 }
