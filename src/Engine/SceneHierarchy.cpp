@@ -78,17 +78,12 @@ void SceneHierarchy::StartFrame()
     m_ecs.StartFrame();
 }
 
-SceneFrame SceneHierarchy::UpdateScene(const RCommandList a_list, const Viewport& a_viewport, const bool a_resized)
+SceneFrame SceneHierarchy::UpdateScene(const RCommandList a_list, const Viewport& a_viewport)
 {
 	RenderSystem& render_sys = m_ecs.GetRenderSystem();
 	SceneFrame scene_frame;
 
 	m_ecs.TransformSystemUpdate();
-
-	if (a_resized)
-	{
-		render_sys.SetProjection(a_viewport.CreateProjection(60.f, 0.001f, 10000.0f), 0.001f);
-	}
 
 	scene_frame.render_frame = m_ecs.RenderSystemUpdate(a_list, a_viewport.GetExtent());
 	m_ecs.EndFrame();

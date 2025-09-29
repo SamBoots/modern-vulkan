@@ -157,8 +157,10 @@ void Editor::UpdateGame(EditorGame& a_instance, const float a_delta_time)
     const float3 pos = a_instance.GetCameraPos();
     const float4x4 view = a_instance.GetCameraView();
     a_instance.GetSceneHierarchy().GetECS().GetRenderSystem().SetView(view, pos);
-    
-	const SceneFrame frame = hierarchy.UpdateScene(list, viewport, );
+    a_instance.GetSceneHierarchy().GetECS().GetRenderSystem().SetProjection(viewport.CreateProjection(60.f, 0.001f, 10000.0f), 0.001f);
+
+
+	const SceneFrame frame = hierarchy.UpdateScene(list, viewport);
 	// book keep all the end details
 	m_per_frame.draw_struct[pool_index].type = DRAW_TYPE::GAME;
     m_per_frame.draw_struct[pool_index].game = &a_instance;
@@ -602,6 +604,54 @@ void Editor::ImGuiDisplayGame(GameInstance& a_game)
     ImGui::End();
 }
 
+template<typename T, size_t a_option_size>
+static T RenderOptionsDisplay(const T a_current, const T* a_options, const char* a_label, auto a_format_func)
+{
+    int resolution_index = 0;
+    FixedArray<char[32], a_option_size> names{};
+
+    for (size_t i = 0; i < names.size(); i++)
+        if (a_current == a_options[i])
+        {
+            resolution_index = static_cast<int>(i);
+            break;
+        }
+
+    FixedArray<char*, a_option_size> names_list{};
+    for (size_t i = 0; i < a_option_size; i++)
+    {
+        a_format_func(names[i], a_options[i]);
+        names_list[i] = names[i];
+    }
+
+    if (ImGui::Combo(a_label, &resolution_index, names_list.data(), names.size()))
+    {
+        return a_options[resolution_index];
+    }
+    return a_current;
+}
+
+
+template<size_t a_option_size>
+static uint2 RenderOptionsDisplay(const uint2 a_current, const uint2* a_options, const char* a_label)
+{
+    return RenderOptionsDisplay<uint2, a_option_size>(a_current, a_options, a_label,
+        [](char* a_string, const uint2 a_val) 
+        {
+            FormatString(a_string, 32, "%uX%u", a_val.x, a_val.y);
+        });
+}
+
+template<size_t a_option_size>
+static uint32_t RenderOptionsDisplay(const uint32_t a_current, const uint32_t* a_options, const char* a_label)
+{
+    return RenderOptionsDisplay<uint32_t, a_option_size>(a_current, a_options, a_label,
+        [](char* a_string, const uint32_t a_val)
+        {
+            FormatString(a_string, 32, "%u", a_val);
+        });
+}
+
 void Editor::ImguiDisplayECS(EntityComponentSystem& a_ecs, const uint2 a_viewport_extent)
 {
     if (ImGui::CollapsingHeader("ECS"))
@@ -620,39 +670,19 @@ void Editor::ImguiDisplayECS(EntityComponentSystem& a_ecs, const uint2 a_viewpor
 			//postfx_options.bloom_scale = 10.5f;
 		}
 
-        if (ImGui::CollapsingHeader("ECS"))
+        if (ImGui::CollapsingHeader("RenderOptions"))
         {
             ImGui::Indent();
 
             RenderOptions r_o = render_sys.GetOptions();
-
-            {
-                int resolution_index = 0;
-                FixedArray<char[32], _countof(RENDER_OPTIONS::RESOLUTIONS)> names{};
-
-                for (size_t i = 0; i < names.size(); i++)
-                    if (r_o.resolution == RENDER_OPTIONS::RESOLUTIONS[i])
-                    {
-                        resolution_index = static_cast<int>(i);
-                        break;
-                    }
-
-                FixedArray<char*, names.size()> names_list{};
-				// temp make this constexpr or something
-
-                for (size_t i = 0; i < names.size(); i++)
-                {
-					FormatString(names[i], _countof(names[i]), "%uX%u", RENDER_OPTIONS::RESOLUTIONS[i].x, RENDER_OPTIONS::RESOLUTIONS[i].y);
-                    names_list[i] = names[i];
-                }
-
-                ImGui::Text("Resolution: %u x %u", r_o.resolution.x, r_o.resolution.y);
-                if (ImGui::Combo("Resolution", &resolution_index, names_list.data(), names.size()))
-                {
-                    r_o.resolution = RENDER_OPTIONS::RESOLUTIONS[resolution_index];
-                }
-
-            }
+            r_o.resolution = RenderOptionsDisplay<_countof(RENDER_OPTIONS::RESOLUTIONS)>(
+                r_o.resolution, RENDER_OPTIONS::RESOLUTIONS, "game resolution");
+            r_o.shadow_map_resolution = RenderOptionsDisplay<_countof(RENDER_OPTIONS::SHADOW_MAP_RESOLUTION)>(
+                r_o.shadow_map_resolution, RENDER_OPTIONS::SHADOW_MAP_RESOLUTION, "shadow map resolution");
+            r_o.bloom_downscale_factor = RenderOptionsDisplay<_countof(RENDER_OPTIONS::BLOOM_DOWNSCALE_FACTOR)>(
+                r_o.bloom_downscale_factor, RENDER_OPTIONS::BLOOM_DOWNSCALE_FACTOR, "bloom downscale factor");
+            r_o.bloom_smoothness = RenderOptionsDisplay<_countof(RENDER_OPTIONS::BLOOM_SMOOTHNESS)>(
+                r_o.bloom_smoothness, RENDER_OPTIONS::BLOOM_SMOOTHNESS, "bloom smoothness");
 
             render_sys.SetOptions(r_o);
 
@@ -667,7 +697,6 @@ void Editor::ImguiDisplayECS(EntityComponentSystem& a_ecs, const uint2 a_viewpor
 
 		if (ImGui::CollapsingHeader("post fx option"))
 		{
-            BB_UNIMPLEMENTED("no fx changing option");
 			//auto& postfx_options = render_sys.m_postfx;
 			//ImGui::InputFloat("bloom strength", &postfx_options.bloom_strength);
 			//ImGui::InputFloat("bloom scale", &postfx_options.bloom_scale);
