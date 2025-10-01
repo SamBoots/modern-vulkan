@@ -9,7 +9,6 @@ namespace BB
 	struct LightComponent
 	{
 		Light light;
-		float4x4 projection_view;
 	};
 
 	class LightComponentPool

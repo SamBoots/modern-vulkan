@@ -549,7 +549,6 @@ WriteableGPUBufferView BB::AllocateFromWritableIndexBuffer(const size_t a_size_i
 
 static GPUBuffer UploadStartupResources()
 {
-    OSMessageBoxYesNo("fix bug", "make the first frame's time wait sync with this operation for faster startup");
 	CommandPool pool = GetGraphicsCommandPool();
 	const RCommandList list = pool.StartCommandList();
 

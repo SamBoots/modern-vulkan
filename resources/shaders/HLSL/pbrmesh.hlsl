@@ -43,7 +43,7 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
     
     for (uint i = 0; i < scene.light_count; i++)
     {
-        const float4x4 projview = buffers[scene.per_frame_index].Load<float4x4>(scene.light_view_offset + sizeof(float4x4) * i);
+        const float4x4 projview = buffers[scene.per_frame_index].Load<BB::Light>(scene.light_offset + sizeof(BB::Light) * i).view_projection;
         output.world_pos_light[i] = mul(biasMat, mul(projview, mul(transform.transform, float4(position, 1.0))));
     }
     return output;

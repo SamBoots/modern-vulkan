@@ -50,12 +50,16 @@ size_t BB::_FormatString(char* a_dst, const size_t a_dst_size, const StringView 
         case 'u':
         {
             uint32_t value = va_arg(a_args, uint32_t);
-            char buf[32]{};
-            int i = 30;
-            for (; value && i; --i, value /= 10)
-                buf[i] = "0123456789abcdef"[value % 10];
+            char buf[11]{};
+            int i = 9;
 
-            add_to_string(&buf[i] + 1);
+            do
+            {
+                buf[--i] = '0' + (value % 10);
+                value /= 10;
+            } while(value != 0);
+
+            add_to_string(&buf[i]);
         }
             break;
         case 's':

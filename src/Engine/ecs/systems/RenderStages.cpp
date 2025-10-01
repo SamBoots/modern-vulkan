@@ -51,12 +51,14 @@ bool BB::RenderPassClearStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_g
     return true;
 }
 
-bool BB::RenderPassShadowMapStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle>, Slice<RG::ResourceHandle> a_resource_outputs)
+bool BB::RenderPassShadowMapStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
 {
+    const RG::RenderResource& light_buffer = a_graph.GetResource(a_resource_inputs[0]);
     const RG::RenderResource& out_rt = a_graph.GetResource(a_resource_outputs[0]);
     const uint2 shadow_map_extent = uint2(out_rt.image.extent.x, out_rt.image.extent.y);
 
     const uint32_t shadow_map_count = out_rt.image.array_layers;
+    a_global_data.scene_info.light_offset = light_buffer.buffer.offset;
     a_global_data.scene_info.shadow_map_count = shadow_map_count;
     a_global_data.scene_info.shadow_map_array_descriptor = out_rt.descriptor_index;
     a_global_data.scene_info.shadow_map_resolution = float2(static_cast<float>(shadow_map_extent.x), static_cast<float>(shadow_map_extent.y));
@@ -149,7 +151,6 @@ bool BB::RenderPassPBRStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_glo
 {
     const RG::RenderResource& matrix_buffer = a_graph.GetResource(a_resource_inputs[0]);
     const RG::RenderResource& light_buffer = a_graph.GetResource(a_resource_inputs[1]);
-    const RG::RenderResource& light_view_buffer = a_graph.GetResource(a_resource_inputs[2]);
 
     const RG::RenderResource& out_rt = a_graph.GetResource(a_resource_outputs[0]);
     const RG::RenderResource& out_rt_bright = a_graph.GetResource(a_resource_outputs[1]);
@@ -163,7 +164,6 @@ bool BB::RenderPassPBRStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_glo
     // MAYBE ALSO DO OFFSETS
     a_global_data.scene_info.matrix_offset = static_cast<uint32_t>(matrix_buffer.buffer.offset);
     a_global_data.scene_info.light_offset = static_cast<uint32_t>(light_buffer.buffer.offset);
-    a_global_data.scene_info.light_view_offset = static_cast<uint32_t>(light_view_buffer.buffer.offset);
 
     FixedArray<RenderingAttachmentColor, 2> color_attachs;
     color_attachs[0].load_color = true;
@@ -205,19 +205,14 @@ bool BB::RenderPassPBRStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_glo
     blend_state[1] = blend_state[0];
     SetBlendMode(a_list, 0, blend_state.slice(color_attach_count));
 
-    //if (m_options.skip_object_rendering)
-    //{
-    //    EndRenderPass(a_list);
-    //    return;
-    //}
     SetFrontFace(a_list, false);
     SetCullMode(a_list, CULL_MODE::NONE);
+    SetPrimitiveTopology(a_list, PRIMITIVE_TOPOLOGY::TRIANGLE_LIST);
 
     for (uint32_t i = 0; i < a_graph.GetDrawList().draw_entries.size(); i++)
     {
         const DrawList::DrawEntry& mesh_draw_call = a_graph.GetDrawList().draw_entries[i];
 
-        SetPrimitiveTopology(a_list, PRIMITIVE_TOPOLOGY::TRIANGLE_LIST);
         Material::BindMaterial(a_list, mesh_draw_call.master_material);
 
         PBRIndices shader_indices;

@@ -78,14 +78,13 @@ void SceneHierarchy::StartFrame()
     m_ecs.StartFrame();
 }
 
-SceneFrame SceneHierarchy::UpdateScene(const RCommandList a_list, const Viewport& a_viewport)
+SceneFrame SceneHierarchy::UpdateScene(const RCommandList a_list)
 {
-	RenderSystem& render_sys = m_ecs.GetRenderSystem();
 	SceneFrame scene_frame;
 
 	m_ecs.TransformSystemUpdate();
 
-	scene_frame.render_frame = m_ecs.RenderSystemUpdate(a_list, a_viewport.GetExtent());
+	scene_frame.render_frame = m_ecs.RenderSystemUpdate(a_list);
 	m_ecs.EndFrame();
 
 	return scene_frame;
@@ -296,11 +295,10 @@ bool SceneHierarchy::CreateLight(const ECSEntity a_entity, const LightCreateInfo
 	light.direction = float4(a_light_info.direction.x, a_light_info.direction.y, a_light_info.direction.z, a_light_info.cutoff_radius);
 
 	const float near_plane = 1.f, far_plane = 7.5f;
-	const float4x4 vp = CalculateLightProjectionView(a_light_info.pos, a_light_info.direction, a_viewport_extent, near_plane, far_plane);
+    light.view_projection = CalculateLightProjectionView(a_light_info.pos, a_light_info.direction, a_viewport_extent, near_plane, far_plane);
 
 	LightComponent light_component;
 	light_component.light = light;
-	light_component.projection_view = vp;
 	return m_ecs.EntityAssignLight(a_entity, light_component);
 }
 

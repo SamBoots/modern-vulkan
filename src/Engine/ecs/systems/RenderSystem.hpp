@@ -30,7 +30,7 @@ namespace BB
 
 		void StartFrame(MemoryArena& a_per_frame_arena, const uint32_t a_max_ui_elements = 1024);
 		RenderSystemFrame EndFrame(const RCommandList a_list, const IMAGE_LAYOUT a_current_layout);
-		void UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCommandList a_list, const uint2 a_draw_area, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const RaytraceComponentPool& a_raytrace_pool, const ConstSlice<LightComponent> a_lights);
+		void UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCommandList a_list, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const RaytraceComponentPool& a_raytrace_pool, const ConstSlice<LightComponent> a_lights);
 
 		void Screenshot(const PathString& a_path) const;
 
@@ -38,7 +38,6 @@ namespace BB
         FontAtlas& GetDefaultFont() { return m_font_atlas; }
         const RenderOptions& GetOptions() { return m_options; }
         void SetOptions(const RenderOptions& a_options);
-
 
 		void SetView(const float4x4& a_view, const float3& a_view_position);
 		void SetProjection(const float4x4& a_projection, const float a_near_plane);

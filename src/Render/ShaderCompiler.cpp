@@ -115,12 +115,7 @@ bool BB::CompileShader(const ShaderCompiler a_shader_compiler, const Buffer& a_b
 	if (errors != nullptr && errors->GetStringLength() != 0)
 	{
         LPCSTR str = errors->GetStringPointer();
-		Logger::LogMessage(
-			__FILE__, 
-			__LINE__, 
-			WarningType::HIGH,
-			"ss", "Shader Compilation failed with errors:\n", 
-            str);
+        BB_WARNINGF(false, "Shader Compilation failed with errors: %s", WarningType::HIGH, str);
 		errors->Release();
 	}
 

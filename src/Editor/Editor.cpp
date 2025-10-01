@@ -159,10 +159,8 @@ void Editor::UpdateGame(EditorGame& a_instance, const float a_delta_time)
     a_instance.GetSceneHierarchy().GetECS().GetRenderSystem().SetView(view, pos);
     a_instance.GetSceneHierarchy().GetECS().GetRenderSystem().SetProjection(viewport.CreateProjection(60.f, 0.001f, 10000.0f), 0.001f);
 
-
-	const SceneFrame frame = hierarchy.UpdateScene(list, viewport);
+	const SceneFrame frame = hierarchy.UpdateScene(list);
 	// book keep all the end details
-	m_per_frame.draw_struct[pool_index].type = DRAW_TYPE::GAME;
     m_per_frame.draw_struct[pool_index].game = &a_instance;
 	m_per_frame.fences[pool_index] = frame.render_frame.fence;
 	m_per_frame.fence_values[pool_index] = frame.render_frame.fence_value;
@@ -429,45 +427,42 @@ void Editor::EndFrame(MemoryArena& a_arena)
 		for (size_t i = 0; i < m_per_frame.current_count; i++)
 		{
             DrawStruct& ds = m_per_frame.draw_struct[i];
-            if (ds.type == DRAW_TYPE::GAME)
+            EditorGame& game_inst = *ds.game;
+            if (m_per_frame.success[i])
             {
-                EditorGame& game_inst = *ds.game;
-                if (m_per_frame.success[i])
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+                if (ImGui::Begin(game_inst.GetSceneHierarchy().GetECS().GetName().c_str(), nullptr, ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoScrollbar))
                 {
-                    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-                    if (ImGui::Begin(game_inst.GetSceneHierarchy().GetECS().GetName().c_str(), nullptr, ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoScrollbar))
+                    if (ImGui::BeginMenuBar())
                     {
-                        if (ImGui::BeginMenuBar())
+                        if (ImGui::BeginMenu("screenshot"))
                         {
-                            if (ImGui::BeginMenu("screenshot"))
-                            {
-                                static char image_name[128]{};
-                                ImGui::InputText("sceenshot name", image_name, 128);
+                            static char image_name[128]{};
+                            ImGui::InputText("sceenshot name", image_name, 128);
 
-                                if (ImGui::Button("make screenshot"))
-                                    game_inst.GetSceneHierarchy().GetECS().GetRenderSystem().Screenshot(image_name);
+                            if (ImGui::Button("make screenshot"))
+                                game_inst.GetSceneHierarchy().GetECS().GetRenderSystem().Screenshot(image_name);
 
-                                ImGui::EndMenu();
-                            }
-                            if (ImGui::Button("reload lua"))
-                                game_inst.Reload();
-                            ImGui::EndMenuBar();
+                            ImGui::EndMenu();
                         }
-                        DrawImgui(m_per_frame.frame_results[i].render_frame.render_target, game_inst.GetViewport());
-                    }
-                    ImGui::PopStyleVar();
-                }
-                else
-                {
-                    if (ImGui::Begin(game_inst.GetSceneHierarchy().GetECS().GetName().c_str()))
-                    {
-                        ImGui::TextUnformatted(m_per_frame.error_message[i].c_str());
-                        if (ImGui::Button("Reload lua"))
+                        if (ImGui::Button("reload lua"))
                             game_inst.Reload();
+                        ImGui::EndMenuBar();
                     }
+                    DrawImgui(m_per_frame.frame_results[i].render_frame.render_target, game_inst.GetViewport());
                 }
-                ImGui::End();
+                ImGui::PopStyleVar();
             }
+            else
+            {
+                if (ImGui::Begin(game_inst.GetSceneHierarchy().GetECS().GetName().c_str()))
+                {
+                    ImGui::TextUnformatted(m_per_frame.error_message[i].c_str());
+                    if (ImGui::Button("Reload lua"))
+                        game_inst.Reload();
+                }
+            }
+            ImGui::End();
 		}
 
 		// CURFRAME = the render internal frame
@@ -855,7 +850,7 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 				if (position_changed)
 				{
 					const float near_plane = 1.f, far_plane = 7.5f;
-					comp.projection_view =SceneHierarchy::CalculateLightProjectionView(pos, float3(comp.light.direction.x, comp.light.direction.y, comp.light.direction.z), a_viewport_extent, near_plane, far_plane);
+					comp.light.view_projection = SceneHierarchy::CalculateLightProjectionView(pos, float3(comp.light.direction.x, comp.light.direction.y, comp.light.direction.z), a_viewport_extent, near_plane, far_plane);
 				}
 
 				ImGui::Unindent();
@@ -902,7 +897,7 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 						light_comp.light.radius_quadratic = quadratic;
 
 						const float near_plane = 1.f, far_plane = 7.5f;
-						light_comp.projection_view = SceneHierarchy::CalculateLightProjectionView(pos, direction, a_viewport_extent, near_plane, far_plane);
+						light_comp.light.view_projection = SceneHierarchy::CalculateLightProjectionView(pos, direction, a_viewport_extent, near_plane, far_plane);
 
 						a_ecs.EntityAssignLight(a_entity, light_comp);
 					}

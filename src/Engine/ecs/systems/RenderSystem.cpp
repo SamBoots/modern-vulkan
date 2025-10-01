@@ -160,7 +160,7 @@ void RenderSystem::Init(MemoryArena& a_arena, const RenderOptions& a_options)
     m_graph_system.Init(a_arena, m_frame_count, 10, 100);
     m_graph_system.GetGlobalData().scene_info.ambient_light = float4(0.03f, 0.03f, 0.03f, 1.f);
     m_graph_system.GetGlobalData().scene_info.exposure = 1.0;
-    m_graph_system.GetGlobalData().scene_info.shadow_map_resolution = float2(static_cast<float>(m_options.shadow_map_resolution.x), static_cast<float>(m_options.shadow_map_resolution.y));
+    m_graph_system.GetGlobalData().scene_info.scene_resolution = m_options.resolution;
 }
 
 void RenderSystem::StartFrame(MemoryArena& a_per_frame_arena, const uint32_t a_max_ui_elements)
@@ -199,7 +199,7 @@ RenderSystemFrame RenderSystem::EndFrame(const RCommandList a_list, const IMAGE_
 	return frame;
 }
 
-void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCommandList a_list, const uint2 a_draw_area, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const RaytraceComponentPool& a_raytrace_pool, const ConstSlice<LightComponent> a_lights)
+void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCommandList a_list, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const RaytraceComponentPool& a_raytrace_pool, const ConstSlice<LightComponent> a_lights)
 {
     const ConstSlice<ECSEntity> render_entities = a_render_pool.GetEntityComponents();
     const size_t render_component_count = a_render_pool.GetEntityComponents().size();
@@ -208,7 +208,7 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
     
     BindGraphicsBindlessSet(a_list);
     BindIndexBuffer(a_list, 0);
-    SetPushConstantsSceneUniformIndex(a_list, m_cur_graph->GetPerFrameBufferDescriptorIndex());
+    SetPushConstantsSceneUniformIndex(a_list, m_cur_graph->GetSceneDescriptorIndex());
     
     for (size_t i = 0; i < render_component_count; i++)
     {
@@ -236,13 +236,14 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
         m_cur_graph->AddDrawEntry(entry, shader_transform);
     }
 
-    const uint3 render_target_size = uint3(a_draw_area.x, a_draw_area.y, 1);
+    const IMAGE_FORMAT render_target_format = m_options.backbuffer_format;
+    const uint3 render_target_size = uint3(m_options.resolution.x, m_options.resolution.y, 1);
     m_final_image = m_cur_graph->AddImage("final image",
         render_target_size, 
         1, 
         1, 
         IMAGE_USAGE::RENDER_TARGET, 
-        m_options.backbuffer_format);
+        render_target_format);
 
     const RG::ResourceHandle skybox_texture = m_cur_graph->AddTexture("skybox",
         m_skybox,
@@ -260,73 +261,62 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
     clear_pass.AddInputResource(skybox_sampler); // sampler
     clear_pass.AddOutputResource(m_final_image);
 
-    //if (a_lights.size())
-    //{
-    //    const RG::ResourceHandle shadowmaps = m_cur_graph->AddImage("shadow maps",
-    //        uint3(DEPTH_IMAGE_SIZE_W_H, DEPTH_IMAGE_SIZE_W_H, 1), 
-    //        static_cast<uint16_t>(a_lights.size()), 
-    //        1,
-    //        IMAGE_USAGE::SHADOW_MAP,
-    //        IMAGE_FORMAT::D16_UNORM);
-    //    RG::RenderPass& shadowmap_pass = m_cur_graph->AddRenderPass(a_per_frame_arena, RenderPassShadowMapStage, 0, 1, m_shadowmap_material);
-    //    shadowmap_pass.AddOutputResource(shadowmaps);
-    //}
+    RG::ResourceHandle light_buffer;
 
-    //const DrawList& draw_list = m_cur_graph->GetDrawList();
-    //const RG::ResourceHandle matrix_buffer = m_cur_graph->AddBuffer("matrix buffer", draw_list.transforms.size() * sizeof(ShaderTransform), draw_list.transforms.data());
+    if (a_lights.size())
+    {
+        // temp make light and light view seperate
+        StaticArray<Light> lights{};
+        lights.Init(a_per_frame_arena, static_cast<uint32_t>(a_lights.size()));
+        for (size_t i = 0; i < a_lights.size(); i++)
+        {
+            lights.push_back(a_lights[i].light);
+        }
+        light_buffer = m_cur_graph->AddBuffer("light buffer", lights.size() * sizeof(Light), lights.data());
 
-    //RG::ResourceHandle light_buffer;
-    //RG::ResourceHandle light_view_buffer;
+        const RG::ResourceHandle shadowmaps = m_cur_graph->AddImage("shadow maps",
+            uint3(m_options.shadow_map_resolution.x, m_options.shadow_map_resolution.y, 1),
+            static_cast<uint16_t>(a_lights.size()), 
+            1,
+            IMAGE_USAGE::SHADOW_MAP,
+            IMAGE_FORMAT::D16_UNORM);
+        RG::RenderPass& shadowmap_pass = m_cur_graph->AddRenderPass(a_per_frame_arena, RenderPassShadowMapStage, 1, 1, m_shadowmap_material);
+        shadowmap_pass.AddInputResource(light_buffer);
+        shadowmap_pass.AddOutputResource(shadowmaps);
+    }
+    else
+        light_buffer = m_cur_graph->AddBuffer("light buffer", 0);
 
-    //if (a_lights.size())
-    //{
-    //    // temp make light and light view seperate
-    //    StaticArray<Light> lights{};
-    //    StaticArray<float4x4> light_view{};
-    //    lights.Init(a_per_frame_arena, static_cast<uint32_t>(a_lights.size()));
-    //    light_view.Init(a_per_frame_arena, static_cast<uint32_t>(a_lights.size()));
-    //    for (size_t i = 0; i < a_lights.size(); i++)
-    //    {
-    //        lights.push_back(a_lights[i].light);
-    //        light_view.push_back(a_lights[i].projection_view);
-    //    }
-    //    light_buffer = m_cur_graph->AddBuffer("light buffer", lights.size() * sizeof(Light), lights.data());
-    //    light_view_buffer = m_cur_graph->AddBuffer("light view buffer", light_view.size() * sizeof(float4x4), light_view.data());
-    //}
-    //else
-    //{
-    //    light_buffer = m_cur_graph->AddBuffer("light buffer", 0);
-    //    light_view_buffer = m_cur_graph->AddBuffer("light view buffer", 0);
-    //}
+    const DrawList& draw_list = m_cur_graph->GetDrawList();
+    const RG::ResourceHandle matrix_buffer = m_cur_graph->AddBuffer("matrix buffer", draw_list.transforms.size() * sizeof(ShaderTransform), draw_list.transforms.data());
    
 
-    //const RG::ResourceHandle bright_image = m_cur_graph->AddImage("bright image",
-    //    render_target_size, 1, 1, IMAGE_USAGE::RENDER_TARGET, m_final_image_format);
-    //const RG::ResourceHandle depth_buffer = m_cur_graph->AddImage("depth buffer",
-    //    render_target_size, 1, 1, IMAGE_USAGE::DEPTH, IMAGE_FORMAT::D24_UNORM_S8_UINT);
+    const RG::ResourceHandle bright_image = m_cur_graph->AddImage("bright image",
+        render_target_size, 1, 1, IMAGE_USAGE::RENDER_TARGET, render_target_format);
+    const RG::ResourceHandle depth_buffer = m_cur_graph->AddImage("depth buffer",
+        render_target_size, 1, 1, IMAGE_USAGE::DEPTH, IMAGE_FORMAT::D24_UNORM_S8_UINT);
 
-    //RG::RenderPass& pbr_pass = m_cur_graph->AddRenderPass(a_per_frame_arena, RenderPassPBRStage, 3, 3, MasterMaterialHandle());
-    //pbr_pass.AddInputResource(matrix_buffer);
-    //pbr_pass.AddInputResource(light_buffer);
-    //pbr_pass.AddInputResource(light_view_buffer);
-    //pbr_pass.AddOutputResource(m_final_image);
-    //pbr_pass.AddOutputResource(bright_image);
-    //pbr_pass.AddOutputResource(depth_buffer);
-    //
-    ////RG::RenderPass& debug_pass = pgraph->AddRenderPass(a_per_frame_arena, RenderPassLineStage, 1, 2, m_line_material);
-    ////debug_pass.AddInputResource(lines);
-    ////debug_pass.AddOutputResource(final_image);
-    ////debug_pass.AddOutputResource(depth_buffer);
+    RG::RenderPass& pbr_pass = m_cur_graph->AddRenderPass(a_per_frame_arena, RenderPassPBRStage, 2, 3, MasterMaterialHandle());
+    pbr_pass.AddInputResource(matrix_buffer);
+    pbr_pass.AddInputResource(light_buffer);
+    pbr_pass.AddOutputResource(m_final_image);
+    pbr_pass.AddOutputResource(bright_image);
+    pbr_pass.AddOutputResource(depth_buffer);
+    
+    //RG::RenderPass& debug_pass = pgraph->AddRenderPass(a_per_frame_arena, RenderPassLineStage, 1, 2, m_line_material);
+    //debug_pass.AddInputResource(lines);
+    //debug_pass.AddOutputResource(final_image);
+    //debug_pass.AddOutputResource(depth_buffer);
 
-    //ConstSlice quads = m_ui_stage.GetQuads();
-    //if (quads.size())
-    //{
-    //    const RG::ResourceHandle quad_buffer = m_cur_graph->AddBuffer("quads", quads.sizeInBytes(), quads.data());
+    ConstSlice quads = m_ui_stage.GetQuads();
+    if (quads.size())
+    {
+        const RG::ResourceHandle quad_buffer = m_cur_graph->AddBuffer("quads", quads.sizeInBytes(), quads.data());
 
-    //    RG::RenderPass& glyph_pass = m_cur_graph->AddRenderPass(a_per_frame_arena, RenderPassGlyphStage, 1, 1, m_glyph_material);
-    //    glyph_pass.AddInputResource(quad_buffer);
-    //    glyph_pass.AddOutputResource(m_final_image);
-    //}
+        RG::RenderPass& glyph_pass = m_cur_graph->AddRenderPass(a_per_frame_arena, RenderPassGlyphStage, 1, 1, m_glyph_material);
+        glyph_pass.AddInputResource(quad_buffer);
+        glyph_pass.AddOutputResource(m_final_image);
+    }
 
 
     //const RG::ResourceHandle ping = m_cur_graph->AddImage("ping image",
@@ -334,17 +324,17 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
     //    1,
     //    1,
     //    IMAGE_USAGE::RENDER_TARGET,
-    //    m_final_image_format);
+    //    render_target_format);
     //const RG::ResourceHandle pong = m_cur_graph->AddImage("pong image",
     //    render_target_size,
     //    1,
     //    1,
     //    IMAGE_USAGE::RENDER_TARGET,
-    //    m_final_image_format);
+    //    render_target_format);
     //RG::RenderPass& bloom_pass = m_cur_graph->AddRenderPass(a_per_frame_arena, RenderPassBloomStage, 2, 1, m_gaussian_material);
     //bloom_pass.AddInputResource(ping);
     //bloom_pass.AddInputResource(pong);
-    //bloom_pass.AddOutputResource(m_final_image);
+   // bloom_pass.AddOutputResource(m_final_image);
 
     m_graph_system.CompileGraph(a_per_frame_arena, *m_cur_graph);
     m_graph_system.ExecuteGraph(a_per_frame_arena, a_list, *m_cur_graph);

@@ -155,7 +155,7 @@ bool RG::RenderGraph::Compile(MemoryArena& a_arena, GPUUploadRingAllocator& a_up
         }
         else if (res.descriptor_type == DESCRIPTOR_TYPE::IMAGE)
         {
-            if (!res.image.image.IsValid())
+            if (!res.descriptor_index.IsValid())
             {
                 ImageCreateInfo image_info;
                 image_info.name = res.name.c_str();

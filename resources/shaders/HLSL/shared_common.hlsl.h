@@ -74,8 +74,7 @@ namespace BB
         RDescriptorIndex per_frame_index;// 204
         uint matrix_offset;   // 208
         uint light_offset;    // 212
-        uint light_view_offset; // 216
-        uint2 pad0;                        // 224
+        uint3 pad0;           // 224
     };
 
     struct ALIGN_STRUCT(16) MeshMetallic
@@ -104,6 +103,7 @@ namespace BB
 
     struct ALIGN_STRUCT(16) Light
     {
+        float4x4 view_projection;
         float4 color;               // 16 color + w = specular strength
         float4 pos;                 // 32 w = padding
         float4 direction;           // 64 w = cutoff-radius

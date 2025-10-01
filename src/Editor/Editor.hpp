@@ -79,18 +79,9 @@ namespace BB
 		FixedArray<RDescriptorIndex, 3> m_render_target_descs;
         StaticArray<EditorGame> m_game_instances;
 
-        enum class DRAW_TYPE
-        {
-            GAME
-        };
-
         struct DrawStruct
         {
-            DRAW_TYPE type;
-            union
-            {
-                class EditorGame* game = nullptr;
-            };
+            class EditorGame* game = nullptr;
         };
 
 		struct PerFrameInfo
