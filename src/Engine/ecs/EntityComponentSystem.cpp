@@ -183,7 +183,7 @@ bool EntityComponentSystem::DestroyEntity(const ECSEntity a_entity)
 
 void EntityComponentSystem::AddLinesToFrame(const ConstSlice<Line> a_lines)
 {
-    //m_render_system.m_line_stage.AddLines(m_current_frame, a_lines);
+    m_render_system.AddLinesToFrame(a_lines);
 }
 
 void EntityComponentSystem::DrawAABB(const ECSEntity a_entity, const LineColor a_color)

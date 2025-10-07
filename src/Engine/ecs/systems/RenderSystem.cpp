@@ -14,7 +14,7 @@ using namespace BB;
 void RenderSystem::Init(MemoryArena& a_arena, const RenderOptions& a_options)
 {
     m_frame_count = a_options.triple_buffering ? 3 : 2;
-
+    m_lines.Init(a_arena, 256);
     m_options = a_options;
 
     // IF USING RAYTRACING
@@ -168,6 +168,7 @@ void RenderSystem::StartFrame(MemoryArena& a_per_frame_arena, const uint32_t a_m
     //PerFrame& pfd = m_per_frame[m_current_frame];
     //pfd.per_frame_buffer.Clear();
     m_ui_stage.BeginDraw(a_per_frame_arena, a_max_ui_elements);
+    m_lines.clear();
 }
 
 RenderSystemFrame RenderSystem::EndFrame(const RCommandList a_list, const IMAGE_LAYOUT a_current_layout)
@@ -290,14 +291,14 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 
     RG::ResourceHandle bright_image;
     const DrawList& draw_list = m_cur_graph->GetDrawList();
+    const RG::ResourceHandle depth_buffer = m_cur_graph->AddImage("depth buffer",
+        render_target_size, 1, 1, IMAGE_USAGE::DEPTH, IMAGE_FORMAT::D24_UNORM_S8_UINT);
     if (draw_list.draw_entries.size())
     {
         const RG::ResourceHandle matrix_buffer = m_cur_graph->AddBuffer("matrix buffer", draw_list.transforms.size() * sizeof(ShaderTransform), draw_list.transforms.data());
 
         bright_image = m_cur_graph->AddImage("bright image",
             render_target_size, 1, 1, IMAGE_USAGE::RENDER_TARGET, render_target_format);
-        const RG::ResourceHandle depth_buffer = m_cur_graph->AddImage("depth buffer",
-            render_target_size, 1, 1, IMAGE_USAGE::DEPTH, IMAGE_FORMAT::D24_UNORM_S8_UINT);
 
         RG::RenderPass& pbr_pass = m_cur_graph->AddRenderPass(a_per_frame_arena, RenderPassPBRStage, 2, 3, MasterMaterialHandle());
         pbr_pass.AddInputResource(matrix_buffer);
@@ -306,11 +307,15 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
         pbr_pass.AddOutputResource(bright_image);
         pbr_pass.AddOutputResource(depth_buffer);
     }
-    
-    //RG::RenderPass& debug_pass = pgraph->AddRenderPass(a_per_frame_arena, RenderPassLineStage, 1, 2, m_line_material);
-    //debug_pass.AddInputResource(lines);
-    //debug_pass.AddOutputResource(final_image);
-    //debug_pass.AddOutputResource(depth_buffer);
+    if (m_lines.size())
+    {
+        const RG::ResourceHandle line_buffer = m_cur_graph->AddBuffer("line buffer", m_lines.size() * sizeof(Line), m_lines.data());
+
+        RG::RenderPass& debug_pass = m_cur_graph->AddRenderPass(a_per_frame_arena, RenderPassLineStage, 1, 2, m_line_material);
+        debug_pass.AddInputResource(line_buffer);
+        debug_pass.AddOutputResource(m_final_image);
+        debug_pass.AddOutputResource(depth_buffer);
+    }
 
     ConstSlice quads = m_ui_stage.GetQuads();
     if (quads.size())
@@ -360,6 +365,11 @@ void RenderSystem::Screenshot(const PathString& a_path) const
 void RenderSystem::SetOptions(const RenderOptions& a_options)
 {
     // todo
+}
+
+void RenderSystem::AddLinesToFrame(const ConstSlice<Line> a_lines)
+{
+    m_lines.push_back(a_lines);
 }
 
 void RenderSystem::SetView(const float4x4& a_view, const float3& a_view_position)

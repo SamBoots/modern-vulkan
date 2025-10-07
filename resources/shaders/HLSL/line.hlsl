@@ -14,8 +14,8 @@ VSOutput VertexMain(uint a_vertex_index : SV_VertexID)
     BB::Scene3DInfo scene = GetSceneInfo();
 
     const uint vertex_offset = shader_indices.vertex_start + a_vertex_index * sizeof(float4);
-    const float3 pos = asfloat(buffers[global_data.cpu_vertex_buffer].Load3(vertex_offset));
-    const uint color = buffers[global_data.cpu_vertex_buffer].Load(vertex_offset + sizeof(float3));
+    const float3 pos = asfloat(buffers[scene.per_frame_index].Load3(vertex_offset));
+    const uint color = buffers[scene.per_frame_index].Load(vertex_offset + sizeof(float3));
 
     VSOutput output = (VSOutput) 0;
     output.pos = mul(scene.proj, mul(scene.view, float4(pos, 1.0)));

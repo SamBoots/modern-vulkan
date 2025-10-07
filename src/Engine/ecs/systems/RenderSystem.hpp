@@ -38,7 +38,7 @@ namespace BB
         FontAtlas& GetDefaultFont() { return m_font_atlas; }
         const RenderOptions& GetOptions() { return m_options; }
         void SetOptions(const RenderOptions& a_options);
-
+        void AddLinesToFrame(const ConstSlice<Line> a_lines);
 		void SetView(const float4x4& a_view, const float3& a_view_position);
 		void SetProjection(const float4x4& a_projection, const float a_near_plane);
 
@@ -49,6 +49,8 @@ namespace BB
         RG::RenderGraphSystem m_graph_system;
         RG::RenderGraph* m_cur_graph;
         RG::ResourceHandle m_final_image;
+
+        StaticArray<Line> m_lines;
 
         RenderOptions m_options;
         uint32_t m_current_frame;

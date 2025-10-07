@@ -237,15 +237,9 @@ bool BB::RenderPassPBRStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_glo
 bool BB::RenderPassLineStage(RG::RenderGraph& a_graph, RG::GlobalGraphData&, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
 {
     const RG::RenderResource& line_buffer = a_graph.GetResource(a_resource_inputs[0]);
-
     const RG::RenderResource& out_rt = a_graph.GetResource(a_resource_outputs[0]);
-    const RG::RenderResource* pdepth_buffer = nullptr;
+    const RG::RenderResource& depth_buffer = a_graph.GetResource(a_resource_outputs[1]);
     const uint2 draw_area = uint2(out_rt.image.extent.x, out_rt.image.extent.y);
-
-    if (a_resource_outputs.size() == 2)
-    {
-        pdepth_buffer = &a_graph.GetResource(a_resource_outputs[1]);
-    }
 
     RenderingAttachmentColor color_attach;
     color_attach.load_color = true;
@@ -253,17 +247,11 @@ bool BB::RenderPassLineStage(RG::RenderGraph& a_graph, RG::GlobalGraphData&, con
     color_attach.image_layout = IMAGE_LAYOUT::RT_COLOR;
     color_attach.image_view = GetImageView(out_rt.descriptor_index);
 
-    RenderingAttachmentDepth* pdepth = nullptr;
-    RenderingAttachmentDepth depth;
-    if (pdepth_buffer)
-    {
-        depth = {};
-        depth.load_depth = true;
-        depth.store_depth = false;
-        depth.image_layout = IMAGE_LAYOUT::RT_DEPTH;
-        depth.image_view = GetImageView(pdepth_buffer->descriptor_index);
-        pdepth = &depth;
-    }
+    RenderingAttachmentDepth depth{};
+    depth.load_depth = true;
+    depth.store_depth = false;
+    depth.image_layout = IMAGE_LAYOUT::RT_DEPTH;
+    depth.image_view = GetImageView(depth_buffer.descriptor_index);
 
     StartRenderingInfo start_rendering_info;
     start_rendering_info.render_area_extent = draw_area;
@@ -271,7 +259,7 @@ bool BB::RenderPassLineStage(RG::RenderGraph& a_graph, RG::GlobalGraphData&, con
     start_rendering_info.layer_count = 1;
     start_rendering_info.view_mask = 0;
     start_rendering_info.color_attachments = Slice(&color_attach, 1);
-    start_rendering_info.depth_attachment = pdepth;
+    start_rendering_info.depth_attachment = &depth;
 
     FixedArray<ColorBlendState, 1> blend_state;
     blend_state[0].blend_enable = true;
