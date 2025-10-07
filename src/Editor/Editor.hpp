@@ -56,7 +56,7 @@ namespace BB
 		bool DrawImgui(const RDescriptorIndex a_render_target, Viewport& a_viewport);
 
         void ImGuiDisplayEditor(MemoryArena& a_arena);
-        void ImGuiDisplayGame(class GameInstance& a_game);
+        void ImGuiDisplayGame(class EditorGame& a_game);
 		void ImguiDisplayECS(EntityComponentSystem& a_ecs, const uint2 a_viewport_extent);
 		void ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_object, const uint2 a_viewport_extent);
 		void ImGuiCreateEntity(EntityComponentSystem& a_ecs, const ECSEntity a_parent = INVALID_ECS_OBJ);

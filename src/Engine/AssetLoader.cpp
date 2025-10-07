@@ -893,7 +893,7 @@ void Asset::InitializeAssetManager(MemoryArena& a_arena, const AssetManagerInitI
 
 void Asset::Update()
 {
-	if (!uploading_assets)
+	if (!uploading_assets && (!s_asset_manager->gpu_uploader.upload_meshes.IsEmpty() || !s_asset_manager->gpu_uploader.upload_textures.IsEmpty()))
 	{
 		Threads::StartTaskThread(UploadAndWaitAssets, L"upload assets");
 	}

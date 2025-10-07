@@ -10,7 +10,6 @@ namespace BB
 
     class GameInstance
     {
-        friend Editor;
     public:
         bool Init(const uint2 a_viewport_size, const StringView a_project_name, MemoryArena* a_parena, const ConstSlice<PFN_LuaPluginRegisterFunctions> a_register_funcs = ConstSlice<PFN_LuaPluginRegisterFunctions>());
         bool Update(const float a_delta_time, const bool a_selected = true);
@@ -30,6 +29,7 @@ namespace BB
         MemoryArena& GetMemory() { return m_arena; }
         const PathString& GetProjectPath() const { return m_project_path; }
         struct lua_State* GetLuaState();
+        const StringView GetGameName() const { return m_project_name.GetView(); }
 
     private:
         bool InitLua();

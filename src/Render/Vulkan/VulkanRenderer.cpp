@@ -533,8 +533,8 @@ static DescriptorInfo CreateDescriptorInfo(const VkDevice a_device, const uint32
     layout_bindings[5].pImmutableSamplers = s;
 
     FixedArray<VkDescriptorBindingFlags, GPU_BINDING_COUNT> layout_binding_flags{};
-    layout_binding_flags[0] = 0;
-    layout_binding_flags[1] = 0;
+    layout_binding_flags[0] = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+    layout_binding_flags[1] = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
     layout_binding_flags[2] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
     layout_binding_flags[3] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
     layout_binding_flags[4] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
@@ -2607,7 +2607,7 @@ PRESENT_IMAGE_RESULT Vulkan::UploadImageToSwapchain(const RCommandList a_list, c
 	constexpr VkImageLayout TRANSFER_LAYOUT = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 	constexpr VkImageLayout END_LAYOUT = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 	
-	const VkImage swapchain_image = s_vulkan_swapchain->frames[a_backbuffer_index].image;
+	const VkImage swapchain_image = s_vulkan_swapchain->frames[image_index].image;
 
 	{
 		VkImageMemoryBarrier2 upload_barrier{};
@@ -2769,11 +2769,8 @@ PRESENT_IMAGE_RESULT Vulkan::ExecutePresentCommandList(const RQueue a_queue, con
 	submit_info.pWaitDstStageMask = WAIT_STAGES;
 
 	VkQueue queue = reinterpret_cast<VkQueue>(a_queue.handle);
-	VKASSERT(vkQueueSubmit(queue,
-		1,
-		&submit_info,
-		VK_NULL_HANDLE),
-		"Vulkan: failed to submit to queue.");
+    VkResult result = vkQueueSubmit(queue,1, &submit_info, VK_NULL_HANDLE);
+	VKASSERT(result, "Vulkan: failed to submit to queue.");
 
 	VkPresentInfoKHR present_info{};
 	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -2784,7 +2781,7 @@ PRESENT_IMAGE_RESULT Vulkan::ExecutePresentCommandList(const RQueue a_queue, con
 	present_info.pImageIndices = &a_backbuffer_index; //THIS MAY BE WRONG
 	present_info.pResults = nullptr;
 
-	const VkResult result = vkQueuePresentKHR(s_vulkan_inst->present_queue, &present_info);
+	result = vkQueuePresentKHR(s_vulkan_inst->present_queue, &present_info);
 	if (result == VK_ERROR_OUT_OF_DATE_KHR)
 	{
 		return PRESENT_IMAGE_RESULT::SWAPCHAIN_OUT_OF_DATE;

@@ -239,19 +239,20 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
     const IMAGE_FORMAT render_target_format = m_options.backbuffer_format;
     const uint3 render_target_size = uint3(m_options.resolution.x, m_options.resolution.y, 1);
     m_final_image = m_cur_graph->AddImage("final image",
-        render_target_size, 
-        1, 
-        1, 
-        IMAGE_USAGE::RENDER_TARGET, 
+        render_target_size,
+        1,
+        1,
+        IMAGE_USAGE::RENDER_TARGET,
         render_target_format);
 
-    const RG::ResourceHandle skybox_texture = m_cur_graph->AddTexture("skybox",
+    const RG::ResourceHandle skybox_texture = m_cur_graph->AddImage("skybox",
         m_skybox,
         m_skybox_descriptor_index,
         render_target_size,
         6,
         1,
         IMAGE_FORMAT::RGBA8_SRGB,
+        IMAGE_USAGE::TEXTURE,
         true);
 
     const RG::ResourceHandle skybox_sampler = m_cur_graph->AddSampler("skybox sampler", m_skybox_sampler_index);
@@ -276,7 +277,7 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
 
         const RG::ResourceHandle shadowmaps = m_cur_graph->AddImage("shadow maps",
             uint3(m_options.shadow_map_resolution.x, m_options.shadow_map_resolution.y, 1),
-            static_cast<uint16_t>(a_lights.size()), 
+            static_cast<uint16_t>(a_lights.size()),
             1,
             IMAGE_USAGE::SHADOW_MAP,
             IMAGE_FORMAT::D16_UNORM);
@@ -287,21 +288,24 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
     else
         light_buffer = m_cur_graph->AddBuffer("light buffer", 0);
 
+    RG::ResourceHandle bright_image;
     const DrawList& draw_list = m_cur_graph->GetDrawList();
-    const RG::ResourceHandle matrix_buffer = m_cur_graph->AddBuffer("matrix buffer", draw_list.transforms.size() * sizeof(ShaderTransform), draw_list.transforms.data());
-   
+    if (draw_list.draw_entries.size())
+    {
+        const RG::ResourceHandle matrix_buffer = m_cur_graph->AddBuffer("matrix buffer", draw_list.transforms.size() * sizeof(ShaderTransform), draw_list.transforms.data());
 
-    const RG::ResourceHandle bright_image = m_cur_graph->AddImage("bright image",
-        render_target_size, 1, 1, IMAGE_USAGE::RENDER_TARGET, render_target_format);
-    const RG::ResourceHandle depth_buffer = m_cur_graph->AddImage("depth buffer",
-        render_target_size, 1, 1, IMAGE_USAGE::DEPTH, IMAGE_FORMAT::D24_UNORM_S8_UINT);
+        bright_image = m_cur_graph->AddImage("bright image",
+            render_target_size, 1, 1, IMAGE_USAGE::RENDER_TARGET, render_target_format);
+        const RG::ResourceHandle depth_buffer = m_cur_graph->AddImage("depth buffer",
+            render_target_size, 1, 1, IMAGE_USAGE::DEPTH, IMAGE_FORMAT::D24_UNORM_S8_UINT);
 
-    RG::RenderPass& pbr_pass = m_cur_graph->AddRenderPass(a_per_frame_arena, RenderPassPBRStage, 2, 3, MasterMaterialHandle());
-    pbr_pass.AddInputResource(matrix_buffer);
-    pbr_pass.AddInputResource(light_buffer);
-    pbr_pass.AddOutputResource(m_final_image);
-    pbr_pass.AddOutputResource(bright_image);
-    pbr_pass.AddOutputResource(depth_buffer);
+        RG::RenderPass& pbr_pass = m_cur_graph->AddRenderPass(a_per_frame_arena, RenderPassPBRStage, 2, 3, MasterMaterialHandle());
+        pbr_pass.AddInputResource(matrix_buffer);
+        pbr_pass.AddInputResource(light_buffer);
+        pbr_pass.AddOutputResource(m_final_image);
+        pbr_pass.AddOutputResource(bright_image);
+        pbr_pass.AddOutputResource(depth_buffer);
+    }
     
     //RG::RenderPass& debug_pass = pgraph->AddRenderPass(a_per_frame_arena, RenderPassLineStage, 1, 2, m_line_material);
     //debug_pass.AddInputResource(lines);
@@ -318,23 +322,19 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
         glyph_pass.AddOutputResource(m_final_image);
     }
 
-
-    //const RG::ResourceHandle ping = m_cur_graph->AddImage("ping image",
-    //    render_target_size,
-    //    1,
-    //    1,
-    //    IMAGE_USAGE::RENDER_TARGET,
-    //    render_target_format);
-    //const RG::ResourceHandle pong = m_cur_graph->AddImage("pong image",
-    //    render_target_size,
-    //    1,
-    //    1,
-    //    IMAGE_USAGE::RENDER_TARGET,
-    //    render_target_format);
-    //RG::RenderPass& bloom_pass = m_cur_graph->AddRenderPass(a_per_frame_arena, RenderPassBloomStage, 2, 1, m_gaussian_material);
-    //bloom_pass.AddInputResource(ping);
-    //bloom_pass.AddInputResource(pong);
-   // bloom_pass.AddOutputResource(m_final_image);
+    if (draw_list.draw_entries.size())
+    {
+        const RG::ResourceHandle pong = m_cur_graph->AddImage("pong image",
+            render_target_size,
+            1,
+            1,
+            IMAGE_USAGE::RENDER_TARGET,
+            render_target_format);
+        RG::RenderPass& bloom_pass = m_cur_graph->AddRenderPass(a_per_frame_arena, RenderPassBloomStage, 2, 1, m_gaussian_material);
+        bloom_pass.AddInputResource(bright_image);
+        bloom_pass.AddInputResource(pong);
+        bloom_pass.AddOutputResource(m_final_image);
+    }
 
     m_graph_system.CompileGraph(a_per_frame_arena, *m_cur_graph);
     m_graph_system.ExecuteGraph(a_per_frame_arena, a_list, *m_cur_graph);

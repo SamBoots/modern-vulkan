@@ -121,14 +121,6 @@ namespace BB
         float4x4 inverse;           // 128
     };
 
-    struct Glyph2D
-    {
-        float2 pos;
-        float2 extent;
-        float2 uv0;
-        float2 uv1;
-    };
-
     struct Quad2D
     {
         float2 pos;

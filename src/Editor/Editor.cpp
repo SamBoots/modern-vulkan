@@ -412,8 +412,7 @@ ThreadTask Editor::UpdateGameInstance(const float a_delta_time, class EditorGame
         a_game
     };
 
-    ImGuiDisplayGame(a_game.GetGameInstance());
-
+    ImGuiDisplayGame(a_game);
     return Threads::StartTaskThread(ThreadFuncForDrawing, &params, sizeof(params), L"scene draw task");
 }
 
@@ -431,7 +430,7 @@ void Editor::EndFrame(MemoryArena& a_arena)
             if (m_per_frame.success[i])
             {
                 ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-                if (ImGui::Begin(game_inst.GetSceneHierarchy().GetECS().GetName().c_str(), nullptr, ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoScrollbar))
+                if (ImGui::Begin(game_inst.GetGameName().c_str(), nullptr, ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoScrollbar))
                 {
                     if (ImGui::BeginMenuBar())
                     {
@@ -455,7 +454,7 @@ void Editor::EndFrame(MemoryArena& a_arena)
             }
             else
             {
-                if (ImGui::Begin(game_inst.GetSceneHierarchy().GetECS().GetName().c_str()))
+                if (ImGui::Begin(game_inst.GetGameName().c_str()))
                 {
                     ImGui::TextUnformatted(m_per_frame.error_message[i].c_str());
                     if (ImGui::Button("Reload lua"))
@@ -465,21 +464,23 @@ void Editor::EndFrame(MemoryArena& a_arena)
             ImGui::End();
 		}
 
+        const uint32_t last_commandlist = m_per_frame.current_count - 1;
 		// CURFRAME = the render internal frame
-		ImRenderFrame(m_per_frame.lists[0], GetImageView(m_render_target_descs[m_per_frame.back_buffer_index]), m_app_window_extent, true, m_imgui_material);
+		ImRenderFrame(m_per_frame.lists[last_commandlist], GetImageView(m_render_target_descs[m_per_frame.back_buffer_index]), m_app_window_extent, true, m_imgui_material);
 		ImGui::EndFrame();
 
-		PRESENT_IMAGE_RESULT result = RenderEndFrame(m_per_frame.lists[0], m_render_target, m_per_frame.back_buffer_index);
+		PRESENT_IMAGE_RESULT result = RenderEndFrame(m_per_frame.lists[last_commandlist], m_render_target, m_per_frame.back_buffer_index);
 		if (result == PRESENT_IMAGE_RESULT::SWAPCHAIN_OUT_OF_DATE)
 		{
 			skip = true;
 		}
 
-
-		for (size_t i = 0; i < m_per_frame.current_count; i++)
+        m_per_frame.pools[0].EndCommandList(m_per_frame.lists[0]);
+		for (size_t i = 1; i < m_per_frame.current_count; i++)
 		{
 			m_per_frame.pools[i].EndCommandList(m_per_frame.lists[i]);
 		}
+
 
 		const uint32_t command_list_count = Max(m_per_frame.current_count.load(), 1u);
 		uint64_t present_queue_value;
@@ -490,6 +491,8 @@ void Editor::EndFrame(MemoryArena& a_arena)
 			m_per_frame.current_count,
 			present_queue_value, 
 			skip);
+
+        GPUWaitIdle();
 	}
 }
 
@@ -587,16 +590,16 @@ void Editor::ImGuiDisplayEditor(MemoryArena& a_arena)
     Asset::ShowAssetMenu(a_arena);
 }
 
-void Editor::ImGuiDisplayGame(GameInstance& a_game)
+void Editor::ImGuiDisplayGame(EditorGame& a_game)
 {
-    StackString<128> name_editor = a_game.m_project_name.GetView();
-    name_editor.append(" - editor");
-    if (ImGui::Begin(name_editor.c_str()))
+    ImGui::PushID(256);
+    if (ImGui::Begin(a_game.GetGameEditorName().c_str()))
     {
         ImguiDisplayECS(a_game.GetSceneHierarchy().m_ecs, a_game.GetViewport().GetExtent());
         ImGuiDisplayInputChannel(a_game.GetInputChannel());
     }
     ImGui::End();
+    ImGui::PopID();
 }
 
 template<typename T, size_t a_option_size>
@@ -1156,7 +1159,7 @@ void Editor::ImGuiDisplayGames()
         {
             ImGui::PushID(static_cast<int>(i));
             EditorGame& game = m_game_instances[i];
-            if (ImGui::CollapsingHeader(game.GetGameInstance().m_project_name.GetView().c_str()))
+            if (ImGui::CollapsingHeader(game.GetGameName().c_str()))
             {
                 if (ImGui::Button("unload"))
                 {

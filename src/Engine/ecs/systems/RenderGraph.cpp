@@ -327,7 +327,7 @@ RG::ResourceHandle RG::RenderGraph::AddImage(const StackString<32>& a_name, cons
     return rh;
 }
 
-RG::ResourceHandle RG::RenderGraph::AddTexture(const StackString<32>& a_name, const RImage a_image, const RDescriptorIndex a_index, const uint3 a_extent, const uint16_t a_array_layers, const uint16_t a_mips, const IMAGE_FORMAT a_format, const bool a_is_cube_map)
+RG::ResourceHandle RG::RenderGraph::AddImage(const StackString<32>& a_name, const RImage a_image, const RDescriptorIndex a_index, const uint3 a_extent, const uint16_t a_array_layers, const uint16_t a_mips, const IMAGE_FORMAT a_format, const IMAGE_USAGE a_usage, const bool a_is_cube_map)
 {
     RG::RenderResource resource{};
     resource.name = a_name;
@@ -337,7 +337,7 @@ RG::ResourceHandle RG::RenderGraph::AddTexture(const StackString<32>& a_name, co
     resource.image.array_layers = a_array_layers;
     resource.image.mips = a_mips;
     resource.image.format = a_format;
-    resource.image.usage = IMAGE_USAGE::TEXTURE;
+    resource.image.usage = a_usage;
     resource.image.current_layout = IMAGE_LAYOUT::RW_FRAGMENT;
     resource.image.is_cube_map = a_is_cube_map;
     resource.upload_data = nullptr;
@@ -456,7 +456,8 @@ bool RG::RenderGraphSystem::StartGraph(MemoryArena& a_arena, const uint32_t a_ba
     a_out_graph = &m_graphs[a_back_buffer];
 
     m_global.scene_info.per_frame_index = a_out_graph->GetPerFrameBufferDescriptorIndex();
-    a_out_graph->SetupDrawList(a_arena, a_draw_list_size);
+    if (a_draw_list_size)
+        a_out_graph->SetupDrawList(a_arena, a_draw_list_size);
 
     return true;
 }

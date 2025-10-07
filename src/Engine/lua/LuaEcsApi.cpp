@@ -74,7 +74,7 @@ int luaapi::ECSTranslate(lua_State* a_state)
 int luaapi::GetScreenResolution(lua_State* a_state)
 {
     GameInstance* inst = GetGameInstance(a_state);
-    const uint2 extent = inst->GetViewport().GetExtent();
+    const uint2 extent = inst->GetSceneHierarchy().GetECS().GetRenderSystem().GetOptions().resolution;
     lua_pushinteger(a_state, static_cast<int>(extent.x));
     lua_pushinteger(a_state, static_cast<int>(extent.y));
     return 2;

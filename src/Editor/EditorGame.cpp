@@ -6,6 +6,8 @@ using namespace BB;
 bool EditorGame::Init(const uint2 a_viewport_size, const StringView a_project_name, MemoryArena* a_parena, const ConstSlice<PFN_LuaPluginRegisterFunctions> a_register_funcs)
 {
     m_editor_mode = false;
+    m_project_editor_name.append(a_project_name);
+    m_project_editor_name.append(" - editor");
     return m_game.Init(a_viewport_size, a_project_name, a_parena, a_register_funcs);
 }
 

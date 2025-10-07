@@ -39,7 +39,7 @@ int main(int argc, char** argv)
         engine_options.debug_options.max_profiler_entries = 64;
 
         GraphicOptions graphic_options;
-        graphic_options.use_raytracing = true; // warnings when false, checkout
+        graphic_options.use_raytracing = false; // warnings when false, checkout
         engine_info = InitEngine(main_arena, L"Modern Vulkan - Editor", engine_options, graphic_options);
     }
 

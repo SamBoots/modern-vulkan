@@ -58,7 +58,7 @@ bool BB::RenderPassShadowMapStage(RG::RenderGraph& a_graph, RG::GlobalGraphData&
     const uint2 shadow_map_extent = uint2(out_rt.image.extent.x, out_rt.image.extent.y);
 
     const uint32_t shadow_map_count = out_rt.image.array_layers;
-    a_global_data.scene_info.light_offset = light_buffer.buffer.offset;
+    a_global_data.scene_info.light_offset = static_cast<uint32_t>(light_buffer.buffer.offset);
     a_global_data.scene_info.shadow_map_count = shadow_map_count;
     a_global_data.scene_info.shadow_map_array_descriptor = out_rt.descriptor_index;
     a_global_data.scene_info.shadow_map_resolution = float2(static_cast<float>(shadow_map_extent.x), static_cast<float>(shadow_map_extent.y));
