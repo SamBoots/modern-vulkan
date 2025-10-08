@@ -132,6 +132,7 @@ bool SceneHierarchy::CreateRaytraceComponent(MemoryArena& a_temp_arena, const EC
     AccelerationStructSizeInfo sizes = GetBottomLevelAccelerationStructSizeInfo(a_temp_arena, ConstSlice<AccelerationStructGeometrySize>(&geometry_size, 1), ConstSlice<uint32_t>(&max_primitives, 1));
     
     RaytraceComponent component;
+    component.acceleration_structure = CreateBottomLevelAccelerationStruct();
     component.build_size =  static_cast<uint32_t>(RoundUp(sizes.acceleration_structure_size, 256)); // remove magic number :)
     component.scratch_size = sizes.scratch_build_size;
     component.scratch_update = sizes.scratch_update_size;

@@ -52,6 +52,13 @@ namespace BB
                 float blur_scale;
             } post_fx;
             DrawList drawlist;
+            struct Raytracing
+            {
+                ConstSlice<ConstSlice<AccelerationStructGeometrySize>> blas_geo_sizes;
+                ConstSlice<ConstSlice<uint32_t>> blas_primitive_counts;
+                ConstSlice<BottomLevelAccelerationStructInstance> tlas_blas_instances;
+                ConstSlice<uint32_t> tlas_primitive_count;
+            } raytracing;
         };
 
         struct RenderResource
@@ -74,21 +81,37 @@ namespace BB
                 uint16_t base_mip;
                 bool is_cube_map;
             };
+            struct AccelStruct
+            {
+                RAccelerationStruct structure;
+                GPUAddress structure_address;
+                bool must_build;
+            };
+            struct BufferView
+            {
+                GPUBuffer buffer;
+                uint64_t size;
+                uint64_t offset;
+                GPUAddress address;
+                bool compute_queue;
+            };
+            
             union
             {
-                GPUBufferView buffer;
+                BufferView buffer;
                 ImageView image;
+                AccelStruct acceleration_structure;
             };
         };
 
-        typedef bool (*PFN_RenderPass)(class RenderGraph& a_graph, GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<ResourceHandle> a_resource_inputs, Slice<ResourceHandle> a_resource_outputs);
+        typedef bool (*PFN_RenderPass)(MemoryArena& a_temp_arena, class RenderGraph& a_graph, GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<ResourceHandle> a_resource_inputs, Slice<ResourceHandle> a_resource_outputs);
 
         class RenderPass
         {
         public:
             RenderPass(MemoryArena& a_arena, const PFN_RenderPass a_call, const uint32_t a_resources_in, const uint32_t a_resources_out, const MasterMaterialHandle a_material);
 
-            bool DoPass(class RenderGraph& a_graph, GlobalGraphData& a_global_data, const RCommandList a_list);
+            bool DoPass(MemoryArena& a_temp_arena, class RenderGraph& a_graph, GlobalGraphData& a_global_data, const RCommandList a_list);
 
             bool AddInputResource(const ResourceHandle a_resource_index);
             bool AddOutputResource(const ResourceHandle a_resource_index);
@@ -107,7 +130,7 @@ namespace BB
         class RenderGraph
         {
         public:
-            RenderGraph(MemoryArena& a_arena, const uint32_t a_max_passes, const uint32_t a_max_resources);
+            RenderGraph(MemoryArena& a_arena, const uint32_t a_max_passes, const uint32_t a_max_resources, const uint64_t a_compute_size);
 
             bool Reset();
             bool Compile(MemoryArena& a_arena, GPUUploadRingAllocator& a_upload_buffer, const uint64_t a_fence_value);
@@ -116,6 +139,8 @@ namespace BB
             RenderPass& AddRenderPass(MemoryArena& a_arena, const PFN_RenderPass a_call, const uint32_t a_resources_in, const uint32_t a_resources_out, const MasterMaterialHandle a_material);
             ResourceHandle AddUniform(const StackString<32>& a_name, const size_t a_size, const void* a_upload_data = nullptr);
             ResourceHandle AddBuffer(const StackString<32>& a_name, const size_t a_size, const void* a_upload_data = nullptr);
+            ResourceHandle AddBufferCompute(const StackString<32>& a_name, const size_t a_size, const void* a_upload_data = nullptr);
+
             ResourceHandle AddImage(const StackString<32>& a_name, const uint3 a_extent, const uint16_t a_array_layers, const uint16_t a_mips, const IMAGE_USAGE a_usage, const IMAGE_FORMAT a_format, const bool a_is_cube_map = false, const void* a_upload_data = nullptr);
             ResourceHandle AddImage(const StackString<32>& a_name, const RImage a_image, const RDescriptorIndex a_index, const uint3 a_extent, const uint16_t a_array_layers, const uint16_t a_mips, const IMAGE_FORMAT a_format, const IMAGE_USAGE a_usage, const bool a_is_cube_map = false);
 
@@ -146,6 +171,10 @@ namespace BB
             // scene data
             RDescriptorIndex m_per_frame_descriptor;
             GPULinearBuffer m_per_frame_buffer;
+            RDescriptorIndex m_per_frame_compute_descriptor;
+
+            uint64_t m_per_frame_compute_used;
+            GPULinearBuffer m_per_frame_compute_buffer;
             GPUStaticCPUWriteableBuffer m_scene_buffer;
             RDescriptorIndex m_scene_descriptor;
             uint64_t m_fence_value;

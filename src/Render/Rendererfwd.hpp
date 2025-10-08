@@ -616,7 +616,5 @@ namespace BB
         ConstSlice<uint32_t> primitive_counts;
 
         GPUAddress acceleration_build_address;
-        void* acceleration_build_mapped;
-        uint64_t mapped_size;
     };
 }

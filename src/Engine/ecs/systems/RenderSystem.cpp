@@ -25,19 +25,8 @@ void RenderSystem::Init(MemoryArena& a_arena, const RenderOptions& a_options)
         accel_create_info.size = mbSize * 256;
         accel_create_info.type = BUFFER_TYPE::RT_ACCELERATION;
         accel_create_info.host_writable = false;
+
         m_raytrace_data.acceleration_structure_buffer.Init(accel_create_info);
-
-        GPUBufferCreateInfo top_level_instance_buffer;
-        top_level_instance_buffer.name = "acceleration structure host visible build buffer";
-        top_level_instance_buffer.size = mbSize * 64;
-        top_level_instance_buffer.type = BUFFER_TYPE::RT_BUILD_ACCELERATION;
-        top_level_instance_buffer.host_writable = true;
-
-		m_raytrace_data.top_level.build_info.build_buffer.Init(top_level_instance_buffer);
-		m_raytrace_data.top_level.build_info.build_mapped = MapGPUBuffer(m_raytrace_data.top_level.build_info.build_buffer.GetBuffer());
-		m_raytrace_data.top_level.build_info.build_address = GetGPUBufferAddress(m_raytrace_data.top_level.build_info.build_buffer.GetBuffer());
-		m_raytrace_data.top_level.must_update = false;
-		m_raytrace_data.top_level.must_rebuild = false;
     }
 
     PathString font_string = GetRootPath();
@@ -104,7 +93,6 @@ void RenderSystem::Init(MemoryArena& a_arena, const RenderOptions& a_options)
     line_shaders[2].stage = SHADER_STAGE::FRAGMENT_PIXEL;
     line_shaders[2].next_stages = static_cast<uint32_t>(SHADER_STAGE::NONE);
     line_material.shader_infos = Slice(line_shaders.slice());
-
 
     MaterialCreateInfo gaussian_material;
     gaussian_material.pass_type = PASS_TYPE::SCENE;
@@ -246,10 +234,37 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
         IMAGE_USAGE::RENDER_TARGET,
         render_target_format);
 
+
+    const DrawList& draw_list = m_cur_graph->GetDrawList();
+    RG::ResourceHandle matrix_buffer = {};
+    if (draw_list.transforms.size())
+        matrix_buffer = m_cur_graph->AddBuffer("matrix buffer", draw_list.transforms.size() * sizeof(ShaderTransform), draw_list.transforms.data());
+
+    // for now combine
+    RasterFrame(a_per_frame_arena, a_list, render_target_size, render_target_format, matrix_buffer, a_lights);
+    RaytraceFrame(a_per_frame_arena, a_list, matrix_buffer, a_raytrace_pool);
+
+
+    ConstSlice quads = m_ui_stage.GetQuads();
+    if (quads.size())
+    {
+        const RG::ResourceHandle quad_buffer = m_cur_graph->AddBuffer("quads", quads.sizeInBytes(), quads.data());
+
+        RG::RenderPass& glyph_pass = m_cur_graph->AddRenderPass(a_per_frame_arena, RenderPassGlyphStage, 1, 1, m_glyph_material);
+        glyph_pass.AddInputResource(quad_buffer);
+        glyph_pass.AddOutputResource(m_final_image);
+    }
+
+    m_graph_system.CompileGraph(a_per_frame_arena, *m_cur_graph);
+    m_graph_system.ExecuteGraph(a_per_frame_arena, a_list, *m_cur_graph);
+}
+
+void RenderSystem::RasterFrame(MemoryArena& a_per_frame_arena, const RCommandList a_list, const uint3 a_render_target_size, const IMAGE_FORMAT a_render_target_format, const RG::ResourceHandle a_matrix_buffer, const ConstSlice<LightComponent> a_lights)
+{
     const RG::ResourceHandle skybox_texture = m_cur_graph->AddImage("skybox",
         m_skybox,
         m_skybox_descriptor_index,
-        render_target_size,
+        a_render_target_size,
         6,
         1,
         IMAGE_FORMAT::RGBA8_SRGB,
@@ -290,23 +305,21 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
         light_buffer = m_cur_graph->AddBuffer("light buffer", 0);
 
     RG::ResourceHandle bright_image;
-    const DrawList& draw_list = m_cur_graph->GetDrawList();
     const RG::ResourceHandle depth_buffer = m_cur_graph->AddImage("depth buffer",
-        render_target_size, 1, 1, IMAGE_USAGE::DEPTH, IMAGE_FORMAT::D24_UNORM_S8_UINT);
-    if (draw_list.draw_entries.size())
+        a_render_target_size, 1, 1, IMAGE_USAGE::DEPTH, IMAGE_FORMAT::D24_UNORM_S8_UINT);
+    if (a_matrix_buffer.IsValid())
     {
-        const RG::ResourceHandle matrix_buffer = m_cur_graph->AddBuffer("matrix buffer", draw_list.transforms.size() * sizeof(ShaderTransform), draw_list.transforms.data());
-
         bright_image = m_cur_graph->AddImage("bright image",
-            render_target_size, 1, 1, IMAGE_USAGE::RENDER_TARGET, render_target_format);
+            a_render_target_size, 1, 1, IMAGE_USAGE::RENDER_TARGET, a_render_target_format);
 
         RG::RenderPass& pbr_pass = m_cur_graph->AddRenderPass(a_per_frame_arena, RenderPassPBRStage, 2, 3, MasterMaterialHandle());
-        pbr_pass.AddInputResource(matrix_buffer);
+        pbr_pass.AddInputResource(a_matrix_buffer);
         pbr_pass.AddInputResource(light_buffer);
         pbr_pass.AddOutputResource(m_final_image);
         pbr_pass.AddOutputResource(bright_image);
         pbr_pass.AddOutputResource(depth_buffer);
     }
+
     if (m_lines.size())
     {
         const RG::ResourceHandle line_buffer = m_cur_graph->AddBuffer("line buffer", m_lines.size() * sizeof(Line), m_lines.data());
@@ -317,32 +330,24 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
         debug_pass.AddOutputResource(depth_buffer);
     }
 
-    ConstSlice quads = m_ui_stage.GetQuads();
-    if (quads.size())
-    {
-        const RG::ResourceHandle quad_buffer = m_cur_graph->AddBuffer("quads", quads.sizeInBytes(), quads.data());
-
-        RG::RenderPass& glyph_pass = m_cur_graph->AddRenderPass(a_per_frame_arena, RenderPassGlyphStage, 1, 1, m_glyph_material);
-        glyph_pass.AddInputResource(quad_buffer);
-        glyph_pass.AddOutputResource(m_final_image);
-    }
-
-    if (draw_list.draw_entries.size())
+    if (a_matrix_buffer.IsValid())
     {
         const RG::ResourceHandle pong = m_cur_graph->AddImage("pong image",
-            render_target_size,
+            a_render_target_size,
             1,
             1,
             IMAGE_USAGE::RENDER_TARGET,
-            render_target_format);
+            a_render_target_format);
         RG::RenderPass& bloom_pass = m_cur_graph->AddRenderPass(a_per_frame_arena, RenderPassBloomStage, 2, 1, m_gaussian_material);
         bloom_pass.AddInputResource(bright_image);
         bloom_pass.AddInputResource(pong);
         bloom_pass.AddOutputResource(m_final_image);
     }
+}
 
-    m_graph_system.CompileGraph(a_per_frame_arena, *m_cur_graph);
-    m_graph_system.ExecuteGraph(a_per_frame_arena, a_list, *m_cur_graph);
+void RenderSystem::RaytraceFrame(MemoryArena& a_per_frame_arena, const RCommandList a_list, const RG::ResourceHandle a_matrix_buffer, const RaytraceComponentPool& a_raytrace_pool)
+{
+
 }
 
 void RenderSystem::Screenshot(const PathString& a_path) const
@@ -382,27 +387,4 @@ void RenderSystem::SetProjection(const float4x4& a_projection, const float a_nea
 {
     m_graph_system.GetGlobalData().scene_info.proj = a_projection;
     m_graph_system.GetGlobalData().scene_info.near_plane = a_near_plane;
-}
-
-void RenderSystem::BuildTopLevelAccelerationStructure(MemoryArena& a_per_frame_arena, const RCommandList a_list, const ConstSlice<AccelerationStructureInstanceInfo> a_instances)
-{
-	RaytraceData::TopLevel& tpl = m_raytrace_data.top_level;
-	// TEMP STUFF 
-	GPUBufferView view;
-	bool success = tpl.build_info.build_buffer.Allocate(AccelerationStructureInstanceUploadSize() * a_instances.size(), view);
-	BB_ASSERT(success, "failed to allocate memory for a top level acceleration structure build info");
-	success = UploadAccelerationStructureInstances(Pointer::Add(tpl.build_info.build_mapped, view.offset), view.size, a_instances);
-
-	const AccelerationStructSizeInfo size_info = GetTopLevelAccelerationStructSizeInfo(a_per_frame_arena, ConstSlice<GPUAddress>(&tpl.build_info.build_address, 1));
-	if (tpl.accel_buffer_view.size < size_info.acceleration_structure_size)
-	{
-		success = m_raytrace_data.acceleration_structure_buffer.Allocate(size_info.acceleration_structure_size * 2, tpl.accel_buffer_view);
-		BB_ASSERT(success, "failed to allocate memory for a top level acceleration structure");
-	}
-
-	tpl.build_size = size_info.acceleration_structure_size;
-	tpl.scratch_size = size_info.scratch_build_size;
-	tpl.scratch_update = size_info.scratch_update_size;
-	// not yet, this is wrong
-	tpl.accel_struct = CreateTopLevelAccelerationStruct(size_info.acceleration_structure_size, tpl.accel_buffer_view.buffer, tpl.accel_buffer_view.offset);
 }

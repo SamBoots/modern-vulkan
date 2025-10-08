@@ -17,7 +17,7 @@ namespace BB
 		NULL_TYPE
 	};
 
-	struct JsonList //12 bytes
+	struct JsonList
 	{
 		uint32_t node_count;
 		struct JsonNode** nodes;
@@ -26,7 +26,7 @@ namespace BB
 	struct JsonNode //16 bytes
 	{
 		JSON_TYPE type = JSON_TYPE::NULL_TYPE; //4
-		union //biggest type JsonList 12 bytes
+		union
 		{
 			struct JsonObject* object;
 			JsonList list; //16

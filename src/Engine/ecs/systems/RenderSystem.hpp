@@ -46,6 +46,9 @@ namespace BB
         float4x4 GetView() const {return m_graph_system.GetConstGlobalData().scene_info.view; }
 
 	private:
+        void RasterFrame(MemoryArena& a_per_frame_arena, const RCommandList a_list, const uint3 a_render_target_size, const IMAGE_FORMAT a_render_target_format, const RG::ResourceHandle a_matrix_buffer, const ConstSlice<LightComponent> a_lights);
+        void RaytraceFrame(MemoryArena& a_per_frame_arena, const RCommandList a_list, const RG::ResourceHandle a_matrix_buffer, const RaytraceComponentPool& a_raytrace_pool);
+
         RG::RenderGraphSystem m_graph_system;
         RG::RenderGraph* m_cur_graph;
         RG::ResourceHandle m_final_image;
@@ -70,28 +73,7 @@ namespace BB
         struct RaytraceData
         {
             GPULinearBuffer acceleration_structure_buffer;
-
-			struct TopLevel
-			{
-				struct BuildInfo
-				{
-					GPULinearBuffer build_buffer;
-					GPUAddress build_address;
-					void* build_mapped;
-				} build_info;
-
-				RAccelerationStruct accel_struct;
-				GPUBufferView accel_buffer_view;
-				uint32_t build_size;
-				uint32_t scratch_size;
-				uint32_t scratch_update;
-				bool must_update;
-				bool must_rebuild;
-			} top_level;
-
         } m_raytrace_data;
-
-		void BuildTopLevelAccelerationStructure(MemoryArena& a_per_frame_arena, const RCommandList a_list, const ConstSlice<AccelerationStructureInstanceInfo> a_instances);
 
         // old shit
 

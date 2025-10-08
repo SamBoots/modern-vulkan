@@ -4,7 +4,7 @@
 
 using namespace BB;
 
-bool BB::RenderPassClearStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
+bool BB::RenderPassClearStage(MemoryArena&, RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
 {
     const RG::RenderResource& skybox_texture = a_graph.GetResource(a_resource_inputs[0]);
     const RG::RenderResource& skybox_sampler = a_graph.GetResource(a_resource_inputs[1]);
@@ -51,7 +51,7 @@ bool BB::RenderPassClearStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_g
     return true;
 }
 
-bool BB::RenderPassShadowMapStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
+bool BB::RenderPassShadowMapStage(MemoryArena&, RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
 {
     const RG::RenderResource& light_buffer = a_graph.GetResource(a_resource_inputs[0]);
     const RG::RenderResource& out_rt = a_graph.GetResource(a_resource_outputs[0]);
@@ -147,7 +147,7 @@ bool BB::RenderPassShadowMapStage(RG::RenderGraph& a_graph, RG::GlobalGraphData&
     return true;
 }
 
-bool BB::RenderPassPBRStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
+bool BB::RenderPassPBRStage(MemoryArena&, RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
 {
     const RG::RenderResource& matrix_buffer = a_graph.GetResource(a_resource_inputs[0]);
     const RG::RenderResource& light_buffer = a_graph.GetResource(a_resource_inputs[1]);
@@ -234,7 +234,7 @@ bool BB::RenderPassPBRStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_glo
     return true;
 }
 
-bool BB::RenderPassLineStage(RG::RenderGraph& a_graph, RG::GlobalGraphData&, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
+bool BB::RenderPassLineStage(MemoryArena&, RG::RenderGraph& a_graph, RG::GlobalGraphData&, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
 {
     const RG::RenderResource& line_buffer = a_graph.GetResource(a_resource_inputs[0]);
     const RG::RenderResource& out_rt = a_graph.GetResource(a_resource_outputs[0]);
@@ -290,7 +290,7 @@ bool BB::RenderPassLineStage(RG::RenderGraph& a_graph, RG::GlobalGraphData&, con
     return true;
 }
 
-bool BB::RenderPassGlyphStage(RG::RenderGraph& a_graph, RG::GlobalGraphData&, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
+bool BB::RenderPassGlyphStage(MemoryArena&, RG::RenderGraph& a_graph, RG::GlobalGraphData&, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
 {
     const RG::RenderResource& quad_buffer = a_graph.GetResource(a_resource_inputs[0]);
     const RG::RenderResource& out_rt = a_graph.GetResource(a_resource_outputs[0]);
@@ -337,7 +337,7 @@ bool BB::RenderPassGlyphStage(RG::RenderGraph& a_graph, RG::GlobalGraphData&, co
     return true;
 }
 
-bool BB::RenderPassBloomStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
+bool BB::RenderPassBloomStage(MemoryArena&, RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
 {
     const RG::RenderResource& in_rt_0 = a_graph.GetResource(a_resource_inputs[0]);
     const RG::RenderResource& in_rt_1 = a_graph.GetResource(a_resource_inputs[1]);
@@ -454,4 +454,38 @@ bool BB::RenderPassBloomStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_g
     }
 
     return true;
+}
+
+bool BB::RenderPassBLASes(MemoryArena& a_temp_arena, RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle, Slice<RG::ResourceHandle>, Slice<RG::ResourceHandle> a_resource_outputs)
+{
+    const size_t blas_count = a_resource_outputs.size() / 2;
+
+    for (size_t i = 0; i < blas_count; i++)
+    {
+        const RG::RenderResource& accel = a_graph.GetResource(a_resource_outputs[i * 2]);
+        const RG::RenderResource& scratch_buffer = a_graph.GetResource(a_resource_outputs[i * 2 + 1]);
+
+        BuildBottomLevelAccelerationStructInfo blas_info;
+        blas_info.acc_struct = accel.acceleration_structure.structure;
+        blas_info.geometry_sizes = a_global_data.raytracing.blas_geo_sizes[i];
+        blas_info.primitive_counts = a_global_data.raytracing.blas_primitive_counts[i];
+        blas_info.scratch_buffer_address = scratch_buffer.buffer.address;
+        BuildBottomLevelAccelerationStruct(a_temp_arena, a_list, blas_info, !accel.acceleration_structure.must_build);
+    }
+}
+
+bool BB::RenderPassTLAS(MemoryArena& a_temp_arena, RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs)
+{
+    const RG::RenderResource& accel = a_graph.GetResource(a_resource_outputs[0]);
+    const RG::RenderResource& scratch_buffer = a_graph.GetResource(a_resource_outputs[1]);
+    const RG::RenderResource& accel_build = a_graph.GetResource(a_resource_outputs[2]);
+
+    BuildTopLevelAccelerationStructInfo build_info;
+    build_info.acc_struct = accel.acceleration_structure.structure;
+    build_info.scratch_buffer_address = scratch_buffer.buffer.address;
+    build_info.instances = a_global_data.raytracing.tlas_blas_instances;
+    build_info.primitive_counts = a_global_data.raytracing.tlas_primitive_count;
+    build_info.acceleration_build_address = accel_build.buffer.address;
+
+    BuildTopLevelAccelerationStruct(a_temp_arena, a_list, build_info, !accel.acceleration_structure.must_build);
 }

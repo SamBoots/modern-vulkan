@@ -3,10 +3,14 @@
 
 namespace BB
 {
-    bool RenderPassClearStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs);
-    bool RenderPassShadowMapStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs);
-    bool RenderPassPBRStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs);
-    bool RenderPassLineStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs);
-    bool RenderPassGlyphStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs);
-    bool RenderPassBloomStage(RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs);
+    bool RenderPassClearStage(MemoryArena& a_temp_arena, RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs);
+    bool RenderPassShadowMapStage(MemoryArena& a_temp_arena, RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs);
+    bool RenderPassPBRStage(MemoryArena& a_temp_arena, RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs);
+    bool RenderPassLineStage(MemoryArena& a_temp_arena, RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs);
+    bool RenderPassGlyphStage(MemoryArena& a_temp_arena, RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs);
+    bool RenderPassBloomStage(MemoryArena& a_temp_arena, RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs);
+
+    bool RenderPassBLASes(MemoryArena& a_temp_arena, RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs);
+    bool RenderPassTLAS(MemoryArena& a_temp_arena, RG::RenderGraph& a_graph, RG::GlobalGraphData& a_global_data, const RCommandList a_list, const MasterMaterialHandle a_material, Slice<RG::ResourceHandle> a_resource_inputs, Slice<RG::ResourceHandle> a_resource_outputs);
+
 }

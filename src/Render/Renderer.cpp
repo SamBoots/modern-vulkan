@@ -1316,14 +1316,14 @@ GPUAddress BB::GetAccelerationStructureAddress(const RAccelerationStruct a_acc_s
     return Vulkan::GetAccelerationStructureAddress(a_acc_struct);
 }
 
-void BB::BuildBottomLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildBottomLevelAccelerationStructInfo& a_build_info)
+void BB::BuildBottomLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildBottomLevelAccelerationStructInfo& a_build_info, const bool a_update)
 {
-    Vulkan::BuildBottomLevelAccelerationStruct(a_temp_arena, a_list, a_build_info, s_render_inst->vertex_buffer.address, s_render_inst->index_buffer.address);
+    Vulkan::BuildBottomLevelAccelerationStruct(a_temp_arena, a_list, a_build_info, s_render_inst->vertex_buffer.address, s_render_inst->index_buffer.address, a_update);
 }
 
-void BB::BuildTopLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildTopLevelAccelerationStructInfo& a_build_info)
+void BB::BuildTopLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildTopLevelAccelerationStructInfo& a_build_info, const bool a_update)
 {
-    Vulkan::BuildTopLevelAccelerationStruct(a_temp_arena, a_list, a_build_info);
+    Vulkan::BuildTopLevelAccelerationStruct(a_temp_arena, a_list, a_build_info, a_update);
 }
 
 RDescriptorIndex BB::AllocateImageDescriptor()

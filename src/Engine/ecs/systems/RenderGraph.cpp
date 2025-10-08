@@ -3,6 +3,8 @@
 
 using namespace BB;
 
+constexpr uint64_t STANDARD_COMPUTE_SIZE = 16 * 1028 * 1028;
+
 RG::RenderPass::RenderPass(MemoryArena& a_arena, const PFN_RenderPass a_call, const uint32_t a_resources_in, const uint32_t a_resources_out, const MasterMaterialHandle a_material)
 {
     m_call = a_call;
@@ -13,9 +15,9 @@ RG::RenderPass::RenderPass(MemoryArena& a_arena, const PFN_RenderPass a_call, co
         m_resource_outputs.Init(a_arena, a_resources_out);
 }
 
-bool RG::RenderPass::DoPass(class RenderGraph& a_graph, GlobalGraphData& a_global_data, const RCommandList a_list)
+bool RG::RenderPass::DoPass(MemoryArena& a_temp_arena, class RenderGraph& a_graph, GlobalGraphData& a_global_data, const RCommandList a_list)
 {
-    return m_call(a_graph, a_global_data, a_list, m_material, m_resource_inputs.slice(), m_resource_outputs.slice());
+    return m_call(a_temp_arena, a_graph, a_global_data, a_list, m_material, m_resource_inputs.slice(), m_resource_outputs.slice());
 }
 
 bool RG::RenderPass::AddInputResource(const ResourceHandle a_resource_index)
@@ -34,16 +36,30 @@ bool RG::RenderPass::AddOutputResource(const ResourceHandle a_resource_index)
     return true;
 }
 
-RG::RenderGraph::RenderGraph(MemoryArena& a_arena, const uint32_t a_max_passes, const uint32_t a_max_resources)
+RG::RenderGraph::RenderGraph(MemoryArena& a_arena, const uint32_t a_max_passes, const uint32_t a_max_resources, const uint64_t a_compute_size)
 {
     m_passes.Init(a_arena, a_max_passes);
     m_execution_order.Init(a_arena, a_max_passes);
     m_resources.Init(a_arena, a_max_resources);
 
     m_per_frame_descriptor = AllocateBufferDescriptor();
+    m_per_frame_compute_descriptor = AllocateBufferDescriptor();
     m_scene_buffer.Init(BUFFER_TYPE::UNIFORM, sizeof(Scene3DInfo), "scene info buffer");
     m_scene_descriptor = AllocateUniformDescriptor();
     DescriptorWriteUniformBuffer(m_scene_descriptor, m_scene_buffer.GetView());
+
+    GPUBufferCreateInfo per_frame_create_info;
+    per_frame_create_info.name = "per frame compute buffer";
+    per_frame_create_info.size = a_compute_size;
+    per_frame_create_info.type = BUFFER_TYPE::STORAGE;
+    per_frame_create_info.host_writable = false;
+    m_per_frame_compute_buffer.Init(per_frame_create_info);
+
+    GPUBufferView per_frame_view;
+    per_frame_view.buffer = m_per_frame_compute_buffer.GetBuffer();
+    per_frame_view.size = a_compute_size;
+    per_frame_view.offset = 0;
+    DescriptorWriteStorageBuffer(m_per_frame_compute_descriptor, per_frame_view);
 }
 
 bool RG::RenderGraph::Reset()
@@ -62,6 +78,7 @@ bool RG::RenderGraph::Reset()
     m_execution_order.clear();
     m_resources.clear();
     m_per_frame_buffer.Clear();
+    m_per_frame_compute_buffer.Clear();
     m_drawlist.transforms.clear();
     m_drawlist.draw_entries.clear();
 
@@ -134,7 +151,21 @@ bool RG::RenderGraph::Compile(MemoryArena& a_arena, GPUUploadRingAllocator& a_up
         }
         else if (res.descriptor_type == DESCRIPTOR_TYPE::READONLY_BUFFER)
         {
-            success = m_per_frame_buffer.Allocate(res.buffer.size, res.buffer);
+            GPUBufferView bufview;
+            if (res.buffer.compute_queue)
+            {
+                success = m_per_frame_compute_buffer.Allocate(res.buffer.size, bufview);
+            }
+            else
+            {
+                success = m_per_frame_buffer.Allocate(res.buffer.size, bufview);
+            }
+
+            res.buffer.buffer = bufview.buffer;
+            res.buffer.size = bufview.size;
+            res.buffer.offset = bufview.offset;
+            res.buffer.address = GetGPUBufferAddress(bufview.buffer);
+
             if (res.upload_data)
             {
                 const uint64_t src_offset = a_upload_buffer.AllocateUploadMemory(res.buffer.size, a_fence_value);
@@ -266,7 +297,7 @@ bool RG::RenderGraph::Execute(MemoryArena& a_temp_arena, GlobalGraphData& a_glob
         {
             RenderPass& pass = m_passes[m_execution_order[i]];
             HandleImagetransitions(a_temp_arena, a_list, pass);
-            if (!pass.DoPass(*this, a_global, a_list))
+            if (!pass.DoPass(a_temp_arena, *this, a_global, a_list))
                 return false;
         }
     }
@@ -300,6 +331,25 @@ RG::ResourceHandle RG::RenderGraph::AddBuffer(const StackString<32>& a_name, con
     RG::RenderResource resource{};
     resource.name = a_name;
     resource.buffer.size = a_size;
+    resource.buffer.compute_queue = false;
+    resource.upload_data = a_upload_data;
+    resource.descriptor_type = DESCRIPTOR_TYPE::READONLY_BUFFER;
+    resource.rendergraph_owned = true;
+    RG::ResourceHandle rh = RG::ResourceHandle(m_resources.size());
+    m_resources.push_back(resource);
+    return rh;
+}
+
+RG::ResourceHandle RG::RenderGraph::AddBufferCompute(const StackString<32>& a_name, const size_t a_size, const void* a_upload_data)
+{
+    RG::RenderResource resource{};
+    if (m_per_frame_compute_used += a_size > m_per_frame_compute_buffer.GetCapacity())
+        return RG::ResourceHandle();
+    m_per_frame_compute_used += a_size;
+
+    resource.name = a_name;
+    resource.buffer.size = a_size;
+    resource.buffer.compute_queue = true;
     resource.upload_data = a_upload_data;
     resource.descriptor_type = DESCRIPTOR_TYPE::READONLY_BUFFER;
     resource.rendergraph_owned = true;
@@ -445,7 +495,7 @@ void RG::RenderGraphSystem::Init(MemoryArena& a_arena, const uint32_t a_back_buf
     m_upload_allocator.Init(a_arena, mbSize * 64, m_fence, "rendergraph upload allocator");
     m_graphs.Init(a_arena, a_back_buffers);
     for (uint32_t i = 0; i < a_back_buffers; i++)
-        m_graphs.emplace_back(a_arena, a_max_passes, a_max_resources);
+        m_graphs.emplace_back(a_arena, a_max_passes, a_max_resources, STANDARD_COMPUTE_SIZE);
 }
 
 bool RG::RenderGraphSystem::StartGraph(MemoryArena& a_arena, const uint32_t a_back_buffer, RG::RenderGraph*& a_out_graph, const uint32_t a_draw_list_size)
@@ -474,6 +524,7 @@ bool RG::RenderGraphSystem::ExecuteGraph(MemoryArena& a_temp_arena, const RComma
 
 bool RG::RenderGraphSystem::EndGraph(RenderGraph& a_graph)
 {
+    (void)a_graph;
     return true;
 }
 

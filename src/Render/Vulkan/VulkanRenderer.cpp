@@ -2158,7 +2158,7 @@ void Vulkan::BlitImage(const RCommandList a_list, const BlitImageInfo& a_info)
 		VK_FILTER_NEAREST);
 }
 
-void Vulkan::BuildBottomLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildBottomLevelAccelerationStructInfo& a_build_info, const GPUAddress a_vertex_device_address, const GPUAddress a_index_device_address)
+void Vulkan::BuildBottomLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildBottomLevelAccelerationStructInfo& a_build_info, const GPUAddress a_vertex_device_address, const GPUAddress a_index_device_address, const bool a_update)
 {
 	BB_ASSERT(a_build_info.geometry_sizes.size() == a_build_info.primitive_counts.size(), "geometry and primitive must have the same size");
 	const ConstSlice<VkAccelerationStructureGeometryKHR> geometry_infos = CreateGeometryInfo(a_temp_arena, a_build_info.geometry_sizes, a_vertex_device_address, a_index_device_address);
@@ -2178,7 +2178,7 @@ void Vulkan::BuildBottomLevelAccelerationStruct(MemoryArena& a_temp_arena, const
 	acceleration_build_info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
 	acceleration_build_info.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
 	acceleration_build_info.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-	acceleration_build_info.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+	acceleration_build_info.mode = a_update ? VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR : VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
 	acceleration_build_info.dstAccelerationStructure = reinterpret_cast<VkAccelerationStructureKHR>(a_build_info.acc_struct.handle);
 	acceleration_build_info.geometryCount = static_cast<uint32_t>(geometry_infos.size());
 	acceleration_build_info.pGeometries = geometry_infos.data();
@@ -2186,7 +2186,7 @@ void Vulkan::BuildBottomLevelAccelerationStruct(MemoryArena& a_temp_arena, const
 	s_vulkan_inst->pfn.CmdBuildAccelerationStructuresKHR(cmd_list, 1, &acceleration_build_info, &ranges);
 }
 
-void Vulkan::BuildTopLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildTopLevelAccelerationStructInfo& a_build_info)
+void Vulkan::BuildTopLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildTopLevelAccelerationStructInfo& a_build_info, const bool a_update)
 {
 	BB_ASSERT(a_build_info.instances.size() == a_build_info.primitive_counts.size(), "geometry and primitive must have the same size");
 	const VkCommandBuffer cmd_list = reinterpret_cast<VkCommandBuffer>(a_list.handle);
@@ -2212,9 +2212,9 @@ void Vulkan::BuildTopLevelAccelerationStruct(MemoryArena& a_temp_arena, const RC
 		range.transformOffset = 0;
 	}
 
-	const size_t instance_copy_size = sizeof(BottomLevelAccelerationStructInstance) * instance_count;
-	BB_ASSERT(instance_copy_size == a_build_info.mapped_size, "instance copy size is not the same as mapped_size");
-	memcpy(a_build_info.acceleration_build_mapped, instances, instance_copy_size);
+	//const size_t instance_copy_size = sizeof(BottomLevelAccelerationStructInstance) * instance_count;
+	//BB_ASSERT(instance_copy_size == a_build_info.mapped_size, "instance copy size is not the same as mapped_size");
+	//memcpy(a_build_info.acceleration_build_mapped, instances, instance_copy_size);
 
 	VkAccelerationStructureGeometryKHR acceleration_instances{};
 	acceleration_instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
@@ -2228,7 +2228,7 @@ void Vulkan::BuildTopLevelAccelerationStruct(MemoryArena& a_temp_arena, const RC
 	acceleration_build_info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
 	acceleration_build_info.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
 	acceleration_build_info.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
-	acceleration_build_info.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+	acceleration_build_info.mode = a_update ? VK_BUILD_ACCELERATION_STRUCTURE_MODE_UPDATE_KHR : VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
 	acceleration_build_info.dstAccelerationStructure = reinterpret_cast<VkAccelerationStructureKHR>(a_build_info.acc_struct.handle);
 	acceleration_build_info.geometryCount = 1;
 	acceleration_build_info.pGeometries = &acceleration_instances;
