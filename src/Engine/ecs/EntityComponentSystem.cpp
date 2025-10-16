@@ -25,7 +25,6 @@ bool EntityComponentSystem::Init(MemoryArena& a_arena, const EntityComponentSyst
 	m_name = a_name;
 
     m_frame_count = a_create_info.render_frame_count;
-    m_per_frame_arena = MemoryArenaCreate();
 
 	// components
 	m_ecs_entities.Init(a_arena, a_create_info.entity_count);
@@ -242,10 +241,9 @@ void EntityComponentSystem::DrawAABB(const ECSEntity a_entity, const LineColor a
     AddLinesToFrame(lines.const_slice());
 }
 
-void EntityComponentSystem::StartFrame()
+void EntityComponentSystem::StartFrame(MemoryArena& a_arena)
 {
-	MemoryArenaReset(m_per_frame_arena);
-    m_render_system.StartFrame(m_per_frame_arena);
+    m_render_system.StartFrame(a_arena);
 }
 
 void EntityComponentSystem::EndFrame()
@@ -261,15 +259,15 @@ void EntityComponentSystem::TransformSystemUpdate()
 	}
 }
 
-RenderSystemFrame EntityComponentSystem::RenderSystemUpdate()
+RenderSystemFrame EntityComponentSystem::RenderSystemUpdate(MemoryArena& a_arena)
 {
 	StackString<32> rendering_name = m_name;
 	rendering_name.append(" - render");
 	BB_START_PROFILE(rendering_name);
-	m_render_system.UpdateRenderSystem(m_per_frame_arena, m_world_matrices, m_render_mesh_pool, m_raytrace_pool, m_light_pool.GetAllComponents());
+	m_render_system.UpdateRenderSystem(a_arena, m_world_matrices, m_render_mesh_pool, m_raytrace_pool, m_light_pool.GetAllComponents());
 	BB_END_PROFILE(rendering_name);
 
-	return m_render_system.EndFrame(m_per_frame_arena);
+	return m_render_system.EndFrame(a_arena);
 }
 
 float3 EntityComponentSystem::Translate(const ECSEntity a_entity, const float3 a_translate)

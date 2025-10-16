@@ -3,7 +3,7 @@
 
 using namespace BB;
 
-constexpr bool FORCE_SINGLE_THREAD = true;
+constexpr bool FORCE_SINGLE_THREAD = false;
 
 enum class THREAD_STATUS : uint32_t
 {

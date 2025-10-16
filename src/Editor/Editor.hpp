@@ -69,7 +69,7 @@ namespace BB
 
 		void MainEditorImGuiInfo(const MemoryArena& a_arena) const;
 		static void ThreadFuncForDrawing(MemoryArena& a_thread_arena, void* a_param);
-		void UpdateGame(class EditorGame& a_instance, const float a_delta_time);
+		void UpdateGame(MemoryArena& a_temp_arena, class EditorGame& a_instance, const float a_delta_time);
         void UpdateGizmo(Viewport& a_viewport, SceneHierarchy& a_hierarchy, const float3 a_cam_pos);
 
 		uint2 m_app_window_extent;

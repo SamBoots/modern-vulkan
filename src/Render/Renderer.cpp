@@ -1197,7 +1197,6 @@ void BB::FreeImageView(const RDescriptorIndex a_index)
     FreeImageDescriptor(a_index);
     DescriptorWriteImage(a_index, GetImageView(s_render_inst->debug_descriptor_index), IMAGE_LAYOUT::RO_FRAGMENT);
     Vulkan::FreeViewImage(s_render_inst->m_views[a_index.handle]);
-
 }
 
 void BB::FreeImageViewShaderInaccessible(const RImageView a_view)

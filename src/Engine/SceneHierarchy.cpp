@@ -7,8 +7,6 @@
 #include "MaterialSystem.hpp"
 #include "ViewportInterface.hpp"
 
-#include "BBjson.hpp"
-
 #include <vector>
 
 using namespace BB;
@@ -73,18 +71,18 @@ StaticArray<Asset::AsyncAsset> SceneHierarchy::PreloadAssetsFromJson(MemoryArena
 	return async_model_loads;
 }
 
-void SceneHierarchy::StartFrame()
+void SceneHierarchy::StartFrame(MemoryArena& a_arena)
 {
-    m_ecs.StartFrame();
+    m_ecs.StartFrame(a_arena);
 }
 
-SceneFrame SceneHierarchy::UpdateScene()
+SceneFrame SceneHierarchy::UpdateScene(MemoryArena& a_arena)
 {
 	SceneFrame scene_frame;
 
 	m_ecs.TransformSystemUpdate();
 
-	scene_frame.render_frame = m_ecs.RenderSystemUpdate();
+	scene_frame.render_frame = m_ecs.RenderSystemUpdate(a_arena);
 	m_ecs.EndFrame();
 
 	return scene_frame;

@@ -34,10 +34,10 @@ namespace BB
         void AddLinesToFrame(const ConstSlice<Line> a_lines);
         void DrawAABB(const ECSEntity a_entity, const LineColor a_color);
 
-		void StartFrame();
+		void StartFrame(MemoryArena& a_arena);
 		void EndFrame();
 		void TransformSystemUpdate();
-		RenderSystemFrame RenderSystemUpdate();
+		RenderSystemFrame RenderSystemUpdate(MemoryArena& a_arena);
 
 		float3 Translate(const ECSEntity a_entity, const float3 a_translate);
 		float3x3 Rotate(const ECSEntity a_entity, const float3x3 a_rotate);
@@ -78,7 +78,6 @@ namespace BB
 		void UpdateTransform(const ECSEntity a_entity);
 
 		StackString<32> m_name;
-		MemoryArena m_per_frame_arena;
 		uint32_t m_current_frame;
         uint32_t m_frame_count;
 

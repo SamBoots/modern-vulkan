@@ -113,13 +113,13 @@ void Editor::MainEditorImGuiInfo(const MemoryArena& a_arena) const
 	}
 }
 
-void Editor::ThreadFuncForDrawing(MemoryArena&, void* a_param)
+void Editor::ThreadFuncForDrawing(MemoryArena& a_thread_arena, void* a_param)
 {
 	ThreadFuncForDrawing_Params* params = reinterpret_cast<ThreadFuncForDrawing_Params*>(a_param);
-	params->editor.UpdateGame(params->instance, params->delta_time);
+	params->editor.UpdateGame(a_thread_arena, params->instance, params->delta_time);
 }
 
-void Editor::UpdateGame(EditorGame& a_instance, const float a_delta_time)
+void Editor::UpdateGame(MemoryArena& a_temp_arena, EditorGame& a_instance, const float a_delta_time)
 {
 	const uint32_t pool_index = m_per_frame.current_count.fetch_add(1, std::memory_order_relaxed);
 
@@ -132,7 +132,7 @@ void Editor::UpdateGame(EditorGame& a_instance, const float a_delta_time)
 
     Viewport& viewport = a_instance.GetGameInstance().GetViewport();
     SceneHierarchy& hierarchy = a_instance.GetGameInstance().GetSceneHierarchy();
-    hierarchy.StartFrame();
+    hierarchy.StartFrame(a_temp_arena);
     bool success;
     if (!m_swallow_input && viewport.PositionWithinViewport(uint2(static_cast<unsigned int>(m_previous_mouse_pos.x), static_cast<unsigned int>(m_previous_mouse_pos.y))))
     {
@@ -150,7 +150,7 @@ void Editor::UpdateGame(EditorGame& a_instance, const float a_delta_time)
     a_instance.GetSceneHierarchy().GetECS().GetRenderSystem().SetView(view, pos);
     a_instance.GetSceneHierarchy().GetECS().GetRenderSystem().SetProjection(viewport.CreateProjection(60.f, 0.001f, 10000.0f), 0.001f);
 
-	const SceneFrame frame = hierarchy.UpdateScene();
+	const SceneFrame frame = hierarchy.UpdateScene(a_temp_arena);
 	// book keep all the end details
     m_per_frame.draw_struct[pool_index].game = &a_instance;
 	m_per_frame.fences[pool_index] = frame.render_frame.fence;

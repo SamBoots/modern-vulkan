@@ -51,8 +51,8 @@ namespace BB
 		void Init(MemoryArena& a_arena, const uint32_t a_ecs_obj_max, const StackString<32> a_name);
 		static StaticArray<Asset::AsyncAsset> PreloadAssetsFromJson(MemoryArena& a_arena, const JsonParser& a_parsed_file);
 
-        void StartFrame();
-		SceneFrame UpdateScene();
+        void StartFrame(MemoryArena& a_arena);
+		SceneFrame UpdateScene(MemoryArena& a_arena);
 
 		ECSEntity CreateEntity(const float3 a_position, const NameComponent& a_name, const ECSEntity a_parent = INVALID_ECS_OBJ);
 		ECSEntity CreateEntityMesh(const float3 a_position, const SceneMeshCreateInfo& a_mesh_info, const char* a_name, const BoundingBox& a_bounding_box, const ECSEntity a_parent = INVALID_ECS_OBJ);
