@@ -172,7 +172,7 @@ ENGINE_STATUS BB::UpdateEngine(const ConstSlice<InputEvent> a_input_events)
         s_resize_app = false;
         status = ENGINE_STATUS::RESIZE;
     }
-    Asset::Update();
+    Asset::UpdateAsync();
 
     Input::UpdateInput(a_input_events);
     return status;

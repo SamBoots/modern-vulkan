@@ -37,7 +37,7 @@ namespace BB
 		void StartFrame();
 		void EndFrame();
 		void TransformSystemUpdate();
-		RenderSystemFrame RenderSystemUpdate(const RCommandList a_list);
+		RenderSystemFrame RenderSystemUpdate();
 
 		float3 Translate(const ECSEntity a_entity, const float3 a_translate);
 		float3x3 Rotate(const ECSEntity a_entity, const float3x3 a_rotate);

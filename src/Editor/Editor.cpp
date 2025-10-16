@@ -123,15 +123,6 @@ void Editor::UpdateGame(EditorGame& a_instance, const float a_delta_time)
 {
 	const uint32_t pool_index = m_per_frame.current_count.fetch_add(1, std::memory_order_relaxed);
 
-	CommandPool& pool = m_per_frame.pools[pool_index];
-	RCommandList& list = m_per_frame.lists[pool_index];
-	// render_pool 0 is already set.
-	if (pool_index != 0)
-	{
-		pool = GetGraphicsCommandPool();
-		list = pool.StartCommandList();
-	}
-
     CameraInput input;
     input.channel = m_input.channel;
     input.move = m_input.camera_move;
@@ -159,7 +150,7 @@ void Editor::UpdateGame(EditorGame& a_instance, const float a_delta_time)
     a_instance.GetSceneHierarchy().GetECS().GetRenderSystem().SetView(view, pos);
     a_instance.GetSceneHierarchy().GetECS().GetRenderSystem().SetProjection(viewport.CreateProjection(60.f, 0.001f, 10000.0f), 0.001f);
 
-	const SceneFrame frame = hierarchy.UpdateScene(list);
+	const SceneFrame frame = hierarchy.UpdateScene();
 	// book keep all the end details
     m_per_frame.draw_struct[pool_index].game = &a_instance;
 	m_per_frame.fences[pool_index] = frame.render_frame.fence;
@@ -356,6 +347,10 @@ void Editor::StartFrame(MemoryArena& a_arena, const Slice<InputEvent> a_input_ev
 {
 	ImNewFrame(m_app_window_extent);
 
+    m_per_frame.composite_pool = GetGraphicsCommandPool();
+    m_per_frame.composite_list = m_per_frame.composite_pool.StartCommandList();
+    BindGraphicsBindlessSet(m_per_frame.composite_list);
+
 	m_swallow_input = false;
 	for (size_t i = 0; i < a_input_events.size(); i++)
 	{
@@ -368,17 +363,12 @@ void Editor::StartFrame(MemoryArena& a_arena, const Slice<InputEvent> a_input_ev
 		}
 	}
 
-	CommandPool& pool = m_per_frame.pools[0];
-	RCommandList& list = m_per_frame.lists[0];
-	pool = GetGraphicsCommandPool();
-	list = pool.StartCommandList();
-
 	RenderStartFrameInfo start_info;
 	start_info.delta_time = a_delta_time;
 	start_info.mouse_pos = m_previous_mouse_pos;
     m_previous_mouse_pos = Input::GetMousePos(m_main_window);
 
-	RenderStartFrame(list, start_info, m_render_target, m_per_frame.back_buffer_index);
+	RenderStartFrame(m_per_frame.composite_list, start_info, m_render_target, m_per_frame.back_buffer_index);
 	m_per_frame.current_count = 0;
 
 	m_console.ImGuiShowConsole(a_arena, m_app_window_extent);
@@ -419,11 +409,12 @@ ThreadTask Editor::UpdateGameInstance(const float a_delta_time, class EditorGame
 void Editor::EndFrame(MemoryArena& a_arena)
 {
 	bool skip = false;
+    const uint32_t unique_windows = m_per_frame.current_count;
 	MemoryArenaScope(a_arena)
 	{
         ImGuiDisplayEditor(a_arena);
 
-		for (size_t i = 0; i < m_per_frame.current_count; i++)
+		for (uint32_t i = 0; i < unique_windows; i++)
 		{
             DrawStruct& ds = m_per_frame.draw_struct[i];
             EditorGame& game_inst = *ds.game;
@@ -464,34 +455,36 @@ void Editor::EndFrame(MemoryArena& a_arena)
             ImGui::End();
 		}
 
-        const uint32_t last_commandlist = m_per_frame.current_count - 1;
-		// CURFRAME = the render internal frame
-		ImRenderFrame(m_per_frame.lists[last_commandlist], GetImageView(m_render_target_descs[m_per_frame.back_buffer_index]), m_app_window_extent, true, m_imgui_material);
+		ImRenderFrame(m_per_frame.composite_list, GetImageView(m_render_target_descs[m_per_frame.back_buffer_index]), m_app_window_extent, true, m_imgui_material);
 		ImGui::EndFrame();
 
-		PRESENT_IMAGE_RESULT result = RenderEndFrame(m_per_frame.lists[last_commandlist], m_render_target, m_per_frame.back_buffer_index);
+		PRESENT_IMAGE_RESULT result = RenderEndFrame(m_per_frame.composite_list, m_render_target, m_per_frame.back_buffer_index);
 		if (result == PRESENT_IMAGE_RESULT::SWAPCHAIN_OUT_OF_DATE)
 		{
 			skip = true;
 		}
 
-        m_per_frame.pools[0].EndCommandList(m_per_frame.lists[0]);
-		for (size_t i = 1; i < m_per_frame.current_count; i++)
-		{
-			m_per_frame.pools[i].EndCommandList(m_per_frame.lists[i]);
-		}
+        m_per_frame.composite_pool.EndCommandList(m_per_frame.composite_list);
 
+        CommandPool* pools = ArenaAllocArr(a_arena, CommandPool, unique_windows + 1);
+        for (uint32_t i = 0; i < unique_windows; i++)
+        {
+            pools[i] = *m_per_frame.frame_results[i].render_frame.pool;
+        }
+        pools[unique_windows] = m_per_frame.composite_pool;
 
 		const uint32_t command_list_count = Max(m_per_frame.current_count.load(), 1u);
 		uint64_t present_queue_value;
 		// TODO: fence values could bug if no scenes are being rendered.
-		result = PresentFrame(m_per_frame.pools.slice(command_list_count),
+		result = PresentFrame(a_arena,
+            Slice(pools, unique_windows + 1),
 			m_per_frame.fences.data(), 
 			m_per_frame.fence_values.data(), 
 			m_per_frame.current_count,
-			present_queue_value, 
+			present_queue_value,
 			skip);
 
+        // wtf fix this
         GPUWaitIdle();
 	}
 }
@@ -765,7 +758,7 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 
 		if (a_ecs.m_ecs_entities.HasSignature(a_entity, RENDER_ECS_SIGNATURE))
 		{
-			RenderComponent& RenderComponent = a_ecs.m_render_mesh_pool.GetComponent(a_entity);
+			RenderComponent& render_component = a_ecs.m_render_mesh_pool.GetComponent(a_entity);
 			if (ImGui::TreeNodeEx("rendering"))
 			{
 				ImGui::Indent();
@@ -774,18 +767,14 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 				{
 					ImGui::Indent();
 
-					const MasterMaterial& master = Material::GetMasterMaterial(RenderComponent.master_material);
-					MeshMetallic& metallic = RenderComponent.material_data;
+					const MasterMaterial& master = Material::GetMasterMaterial(render_component.master_material);
+					MeshMetallic& metallic = render_component.material_data;
 
 					ImGui::Text("master Material: %s", master.name.c_str());
-					if (ImGui::SliderFloat4("base color factor", metallic.base_color_factor.e, 0.f, 1.f))
-						RenderComponent.material_dirty = true;
-
-					if (ImGui::InputFloat("metallic factor", &metallic.metallic_factor))
-						RenderComponent.material_dirty = true;
-
-					if (ImGui::InputFloat("roughness factor", &metallic.roughness_factor))
-						RenderComponent.material_dirty = true;
+					if (ImGui::SliderFloat4("base color factor", metallic.base_color_factor.e, 0.f, 1.f) || 
+                        ImGui::InputFloat("metallic factor", &metallic.metallic_factor) || 
+                        ImGui::InputFloat("metallic factor", &metallic.metallic_factor))
+                        Material::MarkMaterialDirty(render_component.material, &render_component.material_data, sizeof(render_component.material_data));
 
 					ImGuiShowTexturePossibleChange(metallic.albedo_texture, float2(128, 128), "albedo");
 					ImGuiShowTexturePossibleChange(metallic.normal_texture, float2(128, 128), "normal");
@@ -800,9 +789,9 @@ void Editor::ImGuiDisplayEntity(EntityComponentSystem& a_ecs, const ECSEntity a_
 							const MasterMaterial& new_mat = materials[i];
 							if (ImGui::Button(new_mat.name.c_str()))
 							{
-								Material::FreeMaterialInstance(RenderComponent.material);
-								RenderComponent.master_material = new_mat.handle;
-								RenderComponent.material = Material::CreateMaterialInstance(RenderComponent.master_material);
+								Material::FreeMaterialInstance(render_component.material);
+                                render_component.master_material = new_mat.handle;
+                                render_component.material = Material::CreateMaterialInstance(render_component.master_material);
 							}
 						}
 

@@ -261,17 +261,15 @@ void EntityComponentSystem::TransformSystemUpdate()
 	}
 }
 
-RenderSystemFrame EntityComponentSystem::RenderSystemUpdate(const RCommandList a_list)
+RenderSystemFrame EntityComponentSystem::RenderSystemUpdate()
 {
 	StackString<32> rendering_name = m_name;
 	rendering_name.append(" - render");
 	BB_START_PROFILE(rendering_name);
-	m_render_system.UpdateRenderSystem(m_per_frame_arena, a_list, m_world_matrices, m_render_mesh_pool, m_raytrace_pool, m_light_pool.GetAllComponents());
+	m_render_system.UpdateRenderSystem(m_per_frame_arena, m_world_matrices, m_render_mesh_pool, m_raytrace_pool, m_light_pool.GetAllComponents());
 	BB_END_PROFILE(rendering_name);
 
-    //m_render_system.DebugDraw(a_list, a_draw_area_size);
-
-	return m_render_system.EndFrame(a_list, IMAGE_LAYOUT::RT_COLOR);
+	return m_render_system.EndFrame(m_per_frame_arena);
 }
 
 float3 EntityComponentSystem::Translate(const ECSEntity a_entity, const float3 a_translate)
@@ -369,6 +367,10 @@ bool EntityComponentSystem::EntityAssignRenderComponent(const ECSEntity a_entity
 		return false;
 	if (!m_ecs_entities.RegisterSignature(a_entity, m_render_mesh_pool.GetSignatureIndex()))
 		return false;
+
+    const RenderComponent& mesh = m_render_mesh_pool.GetComponent(a_entity);
+    if (mesh.material.IsValid())
+        Material::MarkMaterialDirty(mesh.material, &mesh.material_data, sizeof(mesh.material_data));
 	return true;
 }
 

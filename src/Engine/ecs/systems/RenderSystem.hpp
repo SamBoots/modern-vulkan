@@ -13,11 +13,13 @@
 
 namespace BB
 {
+    class CommandPool;
 	struct RenderSystemFrame
 	{
 		RDescriptorIndex render_target;
 		RFence fence;
 		uint64_t fence_value;
+        CommandPool* pool;
 	};
 
 	class RenderSystem
@@ -29,8 +31,8 @@ namespace BB
 		void Init(MemoryArena& a_arena, const RenderOptions& a_options);
 
 		void StartFrame(MemoryArena& a_per_frame_arena, const uint32_t a_max_ui_elements = 1024);
-		RenderSystemFrame EndFrame(const RCommandList a_list, const IMAGE_LAYOUT a_current_layout);
-		void UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCommandList a_list, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const RaytraceComponentPool& a_raytrace_pool, const ConstSlice<LightComponent> a_lights);
+		RenderSystemFrame EndFrame(MemoryArena& a_per_frame_arena);
+		void UpdateRenderSystem(MemoryArena& a_per_frame_arena, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const RaytraceComponentPool& a_raytrace_pool, const ConstSlice<LightComponent> a_lights);
 
 		void Screenshot(const PathString& a_path) const;
 
@@ -46,8 +48,8 @@ namespace BB
         float4x4 GetView() const {return m_graph_system.GetConstGlobalData().scene_info.view; }
 
 	private:
-        void RasterFrame(MemoryArena& a_per_frame_arena, const RCommandList a_list, const uint3 a_render_target_size, const IMAGE_FORMAT a_render_target_format, const RG::ResourceHandle a_matrix_buffer, const ConstSlice<LightComponent> a_lights);
-        void RaytraceFrame(MemoryArena& a_per_frame_arena, const RCommandList a_list, const RG::ResourceHandle a_matrix_buffer, const RaytraceComponentPool& a_raytrace_pool);
+        void RasterFrame(MemoryArena& a_per_frame_arena, const uint3 a_render_target_size, const IMAGE_FORMAT a_render_target_format, const RG::ResourceHandle a_matrix_buffer, const ConstSlice<LightComponent> a_lights);
+        void RaytraceFrame(MemoryArena& a_per_frame_arena, const RG::ResourceHandle a_matrix_buffer, const RaytraceComponentPool& a_raytrace_pool);
 
         RG::RenderGraphSystem m_graph_system;
         RG::RenderGraph* m_cur_graph;

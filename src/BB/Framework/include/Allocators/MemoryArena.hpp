@@ -104,8 +104,8 @@ namespace BB
 #define ArenaAllocType(a_arena, a_type) new (BB::ArenaAlloc_f(BB_ARENA_DEBUG_ARGS a_arena, sizeof(a_type), alignof(a_type))) a_type
 #define ArenaAllocTypeNoZero(a_arena, a_type) new (BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG_ARGS a_arena, sizeof(a_type), alignof(a_type))) a_type
 
-#define ArenaAllocArr(a_arena, a_type, a_count) reinterpret_cast<a_type*>(BB::ArenaAlloc_f(BB_ARENA_DEBUG_ARGS a_arena, sizeof(a_type) * a_count, alignof(a_type)))
-#define ArenaAllocArrNoZero(a_arena, a_memory_size, a_align) reinterpret_cast<a_type*>(BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG_ARGS a_arena, sizeof(a_type) * a_count, alignof(a_type)))
+#define ArenaAllocArr(a_arena, a_type, a_count) reinterpret_cast<a_type*>(BB::ArenaAlloc_f(BB_ARENA_DEBUG_ARGS a_arena, sizeof(a_type) * (a_count), alignof(a_type)))
+#define ArenaAllocArrNoZero(a_arena, a_memory_size, a_align) reinterpret_cast<a_type*>(BB::ArenaAllocNoZero_f(BB_ARENA_DEBUG_ARGS a_arena, sizeof(a_type) * (a_count), alignof(a_type)))
 
 #define ArenaRealloc(a_arena, a_ptr, a_ptr_size, a_memory_size, a_align) BB::ArenaRealloc_f(BB_ARENA_DEBUG_ARGS a_arena, a_ptr, a_ptr_size, a_memory_size, a_align)
 #define ArenaReallocNoZero(a_arena, a_ptr, a_ptr_size, a_memory_size, a_align) BB::ArenaReallocNoZero_f(BB_ARENA_DEBUG_ARGS a_arena, a_ptr, a_ptr_size, a_memory_size, a_align)

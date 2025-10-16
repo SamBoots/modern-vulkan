@@ -78,13 +78,13 @@ void SceneHierarchy::StartFrame()
     m_ecs.StartFrame();
 }
 
-SceneFrame SceneHierarchy::UpdateScene(const RCommandList a_list)
+SceneFrame SceneHierarchy::UpdateScene()
 {
 	SceneFrame scene_frame;
 
 	m_ecs.TransformSystemUpdate();
 
-	scene_frame.render_frame = m_ecs.RenderSystemUpdate(a_list);
+	scene_frame.render_frame = m_ecs.RenderSystemUpdate();
 	m_ecs.EndFrame();
 
 	return scene_frame;
@@ -107,8 +107,7 @@ ECSEntity SceneHierarchy::CreateEntityViaModelNode(const Model::Node& a_node, co
 			mesh_info.master_material = mesh.primitives[i].material_data.material;
 			mesh_info.material = Material::CreateMaterialInstance(mesh.primitives[i].material_data.material);
 			mesh_info.material_data = mesh.primitives[i].material_data.mesh_metallic;
-			mesh_info.material_dirty = true;
-			bool success = m_ecs.EntityAssignRenderComponent(prim_obj, mesh_info);
+            bool success = m_ecs.EntityAssignRenderComponent(prim_obj, mesh_info);
 			BB_ASSERT(success, "failed to create RenderComponent");
             success = m_ecs.EntityAssignBoundingBox(prim_obj, mesh.primitives[i].bounding_box);
             BB_ASSERT(success, "failed to assign BoundingBox");
@@ -132,7 +131,7 @@ bool SceneHierarchy::CreateRaytraceComponent(MemoryArena& a_temp_arena, const EC
     AccelerationStructSizeInfo sizes = GetBottomLevelAccelerationStructSizeInfo(a_temp_arena, ConstSlice<AccelerationStructGeometrySize>(&geometry_size, 1), ConstSlice<uint32_t>(&max_primitives, 1));
     
     RaytraceComponent component;
-    component.acceleration_structure = CreateBottomLevelAccelerationStruct();
+    //component.acceleration_structure = CreateBottomLevelAccelerationStruct();
     component.build_size =  static_cast<uint32_t>(RoundUp(sizes.acceleration_structure_size, 256)); // remove magic number :)
     component.scratch_size = sizes.scratch_build_size;
     component.scratch_update = sizes.scratch_update_size;
@@ -160,13 +159,10 @@ ECSEntity SceneHierarchy::CreateEntityMesh(const float3 a_position, const SceneM
 	if (mesh_info.master_material.IsValid())
 	{
 		mesh_info.material = Material::CreateMaterialInstance(a_mesh_info.master_material);
-		mesh_info.material_dirty = true;
+        Material::MarkMaterialDirty(mesh_info.material, &mesh_info.material_data, sizeof(mesh_info.material_data));
 	}
 	else
-	{
 		mesh_info.material = MaterialHandle(BB_INVALID_HANDLE_64);
-		mesh_info.material_dirty = false;
-	}
 
 	const ECSEntity ecs_obj = m_ecs.CreateEntity(a_name, a_parent, a_position);
 	bool success = m_ecs.EntityAssignRenderComponent(ecs_obj, mesh_info);

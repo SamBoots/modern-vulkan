@@ -442,6 +442,16 @@ namespace BB
 		SHADER_STAGE_FLAGS next_stages;
 	};
 
+    enum class PIPELINE_STAGE : uint32_t
+    {
+        VERTEX_SHADER,
+        FRAGMENT_SHADER,
+        COMPUTE_SHADER,
+        TRANSFER,
+        COLOR_ATTACHMENT,
+        TOP_OF_PIPE,
+    };
+
 	struct PipelineBarrierGlobalInfo
 	{
 		uint32_t todo;

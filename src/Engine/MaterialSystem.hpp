@@ -6,6 +6,8 @@
 
 namespace BB
 {
+    class GPUUploadRingAllocator;
+
 	struct MaterialShaderCreateInfo
 	{
 		StringView path;
@@ -116,6 +118,10 @@ namespace BB
 		}
 
 		void InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCreateInfo& a_create_info);
+
+        bool MarkMaterialDirty(const MaterialHandle a_material, const void* a_user_data, const size_t a_user_data_size);
+        bool HasDirtyMaterials();
+        void UpdateDirtyMaterials(const RCommandList a_list, GPUUploadRingAllocator& a_allocator, const uint64_t a_fence_value);
 
 		MasterMaterialHandle CreateMasterMaterial(MemoryArena& a_temp_arena, const MaterialCreateInfo& a_create_info, const StringView a_name);
 		MaterialHandle CreateMaterialInstance(const MasterMaterialHandle a_master_material);

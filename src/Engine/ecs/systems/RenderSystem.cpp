@@ -159,25 +159,9 @@ void RenderSystem::StartFrame(MemoryArena& a_per_frame_arena, const uint32_t a_m
     m_lines.clear();
 }
 
-RenderSystemFrame RenderSystem::EndFrame(const RCommandList a_list, const IMAGE_LAYOUT a_current_layout)
+RenderSystemFrame RenderSystem::EndFrame(MemoryArena& a_per_frame_arena)
 {
     const RG::RenderResource& final_image = m_cur_graph->GetResource(m_final_image);
-
-	PipelineBarrierImageInfo render_target_transition;
-	render_target_transition.prev = a_current_layout;
-	render_target_transition.next = IMAGE_LAYOUT::RO_FRAGMENT;
-	render_target_transition.image = final_image.image.image;
-	render_target_transition.layer_count = 1;
-	render_target_transition.level_count = 1;
-	render_target_transition.base_array_layer = 0;
-	render_target_transition.base_mip_level = 0;
-	render_target_transition.image_aspect = IMAGE_ASPECT::COLOR;
-
-	PipelineBarrierInfo pipeline_info{};
-	pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo>(&render_target_transition, 1);
-	PipelineBarriers(a_list, pipeline_info);
-
-    m_graph_system.EndGraph(*m_cur_graph);
 
 	RenderSystemFrame frame;
 	frame.render_target = final_image.descriptor_index;
@@ -185,31 +169,21 @@ RenderSystemFrame RenderSystem::EndFrame(const RCommandList a_list, const IMAGE_
 
 	frame.fence = m_graph_system.GetFence();
 	frame.fence_value = m_graph_system.IncrementNextFenceValue();
+    frame.pool = m_graph_system.ExecuteGraph(a_per_frame_arena, *m_cur_graph);
 	return frame;
 }
 
-void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCommandList a_list, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const RaytraceComponentPool& a_raytrace_pool, const ConstSlice<LightComponent> a_lights)
+void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const WorldMatrixComponentPool& a_world_matrices, const RenderComponentPool& a_render_pool, const RaytraceComponentPool& a_raytrace_pool, const ConstSlice<LightComponent> a_lights)
 {
     const ConstSlice<ECSEntity> render_entities = a_render_pool.GetEntityComponents();
     const size_t render_component_count = a_render_pool.GetEntityComponents().size();
 
     m_graph_system.StartGraph(a_per_frame_arena, m_current_frame, m_cur_graph, static_cast<uint32_t>(render_component_count));
     
-    BindGraphicsBindlessSet(a_list);
-    BindIndexBuffer(a_list, 0);
-    SetPushConstantsSceneUniformIndex(a_list, m_cur_graph->GetSceneDescriptorIndex());
-    
     for (size_t i = 0; i < render_component_count; i++)
     {
         RenderComponent& comp = a_render_pool.GetComponent(render_entities[i]);
         const float4x4& transform = a_world_matrices.GetComponent(render_entities[i]);
-
-        if (comp.material_dirty)
-        {
-            const GPUBufferView upload_view = m_graph_system.AllocateAndUploadGPUMemory(sizeof(comp.material_data), &comp.material_data);
-            Material::WriteMaterial(comp.material, a_list, upload_view.buffer, upload_view.offset);
-            comp.material_dirty = false;
-        }
 
         DrawList::DrawEntry entry;
         entry.mesh = comp.mesh;
@@ -241,9 +215,8 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
         matrix_buffer = m_cur_graph->AddBuffer("matrix buffer", draw_list.transforms.size() * sizeof(ShaderTransform), draw_list.transforms.data());
 
     // for now combine
-    RasterFrame(a_per_frame_arena, a_list, render_target_size, render_target_format, matrix_buffer, a_lights);
-    RaytraceFrame(a_per_frame_arena, a_list, matrix_buffer, a_raytrace_pool);
-
+    RasterFrame(a_per_frame_arena, render_target_size, render_target_format, matrix_buffer, a_lights);
+    RaytraceFrame(a_per_frame_arena, matrix_buffer, a_raytrace_pool);
 
     ConstSlice quads = m_ui_stage.GetQuads();
     if (quads.size())
@@ -256,10 +229,9 @@ void RenderSystem::UpdateRenderSystem(MemoryArena& a_per_frame_arena, const RCom
     }
 
     m_graph_system.CompileGraph(a_per_frame_arena, *m_cur_graph);
-    m_graph_system.ExecuteGraph(a_per_frame_arena, a_list, *m_cur_graph);
 }
 
-void RenderSystem::RasterFrame(MemoryArena& a_per_frame_arena, const RCommandList a_list, const uint3 a_render_target_size, const IMAGE_FORMAT a_render_target_format, const RG::ResourceHandle a_matrix_buffer, const ConstSlice<LightComponent> a_lights)
+void RenderSystem::RasterFrame(MemoryArena& a_per_frame_arena, const uint3 a_render_target_size, const IMAGE_FORMAT a_render_target_format, const RG::ResourceHandle a_matrix_buffer, const ConstSlice<LightComponent> a_lights)
 {
     const RG::ResourceHandle skybox_texture = m_cur_graph->AddImage("skybox",
         m_skybox,
@@ -345,7 +317,7 @@ void RenderSystem::RasterFrame(MemoryArena& a_per_frame_arena, const RCommandLis
     }
 }
 
-void RenderSystem::RaytraceFrame(MemoryArena& a_per_frame_arena, const RCommandList a_list, const RG::ResourceHandle a_matrix_buffer, const RaytraceComponentPool& a_raytrace_pool)
+void RenderSystem::RaytraceFrame(MemoryArena& a_per_frame_arena, const RG::ResourceHandle a_matrix_buffer, const RaytraceComponentPool& a_raytrace_pool)
 {
 
 }

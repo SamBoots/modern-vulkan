@@ -43,23 +43,9 @@ RG::RenderGraph::RenderGraph(MemoryArena& a_arena, const uint32_t a_max_passes, 
     m_resources.Init(a_arena, a_max_resources);
 
     m_per_frame_descriptor = AllocateBufferDescriptor();
-    m_per_frame_compute_descriptor = AllocateBufferDescriptor();
     m_scene_buffer.Init(BUFFER_TYPE::UNIFORM, sizeof(Scene3DInfo), "scene info buffer");
     m_scene_descriptor = AllocateUniformDescriptor();
     DescriptorWriteUniformBuffer(m_scene_descriptor, m_scene_buffer.GetView());
-
-    GPUBufferCreateInfo per_frame_create_info;
-    per_frame_create_info.name = "per frame compute buffer";
-    per_frame_create_info.size = a_compute_size;
-    per_frame_create_info.type = BUFFER_TYPE::STORAGE;
-    per_frame_create_info.host_writable = false;
-    m_per_frame_compute_buffer.Init(per_frame_create_info);
-
-    GPUBufferView per_frame_view;
-    per_frame_view.buffer = m_per_frame_compute_buffer.GetBuffer();
-    per_frame_view.size = a_compute_size;
-    per_frame_view.offset = 0;
-    DescriptorWriteStorageBuffer(m_per_frame_compute_descriptor, per_frame_view);
 }
 
 bool RG::RenderGraph::Reset()
@@ -78,7 +64,6 @@ bool RG::RenderGraph::Reset()
     m_execution_order.clear();
     m_resources.clear();
     m_per_frame_buffer.Clear();
-    m_per_frame_compute_buffer.Clear();
     m_drawlist.transforms.clear();
     m_drawlist.draw_entries.clear();
 
@@ -152,14 +137,7 @@ bool RG::RenderGraph::Compile(MemoryArena& a_arena, GPUUploadRingAllocator& a_up
         else if (res.descriptor_type == DESCRIPTOR_TYPE::READONLY_BUFFER)
         {
             GPUBufferView bufview;
-            if (res.buffer.compute_queue)
-            {
-                success = m_per_frame_compute_buffer.Allocate(res.buffer.size, bufview);
-            }
-            else
-            {
-                success = m_per_frame_buffer.Allocate(res.buffer.size, bufview);
-            }
+            success = m_per_frame_buffer.Allocate(res.buffer.size, bufview);
 
             res.buffer.buffer = bufview.buffer;
             res.buffer.size = bufview.size;
@@ -277,34 +255,41 @@ bool RG::RenderGraph::Compile(MemoryArena& a_arena, GPUUploadRingAllocator& a_up
     return true;
 }
 
-bool RG::RenderGraph::Execute(MemoryArena& a_temp_arena, GlobalGraphData& a_global, const RCommandList a_list, const GPUBuffer a_upload_buffer)
+CommandPool* RG::RenderGraph::Execute(MemoryArena& a_temp_arena, GlobalGraphData& a_global, const GPUBuffer a_upload_buffer)
 {
+    CommandPool& pool = GetGraphicsCommandPool();
+    RCommandList list = pool.StartCommandList();
+
+    BindGraphicsBindlessSet(list);
+    BindIndexBuffer(list, 0);
+    SetPushConstantsSceneUniformIndex(list, m_scene_descriptor);
+
     if (m_per_frame_copies.size())
     {
         RenderCopyBuffer copy_buffer;
         copy_buffer.src = a_upload_buffer;
         copy_buffer.dst = m_per_frame_buffer.GetBuffer();
         copy_buffer.regions = m_per_frame_copies;
-        CopyBuffer(a_list, copy_buffer);
+        CopyBuffer(list, copy_buffer);
     }
 
     for (size_t i = 0; i < m_image_copies.size(); i++)
-        CopyBufferToImage(a_list, m_image_copies[i]);
+        CopyBufferToImage(list, m_image_copies[i]);
 
     for (uint32_t i = 0; i < m_execution_order.size(); i++)
     {
         MemoryArenaScope(a_temp_arena)
         {
             RenderPass& pass = m_passes[m_execution_order[i]];
-            HandleImagetransitions(a_temp_arena, a_list, pass);
-            if (!pass.DoPass(a_temp_arena, *this, a_global, a_list))
-                return false;
+            HandleImagetransitions(a_temp_arena, list, pass);
+            if (!pass.DoPass(a_temp_arena, *this, a_global, list))
+                return nullptr;
         }
     }
 
     m_scene_buffer.WriteTo(&a_global.scene_info, sizeof(a_global.scene_info), 0);
-
-    return true;
+    pool.EndCommandList(list);
+    return &pool;
 }
 
 RG::RenderPass& RG::RenderGraph::AddRenderPass(MemoryArena& a_arena, const PFN_RenderPass a_call, const uint32_t a_resources_in, const uint32_t a_resources_out, const MasterMaterialHandle a_material)
@@ -331,25 +316,6 @@ RG::ResourceHandle RG::RenderGraph::AddBuffer(const StackString<32>& a_name, con
     RG::RenderResource resource{};
     resource.name = a_name;
     resource.buffer.size = a_size;
-    resource.buffer.compute_queue = false;
-    resource.upload_data = a_upload_data;
-    resource.descriptor_type = DESCRIPTOR_TYPE::READONLY_BUFFER;
-    resource.rendergraph_owned = true;
-    RG::ResourceHandle rh = RG::ResourceHandle(m_resources.size());
-    m_resources.push_back(resource);
-    return rh;
-}
-
-RG::ResourceHandle RG::RenderGraph::AddBufferCompute(const StackString<32>& a_name, const size_t a_size, const void* a_upload_data)
-{
-    RG::RenderResource resource{};
-    if (m_per_frame_compute_used += a_size > m_per_frame_compute_buffer.GetCapacity())
-        return RG::ResourceHandle();
-    m_per_frame_compute_used += a_size;
-
-    resource.name = a_name;
-    resource.buffer.size = a_size;
-    resource.buffer.compute_queue = true;
     resource.upload_data = a_upload_data;
     resource.descriptor_type = DESCRIPTOR_TYPE::READONLY_BUFFER;
     resource.rendergraph_owned = true;
@@ -517,9 +483,9 @@ bool RG::RenderGraphSystem::CompileGraph(MemoryArena& a_arena, RG::RenderGraph& 
     return a_graph.Compile(a_arena, m_upload_allocator, m_next_fence_value);
 }
 
-bool RG::RenderGraphSystem::ExecuteGraph(MemoryArena& a_temp_arena, const RCommandList a_list, RenderGraph& a_graph)
+CommandPool* RG::RenderGraphSystem::ExecuteGraph(MemoryArena& a_temp_arena, RenderGraph& a_graph)
 {
-    return a_graph.Execute(a_temp_arena, m_global, a_list, m_upload_allocator.GetBuffer());
+    return a_graph.Execute(a_temp_arena, m_global, m_upload_allocator.GetBuffer());
 }
 
 bool RG::RenderGraphSystem::EndGraph(RenderGraph& a_graph)

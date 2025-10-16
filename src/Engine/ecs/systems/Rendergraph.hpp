@@ -5,6 +5,7 @@
 
 namespace BB
 {   
+    class CommandPool;
     struct LineColor
     {
         constexpr LineColor() : r(0), g(0), b(0), ignore_depth(false) {}
@@ -93,7 +94,6 @@ namespace BB
                 uint64_t size;
                 uint64_t offset;
                 GPUAddress address;
-                bool compute_queue;
             };
             
             union
@@ -134,12 +134,11 @@ namespace BB
 
             bool Reset();
             bool Compile(MemoryArena& a_arena, GPUUploadRingAllocator& a_upload_buffer, const uint64_t a_fence_value);
-            bool Execute(MemoryArena& a_temp_arena, GlobalGraphData& a_global, const RCommandList a_list, const GPUBuffer a_upload_buffer);
+            CommandPool* Execute(MemoryArena& a_temp_arena, GlobalGraphData& a_global, const GPUBuffer a_upload_buffer);
 
             RenderPass& AddRenderPass(MemoryArena& a_arena, const PFN_RenderPass a_call, const uint32_t a_resources_in, const uint32_t a_resources_out, const MasterMaterialHandle a_material);
             ResourceHandle AddUniform(const StackString<32>& a_name, const size_t a_size, const void* a_upload_data = nullptr);
             ResourceHandle AddBuffer(const StackString<32>& a_name, const size_t a_size, const void* a_upload_data = nullptr);
-            ResourceHandle AddBufferCompute(const StackString<32>& a_name, const size_t a_size, const void* a_upload_data = nullptr);
 
             ResourceHandle AddImage(const StackString<32>& a_name, const uint3 a_extent, const uint16_t a_array_layers, const uint16_t a_mips, const IMAGE_USAGE a_usage, const IMAGE_FORMAT a_format, const bool a_is_cube_map = false, const void* a_upload_data = nullptr);
             ResourceHandle AddImage(const StackString<32>& a_name, const RImage a_image, const RDescriptorIndex a_index, const uint3 a_extent, const uint16_t a_array_layers, const uint16_t a_mips, const IMAGE_FORMAT a_format, const IMAGE_USAGE a_usage, const bool a_is_cube_map = false);
@@ -149,7 +148,6 @@ namespace BB
             const RenderResource& GetResource(const ResourceHandle a_handle);
             const DrawList& GetDrawList() const { return m_drawlist; }
             const RDescriptorIndex GetPerFrameBufferDescriptorIndex() const { return m_per_frame_descriptor; }
-            const RDescriptorIndex GetSceneDescriptorIndex() const { return m_scene_descriptor; }
 
             bool IsFinished(const uint64_t a_completed_fence_value) const { return a_completed_fence_value >= m_fence_value; }
 
@@ -171,10 +169,7 @@ namespace BB
             // scene data
             RDescriptorIndex m_per_frame_descriptor;
             GPULinearBuffer m_per_frame_buffer;
-            RDescriptorIndex m_per_frame_compute_descriptor;
 
-            uint64_t m_per_frame_compute_used;
-            GPULinearBuffer m_per_frame_compute_buffer;
             GPUStaticCPUWriteableBuffer m_scene_buffer;
             RDescriptorIndex m_scene_descriptor;
             uint64_t m_fence_value;
@@ -186,7 +181,7 @@ namespace BB
             void Init(MemoryArena& a_arena, const uint32_t a_back_buffers, const uint32_t a_max_passes, const uint32_t a_max_resources);
             bool StartGraph(MemoryArena& a_arena, const uint32_t a_back_buffer, RG::RenderGraph*& a_out_graph, const uint32_t a_draw_list_size);
             bool CompileGraph(MemoryArena& a_arena, RG::RenderGraph& a_graph);
-            bool ExecuteGraph(MemoryArena& a_temp_arena, const RCommandList a_list, RenderGraph& a_graph);
+            CommandPool* ExecuteGraph(MemoryArena& a_temp_arena, RenderGraph& a_graph);
             bool EndGraph(RenderGraph& a_graph);
             const GPUBufferView AllocateAndUploadGPUMemory(const size_t a_data_size, const void* a_data);
 

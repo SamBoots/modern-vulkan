@@ -274,13 +274,11 @@ static std::atomic<bool> uploading_assets = false;
 constexpr uint32_t MAX_MESH_UPLOAD_QUEUE = 1024;
 constexpr uint32_t MAX_TEXTURE_UPLOAD_QUEUE = 1024;
 
-static void UploadAndWaitAssets(MemoryArena& a_thread_arena, void*)
+static void UploadAssets(MemoryArena& a_thread_arena, const RCommandList a_list)
 {
 	bool expected = false;
 	if (uploading_assets.compare_exchange_strong(expected, true))
 	{
-		CommandPool& cmd_pool = GetTransferCommandPool();
-		const RCommandList list = cmd_pool.StartCommandList("upload asset list");
 		GPUUploader& uploader = s_asset_manager->gpu_uploader;
 
 		if (!uploader.upload_meshes.IsEmpty())
@@ -301,11 +299,11 @@ static void UploadAndWaitAssets(MemoryArena& a_thread_arena, void*)
 						index_regions.push_back(upload_data.index_region);
 				}
 
-				CopyToVertexBuffer(list, uploader.upload_buffer.GetBuffer(), vertex_regions.slice());
+				CopyToVertexBuffer(a_list, uploader.upload_buffer.GetBuffer(), vertex_regions.slice());
 
 				if (index_regions.size())
 				{
-					CopyToIndexBuffer(list, uploader.upload_buffer.GetBuffer(), index_regions.slice());
+					CopyToIndexBuffer(a_list, uploader.upload_buffer.GetBuffer(), index_regions.slice());
 				}
 			}
 		}
@@ -364,24 +362,19 @@ static void UploadAndWaitAssets(MemoryArena& a_thread_arena, void*)
 
 				PipelineBarrierInfo pipeline_info{};
 				pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo>(before_transition, before_trans_count);
-				PipelineBarriers(list, pipeline_info);
+				PipelineBarriers(a_list, pipeline_info);
 
 				for (size_t i = 0; i < write_info_count; i++)
 				{
-					CopyBufferToImage(list, write_infos[i]);
+					CopyBufferToImage(a_list, write_infos[i]);
 				}
 
 				for (size_t i = 0; i < read_info_count; i++)
 				{
-					CopyImageToBuffer(list, read_infos[i]);
+					CopyImageToBuffer(a_list, read_infos[i]);
 				}
 			}
 		}
-		const uint64_t asset_fence_value = uploader.next_fence_value.fetch_add(1);
-		cmd_pool.EndCommandList(list);
-		uint64_t mock_fence;	// TODO, remove this
-		bool success = ExecuteTransferCommands(Slice(&cmd_pool, 1), &uploader.fence, &asset_fence_value, 1, mock_fence);
-		BB_ASSERT(success, "failed to execute transfer commands");
 	}
 	else
 	{
@@ -389,6 +382,19 @@ static void UploadAndWaitAssets(MemoryArena& a_thread_arena, void*)
 	}
 
 	uploading_assets = false;
+}
+
+static void UploadSubmitAssets(MemoryArena& a_thread_arena)
+{
+    CommandPool& cmd_pool = GetTransferCommandPool();
+    const RCommandList list = cmd_pool.StartCommandList("upload asset list");
+
+    UploadAssets(a_thread_arena, list);
+
+    const uint64_t asset_fence_value = s_asset_manager->gpu_uploader.next_fence_value.fetch_add(1);
+    uint64_t mock_fence;	// TODO, remove this
+    bool success = ExecuteTransferCommands(Slice(&cmd_pool, 1), &s_asset_manager->gpu_uploader.fence, &asset_fence_value, 1, mock_fence);
+    BB_ASSERT(success, "failed to execute transfer commands");
 }
 
 static GPUFenceValue CreateMesh(MemoryArena& a_temp_arena, const CreateMeshInfo& a_create_info, Mesh& a_out_mesh)
@@ -410,7 +416,7 @@ static GPUFenceValue CreateMesh(MemoryArena& a_temp_arena, const CreateMeshInfo&
 	const size_t vertex_start_offset = uploader.upload_buffer.AllocateUploadMemory(total_vertex_size + a_create_info.indices.sizeInBytes(), fence_value);
 	if (vertex_start_offset == size_t(-1))
 	{
-		UploadAndWaitAssets(a_temp_arena, nullptr);
+		UploadSubmitAssets(a_temp_arena);
 		return CreateMesh(a_temp_arena, a_create_info, a_out_mesh);
 	}
 
@@ -486,7 +492,7 @@ static GPUFenceValue WriteTexture(MemoryArena& a_temp_arena, const WriteImageInf
 	const size_t upload_start = uploader.upload_buffer.AllocateUploadMemory(write_size, fence_value);
 	if (upload_start == size_t(-1))
 	{ 
-		UploadAndWaitAssets(a_temp_arena, nullptr);
+        UploadSubmitAssets(a_temp_arena);
 		return WriteTexture(a_temp_arena, a_write_info);
 	}
 	bool success = uploader.upload_buffer.MemcpyIntoBuffer(upload_start, a_write_info.pixels, write_size);
@@ -891,13 +897,44 @@ void Asset::InitializeAssetManager(MemoryArena& a_arena, const AssetManagerInitI
 	}
 }
 
-void Asset::Update()
+static void _UpdateAsync(MemoryArena& a_temp_arena, void*)
 {
-	if (!uploading_assets && (!s_asset_manager->gpu_uploader.upload_meshes.IsEmpty() || !s_asset_manager->gpu_uploader.upload_textures.IsEmpty()))
-	{
-		Threads::StartTaskThread(UploadAndWaitAssets, L"upload assets");
-	}
+    Asset::Update(a_temp_arena);
+}
+
+ThreadTask Asset::UpdateAsync()
+{
+    return Threads::StartTaskThread(_UpdateAsync, L"asset upload updates");
+}
+
+void Asset::Update(MemoryArena& a_temp_arena)
+{
+    if (Material::HasDirtyMaterials() ||
+        !uploading_assets && (!s_asset_manager->gpu_uploader.upload_meshes.IsEmpty() || !s_asset_manager->gpu_uploader.upload_textures.IsEmpty()))
+    {
+        CommandPool& cmd_pool = GetTransferCommandPool();
+        const RCommandList list = cmd_pool.StartCommandList("upload asset list");
+
+	    if (!uploading_assets && (!s_asset_manager->gpu_uploader.upload_meshes.IsEmpty() || !s_asset_manager->gpu_uploader.upload_textures.IsEmpty()))
+	    {
+            UploadAssets(a_temp_arena, list);
+	    }
+
+        if (Material::HasDirtyMaterials())
+        {
+            Material::UpdateDirtyMaterials(list, s_asset_manager->gpu_uploader.upload_buffer, s_asset_manager->gpu_uploader.next_fence_value);
+        }
+
+        cmd_pool.EndCommandList(list);
+
+        const uint64_t asset_fence_value = s_asset_manager->gpu_uploader.next_fence_value.fetch_add(1);
+        uint64_t mock_fence;	// TODO, remove this
+        bool success = ExecuteTransferCommands(Slice(&cmd_pool, 1), &s_asset_manager->gpu_uploader.fence, &asset_fence_value, 1, mock_fence);
+        BB_ASSERT(success, "failed to execute transfer commands");
+    }
+
 	ExecuteGPUTasks();
+
 }
 
 struct LoadAsyncFunc_Params

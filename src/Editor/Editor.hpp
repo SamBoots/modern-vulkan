@@ -86,8 +86,9 @@ namespace BB
 
 		struct PerFrameInfo
 		{
-			FixedArray<CommandPool, 8> pools;
-			FixedArray<RCommandList, 8> lists;
+            CommandPool composite_pool;
+            RCommandList composite_list;
+
 			FixedArray<DrawStruct, 8> draw_struct;
 			FixedArray<RFence, 8> fences;
 			FixedArray<uint64_t, 8> fence_values;

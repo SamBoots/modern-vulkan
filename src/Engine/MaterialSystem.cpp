@@ -5,8 +5,16 @@
 #include "Storage/Hashmap.h"
 #include "Storage/Slotmap.h"
 #include "Engine.hpp"
+#include "GPUBuffers.hpp"
 
 using namespace BB;
+
+struct UpdateMaterialInfo
+{
+    MaterialHandle material;
+    const void* user_data;
+    size_t user_data_size;
+};
 
 static uint64_t ShaderEffectHash(const MaterialShaderCreateInfo& a_create_info)
 {
@@ -35,6 +43,7 @@ struct MaterialSystem_inst
 	StaticOL_HashMap<uint64_t, ShaderEffectHandle> shader_effect_cache;
 
 	FreelistArray<MaterialInstance> material_instances;
+    MPSCQueue<UpdateMaterialInfo> dirty_materials;
 
 	MasterMaterialHandle default_materials[static_cast<uint32_t>(PASS_TYPE::ENUM_SIZE)][static_cast<uint32_t>(MATERIAL_TYPE::ENUM_SIZE)];
 
@@ -205,6 +214,7 @@ void Material::InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCrea
 	s_material_inst = ArenaAllocType(a_arena, MaterialSystem_inst);
 	s_material_inst->material_map.Init(a_arena, a_create_info.max_materials);
 	s_material_inst->material_instances.Init(a_arena, a_create_info.max_material_instances);
+    s_material_inst->dirty_materials.Init(a_arena, a_create_info.max_material_instances);
 	s_material_inst->shader_effects.Init(a_arena, a_create_info.max_shader_effects);
 	s_material_inst->shader_effect_cache.Init(a_arena, a_create_info.max_shader_effects);
 	
@@ -236,6 +246,36 @@ void Material::InitMaterialSystem(MemoryArena& a_arena, const MaterialSystemCrea
 		material_info.pass_type = PASS_TYPE::SCENE;
 		GetDefaultMasterMaterial_impl(PASS_TYPE::SCENE, MATERIAL_TYPE::MATERIAL_3D) = CreateMasterMaterial(a_arena, material_info, "default scene 3d");
 	}
+}
+
+bool Material::MarkMaterialDirty(const MaterialHandle a_material, const void* a_user_data, const size_t a_user_data_size)
+{
+    UpdateMaterialInfo mat;
+    mat.material = a_material;
+    mat.user_data = a_user_data;
+    mat.user_data_size = a_user_data_size;
+    return s_material_inst->dirty_materials.EnQueue(mat);
+}
+
+bool Material::HasDirtyMaterials()
+{
+    return !s_material_inst->dirty_materials.IsEmpty();
+}
+
+void Material::UpdateDirtyMaterials(const RCommandList a_list, GPUUploadRingAllocator& a_allocator, const uint64_t a_fence_value)
+{
+    UpdateMaterialInfo mat;
+    while (s_material_inst->dirty_materials.DeQueue(mat))
+    {
+        const uint64_t upload_view = a_allocator.AllocateUploadMemory(mat.user_data_size, a_fence_value);
+        if (upload_view == uint64_t(-1))
+        {
+            s_material_inst->dirty_materials.EnQueue(mat);
+            return;
+        }
+        a_allocator.MemcpyIntoBuffer(upload_view, mat.user_data, mat.user_data_size);
+        Material::WriteMaterial(mat.material, a_list, a_allocator.GetBuffer(), upload_view);
+    }
 }
 
 MasterMaterialHandle Material::CreateMasterMaterial(MemoryArena& a_temp_arena, const MaterialCreateInfo& a_create_info, const StringView a_name)

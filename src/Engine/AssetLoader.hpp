@@ -156,7 +156,8 @@ namespace BB
 
 		void InitializeAssetManager(MemoryArena& a_arena, const AssetManagerInitInfo& a_init_info);
 
-		void Update();
+        ThreadTask UpdateAsync();
+		void Update(MemoryArena& a_temp_arena);
 
 		ThreadTask LoadAssetsASync(MemoryArenaTemp a_temp_arena, const BB::Slice<Asset::AsyncAsset> a_asyn_assets);
 

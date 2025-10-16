@@ -28,8 +28,8 @@ namespace BB
 		bool UploadAccelerationStructureInstances(void* a_mapped, const size_t a_mapped_size, const ConstSlice<AccelerationStructureInstanceInfo> a_instances);
 		AccelerationStructSizeInfo GetBottomLevelAccelerationStructSizeInfo(MemoryArena& a_temp_arena, const ConstSlice<AccelerationStructGeometrySize> a_geometry_sizes, const ConstSlice<uint32_t> a_primitive_counts, const GPUAddress a_vertex_device_address, const GPUAddress a_index_device_address);
 		AccelerationStructSizeInfo GetTopLevelAccelerationStructSizeInfo(MemoryArena& a_temp_arena, const ConstSlice<GPUAddress> a_instances);
-		RAccelerationStruct CreateBottomLevelAccelerationStruct(const uint32_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset);
-		RAccelerationStruct CreateTopLevelAccelerationStruct(const uint32_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset);
+		RAccelerationStruct CreateBottomLevelAccelerationStruct(const uint64_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset);
+		RAccelerationStruct CreateTopLevelAccelerationStruct(const uint64_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset);
 		GPUAddress GetAccelerationStructureAddress(const RAccelerationStruct a_acc_struct);
 
 		const RImage CreateImage(const ImageCreateInfo& a_create_info);
@@ -91,7 +91,7 @@ namespace BB
 		PRESENT_IMAGE_RESULT UploadImageToSwapchain(const RCommandList a_list, const RImage a_src_image, const uint32_t a_array_layer, const int2 a_src_image_size, const int2 a_swapchain_size, const uint32_t a_backbuffer_index);
 
 		void ExecuteCommandLists(const RQueue a_queue, const ExecuteCommandsInfo* a_execute_infos, const uint32_t a_execute_info_count);
-		PRESENT_IMAGE_RESULT ExecutePresentCommandList(const RQueue a_queue, const ExecuteCommandsInfo& a_execute_info, const uint32_t a_backbuffer_index);
+		PRESENT_IMAGE_RESULT ExecutePresentCommandList(MemoryArena& a_temp_arena, const RQueue a_queue, const ExecuteCommandsInfo& a_execute_info, const uint32_t a_backbuffer_index);
 
 		RFence CreateFence(const uint64_t a_initial_value, const char* a_name);
 		void FreeFence(const RFence a_fence);

@@ -12,7 +12,6 @@ namespace BB
 		MeshMetallic material_data;
 		uint32_t index_start;
 		uint32_t index_count;
-		bool material_dirty;
 	};
 
 	class RenderComponentPool

@@ -284,13 +284,13 @@ public:
 		return true;
 	}
 
-	PRESENT_IMAGE_RESULT ExecutePresentCommands(RCommandList* const a_lists, const uint32_t a_list_count, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const uint32_t a_wait_count, const uint32_t a_backbuffer_index, uint64_t& a_out_fence_value)
+	PRESENT_IMAGE_RESULT ExecutePresentCommands(MemoryArena& a_temp_arena, RCommandList* const a_lists, const uint32_t a_list_count, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const PIPELINE_STAGE* a_wait_stages, const uint32_t a_wait_count, const uint32_t a_backbuffer_index, uint64_t& a_out_fence_value)
 	{
 		BB_ASSERT(m_queue_type == QUEUE_TYPE::GRAPHICS, "calling a present commands on a non-graphics command queue is not valid");
 		
 		const uint32_t signal_fence_count = 1 + a_signal_count;
-		RFence* signal_fences = BBstackAlloc(signal_fence_count, RFence);
-		uint64_t* signal_values = BBstackAlloc(signal_fence_count, uint64_t);
+		RFence* signal_fences = ArenaAllocArr(a_temp_arena, RFence, signal_fence_count);
+		uint64_t* signal_values = ArenaAllocArr(a_temp_arena, uint64_t, signal_fence_count);
 		Memory::Copy(signal_fences, a_signal_fences, a_signal_count);
 		signal_fences[a_signal_count] = m_fence.fence;
 		Memory::Copy(signal_values, a_signal_values, a_signal_count);
@@ -305,15 +305,15 @@ public:
 		execute_info.wait_fences = a_wait_fences;
 		execute_info.wait_values = a_wait_values;
 		execute_info.wait_count = a_wait_count;
+        execute_info.wait_stages = a_wait_stages;
 
 		OSAcquireSRWLockWrite(&m_lock);
-		const PRESENT_IMAGE_RESULT result = Vulkan::ExecutePresentCommandList(m_queue, execute_info, a_backbuffer_index);
+		const PRESENT_IMAGE_RESULT result = Vulkan::ExecutePresentCommandList(a_temp_arena, m_queue, execute_info, a_backbuffer_index);
 		a_out_fence_value = m_fence.next_fence_value++;
 		OSReleaseSRWLockWrite(&m_lock);
 		return result;
 	}
 
-	//void ExecutePresentCommands(CommandList* a_CommandLists, const uint32_t a_CommandListCount, const RenderFence* a_WaitFences, const PIPELINE_STAGE* a_WaitStages, const uint32_t a_FenceCount);
 	void WaitFenceValue(const GPUFenceValue a_fence_value)
 	{
 		LinkedList<CommandPool> local_list_free;
@@ -986,12 +986,12 @@ CommandPool& BB::GetTransferCommandPool()
 	return s_render_inst->transfer_queue.GetCommandPool();
 }
 
-CommandPool& BB::GetCommandCommandPool()
+CommandPool& BB::GetComputeCommandPool()
 {
 	return s_render_inst->compute_queue.GetCommandPool();
 }
 
-PRESENT_IMAGE_RESULT BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value, const bool a_skip)
+PRESENT_IMAGE_RESULT BB::PresentFrame(MemoryArena& a_temp_arena, const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value, const bool a_skip)
 {
 	if (a_skip)
 	{
@@ -1008,7 +1008,7 @@ PRESENT_IMAGE_RESULT BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, 
 	for (size_t i = 0; i < a_cmd_pools.size(); i++)
 		list_count += a_cmd_pools[i].GetListsRecorded();
 
-	RCommandList* lists = BBstackAlloc(list_count, RCommandList);
+	RCommandList* lists = ArenaAllocArr(a_temp_arena, RCommandList, list_count);
 	list_count = 0;
 	for (size_t i = 0; i < a_cmd_pools.size(); i++)
 	{
@@ -1020,7 +1020,7 @@ PRESENT_IMAGE_RESULT BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, 
 
 	//set the next fence value for the frame
 	s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
-	const PRESENT_IMAGE_RESULT result = s_render_inst->graphics_queue.ExecutePresentCommands(lists, list_count, a_signal_fences, a_signal_values, a_signal_count, nullptr, nullptr, 0, s_render_inst->status.frame_index, a_out_present_fence_value);
+	const PRESENT_IMAGE_RESULT result = s_render_inst->graphics_queue.ExecutePresentCommands(a_temp_arena, lists, list_count, a_signal_fences, a_signal_values, a_signal_count, nullptr, nullptr, nullptr, 0, s_render_inst->status.frame_index, a_out_present_fence_value);
 	s_render_inst->status.frame_index = (s_render_inst->status.frame_index + 1) % s_render_inst->frame_count;
 	s_render_inst->frames[s_render_inst->status.frame_index].graphics_queue_fence_value = a_out_present_fence_value;
 
@@ -1301,12 +1301,12 @@ AccelerationStructSizeInfo BB::GetTopLevelAccelerationStructSizeInfo(MemoryArena
     return Vulkan::GetTopLevelAccelerationStructSizeInfo(a_temp_arena, a_instances);
 }
 
-RAccelerationStruct BB::CreateBottomLevelAccelerationStruct(const uint32_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset)
+RAccelerationStruct BB::CreateBottomLevelAccelerationStruct(const uint64_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset)
 {
 	return Vulkan::CreateBottomLevelAccelerationStruct(a_acceleration_structure_size, a_dst_buffer, a_dst_offset);
 }
 
-RAccelerationStruct BB::CreateTopLevelAccelerationStruct(const uint32_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset)
+RAccelerationStruct BB::CreateTopLevelAccelerationStruct(const uint64_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset)
 {
 	return Vulkan::CreateTopLevelAccelerationStruct(a_acceleration_structure_size, a_dst_buffer, a_dst_offset);
 }

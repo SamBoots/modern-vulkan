@@ -1586,7 +1586,7 @@ AccelerationStructSizeInfo Vulkan::GetTopLevelAccelerationStructSizeInfo(MemoryA
 	return size_info;
 }
 
-RAccelerationStruct Vulkan::CreateBottomLevelAccelerationStruct(const uint32_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset)
+RAccelerationStruct Vulkan::CreateBottomLevelAccelerationStruct(const uint64_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset)
 {
 	VkAccelerationStructureKHR acc;
 
@@ -1602,7 +1602,7 @@ RAccelerationStruct Vulkan::CreateBottomLevelAccelerationStruct(const uint32_t a
 	return RAccelerationStruct(reinterpret_cast<uintptr_t>(acc));
 }
 
-RAccelerationStruct Vulkan::CreateTopLevelAccelerationStruct(const uint32_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset)
+RAccelerationStruct Vulkan::CreateTopLevelAccelerationStruct(const uint64_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset)
 {
 	VkAccelerationStructureKHR acc;
 
@@ -2726,19 +2726,34 @@ void Vulkan::ExecuteCommandLists(const RQueue a_queue, const ExecuteCommandsInfo
 		"Vulkan: failed to submit to queue.");
 }
 
-PRESENT_IMAGE_RESULT Vulkan::ExecutePresentCommandList(const RQueue a_queue, const ExecuteCommandsInfo& a_execute_info, const uint32_t a_backbuffer_index)
+static VkPipelineStageFlags PipelineStage(const PIPELINE_STAGE a_stage)
 {
-	// TEMP
-	constexpr VkPipelineStageFlags WAIT_STAGES[8] = { VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT };
+    switch (a_stage)
+    {
+    case PIPELINE_STAGE::VERTEX_SHADER: return VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
+    case PIPELINE_STAGE::FRAGMENT_SHADER: return VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    case PIPELINE_STAGE::COMPUTE_SHADER: return VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    case PIPELINE_STAGE::TRANSFER: return VK_PIPELINE_STAGE_TRANSFER_BIT;
+    case PIPELINE_STAGE::COLOR_ATTACHMENT: return VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    case PIPELINE_STAGE::TOP_OF_PIPE: return VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    default:
+        BB_ASSERT(false, "invalid PIPELINE_STAGE to convert to VkPipelineStageFlags");
+        break;
+    }
+    return 0;
+}
 
+PRESENT_IMAGE_RESULT Vulkan::ExecutePresentCommandList(MemoryArena& a_temp_arena, const RQueue a_queue, const ExecuteCommandsInfo& a_execute_info, const uint32_t a_backbuffer_index)
+{
 	// handle the window api for vulkan.
 	const uint32_t wait_semaphore_count = a_execute_info.wait_count + 1;
 	const uint32_t signal_semaphore_count = a_execute_info.signal_count + 1;
 
-	VkSemaphore* wait_semaphores = BBstackAlloc(wait_semaphore_count, VkSemaphore);
-	uint64_t* wait_values = BBstackAlloc(signal_semaphore_count, uint64_t);
-	VkSemaphore* signal_semaphores = BBstackAlloc(signal_semaphore_count, VkSemaphore);
-	uint64_t* signal_values = BBstackAlloc(signal_semaphore_count, uint64_t);
+	VkSemaphore* wait_semaphores = ArenaAllocArr(a_temp_arena, VkSemaphore, wait_semaphore_count);
+	uint64_t* wait_values = ArenaAllocArr(a_temp_arena, uint64_t, wait_semaphore_count);
+    VkPipelineStageFlags* wait_stages = ArenaAllocArr(a_temp_arena, VkPipelineStageFlags, wait_semaphore_count);
+	VkSemaphore* signal_semaphores = ArenaAllocArr(a_temp_arena, VkSemaphore, signal_semaphore_count);
+	uint64_t* signal_values = ArenaAllocArr(a_temp_arena, uint64_t, signal_semaphore_count);
 
 	//MEMCPY wait/signal values.
 
@@ -2746,6 +2761,11 @@ PRESENT_IMAGE_RESULT Vulkan::ExecutePresentCommandList(const RQueue a_queue, con
 	Memory::Copy(wait_values, a_execute_info.wait_values, a_execute_info.wait_count);
 	wait_semaphores[a_execute_info.wait_count] = s_vulkan_swapchain->frames[a_backbuffer_index].image_available_semaphore;
 	wait_values[a_execute_info.wait_count] = 0;
+    for (uint32_t i = 0; i < a_execute_info.wait_count; i++)
+    {
+        wait_stages[i] = PipelineStage(a_execute_info.wait_stages[i]);
+    }
+    wait_stages[a_execute_info.wait_count] = PipelineStage(PIPELINE_STAGE::COLOR_ATTACHMENT);
 
 	Memory::Copy<VkSemaphore>(signal_semaphores, a_execute_info.signal_fences, a_execute_info.signal_count);
 	Memory::Copy(signal_values, a_execute_info.signal_values, a_execute_info.signal_count);
@@ -2766,7 +2786,7 @@ PRESENT_IMAGE_RESULT Vulkan::ExecutePresentCommandList(const RQueue a_queue, con
 	submit_info.pWaitSemaphores = wait_semaphores;
 	submit_info.signalSemaphoreCount = signal_semaphore_count;
 	submit_info.pSignalSemaphores = signal_semaphores;
-	submit_info.pWaitDstStageMask = WAIT_STAGES;
+	submit_info.pWaitDstStageMask = wait_stages;
 
 	VkQueue queue = reinterpret_cast<VkQueue>(a_queue.handle);
     VkResult result = vkQueueSubmit(queue,1, &submit_info, VK_NULL_HANDLE);

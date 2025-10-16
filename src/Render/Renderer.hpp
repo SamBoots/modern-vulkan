@@ -73,9 +73,9 @@ namespace BB
     void BindGraphicsBindlessSet(const RCommandList a_list);
 	CommandPool& GetGraphicsCommandPool();
 	CommandPool& GetTransferCommandPool();
-	CommandPool& GetCommandCommandPool();
+	CommandPool& GetComputeCommandPool();
 
-	PRESENT_IMAGE_RESULT PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value, const bool a_skip);
+	PRESENT_IMAGE_RESULT PresentFrame(MemoryArena& a_temp_arena, const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value, const bool a_skip);
 	bool ExecuteGraphicCommands(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value);
 	bool ExecuteTransferCommands(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value);
 	bool ExecuteComputeCommands(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value);
@@ -122,8 +122,8 @@ namespace BB
 	bool UploadAccelerationStructureInstances(void* a_mapped, const size_t a_mapped_size, const ConstSlice<AccelerationStructureInstanceInfo> a_instances);
     AccelerationStructSizeInfo GetBottomLevelAccelerationStructSizeInfo(MemoryArena& a_temp_arena, const ConstSlice<AccelerationStructGeometrySize> a_geometry_sizes, const ConstSlice<uint32_t> a_primitive_counts);
     AccelerationStructSizeInfo GetTopLevelAccelerationStructSizeInfo(MemoryArena& a_temp_arena, const ConstSlice<GPUAddress> a_instances);
-	RAccelerationStruct CreateBottomLevelAccelerationStruct(const uint32_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset);
-	RAccelerationStruct CreateTopLevelAccelerationStruct(const uint32_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset);
+	RAccelerationStruct CreateBottomLevelAccelerationStruct(const uint64_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset);
+	RAccelerationStruct CreateTopLevelAccelerationStruct(const uint64_t a_acceleration_structure_size, const GPUBuffer a_dst_buffer, const uint64_t a_dst_offset);
     GPUAddress GetAccelerationStructureAddress(const RAccelerationStruct a_acc_struct);
 
     void BuildBottomLevelAccelerationStruct(MemoryArena& a_temp_arena, const RCommandList a_list, const BuildBottomLevelAccelerationStructInfo& a_build_info, const bool a_update);

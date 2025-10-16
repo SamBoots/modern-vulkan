@@ -41,6 +41,7 @@ namespace BB
 		const RFence* wait_fences;
 		const uint64_t* wait_values;
 		uint32_t wait_count;
+        const PIPELINE_STAGE* wait_stages;
 
 		const RFence* signal_fences;
 		const uint64_t* signal_values;
