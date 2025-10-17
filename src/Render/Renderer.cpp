@@ -1102,7 +1102,6 @@ bool BB::CreateShaderEffect(MemoryArena& a_temp_arena, const Slice<CreateShaderE
 	for (size_t i = 0; i < a_create_infos.size(); i++)
 	{
 		const CreateShaderEffectInfo& create_info = a_create_infos[i];
-
 		shader_effects[i].name = create_info.name;
 		shader_effects[i].shader_object = shader_objects[i];
 		shader_effects[i].shader_stage = create_info.stage;
@@ -1194,9 +1193,9 @@ void BB::FreeImage(const RImage a_image)
 
 void BB::FreeImageView(const RDescriptorIndex a_index)
 {
-    FreeImageDescriptor(a_index);
-    DescriptorWriteImage(a_index, GetImageView(s_render_inst->debug_descriptor_index), IMAGE_LAYOUT::RO_FRAGMENT);
     Vulkan::FreeViewImage(s_render_inst->m_views[a_index.handle]);
+    DescriptorWriteImage(a_index, GetImageView(s_render_inst->debug_descriptor_index), IMAGE_LAYOUT::RO_FRAGMENT);
+    FreeImageDescriptor(a_index);
 }
 
 void BB::FreeImageViewShaderInaccessible(const RImageView a_view)

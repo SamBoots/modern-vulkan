@@ -385,7 +385,6 @@ void Editor::UpdateGames(MemoryArena& a_arena, const float a_delta_time)
         Threads::WaitForTask(tasks[i]);
 }
 
-
 void Editor::AddGameInstance(const StringView a_dir_path, const ConstSlice<PFN_LuaPluginRegisterFunctions> a_register_funcs)
 {
     const uint32_t index = m_game_instances.size();
