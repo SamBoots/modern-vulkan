@@ -1,3 +1,4 @@
+More up to date info here: https://samboots.github.io/portfolio/Projects/modern-vulkan/index.html
 # Modern Vulkan Game Engine
 A game engine using modern vulkan techniques such as descriptor buffers, dynamic rendering and pipeline state-less rendering using VK_EXT_shader_object.
 
