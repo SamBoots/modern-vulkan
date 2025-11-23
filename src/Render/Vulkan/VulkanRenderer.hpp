@@ -14,8 +14,9 @@ namespace BB
 		bool InitializeVulkan(MemoryArena& a_arena, const RendererCreateInfo a_create_info);
 		GPUDeviceInfo GetGPUDeviceInfo(MemoryArena& a_arena);
 
-		bool CreateSwapchain(MemoryArena& a_arena, const WindowHandle a_window_handle, const uint32_t a_width, const uint32_t a_height, uint32_t& a_backbuffer_count);
-		bool RecreateSwapchain(const uint32_t a_width, const uint32_t a_height);
+		RSwapchain CreateSwapchain(MemoryArena& a_arena, const WindowHandle a_window_handle, const uint32_t a_width, const uint32_t a_height, uint32_t& a_backbuffer_count);
+		bool RecreateSwapchain(MemoryArena& a_temp_arena, const RSwapchain a_swapchain, const uint32_t a_width, const uint32_t a_height);
+		bool DestroySwapchain(const RSwapchain a_swapchain);
 
 		void CreateCommandPool(const QUEUE_TYPE a_queue_type, const uint32_t a_command_list_count, RCommandPool& a_pool, RCommandList* a_plists);
 		void FreeCommandPool(const RCommandPool a_pool);
@@ -89,10 +90,10 @@ namespace BB
 
 		void DrawVertices(const RCommandList a_list, const uint32_t a_vertex_count, const uint32_t a_instance_count, const uint32_t a_first_vertex, const uint32_t a_first_instance);
 		void DrawIndexed(const RCommandList a_list, const uint32_t a_index_count, const uint32_t a_instance_count, const uint32_t a_first_index, const int32_t a_vertex_offset, const uint32_t a_first_instance);
-		PRESENT_IMAGE_RESULT UploadImageToSwapchain(const RCommandList a_list, const RImage a_src_image, const uint32_t a_array_layer, const int2 a_src_image_size, const int2 a_swapchain_size, const uint32_t a_backbuffer_index);
+		void UploadImageToSwapchain(MemoryArena& a_temp_arena, const RCommandList a_list, const EndFrameInfo& a_end_info, const uint32_t a_backbuffer_index, Slice<PRESENT_IMAGE_RESULT>& a_upload_results);
 
 		void ExecuteCommandLists(const RQueue a_queue, const ExecuteCommandsInfo* a_execute_infos, const uint32_t a_execute_info_count);
-		PRESENT_IMAGE_RESULT ExecutePresentCommandList(const RQueue a_queue, const ExecuteCommandsInfo& a_execute_info, const uint32_t a_backbuffer_index);
+		PRESENT_IMAGE_RESULT ExecutePresentCommandList(MemoryArena& a_temp_arena, const RQueue a_queue, const ExecuteCommandsInfo& a_execute_info, const ConstSlice<RSwapchain> a_swapchains, const uint32_t a_backbuffer_index);
 
 		RFence CreateFence(const uint64_t a_initial_value, const char* a_name);
 		void FreeFence(const RFence a_fence);

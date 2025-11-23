@@ -409,8 +409,6 @@ struct ShaderEffect
 #endif // _ENABLE_REBUILD_SHADERS
 };
 
-constexpr uint32_t BACK_BUFFER_MAX = 3;
-
 struct RenderInterface_inst
 {
 	RenderInterface_inst(MemoryArena& a_arena)
@@ -733,9 +731,9 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 {
 	Vulkan::InitializeVulkan(a_arena, a_render_create_info);
 	s_render_inst = ArenaAllocType(a_arena, RenderInterface_inst)(a_arena);
-	s_render_inst->frame_count = BACK_BUFFER_MAX;
+	s_render_inst->frame_count = RENDER_LIMITS::BACK_BUFFER_MAX;
 	s_render_inst->status.frame_index = 0;
-	s_render_inst->frames = ArenaAllocArr(a_arena, RenderInterface_inst::Frame, BACK_BUFFER_MAX);
+	s_render_inst->frames = ArenaAllocArr(a_arena, RenderInterface_inst::Frame, RENDER_LIMITS::BACK_BUFFER_MAX);
 	Vulkan::CreateSwapchain(a_arena, a_render_create_info.window_handle, a_render_create_info.swapchain_width, a_render_create_info.swapchain_height, s_render_inst->frame_count);
 
 	s_render_inst->debug = a_render_create_info.debug;
@@ -959,36 +957,37 @@ void BB::RenderStartFrame(const RCommandList a_list, const RenderStartFrameInfo&
 	a_back_buffer_index = frame_index;
 }
 
-PRESENT_IMAGE_RESULT BB::RenderEndFrame(const RCommandList a_list, const RImage a_render_target, const uint32_t a_render_target_layer)
+void BB::RenderEndFrame(MemoryArena& a_temp_arena, const RCommandList a_list, const EndFrameInfo& a_end_info, Slice<PRESENT_IMAGE_RESULT>& a_upload_results)
 {
 	BB_ASSERT(s_render_inst->status.frame_started == true, "did not call RenderStartFrame before a RenderEndFrame");
 
-	PipelineBarrierImageInfo image_transitions[1]{};
-	image_transitions[0].prev = IMAGE_LAYOUT::RT_COLOR;
-	image_transitions[0].next = IMAGE_LAYOUT::COPY_SRC;
-	image_transitions[0].image = a_render_target;
-	image_transitions[0].layer_count = 1;
-	image_transitions[0].level_count = 1;
-	image_transitions[0].base_array_layer = static_cast<uint16_t>(a_render_target_layer);
-	image_transitions[0].base_mip_level = 0;
-	image_transitions[0].image_aspect = IMAGE_ASPECT::COLOR;
+	PipelineBarrierImageInfo* image_transitions = ArenaAllocArr(a_temp_arena, PipelineBarrierImageInfo, a_end_info.swapchain_count);
+	for (size_t i = 0; i < a_end_info.swapchain_count; i++)
+	{
+		image_transitions[i].prev = IMAGE_LAYOUT::RT_COLOR;
+		image_transitions[i].next = IMAGE_LAYOUT::COPY_SRC;
+		image_transitions[i].image = a_end_info.render_targets[i];
+		image_transitions[i].layer_count = 1;
+		image_transitions[i].level_count = 1;
+		image_transitions[i].base_array_layer = static_cast<uint16_t>(a_end_info.render_target_layers[i]);
+		image_transitions[i].base_mip_level = 0;
+		image_transitions[i].image_aspect = IMAGE_ASPECT::COLOR;
+	}
 
 	PipelineBarrierInfo pipeline_info{};
-	pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo>(image_transitions, 1);
+	pipeline_info.image_barriers = ConstSlice<PipelineBarrierImageInfo>(image_transitions, a_end_info.swapchain_count);
 	Vulkan::PipelineBarriers(a_list, pipeline_info);
 
-	const int2 swapchain_size(static_cast<int>(s_render_inst->global_buffer.data.swapchain_resolution.x), static_cast<int>(s_render_inst->global_buffer.data.swapchain_resolution.y));
-
-	const PRESENT_IMAGE_RESULT result = Vulkan::UploadImageToSwapchain(a_list, a_render_target, a_render_target_layer, swapchain_size, swapchain_size, s_render_inst->status.frame_index);
+	for (size_t i = 0; i < a_end_info.swapchain_count; i++)
+		Vulkan::UploadImageToSwapchain(a_temp_arena, a_list, a_end_info, s_render_inst->status.frame_index, a_upload_results);
+	
 	s_render_inst->status.frame_ended = true;
-
-	return result;
 }
 
-bool BB::ResizeSwapchain(const uint2 a_extent)
+bool BB::ResizeSwapchain(MemoryArena& a_temp_arena, const RSwapchain a_swapchain, const uint2 a_extent)
 {
 	s_render_inst->global_buffer.data.swapchain_resolution = a_extent;
-	return Vulkan::RecreateSwapchain(a_extent.x, a_extent.y);
+	return Vulkan::RecreateSwapchain(a_temp_arena, a_swapchain, a_extent.x, a_extent.y);
 }
 
 void BB::StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info)

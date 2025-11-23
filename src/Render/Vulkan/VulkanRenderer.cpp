@@ -15,6 +15,7 @@ BB_WARNINGS_ON
 
 #include "Storage/Slotmap.h"
 #include "Storage/Hashmap.h"
+#include "Storage/Pool.h"
 
 using namespace BB;
 
@@ -456,6 +457,26 @@ static VkDevice CreateLogicalDevice(MemoryArena& a_temp_arena, const VkPhysicalD
 	return return_device;
 }
 
+struct Vulkan_swapchain
+{
+	VkSurfaceKHR surface;
+	VkSwapchainKHR swapchain;
+
+	struct swapchain_frame
+	{
+		VkImage image;
+		VkImageView image_view;
+		VkSemaphore image_available_semaphore;
+		VkSemaphore present_finished_semaphore;
+	};
+	uint32_t frame_count;
+	swapchain_frame frames[RENDER_LIMITS::BACK_BUFFER_MAX];
+
+	//used for recreation
+	VkPresentModeKHR optimal_present;
+	VkSurfaceFormatKHR optimal_surface_format;
+};
+
 struct Vulkan_inst
 {
 	VkInstance instance;
@@ -471,7 +492,10 @@ struct Vulkan_inst
 	//takes a VkHandle
 	StaticOL_HashMap<uintptr_t, VmaAllocation> allocation_map;
 	StaticOL_HashMap<uintptr_t, VkPipelineLayout> pipeline_layout_cache;
-	
+	uint32_t swapchain_count;
+	uint32_t swapchain_max;
+	Pool<Vulkan_swapchain> swapchain_pool;
+
 	VulkanQueuesIndices queue_indices;
 	struct DeviceInfo
 	{
@@ -524,28 +548,7 @@ struct Vulkan_inst
 	bool use_raytracing;
 };
 
-struct Vulkan_swapchain
-{
-	VkSurfaceKHR surface;
-	VkSwapchainKHR swapchain;
-
-	struct swapchain_frame
-	{
-		VkImage image;
-		VkImageView image_view;
-		VkSemaphore image_available_semaphore;
-		VkSemaphore present_finished_semaphore;
-	};
-	uint32_t frame_count;
-	swapchain_frame* frames;
-
-	//used for recreation
-	VkPresentModeKHR optimal_present;
-	VkSurfaceFormatKHR optimal_surface_format;
-};
-
 static Vulkan_inst* s_vulkan_inst = nullptr;
-static Vulkan_swapchain* s_vulkan_swapchain = nullptr;
 
 static inline VkDeviceSize GetAccelerationStructureAddress(const VkDevice a_device, const VkAccelerationStructureKHR a_acc_struct)
 {
@@ -1082,8 +1085,10 @@ bool Vulkan::InitializeVulkan(MemoryArena& a_arena, const RendererCreateInfo a_c
 	s_vulkan_inst->pdescriptor_buffer = ArenaAllocType(a_arena, VulkanDescriptorLinearBuffer)(
 		mbSize * 4,
 		VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT);
-
 	s_vulkan_inst->pipeline_layout_cache.Init(a_arena, 64);
+	s_vulkan_inst->swapchain_pool.CreatePool(a_arena, a_create_info.swapchain_count);
+	s_vulkan_inst->swapchain_max = a_create_info.swapchain_count;
+	s_vulkan_inst->swapchain_count = 0;
 
 	//Get the present queue.
 	vkGetDeviceQueue(s_vulkan_inst->device,
@@ -1142,10 +1147,10 @@ GPUDeviceInfo Vulkan::GetGPUDeviceInfo(MemoryArena& a_arena)
 	return device;
 }
 
-static void CreateVkSwapchain(const uint32_t a_width, const uint32_t a_height, uint32_t& a_backbuffer_count)
+static void CreateVkSwapchain(Vulkan_swapchain* a_pswapchain, const uint32_t a_width, const uint32_t a_height, uint32_t& a_backbuffer_count)
 {
 	VkSurfaceCapabilitiesKHR capabilities;
-	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(s_vulkan_inst->phys_device, s_vulkan_swapchain->surface, &capabilities);
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(s_vulkan_inst->phys_device, a_pswapchain->surface, &capabilities);
 
 	const VkExtent2D swapchain_extent
 	{
@@ -1159,17 +1164,17 @@ static void CreateVkSwapchain(const uint32_t a_width, const uint32_t a_height, u
 
 	VkSwapchainCreateInfoKHR swapchain_create_info{};
 	swapchain_create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-	swapchain_create_info.surface = s_vulkan_swapchain->surface;
-	swapchain_create_info.imageFormat = s_vulkan_swapchain->optimal_surface_format.format;
-	swapchain_create_info.imageColorSpace = s_vulkan_swapchain->optimal_surface_format.colorSpace;
+	swapchain_create_info.surface = a_pswapchain->surface;
+	swapchain_create_info.imageFormat = a_pswapchain->optimal_surface_format.format;
+	swapchain_create_info.imageColorSpace = a_pswapchain->optimal_surface_format.colorSpace;
 	swapchain_create_info.imageExtent = swapchain_extent;
 	swapchain_create_info.imageArrayLayers = 1;
 	swapchain_create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	swapchain_create_info.preTransform = capabilities.currentTransform;
 	swapchain_create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-	swapchain_create_info.presentMode = s_vulkan_swapchain->optimal_present;
+	swapchain_create_info.presentMode = a_pswapchain->optimal_present;
 	swapchain_create_info.clipped = VK_TRUE;
-	swapchain_create_info.oldSwapchain = s_vulkan_swapchain->swapchain;
+	swapchain_create_info.oldSwapchain = a_pswapchain->swapchain;
 
 
 	const uint32_t graphics_family = s_vulkan_inst->queue_indices.graphics;
@@ -1191,27 +1196,27 @@ static void CreateVkSwapchain(const uint32_t a_width, const uint32_t a_height, u
 	//Now create the swapchain and set the framecount.
 	const uint32_t backbuffer_count = Clamp(a_backbuffer_count, capabilities.minImageCount, capabilities.maxImageCount);
 	swapchain_create_info.minImageCount = backbuffer_count;
-	s_vulkan_swapchain->frame_count = backbuffer_count;
+	a_pswapchain->frame_count = backbuffer_count;
 	a_backbuffer_count = backbuffer_count;
 
 	VKASSERT(vkCreateSwapchainKHR(s_vulkan_inst->device,
 		&swapchain_create_info,
 		nullptr,
-		&s_vulkan_swapchain->swapchain),
+		&a_pswapchain->swapchain),
 		"Vulkan: Failed to create swapchain.");
 }
 
-static void GetSwapchainImages()
+static void GetSwapchainImages(MemoryArena& a_temp_arena, Vulkan_swapchain* a_pswapchain)
 {
-	VkImage* swapchain_images = BBstackAlloc(s_vulkan_swapchain->frame_count, VkImage);
+	VkImage* swapchain_images = ArenaAllocArr(a_temp_arena, VkImage, a_pswapchain->frame_count);
 	vkGetSwapchainImagesKHR(s_vulkan_inst->device,
-		s_vulkan_swapchain->swapchain,
-		&s_vulkan_swapchain->frame_count,
+		a_pswapchain->swapchain,
+		&a_pswapchain->frame_count,
 		swapchain_images);
 
 	VkImageViewCreateInfo image_view_create_info{};
 	image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	image_view_create_info.format = s_vulkan_swapchain->optimal_surface_format.format;
+	image_view_create_info.format = a_pswapchain->optimal_surface_format.format;
 	image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
 	image_view_create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
 	image_view_create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -1225,34 +1230,34 @@ static void GetSwapchainImages()
 
 	const VkSemaphoreCreateInfo sem_info{ VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO };
 
-	for (uint32_t i = 0; i < s_vulkan_swapchain->frame_count; i++)
+	for (uint32_t i = 0; i < a_pswapchain->frame_count; i++)
 	{
-		s_vulkan_swapchain->frames[i].image = swapchain_images[i];
+		a_pswapchain->frames[i].image = swapchain_images[i];
 
 		image_view_create_info.image = swapchain_images[i];
 		VKASSERT(vkCreateImageView(s_vulkan_inst->device,
 			&image_view_create_info,
 			nullptr,
-			&s_vulkan_swapchain->frames[i].image_view),
+			&a_pswapchain->frames[i].image_view),
 			"Vulkan: Failed to create swapchain image views.");
 
 		vkCreateSemaphore(s_vulkan_inst->device,
 			&sem_info,
 			nullptr,
-			&s_vulkan_swapchain->frames[i].image_available_semaphore);
+			&a_pswapchain->frames[i].image_available_semaphore);
 		vkCreateSemaphore(s_vulkan_inst->device,
 			&sem_info,
 			nullptr,
-			&s_vulkan_swapchain->frames[i].present_finished_semaphore);
+			&a_pswapchain->frames[i].present_finished_semaphore);
 	}
 }
 
-bool Vulkan::CreateSwapchain(MemoryArena& a_arena, const WindowHandle a_window_handle, const uint32_t a_width, const uint32_t a_height, uint32_t& a_backbuffer_count)
+RSwapchain Vulkan::CreateSwapchain(MemoryArena& a_arena, const WindowHandle a_window_handle, const uint32_t a_width, const uint32_t a_height, uint32_t& a_backbuffer_count)
 {
 	BB_ASSERT(s_vulkan_inst != nullptr, "trying to create a swapchain while vulkan is not initialized");
-	BB_ASSERT(s_vulkan_swapchain == nullptr, "trying to create a swapchain while one exists");
-	s_vulkan_swapchain = ArenaAllocType(a_arena, Vulkan_swapchain) {};
-	
+
+	Vulkan_swapchain* pswapchain = s_vulkan_inst->swapchain_pool.Get();
+
 	MemoryArenaScope(a_arena)
 	{
 		//Surface
@@ -1263,20 +1268,20 @@ bool Vulkan::CreateSwapchain(MemoryArena& a_arena, const WindowHandle a_window_h
 		VKASSERT(vkCreateWin32SurfaceKHR(s_vulkan_inst->instance,
 			&surface_create_info,
 			nullptr,
-			&s_vulkan_swapchain->surface),
+			&pswapchain->surface),
 			"Failed to create in32 vulkan surface");
 
 		VkSurfaceFormatKHR* formats;
 		uint32_t format_count;
-		vkGetPhysicalDeviceSurfaceFormatsKHR(s_vulkan_inst->phys_device, s_vulkan_swapchain->surface, &format_count, nullptr);
+		vkGetPhysicalDeviceSurfaceFormatsKHR(s_vulkan_inst->phys_device, pswapchain->surface, &format_count, nullptr);
 		formats = ArenaAllocArr(a_arena, VkSurfaceFormatKHR, format_count);
-		vkGetPhysicalDeviceSurfaceFormatsKHR(s_vulkan_inst->phys_device, s_vulkan_swapchain->surface, &format_count, formats);
+		vkGetPhysicalDeviceSurfaceFormatsKHR(s_vulkan_inst->phys_device, pswapchain->surface, &format_count, formats);
 
 		VkPresentModeKHR* present_modes;
 		uint32_t present_mode_count;
-		vkGetPhysicalDeviceSurfacePresentModesKHR(s_vulkan_inst->phys_device, s_vulkan_swapchain->surface, &present_mode_count, nullptr);
+		vkGetPhysicalDeviceSurfacePresentModesKHR(s_vulkan_inst->phys_device, pswapchain->surface, &present_mode_count, nullptr);
 		present_modes = ArenaAllocArr(a_arena, VkPresentModeKHR, present_mode_count);
-		vkGetPhysicalDeviceSurfacePresentModesKHR(s_vulkan_inst->phys_device, s_vulkan_swapchain->surface, &present_mode_count, present_modes);
+		vkGetPhysicalDeviceSurfacePresentModesKHR(s_vulkan_inst->phys_device, pswapchain->surface, &present_mode_count, present_modes);
 
 		BB_ASSERT(format_count != 0 && present_mode_count != 0, "physical device does not support a swapchain!");
 
@@ -1300,34 +1305,37 @@ bool Vulkan::CreateSwapchain(MemoryArena& a_arena, const WindowHandle a_window_h
 			}
 		}
 
-		s_vulkan_swapchain->optimal_present = optimal_present;
-		s_vulkan_swapchain->optimal_surface_format = optimal_surface_format;
+		pswapchain->optimal_present = optimal_present;
+		pswapchain->optimal_surface_format = optimal_surface_format;
 
-		CreateVkSwapchain(a_width, a_height, a_backbuffer_count);
+		CreateVkSwapchain(pswapchain, a_width, a_height, a_backbuffer_count);
+		GetSwapchainImages(a_arena, pswapchain);
 	}
 
-	s_vulkan_swapchain->frames = ArenaAllocArr(a_arena, Vulkan_swapchain::swapchain_frame, s_vulkan_swapchain->frame_count);
+	return RSwapchain(reinterpret_cast<uintptr_t>(pswapchain));
+}
 
-	GetSwapchainImages();
+bool Vulkan::RecreateSwapchain(MemoryArena& a_temp_arena, const RSwapchain a_swapchain, const uint32_t a_width, const uint32_t a_height)
+{
+	Vulkan_swapchain* pswapchain = reinterpret_cast<Vulkan_swapchain*>(a_swapchain.handle);
+	for (uint32_t i = 0; i < pswapchain->frame_count; i++)
+	{
+		vkDestroyImageView(s_vulkan_inst->device, pswapchain->frames[i].image_view, nullptr);
+		vkDestroySemaphore(s_vulkan_inst->device, pswapchain->frames[i].image_available_semaphore, nullptr);
+		vkDestroySemaphore(s_vulkan_inst->device, pswapchain->frames[i].present_finished_semaphore, nullptr);
+	}
+	const uint32_t current_back_buffer_count = pswapchain->frame_count;
+	uint32_t new_back_buffer_count = pswapchain->frame_count;
+	CreateVkSwapchain(pswapchain, a_width, a_height, new_back_buffer_count);
+	BB_ASSERT(new_back_buffer_count == current_back_buffer_count, "back buffer amount should not change during resize");
 
+	GetSwapchainImages(a_temp_arena, pswapchain);
 	return true;
 }
 
-bool Vulkan::RecreateSwapchain(const uint32_t a_width, const uint32_t a_height)
+bool Vulkan::DestroySwapchain(const RSwapchain a_swapchain)
 {
-	for (uint32_t i = 0; i < s_vulkan_swapchain->frame_count; i++)
-	{
-		vkDestroyImageView(s_vulkan_inst->device, s_vulkan_swapchain->frames[i].image_view, nullptr);
-		vkDestroySemaphore(s_vulkan_inst->device, s_vulkan_swapchain->frames[i].image_available_semaphore, nullptr);
-		vkDestroySemaphore(s_vulkan_inst->device, s_vulkan_swapchain->frames[i].present_finished_semaphore, nullptr);
-	}
-	const uint32_t current_back_buffer_count = s_vulkan_swapchain->frame_count;
-	uint32_t new_back_buffer_count = s_vulkan_swapchain->frame_count;
-	CreateVkSwapchain(a_width, a_height, new_back_buffer_count);
-	BB_ASSERT(new_back_buffer_count == current_back_buffer_count, "back buffer amount should not change during resize");
-
-	GetSwapchainImages();
-	return true;
+	BB_UNIMPLEMENTED("swapchain destroy");
 }
 
 void Vulkan::CreateCommandPool(const QUEUE_TYPE a_queue_type, const uint32_t a_command_list_count, RCommandPool& a_pool, RCommandList* a_plists)
@@ -2700,68 +2708,89 @@ void Vulkan::DrawIndexed(const RCommandList a_list, const uint32_t a_index_count
 	vkCmdDrawIndexed(cmd_buffer, a_index_count, a_instance_count, a_first_index, a_vertex_offset, a_first_instance);
 }
 
-PRESENT_IMAGE_RESULT Vulkan::UploadImageToSwapchain(const RCommandList a_list, const RImage a_src_image, const uint32_t a_array_layer, const int2 a_src_image_size, const int2 a_swapchain_size, const uint32_t a_backbuffer_index)
+void Vulkan::UploadImageToSwapchain(MemoryArena& a_temp_arena, const RCommandList a_list, const EndFrameInfo& a_end_info, const uint32_t a_backbuffer_index, Slice<PRESENT_IMAGE_RESULT>& a_upload_results)
 {
-	uint32_t image_index;
-	const VkResult result = vkAcquireNextImageKHR(s_vulkan_inst->device,
-		s_vulkan_swapchain->swapchain,
-		UINT64_MAX,
-		s_vulkan_swapchain->frames[a_backbuffer_index].image_available_semaphore,
-		VK_NULL_HANDLE,
-		&image_index);
-
-	if (result == VK_ERROR_OUT_OF_DATE_KHR)
-	{
-		return PRESENT_IMAGE_RESULT::SWAPCHAIN_OUT_OF_DATE;
-	}
-	else if (result != VK_SUCCESS)
-	{
-		BB_ASSERT(false, "Vulkan: failed to get next image.");
-	}
-
-	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
-
 	constexpr VkImageLayout START_LAYOUT = VK_IMAGE_LAYOUT_UNDEFINED;
 	constexpr VkImageLayout TRANSFER_LAYOUT = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 	constexpr VkImageLayout END_LAYOUT = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-	
-	const VkImage swapchain_image = s_vulkan_swapchain->frames[a_backbuffer_index].image;
 
+	const VkCommandBuffer cmd_buffer = reinterpret_cast<VkCommandBuffer>(a_list.handle);
+
+	VkImage* swapchain_images = ArenaAllocArr(a_temp_arena, VkImage, a_end_info.swapchain_count);
+	VkImageMemoryBarrier2* upload_barriers = ArenaAllocArr(a_temp_arena, VkImageMemoryBarrier2, a_end_info.swapchain_count);
+	VkImageMemoryBarrier2* present_barriers = ArenaAllocArr(a_temp_arena, VkImageMemoryBarrier2, a_end_info.swapchain_count);
+
+	for (size_t i = 0; i < a_end_info.swapchain_count; i++)
 	{
-		VkImageMemoryBarrier2 upload_barrier{};
-		upload_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-		upload_barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-		upload_barrier.srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
-		upload_barrier.dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-		upload_barrier.oldLayout = START_LAYOUT;
-		upload_barrier.newLayout = TRANSFER_LAYOUT;
-		upload_barrier.image = swapchain_image;
-		upload_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		upload_barrier.subresourceRange.baseArrayLayer = 0;
-		upload_barrier.subresourceRange.layerCount = 1;
-		upload_barrier.subresourceRange.baseMipLevel = 0;
-		upload_barrier.subresourceRange.levelCount = 1;
+		const Vulkan_swapchain* pswapchain = reinterpret_cast<Vulkan_swapchain*>(a_end_info.swapchains[i].handle);
 
-		VkDependencyInfo barrier_info{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
-		barrier_info.pImageMemoryBarriers = &upload_barrier;
-		barrier_info.imageMemoryBarrierCount = 1;
+		uint32_t image_index;
+		const VkResult result = vkAcquireNextImageKHR(s_vulkan_inst->device,
+			pswapchain->swapchain,
+			UINT64_MAX,
+			pswapchain->frames[a_backbuffer_index].image_available_semaphore,
+			VK_NULL_HANDLE,
+			&image_index);
 
-		vkCmdPipelineBarrier2(cmd_buffer, &barrier_info);
+		if (result == VK_ERROR_OUT_OF_DATE_KHR)
+		{
+			a_upload_results[i] = PRESENT_IMAGE_RESULT::SWAPCHAIN_OUT_OF_DATE;
+			continue;
+		}
+		else if (result != VK_SUCCESS)
+		{
+			BB_ASSERT(false, "Vulkan: failed to get next image.");
+		}
+		a_upload_results[i] = PRESENT_IMAGE_RESULT::SUCCESS;
+
+		swapchain_images[i] = pswapchain->frames[a_backbuffer_index].image;
+
+		upload_barriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		upload_barriers[i].dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+		upload_barriers[i].srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
+		upload_barriers[i].dstStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+		upload_barriers[i].oldLayout = START_LAYOUT;
+		upload_barriers[i].newLayout = TRANSFER_LAYOUT;
+		upload_barriers[i].image = swapchain_images[i];
+		upload_barriers[i].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		upload_barriers[i].subresourceRange.baseArrayLayer = 0;
+		upload_barriers[i].subresourceRange.layerCount = 1;
+		upload_barriers[i].subresourceRange.baseMipLevel = 0;
+		upload_barriers[i].subresourceRange.levelCount = 1;
+
+		present_barriers[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		present_barriers[i].srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
+		present_barriers[i].dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
+		present_barriers[i].srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+		present_barriers[i].oldLayout = TRANSFER_LAYOUT;
+		present_barriers[i].newLayout = END_LAYOUT;
+		present_barriers[i].image = swapchain_images[i];
+		present_barriers[i].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		present_barriers[i].subresourceRange.baseArrayLayer = 0;
+		present_barriers[i].subresourceRange.layerCount = 1;
+		present_barriers[i].subresourceRange.baseMipLevel = 0;
+		present_barriers[i].subresourceRange.levelCount = 1;
 	}
+	
+	VkDependencyInfo barrier_info{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+	barrier_info.pImageMemoryBarriers = upload_barriers;
+	barrier_info.imageMemoryBarrierCount = static_cast<uint32_t>(a_end_info.swapchain_count);
+	vkCmdPipelineBarrier2(cmd_buffer, &barrier_info);
 
+	for (size_t i = 0; i < a_end_info.swapchain_count; i++)
 	{
-		//always single so don't use VkImageBlit2 here.
+		// always single so don't use VkImageBlit2 here.
 		VkImageBlit image_blit{};
-		image_blit.srcOffsets[1].x = a_src_image_size.x;
-		image_blit.srcOffsets[1].y = a_src_image_size.y;
+		image_blit.srcOffsets[1].x = a_end_info.render_target_sizes[i].x;
+		image_blit.srcOffsets[1].y = a_end_info.render_target_sizes[i].y;
 		image_blit.srcOffsets[1].z = 1;
 
-		image_blit.dstOffsets[1].x = a_swapchain_size.x;
-		image_blit.dstOffsets[1].y = a_swapchain_size.y;
+		image_blit.dstOffsets[1].x = a_end_info.swapchain_sizes[i].x;
+		image_blit.dstOffsets[1].y = a_end_info.swapchain_sizes[i].y;
 		image_blit.dstOffsets[1].z = 1;
 
 		image_blit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		image_blit.srcSubresource.baseArrayLayer = a_array_layer;
+		image_blit.srcSubresource.baseArrayLayer = a_end_info.render_target_layers[i];
 		image_blit.srcSubresource.layerCount = 1;
 		image_blit.srcSubresource.mipLevel = 0;
 
@@ -2771,37 +2800,19 @@ PRESENT_IMAGE_RESULT Vulkan::UploadImageToSwapchain(const RCommandList a_list, c
 		image_blit.dstSubresource.mipLevel = 0;
 
 		vkCmdBlitImage(cmd_buffer,
-			reinterpret_cast<VkImage>(a_src_image.handle),
+			reinterpret_cast<VkImage>(a_end_info.render_targets[i].handle),
 			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			swapchain_image,
+			swapchain_images[i],
 			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 			1,
 			&image_blit,
 			VK_FILTER_NEAREST);
 	}
 
-	{
-		VkImageMemoryBarrier2 present_barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2 };
-		present_barrier.srcStageMask = VK_PIPELINE_STAGE_2_TRANSFER_BIT;
-		present_barrier.dstStageMask = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT;
-		present_barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-		present_barrier.oldLayout = TRANSFER_LAYOUT;
-		present_barrier.newLayout = END_LAYOUT;
-		present_barrier.image = swapchain_image;
-		present_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		present_barrier.subresourceRange.baseArrayLayer = 0;
-		present_barrier.subresourceRange.layerCount = 1;
-		present_barrier.subresourceRange.baseMipLevel = 0;
-		present_barrier.subresourceRange.levelCount = 1;
-
-		VkDependencyInfo barrier_info{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
-		barrier_info.pImageMemoryBarriers = &present_barrier;
-		barrier_info.imageMemoryBarrierCount = 1;
-
-		vkCmdPipelineBarrier2(cmd_buffer, &barrier_info);
-	}
-
-	return PRESENT_IMAGE_RESULT::SUCCESS;
+	VkDependencyInfo barrier_info{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
+	barrier_info.pImageMemoryBarriers = present_barriers;
+	barrier_info.imageMemoryBarrierCount = 1;
+	vkCmdPipelineBarrier2(cmd_buffer, &barrier_info);
 }
 
 void Vulkan::ExecuteCommandLists(const RQueue a_queue, const ExecuteCommandsInfo* a_execute_infos, const uint32_t a_execute_info_count)
@@ -2844,31 +2855,39 @@ void Vulkan::ExecuteCommandLists(const RQueue a_queue, const ExecuteCommandsInfo
 		"Vulkan: failed to submit to queue.");
 }
 
-PRESENT_IMAGE_RESULT Vulkan::ExecutePresentCommandList(const RQueue a_queue, const ExecuteCommandsInfo& a_execute_info, const uint32_t a_backbuffer_index)
+PRESENT_IMAGE_RESULT Vulkan::ExecutePresentCommandList(MemoryArena& a_temp_arena, const RQueue a_queue, const ExecuteCommandsInfo& a_execute_info, const ConstSlice<RSwapchain> a_swapchains, const uint32_t a_backbuffer_index)
 {
 	// TEMP
 	constexpr VkPipelineStageFlags WAIT_STAGES[8] = { VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT };
 
 	// handle the window api for vulkan.
-	const uint32_t wait_semaphore_count = a_execute_info.wait_count + 1;
-	const uint32_t signal_semaphore_count = a_execute_info.signal_count + 1;
+	const uint32_t wait_semaphore_count = a_execute_info.wait_count + a_swapchains.size();
+	const uint32_t signal_semaphore_count = a_execute_info.signal_count + a_swapchains.size();
 
-	VkSemaphore* wait_semaphores = BBstackAlloc(wait_semaphore_count, VkSemaphore);
-	uint64_t* wait_values = BBstackAlloc(signal_semaphore_count, uint64_t);
-	VkSemaphore* signal_semaphores = BBstackAlloc(signal_semaphore_count, VkSemaphore);
-	uint64_t* signal_values = BBstackAlloc(signal_semaphore_count, uint64_t);
+	VkSemaphore* wait_semaphores = ArenaAllocArr(a_temp_arena, VkSemaphore, wait_semaphore_count);
+	uint64_t* wait_values = ArenaAllocArr(a_temp_arena, uint64_t, signal_semaphore_count);
+	VkSemaphore* signal_semaphores = ArenaAllocArr(a_temp_arena, VkSemaphore, signal_semaphore_count);
+	uint64_t* signal_values = ArenaAllocArr(a_temp_arena, uint64_t, signal_semaphore_count);
 
-	//MEMCPY wait/signal values.
+	VkSwapchainKHR* swapchains = ArenaAllocArr(a_temp_arena, VkSwapchainKHR, a_swapchains.size());
 
+	// MEMCPY wait/signal values.
 	Memory::Copy<VkSemaphore>(wait_semaphores, a_execute_info.wait_fences, a_execute_info.wait_count);
 	Memory::Copy(wait_values, a_execute_info.wait_values, a_execute_info.wait_count);
-	wait_semaphores[a_execute_info.wait_count] = s_vulkan_swapchain->frames[a_backbuffer_index].image_available_semaphore;
-	wait_values[a_execute_info.wait_count] = 0;
 
 	Memory::Copy<VkSemaphore>(signal_semaphores, a_execute_info.signal_fences, a_execute_info.signal_count);
 	Memory::Copy(signal_values, a_execute_info.signal_values, a_execute_info.signal_count);
-	signal_semaphores[a_execute_info.signal_count] = s_vulkan_swapchain->frames[a_backbuffer_index].present_finished_semaphore;
-	signal_values[a_execute_info.signal_count] = 0;
+
+	for (size_t i = 0; i < a_swapchains.size(); i++)
+	{
+		Vulkan_swapchain* pswapchain = reinterpret_cast<Vulkan_swapchain*>(a_swapchains[i].handle);
+		wait_semaphores[a_execute_info.wait_count + i] = pswapchain->frames[a_backbuffer_index].image_available_semaphore;
+		wait_values[a_execute_info.wait_count + i] = 0;
+		signal_semaphores[a_execute_info.signal_count + i] = pswapchain->frames[a_backbuffer_index].present_finished_semaphore;
+		signal_values[a_execute_info.signal_count + i] = 0;
+
+		swapchains[i] = pswapchain->swapchain;
+	}
 
 	VkTimelineSemaphoreSubmitInfo timeline_sem_info{ VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO };
 	timeline_sem_info.pWaitSemaphoreValues = wait_values;
@@ -2895,11 +2914,11 @@ PRESENT_IMAGE_RESULT Vulkan::ExecutePresentCommandList(const RQueue a_queue, con
 
 	VkPresentInfoKHR present_info{};
 	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-	present_info.waitSemaphoreCount = 1;
-	present_info.pWaitSemaphores = &s_vulkan_swapchain->frames[a_backbuffer_index].present_finished_semaphore;
-	present_info.swapchainCount = 1; //Swapchain will always be 1
-	present_info.pSwapchains = &s_vulkan_swapchain->swapchain;
-	present_info.pImageIndices = &a_backbuffer_index; //THIS MAY BE WRONG
+	present_info.waitSemaphoreCount = static_cast<uint32_t>(a_swapchains.size());;
+	present_info.pWaitSemaphores = &signal_semaphores[a_execute_info.signal_count];
+	present_info.swapchainCount = static_cast<uint32_t>(a_swapchains.size());
+	present_info.pSwapchains = swapchains;
+	present_info.pImageIndices = &---a_backbuffer_index; //THIS MAY BE WRONG
 	present_info.pResults = nullptr;
 
 	const VkResult result = vkQueuePresentKHR(s_vulkan_inst->present_queue, &present_info);

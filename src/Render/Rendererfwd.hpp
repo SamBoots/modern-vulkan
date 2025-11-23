@@ -6,10 +6,17 @@
 
 namespace BB
 {
+	namespace RENDER_LIMITS
+	{
+		constexpr uint32_t BACK_BUFFER_MAX = 3;
+	}
+
 	struct GPUBufferView;
 
 	using RCommandPool = FrameworkHandle<struct RCommandPoolTag>;
 	using RCommandList = FrameworkHandle<struct RCommandListTag>;
+
+	using RSwapchain = FrameworkHandle<struct RSwapchainTag>;
 
 	using RPipelineLayout = FrameworkHandle<struct RPipelineLayoutTag>;
 	using RDescriptorLayout = FrameworkHandle<struct RDescriptorLayoutTag>;
@@ -151,6 +158,7 @@ namespace BB
 		const char* engine_name;
 		uint32_t swapchain_width;
 		uint32_t swapchain_height;
+		uint32_t swapchain_count;
 		float gamma;
 		bool use_raytracing;
 		bool debug;
@@ -519,6 +527,17 @@ namespace BB
 		BLEND_OP alpha_blend_op;
 		BLEND_MODE src_alpha_blend;
 		BLEND_MODE dst_alpha_blend;
+	};
+
+	struct EndFrameInfo
+	{
+		size_t swapchain_count;
+		RSwapchain* swapchains;
+		int2* swapchain_sizes;
+		RImage* render_targets;
+		int2* render_target_sizes;
+		uint32_t* render_target_layers;
+		uint32_t backbuffer_index;
 	};
 
 	enum class PRESENT_IMAGE_RESULT
