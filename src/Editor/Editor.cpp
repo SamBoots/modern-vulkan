@@ -448,9 +448,17 @@ void Editor::EndFrame(MemoryArena& a_arena)
 		// CURFRAME = the render internal frame
 		ImRenderFrame(m_per_frame.lists[0], GetImageView(m_render_target_descs[m_per_frame.back_buffer_index]), m_app_window_extent, true, m_imgui_material);
 		ImGui::EndFrame();
-
-		PRESENT_IMAGE_RESULT result = RenderEndFrame(m_per_frame.lists[0], m_render_target, m_per_frame.back_buffer_index);
-		if (result == PRESENT_IMAGE_RESULT::SWAPCHAIN_OUT_OF_DATE)
+		Slice<PRESENT_IMAGE_RESULT> results = Slice<PRESENT_IMAGE_RESULT>(ArenaAllocArr(a_arena, PRESENT_IMAGE_RESULT, ), );
+		EndFrameInfo end_frame_info;
+		end_frame_info.swapchain_count = ;
+		end_frame_info.swapchains = ;
+		end_frame_info.swapchain_sizes = ;
+		end_frame_info.render_targets = m_render_target;
+		end_frame_info.render_target_sizes = ;
+		end_frame_info.render_target_layers = ;
+		end_frame_info.backbuffer_index = m_per_frame.back_buffer_index;
+		RenderEndFrame(a_arena, m_per_frame.lists[0], end_frame_info, results);
+		if (results.Contains(PRESENT_IMAGE_RESULT::SWAPCHAIN_OUT_OF_DATE))
 		{
 			skip = true;
 		}
@@ -464,7 +472,9 @@ void Editor::EndFrame(MemoryArena& a_arena)
 		const uint32_t command_list_count = Max(m_per_frame.current_count.load(), 1u);
 		uint64_t present_queue_value;
 		// TODO: fence values could bug if no scenes are being rendered.
-		result = PresentFrame(m_per_frame.pools.slice(command_list_count),
+		PresentFrame(a_arena,
+			ConstSlice<RSwapchain>(m_swapchains.swapchain, m_swapchains.swapchain_count),
+			m_per_frame.pools.slice(command_list_count),
 			m_per_frame.fences.data(), 
 			m_per_frame.fence_values.data(), 
 			m_per_frame.current_count,
@@ -473,11 +483,11 @@ void Editor::EndFrame(MemoryArena& a_arena)
 	}
 }
 
-bool Editor::ResizeWindow(const uint2 a_window)
+bool Editor::ResizeWindow(MemoryArena& a_temp_arena, const uint2 a_window_extent, const RSwapchain a_swapchain)
 {
 	GPUWaitIdle();
 
-	m_app_window_extent = a_window;
+	m_app_window_extent = a_window_extent;
 	FreeImage(m_render_target);
 
 	ImageCreateInfo render_target_info;
@@ -513,7 +523,7 @@ bool Editor::ResizeWindow(const uint2 a_window)
 		m_render_target_descs[i] = CreateImageView(view_info);
 	}
 
-	ResizeSwapchain(m_app_window_extent);
+	ResizeSwapchain(a_temp_arena, a_swapchain, m_app_window_extent);
 
 	return true;
 }

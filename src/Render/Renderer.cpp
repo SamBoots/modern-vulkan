@@ -321,7 +321,7 @@ public:
 		return true;
 	}
 
-	PRESENT_IMAGE_RESULT ExecutePresentCommands(RCommandList* const a_lists, const uint32_t a_list_count, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const uint32_t a_wait_count, const uint32_t a_backbuffer_index, uint64_t& a_out_fence_value)
+	PRESENT_IMAGE_RESULT ExecutePresentCommands(MemoryArena& a_temp_arena, const ConstSlice<RSwapchain> a_swapchains, RCommandList* const a_lists, const uint32_t a_list_count, const RFence* const a_signal_fences, const uint64_t* const a_signal_values, const uint32_t a_signal_count, const RFence* const a_wait_fences, const uint64_t* const a_wait_values, const uint32_t a_wait_count, const uint32_t a_backbuffer_index, uint64_t& a_out_fence_value)
 	{
 		BB_ASSERT(m_queue_type == QUEUE_TYPE::GRAPHICS, "calling a present commands on a non-graphics command queue is not valid");
 		
@@ -344,7 +344,7 @@ public:
 		execute_info.wait_count = a_wait_count;
 
 		OSAcquireSRWLockWrite(&m_lock);
-		const PRESENT_IMAGE_RESULT result = Vulkan::ExecutePresentCommandList(m_queue, execute_info, a_backbuffer_index);
+		const PRESENT_IMAGE_RESULT result = Vulkan::ExecutePresentCommandList(a_temp_arena, m_queue, execute_info, a_swapchains, a_backbuffer_index);
 		a_out_fence_value = m_fence.next_fence_value++;
 		OSReleaseSRWLockWrite(&m_lock);
 		return result;
@@ -1106,7 +1106,7 @@ CommandPool& BB::GetCommandCommandPool()
 	return s_render_inst->compute_queue.GetCommandPool();
 }
 
-PRESENT_IMAGE_RESULT BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value, const bool a_skip)
+PRESENT_IMAGE_RESULT BB::PresentFrame(MemoryArena& a_temp_arena, const ConstSlice<RSwapchain> a_swapchains, const BB::Slice<CommandPool> a_cmd_pools, const RFence* a_signal_fences, const uint64_t* a_signal_values, const uint32_t a_signal_count, uint64_t& a_out_present_fence_value, const bool a_skip)
 {
 	if (a_skip)
 	{
@@ -1135,7 +1135,7 @@ PRESENT_IMAGE_RESULT BB::PresentFrame(const BB::Slice<CommandPool> a_cmd_pools, 
 
 	//set the next fence value for the frame
 	s_render_inst->graphics_queue.ReturnPools(a_cmd_pools);
-	const PRESENT_IMAGE_RESULT result = s_render_inst->graphics_queue.ExecutePresentCommands(lists, list_count, a_signal_fences, a_signal_values, a_signal_count, nullptr, nullptr, 0, s_render_inst->status.frame_index, a_out_present_fence_value);
+	const PRESENT_IMAGE_RESULT result = s_render_inst->graphics_queue.ExecutePresentCommands(a_temp_arena, a_swapchains, lists, list_count, a_signal_fences, a_signal_values, a_signal_count, nullptr, nullptr, 0, s_render_inst->status.frame_index, a_out_present_fence_value);
 	s_render_inst->status.frame_index = (s_render_inst->status.frame_index + 1) % s_render_inst->frame_count;
 	s_render_inst->frames[s_render_inst->status.frame_index].graphics_queue_fence_value = a_out_present_fence_value;
 

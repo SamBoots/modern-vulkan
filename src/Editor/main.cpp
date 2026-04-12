@@ -75,7 +75,10 @@ int main(int argc, char** argv)
 			int x, y;
 			OSGetWindowSize(engine_info.window_handle, x, y);
 			const uint2 new_extent = uint2(static_cast<uint32_t>(x), static_cast<uint32_t>(y));
-			editor.ResizeWindow(new_extent);
+			MemoryArenaScope()
+			{
+				editor.ResizeWindow(new_extent);
+			}
 		}
 
 		BB_START_PROFILE("frame time");

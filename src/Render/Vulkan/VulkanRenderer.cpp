@@ -2809,7 +2809,6 @@ void Vulkan::UploadImageToSwapchain(MemoryArena& a_temp_arena, const RCommandLis
 			VK_FILTER_NEAREST);
 	}
 
-	VkDependencyInfo barrier_info{ VK_STRUCTURE_TYPE_DEPENDENCY_INFO };
 	barrier_info.pImageMemoryBarriers = present_barriers;
 	barrier_info.imageMemoryBarrierCount = 1;
 	vkCmdPipelineBarrier2(cmd_buffer, &barrier_info);
@@ -2918,7 +2917,7 @@ PRESENT_IMAGE_RESULT Vulkan::ExecutePresentCommandList(MemoryArena& a_temp_arena
 	present_info.pWaitSemaphores = &signal_semaphores[a_execute_info.signal_count];
 	present_info.swapchainCount = static_cast<uint32_t>(a_swapchains.size());
 	present_info.pSwapchains = swapchains;
-	present_info.pImageIndices = &---a_backbuffer_index; //THIS MAY BE WRONG
+	present_info.pImageIndices = &a_backbuffer_index; //THIS MAY (it is wrong) BE WRONG
 	present_info.pResults = nullptr;
 
 	const VkResult result = vkQueuePresentKHR(s_vulkan_inst->present_queue, &present_info);

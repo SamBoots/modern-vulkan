@@ -13,6 +13,7 @@
 namespace BB
 {
 	constexpr size_t EDITOR_DEFAULT_MEMORY = mbSize * 4;
+	constexpr size_t MAX_SWAPCHAINS = 8;
 
 	struct MemoryArena;
 	class Editor
@@ -26,7 +27,7 @@ namespace BB
         ThreadTask UpdateGameInstance(MemoryArena& a_arena, const float a_delta_time, class EditorGame& a_game);
 		void EndFrame(MemoryArena& a_arena);
 
-		bool ResizeWindow(const uint2 a_window);
+		bool ResizeWindow(MemoryArena& a_temp_arena, const uint2 a_window_extent, const RSwapchain a_swapchain);
 
 	private:
 		struct ThreadFuncForDrawing_Params
@@ -59,8 +60,13 @@ namespace BB
 		uint2 m_app_window_extent;
 		Console m_console;
 
-		RImage m_render_target;
-		FixedArray<RDescriptorIndex, 3> m_render_target_descs;
+		struct
+		{
+			size_t swapchain_count;
+			RSwapchain swapchain[MAX_SWAPCHAINS];
+			RImage render_target[MAX_SWAPCHAINS];
+			FixedArray<RDescriptorIndex, 3> render_target_descs[MAX_SWAPCHAINS];
+		} m_swapchains;
 
         enum class DRAW_TYPE
         {

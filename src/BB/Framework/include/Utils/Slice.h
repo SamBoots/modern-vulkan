@@ -71,6 +71,16 @@ namespace BB
 		Iterator begin() const { return Iterator(m_ptr); }
 		Iterator end() const { return Iterator(&m_ptr[m_size]); }
 
+		bool Contains(const T& a_lhs) const
+		{
+			for (size_t i = 0; i < m_size; i++)
+			{
+				if (m_ptr[i] == a_lhs)
+					return true
+			}
+			return false
+		}
+
 		T* data() const { return m_ptr; }
 		size_t size() const { return m_size; }
 		size_t sizeInBytes() const { return m_size * sizeof(DataType); }
