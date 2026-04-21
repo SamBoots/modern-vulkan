@@ -532,11 +532,11 @@ namespace BB
 	struct EndFrameInfo
 	{
 		size_t swapchain_count;
-		RSwapchain* swapchains;
-		int2* swapchain_sizes;
-		RImage* render_targets;
-		int2* render_target_sizes;
-		uint32_t* render_target_layers;
+		const RSwapchain* swapchains;
+		const int2* swapchain_sizes;
+		const RImage* render_targets;
+		const int2* render_target_sizes;
+		const uint32_t* render_target_layers;
 		uint32_t backbuffer_index;
 	};
 

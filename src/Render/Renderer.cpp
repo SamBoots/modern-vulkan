@@ -957,7 +957,7 @@ void BB::RenderStartFrame(const RCommandList a_list, const RenderStartFrameInfo&
 	a_back_buffer_index = frame_index;
 }
 
-void BB::RenderEndFrame(MemoryArena& a_temp_arena, const RCommandList a_list, const EndFrameInfo& a_end_info, Slice<PRESENT_IMAGE_RESULT>& a_upload_results)
+void BB::RenderEndFrame(MemoryArena& a_temp_arena, const RCommandList a_list, const EndFrameInfo& a_end_info, Slice<PRESENT_IMAGE_RESULT> a_upload_results)
 {
 	BB_ASSERT(s_render_inst->status.frame_started == true, "did not call RenderStartFrame before a RenderEndFrame");
 

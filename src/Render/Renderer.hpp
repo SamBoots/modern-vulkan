@@ -50,7 +50,7 @@ namespace BB
 	};
 
 	void RenderStartFrame(const RCommandList a_list, const RenderStartFrameInfo& a_info, const RImage a_render_target, uint32_t& a_back_buffer_index);
-	void RenderEndFrame(MemoryArena& a_temp_arena, const RCommandList a_list, const EndFrameInfo& a_end_info, Slice<PRESENT_IMAGE_RESULT>& a_upload_results);
+	void RenderEndFrame(MemoryArena& a_temp_arena, const RCommandList a_list, const EndFrameInfo& a_end_info, Slice<PRESENT_IMAGE_RESULT> a_upload_results);
 
 	bool ResizeSwapchain(MemoryArena& a_temp_arena, const RSwapchain a_swapchain, const uint2 a_extent);
 

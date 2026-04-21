@@ -380,7 +380,7 @@ void Editor::StartFrame(MemoryArena& a_arena, const Slice<InputEvent> a_input_ev
 	m_console.ImGuiShowConsole(a_arena, m_app_window_extent);
 }
 
-ThreadTask Editor::UpdateGameInstance(MemoryArena& a_arena, const float a_delta_time, class EditorGame& a_game)
+ThreadTask Editor::UpdateGameInstance(MemoryArena&, const float a_delta_time, class EditorGame& a_game)
 {
     ThreadFuncForDrawing_Params params =
     {
@@ -394,70 +394,58 @@ ThreadTask Editor::UpdateGameInstance(MemoryArena& a_arena, const float a_delta_
     return Threads::StartTaskThread(ThreadFuncForDrawing, &params, sizeof(params), L"scene draw task");
 }
 
-void Editor::EndFrame(MemoryArena& a_arena)
+void Editor::EndFrame(MemoryArena& a_temp_arena, const ConstSlice<RSwapchain> a_swapchains, const ConstSlice<int2> a_swapchain_sizes)
 {
 	bool skip = false;
-	MemoryArenaScope(a_arena)
+    ImGuiDisplayEditor(a_temp_arena);
+
+	for (size_t i = 0; i < m_per_frame.current_count; i++)
 	{
-        ImGuiDisplayEditor(a_arena);
-
-		for (size_t i = 0; i < m_per_frame.current_count; i++)
-		{
-            DrawStruct& ds = m_per_frame.draw_struct[i];
-            if (ds.type == DRAW_TYPE::GAME)
+        DrawStruct& ds = m_per_frame.draw_struct[i];
+        if (ds.type == DRAW_TYPE::GAME)
+        {
+            EditorGame& game_inst = *ds.game;
+            if (m_per_frame.success[i])
             {
-                EditorGame& game_inst = *ds.game;
-                if (m_per_frame.success[i])
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+                if (ImGui::Begin(game_inst.GetSceneHierarchy().GetECS().GetName().c_str(), nullptr, ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoScrollbar))
                 {
-                    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
-                    if (ImGui::Begin(game_inst.GetSceneHierarchy().GetECS().GetName().c_str(), nullptr, ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoScrollbar))
+                    if (ImGui::BeginMenuBar())
                     {
-                        if (ImGui::BeginMenuBar())
+                        if (ImGui::BeginMenu("screenshot"))
                         {
-                            if (ImGui::BeginMenu("screenshot"))
-                            {
-                                static char image_name[128]{};
-                                ImGui::InputText("sceenshot name", image_name, 128);
+                            static char image_name[128]{};
+                            ImGui::InputText("sceenshot name", image_name, 128);
 
-                                if (ImGui::Button("make screenshot"))
-                                    game_inst.GetSceneHierarchy().GetECS().GetRenderSystem().Screenshot(image_name);
+                            if (ImGui::Button("make screenshot"))
+                                game_inst.GetSceneHierarchy().GetECS().GetRenderSystem().Screenshot(image_name);
 
-                                ImGui::EndMenu();
-                            }
-                            if (ImGui::Button("reload lua"))
-                                game_inst.Reload();
-                            ImGui::EndMenuBar();
+                            ImGui::EndMenu();
                         }
-                        DrawImgui(m_per_frame.frame_results[i].render_frame.render_target, game_inst.GetViewport());
-                    }
-                    ImGui::PopStyleVar();
-                }
-                else
-                {
-                    if (ImGui::Begin(game_inst.GetSceneHierarchy().GetECS().GetName().c_str()))
-                    {
-                        ImGui::TextUnformatted(m_per_frame.error_message[i].c_str());
-                        if (ImGui::Button("Reload lua"))
+                        if (ImGui::Button("reload lua"))
                             game_inst.Reload();
+                        ImGui::EndMenuBar();
                     }
+                    DrawImgui(m_per_frame.frame_results[i].render_frame.render_target, game_inst.GetViewport());
                 }
-                ImGui::End();
+                ImGui::PopStyleVar();
             }
 		}
 
 		// CURFRAME = the render internal frame
 		ImRenderFrame(m_per_frame.lists[0], GetImageView(m_render_target_descs[m_per_frame.back_buffer_index]), m_app_window_extent, true, m_imgui_material);
 		ImGui::EndFrame();
-		Slice<PRESENT_IMAGE_RESULT> results = Slice<PRESENT_IMAGE_RESULT>(ArenaAllocArr(a_arena, PRESENT_IMAGE_RESULT, ), );
+		StaticArray<PRESENT_IMAGE_RESULT> results{};
+		results.Init(a_temp_arena, m_swapchains.swapchain_count);
 		EndFrameInfo end_frame_info;
-		end_frame_info.swapchain_count = ;
-		end_frame_info.swapchains = ;
-		end_frame_info.swapchain_sizes = ;
-		end_frame_info.render_targets = m_render_target;
-		end_frame_info.render_target_sizes = ;
-		end_frame_info.render_target_layers = ;
+		end_frame_info.swapchain_count = m_swapchains.swapchain_count;
+		end_frame_info.swapchains = m_swapchains.swapchains;
+		end_frame_info.swapchain_sizes = m_swapchains.swapchain_extents;
+		end_frame_info.render_targets = m_swapchains.render_targets;
+		end_frame_info.render_target_sizes = m_swapchains.render_target_extents;
+		end_frame_info.render_target_layers = m_swapchains.render_target_layers;
 		end_frame_info.backbuffer_index = m_per_frame.back_buffer_index;
-		RenderEndFrame(a_arena, m_per_frame.lists[0], end_frame_info, results);
+		RenderEndFrame(a_temp_arena, m_per_frame.lists[0], end_frame_info, results.slice());
 		if (results.Contains(PRESENT_IMAGE_RESULT::SWAPCHAIN_OUT_OF_DATE))
 		{
 			skip = true;
@@ -472,8 +460,8 @@ void Editor::EndFrame(MemoryArena& a_arena)
 		const uint32_t command_list_count = Max(m_per_frame.current_count.load(), 1u);
 		uint64_t present_queue_value;
 		// TODO: fence values could bug if no scenes are being rendered.
-		PresentFrame(a_arena,
-			ConstSlice<RSwapchain>(m_swapchains.swapchain, m_swapchains.swapchain_count),
+		PresentFrame(a_temp_arena,
+			ConstSlice<RSwapchain>(m_swapchains.swapchains, m_swapchains.swapchain_count),
 			m_per_frame.pools.slice(command_list_count),
 			m_per_frame.fences.data(), 
 			m_per_frame.fence_values.data(), 

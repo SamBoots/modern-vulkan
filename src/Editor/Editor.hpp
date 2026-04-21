@@ -25,7 +25,7 @@ namespace BB
 		void StartFrame(MemoryArena& a_arena, const Slice<InputEvent> a_input_events, const float a_delta_time);
 
         ThreadTask UpdateGameInstance(MemoryArena& a_arena, const float a_delta_time, class EditorGame& a_game);
-		void EndFrame(MemoryArena& a_arena);
+		void EndFrame(MemoryArena& a_arena, const ConstSlice<RSwapchain> a_swapchains, const ConstSlice<int2> a_swapchain_sizes);
 
 		bool ResizeWindow(MemoryArena& a_temp_arena, const uint2 a_window_extent, const RSwapchain a_swapchain);
 
@@ -63,8 +63,11 @@ namespace BB
 		struct
 		{
 			size_t swapchain_count;
-			RSwapchain swapchain[MAX_SWAPCHAINS];
-			RImage render_target[MAX_SWAPCHAINS];
+			RSwapchain swapchains[MAX_SWAPCHAINS];
+			int2 swapchain_extents[MAX_SWAPCHAINS];
+			RImage render_targets[MAX_SWAPCHAINS];
+			int2 render_target_extents[MAX_SWAPCHAINS];
+			uint32_t render_target_layers[MAX_SWAPCHAINS];
 			FixedArray<RDescriptorIndex, 3> render_target_descs[MAX_SWAPCHAINS];
 		} m_swapchains;
 

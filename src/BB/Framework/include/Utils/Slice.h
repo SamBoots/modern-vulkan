@@ -83,6 +83,7 @@ namespace BB
 
 		T* data() const { return m_ptr; }
 		size_t size() const { return m_size; }
+		uint32_t size32() const { return static_cast<uint32_t>(m_size); }
 		size_t sizeInBytes() const { return m_size * sizeof(DataType); }
 
 	private:

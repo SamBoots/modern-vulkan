@@ -497,6 +497,16 @@ namespace BB
 		Iterator begin() { return Iterator(m_arr); }
 		Iterator end() { return Iterator(&m_arr[m_size + 1]); } //Get an out of bounds Iterator.
 
+		bool Contains(const T& a_lhs) const
+		{
+			for (size_t i = 0; i < m_size; i++)
+			{
+				if (m_arr[i] == a_lhs)
+					return true
+			}
+			return false
+		}
+
 		ConstSlice<T> const_slice() const
 		{
 			return const_slice(m_size);
