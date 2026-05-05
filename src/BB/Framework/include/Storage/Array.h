@@ -502,9 +502,9 @@ namespace BB
 			for (size_t i = 0; i < m_size; i++)
 			{
 				if (m_arr[i] == a_lhs)
-					return true
+					return true;
 			}
-			return false
+			return false;
 		}
 
 		ConstSlice<T> const_slice() const

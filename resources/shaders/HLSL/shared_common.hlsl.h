@@ -44,14 +44,13 @@ namespace BB
     struct ALIGN_STRUCT(16) GlobalRenderData
     {
         float2 mouse_pos;           // 8
-        uint2 swapchain_resolution; // 16
         uint frame_index;           // 20
         uint frame_count;           // 24
         float delta_time;           // 28
         float total_time;           // 32
         float gamma;                // 36
         uint cube_vertexpos_vertex_buffer_pos; // 40 used for cubemaps, the type is VertexPos
-        uint2 padding;               // 48
+        uint4 padding;               // 48
     };
 
     struct ALIGN_STRUCT(16) Scene3DInfo

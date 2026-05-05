@@ -76,9 +76,9 @@ namespace BB
 			for (size_t i = 0; i < m_size; i++)
 			{
 				if (m_ptr[i] == a_lhs)
-					return true
+					return true;
 			}
-			return false
+			return false;
 		}
 
 		T* data() const { return m_ptr; }

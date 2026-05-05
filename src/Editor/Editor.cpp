@@ -436,11 +436,11 @@ void Editor::EndFrame(MemoryArena& a_temp_arena, const ConstSlice<RSwapchain> a_
 		ImRenderFrame(m_per_frame.lists[0], GetImageView(m_render_target_descs[m_per_frame.back_buffer_index]), m_app_window_extent, true, m_imgui_material);
 		ImGui::EndFrame();
 		StaticArray<PRESENT_IMAGE_RESULT> results{};
-		results.Init(a_temp_arena, m_swapchains.swapchain_count);
+		results.Init(a_temp_arena, m_swapchains.count);
 		EndFrameInfo end_frame_info;
-		end_frame_info.swapchain_count = m_swapchains.swapchain_count;
-		end_frame_info.swapchains = m_swapchains.swapchains;
-		end_frame_info.swapchain_sizes = m_swapchains.swapchain_extents;
+		end_frame_info.swapchain_count = m_swapchains.count;
+		end_frame_info.swapchains = a_swapchains.data();
+		end_frame_info.swapchain_sizes = a_swapchain_sizes.data();
 		end_frame_info.render_targets = m_swapchains.render_targets;
 		end_frame_info.render_target_sizes = m_swapchains.render_target_extents;
 		end_frame_info.render_target_layers = m_swapchains.render_target_layers;
@@ -452,16 +452,16 @@ void Editor::EndFrame(MemoryArena& a_temp_arena, const ConstSlice<RSwapchain> a_
 		}
 
 
-		for (size_t i = 0; i < m_per_frame.current_count; i++)
+		for (size_t j = 0; j < m_per_frame.current_count; j++)
 		{
-			m_per_frame.pools[i].EndCommandList(m_per_frame.lists[i]);
+			m_per_frame.pools[j].EndCommandList(m_per_frame.lists[j]);
 		}
 
 		const uint32_t command_list_count = Max(m_per_frame.current_count.load(), 1u);
 		uint64_t present_queue_value;
 		// TODO: fence values could bug if no scenes are being rendered.
 		PresentFrame(a_temp_arena,
-			ConstSlice<RSwapchain>(m_swapchains.swapchains, m_swapchains.swapchain_count),
+			ConstSlice<RSwapchain>(m_swapchains.swapchains, m_swapchains.count),
 			m_per_frame.pools.slice(command_list_count),
 			m_per_frame.fences.data(), 
 			m_per_frame.fence_values.data(), 

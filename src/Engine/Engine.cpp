@@ -11,37 +11,37 @@
 #include "AssetLoader.hpp"
 #include "InputSystem.hpp"
 
+#include "Storage/Hashmap.h"
+
 #include "lua/LuaTest.hpp"
 
 #include "BBGlobal.h"
 
 using namespace BB;
 
-static EngineConfig engine_config;
+static EngineConfig s_engine_config;
+static OL_HashMap<WindowHandle, SwapchainWindow> s_swapchain_windows;
+
 static char s_root_path[PathString::capacity()];
-static bool s_window_closed = false;
-static bool s_resize_app = false;
 
-static void CustomCloseWindow(const BB::WindowHandle a_window_handle)
+static void CustomCloseWindow(const WindowHandle a_window_handle)
 {
-    (void)a_window_handle;
-    WriteEngineConfigData(engine_config);
-    s_window_closed = true;
+    SwapchainWindow* window = s_swapchain_windows.find(a_window_handle);
+    WriteEngineConfigData(s_engine_config);
+    window->window_closed = true;
 }
 
-static void CustomResizeWindow(const BB::WindowHandle a_window_handle, const uint32_t a_x, const uint32_t a_y)
+static void CustomResizeWindow(const WindowHandle a_window_handle, const uint32_t a_x, const uint32_t a_y)
 {
-    (void)a_window_handle;
-    engine_config.window_size_x = a_x;
-    engine_config.window_size_y = a_y;
-    s_resize_app = true;
+    SwapchainWindow* window = s_swapchain_windows.find(a_window_handle);
+    window->extent = uint2(a_x, a_y);
+    window->resize = true;
 }
 
-static void CustomMoveWindow(const BB::WindowHandle a_window_handle, const uint32_t a_x, const uint32_t a_y)
+static void CustomMoveWindow(const WindowHandle a_window_handle, const int a_x, const int a_y)
 {
-    (void)a_window_handle;
-    engine_config.window_offset_x = a_x;
-    engine_config.window_offset_y = a_y;
+    SwapchainWindow* window = s_swapchain_windows.find(a_window_handle);
+    window->offset = int2(a_x, a_y);
 }
 
 EngineInfo BB::InitEngine(MemoryArena& a_arena, const wchar* a_app_name, const EngineOptions& a_engine_options, const GraphicOptions& a_graphic_options)
@@ -71,19 +71,11 @@ EngineInfo BB::InitEngine(MemoryArena& a_arena, const wchar* a_app_name, const E
 
     MemoryArenaScope(a_arena)
     {
-        GetEngineConfigData(a_arena, engine_config);
+        GetEngineConfigData(a_arena, s_engine_config);
     }
 
-    const uint2 window_extent = uint2(engine_config.window_size_x, engine_config.window_size_y);
-    const uint2 window_offest = uint2(engine_config.window_offset_x, engine_config.window_offset_y);
-
-    const WindowHandle window_handle = CreateOSWindow(
-        BB::OS_WINDOW_STYLE::MAIN,
-        static_cast<int>(window_offest.x),
-        static_cast<int>(window_offest.y),
-        static_cast<int>(window_extent.x),
-        static_cast<int>(window_extent.y),
-        a_app_name);
+    const uint2 window_extent = uint2(s_engine_config.window_size_x, s_engine_config.window_size_y);
+    const int2 window_offest = int2(s_engine_config.window_offset_x, s_engine_config.window_offset_y);
 
     SetWindowCloseEvent(CustomCloseWindow);
     SetWindowResizeEvent(CustomResizeWindow);
@@ -93,9 +85,6 @@ EngineInfo BB::InitEngine(MemoryArena& a_arena, const wchar* a_app_name, const E
     // TEMP name
     render_create_info.app_name = "modern vulkan - editor";
     render_create_info.engine_name = "building block engine";
-    render_create_info.window_handle = window_handle;
-    render_create_info.swapchain_width = window_extent.x;
-    render_create_info.swapchain_height = window_extent.y;
     render_create_info.gamma = 2.2f;
     render_create_info.debug = a_engine_options.enable_debug;
     render_create_info.use_raytracing = a_graphic_options.use_raytracing;
@@ -139,9 +128,7 @@ EngineInfo BB::InitEngine(MemoryArena& a_arena, const wchar* a_app_name, const E
         InitializeProfiler(a_arena, a_engine_options.debug_options.max_profiler_entries);
     }
 
-
-    EngineInfo info;
-    info.window_handle = window_handle;
+    EngineInfo info{ CreateSwapchainWindow(a_arena, OS_WINDOW_STYLE::MAIN, window_extent, window_offest, a_app_name) };
     info.window_extent = window_extent;
     info.backbuffer_count = back_buffer_count;
 
@@ -157,20 +144,33 @@ bool BB::DestroyEngine()
     return true;
 }
 
-ENGINE_STATUS BB::UpdateEngine(const WindowHandle a_window_handle, const ConstSlice<InputEvent> a_input_events)
+ENGINE_STATUS BB::UpdateEngine(const WindowHandle a_window_handle, const ConstSlice<InputEvent> a_input_events, const SwapchainWindow& a_main_window)
 {
-    if (s_window_closed)
+    if (a_main_window.window_closed)
         return ENGINE_STATUS::CLOSE_APP;
     ENGINE_STATUS status = ENGINE_STATUS::RESUME;
-    if (s_resize_app)
-    {
-        s_resize_app = false;
-        status = ENGINE_STATUS::RESIZE;
-    }
     Asset::Update();
 
     Input::UpdateInput(a_input_events);
     return status;
+}
+
+
+SwapchainWindow& BB::CreateSwapchainWindow(MemoryArena& a_arena, const OS_WINDOW_STYLE a_style, const uint2 a_extent, const int2 a_offset, const StringWView a_window_name)
+{
+    uint32_t backbuffer_count = 3;
+    SwapchainWindow window;
+    window.extent = a_extent;
+    window.hwnd = CreateOSWindow(a_style, a_offset.x, a_offset.y, static_cast<int>(a_extent.x), static_cast<int>(a_extent.y), a_window_name.c_str());
+    window.swapchain = CreateSwapchain(a_arena, window.hwnd, a_extent, backbuffer_count);
+    window.backbuffer_count = backbuffer_count;
+    return s_swapchain_windows.emplace(window.hwnd, window);
+}
+
+bool BB::DestroySwapchainWindow(const SwapchainWindow& a_swapchain_window)
+{
+    // dunno yet
+    BB_UNIMPLEMENTED("Not sure how to delete this yet due to windows event system, maybe link it to that.");
 }
 
 const char* BB::GetExePath()

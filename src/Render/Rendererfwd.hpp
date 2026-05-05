@@ -153,12 +153,8 @@ namespace BB
 
 	struct RendererCreateInfo
 	{
-		WindowHandle window_handle;
 		const char* app_name;
 		const char* engine_name;
-		uint32_t swapchain_width;
-		uint32_t swapchain_height;
-		uint32_t swapchain_count;
 		float gamma;
 		bool use_raytracing;
 		bool debug;

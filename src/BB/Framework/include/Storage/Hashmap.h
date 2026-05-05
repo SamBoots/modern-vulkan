@@ -564,7 +564,7 @@ namespace BB
 			emplace(a_key, a_res);
 		}
 		template <class... Args>
-		void emplace(const Key& a_key, Args&&... a_value_args)
+		Value& emplace(const Key& a_key, Args&&... a_value_args)
 		{
 			if (m_size > m_load_capacity)
 				grow();
@@ -580,7 +580,7 @@ namespace BB
 					m_hashes[i] = hash;
 					m_keys[i] = a_key;
 					new (&m_values[i]) Value(std::forward<Args>(a_value_args)...);
-					return;
+					return m_values[i];
 				}
 			}
 
@@ -592,9 +592,11 @@ namespace BB
 					m_hashes[i] = hash;
 					m_keys[i] = a_key;
 					new (&m_values[i]) Value(std::forward<Args>(a_value_args)...);
-					return;
+					return m_values[i]
 				}
 			}
+
+			return nullptr;
 		}
 		Value* find(const Key& a_key) const
 		{
@@ -642,10 +644,11 @@ namespace BB
 					//Call the destructor if it has one for the value.
 					if constexpr (!trivalDestructableValue)
 						m_values[i].~Value();
+					memset(&m_values[i], 1, sizeof(Value));
 					//Call the destructor if it has one for the key.
 					if constexpr (!trivalDestructableKey)
 						m_keys[i].~Key();
-					m_keys[i] = 0;
+					memset(&m_keys[i], 1, sizeof(Key));
 
 					m_size--;
 					return;
@@ -661,10 +664,11 @@ namespace BB
 					//Call the destructor if it has one for the value.
 					if constexpr (!trivalDestructableValue)
 						m_values[i].~Value();
+					memset(&m_values[i], 1, sizeof(Value));
 					//Call the destructor if it has one for the key.
 					if constexpr (!trivalDestructableKey)
 						m_keys[i].~Key();
-					m_keys[i] = 0;
+					memset(&m_keys[i], 1, sizeof(Key));
 
 					m_size--;
 					return;
@@ -681,9 +685,10 @@ namespace BB
 					m_hashes[i] = Hashmap_Specs::OL_EMPTY;
 					if constexpr (!trivalDestructableValue)
 						m_values[i].~Value();
+					memset(&m_values[i], 1, sizeof(Value));
 					if constexpr (!trivalDestructableKey)
 						m_keys[i].~Key();
-					m_keys[i] = 0;
+					memset(&m_keys[i], 1, sizeof(Key));
 				}
 			}
 			m_size = 0;

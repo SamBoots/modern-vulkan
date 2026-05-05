@@ -1336,6 +1336,7 @@ bool Vulkan::RecreateSwapchain(MemoryArena& a_temp_arena, const RSwapchain a_swa
 bool Vulkan::DestroySwapchain(const RSwapchain a_swapchain)
 {
 	BB_UNIMPLEMENTED("swapchain destroy");
+	return false;
 }
 
 void Vulkan::CreateCommandPool(const QUEUE_TYPE a_queue_type, const uint32_t a_command_list_count, RCommandPool& a_pool, RCommandList* a_plists)
@@ -2860,8 +2861,8 @@ PRESENT_IMAGE_RESULT Vulkan::ExecutePresentCommandList(MemoryArena& a_temp_arena
 	constexpr VkPipelineStageFlags WAIT_STAGES[8] = { VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT };
 
 	// handle the window api for vulkan.
-	const uint32_t wait_semaphore_count = a_execute_info.wait_count + a_swapchains.size();
-	const uint32_t signal_semaphore_count = a_execute_info.signal_count + a_swapchains.size();
+	const uint32_t wait_semaphore_count = a_execute_info.wait_count + a_swapchains.size32();
+	const uint32_t signal_semaphore_count = a_execute_info.signal_count + a_swapchains.size32();
 
 	VkSemaphore* wait_semaphores = ArenaAllocArr(a_temp_arena, VkSemaphore, wait_semaphore_count);
 	uint64_t* wait_values = ArenaAllocArr(a_temp_arena, uint64_t, signal_semaphore_count);
@@ -2913,7 +2914,7 @@ PRESENT_IMAGE_RESULT Vulkan::ExecutePresentCommandList(MemoryArena& a_temp_arena
 
 	VkPresentInfoKHR present_info{};
 	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-	present_info.waitSemaphoreCount = static_cast<uint32_t>(a_swapchains.size());;
+	present_info.waitSemaphoreCount = static_cast<uint32_t>(a_swapchains.size());
 	present_info.pWaitSemaphores = &signal_semaphores[a_execute_info.signal_count];
 	present_info.swapchainCount = static_cast<uint32_t>(a_swapchains.size());
 	present_info.pSwapchains = swapchains;

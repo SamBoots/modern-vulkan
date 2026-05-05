@@ -62,13 +62,11 @@ namespace BB
 
 		struct
 		{
-			size_t swapchain_count;
-			RSwapchain swapchains[MAX_SWAPCHAINS];
-			int2 swapchain_extents[MAX_SWAPCHAINS];
 			RImage render_targets[MAX_SWAPCHAINS];
 			int2 render_target_extents[MAX_SWAPCHAINS];
 			uint32_t render_target_layers[MAX_SWAPCHAINS];
 			FixedArray<RDescriptorIndex, 3> render_target_descs[MAX_SWAPCHAINS];
+			uint32_t count;
 		} m_swapchains;
 
         enum class DRAW_TYPE

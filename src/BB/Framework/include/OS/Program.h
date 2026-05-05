@@ -20,7 +20,7 @@ namespace BB
 	using LibFuncPtr = void*;
 	typedef void (*PFN_WindowCloseEvent)(const WindowHandle a_window_handle);
 	typedef void (*PFN_WindowResizeEvent)(const WindowHandle a_window_handle, const uint32_t a_X, const uint32_t a_Y);
-	typedef void (*PFN_WindowMoveEvent)(const WindowHandle a_window_handle, const uint32_t a_X, const uint32_t a_Y);
+	typedef void (*PFN_WindowMoveEvent)(const WindowHandle a_window_handle, const int a_X, const int a_Y);
 
 	using OSThreadHandle = FrameworkHandle<struct ThreadHandletag>;
 
@@ -38,9 +38,9 @@ namespace BB
 		CURRENT = 1,
 		END = 2
 #elif _LINUX //Need to test for linux
-		//BEGIN = 0,
-		//CURRENT = 1,
-		//END = 2
+		//BEGIN = -,
+		//CURRENT = -,
+		//END = -
 #endif
 	};
 

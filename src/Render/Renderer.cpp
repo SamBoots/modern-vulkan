@@ -734,7 +734,6 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 	s_render_inst->frame_count = RENDER_LIMITS::BACK_BUFFER_MAX;
 	s_render_inst->status.frame_index = 0;
 	s_render_inst->frames = ArenaAllocArr(a_arena, RenderInterface_inst::Frame, RENDER_LIMITS::BACK_BUFFER_MAX);
-	Vulkan::CreateSwapchain(a_arena, a_render_create_info.window_handle, a_render_create_info.swapchain_width, a_render_create_info.swapchain_height, s_render_inst->frame_count);
 
 	s_render_inst->debug = a_render_create_info.debug;
 
@@ -804,7 +803,6 @@ bool BB::InitializeRenderer(MemoryArena& a_arena, const RendererCreateInfo& a_re
 
 		s_render_inst->global_buffer.buffer = Vulkan::CreateBuffer(global_buffer);
 		s_render_inst->global_buffer.mapped = Vulkan::MapBufferMemory(s_render_inst->global_buffer.buffer);
-		s_render_inst->global_buffer.data.swapchain_resolution = uint2(a_render_create_info.swapchain_width, a_render_create_info.swapchain_height);
 		s_render_inst->global_buffer.data.gamma = a_render_create_info.gamma;
 	}
 
@@ -984,10 +982,19 @@ void BB::RenderEndFrame(MemoryArena& a_temp_arena, const RCommandList a_list, co
 	s_render_inst->status.frame_ended = true;
 }
 
+RSwapchain BB::CreateSwapchain(MemoryArena& a_arena, const WindowHandle a_window_handle, const uint2 a_extent, uint32_t& a_backbuffer_count)
+{
+	return Vulkan::CreateSwapchain(a_arena, a_window_handle, a_extent.x, a_extent.y, a_backbuffer_count);
+}
+
 bool BB::ResizeSwapchain(MemoryArena& a_temp_arena, const RSwapchain a_swapchain, const uint2 a_extent)
 {
-	s_render_inst->global_buffer.data.swapchain_resolution = a_extent;
 	return Vulkan::RecreateSwapchain(a_temp_arena, a_swapchain, a_extent.x, a_extent.y);
+}
+
+bool BB::DestroySwapchain(const RSwapchain a_swapchain)
+{
+	return Vulkan::DestroySwapchain(a_swapchain);
 }
 
 void BB::StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info)

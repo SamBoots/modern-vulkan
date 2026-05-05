@@ -26,25 +26,24 @@ int main(int argc, char** argv)
     (void)argv;
 
     MemoryArena main_arena = MemoryArenaCreate();
-    EngineInfo engine_info;
-    {
-        EngineOptions engine_options;
-        // editor should give the src path 
-        //engine_options.exe_path = argv[0];
-        engine_options.exe_path = EDITOR_SRC_PATH;
-        engine_options.max_materials = 128;
-        engine_options.max_shader_effects = 64;
-        engine_options.max_material_instances = 256;
-        engine_options.enable_debug = true;
-        engine_options.debug_options.max_profiler_entries = 64;
 
-        GraphicOptions graphic_options;
-        graphic_options.use_raytracing = true; // error when false, checkout
-        engine_info = InitEngine(main_arena, L"Modern Vulkan - Editor", engine_options, graphic_options);
-    }
+	EngineOptions engine_options{};
+    // editor should give the src path 
+    //engine_options.exe_path = argv[0];
+    engine_options.exe_path = EDITOR_SRC_PATH;
+    engine_options.max_materials = 128;
+    engine_options.max_shader_effects = 64;
+    engine_options.max_material_instances = 256;
+    engine_options.enable_debug = true;
+    engine_options.debug_options.max_profiler_entries = 64;
+
+    GraphicOptions graphic_options;
+    graphic_options.use_raytracing = true; // error when false, checkout
+	EngineInfo engine_info = InitEngine(main_arena, L"Modern Vulkan - Editor", engine_options, graphic_options);
+
 
 	Editor editor{};
-	editor.Init(main_arena, engine_info.window_handle, engine_info.window_extent);
+	editor.Init(main_arena, engine_info.main_window.hwnd, engine_info.window_extent);
 
 	auto current_time = std::chrono::high_resolution_clock::now();
 
@@ -75,9 +74,9 @@ int main(int argc, char** argv)
 			int x, y;
 			OSGetWindowSize(engine_info.window_handle, x, y);
 			const uint2 new_extent = uint2(static_cast<uint32_t>(x), static_cast<uint32_t>(y));
-			MemoryArenaScope()
+			MemoryArenaScope(main_arena)
 			{
-				editor.ResizeWindow(new_extent);
+				editor.ResizeWindow(main_arena, new_extent, );
 			}
 		}
 

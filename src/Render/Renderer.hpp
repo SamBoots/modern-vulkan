@@ -52,7 +52,9 @@ namespace BB
 	void RenderStartFrame(const RCommandList a_list, const RenderStartFrameInfo& a_info, const RImage a_render_target, uint32_t& a_back_buffer_index);
 	void RenderEndFrame(MemoryArena& a_temp_arena, const RCommandList a_list, const EndFrameInfo& a_end_info, Slice<PRESENT_IMAGE_RESULT> a_upload_results);
 
+	RSwapchain CreateSwapchain(MemoryArena& a_arena, const WindowHandle a_window_handle, const uint2 a_extent, uint32_t& a_backbuffer_count);
 	bool ResizeSwapchain(MemoryArena& a_temp_arena, const RSwapchain a_swapchain, const uint2 a_extent);
+	bool DestroySwapchain(const RSwapchain a_swapchain);
 
 	void StartRenderPass(const RCommandList a_list, const StartRenderingInfo& a_render_info);
 	void EndRenderPass(const RCommandList a_list);

@@ -22,7 +22,7 @@ using namespace BB;
 
 static void DefaultClose(WindowHandle) {}
 static void DefaultResize(WindowHandle, uint32_t, uint32_t) {}
-static void DefaultMove(WindowHandle, uint32_t, uint32_t) {}
+static void DefaultMove(WindowHandle, int, int) {}
 
 static PFN_WindowCloseEvent s_pfn_close_event = DefaultClose;
 static PFN_WindowResizeEvent s_pfn_resize_event = DefaultResize;
@@ -208,6 +208,44 @@ static LRESULT CALLBACK WindowProc(HWND a_hwnd, UINT a_msg, WPARAM a_wparam, LPA
 	{
 		const uint32_t x = static_cast<uint32_t>(LOWORD(a_lparam));
 		const uint32_t y = static_cast<uint32_t>(HIWORD(a_lparam));
+		s_pfn_move_event(WindowHandle(reinterpret_cast<uint64_t>(a_hwnd)), x, y);
+		break;
+	}
+	case WM_MOUSELEAVE:
+		s_program_info.tracking_mouse = false;
+		break;
+	case WM_MOUSEMOVE:
+		s_program_info.tracking_mouse = true;
+		break;
+	case WM_INPUT:
+		return wm_input(a_hwnd, a_wparam, a_lparam);
+	default: break;
+	}
+
+	return DefWindowProcW(a_hwnd, a_msg, a_wparam, a_lparam);
+}
+
+//Custom callback for the Windows proc.
+static LRESULT CALLBACK ChildWindowProc(HWND a_hwnd, UINT a_msg, WPARAM a_wparam, LPARAM a_lparam)
+{
+	switch (a_msg)
+	{
+	case WM_QUIT:
+		break;
+	case WM_DESTROY:
+		s_pfn_close_event(WindowHandle(reinterpret_cast<uint64_t>(a_hwnd)));
+		break;
+	case WM_SIZE:
+	{
+		const uint32_t x = static_cast<uint32_t>(LOWORD(a_lparam));
+		const uint32_t y = static_cast<uint32_t>(HIWORD(a_lparam));
+		s_pfn_resize_event(WindowHandle(reinterpret_cast<uint64_t>(a_hwnd)), x, y);
+		break;
+	}
+	case WM_MOVE:
+	{
+		const int x = static_cast<int>(LOWORD(a_lparam));
+		const int y = static_cast<int>(HIWORD(a_lparam));
 		s_pfn_move_event(WindowHandle(reinterpret_cast<uint64_t>(a_hwnd)), x, y);
 		break;
 	}
